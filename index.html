@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Extended OLG Model</title>
+  <title>Economic Trajectory Model</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,187 +12,264 @@
       background: #111827;
       color: #fff;
       min-height: 100vh;
-      padding: 12px;
+      padding: 24px;
     }
-    .container { max-width: 1400px; margin: 0 auto; }
-    header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
-    h1 { color: #F59E0B; font-size: 1.25rem; }
-    .subtitle { color: #6B7280; font-size: 0.75rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    h1 { color: #F59E0B; font-size: 1.5rem; font-weight: 600; }
     .reset-btn {
-      padding: 4px 8px;
+      padding: 8px 16px;
       background: #374151;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       color: #D1D5DB;
       cursor: pointer;
-      font-size: 0.75rem;
+      font-size: 0.875rem;
     }
     .reset-btn:hover { background: #4B5563; }
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-    @media (max-width: 1000px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
-    .stat-card {
+    /* Main Chart */
+    .chart-section {
       background: rgba(31, 41, 55, 0.5);
       border: 1px solid #374151;
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
     }
-    .stat-card.warn { border-color: rgba(239, 68, 68, 0.5); }
-    .stat-card.good { border-color: rgba(16, 185, 129, 0.5); }
-    .stat-header { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
-    .stat-icon { font-size: 0.8rem; }
-    .stat-label { color: #9CA3AF; font-size: 0.65rem; }
-    .stat-value { font-size: 1rem; font-weight: bold; color: #F59E0B; }
-    .stat-card.warn .stat-value { color: #F87171; }
-    .stat-card.good .stat-value { color: #34D399; }
-    .stat-sub { color: #6B7280; font-size: 0.65rem; }
+    .chart-title {
+      font-size: 1rem;
+      color: #9CA3AF;
+      margin-bottom: 16px;
+    }
+    .chart-container {
+      height: 320px;
+      position: relative;
+    }
 
-    .main-grid {
+    /* Metrics Row */
+    .metrics-row {
       display: grid;
-      grid-template-columns: 1fr 2fr;
-      gap: 12px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
     }
-    @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
-
-    .controls-panel {
+    @media (max-width: 600px) {
+      .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    .metric-card {
       background: rgba(31, 41, 55, 0.5);
       border: 1px solid #374151;
       border-radius: 12px;
-      padding: 12px;
-      max-height: 560px;
-      overflow-y: auto;
+      padding: 16px;
+      text-align: center;
     }
-    .tab-buttons { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
-    .tab-btn {
-      padding: 4px 6px;
-      background: #374151;
-      border: none;
-      border-radius: 4px;
-      color: #D1D5DB;
-      cursor: pointer;
-      font-size: 0.7rem;
-      font-weight: 500;
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 4px;
     }
-    .tab-btn.active { background: #F59E0B; color: #111827; }
+    .metric-value.positive { color: #10B981; }
+    .metric-value.negative { color: #EF4444; }
+    .metric-value.neutral { color: #F59E0B; }
+    .metric-label {
+      font-size: 0.75rem;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
 
-    .section-title { color: #F59E0B; font-size: 0.7rem; font-weight: 500; margin: 10px 0 5px; }
-    .section-title:first-child { margin-top: 0; }
+    /* Controls Section */
+    .controls-section {
+      border-top: 1px solid #374151;
+      padding-top: 32px;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+    @media (max-width: 700px) {
+      .controls-grid { grid-template-columns: 1fr; gap: 24px; }
+    }
 
-    .slider-group { margin-bottom: 8px; }
-    .slider-header { display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 2px; }
-    .slider-label { color: #9CA3AF; }
-    .slider-value { color: #F59E0B; font-family: monospace; font-size: 0.65rem; }
+    .control-group {
+      text-align: center;
+    }
+    .control-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #F59E0B;
+      margin-bottom: 16px;
+    }
+
+    /* Immigration Slider */
+    .slider-container {
+      padding: 0 8px;
+    }
+    .slider-value-display {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .slider-reference {
+      font-size: 0.75rem;
+      color: #6B7280;
+      margin-bottom: 12px;
+    }
     input[type="range"] {
       width: 100%;
-      height: 5px;
+      height: 8px;
       background: #374151;
-      border-radius: 3px;
+      border-radius: 4px;
       appearance: none;
       cursor: pointer;
     }
     input[type="range"]::-webkit-slider-thumb {
       appearance: none;
-      width: 12px;
-      height: 12px;
+      width: 24px;
+      height: 24px;
       background: #F59E0B;
       border-radius: 50%;
+      cursor: grab;
     }
-    .slider-hint { color: #4B5563; font-size: 0.6rem; margin-top: 1px; }
-
-    .charts-panel {
-      background: rgba(31, 41, 55, 0.5);
-      border: 1px solid #374151;
-      border-radius: 12px;
-      padding: 12px;
+    input[type="range"]::-webkit-slider-thumb:active {
+      cursor: grabbing;
     }
-    .chart-container { height: 260px; position: relative; }
-    .chart-footer {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .footer-stat {
-      background: rgba(55, 65, 81, 0.5);
-      border-radius: 4px;
-      padding: 5px;
-      font-size: 0.65rem;
-    }
-    .footer-stat span:first-child { color: #6B7280; }
-    .footer-stat .val { font-family: monospace; }
-    .footer-stat .val.amber { color: #F59E0B; }
-    .footer-stat .val.blue { color: #60A5FA; }
-    .footer-stat .val.emerald { color: #34D399; }
-    .footer-stat .val.red { color: #F87171; }
-    .footer-stat .val.violet { color: #A78BFA; }
-
-    .info-bar {
-      margin-top: 8px;
-      padding: 6px 8px;
-      background: rgba(31, 41, 55, 0.3);
-      border: 1px solid rgba(55, 65, 81, 0.5);
-      border-radius: 8px;
-      font-size: 0.6rem;
-      color: #6B7280;
+    .slider-labels {
       display: flex;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #6B7280;
+      margin-top: 8px;
     }
-    .info-bar .item { display: flex; align-items: center; gap: 4px; }
-    .info-bar .dot { width: 8px; height: 8px; border-radius: 2px; }
-    .info-bar .eq { font-family: serif; font-style: italic; color: #9CA3AF; }
+
+    /* Button Groups */
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .option-btn {
+      padding: 12px 16px;
+      background: #374151;
+      border: 2px solid #374151;
+      border-radius: 8px;
+      color: #9CA3AF;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-align: left;
+      transition: all 0.15s ease;
+    }
+    .option-btn:hover {
+      background: #4B5563;
+      border-color: #4B5563;
+    }
+    .option-btn.active {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: #F59E0B;
+      color: #F59E0B;
+    }
+    .option-btn .desc {
+      font-size: 0.75rem;
+      color: #6B7280;
+      font-weight: 400;
+      margin-top: 2px;
+    }
+    .option-btn.active .desc {
+      color: #D97706;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <div>
-        <h1>Extended OLG Model</h1>
-        <p class="subtitle">Diamond OLG + Politics + Monetary Policy + Immigration + Inequality + Productivity Shocks</p>
-      </div>
+      <h1>Economic Trajectory: 2025-2075</h1>
       <button class="reset-btn" onclick="resetToDefaults()">Reset</button>
     </header>
 
-    <div class="stats-grid" id="stats-grid"></div>
-
-    <div class="main-grid">
-      <div class="controls-panel">
-        <div class="tab-buttons" id="param-tabs"></div>
-        <div id="param-content"></div>
-      </div>
-
-      <div class="charts-panel">
-        <div class="tab-buttons" id="chart-tabs"></div>
-        <div class="chart-container">
-          <canvas id="mainChart"></canvas>
-        </div>
-        <div class="chart-footer" id="chart-footer"></div>
+    <div class="chart-section">
+      <div class="chart-title">Output per Capita</div>
+      <div class="chart-container">
+        <canvas id="mainChart"></canvas>
       </div>
     </div>
 
-    <div class="info-bar">
-      <div class="item"><span class="eq">Y = A·K<sup>α</sup>·L<sup>1-α</sup></span></div>
-      <div class="item"><span class="eq">r = α·Y/K - δ</span></div>
-      <div class="item"><span class="eq">π = π* + φ(deficit)</span></div>
-      <div class="item"><span class="eq">votes = Σ pop·turnout</span></div>
-      <div class="item"><span class="eq">Gini = f(wealth distribution)</span></div>
+    <div class="metrics-row" id="metrics"></div>
+
+    <div class="controls-section">
+      <div class="controls-grid">
+        <!-- Immigration Control -->
+        <div class="control-group">
+          <div class="control-title">Immigration</div>
+          <div class="slider-container">
+            <div class="slider-value-display" id="immigration-display">0.5%</div>
+            <div class="slider-reference">Current US: ~0.3%</div>
+            <input type="range" id="immigration-slider" min="0" max="2" step="0.1" value="0.5"
+                   oninput="updateImmigration(this.value)">
+            <div class="slider-labels">
+              <span>0%</span>
+              <span>1%</span>
+              <span>2%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Productivity Control -->
+        <div class="control-group">
+          <div class="control-title">Productivity</div>
+          <div class="button-group">
+            <button class="option-btn" onclick="setProductivity('stagnation')" data-productivity="stagnation">
+              Stagnation
+              <div class="desc">TFP growth: 0.5%</div>
+            </button>
+            <button class="option-btn active" onclick="setProductivity('baseline')" data-productivity="baseline">
+              Baseline
+              <div class="desc">TFP growth: 1.0%</div>
+            </button>
+            <button class="option-btn" onclick="setProductivity('ai-boom')" data-productivity="ai-boom">
+              AI Boom
+              <div class="desc">TFP growth: 2.0% + automation</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Politics Control -->
+        <div class="control-group">
+          <div class="control-title">Political Flexibility</div>
+          <div class="button-group">
+            <button class="option-btn" onclick="setPolitics('locked')" data-politics="locked">
+              Locked
+              <div class="desc">No reform possible</div>
+            </button>
+            <button class="option-btn active" onclick="setPolitics('moderate')" data-politics="moderate">
+              Moderate
+              <div class="desc">Reform at 55% young bloc</div>
+            </button>
+            <button class="option-btn" onclick="setPolitics('responsive')" data-politics="responsive">
+              Responsive
+              <div class="desc">Reform at 45% young bloc</div>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
 <script>
 // ============================================
-// EXTENDED OLG MODEL
-// Core OLG + Politics + Monetary + Immigration + Inequality + Shocks
+// EXTENDED OLG MODEL - Simplified UI
 // ============================================
 
 const DEFAULT_PARAMS = {
-  // === CORE OLG ===
+  // Core OLG
   alpha: 0.33,
   tfp: 1.0,
   delta: 0.05,
@@ -210,158 +287,147 @@ const DEFAULT_PARAMS = {
   initialPopMiddle: 0.9,
   initialPopOld: 0.6,
 
-  // === GOVERNMENT ===
+  // Government
   taxRate: 0.22,
   govSpendingRate: 0.18,
   ssReplacementRate: 0.40,
   initialDebtRatio: 1.22,
 
-  // === POLITICS ===
+  // Politics
   turnoutYoung: 0.47,
   turnoutMiddle: 0.63,
   turnoutOld: 0.75,
-  oldPolicyWeight: 0.6,        // How much old voters protect benefits
-  reformThreshold: 0.55,       // Young bloc share needed for reform
+  oldPolicyWeight: 0.6,
+  reformThreshold: 0.55,
 
-  // === MONETARY POLICY ===
+  // Monetary
   inflationTarget: 0.02,
-  fedReactivity: 0.5,          // Taylor rule coefficient
-  fedDebtConstraint: 0.3,      // How much debt constrains Fed
-  nominalRigidity: 0.5,        // Wage stickiness
+  fedReactivity: 0.5,
+  fedDebtConstraint: 0.3,
+  nominalRigidity: 0.5,
 
-  // === IMMIGRATION ===
-  immigrationRate: 0.005,      // Annual immigration / pop
-  immigrantAge: 'young',       // 'young' or 'mixed'
-  immigrantWealth: 0.2,        // Relative to native cohort
+  // Immigration
+  immigrationRate: 0.005,
+  immigrantAge: 'young',
+  immigrantWealth: 0.2,
 
-  // === INEQUALITY ===
-  initialGini: 0.41,           // US Gini ~0.41
-  topShareIncome: 0.20,        // Top 20% income share
-  topShareWealth: 0.70,        // Top 20% wealth share
-  wealthMobility: 0.02,        // Annual mobility rate
+  // Inequality
+  initialGini: 0.41,
+  topShareIncome: 0.20,
+  topShareWealth: 0.70,
+  wealthMobility: 0.02,
 
-  // === PRODUCTIVITY SHOCKS ===
+  // Productivity
   tfpGrowth: 0.01,
-  aiShockYear: 0,              // 0 = no shock, else year offset
-  aiShockSize: 0.0,            // TFP boost from AI
-  aiLaborDisplacement: 0.0,    // Labor demand reduction
+  aiShockYear: 0,
+  aiShockSize: 0.0,
+  aiLaborDisplacement: 0.0,
 
   // Simulation
   yearsToSimulate: 50,
 };
 
 let params = { ...DEFAULT_PARAMS };
-let activeParamTab = 'core';
-let activeChartTab = 'capital';
-let simulationData = [];
+let baselineData = [];
+let scenarioData = [];
 let chart = null;
+
+// UI state
+let currentProductivity = 'baseline';
+let currentPolitics = 'moderate';
 
 // ============================================
 // SIMULATION ENGINE
 // ============================================
-function runSimulation() {
+function runSimulation(p) {
   const history = [];
 
-  // State
-  let K = params.initialCapital;
-  let popYoung = params.initialPopYoung;
-  let popMiddle = params.initialPopMiddle;
-  let popOld = params.initialPopOld;
-  let debt = params.initialDebtRatio * params.initialCapital;
-  let tfp = params.tfp;
+  let K = p.initialCapital;
+  let popYoung = p.initialPopYoung;
+  let popMiddle = p.initialPopMiddle;
+  let popOld = p.initialPopOld;
+  let debt = p.initialDebtRatio * p.initialCapital;
+  let tfp = p.tfp;
 
-  // Wealth by cohort AND quintile (top 20% vs bottom 80%)
   let wealthYoungTop = 0.4, wealthYoungBot = 0.1;
   let wealthMiddleTop = 1.6, wealthMiddleBot = 0.4;
   let wealthOldTop = 2.4, wealthOldBot = 0.6;
 
-  // Monetary state
-  let inflation = params.inflationTarget;
+  let inflation = p.inflationTarget;
   let nominalRate = 0.04;
   let realWageIndex = 1.0;
 
-  // Policy state
-  let effectiveTaxRate = params.taxRate;
-  let effectiveSSRate = params.ssReplacementRate;
+  let effectiveTaxRate = p.taxRate;
+  let effectiveSSRate = p.ssReplacementRate;
 
-  for (let t = 0; t < params.yearsToSimulate; t++) {
-    const year = 2026 + t;
+  for (let t = 0; t < p.yearsToSimulate; t++) {
+    const year = 2025 + t;
 
-    // === PRODUCTIVITY SHOCKS ===
+    // Productivity shocks
     let currentTfp = tfp;
     let laborDemandShock = 1.0;
-    if (params.aiShockYear > 0 && t >= params.aiShockYear) {
-      const yearsAfterShock = t - params.aiShockYear;
-      // AI TFP grows then plateaus
-      const aiBoost = params.aiShockSize * (1 - Math.exp(-yearsAfterShock / 5));
+    if (p.aiShockYear > 0 && t >= p.aiShockYear) {
+      const yearsAfterShock = t - p.aiShockYear;
+      const aiBoost = p.aiShockSize * (1 - Math.exp(-yearsAfterShock / 5));
       currentTfp = tfp * (1 + aiBoost);
-      // Labor displacement phases in
-      laborDemandShock = 1 - params.aiLaborDisplacement * (1 - Math.exp(-yearsAfterShock / 10));
+      laborDemandShock = 1 - p.aiLaborDisplacement * (1 - Math.exp(-yearsAfterShock / 10));
     }
 
-    // === DEMOGRAPHICS + IMMIGRATION ===
-    const births = (popYoung + popMiddle) * params.birthRate;
-    const newMiddle = popYoung * params.agingRate;
-    const newOld = popMiddle * params.agingRate;
-    const deaths = popOld * params.deathRate;
+    // Demographics + Immigration
+    const births = (popYoung + popMiddle) * p.birthRate;
+    const newMiddle = popYoung * p.agingRate;
+    const newOld = popMiddle * p.agingRate;
+    const deaths = popOld * p.deathRate;
 
-    // Immigration
     const totalPop = popYoung + popMiddle + popOld;
-    const immigrants = totalPop * params.immigrationRate;
+    const immigrants = totalPop * p.immigrationRate;
     let immigrantsYoung = 0, immigrantsMiddle = 0;
-    if (params.immigrantAge === 'young') {
+    if (p.immigrantAge === 'young') {
       immigrantsYoung = immigrants;
     } else {
       immigrantsYoung = immigrants * 0.6;
       immigrantsMiddle = immigrants * 0.4;
     }
 
-    // === LABOR SUPPLY ===
+    // Labor supply
     const laborYoung = popYoung * 0.7 * laborDemandShock;
     const laborMiddle = popMiddle * 1.0 * laborDemandShock;
     const L = laborYoung + laborMiddle;
 
-    // === PRODUCTION ===
-    const Y = currentTfp * Math.pow(K, params.alpha) * Math.pow(L, 1 - params.alpha);
+    // Production
+    const Y = currentTfp * Math.pow(K, p.alpha) * Math.pow(L, 1 - p.alpha);
     const yPerCapita = Y / totalPop;
 
-    // === FACTOR PRICES ===
-    const wage = (1 - params.alpha) * Y / L;
-    const r_gross = params.alpha * Y / K;
-    const realRate = r_gross - params.delta;
+    // Factor prices
+    const wage = (1 - p.alpha) * Y / L;
+    const r_gross = p.alpha * Y / K;
+    const realRate = r_gross - p.delta;
 
-    // === POLITICS: VOTING POWER ===
-    const votesYoung = popYoung * params.turnoutYoung;
-    const votesMiddle = popMiddle * params.turnoutMiddle;
-    const votesOld = popOld * params.turnoutOld;
+    // Politics: voting power
+    const votesYoung = popYoung * p.turnoutYoung;
+    const votesMiddle = popMiddle * p.turnoutMiddle;
+    const votesOld = popOld * p.turnoutOld;
     const totalVotes = votesYoung + votesMiddle + votesOld;
 
-    // Old bloc = old + portion of middle (they're closer to retirement)
-    const middleOldLean = 0.4 + (t * 0.005); // Middle leans old over time
+    const middleOldLean = 0.4 + (t * 0.005);
     const oldBloc = votesOld + votesMiddle * Math.min(0.7, middleOldLean);
     const youngBloc = votesYoung + votesMiddle * (1 - Math.min(0.7, middleOldLean));
     const oldBlocShare = oldBloc / totalVotes;
     const youngBlocShare = youngBloc / totalVotes;
 
-    // Policy reform possible if young bloc exceeds threshold
-    const reformPossible = youngBlocShare > params.reformThreshold;
+    const reformPossible = youngBlocShare > p.reformThreshold;
+    const policyResistance = oldBlocShare * p.oldPolicyWeight;
 
-    // Political resistance to cutting benefits
-    const policyResistance = oldBlocShare * params.oldPolicyWeight;
-
-    // Gradual policy adjustment
     if (reformPossible && debt / Y > 1.5) {
-      // Crisis forces reform
       effectiveSSRate = Math.max(0.25, effectiveSSRate - 0.005);
       effectiveTaxRate = Math.min(0.35, effectiveTaxRate + 0.002);
     } else {
-      // Status quo bias
-      effectiveSSRate = effectiveSSRate * (1 - 0.001 * (1 - policyResistance)) + params.ssReplacementRate * 0.001;
+      effectiveSSRate = effectiveSSRate * (1 - 0.001 * (1 - policyResistance)) + p.ssReplacementRate * 0.001;
     }
 
-    // === GOVERNMENT ===
+    // Government
     const taxRevenue = effectiveTaxRate * wage * L;
-    const govSpending = params.govSpendingRate * Y;
+    const govSpending = p.govSpendingRate * Y;
     const ssPayments = effectiveSSRate * wage * popOld;
     const interestPayment = Math.max(0, nominalRate - inflation) * debt;
     const primaryDeficit = govSpending + ssPayments - taxRevenue;
@@ -369,38 +435,33 @@ function runSimulation() {
     debt = Math.max(0, debt + totalDeficit);
     const debtToGdp = debt / Y;
 
-    // === MONETARY POLICY ===
-    // Inflation driven by deficit monetization + demand
+    // Monetary policy
     const deficitPressure = Math.max(0, totalDeficit / Y) * 0.3;
     const demandPressure = Math.max(0, (realRate - 0.02)) * 0.2;
-    const targetInflation = params.inflationTarget + deficitPressure - demandPressure;
-    inflation = inflation * 0.8 + targetInflation * 0.2; // Smooth adjustment
+    const targetInflation = p.inflationTarget + deficitPressure - demandPressure;
+    inflation = inflation * 0.8 + targetInflation * 0.2;
 
-    // Fed reaction (Taylor rule with constraints)
-    const desiredRate = params.inflationTarget + realRate + params.fedReactivity * (inflation - params.inflationTarget);
-    const debtConstraint = Math.max(0, (debtToGdp - 1.0) * params.fedDebtConstraint);
+    const desiredRate = p.inflationTarget + realRate + p.fedReactivity * (inflation - p.inflationTarget);
+    const debtConstraint = Math.max(0, (debtToGdp - 1.0) * p.fedDebtConstraint);
     const constrainedRate = desiredRate * (1 - debtConstraint);
     nominalRate = Math.max(0.001, Math.min(0.15, nominalRate * 0.9 + constrainedRate * 0.1));
 
-    // Real wage adjustment (sticky)
     const targetRealWage = wage;
-    realWageIndex = realWageIndex * params.nominalRigidity + targetRealWage * (1 - params.nominalRigidity);
+    realWageIndex = realWageIndex * p.nominalRigidity + targetRealWage * (1 - p.nominalRigidity);
 
-    // === HOUSEHOLD OPTIMIZATION ===
+    // Household optimization
     const wageAfterTax = realWageIndex * (1 - effectiveTaxRate);
-    const betaAdj = Math.pow(params.beta, 1/params.gamma);
-    const rAdj = Math.pow(Math.max(1.001, 1 + realRate), (1 - params.gamma) / params.gamma);
+    const betaAdj = Math.pow(p.beta, 1/p.gamma);
+    const rAdj = Math.pow(Math.max(1.001, 1 + realRate), (1 - p.gamma) / p.gamma);
     const savingsRateOptimal = Math.max(0.1, Math.min(0.6, (betaAdj * rAdj) / (1 + betaAdj * rAdj)));
 
     const savingsRateYoung = Math.min(0.5, savingsRateOptimal * 1.3);
     const savingsRateMiddle = savingsRateOptimal * 0.9;
 
-    // === INEQUALITY: INCOME & CONSUMPTION BY QUINTILE ===
-    // Top 20% earn more, save more
-    const topIncomeShare = params.topShareIncome;
+    // Income & consumption by quintile
+    const topIncomeShare = p.topShareIncome;
     const botIncomeShare = 1 - topIncomeShare;
 
-    // Young
     const incomeYoungTop = wageAfterTax * 0.7 * popYoung * 0.2 * (topIncomeShare / 0.2);
     const incomeYoungBot = wageAfterTax * 0.7 * popYoung * 0.8 * (botIncomeShare / 0.8);
     const consYoungTop = incomeYoungTop * (1 - savingsRateYoung * 1.2);
@@ -408,7 +469,6 @@ function runSimulation() {
     const savingsYoungTop = incomeYoungTop - consYoungTop;
     const savingsYoungBot = incomeYoungBot - consYoungBot;
 
-    // Middle
     const incomeMiddleTop = wageAfterTax * 1.0 * popMiddle * 0.2 * (topIncomeShare / 0.2);
     const incomeMiddleBot = wageAfterTax * 1.0 * popMiddle * 0.8 * (botIncomeShare / 0.8);
     const consMiddleTop = incomeMiddleTop * (1 - savingsRateMiddle * 1.2);
@@ -416,8 +476,7 @@ function runSimulation() {
     const savingsMiddleTop = incomeMiddleTop - consMiddleTop;
     const savingsMiddleBot = incomeMiddleBot - consMiddleBot;
 
-    // Old (consume from SS + wealth)
-    const ssTop = ssPayments * 0.2 * 0.8; // SS is more equal
+    const ssTop = ssPayments * 0.2 * 0.8;
     const ssBot = ssPayments * 0.8 * 1.05;
     const wealthIncomeTop = wealthOldTop * Math.max(0, realRate) * 0.1;
     const wealthIncomeBot = wealthOldBot * Math.max(0, realRate) * 0.1;
@@ -427,14 +486,13 @@ function runSimulation() {
     const totalConsumption = consYoungTop + consYoungBot + consMiddleTop + consMiddleBot + consOldTop + consOldBot;
     const totalSavings = savingsYoungTop + savingsYoungBot + savingsMiddleTop + savingsMiddleBot;
 
-    // === CAPITAL ACCUMULATION ===
+    // Capital accumulation
     const investment = Math.max(0, totalSavings - totalDeficit);
-    const K_next = (1 - params.delta) * K + investment;
+    const K_next = (1 - p.delta) * K + investment;
 
-    // === WEALTH DYNAMICS ===
+    // Wealth dynamics
     const returnRate = 1 + realRate;
 
-    // Wealth accumulation with returns
     let wYT_new = wealthYoungTop * returnRate + savingsYoungTop;
     let wYB_new = wealthYoungBot * returnRate + savingsYoungBot;
     let wMT_new = wealthMiddleTop * returnRate + savingsMiddleTop;
@@ -442,36 +500,24 @@ function runSimulation() {
     let wOT_new = Math.max(0, wealthOldTop * returnRate * 0.95 - consOldTop * 0.3);
     let wOB_new = Math.max(0, wealthOldBot * returnRate * 0.95 - consOldBot * 0.3);
 
-    // Bequests from dying old
-    const bequestsTop = wealthOldTop * params.deathRate;
-    const bequestsBot = wealthOldBot * params.deathRate;
+    const bequestsTop = wealthOldTop * p.deathRate;
+    const bequestsBot = wealthOldBot * p.deathRate;
 
-    // Mobility: small flow between top and bottom
-    const mobilityUp = params.wealthMobility;
-    const mobilityDown = params.wealthMobility * 0.5; // Stickier at top
+    const mobilityUp = p.wealthMobility;
+    const mobilityDown = p.wealthMobility * 0.5;
 
-    // === INEQUALITY METRICS ===
+    // Inequality metrics
     const totalWealth = wealthYoungTop + wealthYoungBot + wealthMiddleTop + wealthMiddleBot + wealthOldTop + wealthOldBot;
     const topWealth = wealthYoungTop + wealthMiddleTop + wealthOldTop;
     const topWealthShare = totalWealth > 0 ? topWealth / totalWealth : 0.7;
 
-    // Approximate Gini from top share (rough)
-    const gini = 0.2 + topWealthShare * 0.6;
+    // Update state
+    popYoung = popYoung * (1 - p.agingRate) + births + immigrantsYoung;
+    popMiddle = popMiddle * (1 - p.agingRate) + newMiddle + immigrantsMiddle;
+    popOld = popOld * (1 - p.deathRate) + newOld;
 
-    // === DYNAMIC EFFICIENCY ===
-    const popGrowth = (births + immigrants) / totalPop;
-    const dynamicallyEfficient = realRate > popGrowth;
-
-    // === UPDATE STATE ===
-    // Demographics
-    popYoung = popYoung * (1 - params.agingRate) + births + immigrantsYoung;
-    popMiddle = popMiddle * (1 - params.agingRate) + newMiddle + immigrantsMiddle;
-    popOld = popOld * (1 - params.deathRate) + newOld;
-
-    // Capital
     K = K_next;
 
-    // Wealth (with bequests and mobility)
     wealthYoungTop = wYT_new + bequestsTop * 0.5 - wYT_new * mobilityDown + wYB_new * mobilityUp;
     wealthYoungBot = wYB_new + bequestsBot * 0.3 + wYT_new * mobilityDown - wYB_new * mobilityUp;
     wealthMiddleTop = wMT_new + bequestsTop * 0.4 - wMT_new * mobilityDown + wMB_new * mobilityUp;
@@ -479,48 +525,18 @@ function runSimulation() {
     wealthOldTop = Math.max(0, wOT_new);
     wealthOldBot = Math.max(0, wOB_new);
 
-    // Add immigrant wealth
-    wealthYoungTop += immigrantsYoung * 0.2 * params.immigrantWealth * (topWealthShare);
-    wealthYoungBot += immigrantsYoung * 0.8 * params.immigrantWealth * (1 - topWealthShare);
+    wealthYoungTop += immigrantsYoung * 0.2 * p.immigrantWealth * (topWealthShare);
+    wealthYoungBot += immigrantsYoung * 0.8 * p.immigrantWealth * (1 - topWealthShare);
 
-    // TFP growth
-    tfp *= (1 + params.tfpGrowth);
+    tfp *= (1 + p.tfpGrowth);
 
-    // Record
     history.push({
       year,
-      // Core
-      output: Y, capital: K, labor: L, tfp: currentTfp, yPerCapita,
-      wage, realRate, r_gross,
-
-      // Demographics
-      popYoung, popMiddle, popOld, popTotal: popYoung + popMiddle + popOld,
+      yPerCapita,
+      debtToGdp,
+      reformPossible,
       dependencyRatio: popOld / (popYoung + popMiddle),
-      immigrants,
-
-      // Consumption & Savings
-      consumption: totalConsumption, investment,
-      savingsRate: totalSavings / Y,
-
-      // Wealth & Inequality
-      totalWealth, topWealthShare, gini,
-      wealthYoung: wealthYoungTop + wealthYoungBot,
-      wealthMiddle: wealthMiddleTop + wealthMiddleBot,
-      wealthOld: wealthOldTop + wealthOldBot,
-
-      // Government
-      taxRevenue, govSpending, ssPayments,
-      deficit: totalDeficit, debt, debtToGdp,
-      effectiveTaxRate, effectiveSSRate,
-
-      // Monetary
-      inflation, nominalRate, realWageIndex,
-
-      // Politics
-      oldBlocShare, youngBlocShare, reformPossible, policyResistance,
-
-      // Efficiency
-      dynamicallyEfficient,
+      youngBlocShare,
     });
   }
 
@@ -528,280 +544,228 @@ function runSimulation() {
 }
 
 // ============================================
-// UI
+// UI CONTROLS
 // ============================================
-function renderStats() {
-  const start = simulationData[0];
-  const end = simulationData[simulationData.length - 1];
-  const reformYear = simulationData.find(d => d.reformPossible)?.year;
-
-  const stats = [
-    { icon: '📈', label: 'Output/Cap', value: end.yPerCapita.toFixed(2), sub: `${((end.yPerCapita/start.yPerCapita - 1)*100).toFixed(0)}%`, warn: end.yPerCapita < start.yPerCapita, good: end.yPerCapita > start.yPerCapita * 1.3 },
-    { icon: '💰', label: 'Real Rate', value: `${(end.realRate * 100).toFixed(1)}%`, sub: `nom ${(end.nominalRate*100).toFixed(1)}%`, warn: end.realRate < 0 },
-    { icon: '🔥', label: 'Inflation', value: `${(end.inflation * 100).toFixed(1)}%`, sub: `tgt ${(params.inflationTarget*100).toFixed(0)}%`, warn: end.inflation > 0.05 },
-    { icon: '💸', label: 'Debt/GDP', value: `${(end.debtToGdp * 100).toFixed(0)}%`, sub: `${((end.debtToGdp - start.debtToGdp)*100).toFixed(0)}pp`, warn: end.debtToGdp > 1.5 },
-    { icon: '👴', label: 'Old Bloc', value: `${(end.oldBlocShare * 100).toFixed(0)}%`, sub: end.reformPossible ? 'Reform!' : 'Locked', warn: end.oldBlocShare > 0.55, good: end.reformPossible },
-    { icon: '📊', label: 'Gini', value: end.gini.toFixed(2), sub: `top ${(end.topWealthShare*100).toFixed(0)}%`, warn: end.gini > 0.45 },
-    { icon: '🌍', label: 'Immig/yr', value: `${(end.immigrants * 100).toFixed(1)}%`, sub: `of pop`, good: params.immigrationRate > 0.005 },
-    { icon: '🤖', label: 'TFP', value: end.tfp.toFixed(2), sub: `${((end.tfp/start.tfp-1)*100).toFixed(0)}%`, good: end.tfp > start.tfp * 1.3 },
-  ];
-
-  document.getElementById('stats-grid').innerHTML = stats.map(s => `
-    <div class="stat-card${s.warn ? ' warn' : ''}${s.good ? ' good' : ''}">
-      <div class="stat-header">
-        <span class="stat-icon">${s.icon}</span>
-        <span class="stat-label">${s.label}</span>
-      </div>
-      <div class="stat-value">${s.value}</div>
-      <div class="stat-sub">${s.sub}</div>
-    </div>
-  `).join('');
+function updateImmigration(value) {
+  params.immigrationRate = parseFloat(value) / 100;
+  document.getElementById('immigration-display').textContent = value + '%';
+  update();
 }
 
-function renderParamTabs() {
-  const tabs = ['core', 'govt', 'politics', 'monetary', 'immigr', 'ineq', 'shocks'];
-  document.getElementById('param-tabs').innerHTML = tabs.map(t =>
-    `<button class="tab-btn${activeParamTab === t ? ' active' : ''}" onclick="setParamTab('${t}')">${t.charAt(0).toUpperCase() + t.slice(1)}</button>`
-  ).join('');
-}
+function setProductivity(mode) {
+  currentProductivity = mode;
 
-function renderParamContent() {
-  const container = document.getElementById('param-content');
+  // Update button states
+  document.querySelectorAll('[data-productivity]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.productivity === mode);
+  });
 
-  if (activeParamTab === 'core') {
-    container.innerHTML = `
-      <div class="section-title">Production</div>
-      ${slider('alpha', 'Capital Share (α)', 0.25, 0.45, 0.01, v => v.toFixed(2))}
-      ${slider('tfp', 'TFP Level', 0.5, 2.0, 0.1, v => v.toFixed(1))}
-      ${slider('tfpGrowth', 'TFP Growth', 0.0, 0.03, 0.005, v => (v*100).toFixed(1)+'%')}
-      ${slider('delta', 'Depreciation', 0.03, 0.08, 0.01, v => (v*100).toFixed(0)+'%')}
-      <div class="section-title">Preferences</div>
-      ${slider('beta', 'Discount (β)', 0.92, 0.99, 0.01, v => v.toFixed(2))}
-      ${slider('gamma', 'Risk Aversion (γ)', 1.0, 4.0, 0.5, v => v.toFixed(1))}
-      <div class="section-title">Demographics</div>
-      ${slider('birthRate', 'Birth Rate', 0.0, 0.025, 0.001, v => (v*100).toFixed(1)+'%')}
-      ${slider('agingRate', 'Aging Rate', 0.03, 0.07, 0.005, v => (v*100).toFixed(1)+'%')}
-      ${slider('deathRate', 'Death Rate', 0.03, 0.08, 0.01, v => (v*100).toFixed(0)+'%')}
-      ${slider('yearsToSimulate', 'Years', 25, 100, 5, v => v)}
-    `;
-  } else if (activeParamTab === 'govt') {
-    container.innerHTML = `
-      <div class="section-title">Fiscal Policy</div>
-      ${slider('taxRate', 'Tax Rate', 0.15, 0.35, 0.01, v => (v*100).toFixed(0)+'%')}
-      ${slider('govSpendingRate', 'Gov Spending/GDP', 0.12, 0.25, 0.01, v => (v*100).toFixed(0)+'%')}
-      ${slider('ssReplacementRate', 'SS Replacement', 0.25, 0.50, 0.05, v => (v*100).toFixed(0)+'%')}
-      ${slider('initialDebtRatio', 'Initial Debt/GDP', 0.5, 2.0, 0.1, v => (v*100).toFixed(0)+'%')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>Deficit = G + SS + rD - T</div>
-        <div>Investment = Savings - Deficit</div>
-      </div>
-    `;
-  } else if (activeParamTab === 'politics') {
-    container.innerHTML = `
-      <div class="section-title">Voter Turnout</div>
-      ${slider('turnoutYoung', 'Young (20-40)', 0.30, 0.60, 0.01, v => (v*100).toFixed(0)+'%')}
-      ${slider('turnoutMiddle', 'Middle (40-60)', 0.50, 0.75, 0.01, v => (v*100).toFixed(0)+'%')}
-      ${slider('turnoutOld', 'Old (60+)', 0.60, 0.85, 0.01, v => (v*100).toFixed(0)+'%')}
-      <div class="section-title">Political Economy</div>
-      ${slider('oldPolicyWeight', 'Old Bloc Power', 0.3, 0.8, 0.05, v => (v*100).toFixed(0)+'%', 'Benefit protection')}
-      ${slider('reformThreshold', 'Reform Threshold', 0.50, 0.65, 0.01, v => (v*100).toFixed(0)+'%', 'Young share for reform')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>Old bloc = Old + Middle×lean</div>
-        <div>Reform if youngShare > threshold</div>
-      </div>
-    `;
-  } else if (activeParamTab === 'monetary') {
-    container.innerHTML = `
-      <div class="section-title">Fed Policy</div>
-      ${slider('inflationTarget', 'Inflation Target', 0.01, 0.04, 0.005, v => (v*100).toFixed(1)+'%')}
-      ${slider('fedReactivity', 'Taylor Coefficient', 0.2, 1.5, 0.1, v => v.toFixed(1))}
-      ${slider('fedDebtConstraint', 'Debt Constraint', 0.0, 0.6, 0.1, v => (v*100).toFixed(0)+'%', 'Limits hawkishness')}
-      <div class="section-title">Price Dynamics</div>
-      ${slider('nominalRigidity', 'Wage Stickiness', 0.2, 0.8, 0.1, v => (v*100).toFixed(0)+'%')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>i = r* + π* + φ(π - π*)</div>
-        <div>High debt → Fed constrained</div>
-      </div>
-    `;
-  } else if (activeParamTab === 'immigr') {
-    container.innerHTML = `
-      <div class="section-title">Immigration</div>
-      ${slider('immigrationRate', 'Annual Rate', 0.0, 0.02, 0.001, v => (v*100).toFixed(1)+'%', '% of population')}
-      <div class="section-title">Immigrant Profile</div>
-      <div style="margin-bottom:8px;">
-        <label style="font-size:0.7rem;color:#9CA3AF;">Age Distribution</label>
-        <select onchange="updateParam('immigrantAge', this.value)" style="width:100%;padding:4px;background:#374151;border:none;border-radius:4px;color:#fff;font-size:0.7rem;">
-          <option value="young" ${params.immigrantAge === 'young' ? 'selected' : ''}>Young (100% age 20-40)</option>
-          <option value="mixed" ${params.immigrantAge === 'mixed' ? 'selected' : ''}>Mixed (60% young, 40% middle)</option>
-        </select>
-      </div>
-      ${slider('immigrantWealth', 'Relative Wealth', 0.0, 0.5, 0.05, v => (v*100).toFixed(0)+'%', 'vs native cohort')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>Immigration adds workers</div>
-        <div>Lowers dependency ratio</div>
-        <div>Increases labor supply L</div>
-      </div>
-    `;
-  } else if (activeParamTab === 'ineq') {
-    container.innerHTML = `
-      <div class="section-title">Income Distribution</div>
-      ${slider('topShareIncome', 'Top 20% Income', 0.30, 0.50, 0.02, v => (v*100).toFixed(0)+'%')}
-      <div class="section-title">Wealth Distribution</div>
-      ${slider('topShareWealth', 'Top 20% Wealth', 0.50, 0.85, 0.05, v => (v*100).toFixed(0)+'%')}
-      ${slider('wealthMobility', 'Annual Mobility', 0.0, 0.05, 0.005, v => (v*100).toFixed(1)+'%', 'Churn between quintiles')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>Top 20% save more, earn more</div>
-        <div>Wealth compounds returns</div>
-        <div>Mobility allows movement</div>
-      </div>
-    `;
-  } else if (activeParamTab === 'shocks') {
-    container.innerHTML = `
-      <div class="section-title">AI/Productivity Shock</div>
-      ${slider('aiShockYear', 'Shock Year', 0, 30, 5, v => v === 0 ? 'None' : '+'+ v + 'yr', '0 = no shock')}
-      ${slider('aiShockSize', 'TFP Boost', 0.0, 0.5, 0.05, v => '+' + (v*100).toFixed(0)+'%', 'Productivity gain')}
-      ${slider('aiLaborDisplacement', 'Labor Displacement', 0.0, 0.3, 0.05, v => (v*100).toFixed(0)+'%', 'Reduced labor demand')}
-      <div style="margin-top:8px;padding:6px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.6rem;color:#9CA3AF;">
-        <div>AI raises TFP (output per input)</div>
-        <div>But may reduce labor demand</div>
-        <div>Net effect depends on magnitudes</div>
-      </div>
-    `;
+  // Apply preset
+  if (mode === 'stagnation') {
+    params.tfpGrowth = 0.005;
+    params.aiShockYear = 0;
+    params.aiShockSize = 0;
+    params.aiLaborDisplacement = 0;
+  } else if (mode === 'baseline') {
+    params.tfpGrowth = 0.01;
+    params.aiShockYear = 0;
+    params.aiShockSize = 0;
+    params.aiLaborDisplacement = 0;
+  } else if (mode === 'ai-boom') {
+    params.tfpGrowth = 0.02;
+    params.aiShockYear = 5;
+    params.aiShockSize = 0.3;
+    params.aiLaborDisplacement = 0.15;
   }
+
+  update();
 }
 
-function slider(key, label, min, max, step, format, hint) {
-  return `
-    <div class="slider-group">
-      <div class="slider-header">
-        <span class="slider-label">${label}</span>
-        <span class="slider-value">${format(params[key])}</span>
+function setPolitics(mode) {
+  currentPolitics = mode;
+
+  // Update button states
+  document.querySelectorAll('[data-politics]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.politics === mode);
+  });
+
+  // Apply preset
+  if (mode === 'locked') {
+    params.reformThreshold = 0.99; // Effectively impossible
+    params.oldPolicyWeight = 0.9;
+  } else if (mode === 'moderate') {
+    params.reformThreshold = 0.55;
+    params.oldPolicyWeight = 0.6;
+  } else if (mode === 'responsive') {
+    params.reformThreshold = 0.45;
+    params.oldPolicyWeight = 0.4;
+  }
+
+  update();
+}
+
+function resetToDefaults() {
+  params = { ...DEFAULT_PARAMS };
+  currentProductivity = 'baseline';
+  currentPolitics = 'moderate';
+
+  document.getElementById('immigration-slider').value = 0.5;
+  document.getElementById('immigration-display').textContent = '0.5%';
+
+  document.querySelectorAll('[data-productivity]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.productivity === 'baseline');
+  });
+  document.querySelectorAll('[data-politics]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.politics === 'moderate');
+  });
+
+  update();
+}
+
+// ============================================
+// RENDERING
+// ============================================
+function renderMetrics() {
+  const start = scenarioData[0];
+  const end = scenarioData[scenarioData.length - 1];
+  const baselineEnd = baselineData[baselineData.length - 1];
+
+  // Living standard change vs today
+  const livingStandardChange = ((end.yPerCapita / start.yPerCapita) - 1) * 100;
+
+  // Debt trajectory
+  let debtStatus = 'Stable';
+  let debtClass = 'neutral';
+  if (end.debtToGdp > 2.0) {
+    debtStatus = 'Exploding';
+    debtClass = 'negative';
+  } else if (end.debtToGdp > 1.5) {
+    debtStatus = 'Rising';
+    debtClass = 'negative';
+  } else if (end.debtToGdp < 1.0) {
+    debtStatus = 'Falling';
+    debtClass = 'positive';
+  }
+
+  // Reform window
+  const reformYear = scenarioData.find(d => d.reformPossible);
+  const reformWindow = reformYear ? reformYear.year : 'Never';
+  const reformClass = reformYear ? 'positive' : 'negative';
+
+  // Dependency ratio (workers per retiree)
+  const workersPerRetiree = (1 / end.dependencyRatio).toFixed(1);
+  const depClass = end.dependencyRatio > 0.5 ? 'negative' : 'neutral';
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-value ${livingStandardChange >= 0 ? 'positive' : 'negative'}">
+        ${livingStandardChange >= 0 ? '+' : ''}${livingStandardChange.toFixed(0)}%
       </div>
-      <input type="range" min="${min}" max="${max}" step="${step}" value="${params[key]}"
-             oninput="updateParam('${key}', parseFloat(this.value))">
-      ${hint ? `<div class="slider-hint">${hint}</div>` : ''}
+      <div class="metric-label">2075 Living Standard</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${debtClass}">${debtStatus}</div>
+      <div class="metric-label">Debt Trajectory</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${reformClass}">${reformWindow}</div>
+      <div class="metric-label">Reform Window</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${depClass}">${workersPerRetiree}</div>
+      <div class="metric-label">Workers per Retiree</div>
     </div>
   `;
-}
-
-function renderChartTabs() {
-  const tabs = [
-    { id: 'capital', label: 'Capital' },
-    { id: 'prices', label: 'Prices' },
-    { id: 'politics', label: 'Politics' },
-    { id: 'fiscal', label: 'Fiscal' },
-    { id: 'inequality', label: 'Inequality' },
-    { id: 'demographics', label: 'Demog' },
-  ];
-  document.getElementById('chart-tabs').innerHTML = tabs.map(t =>
-    `<button class="tab-btn${activeChartTab === t.id ? ' active' : ''}" onclick="setChartTab('${t.id}')">${t.label}</button>`
-  ).join('');
 }
 
 function renderChart() {
   const ctx = document.getElementById('mainChart').getContext('2d');
   if (chart) chart.destroy();
 
-  const labels = simulationData.map(d => d.year);
-  let datasets = [];
-  let yConfig = {};
+  const labels = scenarioData.map(d => d.year);
+  const baselineEnd = baselineData[baselineData.length - 1];
+  const scenarioEnd = scenarioData[scenarioData.length - 1];
 
-  if (activeChartTab === 'capital') {
-    datasets = [
-      { label: 'Capital (K)', data: simulationData.map(d => d.capital), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.3, yAxisID: 'y' },
-      { label: 'Output (Y)', data: simulationData.map(d => d.output), borderColor: '#3B82F6', tension: 0.3, yAxisID: 'y' },
-      { label: 'TFP', data: simulationData.map(d => d.tfp), borderColor: '#10B981', borderDash: [4,4], tension: 0.3, yAxisID: 'y1' },
-    ];
-    yConfig = {
-      y: { position: 'left', title: { display: true, text: 'K, Y', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } },
-      y1: { position: 'right', title: { display: true, text: 'TFP', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { display: false } }
-    };
-  } else if (activeChartTab === 'prices') {
-    datasets = [
-      { label: 'Real Rate', data: simulationData.map(d => d.realRate * 100), borderColor: '#EF4444', tension: 0.3 },
-      { label: 'Nominal Rate', data: simulationData.map(d => d.nominalRate * 100), borderColor: '#F59E0B', borderDash: [4,4], tension: 0.3 },
-      { label: 'Inflation', data: simulationData.map(d => d.inflation * 100), borderColor: '#8B5CF6', tension: 0.3 },
-      { label: 'Target', data: simulationData.map(() => params.inflationTarget * 100), borderColor: '#10B981', borderDash: [2,2], tension: 0 },
-    ];
-    yConfig = { y: { title: { display: true, text: '%', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' } } };
-  } else if (activeChartTab === 'politics') {
-    datasets = [
-      { label: 'Old Bloc', data: simulationData.map(d => d.oldBlocShare * 100), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.3 },
-      { label: 'Young Bloc', data: simulationData.map(d => d.youngBlocShare * 100), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0.3 },
-      { label: 'Reform Line', data: simulationData.map(() => params.reformThreshold * 100), borderColor: '#EF4444', borderDash: [4,4], tension: 0 },
-    ];
-    yConfig = { y: { title: { display: true, text: 'Vote Share %', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' }, min: 30, max: 70 } };
-  } else if (activeChartTab === 'fiscal') {
-    datasets = [
-      { label: 'Debt/GDP', data: simulationData.map(d => d.debtToGdp * 100), borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.15)', fill: true, tension: 0.3 },
-      { label: 'Tax Rate', data: simulationData.map(d => d.effectiveTaxRate * 100), borderColor: '#10B981', tension: 0.3 },
-      { label: 'SS Rate', data: simulationData.map(d => d.effectiveSSRate * 100), borderColor: '#F59E0B', tension: 0.3 },
-    ];
-    yConfig = { y: { title: { display: true, text: '%', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' } } };
-  } else if (activeChartTab === 'inequality') {
-    datasets = [
-      { label: 'Gini', data: simulationData.map(d => d.gini), borderColor: '#EF4444', tension: 0.3, yAxisID: 'y' },
-      { label: 'Top 20% Wealth', data: simulationData.map(d => d.topWealthShare * 100), borderColor: '#8B5CF6', tension: 0.3, yAxisID: 'y1' },
-      { label: 'Total Wealth', data: simulationData.map(d => d.totalWealth), borderColor: '#10B981', borderDash: [4,4], tension: 0.3, yAxisID: 'y2' },
-    ];
-    yConfig = {
-      y: { position: 'left', title: { display: true, text: 'Gini', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' }, min: 0.3, max: 0.6 },
-      y1: { position: 'right', title: { display: true, text: 'Top %', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { display: false } },
-      y2: { display: false }
-    };
-  } else if (activeChartTab === 'demographics') {
-    datasets = [
-      { label: 'Young', data: simulationData.map(d => d.popYoung), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.2)', fill: true, tension: 0.3 },
-      { label: 'Middle', data: simulationData.map(d => d.popMiddle), borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.2)', fill: true, tension: 0.3 },
-      { label: 'Old', data: simulationData.map(d => d.popOld), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.3 },
-    ];
-    yConfig = { y: { stacked: false, title: { display: true, text: 'Population', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } } };
-  }
+  // Determine scenario color based on outcome
+  const isBetter = scenarioEnd.yPerCapita >= baselineEnd.yPerCapita;
+  const scenarioColor = isBetter ? '#10B981' : '#EF4444';
+  const scenarioBg = isBetter ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
 
   chart = new Chart(ctx, {
     type: 'line',
-    data: { labels, datasets },
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Baseline',
+          data: baselineData.map(d => d.yPerCapita),
+          borderColor: '#6B7280',
+          backgroundColor: 'rgba(107, 114, 128, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+        },
+        {
+          label: 'Your Scenario',
+          data: scenarioData.map(d => d.yPerCapita),
+          borderColor: scenarioColor,
+          backgroundColor: scenarioBg,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+        },
+      ],
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#9CA3AF', font: { size: 9 } } },
-        tooltip: { backgroundColor: '#1F2937', borderColor: '#374151', borderWidth: 1 }
+        legend: {
+          labels: { color: '#9CA3AF', font: { size: 12 } },
+          position: 'top',
+        },
+        tooltip: {
+          backgroundColor: '#1F2937',
+          borderColor: '#374151',
+          borderWidth: 1,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+            }
+          }
+        },
       },
       scales: {
-        x: { ticks: { color: '#9CA3AF', font: { size: 9 } }, grid: { color: '#374151' } },
-        ...yConfig
-      }
-    }
+        x: {
+          ticks: { color: '#9CA3AF', font: { size: 11 } },
+          grid: { color: '#374151' },
+        },
+        y: {
+          title: { display: true, text: 'Output per Capita', color: '#9CA3AF' },
+          ticks: { color: '#9CA3AF', font: { size: 11 } },
+          grid: { color: '#374151' },
+        },
+      },
+    },
   });
 }
 
-function renderChartFooter() {
-  const end = simulationData[simulationData.length - 1];
-  document.getElementById('chart-footer').innerHTML = `
-    <div class="footer-stat"><span>K/Y:</span> <span class="val amber">${(end.capital / end.output).toFixed(2)}</span></div>
-    <div class="footer-stat"><span>Dep Ratio:</span> <span class="val red">${(end.dependencyRatio * 100).toFixed(0)}%</span></div>
-    <div class="footer-stat"><span>Savings:</span> <span class="val emerald">${(end.savingsRate * 100).toFixed(0)}%</span></div>
-    <div class="footer-stat"><span>Reform:</span> <span class="val ${end.reformPossible ? 'emerald' : 'red'}">${end.reformPossible ? 'Yes' : 'No'}</span></div>
-    <div class="footer-stat"><span>r > n:</span> <span class="val ${end.dynamicallyEfficient ? 'emerald' : 'red'}">${end.dynamicallyEfficient ? 'Yes' : 'No'}</span></div>
-  `;
+function update() {
+  scenarioData = runSimulation(params);
+  renderMetrics();
+  renderChart();
 }
 
-function setParamTab(tab) { activeParamTab = tab; renderParamTabs(); renderParamContent(); }
-function setChartTab(tab) { activeChartTab = tab; renderChartTabs(); renderChart(); }
-function updateParam(key, value) { params[key] = value; update(); }
-function resetToDefaults() { params = { ...DEFAULT_PARAMS }; update(); renderParamContent(); }
-function update() { simulationData = runSimulation(); renderStats(); renderChart(); renderChartFooter(); renderParamContent(); }
-
 function init() {
-  simulationData = runSimulation();
-  renderStats();
-  renderParamTabs();
-  renderParamContent();
-  renderChartTabs();
+  // Run baseline with defaults
+  baselineData = runSimulation(DEFAULT_PARAMS);
+  scenarioData = runSimulation(params);
+
+  renderMetrics();
   renderChart();
-  renderChartFooter();
 }
 
 init();
