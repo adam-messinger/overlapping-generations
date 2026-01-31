@@ -228,15 +228,15 @@
           <div class="button-group">
             <button class="option-btn" onclick="setProductivity('stagnation')" data-productivity="stagnation">
               Stagnation
-              <div class="desc">TFP growth: 0.5%</div>
+              <div class="desc">TFP 0.5%, σ=12% (low uncertainty)</div>
             </button>
             <button class="option-btn active" onclick="setProductivity('baseline')" data-productivity="baseline">
               Baseline
-              <div class="desc">TFP growth: 1.0%</div>
+              <div class="desc">TFP 1.0%, σ=15%</div>
             </button>
             <button class="option-btn" onclick="setProductivity('ai-boom')" data-productivity="ai-boom">
               AI Boom
-              <div class="desc">TFP growth: 2.0% + automation</div>
+              <div class="desc">TFP 2.0%, σ=25% (high uncertainty)</div>
             </button>
           </div>
         </div>
@@ -320,8 +320,9 @@ const DEFAULT_PARAMS = {
   topShareWealth: 0.70,
   wealthMobility: 0.02,
 
-  // Productivity
+  // Productivity & Uncertainty
   tfpGrowth: 0.01,
+  uncertainty: 0.15,        // σ for precautionary savings (baseline)
   aiShockYear: 0,
   aiShockSize: 0.0,
   aiLaborDisplacement: 0.0,
@@ -453,13 +454,16 @@ function runSimulation(p) {
     realWageIndex = realWageIndex * p.nominalRigidity + targetRealWage * (1 - p.nominalRigidity);
 
     // Household optimization - Log utility (Peters' ergodicity economics)
-    // With log utility, optimal savings rate = β/(1+β), independent of interest rates.
-    // This maximizes time-average growth rate of wealth under multiplicative dynamics.
+    // Base rate: β/(1+β) from time-average growth maximization
+    // Precautionary term: +σ² (prudence coefficient = 2 for log utility)
+    // Per Carroll & Samwick, precautionary savings ≈ 20-40% of total
     const wageAfterTax = realWageIndex * (1 - effectiveTaxRate);
-    const savingsRateOptimal = p.beta / (1 + p.beta); // ~0.49 for β=0.96
+    const baseSavings = p.beta / (1 + p.beta); // ~0.49 for β=0.96
+    const precautionary = p.uncertainty * p.uncertainty; // σ²
+    const savingsRateOptimal = baseSavings + precautionary;
 
     // Young save more (longer horizon), middle save less (approaching retirement)
-    const savingsRateYoung = Math.min(0.55, savingsRateOptimal * 1.15);
+    const savingsRateYoung = Math.min(0.60, savingsRateOptimal * 1.15);
     const savingsRateMiddle = savingsRateOptimal * 0.85;
 
     // Income & consumption by quintile
@@ -566,19 +570,22 @@ function setProductivity(mode) {
     btn.classList.toggle('active', btn.dataset.productivity === mode);
   });
 
-  // Apply preset
+  // Apply preset (including uncertainty σ for precautionary savings)
   if (mode === 'stagnation') {
     params.tfpGrowth = 0.005;
+    params.uncertainty = 0.12;  // Low uncertainty - predictable decline
     params.aiShockYear = 0;
     params.aiShockSize = 0;
     params.aiLaborDisplacement = 0;
   } else if (mode === 'baseline') {
     params.tfpGrowth = 0.01;
+    params.uncertainty = 0.15;  // Moderate uncertainty
     params.aiShockYear = 0;
     params.aiShockSize = 0;
     params.aiLaborDisplacement = 0;
   } else if (mode === 'ai-boom') {
     params.tfpGrowth = 0.02;
+    params.uncertainty = 0.25;  // High uncertainty - disruption
     params.aiShockYear = 5;
     params.aiShockSize = 0.3;
     params.aiLaborDisplacement = 0.15;
