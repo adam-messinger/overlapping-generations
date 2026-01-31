@@ -222,34 +222,36 @@
 // ============================================
 // DEFAULT PARAMETERS
 // ============================================
+// Sources: Federal Reserve DFA Q1 2025, Census Bureau 2024, Pew/CIRCLE 2024 election data
 const DEFAULT_GENERATIONS = {
-  "Boomers+": { pop: 71.0, wealth: 84.0, turnout: 0.72, productivity: 0.15, consumption: 0.4, healthcareDraw: 1.2, assetAllocation: 0.85 },
-  "Gen X": { pop: 65.0, wealth: 44.0, turnout: 0.63, productivity: 0.9, consumption: 0.35, healthcareDraw: 0.25, assetAllocation: 0.60 },
-  "Millennials": { pop: 72.0, wealth: 14.0, turnout: 0.52, productivity: 1.0, consumption: 0.2, healthcareDraw: 0.1, assetAllocation: 0.35 },
-  "Gen Z": { pop: 52.0, wealth: 2.5, turnout: 0.35, productivity: 0.7, consumption: 0.15, healthcareDraw: 0.05, assetAllocation: 0.05 }
+  "Boomers+": { pop: 76.0, wealth: 98.0, turnout: 0.75, productivity: 0.15, consumption: 0.4, healthcareDraw: 1.2, assetAllocation: 0.85 },  // Boomers (67M) + Silent (15M), wealth $82T + $16T
+  "Gen X": { pop: 65.0, wealth: 42.0, turnout: 0.63, productivity: 0.9, consumption: 0.35, healthcareDraw: 0.25, assetAllocation: 0.60 },   // Fed: $41.7T wealth
+  "Millennials": { pop: 74.0, wealth: 17.0, turnout: 0.52, productivity: 1.0, consumption: 0.2, healthcareDraw: 0.1, assetAllocation: 0.35 }, // Largest gen, $15-18T wealth
+  "Gen Z": { pop: 69.0, wealth: 6.0, turnout: 0.47, productivity: 0.7, consumption: 0.15, healthcareDraw: 0.05, assetAllocation: 0.05 }     // 71M pop, $6T wealth, 47% turnout 2024
 };
 
+// Sources: BLS CPI Dec 2025, Treasury/CBO 2025, Fed Jan 2026, S&P historical returns
 const DEFAULT_PARAMS = {
-  baseInflation: 0.025,
-  realAssetReturn: 0.04,
+  baseInflation: 0.027,           // BLS: 2.7% Dec 2025
+  realAssetReturn: 0.06,          // Historical real return ~6-7% (S&P long-term)
   yearsToSimulate: 25,
   genXShiftRate: 0.02,
   genXStartAlign: 0.55,
   deathRateBase: 0.03,
   deathRateAccel: 0.001,
   genZPopGrowth: 1.5,
-  healthcareExcessGrowth: 0.025,
-  initialDebtStock: 35,
-  initialInterestRate: 0.045,
+  healthcareExcessGrowth: 0.017,  // Medical CPI averages 1.7pp above general CPI
+  initialDebtStock: 38,           // Treasury: $38T as of Oct 2025
+  initialInterestRate: 0.0365,    // Fed: 3.5-3.75% as of Jan 2026
   fedInflationTarget: 0.02,
   fedReactionStrength: 0.5,
   fedPoliticalConstraint: 0.4,
   structuralDeficitFloor: 1.5,
-  taxRateBase: 0.18,
+  taxRateBase: 0.17,              // FRED: Federal receipts ~16.8% of GDP
   taxRateMaxIncrease: 0.06,
   oldBlocTaxResistance: 0.7,
   wageLagSeverity: 2.0,
-  gdpGrowthBase: 0.02
+  gdpGrowthBase: 0.023            // EY/CBO forecast: 2.3-2.5% real GDP growth
 };
 
 // ============================================
@@ -277,7 +279,7 @@ function runSimulation() {
   let debtStock = params.initialDebtStock;
   let fedRate = params.initialInterestRate;
   let effectiveTaxRate = params.taxRateBase;
-  let nominalGdp = 28.0;
+  let nominalGdp = 31.0;  // BEA: ~$31T Q3 2025
 
   for (let year = START_YEAR; year < START_YEAR + params.yearsToSimulate; year++) {
     const yearOffset = year - START_YEAR;
@@ -448,12 +450,12 @@ function renderParamContent() {
   if (activeParamTab === 'fiscal') {
     container.innerHTML = `
       <div class="section-title">Healthcare & Spending</div>
-      ${slider('healthcareExcessGrowth', 'Healthcare Excess Growth', 0.01, 0.05, 0.005, v => 'CPI+' + (v*100).toFixed(1) + '%', 'Healthcare grows faster than CPI')}
+      ${slider('healthcareExcessGrowth', 'Healthcare Excess Growth', 0.005, 0.04, 0.001, v => 'CPI+' + (v*100).toFixed(1) + '%', 'Medical CPI avg +1.7pp')}
       ${slider('structuralDeficitFloor', 'Structural Deficit Floor', 0.5, 3.0, 0.1, v => '$' + v.toFixed(1) + 'T', 'Uncuttable spending')}
 
       <div class="section-title">Debt & Interest</div>
-      ${slider('initialDebtStock', 'Initial Debt Stock', 25, 50, 1, v => '$' + v + 'T')}
-      ${slider('initialInterestRate', 'Starting Interest Rate', 0.02, 0.08, 0.005, v => (v*100).toFixed(1) + '%')}
+      ${slider('initialDebtStock', 'Initial Debt Stock', 30, 55, 1, v => '$' + v + 'T')}
+      ${slider('initialInterestRate', 'Starting Interest Rate', 0.01, 0.08, 0.005, v => (v*100).toFixed(1) + '%')}
 
       <div class="section-title">Tax Political Economy</div>
       ${slider('taxRateBase', 'Base Tax Rate (% GDP)', 0.14, 0.22, 0.01, v => (v*100).toFixed(0) + '%')}
@@ -486,9 +488,9 @@ function renderParamContent() {
       ${slider('genZPopGrowth', 'Gen Z Pop Growth', 0.5, 3.0, 0.25, v => v.toFixed(1) + 'M/yr')}
 
       <div style="margin-top:12px;padding:8px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.7rem;color:#9CA3AF;">
-        <div style="font-weight:500;color:#D1D5DB;margin-bottom:4px;">Turnout Calibration (2024)</div>
-        <div>65+: 72% | 45-64: 63% | 30-44: 52% | 18-29: 35%</div>
-        <div style="margin-top:4px;color:#6B7280;">Old bloc starts with structural majority</div>
+        <div style="font-weight:500;color:#D1D5DB;margin-bottom:4px;">Turnout Calibration (2024 actual)</div>
+        <div>65+: 75% | 45-64: 63% | 30-44: 52% | 18-29: 47%</div>
+        <div style="margin-top:4px;color:#6B7280;">Sources: Census Bureau, CIRCLE/Tufts</div>
       </div>
     `;
   } else if (activeParamTab === 'gens') {
