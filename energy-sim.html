@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Futures: 2025-2100</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .chart-container {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4cc9f0;
+        }
+        .metric-detail {
+            font-size: 12px;
+            color: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: right;
+        }
+        th {
+            background: #0f3460;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        th:first-child, td:first-child {
+            text-align: left;
+        }
+        tr:nth-child(even) {
+            background: #1a1a3e;
+        }
+        tr:hover {
+            background: #1f4068;
+        }
+        .crossover-highlight {
+            background: #2d6a4f !important;
+        }
+        .controls {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-label {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #0f3460;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4cc9f0;
+            cursor: pointer;
+        }
+        .slider-value {
+            min-width: 60px;
+            text-align: right;
+            font-family: monospace;
+            color: #4cc9f0;
+        }
+        .insights {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .insight-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #0f3460;
+        }
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        .insight-year {
+            color: #4cc9f0;
+            font-weight: 600;
+        }
+        .legend-custom {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Energy Futures: 2025-2100</h1>
+    <p class="subtitle">Phase 1: Supply-side LCOE projections with learning curves and EROEI depletion</p>
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Solar Crosses Gas</div>
+            <div class="metric-value" id="solar-gas-cross">--</div>
+            <div class="metric-detail">Year when solar LCOE &lt; gas LCOE</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Solar+Battery Crosses Gas</div>
+            <div class="metric-value" id="solar-battery-gas-cross">--</div>
+            <div class="metric-detail">Dispatchable clean energy milestone</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Coal Uneconomic</div>
+            <div class="metric-value" id="coal-uneconomic">--</div>
+            <div class="metric-detail">Year coal LCOE &gt; cheapest clean</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Battery Cost 2035</div>
+            <div class="metric-value" id="battery-2035">--</div>
+            <div class="metric-detail">$/kWh storage cost</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label class="control-label">Carbon Price ($/ton CO₂)</label>
+            <div class="slider-container">
+                <input type="range" id="carbon-price" min="0" max="200" value="50" step="10">
+                <span class="slider-value" id="carbon-price-value">$50</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Solar Learning Rate (α)</label>
+            <div class="slider-container">
+                <input type="range" id="solar-alpha" min="0.10" max="0.30" value="0.20" step="0.01">
+                <span class="slider-value" id="solar-alpha-value">0.20</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Solar Capacity Growth Rate (%/year)</label>
+            <div class="slider-container">
+                <input type="range" id="solar-growth" min="5" max="30" value="20" step="1">
+                <span class="slider-value" id="solar-growth-value">20%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Levelized Cost of Energy (LCOE) Trajectories</div>
+        <canvas id="lcoe-chart"></canvas>
+        <div class="legend-custom" id="chart-legend"></div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Battery Storage Cost Trajectory</div>
+        <canvas id="battery-chart"></canvas>
+    </div>
+
+    <div class="insights">
+        <div class="chart-title">Key Crossover Events</div>
+        <div id="crossover-events"></div>
+    </div>
+
+    <table id="era-table">
+        <thead>
+            <tr>
+                <th>Era</th>
+                <th>Solar</th>
+                <th>Wind</th>
+                <th>Gas</th>
+                <th>Coal</th>
+                <th>Nuclear</th>
+                <th>Battery</th>
+                <th>Solar+Batt</th>
+            </tr>
+        </thead>
+        <tbody id="era-tbody"></tbody>
+    </table>
+
+    <script>
+    // =============================================================================
+    // PRIMITIVES - Core mathematical functions
+    // =============================================================================
+
+    /**
+     * Compound growth: start × (1 + rate)^years
+     */
+    function compound(start, rate, years) {
+        return start * Math.pow(1 + rate, years);
+    }
+
+    /**
+     * Wright's Law learning curve: cost = cost₀ × cumulative^(-α)
+     * As cumulative production doubles, cost falls by 2^(-α)
+     * α=0.20 means 13% cost reduction per doubling (1 - 2^-0.2 ≈ 0.13)
+     */
+    function learningCurve(cost0, cumulative, alpha) {
+        if (cumulative <= 0) return cost0;
+        return cost0 * Math.pow(cumulative, -alpha);
+    }
+
+    /**
+     * EROEI depletion: EROEI declines as resources are extracted
+     * EROEI(t) = EROEI₀ × (remaining/initial)^β
+     * Net energy = gross × (1 - 1/EROEI)
+     */
+    function depletion(reserves, extracted, eroei0, beta = 0.5) {
+        const remaining = Math.max(reserves - extracted, 0.01);
+        const fractionRemaining = remaining / reserves;
+        const eroei = eroei0 * Math.pow(fractionRemaining, beta);
+        return {
+            eroei: Math.max(eroei, 1.1), // EROEI can't go below ~1
+            netEnergyFraction: 1 - 1 / Math.max(eroei, 1.1),
+            remaining
+        };
+    }
+
+    /**
+     * Logistic S-curve: models adoption/deployment
+     * Returns value between 0 and ceiling
+     */
+    function logistic(start, ceiling, rate, years) {
+        const k = rate;
+        const midpoint = Math.log((ceiling - start) / start) / k;
+        return ceiling / (1 + Math.exp(-k * (years - midpoint)));
+    }
+
+    /**
+     * Poisson shock probability: P(at least one event) = 1 - e^(-λ)
+     */
+    function poissonShock(lambda, magnitude) {
+        const prob = 1 - Math.exp(-lambda);
+        return { probability: prob, magnitude };
+    }
+
+    // =============================================================================
+    // ENERGY SOURCES - Parameters and cost models
+    // =============================================================================
+
+    const energySources = {
+        solar: {
+            name: 'Solar PV',
+            cost0: 50,           // $/MWh in 2025
+            alpha: 0.20,         // Learning rate
+            capacity2025: 1500,  // GW installed globally
+            growthRate: 0.20,    // 20% annual capacity growth
+            carbonIntensity: 0,  // kg CO₂/MWh
+            color: '#ffd60a'
+        },
+        wind: {
+            name: 'Wind',
+            cost0: 45,
+            alpha: 0.10,         // Slower learning (more mature)
+            capacity2025: 1000,
+            growthRate: 0.12,
+            carbonIntensity: 0,
+            color: '#4cc9f0'
+        },
+        gas: {
+            name: 'Natural Gas',
+            cost0: 40,
+            eroei0: 30,          // Starting EROEI
+            reserves: 200,       // Arbitrary units
+            extractionRate: 2,   // Units per year
+            carbonIntensity: 400,// kg CO₂/MWh
+            color: '#f77f00'
+        },
+        coal: {
+            name: 'Coal',
+            cost0: 35,
+            eroei0: 25,
+            reserves: 500,
+            extractionRate: 3,
+            carbonIntensity: 900,
+            color: '#6c757d'
+        },
+        nuclear: {
+            name: 'Nuclear',
+            cost0: 90,
+            alpha: 0.0,          // No learning (regulatory/political stagnation)
+            capacity2025: 400,
+            growthRate: 0.02,
+            carbonIntensity: 0,
+            color: '#9d4edd'
+        },
+        battery: {
+            name: 'Battery Storage',
+            cost0: 150,          // $/kWh in 2025
+            alpha: 0.18,
+            capacity2025: 100,   // GWh
+            growthRate: 0.35,    // Rapid growth
+            color: '#06d6a0'
+        }
+    };
+
+    // =============================================================================
+    // SIMULATION ENGINE
+    // =============================================================================
+
+    function runSimulation(params = {}) {
+        const carbonPrice = params.carbonPrice ?? 50;
+        const solarAlpha = params.solarAlpha ?? 0.20;
+        const solarGrowth = params.solarGrowth ?? 0.20;
+
+        const years = [];
+        const results = {
+            solar: [],
+            wind: [],
+            gas: [],
+            coal: [],
+            nuclear: [],
+            battery: [],
+            solarPlusBattery: []
+        };
+
+        // Track cumulative extraction for fossil fuels
+        let gasExtracted = 0;
+        let coalExtracted = 0;
+
+        for (let year = 2025; year <= 2100; year++) {
+            const t = year - 2025;
+            years.push(year);
+
+            // Solar: learning curve with configurable parameters
+            const solarCapacity = energySources.solar.capacity2025 * Math.pow(1 + solarGrowth, t);
+            const solarCumulative = solarCapacity / energySources.solar.capacity2025;
+            const solarLCOE = learningCurve(energySources.solar.cost0, solarCumulative, solarAlpha);
+            results.solar.push(solarLCOE);
+
+            // Wind: learning curve
+            const windCapacity = energySources.wind.capacity2025 * Math.pow(1 + energySources.wind.growthRate, t);
+            const windCumulative = windCapacity / energySources.wind.capacity2025;
+            const windLCOE = learningCurve(energySources.wind.cost0, windCumulative, energySources.wind.alpha);
+            results.wind.push(windLCOE);
+
+            // Gas: EROEI depletion + carbon price
+            gasExtracted += energySources.gas.extractionRate;
+            const gasDepletion = depletion(
+                energySources.gas.reserves,
+                gasExtracted,
+                energySources.gas.eroei0
+            );
+            // Cost rises as EROEI falls (need more energy input per output)
+            const gasBaseCost = energySources.gas.cost0 * (energySources.gas.eroei0 / gasDepletion.eroei);
+            const gasCarbonCost = (energySources.gas.carbonIntensity / 1000) * carbonPrice;
+            results.gas.push(gasBaseCost + gasCarbonCost);
+
+            // Coal: EROEI depletion + carbon price
+            coalExtracted += energySources.coal.extractionRate;
+            const coalDepletion = depletion(
+                energySources.coal.reserves,
+                coalExtracted,
+                energySources.coal.eroei0
+            );
+            const coalBaseCost = energySources.coal.cost0 * (energySources.coal.eroei0 / coalDepletion.eroei);
+            const coalCarbonCost = (energySources.coal.carbonIntensity / 1000) * carbonPrice;
+            results.coal.push(coalBaseCost + coalCarbonCost);
+
+            // Nuclear: essentially flat (no learning in current environment)
+            const nuclearCapacity = energySources.nuclear.capacity2025 * Math.pow(1 + energySources.nuclear.growthRate, t);
+            const nuclearCumulative = nuclearCapacity / energySources.nuclear.capacity2025;
+            const nuclearLCOE = learningCurve(energySources.nuclear.cost0, nuclearCumulative, energySources.nuclear.alpha);
+            results.nuclear.push(nuclearLCOE);
+
+            // Battery: learning curve (cost per kWh)
+            const batteryCapacity = energySources.battery.capacity2025 * Math.pow(1 + energySources.battery.growthRate, t);
+            const batteryCumulative = batteryCapacity / energySources.battery.capacity2025;
+            const batteryCost = learningCurve(energySources.battery.cost0, batteryCumulative, energySources.battery.alpha);
+            results.battery.push(batteryCost);
+
+            // Solar + Battery: combined cost for dispatchable clean energy
+            // Assume 4 hours of storage needed, battery cycles 365 times/year for 15 years
+            const batteryLCOE = (batteryCost * 4) / (365 * 15); // $/kWh storage → $/MWh contribution
+            results.solarPlusBattery.push(solarLCOE + batteryLCOE * 1000); // Convert to $/MWh
+        }
+
+        return { years, results };
+    }
+
+    function findCrossovers(years, results) {
+        const crossovers = [];
+
+        // Solar crosses gas
+        for (let i = 1; i < years.length; i++) {
+            if (results.solar[i] < results.gas[i] && results.solar[i-1] >= results.gas[i-1]) {
+                crossovers.push({
+                    year: years[i],
+                    event: 'Solar LCOE falls below Gas',
+                    detail: `Solar: $${results.solar[i].toFixed(0)}/MWh vs Gas: $${results.gas[i].toFixed(0)}/MWh`
+                });
+                break;
+            }
+        }
+
+        // Solar+Battery crosses gas
+        for (let i = 1; i < years.length; i++) {
+            if (results.solarPlusBattery[i] < results.gas[i] && results.solarPlusBattery[i-1] >= results.gas[i-1]) {
+                crossovers.push({
+                    year: years[i],
+                    event: 'Solar+Battery beats Gas (dispatchable clean)',
+                    detail: `Solar+Batt: $${results.solarPlusBattery[i].toFixed(0)}/MWh vs Gas: $${results.gas[i].toFixed(0)}/MWh`
+                });
+                break;
+            }
+        }
+
+        // Coal becomes uneconomic (more expensive than cheapest clean)
+        for (let i = 1; i < years.length; i++) {
+            const cheapestClean = Math.min(results.solar[i], results.wind[i]);
+            const cheapestCleanPrev = Math.min(results.solar[i-1], results.wind[i-1]);
+            if (results.coal[i] > cheapestClean && results.coal[i-1] <= cheapestCleanPrev) {
+                crossovers.push({
+                    year: years[i],
+                    event: 'Coal becomes more expensive than cheapest clean',
+                    detail: `Coal: $${results.coal[i].toFixed(0)}/MWh vs Clean: $${cheapestClean.toFixed(0)}/MWh`
+                });
+                break;
+            }
+        }
+
+        // Wind crosses gas
+        for (let i = 1; i < years.length; i++) {
+            if (results.wind[i] < results.gas[i] && results.wind[i-1] >= results.gas[i-1]) {
+                crossovers.push({
+                    year: years[i],
+                    event: 'Wind LCOE falls below Gas',
+                    detail: `Wind: $${results.wind[i].toFixed(0)}/MWh vs Gas: $${results.gas[i].toFixed(0)}/MWh`
+                });
+                break;
+            }
+        }
+
+        return crossovers;
+    }
+
+    // =============================================================================
+    // VISUALIZATION
+    // =============================================================================
+
+    let lcoeChart = null;
+    let batteryChart = null;
+
+    function updateCharts() {
+        const carbonPrice = parseFloat(document.getElementById('carbon-price').value);
+        const solarAlpha = parseFloat(document.getElementById('solar-alpha').value);
+        const solarGrowth = parseFloat(document.getElementById('solar-growth').value) / 100;
+
+        document.getElementById('carbon-price-value').textContent = `$${carbonPrice}`;
+        document.getElementById('solar-alpha-value').textContent = solarAlpha.toFixed(2);
+        document.getElementById('solar-growth-value').textContent = `${(solarGrowth * 100).toFixed(0)}%`;
+
+        const { years, results } = runSimulation({ carbonPrice, solarAlpha, solarGrowth });
+        const crossovers = findCrossovers(years, results);
+
+        // Update metrics
+        const solarGasCross = crossovers.find(c => c.event.includes('Solar LCOE'));
+        document.getElementById('solar-gas-cross').textContent = solarGasCross ? solarGasCross.year : 'Already';
+
+        const solarBattGasCross = crossovers.find(c => c.event.includes('Solar+Battery'));
+        document.getElementById('solar-battery-gas-cross').textContent = solarBattGasCross ? solarBattGasCross.year : 'Already';
+
+        const coalUneconomic = crossovers.find(c => c.event.includes('Coal'));
+        document.getElementById('coal-uneconomic').textContent = coalUneconomic ? coalUneconomic.year : 'Already';
+
+        const battery2035Index = years.indexOf(2035);
+        document.getElementById('battery-2035').textContent = `$${results.battery[battery2035Index].toFixed(0)}`;
+
+        // Update crossover events
+        const eventsHtml = crossovers.map(c => `
+            <div class="insight-item">
+                <span class="insight-year">${c.year}</span>: ${c.event}<br>
+                <span style="color: #666; font-size: 13px;">${c.detail}</span>
+            </div>
+        `).join('');
+        document.getElementById('crossover-events').innerHTML = eventsHtml || '<div class="insight-item">No crossovers detected in this scenario</div>';
+
+        // Update era table
+        const eras = ['2025-29', '2030-34', '2035-39', '2040-44', '2045-49', '2050-54', '2055-59', '2060-64', '2065-69', '2070-74', '2075-79', '2080-84', '2085-89', '2090-94', '2095-99'];
+        const tbody = document.getElementById('era-tbody');
+        tbody.innerHTML = '';
+
+        for (let e = 0; e < eras.length; e++) {
+            const startIdx = e * 5;
+            const endIdx = Math.min(startIdx + 5, years.length);
+
+            // Average over era
+            const avg = (arr) => {
+                let sum = 0;
+                for (let i = startIdx; i < endIdx; i++) sum += arr[i];
+                return sum / (endIdx - startIdx);
+            };
+
+            const row = document.createElement('tr');
+
+            // Check if this era has a crossover
+            const eraStart = 2025 + e * 5;
+            const eraEnd = eraStart + 4;
+            const hasCrossover = crossovers.some(c => c.year >= eraStart && c.year <= eraEnd);
+            if (hasCrossover) row.classList.add('crossover-highlight');
+
+            row.innerHTML = `
+                <td>${eras[e]}</td>
+                <td>$${avg(results.solar).toFixed(0)}</td>
+                <td>$${avg(results.wind).toFixed(0)}</td>
+                <td>$${avg(results.gas).toFixed(0)}</td>
+                <td>$${avg(results.coal).toFixed(0)}</td>
+                <td>$${avg(results.nuclear).toFixed(0)}</td>
+                <td>$${avg(results.battery).toFixed(0)}/kWh</td>
+                <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        // LCOE Chart
+        const lcoeCtx = document.getElementById('lcoe-chart').getContext('2d');
+
+        if (lcoeChart) lcoeChart.destroy();
+
+        lcoeChart = new Chart(lcoeCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Solar',
+                        data: results.solar,
+                        borderColor: energySources.solar.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Wind',
+                        data: results.wind,
+                        borderColor: energySources.wind.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Gas',
+                        data: results.gas,
+                        borderColor: energySources.gas.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Coal',
+                        data: results.coal,
+                        borderColor: energySources.coal.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Nuclear',
+                        data: results.nuclear,
+                        borderColor: energySources.nuclear.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Solar+Battery',
+                        data: results.solarPlusBattery,
+                        borderColor: '#ff006e',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: $${context.parsed.y.toFixed(0)}/MWh`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '$/MWh',
+                            color: '#888'
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        });
+
+        // Custom legend
+        const legendHtml = [
+            { label: 'Solar', color: energySources.solar.color },
+            { label: 'Wind', color: energySources.wind.color },
+            { label: 'Gas', color: energySources.gas.color },
+            { label: 'Coal', color: energySources.coal.color },
+            { label: 'Nuclear', color: energySources.nuclear.color },
+            { label: 'Solar+Battery', color: '#ff006e' }
+        ].map(item => `
+            <div class="legend-item">
+                <div class="legend-color" style="background: ${item.color}"></div>
+                ${item.label}
+            </div>
+        `).join('');
+        document.getElementById('chart-legend').innerHTML = legendHtml;
+
+        // Battery Chart
+        const batteryCtx = document.getElementById('battery-chart').getContext('2d');
+
+        if (batteryChart) batteryChart.destroy();
+
+        batteryChart = new Chart(batteryCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [{
+                    label: 'Battery $/kWh',
+                    data: results.battery,
+                    borderColor: energySources.battery.color,
+                    backgroundColor: 'rgba(6, 214, 160, 0.1)',
+                    fill: true,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `$${context.parsed.y.toFixed(0)}/kWh`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '$/kWh',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Event listeners
+    document.getElementById('carbon-price').addEventListener('input', updateCharts);
+    document.getElementById('solar-alpha').addEventListener('input', updateCharts);
+    document.getElementById('solar-growth').addEventListener('input', updateCharts);
+
+    // Initial render
+    updateCharts();
+
+    // Console API for testing
+    window.energySim = {
+        compound,
+        learningCurve,
+        depletion,
+        logistic,
+        poissonShock,
+        runSimulation,
+        findCrossovers,
+        energySources
+    };
+
+    console.log('Energy Simulation loaded. Access primitives via window.energySim');
+    console.log('Test: energySim.learningCurve(100, 2, 0.2) =', learningCurve(100, 2, 0.2).toFixed(2), '(should be ~87 - 13% reduction per doubling)');
+    </script>
+</body>
+</html>
