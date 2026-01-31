@@ -196,7 +196,7 @@
     </header>
 
     <div class="chart-section">
-      <div class="chart-title">Output per Capita</div>
+      <div class="chart-title">Economic Trajectory</div>
       <div class="chart-container">
         <canvas id="mainChart"></canvas>
       </div>
@@ -514,6 +514,7 @@ function runSimulation(p) {
     const totalWealth = wealthYoungTop + wealthYoungBot + wealthMiddleTop + wealthMiddleBot + wealthOldTop + wealthOldBot;
     const topWealth = wealthYoungTop + wealthMiddleTop + wealthOldTop;
     const topWealthShare = totalWealth > 0 ? topWealth / totalWealth : 0.7;
+    const gini = 0.2 + topWealthShare * 0.6; // Approximate Gini from top 20% share
 
     // Update state
     popYoung = popYoung * (1 - p.agingRate) + births + immigrantsYoung;
@@ -540,6 +541,7 @@ function runSimulation(p) {
       debtToGdp,
       reformPossible,
       dependencyRatio: popOld / (popYoung + popMiddle),
+      gini,
       youngBlocShare,
     });
   }
@@ -701,17 +703,7 @@ function renderChart() {
       labels,
       datasets: [
         {
-          label: 'Baseline',
-          data: baselineData.map(d => d.yPerCapita),
-          borderColor: '#6B7280',
-          backgroundColor: 'rgba(107, 114, 128, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-        },
-        {
-          label: 'Your Scenario',
+          label: 'Output/Capita (gray=baseline)',
           data: scenarioData.map(d => d.yPerCapita),
           borderColor: scenarioColor,
           backgroundColor: scenarioBg,
@@ -719,6 +711,35 @@ function renderChart() {
           fill: true,
           tension: 0.3,
           pointRadius: 0,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Baseline',
+          data: baselineData.map(d => d.yPerCapita),
+          borderColor: '#6B7280',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          tension: 0.3,
+          pointRadius: 0,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Gini',
+          data: scenarioData.map(d => d.gini),
+          borderColor: '#F59E0B',
+          borderWidth: 2,
+          tension: 0.3,
+          pointRadius: 0,
+          yAxisID: 'y1',
+        },
+        {
+          label: 'Dependency Ratio',
+          data: scenarioData.map(d => d.dependencyRatio),
+          borderColor: '#8B5CF6',
+          borderWidth: 2,
+          tension: 0.3,
+          pointRadius: 0,
+          yAxisID: 'y1',
         },
       ],
     },
@@ -728,7 +749,7 @@ function renderChart() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
-          labels: { color: '#9CA3AF', font: { size: 12 } },
+          labels: { color: '#9CA3AF', font: { size: 11 } },
           position: 'top',
         },
         tooltip: {
@@ -737,7 +758,10 @@ function renderChart() {
           borderWidth: 1,
           callbacks: {
             label: function(context) {
-              return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+              const val = context.parsed.y;
+              if (context.dataset.label === 'Gini') return 'Gini: ' + val.toFixed(2);
+              if (context.dataset.label === 'Dependency Ratio') return 'Dep Ratio: ' + val.toFixed(2);
+              return context.dataset.label + ': ' + val.toFixed(2);
             }
           }
         },
@@ -748,9 +772,18 @@ function renderChart() {
           grid: { color: '#374151' },
         },
         y: {
-          title: { display: true, text: 'Output per Capita', color: '#9CA3AF' },
+          position: 'left',
+          title: { display: true, text: 'Output/Capita', color: '#9CA3AF' },
           ticks: { color: '#9CA3AF', font: { size: 11 } },
           grid: { color: '#374151' },
+        },
+        y1: {
+          position: 'right',
+          title: { display: true, text: 'Gini / Dep Ratio', color: '#9CA3AF' },
+          ticks: { color: '#9CA3AF', font: { size: 11 } },
+          grid: { display: false },
+          min: 0,
+          max: 1,
         },
       },
     },
