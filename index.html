@@ -191,7 +191,7 @@
 <body>
   <div class="container">
     <header>
-      <h1>Economic Trajectory: 2025-2075</h1>
+      <h1>Economic Trajectory: 2025-2125</h1>
       <button class="reset-btn" onclick="resetToDefaults()">Reset</button>
     </header>
 
@@ -327,7 +327,7 @@ const DEFAULT_PARAMS = {
   aiLaborDisplacement: 0.0,
 
   // Simulation
-  yearsToSimulate: 50,
+  yearsToSimulate: 100,
 };
 
 let params = { ...DEFAULT_PARAMS };
@@ -667,7 +667,7 @@ function renderMetrics() {
       <div class="metric-value ${livingStandardChange >= 0 ? 'positive' : 'negative'}">
         ${livingStandardChange >= 0 ? '+' : ''}${livingStandardChange.toFixed(0)}%
       </div>
-      <div class="metric-label">2075 Living Standard</div>
+      <div class="metric-label">2125 Living Standard</div>
     </div>
     <div class="metric-card">
       <div class="metric-value ${debtClass}">${debtStatus}</div>
@@ -741,6 +741,16 @@ function renderChart() {
           pointRadius: 0,
           yAxisID: 'y1',
         },
+        {
+          label: 'Debt/GDP ÷2',
+          data: scenarioData.map(d => d.debtToGdp / 2),
+          borderColor: '#EF4444',
+          borderWidth: 2,
+          borderDash: [2, 2],
+          tension: 0.3,
+          pointRadius: 0,
+          yAxisID: 'y1',
+        },
       ],
     },
     options: {
@@ -761,6 +771,7 @@ function renderChart() {
               const val = context.parsed.y;
               if (context.dataset.label === 'Gini') return 'Gini: ' + val.toFixed(2);
               if (context.dataset.label === 'Dependency Ratio') return 'Dep Ratio: ' + val.toFixed(2);
+              if (context.dataset.label === 'Debt/GDP ÷2') return 'Debt/GDP: ' + (val * 200).toFixed(0) + '%';
               return context.dataset.label + ': ' + val.toFixed(2);
             }
           }
@@ -779,11 +790,11 @@ function renderChart() {
         },
         y1: {
           position: 'right',
-          title: { display: true, text: 'Gini / Dep Ratio', color: '#9CA3AF' },
+          title: { display: true, text: 'Ratios (Debt ÷2)', color: '#9CA3AF' },
           ticks: { color: '#9CA3AF', font: { size: 11 } },
           grid: { display: false },
           min: 0,
-          max: 1,
+          max: 1.5,
         },
       },
     },
