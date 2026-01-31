@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>US Overlapping Generations Model</title>
+  <title>Overlapping Generations Model</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,8 +15,6 @@
       padding: 12px;
     }
     .container { max-width: 1400px; margin: 0 auto; }
-
-    /* Header */
     header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
     h1 { color: #F59E0B; font-size: 1.25rem; }
     .subtitle { color: #6B7280; font-size: 0.75rem; }
@@ -31,7 +29,6 @@
     }
     .reset-btn:hover { background: #4B5563; }
 
-    /* Stats Grid */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
@@ -53,7 +50,6 @@
     .stat-card.warn .stat-value { color: #F87171; }
     .stat-sub { color: #6B7280; font-size: 0.75rem; }
 
-    /* Main Layout */
     .main-grid {
       display: grid;
       grid-template-columns: 1fr 2fr;
@@ -61,13 +57,12 @@
     }
     @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
 
-    /* Controls Panel */
     .controls-panel {
       background: rgba(31, 41, 55, 0.5);
       border: 1px solid #374151;
       border-radius: 12px;
       padding: 12px;
-      max-height: 520px;
+      max-height: 560px;
       overflow-y: auto;
     }
     .tab-buttons { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -86,7 +81,6 @@
     .section-title { color: #F59E0B; font-size: 0.75rem; font-weight: 500; margin: 12px 0 6px; }
     .section-title:first-child { margin-top: 0; }
 
-    /* Sliders */
     .slider-group { margin-bottom: 10px; }
     .slider-header { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 2px; }
     .slider-label { color: #9CA3AF; }
@@ -108,36 +102,6 @@
     }
     .slider-hint { color: #4B5563; font-size: 0.7rem; margin-top: 2px; }
 
-    /* Generation Tabs */
-    .gen-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-    .gen-tab {
-      flex: 1;
-      padding: 4px;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      background: #374151;
-      color: #9CA3AF;
-      cursor: pointer;
-      font-size: 0.7rem;
-      font-weight: 500;
-      text-align: center;
-    }
-    .gen-tab.active-boomer { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border-color: rgba(245, 158, 11, 0.5); }
-    .gen-tab.active-genx { background: rgba(139, 92, 246, 0.2); color: #A78BFA; border-color: rgba(139, 92, 246, 0.5); }
-    .gen-tab.active-millennial { background: rgba(16, 185, 129, 0.2); color: #34D399; border-color: rgba(16, 185, 129, 0.5); }
-    .gen-tab.active-genz { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border-color: rgba(59, 130, 246, 0.5); }
-
-    .gen-panel {
-      border-radius: 8px;
-      padding: 8px;
-      border: 1px solid;
-    }
-    .gen-panel.boomer { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); }
-    .gen-panel.genx { background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); }
-    .gen-panel.millennial { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
-    .gen-panel.genz { background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3); }
-
-    /* Charts Panel */
     .charts-panel {
       background: rgba(31, 41, 55, 0.5);
       border: 1px solid #374151;
@@ -164,31 +128,35 @@
     .footer-stat .val.emerald { color: #34D399; }
     .footer-stat .val.red { color: #F87171; }
 
-    /* Info Bar */
     .info-bar {
       margin-top: 8px;
       padding: 8px;
       background: rgba(31, 41, 55, 0.3);
       border: 1px solid rgba(55, 65, 81, 0.5);
       border-radius: 8px;
-      text-align: center;
-      font-size: 0.75rem;
-      color: #6B7280;
+      font-size: 0.7rem;
+      color: #9CA3AF;
     }
-    .info-bar span { margin: 0 8px; }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
-    .dot.red { background: #EF4444; }
-    .dot.amber { background: #F59E0B; }
-    .dot.violet { background: #8B5CF6; }
-    .dot.emerald { background: #10B981; }
+    .info-bar .eq {
+      font-family: 'Times New Roman', serif;
+      font-style: italic;
+      color: #D1D5DB;
+    }
+    .equations {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      text-align: center;
+    }
+    @media (max-width: 700px) { .equations { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <div>
-        <h1>US Overlapping Generations Model</h1>
-        <p class="subtitle">Debt spiral | Healthcare doom loop | Fed political capture | Generational lock-in</p>
+        <h1>Overlapping Generations Model</h1>
+        <p class="subtitle">Diamond (1965) OLG with production, market-clearing, and fiscal policy</p>
       </div>
       <button class="reset-btn" onclick="resetToDefaults()">Reset</button>
     </header>
@@ -211,196 +179,249 @@
     </div>
 
     <div class="info-bar">
-      <span><span class="dot red"></span>Healthcare CPI doom loop</span>
-      <span><span class="dot amber"></span>Debt interest spiral</span>
-      <span><span class="dot violet"></span>Fed politically constrained</span>
-      <span><span class="dot emerald"></span>Tax hikes blocked by old bloc</span>
+      <div class="equations">
+        <div><span class="eq">Y = A·K<sup>α</sup>·L<sup>1-α</sup></span><br>Production</div>
+        <div><span class="eq">w = (1-α)·Y/L, r = α·Y/K - δ</span><br>Factor Prices</div>
+        <div><span class="eq">u'(c<sub>y</sub>) = β(1+r)·u'(c<sub>o</sub>)</span><br>Euler Equation</div>
+      </div>
     </div>
   </div>
 
 <script>
 // ============================================
-// DEFAULT PARAMETERS
+// OVERLAPPING GENERATIONS MODEL
+// Diamond (1965) with government sector
 // ============================================
-// Sources: Federal Reserve DFA Q1 2025, Census Bureau 2024, Pew/CIRCLE 2024 election data
-const DEFAULT_GENERATIONS = {
-  "Boomers+": { pop: 76.0, wealth: 98.0, turnout: 0.75, productivity: 0.15, consumption: 0.4, healthcareDraw: 1.2, assetAllocation: 0.85 },  // Boomers (67M) + Silent (15M), wealth $82T + $16T
-  "Gen X": { pop: 65.0, wealth: 42.0, turnout: 0.63, productivity: 0.9, consumption: 0.35, healthcareDraw: 0.25, assetAllocation: 0.60 },   // Fed: $41.7T wealth
-  "Millennials": { pop: 74.0, wealth: 17.0, turnout: 0.52, productivity: 1.0, consumption: 0.2, healthcareDraw: 0.1, assetAllocation: 0.35 }, // Largest gen, $15-18T wealth
-  "Gen Z": { pop: 69.0, wealth: 6.0, turnout: 0.47, productivity: 0.7, consumption: 0.15, healthcareDraw: 0.05, assetAllocation: 0.05 }     // 71M pop, $6T wealth, 47% turnout 2024
-};
 
-// Sources: BLS CPI Dec 2025, Treasury/CBO 2025, Fed Jan 2026, S&P historical returns
+// Model: 3-period life cycle (Young, Middle, Old)
+// Young (20-40):  Work at lower productivity, save aggressively
+// Middle (40-60): Work at peak productivity, save moderately
+// Old (60-80):    Retired, consume savings + Social Security
+
 const DEFAULT_PARAMS = {
-  baseInflation: 0.027,           // BLS: 2.7% Dec 2025
-  realAssetReturn: 0.06,          // Historical real return ~6-7% (S&P long-term)
-  yearsToSimulate: 25,
-  genXShiftRate: 0.02,
-  genXStartAlign: 0.55,
-  deathRateBase: 0.03,
-  deathRateAccel: 0.001,
-  genZPopGrowth: 1.5,
-  healthcareExcessGrowth: 0.017,  // Medical CPI averages 1.7pp above general CPI
-  initialDebtStock: 38,           // Treasury: $38T as of Oct 2025
-  initialInterestRate: 0.0365,    // Fed: 3.5-3.75% as of Jan 2026
-  fedInflationTarget: 0.02,
-  fedReactionStrength: 0.5,
-  fedPoliticalConstraint: 0.4,
-  structuralDeficitFloor: 1.5,
-  taxRateBase: 0.17,              // FRED: Federal receipts ~16.8% of GDP
-  taxRateMaxIncrease: 0.06,
-  oldBlocTaxResistance: 0.7,
-  wageLagSeverity: 2.0,
-  gdpGrowthBase: 0.023            // EY/CBO forecast: 2.3-2.5% real GDP growth
+  // Production
+  alpha: 0.33,              // Capital share (Cobb-Douglas)
+  tfp: 1.0,                 // Total factor productivity
+  delta: 0.05,              // Depreciation rate
+
+  // Preferences
+  beta: 0.96,               // Discount factor (annual)
+  gamma: 2.0,               // Risk aversion (CRRA)
+
+  // Demographics (annual rates)
+  birthRate: 0.012,         // Population growth
+  agingRate: 0.05,          // 1/20 years per stage
+  deathRate: 0.05,          // Mortality in old age
+
+  // Initial conditions (normalized)
+  initialCapital: 3.0,      // K/L ratio
+  initialPopYoung: 1.0,     // Normalized
+  initialPopMiddle: 0.9,
+  initialPopOld: 0.6,
+
+  // Government
+  taxRate: 0.20,            // Labor income tax
+  govSpendingRate: 0.15,    // G/Y ratio
+  ssReplacementRate: 0.35,  // Social Security replacement
+  initialDebtRatio: 1.20,   // Debt/GDP
+
+  // Simulation
+  yearsToSimulate: 50,
+
+  // Shocks (for scenarios)
+  tfpGrowth: 0.01,          // Annual TFP growth
+  agingShock: 0.0,          // Extra aging (demographic transition)
 };
 
 // ============================================
 // STATE
 // ============================================
-let generations = JSON.parse(JSON.stringify(DEFAULT_GENERATIONS));
 let params = { ...DEFAULT_PARAMS };
-let activeParamTab = 'fiscal';
-let activeChartTab = 'debtDoom';
-let activeGenTab = 'Boomers+';
+let activeParamTab = 'production';
+let activeChartTab = 'capital';
 let simulationData = [];
 let chart = null;
 
 // ============================================
-// SIMULATION ENGINE
+// OLG SIMULATION ENGINE
 // ============================================
 function runSimulation() {
-  const START_YEAR = 2026;
-  const simGens = JSON.parse(JSON.stringify(generations));
   const history = [];
 
-  let cpiIndex = 1.0;
-  let healthcareCpiIndex = 1.0;
-  let wageIndex = 1.0;
-  let debtStock = params.initialDebtStock;
-  let fedRate = params.initialInterestRate;
-  let effectiveTaxRate = params.taxRateBase;
-  let nominalGdp = 31.0;  // BEA: ~$31T Q3 2025
+  // State variables
+  let K = params.initialCapital;  // Capital stock
+  let popYoung = params.initialPopYoung;
+  let popMiddle = params.initialPopMiddle;
+  let popOld = params.initialPopOld;
+  let debt = params.initialDebtRatio * params.initialCapital;  // Government debt
+  let tfp = params.tfp;
 
-  for (let year = START_YEAR; year < START_YEAR + params.yearsToSimulate; year++) {
-    const yearOffset = year - START_YEAR;
+  // Wealth by cohort (assets held)
+  let wealthYoung = 0.5;
+  let wealthMiddle = 2.0;
+  let wealthOld = 3.0;
 
-    // === POLITICS ===
-    const genXShift = Math.min(0.95, params.genXStartAlign + yearOffset * params.genXShiftRate);
-    const votes = {};
-    for (const g in simGens) votes[g] = simGens[g].pop * simGens[g].turnout;
-
-    const blocOld = votes["Boomers+"] + votes["Gen X"] * genXShift;
-    const blocYoung = votes["Gen Z"] + votes["Millennials"] + votes["Gen X"] * (1 - genXShift);
-    const gerontocracyIndex = blocOld / (blocOld + blocYoung);
-
-    // === FISCAL: SPENDING ===
-    let totalNonHealthSpending = 0;
-    let totalHealthSpending = 0;
-    let totalProductivity = 0;
-
-    for (const g in simGens) {
-      totalNonHealthSpending += simGens[g].pop * simGens[g].consumption * cpiIndex;
-      totalHealthSpending += simGens[g].pop * simGens[g].healthcareDraw * healthcareCpiIndex;
-      totalProductivity += simGens[g].pop * simGens[g].productivity;
-    }
-
-    const structuralSpending = params.structuralDeficitFloor * cpiIndex;
-    const avgDebtRate = fedRate + 0.01;
-    const interestExpense = debtStock * avgDebtRate;
-    const totalSpending = totalNonHealthSpending + totalHealthSpending + structuralSpending + interestExpense;
-
-    // === FISCAL: REVENUE ===
-    const prevInflation = history.length > 0 ? history[history.length - 1].inflation : params.baseInflation;
-    const wageElasticity = Math.max(0.6, 1.0 - prevInflation * params.wageLagSeverity);
-    wageIndex *= (1 + prevInflation * wageElasticity);
-
-    const desiredTaxIncrease = Math.max(0, (totalSpending / nominalGdp - effectiveTaxRate) * 0.1);
-    const politicalResistance = gerontocracyIndex * params.oldBlocTaxResistance;
-    const actualTaxIncrease = desiredTaxIncrease * (1 - politicalResistance);
-    effectiveTaxRate = Math.min(params.taxRateBase + params.taxRateMaxIncrease, effectiveTaxRate + actualTaxIncrease);
-
-    const nominalRevenue = totalProductivity * 0.8 * wageIndex * (effectiveTaxRate / params.taxRateBase);
-
-    // === DEFICIT & DEBT ===
-    const primaryDeficit = Math.max(0, totalSpending - interestExpense - nominalRevenue);
-    const totalDeficit = primaryDeficit + interestExpense;
-    debtStock += totalDeficit;
-    const debtToGdp = debtStock / nominalGdp;
-
-    // === MONETARY POLICY ===
-    const inflationGap = prevInflation - params.fedInflationTarget;
-    const desiredRateChange = inflationGap * params.fedReactionStrength;
-    const debtConstraint = Math.max(0, (debtToGdp - 1.0) * params.fedPoliticalConstraint);
-    const politicalConstraint = gerontocracyIndex * params.fedPoliticalConstraint * 0.5;
-    const constrainedRateChange = desiredRateChange * Math.max(0.1, 1 - debtConstraint - politicalConstraint);
-    fedRate = Math.max(0.001, Math.min(0.15, fedRate + constrainedRateChange));
-
-    // === INFLATION ===
-    const monetizationPressure = (totalDeficit / nominalGdp) * 0.15;
-    const healthcarePush = params.healthcareExcessGrowth * 0.3;
-    const rateSuppressionEffect = Math.max(0, (params.fedInflationTarget + 0.02 - fedRate) * 0.5);
-    const actualInflation = params.baseInflation + monetizationPressure + healthcarePush + rateSuppressionEffect;
-
-    cpiIndex *= (1 + actualInflation);
-    healthcareCpiIndex *= (1 + actualInflation + params.healthcareExcessGrowth);
-
-    const realGdpGrowth = params.gdpGrowthBase - Math.max(0, actualInflation - 0.04) * 0.5;
-    nominalGdp *= (1 + realGdpGrowth + actualInflation);
-
-    // === WEALTH DYNAMICS ===
-    const inflationDrag = Math.max(0, (actualInflation - 0.03) * 0.6);
-    const rateDrag = Math.max(0, (fedRate - 0.03) * 0.3);
-    const realReturn = params.realAssetReturn - inflationDrag - rateDrag;
-    const nominalReturn = actualInflation + realReturn;
-
-    for (const gen in simGens) {
-      let income;
-      if (gen === "Boomers+") {
-        income = (simGens[gen].pop * simGens[gen].consumption * cpiIndex) +
-                 (simGens[gen].pop * simGens[gen].healthcareDraw * healthcareCpiIndex * 0.3);
-      } else {
-        income = simGens[gen].pop * simGens[gen].productivity * 0.8 * wageIndex;
-      }
-      const expenses = simGens[gen].pop * 0.5 * cpiIndex;
-      const investmentGain = simGens[gen].wealth * simGens[gen].assetAllocation * nominalReturn;
-      simGens[gen].wealth = Math.max(0, simGens[gen].wealth + investmentGain + income - expenses);
-    }
+  for (let t = 0; t < params.yearsToSimulate; t++) {
+    const year = 2026 + t;
 
     // === DEMOGRAPHICS ===
-    const deathRate = params.deathRateBase + yearOffset * params.deathRateAccel;
-    const wealthTransfer = simGens["Boomers+"].wealth * deathRate;
-    simGens["Boomers+"].pop *= (1 - deathRate);
-    simGens["Boomers+"].wealth -= wealthTransfer;
-    simGens["Gen X"].wealth += wealthTransfer * 0.65;
-    simGens["Millennials"].wealth += wealthTransfer * 0.30;
-    simGens["Gen Z"].wealth += wealthTransfer * 0.05;
-    simGens["Gen Z"].turnout = Math.min(0.55, simGens["Gen Z"].turnout + 0.008);
-    simGens["Gen Z"].pop += params.genZPopGrowth;
+    const effectiveAgingRate = params.agingRate + params.agingShock;
+    const newMiddle = popYoung * effectiveAgingRate;
+    const newOld = popMiddle * effectiveAgingRate;
+    const deaths = popOld * params.deathRate;
+    const births = (popYoung + popMiddle) * params.birthRate;
 
+    // === LABOR SUPPLY ===
+    // Young work at 70% productivity, Middle at 100%
+    const laborYoung = popYoung * 0.7;
+    const laborMiddle = popMiddle * 1.0;
+    const L = laborYoung + laborMiddle;
+
+    // === PRODUCTION (Cobb-Douglas) ===
+    // Y = A * K^α * L^(1-α)
+    const Y = tfp * Math.pow(K, params.alpha) * Math.pow(L, 1 - params.alpha);
+    const yPerCapita = Y / (popYoung + popMiddle + popOld);
+
+    // === FACTOR PRICES (Competitive Markets) ===
+    // Firms maximize profit: max A*K^α*L^(1-α) - wL - rK
+    // FOC: w = (1-α)*Y/L, r = α*Y/K
+    const wage = (1 - params.alpha) * Y / L;
+    const r_gross = params.alpha * Y / K;
+    const r = r_gross - params.delta;  // Net return = MPK - depreciation
+
+    // === GOVERNMENT ===
+    const taxRevenue = params.taxRate * wage * L;
+    const govSpending = params.govSpendingRate * Y;
+    const ssPayments = params.ssReplacementRate * wage * popOld;
+    const interestPayment = r * debt;
+    const deficit = govSpending + ssPayments + interestPayment - taxRevenue;
+    debt += deficit;
+    const debtToGdp = debt / Y;
+
+    // === HOUSEHOLD OPTIMIZATION (CRRA Utility) ===
+    // Households maximize: Σ β^t * c^(1-γ)/(1-γ)
+    // Euler equation: c_{t+1}/c_t = (β(1+r))^(1/γ)
+
+    // After-tax wage
+    const wageAfterTax = wage * (1 - params.taxRate);
+
+    // Optimal savings rate from Euler equation
+    // For CRRA utility with β and γ:
+    // In steady state: s = β^(1/γ) * (1+r)^((1-γ)/γ) / (1 + β^(1/γ) * (1+r)^((1-γ)/γ))
+    const betaAdj = Math.pow(params.beta, 1/params.gamma);
+    const rAdj = Math.pow(1 + r, (1 - params.gamma) / params.gamma);
+    const savingsRateOptimal = (betaAdj * rAdj) / (1 + betaAdj * rAdj);
+
+    // Cohort-specific behavior
+    // Young: save more (longer horizon)
+    // Middle: save moderately
+    const savingsRateYoung = Math.min(0.5, savingsRateOptimal * 1.3);
+    const savingsRateMiddle = savingsRateOptimal * 0.9;
+
+    // === CONSUMPTION BY COHORT ===
+    const incomeYoung = wageAfterTax * 0.7 * popYoung;
+    const incomeMiddle = wageAfterTax * 1.0 * popMiddle;
+    const incomeOld = ssPayments + (1 + r) * wealthOld * 0.1;  // SS + drawdown
+
+    const consumptionYoung = incomeYoung * (1 - savingsRateYoung);
+    const consumptionMiddle = incomeMiddle * (1 - savingsRateMiddle);
+    const consumptionOld = incomeOld;  // Old consume everything
+
+    const totalConsumption = consumptionYoung + consumptionMiddle + consumptionOld;
+
+    // === SAVINGS & CAPITAL ACCUMULATION ===
+    const savingsYoung = incomeYoung * savingsRateYoung;
+    const savingsMiddle = incomeMiddle * savingsRateMiddle;
+    const savingsOld = -wealthOld * params.deathRate;  // Dissaving (death)
+
+    const totalSavings = savingsYoung + savingsMiddle;
+    const investment = totalSavings - deficit;  // Govt borrowing crowds out
+
+    // Capital accumulation: K_{t+1} = (1-δ)K + I
+    const K_next = (1 - params.delta) * K + Math.max(0, investment);
+
+    // === WEALTH DYNAMICS ===
+    // Wealth = accumulated savings earning return r
+    const wealthYoungNew = wealthYoung * (1 + r) + savingsYoung;
+    const wealthMiddleNew = wealthMiddle * (1 + r) + savingsMiddle;
+    const wealthOldNew = wealthOld * (1 + r) * (1 - params.deathRate * 0.5);  // Drawdown
+
+    // Wealth transfers: dying old → young/middle
+    const bequests = wealthOld * params.deathRate;
+
+    // === DYNAMIC EFFICIENCY CHECK ===
+    // Economy is dynamically efficient if r > n (interest > pop growth)
+    const popGrowth = births / (popYoung + popMiddle + popOld);
+    const dynamicallyEfficient = r > popGrowth;
+
+    // === STEADY STATE CAPITAL ===
+    // In Diamond model: k* = (αA/(r*+δ))^(1/(1-α))
+    // Golden rule: r = n (max consumption)
+    const kSteadyState = Math.pow((params.alpha * tfp) / (r + params.delta), 1 / (1 - params.alpha));
+
+    // === UPDATE STATE ===
+    // Demographics
+    popYoung = popYoung * (1 - effectiveAgingRate) + births;
+    popMiddle = popMiddle * (1 - effectiveAgingRate) + newMiddle;
+    popOld = popOld * (1 - params.deathRate) + newOld;
+
+    // Capital
+    K = K_next;
+
+    // Wealth (with bequests distributed)
+    wealthYoung = wealthYoungNew + bequests * 0.3;
+    wealthMiddle = wealthMiddleNew + bequests * 0.7;
+    wealthOld = Math.max(0, wealthOldNew);
+
+    // TFP growth
+    tfp *= (1 + params.tfpGrowth);
+
+    // Record
     history.push({
       year,
-      inflation: actualInflation,
-      gerontocracyIndex,
-      cpi: cpiIndex,
-      realWageIndex: wageIndex / cpiIndex,
-      debtStock,
+      // Production
+      output: Y,
+      capital: K,
+      labor: L,
+      tfp,
+      yPerCapita,
+
+      // Prices
+      wage,
+      interestRate: r,
+      r_gross,
+
+      // Demographics
+      popYoung,
+      popMiddle,
+      popOld,
+      popTotal: popYoung + popMiddle + popOld,
+      dependencyRatio: popOld / (popYoung + popMiddle),
+
+      // Consumption & Savings
+      consumption: totalConsumption,
+      consPerCapita: totalConsumption / (popYoung + popMiddle + popOld),
+      savingsRate: totalSavings / Y,
+      investment,
+
+      // Wealth
+      wealthYoung,
+      wealthMiddle,
+      wealthOld,
+      totalWealth: wealthYoung + wealthMiddle + wealthOld,
+
+      // Government
+      taxRevenue,
+      govSpending,
+      ssPayments,
+      deficit,
+      debt,
       debtToGdp,
-      fedRate,
-      effectiveTaxRate,
-      totalSpending,
-      interestExpense,
-      primaryDeficit,
-      totalDeficit,
-      healthcareCpi: healthcareCpiIndex,
-      nominalGdp,
-      boomerWealth: simGens["Boomers+"].wealth,
-      genXWealth: simGens["Gen X"].wealth,
-      millennialWealth: simGens["Millennials"].wealth,
-      genZWealth: simGens["Gen Z"].wealth,
-      boomerPop: simGens["Boomers+"].pop,
-      genXPop: simGens["Gen X"].pop,
-      millennialPop: simGens["Millennials"].pop,
-      genZPop: simGens["Gen Z"].pop
+
+      // Efficiency
+      dynamicallyEfficient,
+      kSteadyState,
+      capitalGap: (K - kSteadyState) / kSteadyState,
     });
   }
 
@@ -413,16 +434,50 @@ function runSimulation() {
 function renderStats() {
   const start = simulationData[0];
   const end = simulationData[simulationData.length - 1];
-  const flipYear = simulationData.find(d => d.gerontocracyIndex < 0.5)?.year;
-  const crisisYear = simulationData.find(d => d.debtToGdp > 2.0)?.year;
 
   const stats = [
-    { icon: '💣', label: 'Debt/GDP', value: `${(end.debtToGdp * 100).toFixed(0)}%`, sub: `from ${(start.debtToGdp * 100).toFixed(0)}%`, warn: end.debtToGdp > 1.5 },
-    { icon: '🔥', label: 'Inflation', value: `${(end.inflation * 100).toFixed(1)}%`, sub: `from ${(start.inflation * 100).toFixed(1)}%`, warn: end.inflation > 0.06 },
-    { icon: '🏦', label: 'Fed Rate', value: `${(end.fedRate * 100).toFixed(1)}%`, sub: `target ${(params.fedInflationTarget * 100).toFixed(0)}%`, warn: false },
-    { icon: '💸', label: 'Interest/GDP', value: `${(end.interestExpense / end.nominalGdp * 100).toFixed(1)}%`, sub: 'of GDP', warn: end.interestExpense / end.nominalGdp > 0.05 },
-    { icon: '📉', label: 'Real Wages', value: `${(end.realWageIndex * 100).toFixed(0)}%`, sub: 'of 2026', warn: end.realWageIndex < 0.7 },
-    { icon: flipYear ? '⚠️' : '🔒', label: 'Flip Year', value: flipYear || 'None', sub: crisisYear ? `Crisis: ${crisisYear}` : 'No crisis', warn: false }
+    {
+      icon: '🏭',
+      label: 'Output/Cap',
+      value: end.yPerCapita.toFixed(2),
+      sub: `from ${start.yPerCapita.toFixed(2)}`,
+      warn: end.yPerCapita < start.yPerCapita
+    },
+    {
+      icon: '💰',
+      label: 'Interest Rate',
+      value: `${(end.interestRate * 100).toFixed(1)}%`,
+      sub: `MPK: ${(end.r_gross * 100).toFixed(1)}%`,
+      warn: end.interestRate < 0
+    },
+    {
+      icon: '👷',
+      label: 'Wage',
+      value: end.wage.toFixed(2),
+      sub: `from ${start.wage.toFixed(2)}`,
+      warn: false
+    },
+    {
+      icon: '📊',
+      label: 'K/L Ratio',
+      value: (end.capital / end.labor).toFixed(2),
+      sub: `k*: ${end.kSteadyState.toFixed(2)}`,
+      warn: Math.abs(end.capitalGap) > 0.2
+    },
+    {
+      icon: '👴',
+      label: 'Dependency',
+      value: `${(end.dependencyRatio * 100).toFixed(0)}%`,
+      sub: `from ${(start.dependencyRatio * 100).toFixed(0)}%`,
+      warn: end.dependencyRatio > 0.5
+    },
+    {
+      icon: end.dynamicallyEfficient ? '✓' : '⚠️',
+      label: 'Efficiency',
+      value: end.dynamicallyEfficient ? 'Yes' : 'No',
+      sub: `r ${end.dynamicallyEfficient ? '>' : '<'} n`,
+      warn: !end.dynamicallyEfficient
+    },
   ];
 
   document.getElementById('stats-grid').innerHTML = stats.map(s => `
@@ -438,7 +493,7 @@ function renderStats() {
 }
 
 function renderParamTabs() {
-  const tabs = ['fiscal', 'monetary', 'political', 'gens'];
+  const tabs = ['production', 'preferences', 'demographics', 'government'];
   document.getElementById('param-tabs').innerHTML = tabs.map(t =>
     `<button class="tab-btn${activeParamTab === t ? ' active' : ''}" onclick="setParamTab('${t}')">${t.charAt(0).toUpperCase() + t.slice(1)}</button>`
   ).join('');
@@ -447,70 +502,69 @@ function renderParamTabs() {
 function renderParamContent() {
   const container = document.getElementById('param-content');
 
-  if (activeParamTab === 'fiscal') {
+  if (activeParamTab === 'production') {
     container.innerHTML = `
-      <div class="section-title">Healthcare & Spending</div>
-      ${slider('healthcareExcessGrowth', 'Healthcare Excess Growth', 0.005, 0.04, 0.001, v => 'CPI+' + (v*100).toFixed(1) + '%', 'Medical CPI avg +1.7pp')}
-      ${slider('structuralDeficitFloor', 'Structural Deficit Floor', 0.5, 3.0, 0.1, v => '$' + v.toFixed(1) + 'T', 'Uncuttable spending')}
+      <div class="section-title">Cobb-Douglas Production</div>
+      ${slider('alpha', 'Capital Share (α)', 0.2, 0.5, 0.01, v => v.toFixed(2), 'Y = A·K^α·L^(1-α)')}
+      ${slider('tfp', 'TFP Level (A)', 0.5, 2.0, 0.1, v => v.toFixed(1), 'Total factor productivity')}
+      ${slider('tfpGrowth', 'TFP Growth', 0.0, 0.03, 0.005, v => (v*100).toFixed(1) + '%/yr', 'Technological progress')}
+      ${slider('delta', 'Depreciation (δ)', 0.02, 0.10, 0.01, v => (v*100).toFixed(0) + '%', 'Capital depreciation rate')}
 
-      <div class="section-title">Debt & Interest</div>
-      ${slider('initialDebtStock', 'Initial Debt Stock', 30, 55, 1, v => '$' + v + 'T')}
-      ${slider('initialInterestRate', 'Starting Interest Rate', 0.01, 0.08, 0.005, v => (v*100).toFixed(1) + '%')}
-
-      <div class="section-title">Tax Political Economy</div>
-      ${slider('taxRateBase', 'Base Tax Rate (% GDP)', 0.14, 0.22, 0.01, v => (v*100).toFixed(0) + '%')}
-      ${slider('taxRateMaxIncrease', 'Max Tax Increase', 0.02, 0.12, 0.01, v => '+' + (v*100).toFixed(0) + 'pp', 'Political ceiling')}
-      ${slider('oldBlocTaxResistance', 'Old Bloc Tax Resistance', 0.3, 0.95, 0.05, v => (v*100).toFixed(0) + '%', 'How much old bloc blocks increases')}
-      ${slider('wageLagSeverity', 'Wage Lag Severity', 0.5, 4.0, 0.1, v => v.toFixed(1) + 'x')}
+      <div class="section-title">Initial Capital</div>
+      ${slider('initialCapital', 'K/L Ratio', 1.0, 6.0, 0.5, v => v.toFixed(1), 'Starting capital intensity')}
     `;
-  } else if (activeParamTab === 'monetary') {
+  } else if (activeParamTab === 'preferences') {
     container.innerHTML = `
-      <div class="section-title">Fed Reaction Function</div>
-      ${slider('fedInflationTarget', 'Inflation Target', 0.01, 0.04, 0.005, v => (v*100).toFixed(1) + '%')}
-      ${slider('fedReactionStrength', 'Fed Reaction Strength', 0.1, 1.5, 0.1, v => v.toFixed(1) + 'x', 'Taylor rule aggressiveness')}
-      ${slider('fedPoliticalConstraint', 'Political Constraint', 0.0, 0.8, 0.05, v => (v*100).toFixed(0) + '%', 'Debt/politics limit hawkishness')}
-
-      <div class="section-title">Macro Fundamentals</div>
-      ${slider('baseInflation', 'Base Inflation', 0.01, 0.05, 0.005, v => (v*100).toFixed(1) + '%')}
-      ${slider('gdpGrowthBase', 'Real GDP Growth', 0.005, 0.035, 0.005, v => (v*100).toFixed(1) + '%')}
-      ${slider('realAssetReturn', 'Real Asset Return', 0.0, 0.08, 0.005, v => (v*100).toFixed(1) + '%')}
-      ${slider('yearsToSimulate', 'Years to Simulate', 15, 40, 5, v => v + ' yrs')}
-    `;
-  } else if (activeParamTab === 'political') {
-    container.innerHTML = `
-      <div class="section-title">Gen X Drift</div>
-      ${slider('genXStartAlign', 'Gen X Start Alignment', 0.3, 0.8, 0.05, v => (v*100).toFixed(0) + '% Old')}
-      ${slider('genXShiftRate', 'Gen X Drift Rate', 0.0, 0.04, 0.005, v => (v*100).toFixed(1) + '%/yr')}
-
-      <div class="section-title">Demographics</div>
-      ${slider('deathRateBase', 'Boomer Death Rate', 0.02, 0.05, 0.005, v => (v*100).toFixed(1) + '%/yr')}
-      ${slider('deathRateAccel', 'Death Acceleration', 0.0, 0.003, 0.0005, v => (v*1000).toFixed(1) + '‰/yr²')}
-      ${slider('genZPopGrowth', 'Gen Z Pop Growth', 0.5, 3.0, 0.25, v => v.toFixed(1) + 'M/yr')}
+      <div class="section-title">CRRA Utility</div>
+      <div style="padding:8px;background:rgba(55,65,81,0.5);border-radius:4px;margin-bottom:12px;">
+        <div style="font-size:0.7rem;color:#9CA3AF;">
+          <span style="color:#D1D5DB;font-family:serif;font-style:italic;">u(c) = c<sup>1-γ</sup>/(1-γ)</span><br>
+          Euler: <span style="color:#D1D5DB;font-family:serif;font-style:italic;">c<sub>t+1</sub>/c<sub>t</sub> = (β(1+r))<sup>1/γ</sup></span>
+        </div>
+      </div>
+      ${slider('beta', 'Discount Factor (β)', 0.90, 0.99, 0.01, v => v.toFixed(2), 'Patience (β=0.96 ≈ 4% discount)')}
+      ${slider('gamma', 'Risk Aversion (γ)', 0.5, 4.0, 0.5, v => v.toFixed(1), 'γ=1 is log utility')}
 
       <div style="margin-top:12px;padding:8px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.7rem;color:#9CA3AF;">
-        <div style="font-weight:500;color:#D1D5DB;margin-bottom:4px;">Turnout Calibration (2024 actual)</div>
-        <div>65+: 75% | 45-64: 63% | 30-44: 52% | 18-29: 47%</div>
-        <div style="margin-top:4px;color:#6B7280;">Sources: Census Bureau, CIRCLE/Tufts</div>
+        <div style="font-weight:500;color:#D1D5DB;margin-bottom:4px;">Interpretation</div>
+        <div>Higher β → more savings (patient)</div>
+        <div>Higher γ → smoother consumption</div>
       </div>
     `;
-  } else if (activeParamTab === 'gens') {
-    const genKeys = ["Boomers+", "Gen X", "Millennials", "Gen Z"];
-    const genClasses = { "Boomers+": "boomer", "Gen X": "genx", "Millennials": "millennial", "Gen Z": "genz" };
-    const activeClass = genClasses[activeGenTab];
-
+  } else if (activeParamTab === 'demographics') {
     container.innerHTML = `
-      <div class="gen-tabs">
-        ${genKeys.map(g => `<button class="gen-tab${activeGenTab === g ? ' active-' + genClasses[g] : ''}" onclick="setGenTab('${g}')">${g.replace('ennials','').replace('+','')}</button>`).join('')}
+      <div class="section-title">Population Dynamics</div>
+      ${slider('birthRate', 'Birth Rate', 0.0, 0.03, 0.002, v => (v*100).toFixed(1) + '%', 'Annual births / working pop')}
+      ${slider('agingRate', 'Aging Rate', 0.03, 0.08, 0.005, v => (v*100).toFixed(1) + '%', '1/years per life stage')}
+      ${slider('deathRate', 'Death Rate (Old)', 0.03, 0.10, 0.01, v => (v*100).toFixed(0) + '%', 'Old-age mortality')}
+
+      <div class="section-title">Demographic Shock</div>
+      ${slider('agingShock', 'Aging Acceleration', 0.0, 0.03, 0.005, v => '+' + (v*100).toFixed(1) + '%', 'Extra aging (demographic transition)')}
+
+      <div class="section-title">Initial Population</div>
+      ${slider('initialPopYoung', 'Young (20-40)', 0.5, 1.5, 0.1, v => v.toFixed(1))}
+      ${slider('initialPopMiddle', 'Middle (40-60)', 0.5, 1.5, 0.1, v => v.toFixed(1))}
+      ${slider('initialPopOld', 'Old (60-80)', 0.3, 1.0, 0.1, v => v.toFixed(1))}
+    `;
+  } else if (activeParamTab === 'government') {
+    container.innerHTML = `
+      <div class="section-title">Fiscal Policy</div>
+      ${slider('taxRate', 'Labor Tax Rate', 0.10, 0.40, 0.02, v => (v*100).toFixed(0) + '%', 'Tax on wage income')}
+      ${slider('govSpendingRate', 'Gov Spending/GDP', 0.10, 0.30, 0.02, v => (v*100).toFixed(0) + '%', 'Government consumption')}
+      ${slider('ssReplacementRate', 'SS Replacement', 0.20, 0.50, 0.05, v => (v*100).toFixed(0) + '%', 'Social Security / avg wage')}
+
+      <div class="section-title">Government Debt</div>
+      ${slider('initialDebtRatio', 'Initial Debt/GDP', 0.0, 2.0, 0.1, v => (v*100).toFixed(0) + '%', 'Starting debt ratio')}
+
+      <div style="margin-top:12px;padding:8px;background:rgba(55,65,81,0.5);border-radius:4px;font-size:0.7rem;color:#9CA3AF;">
+        <div style="font-weight:500;color:#D1D5DB;margin-bottom:4px;">Crowding Out</div>
+        <div>Deficit = G + SS + rD - T</div>
+        <div>Investment = Savings - Deficit</div>
+        <div>Higher debt → less capital accumulation</div>
       </div>
-      <div class="gen-panel ${activeClass}">
-        ${genSlider('pop', 'Population (M)', 20, 100, 1, v => v.toFixed(0) + 'M')}
-        ${genSlider('wealth', 'Wealth ($T)', 0, 120, 1, v => '$' + v.toFixed(0) + 'T')}
-        ${genSlider('turnout', 'Turnout', 0.2, 0.85, 0.01, v => (v*100).toFixed(0) + '%')}
-        ${genSlider('productivity', 'Productivity', 0.0, 1.2, 0.05, v => v.toFixed(2))}
-        ${genSlider('consumption', 'Non-Health Benefits', 0.0, 1.0, 0.05, v => v.toFixed(2))}
-        ${genSlider('healthcareDraw', 'Healthcare Draw', 0.0, 2.0, 0.05, v => v.toFixed(2), 'Medicare/Medicaid consumption')}
-        ${genSlider('assetAllocation', 'Asset Allocation', 0.0, 1.0, 0.05, v => (v*100).toFixed(0) + '%')}
-      </div>
+
+      <div class="section-title">Simulation</div>
+      ${slider('yearsToSimulate', 'Years', 20, 100, 10, v => v + ' yrs')}
     `;
   }
 }
@@ -529,28 +583,14 @@ function slider(key, label, min, max, step, format, hint) {
   `;
 }
 
-function genSlider(key, label, min, max, step, format, hint) {
-  return `
-    <div class="slider-group">
-      <div class="slider-header">
-        <span class="slider-label">${label}</span>
-        <span class="slider-value">${format(generations[activeGenTab][key])}</span>
-      </div>
-      <input type="range" min="${min}" max="${max}" step="${step}" value="${generations[activeGenTab][key]}"
-             oninput="updateGen('${key}', parseFloat(this.value))">
-      ${hint ? `<div class="slider-hint">${hint}</div>` : ''}
-    </div>
-  `;
-}
-
 function renderChartTabs() {
   const tabs = [
-    { id: 'debtDoom', label: 'Debt Spiral' },
-    { id: 'fedTrap', label: 'Fed Trap' },
-    { id: 'inflation', label: 'Inflation' },
-    { id: 'fiscal', label: 'Fiscal' },
-    { id: 'politics', label: 'Politics' },
-    { id: 'wealth', label: 'Wealth' }
+    { id: 'capital', label: 'Capital' },
+    { id: 'prices', label: 'Prices' },
+    { id: 'consumption', label: 'Consumption' },
+    { id: 'demographics', label: 'Demographics' },
+    { id: 'wealth', label: 'Wealth' },
+    { id: 'fiscal', label: 'Fiscal' }
   ];
   document.getElementById('chart-tabs').innerHTML = tabs.map(t =>
     `<button class="tab-btn${activeChartTab === t.id ? ' active' : ''}" onclick="setChartTab('${t.id}')">${t.label}</button>`
@@ -559,57 +599,61 @@ function renderChartTabs() {
 
 function renderChart() {
   const ctx = document.getElementById('mainChart').getContext('2d');
-
   if (chart) chart.destroy();
 
   const labels = simulationData.map(d => d.year);
   let datasets = [];
   let yConfig = {};
 
-  if (activeChartTab === 'debtDoom') {
+  if (activeChartTab === 'capital') {
     datasets = [
-      { label: 'Debt/GDP', data: simulationData.map(d => d.debtToGdp * 100), borderColor: '#EF4444', backgroundColor: 'transparent', yAxisID: 'y', tension: 0.3 },
-      { label: 'Debt Stock ($T)', data: simulationData.map(d => d.debtStock), borderColor: '#8B5CF6', backgroundColor: 'transparent', yAxisID: 'y1', tension: 0.3 },
-      { label: 'Interest ($T)', data: simulationData.map(d => d.interestExpense), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, yAxisID: 'y1', tension: 0.3 }
+      { label: 'Capital (K)', data: simulationData.map(d => d.capital), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.3, yAxisID: 'y' },
+      { label: 'Steady State (k*)', data: simulationData.map(d => d.kSteadyState), borderColor: '#10B981', borderDash: [5, 5], backgroundColor: 'transparent', tension: 0.3, yAxisID: 'y' },
+      { label: 'Output (Y)', data: simulationData.map(d => d.output), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.3, yAxisID: 'y1' },
     ];
     yConfig = {
-      y: { position: 'left', title: { display: true, text: 'Debt/GDP %', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' } },
-      y1: { position: 'right', title: { display: true, text: '$T', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => '$' + v + 'T' }, grid: { display: false } }
+      y: { position: 'left', title: { display: true, text: 'Capital', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } },
+      y1: { position: 'right', title: { display: true, text: 'Output', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { display: false } }
     };
-  } else if (activeChartTab === 'fedTrap') {
+  } else if (activeChartTab === 'prices') {
     datasets = [
-      { label: 'Fed Rate', data: simulationData.map(d => d.fedRate * 100), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Inflation', data: simulationData.map(d => d.inflation * 100), borderColor: '#EF4444', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Target', data: simulationData.map(() => params.fedInflationTarget * 100), borderColor: '#10B981', borderDash: [5, 5], backgroundColor: 'transparent' }
+      { label: 'Interest Rate (r)', data: simulationData.map(d => d.interestRate * 100), borderColor: '#EF4444', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Gross MPK', data: simulationData.map(d => d.r_gross * 100), borderColor: '#F59E0B', borderDash: [3, 3], backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Wage (w)', data: simulationData.map(d => d.wage * 10), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.3 },
     ];
-    yConfig = { y: { title: { display: true, text: '%', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' }, min: 0 } };
-  } else if (activeChartTab === 'inflation') {
+    yConfig = { y: { title: { display: true, text: 'Rate (%) / Wage×10', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } } };
+  } else if (activeChartTab === 'consumption') {
     datasets = [
-      { label: 'CPI Inflation', data: simulationData.map(d => d.inflation * 100), borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Healthcare (implied)', data: simulationData.map(d => ((d.healthcareCpi / d.cpi - 1) * 0.5 + d.inflation) * 100), borderColor: '#EF4444', borderDash: [3, 3], backgroundColor: 'transparent', tension: 0.3 }
+      { label: 'Consumption', data: simulationData.map(d => d.consumption), borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.2)', fill: true, tension: 0.3 },
+      { label: 'Investment', data: simulationData.map(d => d.investment), borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Savings Rate', data: simulationData.map(d => d.savingsRate * 100), borderColor: '#8B5CF6', backgroundColor: 'transparent', tension: 0.3, yAxisID: 'y1' },
     ];
-    yConfig = { y: { title: { display: true, text: '%', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' }, min: 0 } };
-  } else if (activeChartTab === 'fiscal') {
+    yConfig = {
+      y: { position: 'left', title: { display: true, text: 'Level', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } },
+      y1: { position: 'right', title: { display: true, text: 'Rate (%)', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { display: false } }
+    };
+  } else if (activeChartTab === 'demographics') {
     datasets = [
-      { label: 'Total Spending', data: simulationData.map(d => d.totalSpending), borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.2)', fill: true, tension: 0.3 },
-      { label: 'Interest', data: simulationData.map(d => d.interestExpense), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.3 },
-      { label: 'Primary Deficit', data: simulationData.map(d => d.primaryDeficit), borderColor: '#8B5CF6', backgroundColor: 'transparent', tension: 0.3 }
+      { label: 'Young', data: simulationData.map(d => d.popYoung), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.2)', fill: true, tension: 0.3 },
+      { label: 'Middle', data: simulationData.map(d => d.popMiddle), borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.2)', fill: true, tension: 0.3 },
+      { label: 'Old', data: simulationData.map(d => d.popOld), borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.3 },
     ];
-    yConfig = { y: { title: { display: true, text: '$T', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => '$' + v + 'T' }, grid: { color: '#374151' } } };
-  } else if (activeChartTab === 'politics') {
-    datasets = [
-      { label: 'Old Bloc Power', data: simulationData.map(d => d.gerontocracyIndex * 100), borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,0.2)', fill: true, tension: 0.3 },
-      { label: '50% Threshold', data: simulationData.map(() => 50), borderColor: '#EF4444', borderDash: [5, 5], backgroundColor: 'transparent' }
-    ];
-    yConfig = { y: { title: { display: true, text: '%', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => v + '%' }, grid: { color: '#374151' }, min: 35, max: 75 } };
+    yConfig = { y: { stacked: true, title: { display: true, text: 'Population', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } } };
   } else if (activeChartTab === 'wealth') {
     datasets = [
-      { label: 'Boomers+', data: simulationData.map(d => d.boomerWealth), borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Gen X', data: simulationData.map(d => d.genXWealth), borderColor: '#8B5CF6', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Millennials', data: simulationData.map(d => d.millennialWealth), borderColor: '#10B981', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'Gen Z', data: simulationData.map(d => d.genZWealth), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.3 }
+      { label: 'Young Wealth', data: simulationData.map(d => d.wealthYoung), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Middle Wealth', data: simulationData.map(d => d.wealthMiddle), borderColor: '#10B981', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Old Wealth', data: simulationData.map(d => d.wealthOld), borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'Total', data: simulationData.map(d => d.totalWealth), borderColor: '#8B5CF6', borderDash: [5, 5], backgroundColor: 'transparent', tension: 0.3 },
     ];
-    yConfig = { y: { title: { display: true, text: '$T', color: '#9CA3AF' }, ticks: { color: '#9CA3AF', callback: v => '$' + v + 'T' }, grid: { color: '#374151' } } };
+    yConfig = { y: { title: { display: true, text: 'Wealth', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } } };
+  } else if (activeChartTab === 'fiscal') {
+    datasets = [
+      { label: 'Debt/GDP', data: simulationData.map(d => d.debtToGdp * 100), borderColor: '#EF4444', backgroundColor: 'rgba(239,68,68,0.2)', fill: true, tension: 0.3 },
+      { label: 'Tax Revenue', data: simulationData.map(d => d.taxRevenue * 20), borderColor: '#10B981', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'SS Payments', data: simulationData.map(d => d.ssPayments * 20), borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.3 },
+    ];
+    yConfig = { y: { title: { display: true, text: 'Debt/GDP (%) / Flows×20', color: '#9CA3AF' }, ticks: { color: '#9CA3AF' }, grid: { color: '#374151' } } };
   }
 
   chart = new Chart(ctx, {
@@ -634,10 +678,10 @@ function renderChart() {
 function renderChartFooter() {
   const end = simulationData[simulationData.length - 1];
   document.getElementById('chart-footer').innerHTML = `
-    <div class="footer-stat"><span>Tax Rate:</span> <span class="val emerald">${(end.effectiveTaxRate*100).toFixed(1)}%</span></div>
-    <div class="footer-stat"><span>Nom GDP:</span> <span class="val blue">$${end.nominalGdp.toFixed(0)}T</span></div>
-    <div class="footer-stat"><span>CPI:</span> <span class="val amber">${end.cpi.toFixed(2)}x</span></div>
-    <div class="footer-stat"><span>HC CPI:</span> <span class="val red">${end.healthcareCpi.toFixed(2)}x</span></div>
+    <div class="footer-stat"><span>K/Y:</span> <span class="val amber">${(end.capital / end.output).toFixed(2)}</span></div>
+    <div class="footer-stat"><span>C/Y:</span> <span class="val emerald">${(end.consumption / end.output).toFixed(2)}</span></div>
+    <div class="footer-stat"><span>Debt/Y:</span> <span class="val red">${(end.debtToGdp * 100).toFixed(0)}%</span></div>
+    <div class="footer-stat"><span>TFP:</span> <span class="val blue">${end.tfp.toFixed(2)}</span></div>
   `;
 }
 
@@ -656,25 +700,13 @@ function setChartTab(tab) {
   renderChart();
 }
 
-function setGenTab(gen) {
-  activeGenTab = gen;
-  renderParamContent();
-}
-
 function updateParam(key, value) {
   params[key] = value;
   update();
 }
 
-function updateGen(key, value) {
-  generations[activeGenTab][key] = value;
-  update();
-}
-
 function resetToDefaults() {
-  generations = JSON.parse(JSON.stringify(DEFAULT_GENERATIONS));
   params = { ...DEFAULT_PARAMS };
-  activeGenTab = 'Boomers+';
   update();
   renderParamContent();
 }
