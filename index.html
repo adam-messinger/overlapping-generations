@@ -274,7 +274,10 @@ const DEFAULT_PARAMS = {
   tfp: 1.0,
   delta: 0.05,
   beta: 0.96,
-  gamma: 2.0,
+  // Log utility (γ=1) per Peters' ergodicity economics:
+  // Agents maximize time-average growth rate of wealth, not expected utility.
+  // With multiplicative dynamics, this is equivalent to log utility.
+  // Key result: optimal savings rate = β/(1+β), independent of interest rates.
 
   // Demographics
   birthRate: 0.012,
@@ -449,14 +452,15 @@ function runSimulation(p) {
     const targetRealWage = wage;
     realWageIndex = realWageIndex * p.nominalRigidity + targetRealWage * (1 - p.nominalRigidity);
 
-    // Household optimization
+    // Household optimization - Log utility (Peters' ergodicity economics)
+    // With log utility, optimal savings rate = β/(1+β), independent of interest rates.
+    // This maximizes time-average growth rate of wealth under multiplicative dynamics.
     const wageAfterTax = realWageIndex * (1 - effectiveTaxRate);
-    const betaAdj = Math.pow(p.beta, 1/p.gamma);
-    const rAdj = Math.pow(Math.max(1.001, 1 + realRate), (1 - p.gamma) / p.gamma);
-    const savingsRateOptimal = Math.max(0.1, Math.min(0.6, (betaAdj * rAdj) / (1 + betaAdj * rAdj)));
+    const savingsRateOptimal = p.beta / (1 + p.beta); // ~0.49 for β=0.96
 
-    const savingsRateYoung = Math.min(0.5, savingsRateOptimal * 1.3);
-    const savingsRateMiddle = savingsRateOptimal * 0.9;
+    // Young save more (longer horizon), middle save less (approaching retirement)
+    const savingsRateYoung = Math.min(0.55, savingsRateOptimal * 1.15);
+    const savingsRateMiddle = savingsRateOptimal * 0.85;
 
     // Income & consumption by quintile
     const topIncomeShare = p.topShareIncome;
