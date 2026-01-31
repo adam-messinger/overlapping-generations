@@ -245,16 +245,16 @@
         <div class="control-group">
           <div class="control-title">Political Flexibility</div>
           <div class="button-group">
-            <button class="option-btn" onclick="setPolitics('locked')" data-politics="locked">
-              Locked
-              <div class="desc">No reform possible</div>
+            <button class="option-btn" onclick="setPolitics('rigid')" data-politics="rigid">
+              Rigid
+              <div class="desc">Reform at 55% young bloc</div>
             </button>
             <button class="option-btn active" onclick="setPolitics('moderate')" data-politics="moderate">
               Moderate
-              <div class="desc">Reform at 55% young bloc</div>
+              <div class="desc">Reform at 50% young bloc</div>
             </button>
-            <button class="option-btn" onclick="setPolitics('responsive')" data-politics="responsive">
-              Responsive
+            <button class="option-btn" onclick="setPolitics('flexible')" data-politics="flexible">
+              Flexible
               <div class="desc">Reform at 45% young bloc</div>
             </button>
           </div>
@@ -301,7 +301,7 @@ const DEFAULT_PARAMS = {
   turnoutMiddle: 0.63,
   turnoutOld: 0.75,
   oldPolicyWeight: 0.6,
-  reformThreshold: 0.55,
+  reformThreshold: 0.50,
 
   // Monetary
   inflationTarget: 0.02,
@@ -603,15 +603,15 @@ function setPolitics(mode) {
   });
 
   // Apply preset
-  if (mode === 'locked') {
-    params.reformThreshold = 0.99; // Effectively impossible
-    params.oldPolicyWeight = 0.9;
-  } else if (mode === 'moderate') {
+  if (mode === 'rigid') {
     params.reformThreshold = 0.55;
+    params.oldPolicyWeight = 0.7;
+  } else if (mode === 'moderate') {
+    params.reformThreshold = 0.50;
     params.oldPolicyWeight = 0.6;
-  } else if (mode === 'responsive') {
+  } else if (mode === 'flexible') {
     params.reformThreshold = 0.45;
-    params.oldPolicyWeight = 0.4;
+    params.oldPolicyWeight = 0.5;
   }
 
   update();
