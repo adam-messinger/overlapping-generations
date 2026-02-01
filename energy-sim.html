@@ -374,8 +374,9 @@
         <tbody id="era-tbody"></tbody>
     </table>
 
-    <div class="controls" style="text-align: center;">
+    <div class="controls" style="text-align: center; display: flex; gap: 15px; justify-content: center;">
         <button id="export-csv" style="background: #4cc9f0; color: #000; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600;">Export Demographics CSV</button>
+        <button id="export-json" style="background: #90be6d; color: #000; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600;">Export Full JSON</button>
     </div>
 
     <script>
@@ -590,6 +591,30 @@
         tippingMultiplier: 1.25,        // Damage multiplier above threshold
         maxDamage: 0.30,                // Cap damages at 30% GDP
         nonElecEmissions2025: 25        // Gt CO₂ from non-electricity (transport, industry, etc.)
+    };
+
+    // =============================================================================
+    // SIMULATION DEFAULTS AND CONFIG
+    // =============================================================================
+
+    /**
+     * Default simulation parameters (matches slider defaults)
+     * Use energySim.defaults to see these without scanning the DOM
+     */
+    const defaults = {
+        carbonPrice: 50,              // $/ton CO₂
+        solarAlpha: 0.36,             // Wright's Law exponent (learning rate)
+        solarGrowth: 0.25,            // 25% annual capacity growth
+        electrificationTarget: 0.65,  // 65% of useful energy from electricity
+        efficiencyMultiplier: 1.0,    // Multiplier on intensity decline rates
+        climSensitivity: 3.0          // °C per CO₂ doubling
+    };
+
+    /**
+     * Runtime configuration
+     */
+    const config = {
+        quiet: false  // Set to true to suppress console warnings (e.g., dispatch shortfall)
     };
 
     // =============================================================================
@@ -1195,7 +1220,7 @@
         }
 
         // If demand not met (shouldn't happen with fossil backup), log warning
-        if (remaining > 0.1) {
+        if (remaining > 0.1 && !config.quiet) {
             console.warn(`Dispatch shortfall: ${remaining.toFixed(1)} TWh unmet`);
         }
 
@@ -1608,9 +1633,97 @@
         return crossovers;
     }
 
+    /**
+     * Run a scenario and return key metrics as a flat object
+     * Convenience wrapper for headless/programmatic use
+     *
+     * @param {Object} params - Same as runSimulation params (uses defaults if omitted)
+     * @returns {Object} Key metrics: crossovers, peakEmissions, warming2100, elec2050, etc.
+     */
+    function runScenario(params = {}) {
+        const mergedParams = { ...defaults, ...params };
+        const { years, results, demographics, demand, climate, dispatch } = runSimulation(mergedParams);
+        const crossovers = findCrossovers(years, results);
+
+        const idx2050 = years.indexOf(2050);
+        const idx2075 = years.indexOf(2075);
+
+        return {
+            // Input parameters used
+            params: mergedParams,
+
+            // Energy crossovers
+            solarCrossesGas: crossovers.find(c => c.event.includes('Solar LCOE'))?.year ?? null,
+            solarBatteryCrossesGas: crossovers.find(c => c.event.includes('Solar+Battery'))?.year ?? null,
+            coalUneconomic: crossovers.find(c => c.event.includes('Coal'))?.year ?? null,
+            windCrossesGas: crossovers.find(c => c.event.includes('Wind LCOE'))?.year ?? null,
+
+            // Climate metrics
+            peakEmissionsYear: climate.metrics.peakEmissionsYear,
+            peakEmissionsGt: climate.metrics.peakEmissionsValue,
+            warming2100: climate.metrics.warming2100,               // °C
+            damages2075: climate.metrics.damages2075,               // % GDP
+            gridIntensity2025: climate.metrics.gridIntensity2025,   // kg CO₂/MWh
+            emissions2025: climate.emissions[0],                    // Gt CO₂
+            emissions2050: climate.emissions[idx2050],              // Gt CO₂
+
+            // Demand metrics
+            elec2025: demand.global.electricityDemand[0],           // TWh
+            elec2050: demand.global.electricityDemand[idx2050],     // TWh
+            electrification2050: demand.global.electrificationRate[idx2050], // fraction
+
+            // Demographics metrics
+            popPeakYear: findPopulationPeak(demographics.global.population, demographics.years).year,
+            pop2100: demographics.global.population[demographics.years.length - 1], // billions
+            dependency2075: demographics.global.dependency[idx2075], // ratio
+
+            // Full data (if needed for deeper analysis)
+            _fullData: { years, results, demographics, demand, climate, dispatch }
+        };
+    }
+
+    /**
+     * Export full simulation data as JSON
+     * @param {Object} params - Same as runSimulation params
+     * @returns {string} JSON string of full simulation results
+     */
+    function exportJSON(params = {}) {
+        const mergedParams = { ...defaults, ...params };
+        const data = runSimulation(mergedParams);
+        const crossovers = findCrossovers(data.years, data.results);
+
+        return JSON.stringify({
+            params: mergedParams,
+            years: data.years,
+            lcoe: data.results,
+            demographics: {
+                years: data.demographics.years,
+                global: data.demographics.global,
+                regions: data.demographics.regions
+            },
+            demand: {
+                global: data.demand.global,
+                regions: data.demand.regions,
+                metrics: data.demand.metrics
+            },
+            climate: data.climate,
+            dispatch: data.dispatch,
+            crossovers
+        }, null, 2);
+    }
+
     // =============================================================================
-    // VISUALIZATION
+    // VISUALIZATION (Browser-only)
     // =============================================================================
+    //
+    // Everything above this line is pure JS with no DOM dependencies.
+    // For headless use: call energySim.runSimulation(params) or energySim.runScenario(params)
+    // directly without loading the DOM.
+    //
+    // The UI code below only runs in a browser environment.
+
+    // Check for browser environment before initializing UI
+    const isBrowser = typeof document !== 'undefined' && document.getElementById;
 
     let lcoeChart = null;
     let batteryChart = null;
@@ -2766,31 +2879,71 @@
         });
     }
 
-    // Event listeners
-    document.getElementById('carbon-price').addEventListener('input', updateCharts);
-    document.getElementById('solar-alpha').addEventListener('input', updateCharts);
-    document.getElementById('solar-growth').addEventListener('input', updateCharts);
-    document.getElementById('electrification-target').addEventListener('input', updateCharts);
-    document.getElementById('efficiency-mult').addEventListener('input', updateCharts);
-    document.getElementById('clim-sensitivity').addEventListener('input', updateCharts);
+    // Initialize UI only in browser environment
+    if (isBrowser) {
+        // Event listeners
+        document.getElementById('carbon-price').addEventListener('input', updateCharts);
+        document.getElementById('solar-alpha').addEventListener('input', updateCharts);
+        document.getElementById('solar-growth').addEventListener('input', updateCharts);
+        document.getElementById('electrification-target').addEventListener('input', updateCharts);
+        document.getElementById('efficiency-mult').addEventListener('input', updateCharts);
+        document.getElementById('clim-sensitivity').addEventListener('input', updateCharts);
 
-    // CSV Export
-    document.getElementById('export-csv').addEventListener('click', function() {
-        if (!currentDemographicsData) return;
-        const csv = exportDemographicsCSV(currentDemographicsData);
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'demographics_2025_2100.csv';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
+        // CSV Export
+        document.getElementById('export-csv').addEventListener('click', function() {
+            if (!currentDemographicsData) return;
+            const csv = exportDemographicsCSV(currentDemographicsData);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'demographics_2025_2100.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
 
-    // Initial render
-    updateCharts();
+        // JSON Export (full simulation data)
+        document.getElementById('export-json').addEventListener('click', function() {
+            // Get current slider values
+            const params = {
+                carbonPrice: parseFloat(document.getElementById('carbon-price').value),
+                solarAlpha: parseFloat(document.getElementById('solar-alpha').value),
+                solarGrowth: parseFloat(document.getElementById('solar-growth').value) / 100,
+                electrificationTarget: parseFloat(document.getElementById('electrification-target').value) / 100,
+                efficiencyMultiplier: parseFloat(document.getElementById('efficiency-mult').value),
+                climSensitivity: parseFloat(document.getElementById('clim-sensitivity').value)
+            };
+            const json = exportJSON(params);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'energy_simulation.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
 
-    // Console API for testing
+        // Initial render
+        updateCharts();
+    }
+
+    /**
+     * Console API for programmatic access
+     *
+     * UNITS REFERENCE:
+     * - LCOE: $/MWh
+     * - Battery cost: $/kWh
+     * - Electricity demand: TWh
+     * - Per-worker electricity: kWh/person
+     * - GDP: $ trillions (regional), $ per person (per-worker)
+     * - Population: absolute counts (not billions)
+     * - Emissions: Gt CO₂/year
+     * - Grid intensity: kg CO₂/MWh
+     * - Temperature: °C above preindustrial
+     * - Damages: % of GDP (0-100 scale in arrays)
+     * - Dependency ratio: fraction (0-1)
+     * - Electrification rate: fraction (0-1)
+     */
     window.energySim = {
         // Primitives
         compound,
@@ -2798,42 +2951,52 @@
         depletion,
         logistic,
         poissonShock,
-        // Simulation
-        runSimulation,
+
+        // Simulation (full runs)
+        runSimulation,        // Full simulation, returns { years, results, demographics, demand, climate, dispatch }
+        runScenario,          // Convenience wrapper, returns flat metrics object
+        exportJSON,           // Export full run as JSON string
+
+        // Sub-models
         runDemographics,
         runDemandModel,
         findCrossovers,
         findPopulationPeak,
         exportDemographicsCSV,
         projectFertility,
+
         // Climate functions
-        dispatch,
-        getCapacities,
-        calculateEmissions,
-        updateClimate,
-        climateDamages,
-        // Parameters
+        dispatch,             // Merit order dispatch
+        getCapacities,        // GW capacity by year
+        calculateEmissions,   // Returns { electricity, nonElectricity, total } in Gt CO₂
+        updateClimate,        // Returns { co2ppm, equilibriumTemp, temperature }
+        climateDamages,       // Returns damage fraction (0-0.30)
+
+        // Parameters (read-only references)
         energySources,
         demographics,
         economicParams,
         demandParams,
         dispatchParams,
         climateParams,
-        // Current data (reactive getters)
+
+        // Defaults and config
+        defaults,             // Default slider values
+        config,               // Runtime config (set config.quiet = true to suppress warnings)
+
+        // Current UI data (reactive getters, reflect last updateCharts() call)
         get demographicsData() { return currentDemographicsData; },
         get demand() { return currentDemandData; },
         get climate() { return currentClimateData; },
         get dispatchData() { return currentDispatchData; }
     };
 
-    console.log('Energy Simulation loaded. Access primitives via window.energySim');
-    console.log('Test: energySim.learningCurve(100, 2, 0.2) =', learningCurve(100, 2, 0.2).toFixed(2), '(should be ~87 - 13% reduction per doubling)');
-    console.log('Demographics loaded. Access via window.energySim.demographicsData');
-    console.log('Demand model loaded. Access via window.energySim.demand');
-    console.log('Climate module loaded. Access via window.energySim.climate');
-    console.log('Try: energySim.climate.emissions[0] for 2025 emissions');
-    console.log('Try: energySim.climate.temperature[75] for 2100 temperature');
-    console.log('Try: energySim.climateDamages(3.0, "row") for ROW damages at 3°C');
+    console.log('Energy Simulation loaded. Access via window.energySim');
+    console.log('Quick start:');
+    console.log('  energySim.runScenario({ carbonPrice: 100 })  // Run with high carbon price');
+    console.log('  energySim.defaults                           // See default parameters');
+    console.log('  energySim.config.quiet = true                // Suppress console warnings');
+    console.log('Units: LCOE=$/MWh, demand=TWh, emissions=Gt CO₂, temp=°C, damages=% GDP');
     </script>
 </body>
 </html>

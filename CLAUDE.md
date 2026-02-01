@@ -65,20 +65,29 @@ The `<script>` section is organized into clear modules:
 Access simulation data via `window.energySim`:
 
 ```javascript
-// Energy primitives
-energySim.learningCurve(100, 2, 0.2)  // Cost after doubling capacity
-energySim.compound(100, 0.05, 10)     // 5% growth over 10 years
+// Quick scenario run (returns flat metrics object)
+const metrics = energySim.runScenario({ carbonPrice: 100 });
+metrics.warming2100        // °C
+metrics.peakEmissionsYear  // year
+metrics.elec2050           // TWh
+metrics.solarCrossesGas    // year or null
 
-// Demographics data (after page loads)
-energySim.demographicsData.global.population[30]     // Global pop 2055
-energySim.demographicsData.regions.china.working[50] // China working-age 2075
-energySim.demographicsData.global.dependency[50]     // Global dependency 2075
+// Defaults and config
+energySim.defaults              // { carbonPrice: 50, solarAlpha: 0.36, ... }
+energySim.config.quiet = true   // Suppress console warnings (dispatch shortfall, etc.)
 
-// Demand data (after page loads)
-energySim.demand.global.electricityDemand[0]      // 2025 global electricity (TWh)
-energySim.demand.global.electricityDemand[25]     // 2050 global electricity (TWh)
-energySim.demand.global.electrificationRate[25]   // 2050 electrification rate
-energySim.demand.regions.china.gdpPerWorking[25]  // China GDP per worker 2050
+// Full simulation (returns all arrays)
+const { years, results, demographics, demand, climate, dispatch } = energySim.runSimulation({
+  carbonPrice: 100,
+  solarAlpha: 0.25,
+  solarGrowth: 0.25,
+  electrificationTarget: 0.70,
+  efficiencyMultiplier: 1.2,
+  climSensitivity: 3.0
+});
+
+// Export full run as JSON
+const json = energySim.exportJSON({ carbonPrice: 100 });
 
 // Climate data (after page loads)
 energySim.climate.emissions[0]           // 2025 emissions (Gt CO2)
@@ -90,17 +99,25 @@ energySim.dispatchData.gridIntensity[0]  // 2025 grid intensity (kg CO2/MWh)
 // Climate functions
 energySim.climateDamages(3.0, 'row')     // Damage at 3°C for ROW (~4% GDP)
 energySim.calculateEmissions(dispatch, 0.5) // Emissions from dispatch result
-
-// Run fresh simulation
-const { years, results, demographics, demand, climate, dispatch } = energySim.runSimulation({
-  carbonPrice: 100,
-  solarAlpha: 0.25,
-  solarGrowth: 0.25,
-  electrificationTarget: 0.70,
-  efficiencyMultiplier: 1.2,
-  climSensitivity: 3.0
-});
 ```
+
+### Units Reference
+
+| Dataset | Unit |
+|---------|------|
+| LCOE | $/MWh |
+| Battery cost | $/kWh |
+| Electricity demand | TWh |
+| Per-worker electricity | kWh/person |
+| GDP (regional) | $ trillions |
+| GDP (per-worker) | $ per person |
+| Population | absolute counts |
+| Emissions | Gt CO₂/year |
+| Grid intensity | kg CO₂/MWh |
+| Temperature | °C above preindustrial |
+| Damages | % of GDP (0-100 scale) |
+| Dependency ratio | fraction (0-1) |
+| Electrification rate | fraction (0-1) |
 
 ## Key Models
 
@@ -171,6 +188,28 @@ const { years, results, demographics, demand, climate, dispatch } = energySim.ru
 2. Declare chart variable (e.g., `let newChart = null`)
 3. Add Chart.js initialization in `updateCharts()`
 4. Remember to call `.destroy()` before recreating
+
+## Headless / Programmatic Use
+
+The simulation core has no DOM dependencies. UI code only runs in browser environments.
+
+```javascript
+// Suppress console warnings for batch runs
+energySim.config.quiet = true;
+
+// Run multiple scenarios
+const scenarios = [
+  { carbonPrice: 0 },
+  { carbonPrice: 50 },
+  { carbonPrice: 100 },
+  { carbonPrice: 150 }
+];
+
+for (const params of scenarios) {
+  const m = energySim.runScenario(params);
+  console.log(`Carbon $${params.carbonPrice}: ${m.warming2100.toFixed(1)}°C by 2100`);
+}
+```
 
 ## Dependencies
 
