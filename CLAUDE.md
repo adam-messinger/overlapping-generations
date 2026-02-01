@@ -77,11 +77,15 @@ The `<script>` section is organized into clear modules:
    - `landDemand()` - Farmland, urban, forest projections
    - `runResourceModel()` - Full resource simulation with all outputs
 
-10. **SIMULATION ENGINE**
+10. **JEVONS PARADOX / REBOUND EFFECT** - Energy demand adjustments (Phase 7)
+   - `reboundParams` object - Price rebound and robot energy parameters
+   - `calculateReboundDemand()` - Calculate demand adjustment from Jevons + robot load
+
+11. **SIMULATION ENGINE**
    - `runSimulation()` - Main loop, returns energy + demographics + climate + capital + resources data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-11. **VISUALIZATION** - Chart.js-based charts and UI updates
+12. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -107,6 +111,9 @@ m.copperPeakYear           // Year of peak copper demand
 m.lithiumReserveRatio2100  // Cumulative lithium / reserves
 m.proteinShare2050         // Protein share of calories (Bennett's Law)
 m.farmland2050             // Mha cropland
+m.reboundMultiplier2100    // Jevons price rebound multiplier
+m.robotLoadTWh2100         // Robot energy load (TWh)
+m.adjustedDemand2100       // Demand with rebound (TWh)
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -164,6 +171,12 @@ resources.food.proteinShare[25]         // 2050 protein share
 resources.food.glp1Effect[25]           // 2050 GLP-1 calorie reduction effect
 resources.land.farmland[50]             // 2075 farmland (Mha)
 
+// Rebound/Jevons data (in dispatch object)
+dispatch.robotLoadTWh[25]      // 2050 robot energy load (TWh)
+dispatch.priceMultiplier[50]   // 2075 Jevons price rebound multiplier
+dispatch.adjustedDemand[75]    // 2100 total demand with rebound
+dispatch.robotsPer1000[75]     // 2100 robots per 1000 workers
+
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
 ```
@@ -204,6 +217,9 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Urban area | Mha |
 | Forest area | Mha |
 | Crop yield | t/ha |
+| Rebound multiplier | fraction (1.0+) |
+| Robot load | TWh |
+| Adjusted demand | TWh |
 
 ## Key Models
 
@@ -266,6 +282,23 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
   - Urban grows with population and wealth
   - Forest declines with baseline loss rate
 
+### Jevons Paradox / Rebound Effect (Phase 7)
+- **Problem Solved**: Without rebound, model showed declining energy demand post-2060 due to population decline and efficiency gains—unrealistic given historical patterns
+- **Robot/AI Energy Load**: Automation + AI compute consumes ~10 MWh/robot-unit/year
+  - Includes both physical robots and "ethereal" AI (datacenters, training, inference)
+  - Grows 12%/year from ~50 TWh (2025) to ~20,000 TWh (2100)
+  - By 2100, robots/AI are ~25% of total electricity demand
+- **Price Rebound (Jevons)**: When LCOE < $15/MWh, demand grows
+  - 2% demand increase per $1 below threshold
+  - Rebound capped at 2x baseline to prevent runaway
+  - Activates around 2040-2050 as solar becomes very cheap
+- **Infrastructure Growth Cap**: Total demand growth capped at 2.5%/year
+  - Reflects real-world constraint: we can only build infrastructure so fast
+  - Cap binds 2025-2050; relaxes as base demand growth slows
+  - Robots/AI must fit within this energy budget
+- **Theory**: Odum Maximum Power Principle, Galbraith/Chen Entropy Economics
+- **Effect**: Prevents unrealistic "power down" scenario; demand stable ~80,000 TWh by 2100
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -302,6 +335,12 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Cropland 2025 | 4.8 Bha | FAO |
 | Urban area 2025 | ~50 Mha | UN |
 | Forest area 2025 | 4.0 Bha | FAO |
+| Robot baseline 2025 | 1/1000 workers (~50 TWh) | Datacenter + physical robots |
+| Robot growth rate | 12%/year | AI/automation acceleration |
+| Robot energy | 10 MWh/robot-unit/year | Datacenter + physical avg |
+| Rebound threshold | $15/MWh | "Too cheap to meter" level |
+| Rebound elasticity | 2%/$ | Conservative (historical often higher) |
+| Max demand growth | 2.5%/year | Infrastructure build rate cap |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
@@ -363,6 +402,7 @@ Open `test.html` in a browser to run the test suite. Tests cover:
 - Climate functions (emissions, temperature, damages)
 - Capital model (savings, investment, robots)
 - Resource model (minerals, food, land)
+- Jevons paradox / rebound effect (price rebound, robot energy)
 - Full simulation (calibration targets, scenario validation)
 - runScenario helper and exports
 
@@ -381,7 +421,8 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [x] Phase 4: Climate module (emissions, warming, damages)
 - [x] Phase 5: Capital/savings (OLG savings, investment, automation)
 - [x] Phase 6: Resource demand (minerals, food, land)
-- [ ] Phase 7: Policy scenarios (carbon tax, immigration, retirement age)
+- [x] Phase 7a: Jevons Paradox (robot energy, cheap energy rebound)
+- [ ] Phase 7b: Policy scenarios (carbon tax, immigration, retirement age)
 
 ## Academic Sources
 
@@ -390,3 +431,8 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [Weitzman Fat Tails](https://scholar.harvard.edu/files/weitzman/files/fattaileduncertaintyeconomics.pdf) - Bounded damages approach
 - [Farmer/Way (INET Oxford)](https://www.doynefarmer.com/environmental-economics) - Technology learning curves
 - [Tipping Points (PNAS)](https://www.pnas.org/doi/10.1073/pnas.2103081118) - Threshold damages
+
+### Jevons Paradox / Rebound Effect
+- [Odum Maximum Power Principle](sources/Odum-Maximum-Power-Principle.md) - Systems evolve to maximize energy throughput
+- [Galbraith/Chen Entropy Economics](sources/Galbraith-Chen-Entropy-Economics.md) - Energy use correlates with economic complexity
+- Jevons, W.S. (1865) "The Coal Question" - Original observation of efficiency-consumption paradox

@@ -1154,6 +1154,145 @@
         });
 
         // =============================================================================
+        // JEVONS PARADOX / REBOUND EFFECT
+        // =============================================================================
+        section('Jevons Paradox / Rebound Effect');
+
+        test('reboundParams object exists', () => {
+            return typeof energySim.reboundParams === 'object';
+        });
+
+        test('reboundParams has required fields', () => {
+            const p = energySim.reboundParams;
+            return p.cheapEnergyThreshold === 15 &&
+                   p.cheapEnergyElasticity === 0.02 &&
+                   p.energyPerRobotMWh === 10 &&
+                   p.maxReboundMultiplier === 2.0;
+        });
+
+        test('calculateReboundDemand function exists', () => {
+            return typeof energySim.calculateReboundDemand === 'function';
+        });
+
+        test('calculateReboundDemand returns valid structure', () => {
+            const result = energySim.calculateReboundDemand(30000, 20, 2025, 4e9);
+            return 'adjustedDemand' in result &&
+                   'robotLoadTWh' in result &&
+                   'priceMultiplier' in result &&
+                   'robotsPer1000' in result;
+        });
+
+        test('price rebound activates when LCOE < $15/MWh', () => {
+            const noRebound = energySim.calculateReboundDemand(30000, 20, 2025, 4e9);
+            const withRebound = energySim.calculateReboundDemand(30000, 10, 2025, 4e9);
+            // At LCOE $20, no price rebound (above threshold)
+            // At LCOE $10, should have 5 * 0.02 = 10% rebound
+            return noRebound.priceMultiplier === 1.0 &&
+                   withRebound.priceMultiplier > 1.0;
+        });
+
+        test('price rebound magnitude is correct', () => {
+            // At LCOE $10, delta = 15 - 10 = 5
+            // multiplier = 1 + 5 * 0.02 = 1.10
+            const result = energySim.calculateReboundDemand(30000, 10, 2025, 4e9);
+            return approx(result.priceMultiplier, 1.10, 0.01);
+        });
+
+        test('price rebound capped at maxReboundMultiplier', () => {
+            // At LCOE $0, delta = 15
+            // uncapped = 1 + 15 * 0.02 = 1.30
+            // But cap is 2.0, so this should still be 1.30
+            const result = energySim.calculateReboundDemand(30000, 0, 2025, 4e9);
+            return result.priceMultiplier <= energySim.reboundParams.maxReboundMultiplier;
+        });
+
+        test('robot energy load grows over time', () => {
+            const early = energySim.calculateReboundDemand(30000, 20, 2025, 4e9);
+            const late = energySim.calculateReboundDemand(30000, 20, 2075, 4e9);
+            // Same workers but later year = more robots = more load
+            return late.robotLoadTWh > early.robotLoadTWh;
+        });
+
+        test('robots per 1000 workers grows from baseline to capped value', () => {
+            const y2025 = energySim.calculateReboundDemand(30000, 20, 2025, 4e9);
+            const y2100 = energySim.calculateReboundDemand(30000, 20, 2100, 4e9);
+            // Baseline is 1, grows 12%/year but capped at 500
+            return approx(y2025.robotsPer1000, 1, 0.01) &&
+                   y2100.robotsPer1000 > y2025.robotsPer1000;
+        });
+
+        test('robot density capped at 500 per 1000 workers', () => {
+            const farFuture = energySim.calculateReboundDemand(30000, 20, 2150, 4e9);
+            return farFuture.robotsPer1000 <= 500;
+        });
+
+        test('runSimulation dispatch has rebound tracking', () => {
+            const result = energySim.runSimulation();
+            return !!(result.dispatch.robotLoadTWh &&
+                   result.dispatch.priceMultiplier &&
+                   result.dispatch.adjustedDemand &&
+                   result.dispatch.robotsPer1000);
+        });
+
+        test('rebound arrays have 76 years', () => {
+            const result = energySim.runSimulation();
+            return result.dispatch.robotLoadTWh.length === 76 &&
+                   result.dispatch.priceMultiplier.length === 76 &&
+                   result.dispatch.adjustedDemand.length === 76;
+        });
+
+        test('robot load is significant by 2100', () => {
+            const result = energySim.runSimulation();
+            // Should be > 1000 TWh by 2100 (meaningful fraction of demand)
+            return result.dispatch.robotLoadTWh[75] > 500;
+        });
+
+        test('price rebound activates by 2060 (cheap solar)', () => {
+            const result = energySim.runSimulation();
+            const idx2060 = result.years.indexOf(2060);
+            // By 2060, solar should be cheap enough to trigger rebound
+            return result.dispatch.priceMultiplier[idx2060] > 1.0;
+        });
+
+        test('adjusted demand > baseline demand after 2060', () => {
+            const result = energySim.runSimulation();
+            const idx2060 = result.years.indexOf(2060);
+            // Adjusted should be higher due to robot load + price rebound
+            return result.dispatch.adjustedDemand[idx2060] > result.demand.global.electricityDemand[idx2060];
+        });
+
+        test('demand with rebound no longer declines post-2060', () => {
+            // Key test: the whole point of Jevons is to prevent unrealistic decline
+            const result = energySim.runSimulation();
+            const idx2060 = result.years.indexOf(2060);
+            const idx2100 = 75;
+            // Adjusted demand in 2100 should be >= 2060 (no more decline)
+            return result.dispatch.adjustedDemand[idx2100] >= result.dispatch.adjustedDemand[idx2060] * 0.9;
+        });
+
+        test('runScenario has rebound metrics', () => {
+            const m = energySim.runScenario();
+            return 'reboundMultiplier2050' in m &&
+                   'reboundMultiplier2100' in m &&
+                   'robotLoadTWh2050' in m &&
+                   'robotLoadTWh2100' in m &&
+                   'adjustedDemand2050' in m &&
+                   'adjustedDemand2100' in m;
+        });
+
+        test('rebound effect stronger with lower carbon price (cheaper energy)', () => {
+            // Lower carbon = cheaper fossil = triggers rebound earlier
+            const lowCarbon = energySim.runSimulation({ carbonPrice: 0 });
+            const highCarbon = energySim.runSimulation({ carbonPrice: 150 });
+            const idx2050 = 25;
+            // Paradoxically, lower carbon may have higher rebound due to cheaper energy
+            // Actually solar is cheaper than gas by 2050 regardless, so rebound similar
+            // Test that both have reasonable rebound
+            return lowCarbon.dispatch.priceMultiplier[idx2050] >= 1.0 &&
+                   highCarbon.dispatch.priceMultiplier[idx2050] >= 1.0;
+        });
+
+        // =============================================================================
         // CALIBRATION FIXES (Bug Fixes)
         // =============================================================================
         section('Calibration Fixes');

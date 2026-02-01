@@ -796,6 +796,50 @@
     };
 
     // =============================================================================
+    // JEVONS PARADOX / REBOUND EFFECT (Phase 7)
+    // =============================================================================
+
+    /**
+     * Rebound effect parameters
+     *
+     * Implements two mechanisms that increase energy demand:
+     * 1. Jevons/Price Rebound: Cheaper energy leads to more consumption
+     * 2. Robot Energy Load: Automation consumes significant electricity
+     *
+     * THEORY:
+     * - Odum Maximum Power Principle: Systems evolve to maximize energy throughput
+     * - Galbraith/Chen Entropy Economics: Energy use correlates with complexity
+     * - Historical Jevons: UK coal consumption grew despite efficiency gains
+     *
+     * CALIBRATION:
+     * - Robot energy: 10 MWh/year ≈ 27 kWh/day (datacenter + physical robot average)
+     * - Price threshold: $15/MWh is approximately "too cheap to meter" territory
+     * - Elasticity: 2% per $1 is conservative; historical effects often higher
+     */
+    const reboundParams = {
+        // Jevons/Price Rebound
+        cheapEnergyThreshold: 15,      // $/MWh - below this, demand grows
+        cheapEnergyElasticity: 0.02,   // 2% demand increase per $1 below threshold
+
+        // Robot Energy Load
+        // Calibration: Global datacenters ~250 TWh, industrial robots ~50 TWh in 2025
+        // With 5B workers, 1 robot/1000 = ~50 TWh (conservative for 2025)
+        // Growth accelerates as AI/automation scales exponentially
+        energyPerRobotMWh: 10,         // MWh per robot-unit per year
+        robotGrowthRate: 0.12,         // 12% annual growth (faster ramp-up)
+        robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (~50 TWh)
+        robotCap: 500,                 // Max robots per 1000 workers
+
+        // Rebound cap to prevent runaway
+        maxReboundMultiplier: 2.0,     // Cap total rebound at 2x baseline
+
+        // Infrastructure growth constraint
+        // Historical global electricity growth ~2-3%/year
+        // We can only build infrastructure so fast
+        maxDemandGrowthRate: 0.025     // 2.5% max annual growth in total demand
+    };
+
+    // =============================================================================
     // RESOURCES - Minerals, food, and land demand (Phase 6)
     // =============================================================================
 
@@ -2489,6 +2533,58 @@
     }
 
     // =============================================================================
+    // REBOUND DEMAND CALCULATION
+    // =============================================================================
+
+    /**
+     * Calculate demand adjustment from Jevons rebound and robot energy load
+     *
+     * This function implements two mechanisms that increase energy demand:
+     * 1. Price rebound (Jevons): When energy becomes cheap, people use more
+     * 2. Robot energy: Automation consumes significant electricity
+     *
+     * @param {number} baseDemandTWh - Baseline electricity demand
+     * @param {number} cheapestLCOE - Lowest LCOE among sources ($/MWh)
+     * @param {number} year - Simulation year
+     * @param {number} globalWorkers - Global working population
+     * @returns {Object} { adjustedDemand, robotLoadTWh, priceMultiplier, robotsPer1000 }
+     */
+    function calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers) {
+        const t = year - 2025;
+
+        // 1. Calculate projected robot density (deterministic from year)
+        // Uses exponential growth from baseline to cap
+        const robotsPer1000 = Math.min(
+            reboundParams.robotBaseline2025 * Math.pow(1 + reboundParams.robotGrowthRate, t),
+            reboundParams.robotCap
+        );
+
+        // Total robots globally
+        const totalRobots = (robotsPer1000 / 1000) * globalWorkers;
+
+        // Robot energy load (TWh)
+        const robotLoadTWh = totalRobots * reboundParams.energyPerRobotMWh / 1e6;
+
+        // 2. Calculate Jevons price rebound
+        let priceMultiplier = 1.0;
+        if (cheapestLCOE < reboundParams.cheapEnergyThreshold) {
+            const delta = reboundParams.cheapEnergyThreshold - cheapestLCOE;
+            priceMultiplier = 1 + (delta * reboundParams.cheapEnergyElasticity);
+            priceMultiplier = Math.min(priceMultiplier, reboundParams.maxReboundMultiplier);
+        }
+
+        // 3. Combined adjustment: add robot load, then apply price multiplier
+        const adjustedDemand = (baseDemandTWh + robotLoadTWh) * priceMultiplier;
+
+        return {
+            adjustedDemand,
+            robotLoadTWh,
+            priceMultiplier,
+            robotsPer1000
+        };
+    }
+
+    // =============================================================================
     // SIMULATION ENGINE
     // =============================================================================
 
@@ -2616,7 +2712,12 @@
             gas: [],
             coal: [],
             nuclear: [],
-            gridIntensity: []
+            gridIntensity: [],
+            // Rebound effect tracking
+            robotLoadTWh: [],
+            priceMultiplier: [],
+            adjustedDemand: [],
+            robotsPer1000: []
         };
 
         // Climate state variables
@@ -2624,6 +2725,9 @@
         let currentTemp = climateParams.currentTemp;
         let peakEmissionsYear = 2025;
         let peakEmissionsValue = -Infinity;  // Will be set by first iteration
+
+        // Track previous year's demand for growth cap
+        let prevAdjustedDemand = demandData.global.electricityDemand[0];  // Start at 2025 baseline
 
         // Run climate simulation year by year
         for (let i = 0; i < years.length; i++) {
@@ -2642,10 +2746,23 @@
             // Get capacities
             const capacities = getCapacities(year, solarGrowth);
 
-            // Get electricity demand
-            const demandTWh = demandData.global.electricityDemand[i];
+            // Get baseline electricity demand
+            const baseDemandTWh = demandData.global.electricityDemand[i];
 
-            // Dispatch sources to meet demand
+            // Calculate Jevons rebound + robot energy load
+            const cheapestLCOE = Math.min(lcoes.solar, lcoes.wind);
+            const globalWorkers = demographicsData.global.working[i];
+            const rebound = calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers);
+
+            // Apply infrastructure growth cap: we can only build so fast
+            // Cap demand growth at maxDemandGrowthRate per year
+            const maxDemand = prevAdjustedDemand * (1 + reboundParams.maxDemandGrowthRate);
+            const demandTWh = Math.min(rebound.adjustedDemand, maxDemand);
+
+            // Update previous demand for next iteration
+            prevAdjustedDemand = demandTWh;
+
+            // Dispatch sources to meet adjusted demand
             const dispatchResult = dispatch(demandTWh, lcoes, capacities);
 
             // Store dispatch results
@@ -2656,6 +2773,12 @@
             dispatchData.coal.push(dispatchResult.coal);
             dispatchData.nuclear.push(dispatchResult.nuclear);
             dispatchData.gridIntensity.push(dispatchResult.gridIntensity);
+
+            // Store rebound metrics (adjustedDemand is capped value actually dispatched)
+            dispatchData.robotLoadTWh.push(rebound.robotLoadTWh);
+            dispatchData.priceMultiplier.push(rebound.priceMultiplier);
+            dispatchData.adjustedDemand.push(demandTWh);  // Store capped value
+            dispatchData.robotsPer1000.push(rebound.robotsPer1000);
 
             // Calculate emissions
             const electrificationRate = demandData.global.electrificationRate[i];
@@ -2913,6 +3036,16 @@
             capitalStock2100: capital.stock[idx2100],
             kPerWorker2025: capital.kPerWorker[0],                      // $K per effective worker
             kPerWorker2100: capital.kPerWorker[idx2100],
+
+            // Rebound effect metrics (Jevons paradox)
+            reboundMultiplier2050: dispatch.priceMultiplier[idx2050],   // Price rebound multiplier
+            reboundMultiplier2100: dispatch.priceMultiplier[idx2100],
+            robotLoadTWh2050: dispatch.robotLoadTWh[idx2050],           // Robot energy load (TWh)
+            robotLoadTWh2100: dispatch.robotLoadTWh[idx2100],
+            adjustedDemand2050: dispatch.adjustedDemand[idx2050],       // Demand with rebound (TWh)
+            adjustedDemand2100: dispatch.adjustedDemand[idx2100],
+            robotsPer10002050: dispatch.robotsPer1000[idx2050],         // Robots per 1000 workers
+            robotsPer10002100: dispatch.robotsPer1000[idx2100],
 
             // Resource metrics - Minerals
             copperPeakYear: resources.metrics.copperPeakYear,
@@ -4793,6 +4926,10 @@
         climateParams,
         capitalParams,        // Production, savings, automation parameters
         resourceParams,       // Minerals, food, land parameters
+        reboundParams,        // Jevons paradox, robot energy load parameters
+
+        // Rebound functions
+        calculateReboundDemand,  // Calculate demand adjustment from Jevons + robots
 
         // Units map
         units,                // Canonical unit definitions for all series
