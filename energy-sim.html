@@ -696,7 +696,8 @@
      * - temperatureLag: Years for temperature to catch up to forcing
      * - damageCoeff: DICE-2023 quadratic damage coefficient
      * - regionalDamage: Multipliers by region (OECD lower, ROW higher)
-     * - tippingThreshold: Temperature threshold for accelerated damages
+     * - tippingThreshold: Temperature midpoint for S-curve tipping transition
+     * - tippingSteepness: How sharp the S-curve is (higher = sharper transition)
      * - maxDamage: Cap on damage fraction (Weitzman bounded utility)
      *
      * Sources:
@@ -722,8 +723,9 @@
             em: 1.3,                    // More vulnerable
             row: 1.8                    // Most vulnerable (Africa, etc.)
         },
-        tippingThreshold: 2.5,          // °C threshold for tipping points
-        tippingMultiplier: 1.25,        // Damage multiplier above threshold
+        tippingThreshold: 2.5,          // °C midpoint for tipping transition
+        tippingMultiplier: 1.25,        // Max damage multiplier from tipping
+        tippingSteepness: 4.0,          // S-curve steepness (4.0 = transition over ~1°C)
         maxDamage: 0.30,                // Cap damages at 30% GDP
         nonElecEmissions2025: 25        // Gt CO₂ from non-electricity (transport, industry, etc.)
     };
@@ -2456,10 +2458,11 @@
         const regionalMult = climateParams.regionalDamage[region] || 1.0;
         damage *= regionalMult;
 
-        // Tipping point multiplier above threshold
-        if (temperature > climateParams.tippingThreshold) {
-            damage *= climateParams.tippingMultiplier;
-        }
+        // Tipping point: smooth S-curve transition instead of binary switch
+        // Steepness of 4.0 means transition happens mostly between 2.0°C and 3.0°C
+        const tippingTransition = 1 / (1 + Math.exp(-climateParams.tippingSteepness * (temperature - climateParams.tippingThreshold)));
+        // If T << 2.5, transition ≈ 0. If T >> 2.5, transition ≈ 1.
+        damage *= (1 + (climateParams.tippingMultiplier - 1) * tippingTransition);
 
         // Cap damages (Weitzman bounded utility)
         return Math.min(damage, climateParams.maxDamage);
