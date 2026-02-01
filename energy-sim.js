@@ -94,14 +94,15 @@
      *
      * Learning rates calibrated to Farmer/Way (2022) and Naam (2020)
      * α: Wright's Law exponent. Learning rate = 1 - 2^(-α)
-     * α=0.36 → 25% cost reduction per doubling
+     * α=0.36 → 22% cost reduction per doubling
      * α=0.23 → 15% cost reduction per doubling
+     * α=0.26 → 17% cost reduction per doubling
      */
     const energySources = {
         solar: {
             name: 'Solar PV',
             cost0: 35,           // $/MWh in 2025 (Naam: $30-40)
-            alpha: 0.36,         // 25% learning rate (Naam: 30-40%, DOE: 24%)
+            alpha: 0.36,         // 22% learning rate (Naam: 20-40%, Farmer: ~20%, DOE: 24%)
             capacity2025: 1500,  // GW installed globally
             growthRate: 0.25,    // 25% annual growth (historical: 40%)
             carbonIntensity: 0,  // kg CO₂/MWh
@@ -155,7 +156,7 @@
         battery: {
             name: 'Battery Storage',
             cost0: 140,          // $/kWh in 2025 (BloombergNEF: ~$130-150)
-            alpha: 0.26,         // 18% learning rate (Naam: 20%, BNEF: 18%)
+            alpha: 0.26,         // 17% learning rate (Naam: 18-20%, BNEF: 18%)
             capacity2025: 2000,  // GWh grid storage (BloombergNEF: ~2000 GWh cumulative by 2025)
             growthRate: 0.35,    // Rapid growth
             color: '#06d6a0'
@@ -1279,7 +1280,7 @@
                 max: 0.5,
                 unit: 'dimensionless',
                 tier: 1,
-                description: "Wright's Law learning exponent for solar. 0.36 = 25% cost reduction per capacity doubling."
+                description: "Wright's Law learning exponent for solar. 0.36 = 22% cost reduction per capacity doubling (Farmer: ~20%, Naam: 20-40%)."
             },
             solarGrowth: {
                 type: 'number',
@@ -1347,7 +1348,7 @@
                 max: 0.4,
                 unit: 'dimensionless',
                 tier: 1,
-                description: "Wright's Law learning exponent for batteries. 0.26 = 18% cost reduction per capacity doubling."
+                description: "Wright's Law learning exponent for batteries. 0.26 = 17% cost reduction per capacity doubling (Naam: 18-20%)."
             },
             nuclearGrowth: {
                 type: 'number',
@@ -3217,7 +3218,11 @@
             results.battery.push(batteryCost);
 
             // Solar + Battery: combined cost for dispatchable clean energy
-            const batteryLCOE = (batteryCost * 4) / (365 * 15);
+            // Assumes: 4 kWh storage per kW solar, daily cycling, 15-year battery life
+            // Includes 85% round-trip efficiency (you lose 15% of stored energy)
+            // Formula: storage cost per MWh = ($/kWh × kWh/kW) / (cycles × years × efficiency) × 1000
+            const roundTripEfficiency = 0.85;
+            const batteryLCOE = (batteryCost * 4) / (365 * 15 * roundTripEfficiency);
             results.solarPlusBattery.push(solarLCOE + batteryLCOE * 1000);
 
             // Build LCOE object for dispatch
