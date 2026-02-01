@@ -411,6 +411,7 @@
             wind: 1200,       // $M per GW
             battery: 150,     // $M per GWh
             nuclear: 6000,    // $M per GW
+            hydro: 2000,      // $M per GW (site-dependent, average)
             gas: 800,         // $M per GW
             coal: 2000        // $M per GW
         },
