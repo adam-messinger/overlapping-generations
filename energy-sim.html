@@ -223,17 +223,17 @@
             </div>
         </div>
         <div class="control-group">
-            <label class="control-label">Solar Learning Rate (α)</label>
+            <label class="control-label">Solar Learning Rate (α) — Farmer/Naam: 0.36-0.51</label>
             <div class="slider-container">
-                <input type="range" id="solar-alpha" min="0.10" max="0.30" value="0.20" step="0.01">
-                <span class="slider-value" id="solar-alpha-value">0.20</span>
+                <input type="range" id="solar-alpha" min="0.15" max="0.55" value="0.36" step="0.01">
+                <span class="slider-value" id="solar-alpha-value">0.36</span>
             </div>
         </div>
         <div class="control-group">
             <label class="control-label">Solar Capacity Growth Rate (%/year)</label>
             <div class="slider-container">
-                <input type="range" id="solar-growth" min="5" max="30" value="20" step="1">
-                <span class="slider-value" id="solar-growth-value">20%</span>
+                <input type="range" id="solar-growth" min="10" max="40" value="25" step="1">
+                <span class="slider-value" id="solar-growth-value">25%</span>
             </div>
         </div>
     </div>
@@ -345,28 +345,33 @@
     // ENERGY SOURCES - Parameters and cost models
     // =============================================================================
 
+    // Learning rates calibrated to Farmer/Way (2022) and Naam (2020)
+    // α: Wright's Law exponent. Learning rate = 1 - 2^(-α)
+    // α=0.36 → 25% cost reduction per doubling
+    // α=0.23 → 15% cost reduction per doubling
+    // See sources/energy-learning-rates.md for full literature review
     const energySources = {
         solar: {
             name: 'Solar PV',
-            cost0: 50,           // $/MWh in 2025
-            alpha: 0.20,         // Learning rate
+            cost0: 35,           // $/MWh in 2025 (Naam: $30-40)
+            alpha: 0.36,         // 25% learning rate (Naam: 30-40%, DOE: 24%)
             capacity2025: 1500,  // GW installed globally
-            growthRate: 0.20,    // 20% annual capacity growth
+            growthRate: 0.25,    // 25% annual growth (historical: 40%)
             carbonIntensity: 0,  // kg CO₂/MWh
             color: '#ffd60a'
         },
         wind: {
             name: 'Wind',
-            cost0: 45,
-            alpha: 0.10,         // Slower learning (more mature)
+            cost0: 35,           // $/MWh in 2025
+            alpha: 0.23,         // 15% learning rate (DOE/LBNL full-period)
             capacity2025: 1000,
-            growthRate: 0.12,
+            growthRate: 0.18,    // 18% annual growth (Farmer: 20-25%)
             carbonIntensity: 0,
             color: '#4cc9f0'
         },
         gas: {
             name: 'Natural Gas',
-            cost0: 40,
+            cost0: 45,           // $/MWh in 2025 (slightly higher base)
             eroei0: 30,          // Starting EROEI
             reserves: 200,       // Arbitrary units
             extractionRate: 2,   // Units per year
@@ -375,7 +380,7 @@
         },
         coal: {
             name: 'Coal',
-            cost0: 35,
+            cost0: 40,           // $/MWh in 2025
             eroei0: 25,
             reserves: 500,
             extractionRate: 3,
@@ -393,8 +398,8 @@
         },
         battery: {
             name: 'Battery Storage',
-            cost0: 150,          // $/kWh in 2025
-            alpha: 0.18,
+            cost0: 140,          // $/kWh in 2025 (BloombergNEF: ~$130-150)
+            alpha: 0.26,         // 18% learning rate (Naam: 20%, BNEF: 18%)
             capacity2025: 100,   // GWh
             growthRate: 0.35,    // Rapid growth
             color: '#06d6a0'
@@ -668,8 +673,8 @@
 
     function runSimulation(params = {}) {
         const carbonPrice = params.carbonPrice ?? 50;
-        const solarAlpha = params.solarAlpha ?? 0.20;
-        const solarGrowth = params.solarGrowth ?? 0.20;
+        const solarAlpha = params.solarAlpha ?? 0.36;  // Farmer/Naam calibrated
+        const solarGrowth = params.solarGrowth ?? 0.25;
 
         const years = [];
         const results = {
