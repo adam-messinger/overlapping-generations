@@ -1,6 +1,82 @@
-# Sources for Demographics Module
+# Sources for Energy Simulation
 
-This folder contains reference materials for the Fernández-Villaverde-informed demographic model.
+This folder contains reference materials for the simulation's demographics and climate modules.
+
+## Climate Module Sources
+
+### 1. DICE-2023 (Nordhaus/Barrage)
+- URL: https://www.pnas.org/doi/10.1073/pnas.2312030121
+- "Policies, projections, and the social cost of carbon: Results from the DICE-2023 model"
+- Key insights:
+  - Damage coefficient: 3.1% GDP loss at 3°C, 7.0% at 4.5°C
+  - Damage coefficient nearly doubled from DICE-2016
+  - Social cost of carbon: $66/tCO₂ (2020)
+  - Quadratic damage function: D(T) = a × T²
+
+### 2. Weitzman Fat Tails
+- URL: https://scholar.harvard.edu/files/weitzman/files/fattaileduncertaintyeconomics.pdf
+- "On Modeling and Interpreting the Economics of Catastrophic Climate Change"
+- Key insights:
+  - Climate sensitivity has fat-tailed distribution
+  - Catastrophic outcomes (small probability) can dominate expected value
+  - Standard CBA may break down with unbounded damages
+  - Solution: bound marginal utility or use risk-weighted approaches
+  - Our implementation: cap damages at 30% GDP
+
+### 3. Farmer/Way (INET Oxford)
+- URL: https://www.doynefarmer.com/environmental-economics
+- "Empirically grounded technology forecasts and the energy transition"
+- Key insights:
+  - Traditional IAMs underestimate technology learning curves
+  - Solar cost has fallen 99.6% since 1976
+  - Agent-based models better handle nonequilibrium effects
+  - Wright's Law (learning curves) applies to energy technologies
+
+### 4. Tipping Points Economics
+- URL: https://www.pnas.org/doi/10.1073/pnas.2103081118
+- "The economic impacts of large-scale climate tipping points"
+- Key insights:
+  - 6 tipping points likely triggered below 2°C
+  - Tipping points increase SCC by ~25% on average
+  - 10% chance of tipping points more than doubling SCC
+  - AMOC collapse risk underestimated
+
+### 5. IPCC AR6
+- URL: https://www.ipcc.ch/report/ar6/wg1/
+- Climate sensitivity range: 2.0-4.5°C per CO₂ doubling (best estimate: 3.0°C)
+- Current warming: ~1.2°C above preindustrial
+- Atmospheric CO₂: ~420 ppm
+
+### 6. IEA Emissions Data
+- URL: https://www.iea.org/data-and-statistics
+- 2025 estimates used for calibration:
+  - Total CO₂: ~35 Gt/year
+  - Electricity sector: ~10 Gt
+  - Non-electricity (transport, industry, heating): ~25 Gt
+
+## Climate Model Calibration Targets
+
+| Metric | Target | Source |
+|--------|--------|--------|
+| Total emissions 2025 | ~35 Gt CO₂ | IEA |
+| Electricity emissions 2025 | ~10 Gt CO₂ | IEA |
+| Grid intensity 2025 | ~340 kg CO₂/MWh | Computed |
+| Temperature 2025 | 1.2°C | NASA |
+| Atmospheric CO₂ 2025 | 420 ppm | NOAA |
+| Climate sensitivity | 2.0-4.5°C (default 3.0) | IPCC AR6 |
+| Damage at 3°C (OECD) | ~1.7% GDP | DICE-2023 × 0.8 |
+| Damage at 3°C (ROW) | ~3.8% GDP | DICE-2023 × 1.8 |
+| Max damage cap | 30% GDP | Weitzman bounded |
+
+## Validation Scenarios
+
+1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
+2. **Paris-aligned** (carbon $100+): Peak 2030, <2°C achievable
+3. **Aggressive** (carbon $150, high learning): Near-zero by 2070
+
+---
+
+## Demographics Module Sources
 
 ## Key Papers and Resources
 
