@@ -1182,8 +1182,15 @@
         // Baseline GDP per capita for land model
         const gdpPerCapita2025 = (demandData.global.gdp[0] * 1e12) / demoGlobal.population[0];
 
-        // Previous year capacities (for delta calculation)
-        let prevCapacities = getCapacities(2024, solarGrowth);
+        // Previous year CAPPED capacities (for delta calculation)
+        // Initialize with 2024 values - use conservative estimate for initial max caps
+        const init2024 = getCapacities(2024, solarGrowth);
+        let prevCappedCapacities = {
+            solar: init2024.solar,
+            wind: init2024.wind,
+            battery: init2024.battery,
+            nuclear: init2024.nuclear
+        };
 
         for (let i = 0; i < years.length; i++) {
             const year = years[i];
@@ -1195,8 +1202,9 @@
             const capacities = getCapacities(year, solarGrowth);
 
             // Calculate max useful capacity based on electricity demand
+            // Use Jevons-adjusted demand (includes robot load + price rebound)
             // Once you have enough to meet demand at penetration limits, additions slow
-            const elecTWh = demandData.global.electricityDemand[i];
+            const elecTWh = dispatchData.adjustedDemand[i];
             const hoursPerYear = 8760;
             // Max solar: at 20% CF and 80% penetration, maxSolar = demand × 0.8 / (CF × hours) × 1000
             const maxSolarGW = (elecTWh * 0.8 / (0.20 * hoursPerYear)) * 1000;
@@ -1211,9 +1219,18 @@
                 nuclear: maxNuclearGW
             };
 
+            // Calculate current CAPPED capacities
+            const cappedCapacities = {
+                solar: Math.min(capacities.solar, maxSolarGW),
+                wind: Math.min(capacities.wind, maxWindGW),
+                battery: Math.min(capacities.battery, maxBatteryGW),
+                nuclear: Math.min(capacities.nuclear, maxNuclearGW)
+            };
+
             // === MINERALS ===
+            // Pass capped capacities for both current and previous year
             for (const mineralKey of ['copper', 'lithium', 'rareEarths', 'steel']) {
-                const result = mineralDemand(capacities, prevCapacities, year, mineralKey, cumulativeStock[mineralKey], maxCapacities);
+                const result = mineralDemand(cappedCapacities, prevCappedCapacities, year, mineralKey, cumulativeStock[mineralKey], null);
 
                 resources.minerals[mineralKey].demand.push(result.demand);
                 resources.minerals[mineralKey].grossDemand.push(result.grossDemand);
@@ -1247,8 +1264,8 @@
             resources.land.forest.push(land.forest);
             resources.land.yield.push(land.yield);
 
-            // Update previous capacities for next iteration
-            prevCapacities = capacities;
+            // Update previous CAPPED capacities for next iteration
+            prevCappedCapacities = cappedCapacities;
         }
 
         // === METRICS ===
