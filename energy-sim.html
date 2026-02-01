@@ -179,7 +179,7 @@
 </head>
 <body>
     <h1>Energy Futures: 2025-2100</h1>
-    <p class="subtitle">Phase 3: Demand model connecting GDP, demographics, and electricity consumption</p>
+    <p class="subtitle">Phase 4: Climate module with emissions, warming, and economic damages (DICE-2023)</p>
 
     <div class="metrics-grid">
         <div class="metric-card">
@@ -227,6 +227,26 @@
             <div class="metric-value" id="kwh-worker-2050">--</div>
             <div class="metric-detail">Per working-age adult</div>
         </div>
+        <div class="metric-card">
+            <div class="metric-label">Grid Intensity 2025</div>
+            <div class="metric-value" id="grid-intensity-2025">--</div>
+            <div class="metric-detail">kg CO2/MWh</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Peak Emissions Year</div>
+            <div class="metric-value" id="peak-emissions">--</div>
+            <div class="metric-detail">When global CO2 peaks</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Warming 2100</div>
+            <div class="metric-value" id="warming-2100">--</div>
+            <div class="metric-detail">Degrees C above preindustrial</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Climate Damages 2075</div>
+            <div class="metric-value" id="damages-2075">--</div>
+            <div class="metric-detail">% GDP lost to warming</div>
+        </div>
     </div>
 
     <div class="controls">
@@ -263,6 +283,13 @@
             <div class="slider-container">
                 <input type="range" id="efficiency-mult" min="0.5" max="1.5" value="1.0" step="0.05">
                 <span class="slider-value" id="efficiency-mult-value">1.0×</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Climate Sensitivity (°C per CO2 doubling) — IPCC range: 2.0-4.5</label>
+            <div class="slider-container">
+                <input type="range" id="clim-sensitivity" min="2.0" max="4.5" value="3.0" step="0.1">
+                <span class="slider-value" id="clim-sensitivity-value">3.0°C</span>
             </div>
         </div>
     </div>
@@ -308,6 +335,26 @@
         <canvas id="intensity-chart"></canvas>
     </div>
 
+    <div class="chart-container">
+        <div class="chart-title">Generation Mix by Source (TWh)</div>
+        <canvas id="generation-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">CO2 Emissions (Gt/year)</div>
+        <canvas id="emissions-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Temperature Trajectory (°C above preindustrial)</div>
+        <canvas id="temperature-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Climate Damages by Region (% GDP)</div>
+        <canvas id="damages-chart"></canvas>
+    </div>
+
     <table id="era-table">
         <thead>
             <tr>
@@ -319,10 +366,9 @@
                 <th>Nuclear</th>
                 <th>Battery</th>
                 <th>Solar+Batt</th>
-                <th>Dependency</th>
-                <th>Elec (TWh)</th>
-                <th>Electrif.</th>
-                <th>kWh/Worker</th>
+                <th>Emissions</th>
+                <th>Temp</th>
+                <th>Damages</th>
             </tr>
         </thead>
         <tbody id="era-tbody"></tbody>
@@ -471,6 +517,79 @@
             growthRate: 0.35,    // Rapid growth
             color: '#06d6a0'
         }
+    };
+
+    // =============================================================================
+    // DISPATCH - Merit order dispatch parameters
+    // =============================================================================
+
+    /**
+     * Dispatch parameters for source allocation
+     *
+     * INPUTS (calibration constants, not user-tuneable):
+     * - capacityFactor: Fraction of nameplate capacity available (solar ~20%, nuclear ~90%)
+     * - maxPenetration: Maximum share of generation (VRE limited without storage)
+     *
+     * Theoretical basis: Merit order dispatch - cheapest sources used first,
+     * subject to capacity and penetration constraints.
+     */
+    const dispatchParams = {
+        solar: { capacityFactor: 0.20, maxPenetration: 0.40 },
+        wind: { capacityFactor: 0.30, maxPenetration: 0.35 },
+        solarPlusBattery: { capacityFactor: 0.20, maxPenetration: 0.80 },
+        gas: { capacityFactor: 0.50, maxPenetration: 1.0 },
+        coal: { capacityFactor: 0.60, maxPenetration: 1.0 },
+        nuclear: { capacityFactor: 0.90, maxPenetration: 0.30 }
+    };
+
+    // =============================================================================
+    // CLIMATE - Emissions and damage parameters
+    // =============================================================================
+
+    /**
+     * Climate model parameters
+     *
+     * INPUTS (user-tuneable via slider):
+     * - climSensitivity: Equilibrium climate sensitivity (2.0-4.5°C per CO₂ doubling)
+     *
+     * INPUTS (calibration constants):
+     * - preindustrialCO2: 280 ppm baseline
+     * - currentCO2: 420 ppm in 2025
+     * - cumulativeCO2_2025: ~2400 Gt cumulative emissions since preindustrial
+     * - airborneraction: 45% of emissions remain in atmosphere
+     * - ppmPerGt: CO₂ ppm increase per Gt of emissions in atmosphere
+     * - temperatureLag: Years for temperature to catch up to forcing
+     * - damageCoeff: DICE-2023 quadratic damage coefficient
+     * - regionalDamage: Multipliers by region (OECD lower, ROW higher)
+     * - tippingThreshold: Temperature threshold for accelerated damages
+     * - maxDamage: Cap on damage fraction (Weitzman bounded utility)
+     *
+     * Sources:
+     * - DICE-2023 (Nordhaus/Barrage): damageCoeff, updated damage estimates
+     * - Weitzman: Fat-tailed uncertainty, bounded damages
+     * - IPCC AR6: Climate sensitivity range
+     * - IEA: 2025 emissions calibration (~35 Gt total)
+     */
+    const climateParams = {
+        preindustrialCO2: 280,          // ppm
+        currentCO2: 420,                 // ppm in 2025
+        cumulativeCO2_2025: 2400,       // Gt cumulative since preindustrial
+        airborneraction: 0.45,          // Fraction staying in atmosphere
+        ppmPerGt: 0.128,                // ppm per Gt in atmosphere
+        temperatureLag: 10,             // Years for temp to equilibrate
+        climSensitivity: 3.0,           // °C per CO₂ doubling (slider: 2.0-4.5)
+        currentTemp: 1.2,               // °C above preindustrial in 2025
+        damageCoeff: 0.00236,           // DICE-2023 coefficient
+        regionalDamage: {
+            oecd: 0.8,                  // Richer countries more resilient
+            china: 1.0,                 // Middle
+            em: 1.3,                    // More vulnerable
+            row: 1.8                    // Most vulnerable (Africa, etc.)
+        },
+        tippingThreshold: 2.5,          // °C threshold for tipping points
+        tippingMultiplier: 1.25,        // Damage multiplier above threshold
+        maxDamage: 0.30,                // Cap damages at 30% GDP
+        nonElecEmissions2025: 25        // Gt CO₂ from non-electricity (transport, industry, etc.)
     };
 
     // =============================================================================
@@ -975,6 +1094,212 @@
         return demand;
     }
 
+    // =============================================================================
+    // DISPATCH - Merit order source allocation
+    // =============================================================================
+
+    /**
+     * Calculate generation capacity (GW) available for each source
+     * Tracks installed capacity with growth rates
+     *
+     * @param {number} year - Simulation year
+     * @param {number} solarGrowth - Solar capacity growth rate
+     * @returns {Object} Capacity in GW for each source
+     */
+    function getCapacities(year, solarGrowth) {
+        const t = year - 2025;
+        return {
+            solar: energySources.solar.capacity2025 * Math.pow(1 + solarGrowth, t),
+            wind: energySources.wind.capacity2025 * Math.pow(1 + energySources.wind.growthRate, t),
+            gas: 2500 * Math.pow(1 + 0.01, t),       // ~2500 GW global gas capacity, slow growth
+            coal: 2100 * Math.pow(1 - 0.02, t),     // ~2100 GW global coal, declining
+            nuclear: energySources.nuclear.capacity2025 * Math.pow(1 + energySources.nuclear.growthRate, t),
+            battery: energySources.battery.capacity2025 * Math.pow(1 + energySources.battery.growthRate, t) / 1000 // GWh → GW (4h storage)
+        };
+    }
+
+    /**
+     * Merit order dispatch - allocates demand to cheapest sources first
+     * Respects capacity constraints and penetration limits
+     *
+     * @param {number} demandTWh - Total electricity demand in TWh
+     * @param {Object} lcoes - LCOE for each source ($/MWh)
+     * @param {Object} capacities - Installed capacity (GW) for each source
+     * @returns {Object} Generation (TWh) by source, plus grid intensity
+     */
+    function dispatch(demandTWh, lcoes, capacities) {
+        const hoursPerYear = 8760;
+        const result = {
+            solar: 0,
+            wind: 0,
+            gas: 0,
+            coal: 0,
+            nuclear: 0,
+            solarPlusBattery: 0,
+            total: 0
+        };
+
+        // Calculate max generation (TWh) each source can provide
+        const maxGen = {
+            solar: capacities.solar * dispatchParams.solar.capacityFactor * hoursPerYear / 1000,
+            wind: capacities.wind * dispatchParams.wind.capacityFactor * hoursPerYear / 1000,
+            gas: capacities.gas * dispatchParams.gas.capacityFactor * hoursPerYear / 1000,
+            coal: capacities.coal * dispatchParams.coal.capacityFactor * hoursPerYear / 1000,
+            nuclear: capacities.nuclear * dispatchParams.nuclear.capacityFactor * hoursPerYear / 1000
+        };
+
+        // Sort sources by LCOE (merit order)
+        const sources = [
+            { name: 'nuclear', lcoe: lcoes.nuclear, max: maxGen.nuclear, carbonIntensity: 0, maxPen: dispatchParams.nuclear.maxPenetration },
+            { name: 'solar', lcoe: lcoes.solar, max: maxGen.solar, carbonIntensity: 0, maxPen: dispatchParams.solar.maxPenetration },
+            { name: 'wind', lcoe: lcoes.wind, max: maxGen.wind, carbonIntensity: 0, maxPen: dispatchParams.wind.maxPenetration },
+            { name: 'gas', lcoe: lcoes.gas, max: maxGen.gas, carbonIntensity: energySources.gas.carbonIntensity, maxPen: 1.0 },
+            { name: 'coal', lcoe: lcoes.coal, max: maxGen.coal, carbonIntensity: energySources.coal.carbonIntensity, maxPen: 1.0 }
+        ];
+
+        sources.sort((a, b) => a.lcoe - b.lcoe);
+
+        // Dispatch in merit order
+        let remaining = demandTWh;
+        let totalVRE = 0; // Variable renewable (solar + wind)
+        const maxVREShare = Math.max(
+            dispatchParams.solar.maxPenetration,
+            dispatchParams.solarPlusBattery.maxPenetration * (capacities.battery > 50 ? 1 : 0.5)
+        );
+
+        for (const source of sources) {
+            if (remaining <= 0) break;
+
+            // Calculate penetration limit
+            let maxPenetration = source.maxPen;
+
+            // VRE sources share a combined penetration limit
+            if (source.name === 'solar' || source.name === 'wind') {
+                const remainingVRERoom = maxVREShare * demandTWh - totalVRE;
+                maxPenetration = Math.min(maxPenetration, remainingVRERoom / demandTWh);
+            }
+
+            // Calculate how much this source can provide
+            const maxByPenetration = maxPenetration * demandTWh;
+            const maxByCapacity = source.max;
+            const allocation = Math.min(remaining, maxByCapacity, maxByPenetration);
+
+            if (allocation > 0) {
+                result[source.name] = allocation;
+                remaining -= allocation;
+
+                if (source.name === 'solar' || source.name === 'wind') {
+                    totalVRE += allocation;
+                }
+            }
+        }
+
+        // If demand not met (shouldn't happen with fossil backup), log warning
+        if (remaining > 0.1) {
+            console.warn(`Dispatch shortfall: ${remaining.toFixed(1)} TWh unmet`);
+        }
+
+        result.total = demandTWh - remaining;
+
+        // Calculate grid carbon intensity (kg CO₂/MWh)
+        const totalEmissions = result.gas * energySources.gas.carbonIntensity +
+                               result.coal * energySources.coal.carbonIntensity;
+        result.gridIntensity = result.total > 0 ? totalEmissions / result.total : 0;
+
+        // Track solar+battery as the solar that's firm (backed by storage)
+        // This is for display purposes; actual dispatch uses solar directly
+        const firmSolarFraction = Math.min(1, capacities.battery / (capacities.solar * 0.5));
+        result.solarPlusBattery = result.solar * firmSolarFraction;
+
+        return result;
+    }
+
+    // =============================================================================
+    // CLIMATE - Emissions and damage calculations
+    // =============================================================================
+
+    /**
+     * Calculate total CO₂ emissions from dispatch and non-electric sectors
+     *
+     * @param {Object} dispatchResult - Generation (TWh) by source from dispatch()
+     * @param {number} electrificationRate - Fraction of useful energy from electricity
+     * @returns {Object} Emissions breakdown and total (Gt CO₂)
+     */
+    function calculateEmissions(dispatchResult, electrificationRate) {
+        // Electricity emissions (Gt CO₂)
+        const electricityEmissions = (
+            dispatchResult.gas * energySources.gas.carbonIntensity +
+            dispatchResult.coal * energySources.coal.carbonIntensity
+        ) / 1e6; // kg → Gt
+
+        // Non-electricity emissions decline with electrification
+        // As electrification increases, transport/industry/heating shift to grid
+        const nonElecBaseline = climateParams.nonElecEmissions2025;
+        const electrificationGain = electrificationRate - 0.40; // Above 2025 baseline
+        const nonElecReduction = Math.max(0, electrificationGain * 2.0); // 2 Gt reduction per 10% electrification
+        const nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction * nonElecBaseline);
+
+        return {
+            electricity: electricityEmissions,
+            nonElectricity: nonElecEmissions,
+            total: electricityEmissions + nonElecEmissions
+        };
+    }
+
+    /**
+     * Update climate state based on cumulative emissions
+     *
+     * @param {number} cumulativeEmissions - Total Gt CO₂ emitted since preindustrial
+     * @param {number} previousTemp - Temperature from previous year (for lag)
+     * @param {number} climSensitivity - Climate sensitivity (°C per CO₂ doubling)
+     * @returns {Object} Updated CO₂ ppm and temperature
+     */
+    function updateClimate(cumulativeEmissions, previousTemp, climSensitivity) {
+        // Calculate atmospheric CO₂
+        const atmosphericCO2 = cumulativeEmissions * climateParams.airborneraction * climateParams.ppmPerGt;
+        const co2ppm = climateParams.preindustrialCO2 + atmosphericCO2;
+
+        // Equilibrium temperature from radiative forcing
+        // T = S × log₂(CO₂/280)
+        const equilibriumTemp = climSensitivity * Math.log2(co2ppm / climateParams.preindustrialCO2);
+
+        // Temperature lags behind equilibrium (ocean thermal inertia)
+        // Simple exponential approach: T(t) = T(t-1) + (T_eq - T(t-1)) / lag
+        const lagFactor = 1 / climateParams.temperatureLag;
+        const temperature = previousTemp + (equilibriumTemp - previousTemp) * lagFactor;
+
+        return {
+            co2ppm,
+            equilibriumTemp,
+            temperature
+        };
+    }
+
+    /**
+     * Calculate climate damages as fraction of GDP
+     * Uses DICE-2023 quadratic damage function with regional variation
+     *
+     * @param {number} temperature - °C above preindustrial
+     * @param {string} region - Region key (oecd, china, em, row)
+     * @returns {number} Damage as fraction of GDP (0-0.30)
+     */
+    function climateDamages(temperature, region) {
+        // Base quadratic damage: D = a × T²
+        let damage = climateParams.damageCoeff * Math.pow(temperature, 2);
+
+        // Regional multiplier
+        const regionalMult = climateParams.regionalDamage[region] || 1.0;
+        damage *= regionalMult;
+
+        // Tipping point multiplier above threshold
+        if (temperature > climateParams.tippingThreshold) {
+            damage *= climateParams.tippingMultiplier;
+        }
+
+        // Cap damages (Weitzman bounded utility)
+        return Math.min(damage, climateParams.maxDamage);
+    }
+
     /**
      * Export demographics data as CSV
      */
@@ -1005,6 +1330,7 @@
         const solarGrowth = params.solarGrowth ?? 0.25;
         const electrificationTarget = params.electrificationTarget ?? 0.65;
         const efficiencyMultiplier = params.efficiencyMultiplier ?? 1.0;
+        const climSensitivity = params.climSensitivity ?? climateParams.climSensitivity;
 
         const years = [];
         const results = {
@@ -1021,6 +1347,9 @@
         let gasExtracted = 0;
         let coalExtracted = 0;
 
+        // Store LCOEs for dispatch (need full arrays first)
+        const lcoeArrays = { solar: [], wind: [], gas: [], coal: [], nuclear: [] };
+
         for (let year = 2025; year <= 2100; year++) {
             const t = year - 2025;
             years.push(year);
@@ -1030,12 +1359,14 @@
             const solarCumulative = solarCapacity / energySources.solar.capacity2025;
             const solarLCOE = learningCurve(energySources.solar.cost0, solarCumulative, solarAlpha);
             results.solar.push(solarLCOE);
+            lcoeArrays.solar.push(solarLCOE);
 
             // Wind: learning curve
             const windCapacity = energySources.wind.capacity2025 * Math.pow(1 + energySources.wind.growthRate, t);
             const windCumulative = windCapacity / energySources.wind.capacity2025;
             const windLCOE = learningCurve(energySources.wind.cost0, windCumulative, energySources.wind.alpha);
             results.wind.push(windLCOE);
+            lcoeArrays.wind.push(windLCOE);
 
             // Gas: EROEI depletion + carbon price
             gasExtracted += energySources.gas.extractionRate;
@@ -1047,7 +1378,9 @@
             // Cost rises as EROEI falls (need more energy input per output)
             const gasBaseCost = energySources.gas.cost0 * (energySources.gas.eroei0 / gasDepletion.eroei);
             const gasCarbonCost = (energySources.gas.carbonIntensity / 1000) * carbonPrice;
-            results.gas.push(gasBaseCost + gasCarbonCost);
+            const gasLCOE = gasBaseCost + gasCarbonCost;
+            results.gas.push(gasLCOE);
+            lcoeArrays.gas.push(gasLCOE);
 
             // Coal: EROEI depletion + carbon price
             coalExtracted += energySources.coal.extractionRate;
@@ -1058,13 +1391,16 @@
             );
             const coalBaseCost = energySources.coal.cost0 * (energySources.coal.eroei0 / coalDepletion.eroei);
             const coalCarbonCost = (energySources.coal.carbonIntensity / 1000) * carbonPrice;
-            results.coal.push(coalBaseCost + coalCarbonCost);
+            const coalLCOE = coalBaseCost + coalCarbonCost;
+            results.coal.push(coalLCOE);
+            lcoeArrays.coal.push(coalLCOE);
 
             // Nuclear: essentially flat (no learning in current environment)
             const nuclearCapacity = energySources.nuclear.capacity2025 * Math.pow(1 + energySources.nuclear.growthRate, t);
             const nuclearCumulative = nuclearCapacity / energySources.nuclear.capacity2025;
             const nuclearLCOE = learningCurve(energySources.nuclear.cost0, nuclearCumulative, energySources.nuclear.alpha);
             results.nuclear.push(nuclearLCOE);
+            lcoeArrays.nuclear.push(nuclearLCOE);
 
             // Battery: learning curve (cost per kWh)
             const batteryCapacity = energySources.battery.capacity2025 * Math.pow(1 + energySources.battery.growthRate, t);
@@ -1087,7 +1423,133 @@
             efficiencyMultiplier
         });
 
-        return { years, results, demographics: demographicsData, demand: demandData };
+        // =============================================================================
+        // CLIMATE MODULE - Dispatch, emissions, and damages
+        // =============================================================================
+
+        // Initialize climate tracking
+        const climate = {
+            emissions: [],              // Annual Gt CO₂
+            electricityEmissions: [],   // Gt from electricity
+            nonElecEmissions: [],       // Gt from non-electricity
+            cumulative: [],             // Cumulative Gt CO₂
+            co2ppm: [],                 // Atmospheric CO₂ concentration
+            temperature: [],            // °C above preindustrial
+            globalDamages: [],          // % GDP
+            regionalDamages: { oecd: [], china: [], em: [], row: [] },
+            netGdp: { global: [], oecd: [], china: [], em: [], row: [] }
+        };
+
+        // Dispatch results
+        const dispatchData = {
+            solar: [],
+            wind: [],
+            gas: [],
+            coal: [],
+            nuclear: [],
+            gridIntensity: []
+        };
+
+        // Climate state variables
+        let cumulativeEmissions = climateParams.cumulativeCO2_2025;
+        let currentTemp = climateParams.currentTemp;
+        let peakEmissionsYear = null;
+        let peakEmissionsValue = 0;
+
+        // Run climate simulation year by year
+        for (let i = 0; i < years.length; i++) {
+            const year = years[i];
+
+            // Get LCOEs for this year
+            const lcoes = {
+                solar: lcoeArrays.solar[i],
+                wind: lcoeArrays.wind[i],
+                gas: lcoeArrays.gas[i],
+                coal: lcoeArrays.coal[i],
+                nuclear: lcoeArrays.nuclear[i]
+            };
+
+            // Get capacities
+            const capacities = getCapacities(year, solarGrowth);
+
+            // Get electricity demand
+            const demandTWh = demandData.global.electricityDemand[i];
+
+            // Dispatch sources to meet demand
+            const dispatchResult = dispatch(demandTWh, lcoes, capacities);
+
+            // Store dispatch results
+            dispatchData.solar.push(dispatchResult.solar);
+            dispatchData.wind.push(dispatchResult.wind);
+            dispatchData.gas.push(dispatchResult.gas);
+            dispatchData.coal.push(dispatchResult.coal);
+            dispatchData.nuclear.push(dispatchResult.nuclear);
+            dispatchData.gridIntensity.push(dispatchResult.gridIntensity);
+
+            // Calculate emissions
+            const electrificationRate = demandData.global.electrificationRate[i];
+            const emissionsResult = calculateEmissions(dispatchResult, electrificationRate);
+
+            climate.emissions.push(emissionsResult.total);
+            climate.electricityEmissions.push(emissionsResult.electricity);
+            climate.nonElecEmissions.push(emissionsResult.nonElectricity);
+
+            // Track peak emissions
+            if (emissionsResult.total > peakEmissionsValue) {
+                peakEmissionsValue = emissionsResult.total;
+                peakEmissionsYear = year;
+            }
+
+            // Update cumulative emissions
+            cumulativeEmissions += emissionsResult.total;
+            climate.cumulative.push(cumulativeEmissions);
+
+            // Update climate state
+            const climateState = updateClimate(cumulativeEmissions, currentTemp, climSensitivity);
+            currentTemp = climateState.temperature;
+
+            climate.co2ppm.push(climateState.co2ppm);
+            climate.temperature.push(climateState.temperature);
+
+            // Calculate damages by region
+            let globalGrosGdp = 0;
+            let globalNetGdp = 0;
+
+            for (const region of ['oecd', 'china', 'em', 'row']) {
+                const damage = climateDamages(currentTemp, region);
+                climate.regionalDamages[region].push(damage * 100); // Store as percentage
+
+                const grossGdp = demandData.regions[region].gdp[i];
+                const netGdp = grossGdp * (1 - damage);
+                climate.netGdp[region].push(netGdp);
+
+                globalGrosGdp += grossGdp;
+                globalNetGdp += netGdp;
+            }
+
+            // Global average damage
+            const globalDamage = 1 - (globalNetGdp / globalGrosGdp);
+            climate.globalDamages.push(globalDamage * 100); // Store as percentage
+            climate.netGdp.global.push(globalNetGdp);
+        }
+
+        // Store climate metrics
+        climate.metrics = {
+            peakEmissionsYear,
+            peakEmissionsValue,
+            warming2100: climate.temperature[climate.temperature.length - 1],
+            damages2075: climate.globalDamages[years.indexOf(2075)],
+            gridIntensity2025: dispatchData.gridIntensity[0]
+        };
+
+        return {
+            years,
+            results,
+            demographics: demographicsData,
+            demand: demandData,
+            climate,
+            dispatch: dispatchData
+        };
     }
 
     function findCrossovers(years, results) {
@@ -1157,8 +1619,14 @@
     let demandChart = null;
     let gdpPerWorkerChart = null;
     let intensityChart = null;
+    let generationChart = null;
+    let emissionsChart = null;
+    let temperatureChart = null;
+    let damagesChart = null;
     let currentDemographicsData = null;
     let currentDemandData = null;
+    let currentClimateData = null;
+    let currentDispatchData = null;
 
     function updateCharts() {
         const carbonPrice = parseFloat(document.getElementById('carbon-price').value);
@@ -1166,18 +1634,22 @@
         const solarGrowth = parseFloat(document.getElementById('solar-growth').value) / 100;
         const electrificationTarget = parseFloat(document.getElementById('electrification-target').value) / 100;
         const efficiencyMultiplier = parseFloat(document.getElementById('efficiency-mult').value);
+        const climSensitivity = parseFloat(document.getElementById('clim-sensitivity').value);
 
         document.getElementById('carbon-price-value').textContent = `$${carbonPrice}`;
         document.getElementById('solar-alpha-value').textContent = solarAlpha.toFixed(2);
         document.getElementById('solar-growth-value').textContent = `${(solarGrowth * 100).toFixed(0)}%`;
         document.getElementById('electrification-target-value').textContent = `${(electrificationTarget * 100).toFixed(0)}%`;
         document.getElementById('efficiency-mult-value').textContent = `${efficiencyMultiplier.toFixed(2)}×`;
+        document.getElementById('clim-sensitivity-value').textContent = `${climSensitivity.toFixed(1)}°C`;
 
-        const { years, results, demographics: demographicsData, demand: demandData } = runSimulation({
-            carbonPrice, solarAlpha, solarGrowth, electrificationTarget, efficiencyMultiplier
+        const { years, results, demographics: demographicsData, demand: demandData, climate: climateData, dispatch: dispatchData } = runSimulation({
+            carbonPrice, solarAlpha, solarGrowth, electrificationTarget, efficiencyMultiplier, climSensitivity
         });
         currentDemographicsData = demographicsData;
         currentDemandData = demandData;
+        currentClimateData = climateData;
+        currentDispatchData = dispatchData;
         const crossovers = findCrossovers(years, results);
 
         // Update metrics
@@ -1211,6 +1683,16 @@
             `${(demandData.global.electrificationRate[idx2050] * 100).toFixed(0)}%` : '--';
         document.getElementById('kwh-worker-2050').textContent = idx2050 !== -1 ?
             `${(demandData.global.electricityPerWorking[idx2050] / 1000).toFixed(1)}K` : '--';
+
+        // Update climate metrics
+        document.getElementById('grid-intensity-2025').textContent =
+            `${climateData.metrics.gridIntensity2025.toFixed(0)}`;
+        document.getElementById('peak-emissions').textContent =
+            climateData.metrics.peakEmissionsYear || 'N/A';
+        document.getElementById('warming-2100').textContent =
+            `${climateData.metrics.warming2100.toFixed(1)}°C`;
+        document.getElementById('damages-2075').textContent =
+            `${climateData.metrics.damages2075.toFixed(1)}%`;
 
         // Update crossover events
         const eventsHtml = crossovers.map(c => `
@@ -1254,10 +1736,9 @@
                 <td>$${avg(results.nuclear).toFixed(0)}</td>
                 <td>$${avg(results.battery).toFixed(0)}/kWh</td>
                 <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
-                <td>${(avg(demographicsData.global.dependency) * 100).toFixed(0)}%</td>
-                <td>${(avg(demandData.global.electricityDemand) / 1000).toFixed(0)}K</td>
-                <td>${(avg(demandData.global.electrificationRate) * 100).toFixed(0)}%</td>
-                <td>${(avg(demandData.global.electricityPerWorking) / 1000).toFixed(1)}K</td>
+                <td>${avg(climateData.emissions).toFixed(1)} Gt</td>
+                <td>${avg(climateData.temperature).toFixed(1)}°C</td>
+                <td>${avg(climateData.globalDamages).toFixed(1)}%</td>
             `;
             tbody.appendChild(row);
         }
@@ -1916,6 +2397,373 @@
                 }
             }
         });
+
+        // Generation Mix Chart (stacked area)
+        const genCtx = document.getElementById('generation-chart').getContext('2d');
+        if (generationChart) generationChart.destroy();
+
+        generationChart = new Chart(genCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Nuclear',
+                        data: dispatchData.nuclear.map(d => d / 1000),
+                        borderColor: energySources.nuclear.color,
+                        backgroundColor: energySources.nuclear.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Solar',
+                        data: dispatchData.solar.map(d => d / 1000),
+                        borderColor: energySources.solar.color,
+                        backgroundColor: energySources.solar.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Wind',
+                        data: dispatchData.wind.map(d => d / 1000),
+                        borderColor: energySources.wind.color,
+                        backgroundColor: energySources.wind.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Gas',
+                        data: dispatchData.gas.map(d => d / 1000),
+                        borderColor: energySources.gas.color,
+                        backgroundColor: energySources.gas.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Coal',
+                        data: dispatchData.coal.map(d => d / 1000),
+                        borderColor: energySources.coal.color,
+                        backgroundColor: energySources.coal.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${(context.parsed.y * 1000).toFixed(0)} TWh`;
+                            },
+                            footer: function(items) {
+                                const total = items.reduce((sum, item) => sum + item.parsed.y, 0);
+                                return `Total: ${(total * 1000).toFixed(0)} TWh`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + 'K';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Generation (1000s TWh)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Emissions Chart (stacked area)
+        const emissionsCtx = document.getElementById('emissions-chart').getContext('2d');
+        if (emissionsChart) emissionsChart.destroy();
+
+        emissionsChart = new Chart(emissionsCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Electricity',
+                        data: climateData.electricityEmissions,
+                        borderColor: '#f94144',
+                        backgroundColor: '#f9414460',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Non-Electricity',
+                        data: climateData.nonElecEmissions,
+                        borderColor: '#90be6d',
+                        backgroundColor: '#90be6d60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)} Gt`;
+                            },
+                            footer: function(items) {
+                                const total = items.reduce((sum, item) => sum + item.parsed.y, 0);
+                                return `Total: ${total.toFixed(1)} Gt CO₂`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' },
+                        title: {
+                            display: true,
+                            text: 'Emissions (Gt CO₂/year)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Temperature Chart
+        const tempCtx = document.getElementById('temperature-chart').getContext('2d');
+        if (temperatureChart) temperatureChart.destroy();
+
+        temperatureChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Temperature',
+                        data: climateData.temperature,
+                        borderColor: '#f94144',
+                        backgroundColor: 'rgba(249, 65, 68, 0.1)',
+                        fill: true,
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.parsed.y.toFixed(2)}°C above preindustrial`;
+                            }
+                        }
+                    },
+                    annotation: {
+                        annotations: {
+                            line1_5: {
+                                type: 'line',
+                                yMin: 1.5,
+                                yMax: 1.5,
+                                borderColor: '#ffd60a',
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    display: true,
+                                    content: '1.5°C Paris target',
+                                    position: 'start',
+                                    color: '#ffd60a',
+                                    backgroundColor: 'transparent'
+                                }
+                            },
+                            line2: {
+                                type: 'line',
+                                yMin: 2.0,
+                                yMax: 2.0,
+                                borderColor: '#f77f00',
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    display: true,
+                                    content: '2°C limit',
+                                    position: 'start',
+                                    color: '#f77f00',
+                                    backgroundColor: 'transparent'
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + '°C';
+                            }
+                        },
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: 'Temperature Rise (°C)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Climate Damages Chart
+        const damagesCtx = document.getElementById('damages-chart').getContext('2d');
+        if (damagesChart) damagesChart.destroy();
+
+        damagesChart = new Chart(damagesCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Global',
+                        data: climateData.globalDamages,
+                        borderColor: '#fff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'OECD',
+                        data: climateData.regionalDamages.oecd,
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: climateData.regionalDamages.china,
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: climateData.regionalDamages.em,
+                        borderColor: demographics.em.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: climateData.regionalDamages.row,
+                        borderColor: demographics.row.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}% GDP`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Climate Damages (% GDP)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Event listeners
@@ -1924,6 +2772,7 @@
     document.getElementById('solar-growth').addEventListener('input', updateCharts);
     document.getElementById('electrification-target').addEventListener('input', updateCharts);
     document.getElementById('efficiency-mult').addEventListener('input', updateCharts);
+    document.getElementById('clim-sensitivity').addEventListener('input', updateCharts);
 
     // CSV Export
     document.getElementById('export-csv').addEventListener('click', function() {
@@ -1943,11 +2792,13 @@
 
     // Console API for testing
     window.energySim = {
+        // Primitives
         compound,
         learningCurve,
         depletion,
         logistic,
         poissonShock,
+        // Simulation
         runSimulation,
         runDemographics,
         runDemandModel,
@@ -1955,19 +2806,34 @@
         findPopulationPeak,
         exportDemographicsCSV,
         projectFertility,
+        // Climate functions
+        dispatch,
+        getCapacities,
+        calculateEmissions,
+        updateClimate,
+        climateDamages,
+        // Parameters
         energySources,
         demographics,
         economicParams,
         demandParams,
+        dispatchParams,
+        climateParams,
+        // Current data (reactive getters)
         get demographicsData() { return currentDemographicsData; },
-        get demand() { return currentDemandData; }
+        get demand() { return currentDemandData; },
+        get climate() { return currentClimateData; },
+        get dispatchData() { return currentDispatchData; }
     };
 
     console.log('Energy Simulation loaded. Access primitives via window.energySim');
     console.log('Test: energySim.learningCurve(100, 2, 0.2) =', learningCurve(100, 2, 0.2).toFixed(2), '(should be ~87 - 13% reduction per doubling)');
     console.log('Demographics loaded. Access via window.energySim.demographicsData');
     console.log('Demand model loaded. Access via window.energySim.demand');
-    console.log('Try: energySim.demand.global.electricityDemand[25] for global electricity demand in 2050');
+    console.log('Climate module loaded. Access via window.energySim.climate');
+    console.log('Try: energySim.climate.emissions[0] for 2025 emissions');
+    console.log('Try: energySim.climate.temperature[75] for 2100 temperature');
+    console.log('Try: energySim.climateDamages(3.0, "row") for ROW damages at 3°C');
     </script>
 </body>
 </html>

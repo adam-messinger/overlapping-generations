@@ -29,7 +29,18 @@ The `<script>` section is organized into clear modules:
 
 2. **ENERGY SOURCES** - `energySources` object with parameters for solar, wind, gas, coal, nuclear, battery
 
-3. **DEMOGRAPHICS** - Fernández-Villaverde-informed population model
+3. **DISPATCH** - Merit order source allocation
+   - `dispatchParams` object - Capacity factors and penetration limits per source
+   - `getCapacities()` - Calculate GW capacity by year
+   - `dispatch()` - Allocate demand to sources by LCOE merit order
+
+4. **CLIMATE** - Emissions and damage calculations (DICE-2023 informed)
+   - `climateParams` object - CO2, temperature, damage coefficients
+   - `calculateEmissions()` - Compute Gt CO2 from dispatch + non-electric sectors
+   - `updateClimate()` - CO2 ppm and temperature from cumulative emissions
+   - `climateDamages()` - DICE-style quadratic damage function with regional variation
+
+5. **DEMOGRAPHICS** - Fernández-Villaverde-informed population model
    - `demographics` object - 4 regions (OECD, China, EM, ROW)
    - `projectFertility()` - TFR convergence to floor
    - `birthRateFromTFR()` - Crude birth rate
@@ -37,16 +48,16 @@ The `<script>` section is organized into clear modules:
    - `ageCohorts()` - 3-cohort aging (young/working/old)
    - `runDemographics()` - Full 2025-2100 projection
 
-4. **DEMAND MODEL** - GDP, energy intensity, electricity demand
+6. **DEMAND MODEL** - GDP, energy intensity, electricity demand
    - `economicParams` object - Regional GDP, TFP growth, energy intensity
    - `demandParams` object - Electrification targets and rates
    - `runDemandModel()` - Calculate electricity demand from demographics + GDP
 
-5. **SIMULATION ENGINE**
-   - `runSimulation()` - Main loop, returns energy + demographics data
+7. **SIMULATION ENGINE**
+   - `runSimulation()` - Main loop, returns energy + demographics + climate data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-6. **VISUALIZATION** - Chart.js-based charts and UI updates
+8. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -69,13 +80,25 @@ energySim.demand.global.electricityDemand[25]     // 2050 global electricity (TW
 energySim.demand.global.electrificationRate[25]   // 2050 electrification rate
 energySim.demand.regions.china.gdpPerWorking[25]  // China GDP per worker 2050
 
+// Climate data (after page loads)
+energySim.climate.emissions[0]           // 2025 emissions (Gt CO2)
+energySim.climate.temperature[75]        // 2100 temperature (°C)
+energySim.climate.globalDamages[50]      // 2075 global damages (% GDP)
+energySim.climate.regionalDamages.row[50] // 2075 ROW damages (% GDP)
+energySim.dispatchData.gridIntensity[0]  // 2025 grid intensity (kg CO2/MWh)
+
+// Climate functions
+energySim.climateDamages(3.0, 'row')     // Damage at 3°C for ROW (~4% GDP)
+energySim.calculateEmissions(dispatch, 0.5) // Emissions from dispatch result
+
 // Run fresh simulation
-const { years, results, demographics, demand } = energySim.runSimulation({
+const { years, results, demographics, demand, climate, dispatch } = energySim.runSimulation({
   carbonPrice: 100,
   solarAlpha: 0.25,
   solarGrowth: 0.25,
   electrificationTarget: 0.70,
-  efficiencyMultiplier: 1.2
+  efficiencyMultiplier: 1.2,
+  climSensitivity: 3.0
 });
 ```
 
@@ -98,6 +121,13 @@ const { years, results, demographics, demand } = energySim.runSimulation({
 - **Electrification**: Logistic convergence to target (IEA Net Zero informed)
 - **Per-Worker Metrics**: GDP and kWh per working-age adult (Ole Peters ergodicity)
 
+### Climate (Phase 4)
+- **Dispatch**: Merit order allocation by LCOE with capacity/penetration constraints
+- **Emissions**: Computed from dispatch (electricity) + electrification-adjusted non-electric
+- **Carbon Cycle**: Simplified cumulative CO2 → ppm → temperature with lag
+- **Damages**: DICE-2023 quadratic function with regional multipliers and tipping threshold
+- **Net GDP**: Gross GDP × (1 - damage fraction) as post-hoc adjustment
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -109,20 +139,32 @@ const { years, results, demographics, demand } = energySim.runSimulation({
 | Global electricity 2050 | 52,000-71,000 TWh | IEA, IRENA |
 | Electrification 2050 | ~65% | IEA Net Zero |
 | Asia-Pacific share 2050 | >50% | IEA |
+| Total emissions 2025 | ~35 Gt CO2 | IEA |
+| Electricity emissions 2025 | ~10 Gt CO2 | IEA |
+| Grid intensity 2025 | ~340 kg CO2/MWh | Computed |
+| Temperature 2025 | 1.2°C | NASA |
+| Atmospheric CO2 2025 | 420 ppm | NOAA |
+
+### Validation Scenarios
+1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
+2. **Paris-aligned** (carbon $100+): Peak 2030, <2°C achievable
+3. **Aggressive** (carbon $150, high learning): Near-zero by 2070
 
 ## Adding New Features
 
 ### Adding a New Energy Source
 1. Add parameters to `energySources` object
-2. Add calculation logic in `runSimulation()` loop
-3. Add to `results` object
-4. Add chart dataset in `updateCharts()`
-5. Add to era table row generation
+2. Add dispatch parameters to `dispatchParams` object
+3. Add calculation logic in `runSimulation()` loop
+4. Add to `results` object
+5. Add chart dataset in `updateCharts()`
+6. Add to era table row generation
 
 ### Adding a New Region
 1. Add to `demographics` object with all required fields
 2. Add to `regions` object in `runDemographics()`
-3. Add chart datasets in population/dependency charts
+3. Add regional damage multiplier to `climateParams.regionalDamage`
+4. Add chart datasets in population/dependency/damages charts
 
 ### Adding a New Chart
 1. Add `<canvas>` element in HTML
@@ -140,5 +182,14 @@ const { years, results, demographics, demand } = energySim.runSimulation({
 - [x] Phase 1: Energy supply-side (LCOE, learning curves, EROEI)
 - [x] Phase 2: Demographics (population, dependency ratios)
 - [x] Phase 3: Demand model (GDP per working-age adult, electricity demand)
-- [ ] Phase 4: Capital/savings (OLG consumption smoothing)
-- [ ] Phase 5: Policy scenarios (carbon tax, immigration, retirement age)
+- [x] Phase 4: Climate module (emissions, warming, damages)
+- [ ] Phase 5: Capital/savings (OLG consumption smoothing)
+- [ ] Phase 6: Policy scenarios (carbon tax, immigration, retirement age)
+
+## Academic Sources
+
+### Climate Module
+- [DICE-2023 (Nordhaus/Barrage)](https://www.pnas.org/doi/10.1073/pnas.2312030121) - Damage function coefficients
+- [Weitzman Fat Tails](https://scholar.harvard.edu/files/weitzman/files/fattaileduncertaintyeconomics.pdf) - Bounded damages approach
+- [Farmer/Way (INET Oxford)](https://www.doynefarmer.com/environmental-economics) - Technology learning curves
+- [Tipping Points (PNAS)](https://www.pnas.org/doi/10.1073/pnas.2103081118) - Threshold damages
