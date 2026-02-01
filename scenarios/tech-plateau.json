@@ -1,0 +1,36 @@
+{
+  "name": "Technology Plateau",
+  "description": "Twin-Engine scenario (30% probability). Learning curves flatten earlier than expected. VRE share plateaus at 55-60%. Mineral bottlenecks persist. Long-duration storage scale-up delayed. Higher costs slow electrification.",
+
+  "params": {
+    "carbonPrice": 35,
+    "solarAlpha": 0.25,
+    "solarGrowth": 0.15,
+    "electrificationTarget": 0.55,
+    "efficiencyMultiplier": 0.9,
+    "climSensitivity": 3.0,
+    "windAlpha": 0.18,
+    "windGrowth": 0.10,
+    "batteryAlpha": 0.12,
+    "nuclearGrowth": 0.02,
+    "robotGrowthRate": 0.08,
+    "mineralLearningMultiplier": 0.6
+  },
+
+  "overrides": {
+    "capacityParams": {
+      "penetrationLimits": {
+        "solar": 0.60,
+        "wind": 0.30
+      },
+      "maxGrowthRate": {
+        "solar": 0.20,
+        "wind": 0.12,
+        "battery": 0.25
+      }
+    },
+    "expansionParams": {
+      "expansionCoefficient": 0.15
+    }
+  }
+}

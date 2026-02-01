@@ -1,0 +1,39 @@
+{
+  "name": "Technology Breakthrough",
+  "description": "Twin-Engine scenario (20% probability). Faster-than-expected learning. Fusion or advanced geothermal delivers <$40/MWh by 2040s. Battery costs drop below $50/kWh by 2030. Rapid electrification enables net-zero by 2060s.",
+
+  "params": {
+    "carbonPrice": 50,
+    "solarAlpha": 0.42,
+    "solarGrowth": 0.30,
+    "electrificationTarget": 0.85,
+    "efficiencyMultiplier": 1.2,
+    "climSensitivity": 3.0,
+    "windAlpha": 0.28,
+    "windGrowth": 0.22,
+    "batteryAlpha": 0.25,
+    "nuclearGrowth": 0.08,
+    "nuclearCost0": 80,
+    "robotGrowthRate": 0.15,
+    "mineralLearningMultiplier": 1.3
+  },
+
+  "overrides": {
+    "capacityParams": {
+      "penetrationLimits": {
+        "solar": 0.90,
+        "wind": 0.45,
+        "nuclear": 0.35
+      },
+      "maxGrowthRate": {
+        "solar": 0.40,
+        "wind": 0.25,
+        "battery": 0.50,
+        "nuclear": 0.10
+      }
+    },
+    "expansionParams": {
+      "expansionCoefficient": 0.30
+    }
+  }
+}

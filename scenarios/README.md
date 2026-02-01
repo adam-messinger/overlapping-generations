@@ -49,9 +49,38 @@ For power users, the `overrides` object allows deep-merge of any parameter objec
 - `capitalParams` - Savings rates, depreciation, automation
 - `demographics` - Regional fertility, mortality, migration
 - `resourceParams` - Mineral intensities, food parameters
-- `reboundParams` - Jevons elasticity, robot energy
+- `expansionParams` - G/C cost expansion, robot energy
 
-## Available Scenarios
+## Twin-Engine Scenario Suite
+
+These scenarios correspond to the Twin-Engine Century Forecast probability distribution:
+
+| Scenario | Probability | Key Drivers |
+|----------|-------------|-------------|
+| central-path.json | 30% | Baseline managed acceleration |
+| tech-plateau.json | 30% | Learning curves flatten, VRE ~55-60% |
+| tech-breakthrough.json | 20% | Faster learning, fusion/<$40 MWh |
+| debt-populism.json | 12% | Financial crisis, policy instability |
+| climate-cascade.json | 8% | High sensitivity, tipping points |
+
+### central-path.json
+**Central Path (30%)** - Twin-Engine baseline. Gradual decarbonization, VRE expansion constrained by grids/minerals, temperature stabilizing near 2°C.
+
+### tech-plateau.json
+**Technology Plateau (30%)** - Learning curves flatten earlier than expected. VRE share plateaus at 55-60%. Mineral bottlenecks persist. Long-duration storage delayed.
+
+### tech-breakthrough.json
+**Technology Breakthrough (20%)** - Faster-than-expected learning. Fusion or advanced geothermal delivers <$40/MWh by 2040s. Battery costs below $50/kWh by 2030. Net-zero by 2060s.
+
+### debt-populism.json
+**Debt-Accident Populism (12%)** - Financial crisis triggers policy instability. Uses G/C stability mechanism as proxy for investment suppression. Carbon pricing collapses.
+
+*Note: Model lacks explicit debt/GDP tracking. See "Missing Dynamics" below.*
+
+### climate-cascade.json
+**Climate Cascade (8%)** - High climate sensitivity (4.5°C ECS). Tipping points trigger at 1.8°C. Ice sheet and permafrost feedbacks. Higher damages.
+
+## Legacy Scenarios
 
 ### baseline.json
 **STEPS Baseline** - IEA Stated Policies Scenario aligned. Current policy trajectory without additional climate action.
@@ -64,6 +93,22 @@ For power users, the `overrides` object allows deep-merge of any parameter objec
 
 ### high-sensitivity.json
 **High Climate Sensitivity** - 4.5°C ECS (vs 3.0°C default), higher damage coefficient, lower tipping threshold (2.0°C).
+
+## Missing Dynamics
+
+The following forecast metrics are NOT currently modeled:
+
+| Metric | Status | Needed For |
+|--------|--------|------------|
+| Public Debt/GDP | ❌ Missing | Debt-Populism scenario |
+| Adaptation Spending | ❌ Missing | All scenarios (damage response) |
+| Government Interest Rates | ❌ Missing | Debt dynamics |
+| Fusion/Breakthrough Tech | ❌ Missing | Tech-Breakthrough (uses nuclear proxy) |
+
+To fully capture the Twin-Engine scenarios, the model would need:
+1. **Debt dynamics**: Government borrowing, interest payments, debt/GDP ratios
+2. **Adaptation function**: Spending that reduces damage (trade-off with mitigation)
+3. **Policy stability index**: Beyond G/C stability, track political risk directly
 
 ## Usage
 
