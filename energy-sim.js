@@ -3644,16 +3644,27 @@
                 // =============================================================
                 // ENERGY BURDEN ESTIMATION (Issue #7: supply-side constraint)
                 // =============================================================
-                // Estimate energy cost using approximate average LCOE
-                // Actual LCOE depends on dispatch merit order, but this gives a
-                // reasonable first-pass approximation for the feedback loop.
+                // Estimate energy cost using Wright's Law with actual tech params
+                // (Issue #9: previously hardcoded, now uses solarAlpha/solarGrowth)
                 //
-                // avgLCOE trajectory: starts ~$80/MWh (2025 grid average),
-                // declines to ~$40/MWh by 2050, ~$25/MWh by 2100 as clean energy
-                // learning curves dominate. Carbon price adds to fossil costs.
-                const baseLCOE = 80 * Math.exp(-0.015 * i);  // Clean energy learning
-                const carbonComponent = carbonPrice * 0.4 * Math.exp(-0.02 * i);  // Grid avg carbon intensity
-                const avgLCOE = baseLCOE + carbonComponent;
+                // Approximate cumulative capacity using growth rate
+                // cumulative ≈ (1 + growthRate)^years relative to 2025
+                const solarCumulative = Math.pow(1 + solarGrowth, i);
+                const windCumulative = Math.pow(1 + effectiveEnergySources.wind.growthRate, i);
+
+                // Apply Wright's Law: cost = cost₀ × cumulative^(-α)
+                const solarProxy = effectiveEnergySources.solar.cost0 * Math.pow(solarCumulative, -solarAlpha);
+                const windProxy = effectiveEnergySources.wind.cost0 * Math.pow(windCumulative, -effectiveEnergySources.wind.alpha);
+
+                // Blend solar/wind (use cheaper of the two)
+                const cleanLCOE = Math.min(solarProxy, windProxy);
+
+                // Fossil component: base cost + carbon pricing (declining grid share)
+                const fossilShare = Math.max(0.1, 0.6 * Math.exp(-0.03 * i));  // 60% → 10%
+                const fossilLCOE = 50 + carbonPrice * 0.4;  // Gas ~$50 + carbon
+
+                // Weighted average LCOE
+                const avgLCOE = cleanLCOE * (1 - fossilShare) + fossilLCOE * fossilShare;
 
                 // Electricity cost ($ trillions) = TWh × $/MWh / 1e6
                 const elecCost = elecDemand * avgLCOE / 1e6;
