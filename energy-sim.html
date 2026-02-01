@@ -392,11 +392,31 @@
     // ENERGY SOURCES - Parameters and cost models
     // =============================================================================
 
-    // Learning rates calibrated to Farmer/Way (2022) and Naam (2020)
-    // α: Wright's Law exponent. Learning rate = 1 - 2^(-α)
-    // α=0.36 → 25% cost reduction per doubling
-    // α=0.23 → 15% cost reduction per doubling
-    // See sources/energy-learning-rates.md for full literature review
+    /**
+     * Energy source parameters (calibration constants)
+     *
+     * INPUTS (user-tuneable via sliders):
+     * - solar.alpha: Learning rate (slider)
+     * - solar.growthRate: Capacity growth (slider, passed to runSimulation)
+     * - carbonPrice: Applied to gas/coal (slider, passed to runSimulation)
+     *
+     * INPUTS (calibration constants, not user-tuneable):
+     * - cost0: 2025 baseline LCOE in $/MWh
+     * - alpha: Wright's Law exponent (except solar, which is tuneable)
+     * - capacity2025: Installed capacity in 2025
+     * - growthRate: Annual capacity growth rate
+     * - carbonIntensity: kg CO₂/MWh
+     * - reserves, extractionRate, eroei0: Fossil fuel depletion
+     *
+     * OUTPUTS (computed by runSimulation):
+     * - LCOE trajectories over time
+     * - Crossover years between sources
+     *
+     * Learning rates calibrated to Farmer/Way (2022) and Naam (2020)
+     * α: Wright's Law exponent. Learning rate = 1 - 2^(-α)
+     * α=0.36 → 25% cost reduction per doubling
+     * α=0.23 → 15% cost reduction per doubling
+     */
     const energySources = {
         solar: {
             name: 'Solar PV',
@@ -459,8 +479,25 @@
 
     /**
      * Regional demographic parameters (2025 baseline)
-     * Key insight: Global TFR already below replacement (~2.17 vs 2.21)
-     * All regions converging toward low fertility faster than expected
+     *
+     * INPUTS (calibration constants, not user-tuneable):
+     * - pop2025: Starting population (UN data)
+     * - fertility: 2025 TFR (total fertility rate)
+     * - fertilityFloor: Long-term TFR convergence target
+     * - fertilityDecay: Annual convergence rate toward floor
+     * - lifeExpectancy: 2025 life expectancy at birth
+     * - young/working/old: 2025 age cohort shares (must sum to 1)
+     * - migrationRate: Net migration as fraction of population
+     *
+     * OUTPUTS (computed by runDemographics):
+     * - Population trajectories per region
+     * - Working-age population (used by demand model)
+     * - Old-age dependency ratio (used by demand model)
+     * - Fertility trajectories
+     *
+     * Theoretical basis: Fernández-Villaverde's thesis that global fertility
+     * is converging faster than expected, with all regions trending toward
+     * below-replacement rates.
      */
     const demographics = {
         oecd: {
@@ -700,8 +737,18 @@
 
     /**
      * Regional economic parameters (2025 baseline)
-     * Informed by Fernández-Villaverde (GDP per working-age adult),
-     * Ole Peters (ergodicity), and Odum (energy economics)
+     *
+     * INPUTS (calibration constants, not user-tuneable):
+     * - gdp2025: Regional GDP in trillions USD (World Bank data)
+     * - tfpGrowth: Total factor productivity growth rate
+     * - tfpDecay: Rate at which catch-up growth fades (convergence)
+     * - energyIntensity: MWh per $1000 GDP (calibrated to 2025 electricity data)
+     * - intensityDecline: Annual efficiency improvement rate
+     *
+     * Theoretical basis:
+     * - Fernández-Villaverde: GDP per working-age adult as key metric
+     * - Ole Peters: Ergodicity economics (time-average vs ensemble-average)
+     * - Odum: Energy as basis of real wealth
      *
      * Energy intensity calibrated to match ~30,000 TWh global electricity in 2025:
      * - OECD: ~10,000 TWh, $58T GDP → 0.43 MWh/$1000 total energy, 40% electric
@@ -711,50 +758,74 @@
      */
     const economicParams = {
         oecd: {
-            gdp2025: 58,              // $58T
+            gdp2025: 58,              // $58T (World Bank)
             tfpGrowth: 0.015,         // 1.5% baseline TFP
-            tfpDecay: 0.0,            // Mature economy
+            tfpDecay: 0.0,            // Mature economy - no convergence
             energyIntensity: 0.43,    // MWh per $1000 GDP (total energy)
-            intensityDecline: 0.010,  // 1.0%/year efficiency gains
-            electrificationMod: 1.0   // Baseline electrification speed
+            intensityDecline: 0.010   // 1.0%/year efficiency gains
         },
         china: {
-            gdp2025: 18,
+            gdp2025: 18,              // $18T (World Bank)
             tfpGrowth: 0.035,         // 3.5% catch-up growth
-            tfpDecay: 0.015,          // Converging toward OECD (slower)
-            energyIntensity: 1.25,    // High, industrial economy
-            intensityDecline: 0.020,  // 2.0%/year (still rapid)
-            electrificationMod: 1.1   // Policy-driven electrification
+            tfpDecay: 0.015,          // Converging toward OECD
+            energyIntensity: 1.25,    // High - industrial economy
+            intensityDecline: 0.020   // 2.0%/year (rapid improvement)
         },
         em: {
-            gdp2025: 35,
+            gdp2025: 35,              // $35T (India, Brazil, Indonesia, etc.)
             tfpGrowth: 0.025,         // 2.5% baseline
-            tfpDecay: 0.008,
-            energyIntensity: 0.57,
-            intensityDecline: 0.015,
-            electrificationMod: 0.95
+            tfpDecay: 0.008,          // Slow convergence
+            energyIntensity: 0.57,    // Mixed economies
+            intensityDecline: 0.015   // 1.5%/year
         },
         row: {
-            gdp2025: 8,
+            gdp2025: 8,               // $8T (Africa, etc.)
             tfpGrowth: 0.030,         // 3.0% demographic dividend
-            tfpDecay: 0.010,
-            energyIntensity: 0.94,
-            intensityDecline: 0.012,
-            electrificationMod: 0.85  // Infrastructure constraints
+            tfpDecay: 0.010,          // Gradual convergence
+            energyIntensity: 0.94,    // Lower efficiency
+            intensityDecline: 0.012   // 1.2%/year
         }
     };
 
+    /**
+     * Global demand model parameters
+     *
+     * INPUTS (user-tuneable via sliders):
+     * - electrificationTarget: Target electricity share (slider)
+     * - efficiencyMultiplier: Scales intensity decline (slider, passed to runDemandModel)
+     *
+     * INPUTS (calibration constants):
+     * - electrification2025: Current electricity share of useful energy (IEA)
+     * - electrificationSpeed: Logistic convergence rate
+     * - demographicFactor: How much dependency ratio affects GDP growth
+     *
+     * Note: baselineDependency is computed from demographics model output,
+     * not hardcoded, ensuring consistency between models.
+     */
     const demandParams = {
-        electrification2025: 0.40,    // Current electricity share of useful energy
-        electrificationTarget: 0.65,  // 2050+ target
-        electrificationSpeed: 0.08,   // Convergence rate (faster to reach target by 2050)
-        demographicFactor: 0.015,     // Dependency ratio impact on growth
-        baselineDependency: 0.24      // 2025 global reference
+        electrification2025: 0.40,    // Current electricity share (IEA data)
+        electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
+        electrificationSpeed: 0.08,   // Convergence rate
+        demographicFactor: 0.015      // Dependency ratio impact on growth
     };
 
     /**
      * Run demand model simulation
      * Calculates GDP growth, energy intensity, and electricity demand by region
+     *
+     * INPUTS (from parameters):
+     * - electrificationTarget: Target electricity share of useful energy (slider)
+     * - efficiencyMultiplier: Scales intensity decline rates (slider)
+     *
+     * INPUTS (from demographicsData - computed by Phase 2):
+     * - working-age population per region
+     * - dependency ratios per region
+     *
+     * OUTPUTS:
+     * - GDP trajectories per region
+     * - Electricity demand per region (TWh)
+     * - GDP per working-age adult
+     * - kWh per working-age adult
      *
      * @param {Object} demographicsData - Output from runDemographics()
      * @param {Object} params - Optional overrides for electrification target, efficiency
@@ -764,6 +835,9 @@
         const { years, regions: demoRegions, global: demoGlobal } = demographicsData;
         const electTarget = params.electrificationTarget ?? demandParams.electrificationTarget;
         const efficiencyMult = params.efficiencyMultiplier ?? 1.0;
+
+        // Compute baseline dependency from demographics model (not hardcoded)
+        const baselineDependency = demoGlobal.dependency[0];
 
         const demand = {
             regions: {
@@ -828,7 +902,7 @@
                 // Demographic adjustment (Fernández-Villaverde)
                 // Higher dependency = lower growth
                 const demographicAdj = demandParams.demographicFactor *
-                    (demandParams.baselineDependency - dependency);
+                    (baselineDependency - dependency);
 
                 // TFP with decay (catch-up growth fades)
                 const tfp = econ.tfpGrowth * Math.pow(1 - econ.tfpDecay, t);
@@ -854,8 +928,8 @@
                 // Calculate electricity demand
                 // Total energy = GDP × intensity × 1000 (TWh)
                 const totalEnergy = currentState.gdp * currentState.intensity * 1000;
-                // Electricity = total energy × electrification rate × regional modifier
-                const elecDemand = totalEnergy * electRate * econ.electrificationMod;
+                // Electricity = total energy × electrification rate
+                const elecDemand = totalEnergy * electRate;
                 demand.regions[key].electricityDemand.push(elecDemand);
 
                 // Per working-age adult metrics (Peters-informed)
@@ -1156,7 +1230,7 @@
             const startIdx = e * 5;
             const endIdx = Math.min(startIdx + 5, years.length);
 
-            // Average over era
+            // Average over era (reusable for all arrays)
             const avg = (arr) => {
                 let sum = 0;
                 for (let i = startIdx; i < endIdx; i++) sum += arr[i];
@@ -1171,18 +1245,6 @@
             const hasCrossover = crossovers.some(c => c.year >= eraStart && c.year <= eraEnd);
             if (hasCrossover) row.classList.add('crossover-highlight');
 
-            // Average dependency for era
-            const avgDep = (arr) => {
-                let sum = 0;
-                for (let i = startIdx; i < endIdx; i++) sum += arr[i];
-                return sum / (endIdx - startIdx);
-            };
-
-            // Average demand metrics for era
-            const avgElec = avg(demandData.global.electricityDemand);
-            const avgElecRate = avg(demandData.global.electrificationRate);
-            const avgKwhWorker = avg(demandData.global.electricityPerWorking);
-
             row.innerHTML = `
                 <td>${eras[e]}</td>
                 <td>$${avg(results.solar).toFixed(0)}</td>
@@ -1192,10 +1254,10 @@
                 <td>$${avg(results.nuclear).toFixed(0)}</td>
                 <td>$${avg(results.battery).toFixed(0)}/kWh</td>
                 <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
-                <td>${(avgDep(demographicsData.global.dependency) * 100).toFixed(0)}%</td>
-                <td>${(avgElec / 1000).toFixed(0)}K</td>
-                <td>${(avgElecRate * 100).toFixed(0)}%</td>
-                <td>${(avgKwhWorker / 1000).toFixed(1)}K</td>
+                <td>${(avg(demographicsData.global.dependency) * 100).toFixed(0)}%</td>
+                <td>${(avg(demandData.global.electricityDemand) / 1000).toFixed(0)}K</td>
+                <td>${(avg(demandData.global.electrificationRate) * 100).toFixed(0)}%</td>
+                <td>${(avg(demandData.global.electricityPerWorking) / 1000).toFixed(1)}K</td>
             `;
             tbody.appendChild(row);
         }
