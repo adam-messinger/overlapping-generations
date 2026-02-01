@@ -59,11 +59,21 @@ The `<script>` section is organized into clear modules:
    - `demandParams` object - Electrification targets and rates
    - `runDemandModel()` - Calculate electricity demand from demographics + GDP
 
-8. **SIMULATION ENGINE**
-   - `runSimulation()` - Main loop, returns energy + demographics + climate data
+8. **CAPITAL** - Savings, investment, and automation
+   - `capitalParams` object - Production, savings, stability, automation parameters
+   - `aggregateSavingsRate()` - Demographic-weighted savings by region
+   - `stabilityFactor()` - Galbraith/Chen investment stability (0-1)
+   - `calculateInvestment()` - Investment = GDP × savingsRate × stability
+   - `updateCapital()` - Capital accumulation K_{t+1} = (1-δ)K_t + I_t
+   - `calculateInterestRate()` - Marginal product r = αY/K - δ
+   - `robotsDensity()` - Robots per 1000 workers
+   - `runCapitalModel()` - Full capital simulation with all outputs
+
+9. **SIMULATION ENGINE**
+   - `runSimulation()` - Main loop, returns energy + demographics + climate + capital data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-9. **VISUALIZATION** - Chart.js-based charts and UI updates
+10. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -81,6 +91,10 @@ m.gridBelow100             // year when grid < 100 kg CO₂/MWh
 m.elecPerCapita2050_china  // kWh/person
 m.chinaCollegePeakYear     // year when China college workers peak (~2040)
 m.collegeShare2050         // global college share of workforce
+m.kY2025                   // K/Y ratio (capital-to-output)
+m.interestRate2025         // Real interest rate
+m.robotsDensity2050        // Robots per 1000 workers
+m.savingsRate2025          // Aggregate savings rate
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -114,7 +128,7 @@ energySim.defaults              // { carbonPrice: 50, solarAlpha: 0.36, ... }
 energySim.config.quiet = true   // Suppress ALL console output
 
 // Full simulation (returns all arrays)
-const { years, results, demographics, demand, climate, dispatch } = energySim.runSimulation({
+const { years, results, demographics, demand, climate, dispatch, capital } = energySim.runSimulation({
   carbonPrice: 100,
   solarAlpha: 0.25,
   solarGrowth: 0.25,
@@ -122,6 +136,13 @@ const { years, results, demographics, demand, climate, dispatch } = energySim.ru
   efficiencyMultiplier: 1.2,
   climSensitivity: 3.0
 });
+
+// Capital model data
+capital.stock[0]           // 2025 capital stock: ~$350T
+capital.interestRate[25]   // 2050 interest rate
+capital.robotsDensity[50]  // 2075 robots per 1000 workers
+capital.savingsRate[0]     // 2025 aggregate savings rate
+capital.stability[50]      // 2075 Galbraith/Chen stability factor
 
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
@@ -144,6 +165,13 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Damages | % of GDP (0-100 scale) |
 | Dependency ratio | fraction (0-1) |
 | Electrification rate | fraction (0-1) |
+| Capital stock | $ trillions |
+| Investment | $ trillions |
+| Savings rate | fraction (0-1) |
+| Stability factor | fraction (0-1) |
+| Interest rate | fraction |
+| Robots density | robots/1000 workers |
+| K per worker | $K per person |
 
 ## Key Models
 
@@ -179,6 +207,15 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Damages**: DICE-2023 quadratic function with regional multipliers and tipping threshold
 - **Net GDP**: Gross GDP × (1 - damage fraction) as post-hoc adjustment
 
+### Capital (Phase 5)
+- **Capital Accumulation**: Standard K_{t+1} = (1-δ)K_t + I_t dynamics
+- **OLG Savings**: Demographic-weighted savings rates (young 0%, working 25%, old -3%)
+- **Regional Premiums**: China +15% savings, EM -5%, ROW -8%
+- **Galbraith/Chen Stability**: Investment suppressed by climate uncertainty: Φ = 1/(1 + λ×damages²)
+- **Interest Rate**: Marginal product of capital r = αY/K - δ
+- **Automation**: Robots per 1000 workers, growing from 2% to 20% share of capital
+- **K per Worker**: Capital intensity per effective worker
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -199,6 +236,11 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Global college share 2050 | ~36% | Model projection |
 | China college peak | ~2040 | Model projection |
 | OECD wage premium 2025 | 1.5× | OECD |
+| Global K/Y ratio | ~3.5 | Penn World Table |
+| Global capital stock | ~$350T | McKinsey Global Institute |
+| Global savings rate | ~26% | World Bank |
+| Real interest rate | ~2% | IMF |
+| Robot density (global) | ~15/1000 | IFR World Robotics |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
@@ -274,7 +316,7 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [x] Phase 2: Demographics (population, dependency ratios)
 - [x] Phase 3: Demand model (GDP per working-age adult, electricity demand)
 - [x] Phase 4: Climate module (emissions, warming, damages)
-- [ ] Phase 5: Capital/savings (OLG consumption smoothing)
+- [x] Phase 5: Capital/savings (OLG savings, investment, automation)
 - [ ] Phase 6: Policy scenarios (carbon tax, immigration, retirement age)
 
 ## Academic Sources

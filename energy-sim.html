@@ -611,6 +611,259 @@
     };
 
     // =============================================================================
+    // CAPITAL - Savings, investment, and automation
+    // =============================================================================
+
+    /**
+     * Capital accumulation parameters
+     *
+     * INPUTS (calibration constants):
+     * - alpha: Capital share in Cobb-Douglas production (standard ~0.33)
+     * - depreciation: Annual capital depreciation rate
+     * - savingsYoung/Working/Old: Lifecycle savings rates by cohort (OLG)
+     * - savingsPremium: Regional adjustments to savings rate
+     * - stabilityLambda: Sensitivity of investment to climate damages (Galbraith/Chen)
+     * - automationShare2025: Initial fraction of capital that is "robots"
+     * - automationGrowth: Annual growth rate of automation share
+     * - robotsPerCapitalUnit: Scaling factor for robots per $T automation capital
+     * - initialCapitalStock: Global capital stock in 2025 ($ trillions)
+     *
+     * OUTPUTS (computed by runCapitalModel):
+     * - capital.stock: Total capital by year
+     * - capital.investment: Annual investment
+     * - capital.savingsRate: Demographic-weighted aggregate savings rate
+     * - capital.stability: Galbraith/Chen stability factor (0-1)
+     * - capital.interestRate: Marginal product of capital minus depreciation
+     * - capital.robotsDensity: Robots per 1000 workers
+     * - capital.kPerWorker: Capital per effective worker
+     *
+     * Sources:
+     * - Penn World Table: K/Y ratio ~3.5
+     * - McKinsey Global Institute: Global capital stock ~$350T
+     * - World Bank: Global savings rate ~26%
+     * - IMF: Real interest rate ~2%
+     * - IFR World Robotics: Robot density data
+     */
+    const capitalParams = {
+        // Production
+        alpha: 0.33,              // Capital share (Cobb-Douglas)
+        depreciation: 0.05,       // Annual depreciation rate
+
+        // Savings by cohort (OLG lifecycle)
+        savingsYoung: 0.0,        // Ages 0-19: dependents
+        savingsWorking: 0.25,     // Ages 20-64: prime savers
+        savingsOld: -0.03,        // Ages 65+: dissaving
+
+        // Regional savings premiums
+        savingsPremium: {
+            oecd: 0.0,            // Baseline
+            china: 0.15,          // +15% higher savings
+            em: -0.05,
+            row: -0.08
+        },
+
+        // Galbraith/Chen stability
+        stabilityLambda: 0.5,     // Sensitivity to damages
+
+        // Automation
+        automationShare2025: 0.02,    // 2% of capital is "robots"
+        automationGrowth: 0.03,       // Share grows 3%/year
+        robotsPerCapitalUnit: 50,     // Scaling: robots per $1T automation capital
+
+        // Initial conditions (calibrated to 2025)
+        initialCapitalStock: 350      // $350T global capital (McKinsey)
+    };
+
+    /**
+     * Calculate aggregate savings rate (demographic-weighted)
+     * @param {Object} demoRegions - Demographics regions data from runDemographics
+     * @param {number} yearIndex - Index into demographic arrays
+     * @returns {Object} { regional: { oecd, china, em, row }, global }
+     */
+    function aggregateSavingsRate(demoRegions, yearIndex) {
+        const { savingsYoung, savingsWorking, savingsOld, savingsPremium } = capitalParams;
+        const regional = {};
+        let totalPop = 0;
+        let weightedRate = 0;
+
+        for (const region of ['oecd', 'china', 'em', 'row']) {
+            const data = demoRegions[region];
+            const young = data.young[yearIndex];
+            const working = data.working[yearIndex];
+            const old = data.old[yearIndex];
+            const pop = data.population[yearIndex];
+
+            // Demographic-weighted base rate
+            const baseRate = (young * savingsYoung +
+                              working * savingsWorking +
+                              old * savingsOld) / pop;
+
+            // Add regional premium
+            regional[region] = baseRate + savingsPremium[region];
+
+            // Accumulate for global
+            totalPop += pop;
+            weightedRate += regional[region] * pop;
+        }
+
+        return {
+            regional,
+            global: weightedRate / totalPop
+        };
+    }
+
+    /**
+     * Galbraith/Chen stability factor
+     * Investment depends on stability expectations - high damages create uncertainty
+     * @param {number} damages - Damage as fraction (0.02 = 2% GDP)
+     * @returns {number} Stability factor in (0, 1]
+     */
+    function stabilityFactor(damages) {
+        // stability = 1 / (1 + λ × damages²)
+        return 1 / (1 + capitalParams.stabilityLambda * damages * damages);
+    }
+
+    /**
+     * Calculate investment
+     * @param {number} gdp - GDP in $ trillions
+     * @param {number} savingsRate - Aggregate savings rate
+     * @param {number} stability - Stability factor (0-1)
+     * @returns {number} Investment in $ trillions
+     */
+    function calculateInvestment(gdp, savingsRate, stability) {
+        return gdp * savingsRate * stability;
+    }
+
+    /**
+     * Update capital stock: K_{t+1} = (1-δ)K_t + I_t
+     * @param {number} capital - Current capital stock
+     * @param {number} investment - Investment this period
+     * @returns {number} Next period capital stock
+     */
+    function updateCapital(capital, investment) {
+        return (1 - capitalParams.depreciation) * capital + investment;
+    }
+
+    /**
+     * Calculate interest rate (marginal product of capital)
+     * r = α × Y/K - δ
+     * @param {number} gdp - GDP in $ trillions
+     * @param {number} capital - Capital stock in $ trillions
+     * @returns {number} Real interest rate
+     */
+    function calculateInterestRate(gdp, capital) {
+        if (capital <= 0) return 0.05; // Fallback
+        return capitalParams.alpha * gdp / capital - capitalParams.depreciation;
+    }
+
+    /**
+     * Calculate robots per 1000 workers
+     * @param {number} capital - Capital stock in $ trillions
+     * @param {number} workers - Effective workers (productivity-weighted)
+     * @param {number} year - Simulation year
+     * @returns {number} Robots per 1000 workers
+     */
+    function robotsDensity(capital, workers, year) {
+        const t = year - 2025;
+        // Automation share grows but is capped at 20%
+        const autoShare = capitalParams.automationShare2025 * Math.pow(1 + capitalParams.automationGrowth, t);
+        const cappedShare = Math.min(autoShare, 0.20);
+        const automationCapital = capital * cappedShare;
+        // Robots per 1000 workers
+        return (automationCapital / workers) * capitalParams.robotsPerCapitalUnit * 1000;
+    }
+
+    /**
+     * Run capital model simulation
+     * @param {Object} demographicsData - Output from runDemographics
+     * @param {Object} demandData - Output from runDemandModel
+     * @param {Object} climateData - Climate data with globalDamages
+     * @returns {Object} Capital model data
+     */
+    function runCapitalModel(demographicsData, demandData, climateData) {
+        const { years, regions: demoRegions, global: demoGlobal } = demographicsData;
+
+        const capital = {
+            stock: [],              // Total capital by year ($ trillions)
+            investment: [],         // Annual investment ($ trillions)
+            savingsRate: [],        // Aggregate savings rate
+            regionalSavings: { oecd: [], china: [], em: [], row: [] },
+            stability: [],          // Galbraith/Chen stability factor
+            interestRate: [],       // Real interest rate
+            robotsDensity: [],      // Robots per 1000 workers
+            kPerWorker: []          // Capital per effective worker ($K)
+        };
+
+        // Initialize capital stock
+        let currentCapital = capitalParams.initialCapitalStock;
+
+        for (let i = 0; i < years.length; i++) {
+            const year = years[i];
+
+            // Get savings rates (demographic-weighted)
+            const savings = aggregateSavingsRate(demoRegions, i);
+            capital.savingsRate.push(savings.global);
+            for (const region of ['oecd', 'china', 'em', 'row']) {
+                capital.regionalSavings[region].push(savings.regional[region]);
+            }
+
+            // Get stability factor from climate damages
+            // globalDamages is stored as percentage (0-30), convert to fraction
+            const damagesFraction = climateData.globalDamages[i] / 100;
+            const stability = stabilityFactor(damagesFraction);
+            capital.stability.push(stability);
+
+            // Store current capital stock
+            capital.stock.push(currentCapital);
+
+            // Get GDP for this year
+            const gdp = demandData.global.gdp[i];
+
+            // Calculate investment
+            const invest = calculateInvestment(gdp, savings.global, stability);
+            capital.investment.push(invest);
+
+            // Calculate interest rate
+            const r = calculateInterestRate(gdp, currentCapital);
+            capital.interestRate.push(r);
+
+            // Calculate robots density
+            const effectiveWorkersCount = demoGlobal.effectiveWorkers[i];
+            const robots = robotsDensity(currentCapital, effectiveWorkersCount, year);
+            capital.robotsDensity.push(robots);
+
+            // Calculate K per effective worker (in $K per person)
+            const kPerW = (currentCapital * 1e12) / effectiveWorkersCount / 1000; // $K per person
+            capital.kPerWorker.push(kPerW);
+
+            // Update capital for next period (except last year)
+            if (i < years.length - 1) {
+                currentCapital = updateCapital(currentCapital, invest);
+            }
+        }
+
+        // Add metrics
+        const idx2025 = 0;
+        const idx2050 = years.indexOf(2050);
+        const idx2075 = years.indexOf(2075);
+        const idx2100 = years.length - 1;
+
+        capital.metrics = {
+            kY2025: capital.stock[idx2025] / demandData.global.gdp[idx2025],
+            kY2050: capital.stock[idx2050] / demandData.global.gdp[idx2050],
+            interestRate2025: capital.interestRate[idx2025],
+            interestRate2050: capital.interestRate[idx2050],
+            robotsDensity2025: capital.robotsDensity[idx2025],
+            robotsDensity2050: capital.robotsDensity[idx2050],
+            robotsDensity2100: capital.robotsDensity[idx2100],
+            savingsRate2025: capital.savingsRate[idx2025],
+            savingsRate2075: capital.savingsRate[idx2075]
+        };
+
+        return capital;
+    }
+
+    // =============================================================================
     // SIMULATION DEFAULTS AND CONFIG
     // =============================================================================
 
@@ -1884,13 +2137,20 @@
             gridIntensity2025: dispatchData.gridIntensity[0]
         };
 
+        // =============================================================================
+        // CAPITAL MODULE - Savings, investment, and automation
+        // =============================================================================
+
+        const capitalData = runCapitalModel(demographicsData, demandData, climate);
+
         return {
             years,
             results,
             demographics: demographicsData,
             demand: demandData,
             climate,
-            dispatch: dispatchData
+            dispatch: dispatchData,
+            capital: capitalData
         };
     }
 
@@ -1960,7 +2220,7 @@
     function runScenario(params = {}) {
         const mergedParams = { ...defaults, ...params };
         const simData = runSimulation(mergedParams);
-        const { years, results, demographics, demand, climate, dispatch } = simData;
+        const { years, results, demographics, demand, climate, dispatch, capital } = simData;
         const crossovers = findCrossovers(years, results);
         const derived = computeDerivedSeries(simData);
 
@@ -2056,6 +2316,21 @@
             chinaCollegeShare2025: demographics.regions.china.collegeShare[0],
             chinaCollegeShare2050: demographics.regions.china.collegeShare[idx2050],
 
+            // Capital metrics
+            kY2025: capital.metrics.kY2025,                             // K/Y ratio
+            kY2050: capital.metrics.kY2050,
+            interestRate2025: capital.metrics.interestRate2025,         // Real interest rate
+            interestRate2050: capital.metrics.interestRate2050,
+            robotsDensity2025: capital.metrics.robotsDensity2025,       // Robots per 1000 workers
+            robotsDensity2050: capital.metrics.robotsDensity2050,
+            robotsDensity2100: capital.metrics.robotsDensity2100,
+            savingsRate2025: capital.metrics.savingsRate2025,           // Aggregate savings rate
+            savingsRate2075: capital.metrics.savingsRate2075,
+            capitalStock2025: capital.stock[0],                         // $ trillions
+            capitalStock2100: capital.stock[idx2100],
+            kPerWorker2025: capital.kPerWorker[0],                      // $K per effective worker
+            kPerWorker2100: capital.kPerWorker[idx2100],
+
             // Derived series (for further analysis)
             derived,
 
@@ -2090,6 +2365,7 @@
             },
             climate: data.climate,
             dispatch: data.dispatch,
+            capital: data.capital,
             crossovers
         }, null, 2);
     }
@@ -2141,7 +2417,17 @@
         wagePremium: { unit: 'multiplier', description: 'College wage premium (1.5 = 50% higher wages)' },
         effectiveWorkers: { unit: 'persons', description: 'Productivity-weighted worker count (nonCollege + college × premium)' },
         workingCollege: { unit: 'persons', description: 'Working-age adults with college degree' },
-        workingNonCollege: { unit: 'persons', description: 'Working-age adults without college degree' }
+        workingNonCollege: { unit: 'persons', description: 'Working-age adults without college degree' },
+
+        // Capital
+        capitalStock: { unit: '$ trillions', description: 'Total capital stock' },
+        investment: { unit: '$ trillions', description: 'Annual investment' },
+        savingsRate: { unit: 'fraction', description: 'Aggregate savings rate (demographic-weighted)' },
+        stability: { unit: 'fraction', description: 'Galbraith/Chen stability factor (0-1)' },
+        interestRate: { unit: 'fraction', description: 'Real interest rate (r = αY/K - δ)' },
+        robotsDensity: { unit: 'robots/1000 workers', description: 'Robots per 1000 effective workers' },
+        kPerWorker: { unit: '$K/person', description: 'Capital per effective worker (thousands of dollars)' },
+        kYRatio: { unit: 'ratio', description: 'Capital-to-output ratio (K/Y)' }
     };
 
     // =============================================================================
@@ -3726,7 +4012,7 @@
         poissonShock,
 
         // Simulation (full runs)
-        runSimulation,        // Full simulation, returns { years, results, demographics, demand, climate, dispatch }
+        runSimulation,        // Full simulation, returns { years, results, demographics, demand, climate, dispatch, capital }
         runScenario,          // Convenience wrapper, returns flat metrics object + derived series
         exportJSON,           // Export full run as JSON string
 
@@ -3754,6 +4040,15 @@
         updateClimate,        // Returns { co2ppm, equilibriumTemp, temperature }
         climateDamages,       // Returns damage fraction (0-0.30)
 
+        // Capital functions
+        runCapitalModel,      // Full capital model: { stock, investment, savingsRate, stability, interestRate, robotsDensity, kPerWorker }
+        aggregateSavingsRate, // Demographic-weighted savings rate by region and global
+        stabilityFactor,      // Galbraith/Chen stability factor (0-1)
+        calculateInvestment,  // Investment = GDP × savingsRate × stability
+        updateCapital,        // K_{t+1} = (1-δ)K_t + I_t
+        calculateInterestRate,// r = αY/K - δ
+        robotsDensity,        // Robots per 1000 workers
+
         // Parameters (read-only references)
         energySources,
         demographics,
@@ -3762,6 +4057,7 @@
         demandParams,
         dispatchParams,
         climateParams,
+        capitalParams,        // Production, savings, automation parameters
 
         // Units map
         units,                // Canonical unit definitions for all series

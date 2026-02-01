@@ -760,6 +760,174 @@
         });
 
         // =============================================================================
+        // CAPITAL MODEL
+        // =============================================================================
+        section('Capital Model');
+
+        test('capitalParams object exists', () => {
+            return typeof energySim.capitalParams === 'object';
+        });
+
+        test('capitalParams has required fields', () => {
+            const p = energySim.capitalParams;
+            return p.alpha === 0.33 &&
+                   p.depreciation === 0.05 &&
+                   p.savingsWorking === 0.25 &&
+                   typeof p.savingsPremium === 'object' &&
+                   typeof p.initialCapitalStock === 'number';
+        });
+
+        test('runCapitalModel exists', () => {
+            return typeof energySim.runCapitalModel === 'function';
+        });
+
+        test('runSimulation returns capital data', () => {
+            const result = energySim.runSimulation();
+            return result.capital &&
+                   result.capital.stock &&
+                   result.capital.investment &&
+                   result.capital.interestRate;
+        });
+
+        test('capital.stock has 76 years of data', () => {
+            const result = energySim.runSimulation();
+            return result.capital.stock.length === 76;
+        });
+
+        test('initial capital stock ~$350T', () => {
+            const result = energySim.runSimulation();
+            return approx(result.capital.stock[0], 350, 0.05);
+        });
+
+        test('K/Y ratio 2025 ~3.5', () => {
+            const result = energySim.runSimulation();
+            const kY = result.capital.stock[0] / result.demand.global.gdp[0];
+            return approx(kY, 3.5, 0.25);
+        });
+
+        test('savings rate 2025 ~26%', () => {
+            const result = energySim.runSimulation();
+            return approx(result.capital.savingsRate[0], 0.26, 0.15);
+        });
+
+        test('savings rate declines with aging', () => {
+            const result = energySim.runSimulation();
+            // Aging population = lower aggregate savings
+            return result.capital.savingsRate[75] < result.capital.savingsRate[0];
+        });
+
+        test('aggregateSavingsRate returns regional and global', () => {
+            const demo = energySim.runDemographics();
+            const savings = energySim.aggregateSavingsRate(demo.regions, 0);
+            return savings.regional &&
+                   savings.regional.oecd !== undefined &&
+                   savings.regional.china !== undefined &&
+                   savings.global !== undefined;
+        });
+
+        test('China has higher savings rate than OECD', () => {
+            const demo = energySim.runDemographics();
+            const savings = energySim.aggregateSavingsRate(demo.regions, 0);
+            return savings.regional.china > savings.regional.oecd;
+        });
+
+        test('stabilityFactor returns value in (0, 1]', () => {
+            const s0 = energySim.stabilityFactor(0);
+            const s1 = energySim.stabilityFactor(0.10);
+            const s2 = energySim.stabilityFactor(0.30);
+            return s0 === 1 && s1 > 0 && s1 < 1 && s2 > 0 && s2 < s1;
+        });
+
+        test('stability responds to climate damages', () => {
+            // High damage scenario should show lower stability
+            const high = energySim.runSimulation({ carbonPrice: 0 });
+            const low = energySim.runSimulation({ carbonPrice: 150 });
+            const idx2075 = 50;
+            // Higher damages → lower stability
+            return low.capital.stability[idx2075] > high.capital.stability[idx2075];
+        });
+
+        test('interest rate 2025 in 1-4% range', () => {
+            const result = energySim.runSimulation();
+            const r = result.capital.interestRate[0];
+            return r > 0.01 && r < 0.04;
+        });
+
+        test('calculateInterestRate formula correct', () => {
+            // r = α × Y/K - δ
+            // At K/Y = 3.5, α = 0.33, δ = 0.05
+            // r = 0.33 / 3.5 - 0.05 ≈ 0.044
+            const r = energySim.calculateInterestRate(100, 350);
+            return approx(r, 0.044, 0.15);
+        });
+
+        test('capital stock grows over time', () => {
+            const result = energySim.runSimulation();
+            return result.capital.stock[75] > result.capital.stock[0];
+        });
+
+        test('updateCapital formula correct', () => {
+            // K_{t+1} = (1-0.05) × 100 + 10 = 105
+            const newK = energySim.updateCapital(100, 10);
+            return approx(newK, 105, 0.01);
+        });
+
+        test('robots density 2025 ~15/1000', () => {
+            const result = energySim.runSimulation();
+            // IFR says global ~15 robots per 1000 manufacturing workers
+            // Our model is more generous with "robots" definition
+            return result.capital.robotsDensity[0] > 5 && result.capital.robotsDensity[0] < 50;
+        });
+
+        test('robots density grows significantly by 2075', () => {
+            const result = energySim.runSimulation();
+            return result.capital.robotsDensity[50] > result.capital.robotsDensity[0] * 3;
+        });
+
+        test('robotsDensity function capped at 20% automation share', () => {
+            // Test that far-future automation doesn't explode
+            const result = energySim.runSimulation();
+            // Even in 2100, should be reasonable (not millions of robots per worker)
+            return result.capital.robotsDensity[75] < 1000;
+        });
+
+        test('kPerWorker grows over time', () => {
+            const result = energySim.runSimulation();
+            return result.capital.kPerWorker[75] > result.capital.kPerWorker[0];
+        });
+
+        test('runScenario has capital metrics', () => {
+            const m = energySim.runScenario();
+            return 'kY2025' in m &&
+                   'interestRate2025' in m &&
+                   'robotsDensity2050' in m &&
+                   'savingsRate2025' in m;
+        });
+
+        test('units has capital entries', () => {
+            return energySim.units.capitalStock?.unit === '$ trillions' &&
+                   energySim.units.robotsDensity?.unit === 'robots/1000 workers' &&
+                   energySim.units.interestRate?.unit === 'fraction';
+        });
+
+        test('capital.metrics has expected fields', () => {
+            const result = energySim.runSimulation();
+            const m = result.capital.metrics;
+            return m.kY2025 !== undefined &&
+                   m.kY2050 !== undefined &&
+                   m.interestRate2025 !== undefined &&
+                   m.robotsDensity2050 !== undefined;
+        });
+
+        test('exportJSON includes capital data', () => {
+            const json = energySim.exportJSON();
+            const parsed = JSON.parse(json);
+            return parsed.capital &&
+                   parsed.capital.stock &&
+                   parsed.capital.robotsDensity;
+        });
+
+        // =============================================================================
         // MODEL CONSISTENCY
         // =============================================================================
         section('Model Consistency');
