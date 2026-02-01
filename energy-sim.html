@@ -179,7 +179,7 @@
 </head>
 <body>
     <h1>Energy Futures: 2025-2100</h1>
-    <p class="subtitle">Phase 2: Demographics module with population projections and dependency ratios</p>
+    <p class="subtitle">Phase 3: Demand model connecting GDP, demographics, and electricity consumption</p>
 
     <div class="metrics-grid">
         <div class="metric-card">
@@ -212,6 +212,21 @@
             <div class="metric-value" id="dependency-2075">--</div>
             <div class="metric-detail">Old-age dependency ratio</div>
         </div>
+        <div class="metric-card">
+            <div class="metric-label">Global Electricity 2050</div>
+            <div class="metric-value" id="elec-2050">--</div>
+            <div class="metric-detail">TWh projected demand</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Electrification 2050</div>
+            <div class="metric-value" id="electrification-2050">--</div>
+            <div class="metric-detail">Share of useful energy</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">kWh/Worker 2050</div>
+            <div class="metric-value" id="kwh-worker-2050">--</div>
+            <div class="metric-detail">Per working-age adult</div>
+        </div>
     </div>
 
     <div class="controls">
@@ -234,6 +249,20 @@
             <div class="slider-container">
                 <input type="range" id="solar-growth" min="10" max="40" value="25" step="1">
                 <span class="slider-value" id="solar-growth-value">25%</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Electrification Target (2050+)</label>
+            <div class="slider-container">
+                <input type="range" id="electrification-target" min="50" max="85" value="65" step="1">
+                <span class="slider-value" id="electrification-target-value">65%</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Energy Efficiency Improvement Multiplier</label>
+            <div class="slider-container">
+                <input type="range" id="efficiency-mult" min="0.5" max="1.5" value="1.0" step="0.05">
+                <span class="slider-value" id="efficiency-mult-value">1.0×</span>
             </div>
         </div>
     </div>
@@ -264,6 +293,21 @@
         <canvas id="dependency-chart"></canvas>
     </div>
 
+    <div class="chart-container">
+        <div class="chart-title">Regional Electricity Demand (TWh)</div>
+        <canvas id="demand-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">GDP per Working-Age Adult ($ thousands)</div>
+        <canvas id="gdp-per-worker-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Energy Intensity Decline (MWh per $1000 GDP)</div>
+        <canvas id="intensity-chart"></canvas>
+    </div>
+
     <table id="era-table">
         <thead>
             <tr>
@@ -276,6 +320,9 @@
                 <th>Battery</th>
                 <th>Solar+Batt</th>
                 <th>Dependency</th>
+                <th>Elec (TWh)</th>
+                <th>Electrif.</th>
+                <th>kWh/Worker</th>
             </tr>
         </thead>
         <tbody id="era-tbody"></tbody>
@@ -647,6 +694,213 @@
         return { year: peakYear, population: maxPop };
     }
 
+    // =============================================================================
+    // DEMAND MODEL - GDP, energy intensity, and electricity demand
+    // =============================================================================
+
+    /**
+     * Regional economic parameters (2025 baseline)
+     * Informed by Fernández-Villaverde (GDP per working-age adult),
+     * Ole Peters (ergodicity), and Odum (energy economics)
+     *
+     * Energy intensity calibrated to match ~30,000 TWh global electricity in 2025:
+     * - OECD: ~10,000 TWh, $58T GDP → 0.43 MWh/$1000 total energy, 40% electric
+     * - China: ~9,000 TWh, $18T GDP → 1.25 MWh/$1000 total energy
+     * - EM: ~8,000 TWh, $35T GDP → 0.57 MWh/$1000 total energy
+     * - ROW: ~3,000 TWh, $8T GDP → 0.94 MWh/$1000 total energy
+     */
+    const economicParams = {
+        oecd: {
+            gdp2025: 58,              // $58T
+            tfpGrowth: 0.015,         // 1.5% baseline TFP
+            tfpDecay: 0.0,            // Mature economy
+            energyIntensity: 0.43,    // MWh per $1000 GDP (total energy)
+            intensityDecline: 0.010,  // 1.0%/year efficiency gains
+            electrificationMod: 1.0   // Baseline electrification speed
+        },
+        china: {
+            gdp2025: 18,
+            tfpGrowth: 0.035,         // 3.5% catch-up growth
+            tfpDecay: 0.015,          // Converging toward OECD (slower)
+            energyIntensity: 1.25,    // High, industrial economy
+            intensityDecline: 0.020,  // 2.0%/year (still rapid)
+            electrificationMod: 1.1   // Policy-driven electrification
+        },
+        em: {
+            gdp2025: 35,
+            tfpGrowth: 0.025,         // 2.5% baseline
+            tfpDecay: 0.008,
+            energyIntensity: 0.57,
+            intensityDecline: 0.015,
+            electrificationMod: 0.95
+        },
+        row: {
+            gdp2025: 8,
+            tfpGrowth: 0.030,         // 3.0% demographic dividend
+            tfpDecay: 0.010,
+            energyIntensity: 0.94,
+            intensityDecline: 0.012,
+            electrificationMod: 0.85  // Infrastructure constraints
+        }
+    };
+
+    const demandParams = {
+        electrification2025: 0.40,    // Current electricity share of useful energy
+        electrificationTarget: 0.65,  // 2050+ target
+        electrificationSpeed: 0.08,   // Convergence rate (faster to reach target by 2050)
+        demographicFactor: 0.015,     // Dependency ratio impact on growth
+        baselineDependency: 0.24      // 2025 global reference
+    };
+
+    /**
+     * Run demand model simulation
+     * Calculates GDP growth, energy intensity, and electricity demand by region
+     *
+     * @param {Object} demographicsData - Output from runDemographics()
+     * @param {Object} params - Optional overrides for electrification target, efficiency
+     * @returns {Object} Demand data structure with regional and global projections
+     */
+    function runDemandModel(demographicsData, params = {}) {
+        const { years, regions: demoRegions, global: demoGlobal } = demographicsData;
+        const electTarget = params.electrificationTarget ?? demandParams.electrificationTarget;
+        const efficiencyMult = params.efficiencyMultiplier ?? 1.0;
+
+        const demand = {
+            regions: {
+                oecd: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
+                china: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
+                em: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
+                row: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] }
+            },
+            global: {
+                gdp: [],
+                electricityDemand: [],
+                electrificationRate: [],
+                gdpPerWorking: [],
+                electricityPerWorking: []
+            },
+            metrics: {
+                elec2050: null,
+                demandDoubling: null,
+                asiaShare2050: null
+            }
+        };
+
+        // Initialize state per region
+        const state = {};
+        for (const [key, econ] of Object.entries(economicParams)) {
+            state[key] = {
+                gdp: econ.gdp2025,
+                intensity: econ.energyIntensity
+            };
+        }
+
+        // Initial 2025 electricity demand (for doubling calculation)
+        let initialGlobalElec = null;
+
+        for (let i = 0; i < years.length; i++) {
+            const t = i; // Years since 2025
+            const year = years[i];
+
+            // Calculate global electrification rate (logistic convergence)
+            const electRate = electTarget - (electTarget - demandParams.electrification2025) *
+                Math.exp(-demandParams.electrificationSpeed * t);
+            demand.global.electrificationRate.push(electRate);
+
+            let globalGdp = 0;
+            let globalElec = 0;
+            let globalWorking = 0;
+
+            for (const [key, econ] of Object.entries(economicParams)) {
+                const regionDemo = demoRegions[key];
+                const currentState = state[key];
+
+                // Get working-age population for this year
+                const working = regionDemo.working[i];
+                const workingPrev = i > 0 ? regionDemo.working[i - 1] : working;
+
+                // Get dependency ratio
+                const dependency = regionDemo.dependency[i];
+
+                // Calculate labor growth
+                const laborGrowth = i > 0 ? (working - workingPrev) / workingPrev : 0;
+
+                // Demographic adjustment (Fernández-Villaverde)
+                // Higher dependency = lower growth
+                const demographicAdj = demandParams.demographicFactor *
+                    (demandParams.baselineDependency - dependency);
+
+                // TFP with decay (catch-up growth fades)
+                const tfp = econ.tfpGrowth * Math.pow(1 - econ.tfpDecay, t);
+
+                // Total growth rate: TFP + labor contribution + demographic adjustment
+                // Labor share (1 - α) ≈ 0.65
+                const growthRate = tfp + 0.65 * laborGrowth + demographicAdj;
+
+                // Update GDP (first year is baseline)
+                if (i > 0) {
+                    currentState.gdp = currentState.gdp * (1 + growthRate);
+                }
+                demand.regions[key].gdp.push(currentState.gdp);
+                demand.regions[key].growthRate.push(growthRate);
+
+                // Energy intensity decline (efficiency improvements)
+                if (i > 0) {
+                    currentState.intensity = currentState.intensity *
+                        (1 - econ.intensityDecline * efficiencyMult);
+                }
+                demand.regions[key].energyIntensity.push(currentState.intensity);
+
+                // Calculate electricity demand
+                // Total energy = GDP × intensity × 1000 (TWh)
+                const totalEnergy = currentState.gdp * currentState.intensity * 1000;
+                // Electricity = total energy × electrification rate × regional modifier
+                const elecDemand = totalEnergy * electRate * econ.electrificationMod;
+                demand.regions[key].electricityDemand.push(elecDemand);
+
+                // Per working-age adult metrics (Peters-informed)
+                const gdpPerWorking = (currentState.gdp * 1e12) / working;  // $ per person
+                const elecPerWorking = (elecDemand * 1e9) / working;        // kWh per person
+                demand.regions[key].gdpPerWorking.push(gdpPerWorking);
+                demand.regions[key].electricityPerWorking.push(elecPerWorking);
+
+                // Accumulate globals
+                globalGdp += currentState.gdp;
+                globalElec += elecDemand;
+                globalWorking += working;
+            }
+
+            // Store global aggregates
+            demand.global.gdp.push(globalGdp);
+            demand.global.electricityDemand.push(globalElec);
+            demand.global.gdpPerWorking.push((globalGdp * 1e12) / globalWorking);
+            demand.global.electricityPerWorking.push((globalElec * 1e9) / globalWorking);
+
+            // Track initial for doubling calculation
+            if (i === 0) {
+                initialGlobalElec = globalElec;
+            }
+
+            // Find doubling year
+            if (demand.metrics.demandDoubling === null && globalElec >= initialGlobalElec * 2) {
+                demand.metrics.demandDoubling = year;
+            }
+        }
+
+        // Calculate metrics
+        const idx2050 = years.indexOf(2050);
+        if (idx2050 !== -1) {
+            demand.metrics.elec2050 = demand.global.electricityDemand[idx2050];
+
+            // Asia-Pacific share (China + ~60% of EM as proxy)
+            const asiaElec = demand.regions.china.electricityDemand[idx2050] +
+                demand.regions.em.electricityDemand[idx2050] * 0.6;
+            demand.metrics.asiaShare2050 = asiaElec / demand.global.electricityDemand[idx2050];
+        }
+
+        return demand;
+    }
+
     /**
      * Export demographics data as CSV
      */
@@ -675,6 +929,8 @@
         const carbonPrice = params.carbonPrice ?? 50;
         const solarAlpha = params.solarAlpha ?? 0.36;  // Farmer/Naam calibrated
         const solarGrowth = params.solarGrowth ?? 0.25;
+        const electrificationTarget = params.electrificationTarget ?? 0.65;
+        const efficiencyMultiplier = params.efficiencyMultiplier ?? 1.0;
 
         const years = [];
         const results = {
@@ -751,7 +1007,13 @@
         // Run demographics simulation
         const demographicsData = runDemographics();
 
-        return { years, results, demographics: demographicsData };
+        // Run demand model
+        const demandData = runDemandModel(demographicsData, {
+            electrificationTarget,
+            efficiencyMultiplier
+        });
+
+        return { years, results, demographics: demographicsData, demand: demandData };
     }
 
     function findCrossovers(years, results) {
@@ -818,19 +1080,30 @@
     let batteryChart = null;
     let populationChart = null;
     let dependencyChart = null;
+    let demandChart = null;
+    let gdpPerWorkerChart = null;
+    let intensityChart = null;
     let currentDemographicsData = null;
+    let currentDemandData = null;
 
     function updateCharts() {
         const carbonPrice = parseFloat(document.getElementById('carbon-price').value);
         const solarAlpha = parseFloat(document.getElementById('solar-alpha').value);
         const solarGrowth = parseFloat(document.getElementById('solar-growth').value) / 100;
+        const electrificationTarget = parseFloat(document.getElementById('electrification-target').value) / 100;
+        const efficiencyMultiplier = parseFloat(document.getElementById('efficiency-mult').value);
 
         document.getElementById('carbon-price-value').textContent = `$${carbonPrice}`;
         document.getElementById('solar-alpha-value').textContent = solarAlpha.toFixed(2);
         document.getElementById('solar-growth-value').textContent = `${(solarGrowth * 100).toFixed(0)}%`;
+        document.getElementById('electrification-target-value').textContent = `${(electrificationTarget * 100).toFixed(0)}%`;
+        document.getElementById('efficiency-mult-value').textContent = `${efficiencyMultiplier.toFixed(2)}×`;
 
-        const { years, results, demographics: demographicsData } = runSimulation({ carbonPrice, solarAlpha, solarGrowth });
+        const { years, results, demographics: demographicsData, demand: demandData } = runSimulation({
+            carbonPrice, solarAlpha, solarGrowth, electrificationTarget, efficiencyMultiplier
+        });
         currentDemographicsData = demographicsData;
+        currentDemandData = demandData;
         const crossovers = findCrossovers(years, results);
 
         // Update metrics
@@ -855,6 +1128,15 @@
         const dep2025 = (demographicsData.global.dependency[dep2025Index] * 100).toFixed(0);
         const dep2075 = (demographicsData.global.dependency[dep2075Index] * 100).toFixed(0);
         document.getElementById('dependency-2075').textContent = `${dep2025}% → ${dep2075}%`;
+
+        // Update demand metrics
+        const idx2050 = demographicsData.years.indexOf(2050);
+        document.getElementById('elec-2050').textContent = demandData.metrics.elec2050 ?
+            `${(demandData.metrics.elec2050 / 1000).toFixed(1)}K` : '--';
+        document.getElementById('electrification-2050').textContent = idx2050 !== -1 ?
+            `${(demandData.global.electrificationRate[idx2050] * 100).toFixed(0)}%` : '--';
+        document.getElementById('kwh-worker-2050').textContent = idx2050 !== -1 ?
+            `${(demandData.global.electricityPerWorking[idx2050] / 1000).toFixed(1)}K` : '--';
 
         // Update crossover events
         const eventsHtml = crossovers.map(c => `
@@ -896,6 +1178,11 @@
                 return sum / (endIdx - startIdx);
             };
 
+            // Average demand metrics for era
+            const avgElec = avg(demandData.global.electricityDemand);
+            const avgElecRate = avg(demandData.global.electrificationRate);
+            const avgKwhWorker = avg(demandData.global.electricityPerWorking);
+
             row.innerHTML = `
                 <td>${eras[e]}</td>
                 <td>$${avg(results.solar).toFixed(0)}</td>
@@ -906,6 +1193,9 @@
                 <td>$${avg(results.battery).toFixed(0)}/kWh</td>
                 <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
                 <td>${(avgDep(demographicsData.global.dependency) * 100).toFixed(0)}%</td>
+                <td>${(avgElec / 1000).toFixed(0)}K</td>
+                <td>${(avgElecRate * 100).toFixed(0)}%</td>
+                <td>${(avgKwhWorker / 1000).toFixed(1)}K</td>
             `;
             tbody.appendChild(row);
         }
@@ -1285,12 +1575,293 @@
                 }
             }
         });
+
+        // Electricity Demand Chart (stacked area)
+        const demandCtx = document.getElementById('demand-chart').getContext('2d');
+        if (demandChart) demandChart.destroy();
+
+        demandChart = new Chart(demandCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'OECD',
+                        data: demandData.regions.oecd.electricityDemand.map(d => d / 1000),
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: demographics.oecd.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demandData.regions.china.electricityDemand.map(d => d / 1000),
+                        borderColor: demographics.china.color,
+                        backgroundColor: demographics.china.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demandData.regions.em.electricityDemand.map(d => d / 1000),
+                        borderColor: demographics.em.color,
+                        backgroundColor: demographics.em.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demandData.regions.row.electricityDemand.map(d => d / 1000),
+                        borderColor: demographics.row.color,
+                        backgroundColor: demographics.row.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(0)}K TWh`;
+                            },
+                            footer: function(items) {
+                                const total = items.reduce((sum, item) => sum + item.parsed.y, 0);
+                                return `Total: ${total.toFixed(0)}K TWh`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + 'K';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Electricity Demand (1000s TWh)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // GDP per Working-Age Adult Chart
+        const gdpCtx = document.getElementById('gdp-per-worker-chart').getContext('2d');
+        if (gdpPerWorkerChart) gdpPerWorkerChart.destroy();
+
+        gdpPerWorkerChart = new Chart(gdpCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'Global',
+                        data: demandData.global.gdpPerWorking.map(g => g / 1000),
+                        borderColor: '#fff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'OECD',
+                        data: demandData.regions.oecd.gdpPerWorking.map(g => g / 1000),
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demandData.regions.china.gdpPerWorking.map(g => g / 1000),
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demandData.regions.em.gdpPerWorking.map(g => g / 1000),
+                        borderColor: demographics.em.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demandData.regions.row.gdpPerWorking.map(g => g / 1000),
+                        borderColor: demographics.row.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: $${context.parsed.y.toFixed(0)}K`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return '$' + value + 'K';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'GDP per Working-Age Adult ($1000s)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Energy Intensity Chart
+        const intensityCtx = document.getElementById('intensity-chart').getContext('2d');
+        if (intensityChart) intensityChart.destroy();
+
+        intensityChart = new Chart(intensityCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'OECD',
+                        data: demandData.regions.oecd.energyIntensity,
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demandData.regions.china.energyIntensity,
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demandData.regions.em.energyIntensity,
+                        borderColor: demographics.em.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demandData.regions.row.energyIntensity,
+                        borderColor: demographics.row.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(3)} MWh/$1000`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Energy Intensity (MWh per $1000 GDP)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Event listeners
     document.getElementById('carbon-price').addEventListener('input', updateCharts);
     document.getElementById('solar-alpha').addEventListener('input', updateCharts);
     document.getElementById('solar-growth').addEventListener('input', updateCharts);
+    document.getElementById('electrification-target').addEventListener('input', updateCharts);
+    document.getElementById('efficiency-mult').addEventListener('input', updateCharts);
 
     // CSV Export
     document.getElementById('export-csv').addEventListener('click', function() {
@@ -1317,19 +1888,24 @@
         poissonShock,
         runSimulation,
         runDemographics,
+        runDemandModel,
         findCrossovers,
         findPopulationPeak,
         exportDemographicsCSV,
         projectFertility,
         energySources,
         demographics,
-        get demographicsData() { return currentDemographicsData; }
+        economicParams,
+        demandParams,
+        get demographicsData() { return currentDemographicsData; },
+        get demand() { return currentDemandData; }
     };
 
     console.log('Energy Simulation loaded. Access primitives via window.energySim');
     console.log('Test: energySim.learningCurve(100, 2, 0.2) =', learningCurve(100, 2, 0.2).toFixed(2), '(should be ~87 - 13% reduction per doubling)');
     console.log('Demographics loaded. Access via window.energySim.demographicsData');
-    console.log('Try: energySim.demographicsData.regions.china.working[50] for China working-age pop in 2075');
+    console.log('Demand model loaded. Access via window.energySim.demand');
+    console.log('Try: energySim.demand.global.electricityDemand[25] for global electricity demand in 2050');
     </script>
 </body>
 </html>

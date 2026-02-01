@@ -37,11 +37,16 @@ The `<script>` section is organized into clear modules:
    - `ageCohorts()` - 3-cohort aging (young/working/old)
    - `runDemographics()` - Full 2025-2100 projection
 
-4. **SIMULATION ENGINE**
+4. **DEMAND MODEL** - GDP, energy intensity, electricity demand
+   - `economicParams` object - Regional GDP, TFP growth, energy intensity
+   - `demandParams` object - Electrification targets and rates
+   - `runDemandModel()` - Calculate electricity demand from demographics + GDP
+
+5. **SIMULATION ENGINE**
    - `runSimulation()` - Main loop, returns energy + demographics data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-5. **VISUALIZATION** - Chart.js-based charts and UI updates
+6. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -58,11 +63,19 @@ energySim.demographicsData.global.population[30]     // Global pop 2055
 energySim.demographicsData.regions.china.working[50] // China working-age 2075
 energySim.demographicsData.global.dependency[50]     // Global dependency 2075
 
+// Demand data (after page loads)
+energySim.demand.global.electricityDemand[0]      // 2025 global electricity (TWh)
+energySim.demand.global.electricityDemand[25]     // 2050 global electricity (TWh)
+energySim.demand.global.electrificationRate[25]   // 2050 electrification rate
+energySim.demand.regions.china.gdpPerWorking[25]  // China GDP per worker 2050
+
 // Run fresh simulation
-const { years, results, demographics } = energySim.runSimulation({
+const { years, results, demographics, demand } = energySim.runSimulation({
   carbonPrice: 100,
   solarAlpha: 0.25,
-  solarGrowth: 0.25
+  solarGrowth: 0.25,
+  electrificationTarget: 0.70,
+  efficiencyMultiplier: 1.2
 });
 ```
 
@@ -79,6 +92,12 @@ const { years, results, demographics } = energySim.runSimulation({
 - **Cohorts**: 3-cohort model (0-19, 20-64, 65+) with aging transitions
 - **Dependency**: Old-age dependency = 65+ / 20-64
 
+### Demand (Phase 3)
+- **GDP Growth**: TFP + labor contribution + demographic adjustment (Fernández-Villaverde)
+- **Energy Intensity**: Declining efficiency (MWh per $1000 GDP)
+- **Electrification**: Logistic convergence to target (IEA Net Zero informed)
+- **Per-Worker Metrics**: GDP and kWh per working-age adult (Ole Peters ergodicity)
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -86,6 +105,10 @@ const { years, results, demographics } = energySim.runSimulation({
 | Pop 2100 | ~8.2B (declining) | Model projection |
 | China 2100 | ~0.84B (40% decline) | Fernández-Villaverde |
 | Dependency 2025→2075 | 20% → 44% | Model projection |
+| Global electricity 2025 | ~30,000 TWh | IEA |
+| Global electricity 2050 | 52,000-71,000 TWh | IEA, IRENA |
+| Electrification 2050 | ~65% | IEA Net Zero |
+| Asia-Pacific share 2050 | >50% | IEA |
 
 ## Adding New Features
 
@@ -116,6 +139,6 @@ const { years, results, demographics } = energySim.runSimulation({
 
 - [x] Phase 1: Energy supply-side (LCOE, learning curves, EROEI)
 - [x] Phase 2: Demographics (population, dependency ratios)
-- [ ] Phase 3: Demand model (GDP per working-age adult)
+- [x] Phase 3: Demand model (GDP per working-age adult, electricity demand)
 - [ ] Phase 4: Capital/savings (OLG consumption smoothing)
 - [ ] Phase 5: Policy scenarios (carbon tax, immigration, retirement age)
