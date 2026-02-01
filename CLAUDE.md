@@ -746,6 +746,10 @@ Without G/C expansion, the model shows demand declining from 2060 onward. With e
 5. **No technology breakthroughs** — fusion, advanced geothermal not modeled
 6. **Deterministic** — no Monte Carlo uncertainty quantification
 
+### Development Notes
+
+- **Check object usages before adding keys** — Several param objects (`economicParams`, `demographics`) are iterated with `Object.entries()` assuming all keys are of a specific type (e.g., regions). Always grep for usages before adding new keys to avoid breaking iteration loops. Test immediately after each change.
+
 ## Adding New Features
 
 ### Adding a New Energy Source
