@@ -113,3 +113,62 @@ This folder contains reference materials for the simulation's demographics and c
 | China 2100 | ~700M (50% decline) | Fernández-Villaverde |
 | Global Dependency 2075 | ~44% | Model projection |
 | China steepest aging | Yes | Low TFR effect |
+| China college share 2025 | ~22% | World Bank |
+| China tertiary enrollment 2025 | ~60% | UNESCO |
+| China college peak | ~2040 | Model projection |
+
+---
+
+## Education Module Sources
+
+### 1. World Bank Education Data
+- URL: https://data.worldbank.org/indicator/SE.TER.ENRR
+- Tertiary enrollment rates by country
+- Key data:
+  - OECD average: ~55%
+  - China: ~60% (2023)
+  - India: ~32%
+  - Sub-Saharan Africa: ~9%
+
+### 2. OECD Education at a Glance
+- URL: https://www.oecd.org/education/education-at-a-glance/
+- Key insights:
+  - College wage premium: 1.4-1.8× in OECD countries
+  - Employment rate premium: 5-10 percentage points
+  - Educational attainment rising globally
+
+### 3. Chetty et al. (2016): "The Association Between Income and Life Expectancy"
+- URL: https://jamanetwork.com/journals/jama/fullarticle/2513561
+- JAMA paper on income and life expectancy in the US
+- Key insights:
+  - 10-15 year life expectancy gap between top and bottom income deciles
+  - Education is major correlate of income
+  - Gap has been widening over time
+  - Used to calibrate differential mortality by education
+
+### 4. Meara et al. (2008): "The Gap Gets Bigger"
+- URL: https://pubmed.ncbi.nlm.nih.gov/18350212/
+- Educational gradients in mortality
+- Key insights:
+  - 3-4 year life expectancy difference by education level
+  - Gap has increased over time
+  - Effect persists across countries
+
+### 5. UNESCO Education Data
+- URL: https://data.unesco.org/
+- Global enrollment statistics
+- China tertiary enrollment growth from ~15% (2000) to ~60% (2023)
+
+## Education Model Calibration Targets
+
+| Metric | Target | Source |
+|--------|--------|--------|
+| China enrollment 2025 | ~60% | UNESCO |
+| OECD enrollment 2025 | ~55% | World Bank |
+| China college share 2025 | ~22% | Model estimate |
+| OECD college share 2025 | ~40% | OECD |
+| OECD wage premium 2025 | 1.5× | OECD |
+| China wage premium 2025 | 1.8× | Higher scarcity |
+| College life bonus (OECD) | +3 years | Chetty et al. |
+| China college peak | ~2040 | 15 years after total peak |
+| Global college share 2050 | ~36% | Model projection |

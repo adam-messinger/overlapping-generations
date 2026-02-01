@@ -45,19 +45,25 @@ The `<script>` section is organized into clear modules:
    - `projectFertility()` - TFR convergence to floor
    - `birthRateFromTFR()` - Crude birth rate
    - `deathRate()` - Age-specific mortality
-   - `ageCohorts()` - 3-cohort aging (young/working/old)
-   - `runDemographics()` - Full 2025-2100 projection
+   - `ageCohorts()` - 3-cohort aging (young/working/old) with education splits
+   - `runDemographics()` - Full 2025-2100 projection including education tracking
 
-6. **DEMAND MODEL** - GDP, energy intensity, electricity demand
+6. **EDUCATION** - Tertiary education and human capital
+   - `educationParams` object - Enrollment rates, college shares, wage premiums by region
+   - `projectEnrollmentRate()` - Enrollment rate convergence to target
+   - `projectWagePremium()` - Wage premium decay as supply increases
+   - `effectiveWorkers()` - Productivity-weighted worker count (nonCollege + college × premium)
+
+7. **DEMAND MODEL** - GDP, energy intensity, electricity demand
    - `economicParams` object - Regional GDP, TFP growth, energy intensity
    - `demandParams` object - Electrification targets and rates
    - `runDemandModel()` - Calculate electricity demand from demographics + GDP
 
-7. **SIMULATION ENGINE**
+8. **SIMULATION ENGINE**
    - `runSimulation()` - Main loop, returns energy + demographics + climate data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-8. **VISUALIZATION** - Chart.js-based charts and UI updates
+9. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -73,6 +79,8 @@ m.solarCrossesGas          // year or null
 m.chinaElecCrossesOECD     // year when China electricity > OECD
 m.gridBelow100             // year when grid < 100 kg CO₂/MWh
 m.elecPerCapita2050_china  // kWh/person
+m.chinaCollegePeakYear     // year when China college workers peak (~2040)
+m.collegeShare2050         // global college share of workforce
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -150,6 +158,14 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Cohorts**: 3-cohort model (0-19, 20-64, 65+) with aging transitions
 - **Dependency**: Old-age dependency = 65+ / 20-64
 
+### Education (Phase 2.5)
+- **Enrollment**: Tertiary enrollment rate with logistic convergence to regional target
+- **Education Split**: Working-age population split into college/non-college at age 18-22
+- **Wage Premium**: College premium (1.5-2.2×) decays as supply increases
+- **Effective Workers**: Productivity-weighted count (nonCollege + college × premium)
+- **Differential Mortality**: College-educated live 1-3 years longer (Chetty et al.)
+- **China Paradox**: Total workers peak ~2025, but college workers peak ~2040 due to 60% enrollment
+
 ### Demand (Phase 3)
 - **GDP Growth**: TFP + labor contribution + demographic adjustment (Fernández-Villaverde)
 - **Energy Intensity**: Declining efficiency (MWh per $1000 GDP)
@@ -179,6 +195,10 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Grid intensity 2025 | ~340 kg CO2/MWh | Computed |
 | Temperature 2025 | 1.2°C | NASA |
 | Atmospheric CO2 2025 | 420 ppm | NOAA |
+| China college share 2025 | ~22% | World Bank |
+| Global college share 2050 | ~36% | Model projection |
+| China college peak | ~2040 | Model projection |
+| OECD wage premium 2025 | 1.5× | OECD |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100

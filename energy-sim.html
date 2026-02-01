@@ -247,6 +247,16 @@
             <div class="metric-value" id="damages-2075">--</div>
             <div class="metric-detail">% GDP lost to warming</div>
         </div>
+        <div class="metric-card">
+            <div class="metric-label">China College Peak</div>
+            <div class="metric-value" id="china-college-peak">--</div>
+            <div class="metric-detail">Year college workers peak</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Global College Share 2050</div>
+            <div class="metric-value" id="college-share-2050">--</div>
+            <div class="metric-detail">% of workers with degrees</div>
+        </div>
     </div>
 
     <div class="controls">
@@ -321,6 +331,11 @@
     </div>
 
     <div class="chart-container">
+        <div class="chart-title">College Share of Workforce by Region</div>
+        <canvas id="college-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
         <div class="chart-title">Regional Electricity Demand (TWh)</div>
         <canvas id="demand-chart"></canvas>
     </div>
@@ -366,6 +381,7 @@
                 <th>Nuclear</th>
                 <th>Battery</th>
                 <th>Solar+Batt</th>
+                <th>College</th>
                 <th>Emissions</th>
                 <th>Temp</th>
                 <th>Damages</th>
@@ -698,6 +714,112 @@
         }
     };
 
+    // =============================================================================
+    // EDUCATION - Tertiary education and human capital
+    // =============================================================================
+
+    /**
+     * Education parameters by region
+     *
+     * INPUTS (calibration constants):
+     * - enrollmentRate2025: Current tertiary enrollment rate (World Bank)
+     * - enrollmentTarget: Long-term convergence target
+     * - enrollmentGrowth: Annual convergence rate (logistic)
+     * - collegeShare2025: Current share of working-age with college degree
+     * - wagePremium2025: College wage premium (OECD Education at a Glance)
+     * - premiumTarget: Long-term wage premium convergence
+     * - premiumDecay: Annual decay rate as supply increases
+     * - lifeBonusCollege: Life expectancy bonus for college-educated (Chetty et al.)
+     * - lifePenaltyNonCollege: Life expectancy penalty for non-college
+     *
+     * OUTPUTS (computed by runDemographics):
+     * - workingCollege, workingNonCollege: Worker counts by education
+     * - oldCollege, oldNonCollege: Elderly counts by education
+     * - collegeShare: Fraction of workers with college degree
+     * - effectiveWorkers: Productivity-weighted worker count
+     *
+     * Key insight: China's total workers peak ~2025, but college-educated workers
+     * peak ~2040 due to 60% enrollment rate adding ~33M graduates/year.
+     * This partially offsets demographic decline through productivity gains.
+     */
+    const educationParams = {
+        oecd: {
+            enrollmentRate2025: 0.55,     // 55% tertiary enrollment
+            enrollmentTarget: 0.65,       // Long-term target
+            enrollmentGrowth: 0.008,      // Slow growth (already high)
+            collegeShare2025: 0.40,       // 40% of workers with degree
+            wagePremium2025: 1.5,         // 50% wage premium
+            premiumTarget: 1.4,           // Converging down as supply rises
+            premiumDecay: 0.003,          // Slow decay
+            lifeBonusCollege: 3,          // +3 years life expectancy
+            lifePenaltyNonCollege: 3      // -3 years from base
+        },
+        china: {
+            enrollmentRate2025: 0.60,     // 60% - higher than most realize
+            enrollmentTarget: 0.70,
+            enrollmentGrowth: 0.012,      // Moderate growth
+            collegeShare2025: 0.22,       // 22% - still catching up
+            wagePremium2025: 1.8,         // 80% premium (scarcity)
+            premiumTarget: 1.5,           // Converging as graduates flood market
+            premiumDecay: 0.004,
+            lifeBonusCollege: 2,
+            lifePenaltyNonCollege: 2
+        },
+        em: {
+            enrollmentRate2025: 0.35,     // 35% - lower but growing fast
+            enrollmentTarget: 0.55,
+            enrollmentGrowth: 0.015,      // Fast growth
+            collegeShare2025: 0.18,
+            wagePremium2025: 2.0,         // 100% premium (high scarcity)
+            premiumTarget: 1.6,
+            premiumDecay: 0.005,
+            lifeBonusCollege: 2,
+            lifePenaltyNonCollege: 2
+        },
+        row: {
+            enrollmentRate2025: 0.15,     // 15% - still low
+            enrollmentTarget: 0.40,       // Long-term catch-up
+            enrollmentGrowth: 0.020,      // Fast growth from low base
+            collegeShare2025: 0.08,
+            wagePremium2025: 2.2,         // Highest premium (extreme scarcity)
+            premiumTarget: 1.7,
+            premiumDecay: 0.006,
+            lifeBonusCollege: 1,          // Smaller differential in ROW
+            lifePenaltyNonCollege: 1
+        }
+    };
+
+    /**
+     * Project enrollment rate (logistic convergence to target)
+     * enrollmentRate(t) = target - (target - rate2025) × e^(-growth × t)
+     */
+    function projectEnrollmentRate(params, yearsElapsed) {
+        return params.enrollmentTarget -
+               (params.enrollmentTarget - params.enrollmentRate2025) *
+               Math.exp(-params.enrollmentGrowth * yearsElapsed);
+    }
+
+    /**
+     * Project wage premium (exponential decay as supply increases)
+     * wagePremium(t) = target + (premium2025 - target) × e^(-decay × t)
+     */
+    function projectWagePremium(params, yearsElapsed) {
+        return params.premiumTarget +
+               (params.wagePremium2025 - params.premiumTarget) *
+               Math.exp(-params.premiumDecay * yearsElapsed);
+    }
+
+    /**
+     * Calculate productivity-weighted effective workers
+     * effectiveWorkers = nonCollege + college × wagePremium
+     *
+     * This captures the "China paradox": even as raw worker count declines,
+     * effective labor supply can grow if college graduates increase faster.
+     */
+    function effectiveWorkers(workingCollege, workingNonCollege, wagePremium) {
+        return workingNonCollege + workingCollege * wagePremium;
+    }
+
     /**
      * Project fertility rate with convergence to floor
      * TFR(t) = TFR_floor + (TFR_0 - TFR_floor) × e^(-decay × t)
@@ -741,11 +863,19 @@
     /**
      * Age cohorts forward by one year
      * 3-cohort model: Young (0-19), Working (20-64), Old (65+)
-     * Calibrated for realistic population dynamics
+     * Extended with education tracking: splits working and old by college/non-college
+     *
+     * @param {Object} region - Current demographic state
+     * @param {number} tfr - Total fertility rate for this year
+     * @param {number} year - Simulation year
+     * @param {Object} eduState - Education state { workingCollege, workingNonCollege, oldCollege, oldNonCollege }
+     * @param {Object} eduParams - Education parameters for this region
+     * @returns {Object} Updated state including education splits
      */
-    function ageCohorts(region, tfr, year) {
+    function ageCohorts(region, tfr, year, eduState, eduParams) {
         const { young, working, old, migrationRate, lifeExpectancy } = region;
         const pop = region.population;
+        const t = year - 2025;
 
         // Calculate births and deaths using improved formulas
         const births = birthRateFromTFR(tfr, working, young) * pop;
@@ -762,18 +892,72 @@
         const workingDeaths = working * pop * 0.002;
         const oldDeaths = deaths - youngDeaths - workingDeaths;
 
-        // New cohort sizes
-        const newYoung = Math.max(0, young * pop + births - agingOutOfYoung - youngDeaths);
-        const newWorking = Math.max(0, working * pop + agingOutOfYoung - agingOutOfWorking - workingDeaths);
-        const newOld = Math.max(0, old * pop + agingOutOfWorking - Math.max(0, oldDeaths));
+        // === EDUCATION TRACKING ===
+        // Split new workers by enrollment rate (determined at age 18-22)
+        const enrollRate = projectEnrollmentRate(eduParams, t);
+        const newCollegeWorkers = agingOutOfYoung * enrollRate;
+        const newNonCollegeWorkers = agingOutOfYoung * (1 - enrollRate);
 
-        // Apply migration (to working-age primarily)
+        // Calculate aging out of working by education
+        // Workers age out proportionally to their share of the working cohort
+        const totalWorking = eduState.workingCollege + eduState.workingNonCollege;
+        const collegeShareOfWorking = totalWorking > 0 ? eduState.workingCollege / totalWorking : 0.5;
+        const agingOutCollegeWorkers = agingOutOfWorking * collegeShareOfWorking;
+        const agingOutNonCollegeWorkers = agingOutOfWorking * (1 - collegeShareOfWorking);
+
+        // Differential mortality: college-educated live longer (Chetty et al.)
+        // Working deaths split by education share (similar mortality at working ages)
+        const workingDeathsCollege = workingDeaths * collegeShareOfWorking;
+        const workingDeathsNonCollege = workingDeaths * (1 - collegeShareOfWorking);
+
+        // Old cohort deaths: differential mortality by education
+        // College elderly have longer remaining life expectancy
+        const totalOld = eduState.oldCollege + eduState.oldNonCollege;
+        const collegeShareOfOld = totalOld > 0 ? eduState.oldCollege / totalOld : 0;
+
+        // Remaining life expectancy at 65 differs by education
+        const remainingLEat65Base = Math.max(15, lifeExpectancy - 55);
+        const remainingLEat65College = remainingLEat65Base + eduParams.lifeBonusCollege * 0.5;
+        const remainingLEat65NonCollege = Math.max(10, remainingLEat65Base - eduParams.lifePenaltyNonCollege * 0.5);
+
+        // Old mortality rates by education
+        const oldMortalityCollege = 1 / remainingLEat65College;
+        const oldMortalityNonCollege = 1 / remainingLEat65NonCollege;
+
+        // Deaths among elderly by education
+        const oldDeathsCollege = Math.min(eduState.oldCollege * oldMortalityCollege, eduState.oldCollege);
+        const oldDeathsNonCollege = Math.min(eduState.oldNonCollege * oldMortalityNonCollege, eduState.oldNonCollege);
+
+        // Update education cohorts
+        const newWorkingCollege = Math.max(0, eduState.workingCollege + newCollegeWorkers - agingOutCollegeWorkers - workingDeathsCollege);
+        const newWorkingNonCollege = Math.max(0, eduState.workingNonCollege + newNonCollegeWorkers - agingOutNonCollegeWorkers - workingDeathsNonCollege);
+        const newOldCollege = Math.max(0, eduState.oldCollege + agingOutCollegeWorkers - oldDeathsCollege);
+        const newOldNonCollege = Math.max(0, eduState.oldNonCollege + agingOutNonCollegeWorkers - oldDeathsNonCollege);
+
+        // === STANDARD COHORT UPDATES ===
+        // New cohort sizes (total working/old derived from education splits)
+        const newYoung = Math.max(0, young * pop + births - agingOutOfYoung - youngDeaths);
+        const newWorking = newWorkingCollege + newWorkingNonCollege;
+        const newOld = newOldCollege + newOldNonCollege;
+
+        // Apply migration (to working-age primarily, assume 70% college for migrants)
         const migration = pop * migrationRate;
-        const adjustedWorking = newWorking + migration * 0.8;
+        const migrationCollege = migration * 0.8 * 0.70;  // 80% working-age, 70% college
+        const migrationNonCollege = migration * 0.8 * 0.30;
+
+        const adjustedWorkingCollege = newWorkingCollege + migrationCollege;
+        const adjustedWorkingNonCollege = newWorkingNonCollege + migrationNonCollege;
+        const adjustedWorking = adjustedWorkingCollege + adjustedWorkingNonCollege;
         const adjustedYoung = newYoung + migration * 0.15;
         const adjustedOld = newOld + migration * 0.05;
+        const adjustedOldCollege = newOldCollege + migration * 0.05 * 0.5;
+        const adjustedOldNonCollege = newOldNonCollege + migration * 0.05 * 0.5;
 
         const newPop = adjustedYoung + adjustedWorking + adjustedOld;
+
+        // Calculate effective workers with wage premium
+        const wagePremium = projectWagePremium(eduParams, t);
+        const effWorkers = effectiveWorkers(adjustedWorkingCollege, adjustedWorkingNonCollege, wagePremium);
 
         return {
             population: newPop,
@@ -782,27 +966,68 @@
             old: adjustedOld / newPop,
             youngAbs: adjustedYoung,
             workingAbs: adjustedWorking,
-            oldAbs: adjustedOld
+            oldAbs: adjustedOld,
+            // Education splits
+            workingCollege: adjustedWorkingCollege,
+            workingNonCollege: adjustedWorkingNonCollege,
+            oldCollege: adjustedOldCollege,
+            oldNonCollege: adjustedOldNonCollege,
+            enrollmentRate: enrollRate,
+            wagePremium: wagePremium,
+            effectiveWorkers: effWorkers,
+            collegeShare: adjustedWorking > 0 ? adjustedWorkingCollege / adjustedWorking : 0
         };
     }
 
     /**
      * Run full demographics simulation for 2025-2100
      * Returns yearly data by region and global aggregates
+     * Includes education tracking: college/non-college splits and effective workers
      */
     function runDemographics() {
         const years = [];
-        const regions = {
-            oecd: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
-            china: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
-            em: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
-            row: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] }
-        };
-        const global = { population: [], young: [], working: [], old: [], dependency: [] };
 
-        // Initialize current state for each region
+        // Initialize region data structures with education arrays
+        const createRegionData = () => ({
+            population: [], young: [], working: [], old: [], fertility: [], dependency: [],
+            // Education tracking
+            workingCollege: [],
+            workingNonCollege: [],
+            oldCollege: [],
+            oldNonCollege: [],
+            collegeShare: [],
+            enrollmentRate: [],
+            wagePremium: [],
+            effectiveWorkers: []
+        });
+
+        const regions = {
+            oecd: createRegionData(),
+            china: createRegionData(),
+            em: createRegionData(),
+            row: createRegionData()
+        };
+
+        const global = {
+            population: [], young: [], working: [], old: [], dependency: [],
+            // Education tracking
+            workingCollege: [],
+            workingNonCollege: [],
+            oldCollege: [],
+            oldNonCollege: [],
+            collegeShare: [],
+            effectiveWorkers: []
+        };
+
+        // Initialize current state for each region (including education)
         const currentState = {};
+        const eduState = {};
+
         for (const [key, params] of Object.entries(demographics)) {
+            const eduParams = educationParams[key];
+            const workingPop = params.pop2025 * params.working;
+            const oldPop = params.pop2025 * params.old;
+
             currentState[key] = {
                 population: params.pop2025,
                 young: params.young,
@@ -811,6 +1036,15 @@
                 lifeExpectancy: params.lifeExpectancy,
                 migrationRate: params.migrationRate
             };
+
+            // Initialize education state from 2025 baseline shares
+            eduState[key] = {
+                workingCollege: workingPop * eduParams.collegeShare2025,
+                workingNonCollege: workingPop * (1 - eduParams.collegeShare2025),
+                // Elderly college share starts lower (they got degrees decades ago)
+                oldCollege: oldPop * eduParams.collegeShare2025 * 0.5,
+                oldNonCollege: oldPop * (1 - eduParams.collegeShare2025 * 0.5)
+            };
         }
 
         for (let year = 2025; year <= 2100; year++) {
@@ -818,33 +1052,71 @@
             years.push(year);
 
             let globalPop = 0, globalYoung = 0, globalWorking = 0, globalOld = 0;
+            let globalWorkingCollege = 0, globalWorkingNonCollege = 0;
+            let globalOldCollege = 0, globalOldNonCollege = 0;
+            let globalEffectiveWorkers = 0;
 
             for (const [key, params] of Object.entries(demographics)) {
+                const eduParams = educationParams[key];
+
                 // Project fertility for this year
                 const tfr = projectFertility(params.fertility, params.fertilityFloor, params.fertilityDecay, t);
                 regions[key].fertility.push(tfr);
 
                 // Store current values
                 const state = currentState[key];
+                const edu = eduState[key];
+
                 regions[key].population.push(state.population);
                 regions[key].young.push(state.young * state.population);
                 regions[key].working.push(state.working * state.population);
                 regions[key].old.push(state.old * state.population);
                 regions[key].dependency.push(state.old / state.working);
 
+                // Store education data
+                regions[key].workingCollege.push(edu.workingCollege);
+                regions[key].workingNonCollege.push(edu.workingNonCollege);
+                regions[key].oldCollege.push(edu.oldCollege);
+                regions[key].oldNonCollege.push(edu.oldNonCollege);
+
+                const totalWorking = edu.workingCollege + edu.workingNonCollege;
+                const collegeShare = totalWorking > 0 ? edu.workingCollege / totalWorking : 0;
+                regions[key].collegeShare.push(collegeShare);
+
+                const enrollRate = projectEnrollmentRate(eduParams, t);
+                regions[key].enrollmentRate.push(enrollRate);
+
+                const wagePremium = projectWagePremium(eduParams, t);
+                regions[key].wagePremium.push(wagePremium);
+
+                const effWorkers = effectiveWorkers(edu.workingCollege, edu.workingNonCollege, wagePremium);
+                regions[key].effectiveWorkers.push(effWorkers);
+
                 // Accumulate global totals
                 globalPop += state.population;
                 globalYoung += state.young * state.population;
                 globalWorking += state.working * state.population;
                 globalOld += state.old * state.population;
+                globalWorkingCollege += edu.workingCollege;
+                globalWorkingNonCollege += edu.workingNonCollege;
+                globalOldCollege += edu.oldCollege;
+                globalOldNonCollege += edu.oldNonCollege;
+                globalEffectiveWorkers += effWorkers;
 
                 // Age forward for next year (except last year)
                 if (year < 2100) {
-                    const nextState = ageCohorts(state, tfr, year);
+                    const nextState = ageCohorts(state, tfr, year, edu, eduParams);
                     currentState[key] = {
                         ...nextState,
                         lifeExpectancy: params.lifeExpectancy + t * 0.1, // Slow improvement
                         migrationRate: params.migrationRate
+                    };
+                    // Update education state from cohort aging
+                    eduState[key] = {
+                        workingCollege: nextState.workingCollege,
+                        workingNonCollege: nextState.workingNonCollege,
+                        oldCollege: nextState.oldCollege,
+                        oldNonCollege: nextState.oldNonCollege
                     };
                 }
             }
@@ -855,6 +1127,14 @@
             global.working.push(globalWorking);
             global.old.push(globalOld);
             global.dependency.push(globalOld / globalWorking);
+
+            // Global education aggregates
+            global.workingCollege.push(globalWorkingCollege);
+            global.workingNonCollege.push(globalWorkingNonCollege);
+            global.oldCollege.push(globalOldCollege);
+            global.oldNonCollege.push(globalOldNonCollege);
+            global.collegeShare.push(globalWorkingCollege / (globalWorkingCollege + globalWorkingNonCollege));
+            global.effectiveWorkers.push(globalEffectiveWorkers);
         }
 
         return { years, regions, global };
@@ -1037,11 +1317,19 @@
                 const working = regionDemo.working[i];
                 const workingPrev = i > 0 ? regionDemo.working[i - 1] : working;
 
+                // Get effective workers (productivity-weighted by education)
+                // This captures the "China paradox": raw workers decline but effective workers
+                // can still grow if college graduates increase faster than overall decline
+                const effective = regionDemo.effectiveWorkers[i];
+                const effectivePrev = i > 0 ? regionDemo.effectiveWorkers[i - 1] : effective;
+
                 // Get dependency ratio
                 const dependency = regionDemo.dependency[i];
 
-                // Calculate labor growth
-                const laborGrowth = i > 0 ? (working - workingPrev) / workingPrev : 0;
+                // Calculate labor growth using effective workers (quality-adjusted)
+                // Effective workers = nonCollege + college × wagePremium
+                // This means labor growth captures both headcount and human capital
+                const laborGrowth = i > 0 ? (effective - effectivePrev) / effectivePrev : 0;
 
                 // Demographic adjustment (Fernández-Villaverde)
                 // Higher dependency = lower growth
@@ -1734,6 +2022,14 @@
             pop2100: demographics.global.population[idx2100],
             dependency2075: demographics.global.dependency[idx2075],
 
+            // Education metrics
+            chinaCollegePeakYear: findPopulationPeak(demographics.regions.china.workingCollege, demographics.years).year,
+            collegeShare2025: demographics.global.collegeShare[0],
+            collegeShare2050: demographics.global.collegeShare[idx2050],
+            collegeShare2100: demographics.global.collegeShare[idx2100],
+            chinaCollegeShare2025: demographics.regions.china.collegeShare[0],
+            chinaCollegeShare2050: demographics.regions.china.collegeShare[idx2050],
+
             // Derived series (for further analysis)
             derived,
 
@@ -1811,7 +2107,15 @@
         dependency: { unit: 'ratio', description: 'Old-age dependency ratio (65+/20-64)' },
         electrificationRate: { unit: 'fraction', description: 'Electricity share of useful energy' },
         energyIntensity: { unit: 'MWh/$1000 GDP', description: 'Energy intensity of economy' },
-        fertility: { unit: 'TFR', description: 'Total fertility rate (children per woman)' }
+        fertility: { unit: 'TFR', description: 'Total fertility rate (children per woman)' },
+
+        // Education
+        collegeShare: { unit: 'fraction', description: 'Fraction of workers with college degree' },
+        enrollmentRate: { unit: 'fraction', description: 'Tertiary education enrollment rate' },
+        wagePremium: { unit: 'multiplier', description: 'College wage premium (1.5 = 50% higher wages)' },
+        effectiveWorkers: { unit: 'persons', description: 'Productivity-weighted worker count (nonCollege + college × premium)' },
+        workingCollege: { unit: 'persons', description: 'Working-age adults with college degree' },
+        workingNonCollege: { unit: 'persons', description: 'Working-age adults without college degree' }
     };
 
     // =============================================================================
@@ -2040,6 +2344,7 @@
     let batteryChart = null;
     let populationChart = null;
     let dependencyChart = null;
+    let collegeChart = null;
     let demandChart = null;
     let gdpPerWorkerChart = null;
     let intensityChart = null;
@@ -2099,8 +2404,16 @@
         const dep2075 = (demographicsData.global.dependency[dep2075Index] * 100).toFixed(0);
         document.getElementById('dependency-2075').textContent = `${dep2025}% → ${dep2075}%`;
 
-        // Update demand metrics
+        // Update education metrics
+        const chinaCollegePeak = findPopulationPeak(demographicsData.regions.china.workingCollege, demographicsData.years);
+        document.getElementById('china-college-peak').textContent = chinaCollegePeak.year;
+
         const idx2050 = demographicsData.years.indexOf(2050);
+        const collegeShare2050 = demographicsData.global.collegeShare[idx2050];
+        document.getElementById('college-share-2050').textContent = idx2050 !== -1 ?
+            `${(collegeShare2050 * 100).toFixed(0)}%` : '--';
+
+        // Update demand metrics
         document.getElementById('elec-2050').textContent = demandData.metrics.elec2050 ?
             `${(demandData.metrics.elec2050 / 1000).toFixed(1)}K` : '--';
         document.getElementById('electrification-2050').textContent = idx2050 !== -1 ?
@@ -2151,6 +2464,13 @@
             const hasCrossover = crossovers.some(c => c.year >= eraStart && c.year <= eraEnd);
             if (hasCrossover) row.classList.add('crossover-highlight');
 
+            // Average college share for this era (from demographics)
+            const avgCollegeShare = (() => {
+                let sum = 0;
+                for (let i = startIdx; i < endIdx; i++) sum += demographicsData.global.collegeShare[i];
+                return sum / (endIdx - startIdx);
+            })();
+
             row.innerHTML = `
                 <td>${eras[e]}</td>
                 <td>$${avg(results.solar).toFixed(0)}</td>
@@ -2160,6 +2480,7 @@
                 <td>$${avg(results.nuclear).toFixed(0)}</td>
                 <td>$${avg(results.battery).toFixed(0)}/kWh</td>
                 <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
+                <td>${(avgCollegeShare * 100).toFixed(0)}%</td>
                 <td>${avg(climateData.emissions).toFixed(1)} Gt</td>
                 <td>${avg(climateData.temperature).toFixed(1)}°C</td>
                 <td>${avg(climateData.globalDamages).toFixed(1)}%</td>
@@ -2536,6 +2857,103 @@
                         title: {
                             display: true,
                             text: 'Old-Age Dependency Ratio (65+ / 20-64)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // College Share Chart
+        const collegeCtx = document.getElementById('college-chart').getContext('2d');
+        if (collegeChart) collegeChart.destroy();
+
+        collegeChart = new Chart(collegeCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'Global',
+                        data: demographicsData.global.collegeShare.map(d => d * 100),
+                        borderColor: '#fff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'OECD',
+                        data: demographicsData.regions.oecd.collegeShare.map(d => d * 100),
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demographicsData.regions.china.collegeShare.map(d => d * 100),
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demographicsData.regions.em.collegeShare.map(d => d * 100),
+                        borderColor: demographics.em.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demographicsData.regions.row.collegeShare.map(d => d * 100),
+                        borderColor: demographics.row.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'College Share of Workforce (%)',
                             color: '#888'
                         }
                     }
@@ -3268,6 +3686,11 @@
         exportDemographicsCSV,
         projectFertility,
 
+        // Education functions
+        projectEnrollmentRate,  // Enrollment rate by year
+        projectWagePremium,     // Wage premium decay over time
+        effectiveWorkers,       // Productivity-weighted worker count
+
         // Climate functions
         dispatch,             // Merit order dispatch
         getCapacities,        // GW capacity by year
@@ -3278,6 +3701,7 @@
         // Parameters (read-only references)
         energySources,
         demographics,
+        educationParams,      // Enrollment, college share, wage premiums, life expectancy differentials
         economicParams,
         demandParams,
         dispatchParams,

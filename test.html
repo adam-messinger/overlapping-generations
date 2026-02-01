@@ -656,6 +656,110 @@
         });
 
         // =============================================================================
+        // EDUCATION MODEL
+        // =============================================================================
+        section('Education Model');
+
+        test('educationParams object exists', () => {
+            return typeof energySim.educationParams === 'object';
+        });
+
+        test('educationParams has all regions', () => {
+            return energySim.educationParams.oecd &&
+                   energySim.educationParams.china &&
+                   energySim.educationParams.em &&
+                   energySim.educationParams.row;
+        });
+
+        test('projectEnrollmentRate increases over time', () => {
+            const params = energySim.educationParams.china;
+            const rate2025 = energySim.projectEnrollmentRate(params, 0);
+            const rate2050 = energySim.projectEnrollmentRate(params, 25);
+            return rate2050 > rate2025;
+        });
+
+        test('projectWagePremium decreases over time', () => {
+            const params = energySim.educationParams.china;
+            const premium2025 = energySim.projectWagePremium(params, 0);
+            const premium2050 = energySim.projectWagePremium(params, 25);
+            return premium2050 < premium2025;
+        });
+
+        test('effectiveWorkers calculation correct', () => {
+            const college = 100;
+            const nonCollege = 200;
+            const premium = 1.5;
+            const effective = energySim.effectiveWorkers(college, nonCollege, premium);
+            // Expected: 200 + 100 * 1.5 = 350
+            return effective === 350;
+        });
+
+        test('demographics returns education arrays', () => {
+            const data = energySim.runDemographics();
+            return data.regions.china.workingCollege &&
+                   data.regions.china.workingNonCollege &&
+                   data.regions.china.collegeShare &&
+                   data.regions.china.effectiveWorkers;
+        });
+
+        test('demographics.global has education aggregates', () => {
+            const data = energySim.runDemographics();
+            return data.global.workingCollege &&
+                   data.global.collegeShare &&
+                   data.global.effectiveWorkers;
+        });
+
+        test('China college share 2025 ~22%', () => {
+            const data = energySim.runDemographics();
+            return approx(data.regions.china.collegeShare[0], 0.22, 0.10);
+        });
+
+        test('Global college share increases over time', () => {
+            const data = energySim.runDemographics();
+            return data.global.collegeShare[75] > data.global.collegeShare[0];
+        });
+
+        test('Global college share 2050 30-45%', () => {
+            const data = energySim.runDemographics();
+            const idx2050 = data.years.indexOf(2050);
+            return inRange(data.global.collegeShare[idx2050], 0.30, 0.45);
+        });
+
+        test('China college workers peak 2035-2045', () => {
+            const data = energySim.runDemographics();
+            const peak = energySim.findPopulationPeak(data.regions.china.workingCollege, data.years);
+            return peak.year >= 2035 && peak.year <= 2045;
+        });
+
+        test('China college workers peak after total workers', () => {
+            const data = energySim.runDemographics();
+            const collegePeak = energySim.findPopulationPeak(data.regions.china.workingCollege, data.years);
+            const totalPeak = energySim.findPopulationPeak(data.regions.china.working, data.years);
+            return collegePeak.year > totalPeak.year;
+        });
+
+        test('Effective workers decline less than raw workers (China)', () => {
+            const data = energySim.runDemographics();
+            const china = data.regions.china;
+            const rawDecline = (china.working[25] - china.working[0]) / china.working[0];
+            const effDecline = (china.effectiveWorkers[25] - china.effectiveWorkers[0]) / china.effectiveWorkers[0];
+            // effDecline should be less negative (or more positive) than rawDecline
+            return effDecline > rawDecline;
+        });
+
+        test('runScenario has education metrics', () => {
+            const m = energySim.runScenario();
+            return 'chinaCollegePeakYear' in m &&
+                   'collegeShare2050' in m &&
+                   'chinaCollegeShare2025' in m;
+        });
+
+        test('units has education entries', () => {
+            return energySim.units.collegeShare?.unit === 'fraction' &&
+                   energySim.units.effectiveWorkers?.unit === 'persons';
+        });
+
+        // =============================================================================
         // RENDER RESULTS
         // =============================================================================
 
