@@ -2729,6 +2729,7 @@
             gas: [],
             coal: [],
             nuclear: [],
+            total: [],
             gridIntensity: [],
             // Rebound effect tracking
             robotLoadTWh: [],
@@ -2790,6 +2791,7 @@
             dispatchData.gas.push(dispatchResult.gas);
             dispatchData.coal.push(dispatchResult.coal);
             dispatchData.nuclear.push(dispatchResult.nuclear);
+            dispatchData.total.push(dispatchResult.total);
             dispatchData.gridIntensity.push(dispatchResult.gridIntensity);
 
             // Store rebound metrics (adjustedDemand is capped value actually dispatched)
