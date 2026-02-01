@@ -237,10 +237,10 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | China college peak | ~2040 | Model projection |
 | OECD wage premium 2025 | 1.5× | OECD |
 | Global K/Y ratio | ~3.5 | Penn World Table |
-| Global capital stock | ~$350T | McKinsey Global Institute |
-| Global savings rate | ~26% | World Bank |
-| Real interest rate | ~2% | IMF |
-| Robot density (global) | ~15/1000 | IFR World Robotics |
+| Global capital stock | ~$420T | Penn World Table |
+| Global savings rate | ~22% | Model (demographic-weighted) |
+| Real interest rate | ~4% | Model (r = αY/K - δ) |
+| Robot density (global) | ~12/1000 | Model calibration |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100

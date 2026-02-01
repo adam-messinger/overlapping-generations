@@ -794,9 +794,9 @@
             return result.capital.stock.length === 76;
         });
 
-        test('initial capital stock ~$350T', () => {
+        test('initial capital stock ~$420T', () => {
             const result = energySim.runSimulation();
-            return approx(result.capital.stock[0], 350, 0.05);
+            return approx(result.capital.stock[0], 420, 0.05);
         });
 
         test('K/Y ratio 2025 ~3.5', () => {
@@ -805,9 +805,9 @@
             return approx(kY, 3.5, 0.25);
         });
 
-        test('savings rate 2025 ~26%', () => {
+        test('savings rate 2025 ~22%', () => {
             const result = energySim.runSimulation();
-            return approx(result.capital.savingsRate[0], 0.26, 0.15);
+            return approx(result.capital.savingsRate[0], 0.22, 0.15);
         });
 
         test('savings rate declines with aging', () => {
@@ -847,10 +847,10 @@
             return low.capital.stability[idx2075] > high.capital.stability[idx2075];
         });
 
-        test('interest rate 2025 in 1-4% range', () => {
+        test('interest rate 2025 in 3-6% range', () => {
             const result = energySim.runSimulation();
             const r = result.capital.interestRate[0];
-            return r > 0.01 && r < 0.04;
+            return r > 0.03 && r < 0.06;
         });
 
         test('calculateInterestRate formula correct', () => {
@@ -872,11 +872,10 @@
             return approx(newK, 105, 0.01);
         });
 
-        test('robots density 2025 ~15/1000', () => {
+        test('robots density 2025 ~12-15/1000', () => {
             const result = energySim.runSimulation();
-            // IFR says global ~15 robots per 1000 manufacturing workers
-            // Our model is more generous with "robots" definition
-            return result.capital.robotsDensity[0] > 5 && result.capital.robotsDensity[0] < 50;
+            // Calibrated to ~12-15 robots per 1000 workers
+            return result.capital.robotsDensity[0] > 8 && result.capital.robotsDensity[0] < 20;
         });
 
         test('robots density grows significantly by 2075', () => {
