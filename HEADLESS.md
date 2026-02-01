@@ -12,6 +12,27 @@ node run-simulation.js
 node run-simulation.js --carbonPrice=100 --format=forecast
 
 # Output formats: summary, json, csv, forecast
+
+# Full Twin-Engine Century Forecast
+node forecast.js --carbonPrice=100
+```
+
+## Agent Introspection API
+
+LLM agents can discover available parameters without reading source code:
+
+```javascript
+const sim = require('./energy-sim.js');
+const params = sim.describeParameters();
+
+// Returns structured schema:
+// {
+//   carbonPrice: { type: 'number', default: 35, min: 0, max: 200, unit: '$/ton CO₂', description: '...' },
+//   solarAlpha: { type: 'number', default: 0.36, min: 0.1, max: 0.5, ... },
+//   ...
+//   _outputs: { years: '...', results: '...', demographics: '...' },
+//   _metrics: ['warming2100', 'peakEmissionsYear', ...]
+// }
 ```
 
 ## Friction Points Encountered
@@ -87,8 +108,9 @@ Not a problem for headless use, but the HTML file requires Chart.js CDN. If some
 
 | File | Purpose |
 |------|---------|
-| `energy-sim.js` | Standalone Node.js module (3396 lines) |
-| `run-simulation.js` | CLI runner with multiple output formats |
+| `energy-sim.js` | Standalone Node.js module with `describeParameters()` introspection |
+| `run-simulation.js` | CLI runner (summary, json, csv, forecast formats) |
+| `forecast.js` | Twin-Engine Century Forecast generator (full markdown output) |
 | `HEADLESS.md` | This file |
 
 ## Verification

@@ -1079,6 +1079,90 @@
         quiet: false  // Set to true to suppress console warnings (e.g., dispatch shortfall)
     };
 
+    /**
+     * Parameter schema for agent introspection
+     * Allows LLM agents to discover available parameters without reading source code
+     *
+     * Usage:
+     *   const params = energySim.describeParameters();
+     *   console.log(params.carbonPrice);
+     *   // { type: 'number', default: 35, min: 0, max: 200, unit: '$/ton CO₂', description: '...' }
+     */
+    function describeParameters() {
+        return {
+            // Primary simulation inputs (slider-controllable)
+            carbonPrice: {
+                type: 'number',
+                default: 35,
+                min: 0,
+                max: 200,
+                unit: '$/ton CO₂',
+                description: 'Carbon tax applied to fossil fuel generation. Higher values accelerate transition to renewables.'
+            },
+            solarAlpha: {
+                type: 'number',
+                default: 0.36,
+                min: 0.1,
+                max: 0.5,
+                unit: 'dimensionless',
+                description: "Wright's Law learning exponent for solar. 0.36 = 25% cost reduction per capacity doubling."
+            },
+            solarGrowth: {
+                type: 'number',
+                default: 0.25,
+                min: 0.05,
+                max: 0.40,
+                unit: 'fraction/year',
+                description: 'Annual solar capacity growth rate. 0.25 = 25% per year.'
+            },
+            electrificationTarget: {
+                type: 'number',
+                default: 0.65,
+                min: 0.40,
+                max: 0.90,
+                unit: 'fraction',
+                description: 'Target share of final energy from electricity by 2050. Higher = faster transition from direct fuel use.'
+            },
+            efficiencyMultiplier: {
+                type: 'number',
+                default: 1.0,
+                min: 0.5,
+                max: 2.0,
+                unit: 'multiplier',
+                description: 'Multiplier on energy intensity decline rate. 1.5 = 50% faster efficiency gains.'
+            },
+            climSensitivity: {
+                type: 'number',
+                default: 3.0,
+                min: 2.0,
+                max: 4.5,
+                unit: '°C per CO₂ doubling',
+                description: 'Equilibrium climate sensitivity. IPCC range is 2.5-4.0°C, with 3.0°C as best estimate.'
+            },
+
+            // Output description
+            _outputs: {
+                years: 'Array of years from 2025 to 2100 (76 values)',
+                results: 'LCOE trajectories for each energy source ($/MWh)',
+                demographics: 'Population, dependency, education by region and global',
+                demand: 'GDP, electricity demand, electrification by region',
+                climate: 'Emissions, temperature, damages',
+                dispatch: 'Generation by source, grid intensity, rebound effects',
+                capital: 'Capital stock, investment, savings, robots',
+                resources: 'Minerals, food, land demand',
+                capacityState: 'Actual installed capacity by source (state-machine)'
+            },
+
+            // Quick metrics (from runScenario)
+            _metrics: [
+                'warming2100', 'peakEmissionsYear', 'gridBelow100',
+                'solarCrossesGas', 'coalUneconomic', 'popPeakYear',
+                'collegeShare2050', 'dependency2075', 'robotsDensity2050',
+                'copperPeakYear', 'lithiumReserveRatio2100'
+            ]
+        };
+    }
+
     // =============================================================================
     // DEMOGRAPHICS - Fernández-Villaverde-informed population model
     // =============================================================================
@@ -3382,7 +3466,10 @@ const energySim = {
 
     // Defaults and config
     defaults,             // Default slider values
-    config                // Runtime config (set config.quiet = true to suppress warnings)
+    config,               // Runtime config (set config.quiet = true to suppress warnings)
+
+    // Agent introspection
+    describeParameters    // Returns schema of all parameters for LLM agents
 };
 
 // Node.js module export
