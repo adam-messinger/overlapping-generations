@@ -275,10 +275,10 @@
             return demand.global.electrificationRate[50] > demand.global.electrificationRate[0];
         });
 
-        test('2025 electrification ~40%', () => {
+        test('2025 electrification ~25%', () => {
             const demo = energySim.runDemographics();
             const demand = energySim.runDemandModel(demo);
-            return approx(demand.global.electrificationRate[0], 0.40, 0.05);
+            return approx(demand.global.electrificationRate[0], 0.25, 0.05);
         });
 
         test('energy intensity declines over time', () => {
@@ -1454,6 +1454,197 @@
             const stability = energySim.stabilityFactor(0.30);
             // With lambda=2.0: 1/(1 + 2.0 × 0.09) = 0.847, so ~15% suppression
             return stability < 0.90 && stability > 0.70;
+        });
+
+        // =============================================================================
+        // FINAL ENERGY TRACKING (Phase 8)
+        // =============================================================================
+        section('Final Energy Tracking');
+
+        test('finalEnergyParams exists with sectors', () => {
+            return energySim.finalEnergyParams &&
+                   energySim.finalEnergyParams.sectors &&
+                   energySim.finalEnergyParams.sectors.transport &&
+                   energySim.finalEnergyParams.sectors.buildings &&
+                   energySim.finalEnergyParams.sectors.industry;
+        });
+
+        test('finalEnergyParams has fuel mixes for 2025 and 2100', () => {
+            const p = energySim.finalEnergyParams;
+            return p.fuels2025 && p.fuels2025.transport &&
+                   p.fuels2100 && p.fuels2100.transport;
+        });
+
+        test('finalEnergyParams has carbon intensities', () => {
+            const p = energySim.finalEnergyParams;
+            return p.carbonIntensity &&
+                   p.carbonIntensity.oil > 0 &&
+                   p.carbonIntensity.gas > 0 &&
+                   p.carbonIntensity.coal > 0 &&
+                   p.carbonIntensity.biomass === 0 &&
+                   p.carbonIntensity.hydrogen === 0;
+        });
+
+        test('calculateSectorElectrification returns valid rate', () => {
+            const rate2025 = energySim.calculateSectorElectrification('transport', 0);
+            const rate2050 = energySim.calculateSectorElectrification('transport', 25);
+            const rate2100 = energySim.calculateSectorElectrification('transport', 75);
+            return rate2025 >= 0 && rate2025 <= 1 &&
+                   rate2050 > rate2025 &&
+                   rate2100 > rate2050 &&
+                   rate2100 <= energySim.finalEnergyParams.sectors.transport.electrificationTarget;
+        });
+
+        test('calculateFuelMix returns normalized mix', () => {
+            const mix2025 = energySim.calculateFuelMix('transport', 0);
+            const sum2025 = Object.values(mix2025).reduce((a, b) => a + b, 0);
+            const mix2100 = energySim.calculateFuelMix('transport', 75);
+            const sum2100 = Object.values(mix2100).reduce((a, b) => a + b, 0);
+            return approx(sum2025, 1.0, 0.01) && approx(sum2100, 1.0, 0.01);
+        });
+
+        test('demand includes totalFinalEnergy array', () => {
+            const result = energySim.runSimulation();
+            return result.demand.global.totalFinalEnergy &&
+                   result.demand.global.totalFinalEnergy.length === 76;
+        });
+
+        test('demand includes nonElectricEnergy array', () => {
+            const result = energySim.runSimulation();
+            return result.demand.global.nonElectricEnergy &&
+                   result.demand.global.nonElectricEnergy.length === 76;
+        });
+
+        test('demand includes finalEnergyPerCapitaDay array', () => {
+            const result = energySim.runSimulation();
+            return result.demand.global.finalEnergyPerCapitaDay &&
+                   result.demand.global.finalEnergyPerCapitaDay.length === 76;
+        });
+
+        test('totalFinalEnergy = electricity + nonElectric', () => {
+            const result = energySim.runSimulation();
+            const i = 0; // 2025
+            const total = result.demand.global.totalFinalEnergy[i];
+            const elec = result.demand.global.electricityDemand[i];
+            const nonElec = result.demand.global.nonElectricEnergy[i];
+            return approx(total, elec + nonElec, 0.001);
+        });
+
+        test('sector non-electric sums to total non-electric', () => {
+            const result = energySim.runSimulation();
+            const i = 0;
+            const nonElec = result.demand.global.nonElectricEnergy[i];
+            const sectorSum = result.demand.global.sectors.transport.nonElectric[i] +
+                              result.demand.global.sectors.buildings.nonElectric[i] +
+                              result.demand.global.sectors.industry.nonElectric[i];
+            return approx(nonElec, sectorSum, 0.001);
+        });
+
+        test('fuel demand sums to non-electric energy', () => {
+            const result = energySim.runSimulation();
+            const i = 0;
+            const nonElec = result.demand.global.nonElectricEnergy[i];
+            const fuelSum = result.demand.global.fuels.oil[i] +
+                            result.demand.global.fuels.gas[i] +
+                            result.demand.global.fuels.coal[i] +
+                            result.demand.global.fuels.biomass[i] +
+                            result.demand.global.fuels.hydrogen[i] +
+                            result.demand.global.fuels.biofuel[i];
+            return approx(nonElec, fuelSum, 0.001);
+        });
+
+        test('regional final energy data exists', () => {
+            const result = energySim.runSimulation();
+            return result.demand.regions.oecd.totalFinalEnergy &&
+                   result.demand.regions.china.nonElectricEnergy &&
+                   result.demand.regions.em.sectors.transport.total &&
+                   result.demand.regions.row.fuels.oil;
+        });
+
+        test('transport electrification 2025 ~2%', () => {
+            const result = energySim.runSimulation();
+            const rate = result.demand.global.sectors.transport.electrificationRate[0];
+            return approx(rate, 0.02, 0.1);
+        });
+
+        test('transport electrification 2050 > 40%', () => {
+            const result = energySim.runSimulation();
+            const rate = result.demand.global.sectors.transport.electrificationRate[25];
+            return rate > 0.40;
+        });
+
+        test('buildings electrification 2050 > 60%', () => {
+            const result = energySim.runSimulation();
+            const rate = result.demand.global.sectors.buildings.electrificationRate[25];
+            return rate > 0.60;
+        });
+
+        test('oil dominates transport fuel 2025', () => {
+            const result = energySim.runSimulation();
+            const oil = result.demand.global.fuels.oil[0];
+            const nonElec = result.demand.global.nonElectricEnergy[0];
+            // Oil should be significant portion
+            return oil > nonElec * 0.3;
+        });
+
+        test('finalEnergyPerCapitaDay positive and reasonable', () => {
+            const result = energySim.runSimulation();
+            const val2025 = result.demand.global.finalEnergyPerCapitaDay[0];
+            const val2050 = result.demand.global.finalEnergyPerCapitaDay[25];
+            // Should be positive and in reasonable range (10-100 kWh/day)
+            return val2025 > 10 && val2025 < 100 &&
+                   val2050 > 10 && val2050 < 100;
+        });
+
+        test('runScenario includes finalEnergyPerCapitaDay metrics', () => {
+            const m = energySim.runScenario();
+            return m.finalEnergyPerCapitaDay2025 !== undefined &&
+                   m.finalEnergyPerCapitaDay2050 !== undefined &&
+                   m.finalEnergyPerCapitaDay2100 !== undefined;
+        });
+
+        test('runScenario includes sector electrification metrics', () => {
+            const m = energySim.runScenario();
+            return m.transportElectrification2050 !== undefined &&
+                   m.buildingsElectrification2050 !== undefined &&
+                   m.industryElectrification2050 !== undefined;
+        });
+
+        test('runScenario includes fuel share metrics', () => {
+            const m = energySim.runScenario();
+            return m.oilShareOfFinal2050 !== undefined &&
+                   m.gasShareOfFinal2050 !== undefined &&
+                   m.oilShareOfFinal2050 + m.gasShareOfFinal2050 < 1;
+        });
+
+        test('calculateEmissions uses fuel demand when provided', () => {
+            const dispatchResult = { gas: 1000, coal: 1000, solar: 5000, wind: 3000 };
+            const fuelDemand = { oil: 10000, gas: 5000, coal: 3000, biomass: 2000, hydrogen: 0, biofuel: 0 };
+
+            // With fuel demand
+            const withFuel = energySim.calculateEmissions(dispatchResult, 0.5, undefined, undefined, fuelDemand);
+            // Without fuel demand (legacy proxy)
+            const withoutFuel = energySim.calculateEmissions(dispatchResult, 0.5);
+
+            // Non-electric emissions should differ
+            return withFuel.nonElectricity !== withoutFuel.nonElectricity &&
+                   withFuel.nonElectricity > 0;
+        });
+
+        test('fuel-based emissions calculation is correct', () => {
+            const dispatchResult = { gas: 0, coal: 0, solar: 1000, wind: 0 };
+            // Only oil: 10000 TWh × 267 kg/MWh = 2.67 Gt
+            const fuelDemand = { oil: 10000, gas: 0, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0 };
+            const result = energySim.calculateEmissions(dispatchResult, 0.5, undefined, undefined, fuelDemand);
+            // 10000 TWh × 267 kg/MWh / 1e6 = 2.67 Gt
+            return approx(result.nonElectricity, 2.67, 0.01);
+        });
+
+        test('units map includes final energy units', () => {
+            return energySim.units.totalFinalEnergy &&
+                   energySim.units.nonElectricEnergy &&
+                   energySim.units.finalEnergyPerCapitaDay &&
+                   energySim.units.fuelDemand;
         });
 
         // =============================================================================

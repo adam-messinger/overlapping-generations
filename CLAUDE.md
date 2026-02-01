@@ -132,6 +132,14 @@ m.farmland2050             // Mha cropland
 m.reboundMultiplier2100    // Jevons price rebound multiplier
 m.robotLoadTWh2100         // Robot energy load (TWh)
 m.adjustedDemand2100       // Demand with rebound (TWh)
+m.finalEnergyPerCapitaDay2025  // kWh/person/day total final energy
+m.finalEnergyPerCapitaDay2050
+m.finalEnergyPerCapitaDay2100
+m.transportElectrification2050 // Sector electrification rates
+m.buildingsElectrification2050
+m.industryElectrification2050
+m.oilShareOfFinal2050      // Fuel shares of non-electric
+m.gasShareOfFinal2050
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -201,6 +209,22 @@ dispatch.robotLoadTWh[25]      // 2050 robot energy load (TWh)
 dispatch.priceMultiplier[50]   // 2075 Jevons price rebound multiplier
 dispatch.adjustedDemand[75]    // 2100 total demand with rebound
 dispatch.robotsPer1000[75]     // 2100 robots per 1000 workers
+
+// Final energy data (in demand object)
+demand.global.totalFinalEnergy[0]       // 2025 total final energy (TWh)
+demand.global.nonElectricEnergy[25]     // 2050 non-electric energy (TWh)
+demand.global.finalEnergyPerCapitaDay[0] // 2025 final energy per capita (kWh/day)
+demand.global.sectors.transport.total[25]  // 2050 transport sector total (TWh)
+demand.global.sectors.transport.electrificationRate[25] // 2050 transport elec rate
+demand.global.sectors.buildings.nonElectric[25] // 2050 buildings non-electric (TWh)
+demand.global.fuels.oil[0]              // 2025 oil consumption (TWh)
+demand.global.fuels.hydrogen[75]        // 2100 hydrogen consumption (TWh)
+demand.regions.china.fuels.gas[25]      // 2050 China gas consumption (TWh)
+
+// Final energy helper functions
+energySim.calculateSectorElectrification('transport', 25) // Transport elec rate at 2050
+energySim.calculateFuelMix('industry', 50)  // Industry fuel mix at 2075 {gas, coal, ...}
+energySim.finalEnergyParams.carbonIntensity // { oil: 267, gas: 202, ... } kg CO2/MWh
 
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
@@ -323,6 +347,13 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Rebound multiplier | fraction (1.0+) |
 | Robot load | TWh |
 | Adjusted demand | TWh |
+| Total final energy | TWh |
+| Non-electric energy | TWh |
+| Final energy per capita/day | kWh/person/day |
+| Sector energy | TWh |
+| Sector electrification | fraction (0-1) |
+| Fuel demand | TWh |
+| Carbon intensity | kg CO₂/MWh |
 
 ## Key Models
 
@@ -352,6 +383,12 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 - **Energy Intensity**: Declining efficiency (MWh per $1000 GDP)
 - **Electrification**: Logistic convergence to target (IEA Net Zero informed)
 - **Per-Worker Metrics**: GDP and kWh per working-age adult (Ole Peters ergodicity)
+- **Final Energy Tracking**: Total final energy = electricity + non-electric
+  - Sector breakdown: transport (45%), buildings (30%), industry (25%)
+  - Independent electrification curves per sector
+  - Fuel composition: oil, gas, coal, biomass, hydrogen, biofuel
+  - Carbon intensities: oil 267, gas 202, coal 341 kg CO₂/MWh
+  - Emissions calculated from actual fuel consumption
 
 ### Climate (Phase 4)
 - **Dispatch**: Merit order allocation by LCOE with capacity/penetration constraints
@@ -467,6 +504,17 @@ Implements two distinct mechanisms that prevent demand collapse:
 | Rebound threshold | $15/MWh | "Too cheap to meter" level |
 | Rebound elasticity | 2%/$ | Conservative (historical often higher) |
 | Max demand growth | 2.5%/year | Infrastructure build rate cap |
+| Total final energy 2025 | ~122,000 TWh | IEA |
+| Final energy/capita/day 2025 | ~40 kWh | IEA-calibrated |
+| Final energy/capita/day 2050 | ~50 kWh | Twin-Engine |
+| Final energy/capita/day 2100 | ~56 kWh | Twin-Engine |
+| Electrification 2025 | ~25% | IEA (30,000/122,000 TWh) |
+| Transport electrification 2025 | ~2% | IEA/BNEF |
+| Buildings electrification 2025 | ~35% | IEA |
+| Industry electrification 2025 | ~30% | IEA |
+| Transport electrification 2050 | ~66% | Model projection |
+| Oil share of non-electric 2025 | ~40% | Model output |
+| Non-electric emissions 2025 | ~25 Gt | IEA (fuel-based) |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100

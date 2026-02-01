@@ -2132,40 +2132,42 @@
      * - Ole Peters: Ergodicity economics (time-average vs ensemble-average)
      * - Odum: Energy as basis of real wealth
      *
-     * Energy intensity calibrated to match ~30,000 TWh global electricity in 2025:
-     * - OECD: ~10,000 TWh, $58T GDP → 0.43 MWh/$1000 total energy, 40% electric
-     * - China: ~9,000 TWh, $18T GDP → 1.25 MWh/$1000 total energy
-     * - EM: ~8,000 TWh, $35T GDP → 0.57 MWh/$1000 total energy
-     * - ROW: ~3,000 TWh, $8T GDP → 0.94 MWh/$1000 total energy
+     * Energy intensity calibrated to match IEA 2025 data:
+     * - Global final energy: ~122,000 TWh (IEA World Energy Outlook)
+     * - Global electricity: ~30,000 TWh → 25% electrification
+     * - OECD: ~40,000 TWh, $58T GDP → 0.70 MWh/$1000 total energy
+     * - China: ~37,000 TWh, $18T GDP → 2.04 MWh/$1000 total energy
+     * - EM: ~33,000 TWh, $35T GDP → 0.93 MWh/$1000 total energy
+     * - ROW: ~12,000 TWh, $8T GDP → 1.53 MWh/$1000 total energy
      */
     const economicParams = {
         oecd: {
             gdp2025: 58,              // $58T (World Bank)
             tfpGrowth: 0.015,         // 1.5% baseline TFP
             tfpDecay: 0.0,            // Mature economy - no convergence
-            energyIntensity: 0.43,    // MWh per $1000 GDP (total energy)
-            intensityDecline: 0.010   // 1.0%/year efficiency gains
+            energyIntensity: 0.70,    // MWh per $1000 GDP (total energy, IEA-calibrated)
+            intensityDecline: 0.003   // 0.3%/year (Jevons: efficiency gains largely offset)
         },
         china: {
             gdp2025: 18,              // $18T (World Bank)
             tfpGrowth: 0.035,         // 3.5% catch-up growth
             tfpDecay: 0.015,          // Converging toward OECD
-            energyIntensity: 1.25,    // High - industrial economy
-            intensityDecline: 0.020   // 2.0%/year (rapid improvement)
+            energyIntensity: 2.04,    // High - industrial economy (IEA-calibrated)
+            intensityDecline: 0.008   // 0.8%/year (Jevons: efficiency gains largely offset)
         },
         em: {
             gdp2025: 35,              // $35T (India, Brazil, Indonesia, etc.)
             tfpGrowth: 0.025,         // 2.5% baseline
             tfpDecay: 0.008,          // Slow convergence
-            energyIntensity: 0.57,    // Mixed economies
-            intensityDecline: 0.015   // 1.5%/year
+            energyIntensity: 0.93,    // Mixed economies (IEA-calibrated)
+            intensityDecline: 0.005   // 0.5%/year (Jevons: efficiency gains largely offset)
         },
         row: {
             gdp2025: 8,               // $8T (Africa, etc.)
             tfpGrowth: 0.030,         // 3.0% demographic dividend
             tfpDecay: 0.010,          // Gradual convergence
-            energyIntensity: 0.94,    // Lower efficiency
-            intensityDecline: 0.012   // 1.2%/year
+            energyIntensity: 1.53,    // Lower efficiency (IEA-calibrated)
+            intensityDecline: 0.004   // 0.4%/year (Jevons: efficiency gains largely offset)
         }
     };
 
@@ -2185,11 +2187,110 @@
      * not hardcoded, ensuring consistency between models.
      */
     const demandParams = {
-        electrification2025: 0.40,    // Current electricity share (IEA data)
+        electrification2025: 0.25,    // Current electricity share (IEA: 30,000/122,000 TWh)
         electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
         electrificationSpeed: 0.08,   // Convergence rate
         demographicFactor: 0.015      // Dependency ratio impact on growth
     };
+
+    // =============================================================================
+    // FINAL ENERGY - Total energy with sector breakdown (Phase 8)
+    // =============================================================================
+
+    /**
+     * Final energy parameters for sector-level tracking
+     *
+     * ARCHITECTURE:
+     * totalEnergy = GDP × energyIntensity × 1000 (TWh)
+     *     ├── electricityDemand = totalEnergy × electrificationRate (EXISTING)
+     *     └── nonElectricEnergy = totalEnergy × (1 - electrificationRate) (NEW)
+     *             ├── transport (45%) → oil, gas, biofuel, hydrogen
+     *             ├── buildings (30%) → gas, oil, coal, biomass, hydrogen
+     *             └── industry (25%) → gas, coal, oil, biomass, hydrogen
+     *
+     * Each sector has independent electrification curve (transport: 2%→85%, etc.)
+     *
+     * Sources:
+     * - IEA World Energy Outlook: Sector shares and electrification rates
+     * - BNEF: EV adoption projections
+     * - Twin-Engine Forecast: ~40 kWh/person/day in 2025, ~56 by 2100
+     */
+    const finalEnergyParams = {
+        sectors: {
+            transport: {
+                share2025: 0.45,              // 45% of non-electric energy
+                electrification2025: 0.02,    // 2% EVs
+                electrificationTarget: 0.85,  // 85% by 2100 (aviation/shipping remain)
+                electrificationSpeed: 0.06
+            },
+            buildings: {
+                share2025: 0.30,
+                electrification2025: 0.35,    // Heat pumps, appliances
+                electrificationTarget: 0.95,
+                electrificationSpeed: 0.05
+            },
+            industry: {
+                share2025: 0.25,
+                electrification2025: 0.30,
+                electrificationTarget: 0.70,  // Hard to electrify: steel, cement
+                electrificationSpeed: 0.04
+            }
+        },
+        fuels2025: {
+            transport: { oil: 0.92, gas: 0.05, biofuel: 0.03 },
+            buildings: { gas: 0.55, oil: 0.15, coal: 0.10, biomass: 0.20 },
+            industry: { gas: 0.35, coal: 0.35, oil: 0.20, biomass: 0.10 }
+        },
+        fuels2100: {
+            transport: { oil: 0.60, hydrogen: 0.30, biofuel: 0.10 },
+            buildings: { gas: 0.30, hydrogen: 0.20, biomass: 0.50 },
+            industry: { gas: 0.40, coal: 0.10, hydrogen: 0.40, biomass: 0.10 }
+        },
+        carbonIntensity: {  // kg CO2/MWh
+            oil: 267,
+            gas: 202,
+            coal: 341,
+            biomass: 0,     // Assumed carbon-neutral
+            hydrogen: 0,    // Green hydrogen
+            biofuel: 0      // Carbon-neutral
+        }
+    };
+
+    /**
+     * Calculate sector-specific electrification rate
+     * Uses exponential convergence to target
+     *
+     * @param {string} sector - Sector name (transport, buildings, industry)
+     * @param {number} t - Years since 2025
+     * @param {Object} params - Final energy params (optional)
+     * @returns {number} Electrification rate (0-1)
+     */
+    function calculateSectorElectrification(sector, t, params = finalEnergyParams) {
+        const s = params.sectors[sector];
+        return s.electrificationTarget -
+               (s.electrificationTarget - s.electrification2025) *
+               Math.exp(-s.electrificationSpeed * t);
+    }
+
+    /**
+     * Calculate fuel mix for a sector at time t
+     * Linearly interpolates between 2025 and 2100 mixes
+     *
+     * @param {string} sector - Sector name
+     * @param {number} t - Years since 2025
+     * @param {Object} params - Final energy params (optional)
+     * @returns {Object} Fuel mix fractions (should sum to ~1)
+     */
+    function calculateFuelMix(sector, t, params = finalEnergyParams) {
+        const baseline = params.fuels2025[sector];
+        const targets = params.fuels2100[sector];
+        const progress = Math.min(1, t / 75);  // 75 years from 2025 to 2100
+        const mix = {};
+        for (const fuel of new Set([...Object.keys(baseline), ...Object.keys(targets)])) {
+            mix[fuel] = (baseline[fuel] || 0) + ((targets[fuel] || 0) - (baseline[fuel] || 0)) * progress;
+        }
+        return mix;
+    }
 
     /**
      * Run demand model simulation
@@ -2229,24 +2330,69 @@
         // Compute baseline dependency from demographics model (not hardcoded)
         const baselineDependency = demoGlobal.dependency[0];
 
+        // Helper to create empty sector structure
+        const createSectorStructure = () => ({
+            transport: { total: [], electric: [], nonElectric: [], electrificationRate: [] },
+            buildings: { total: [], electric: [], nonElectric: [], electrificationRate: [] },
+            industry: { total: [], electric: [], nonElectric: [], electrificationRate: [] }
+        });
+
+        // Helper to create empty fuel structure
+        const createFuelStructure = () => ({
+            oil: [], gas: [], coal: [], biomass: [], hydrogen: [], biofuel: []
+        });
+
         const demand = {
             regions: {
-                oecd: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
-                china: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
-                em: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] },
-                row: { gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [], gdpPerWorking: [], electricityPerWorking: [] }
+                oecd: {
+                    gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [],
+                    gdpPerWorking: [], electricityPerWorking: [],
+                    totalFinalEnergy: [], nonElectricEnergy: [],
+                    sectors: createSectorStructure(),
+                    fuels: createFuelStructure()
+                },
+                china: {
+                    gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [],
+                    gdpPerWorking: [], electricityPerWorking: [],
+                    totalFinalEnergy: [], nonElectricEnergy: [],
+                    sectors: createSectorStructure(),
+                    fuels: createFuelStructure()
+                },
+                em: {
+                    gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [],
+                    gdpPerWorking: [], electricityPerWorking: [],
+                    totalFinalEnergy: [], nonElectricEnergy: [],
+                    sectors: createSectorStructure(),
+                    fuels: createFuelStructure()
+                },
+                row: {
+                    gdp: [], growthRate: [], energyIntensity: [], electricityDemand: [],
+                    gdpPerWorking: [], electricityPerWorking: [],
+                    totalFinalEnergy: [], nonElectricEnergy: [],
+                    sectors: createSectorStructure(),
+                    fuels: createFuelStructure()
+                }
             },
             global: {
                 gdp: [],
                 electricityDemand: [],
                 electrificationRate: [],
                 gdpPerWorking: [],
-                electricityPerWorking: []
+                electricityPerWorking: [],
+                totalFinalEnergy: [],
+                nonElectricEnergy: [],
+                finalEnergyPerCapitaDay: [],     // kWh/person/day (Twin-Engine format)
+                sectors: createSectorStructure(),
+                fuels: createFuelStructure()
             },
             metrics: {
                 elec2050: null,
                 demandDoubling: null,
-                asiaShare2050: null
+                asiaShare2050: null,
+                // Final energy metrics
+                finalEnergyPerCapitaDay2025: null,
+                finalEnergyPerCapitaDay2050: null,
+                finalEnergyPerCapitaDay2100: null
             }
         };
 
@@ -2274,6 +2420,14 @@
             let globalGdp = 0;
             let globalElec = 0;
             let globalWorking = 0;
+            let globalTotalFinal = 0;
+            let globalNonElec = 0;
+            const globalSectors = {
+                transport: { total: 0, electric: 0, nonElectric: 0 },
+                buildings: { total: 0, electric: 0, nonElectric: 0 },
+                industry: { total: 0, electric: 0, nonElectric: 0 }
+            };
+            const globalFuels = { oil: 0, gas: 0, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0 };
 
             for (const [key, econ] of Object.entries(economicParams)) {
                 const regionDemo = demoRegions[key];
@@ -2344,6 +2498,47 @@
                 const elecDemand = totalEnergy * electRate;
                 demand.regions[key].electricityDemand.push(elecDemand);
 
+                // =========================================================
+                // FINAL ENERGY TRACKING - Sector and fuel breakdown
+                // =========================================================
+
+                // Non-electric energy = total - electricity
+                const nonElecEnergy = totalEnergy - elecDemand;
+                demand.regions[key].totalFinalEnergy.push(totalEnergy);
+                demand.regions[key].nonElectricEnergy.push(nonElecEnergy);
+
+                // Sector breakdown with independent electrification curves
+                const fuelTotals = { oil: 0, gas: 0, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0 };
+
+                for (const sector of ['transport', 'buildings', 'industry']) {
+                    const sectorElecRate = calculateSectorElectrification(sector, t);
+                    const sectorShare = finalEnergyParams.sectors[sector].share2025;
+
+                    // Sector's non-electric portion is the share of total non-electric
+                    const sectorNonElec = nonElecEnergy * sectorShare;
+                    // Work backward to get total sector energy from non-electric portion
+                    // sectorNonElec = sectorTotal * (1 - sectorElecRate)
+                    // sectorTotal = sectorNonElec / (1 - sectorElecRate)
+                    const sectorTotal = sectorNonElec / Math.max(0.05, 1 - sectorElecRate);
+                    const sectorElec = sectorTotal * sectorElecRate;
+
+                    demand.regions[key].sectors[sector].total.push(sectorTotal);
+                    demand.regions[key].sectors[sector].electric.push(sectorElec);
+                    demand.regions[key].sectors[sector].nonElectric.push(sectorNonElec);
+                    demand.regions[key].sectors[sector].electrificationRate.push(sectorElecRate);
+
+                    // Fuel breakdown within sector's non-electric portion
+                    const fuelMix = calculateFuelMix(sector, t);
+                    for (const fuel of Object.keys(fuelTotals)) {
+                        fuelTotals[fuel] += sectorNonElec * (fuelMix[fuel] || 0);
+                    }
+                }
+
+                // Store fuel totals for region
+                for (const fuel of Object.keys(fuelTotals)) {
+                    demand.regions[key].fuels[fuel].push(fuelTotals[fuel]);
+                }
+
                 // Per working-age adult metrics (Peters-informed)
                 const gdpPerWorking = (currentState.gdp * 1e12) / working;  // $ per person
                 const elecPerWorking = (elecDemand * 1e9) / working;        // kWh per person
@@ -2354,6 +2549,20 @@
                 globalGdp += currentState.gdp;
                 globalElec += elecDemand;
                 globalWorking += working;
+
+                // Accumulate final energy globals
+                globalTotalFinal += totalEnergy;
+                globalNonElec += nonElecEnergy;
+                for (const sector of ['transport', 'buildings', 'industry']) {
+                    const regSector = demand.regions[key].sectors[sector];
+                    const lastIdx = regSector.total.length - 1;
+                    globalSectors[sector].total += regSector.total[lastIdx];
+                    globalSectors[sector].electric += regSector.electric[lastIdx];
+                    globalSectors[sector].nonElectric += regSector.nonElectric[lastIdx];
+                }
+                for (const fuel of Object.keys(globalFuels)) {
+                    globalFuels[fuel] += fuelTotals[fuel];
+                }
             }
 
             // Store global aggregates
@@ -2361,6 +2570,31 @@
             demand.global.electricityDemand.push(globalElec);
             demand.global.gdpPerWorking.push((globalGdp * 1e12) / globalWorking);
             demand.global.electricityPerWorking.push((globalElec * 1e9) / globalWorking);
+
+            // Store global final energy aggregates
+            demand.global.totalFinalEnergy.push(globalTotalFinal);
+            demand.global.nonElectricEnergy.push(globalNonElec);
+
+            // Global sector breakdown (use first region's electrification rate as representative)
+            for (const sector of ['transport', 'buildings', 'industry']) {
+                demand.global.sectors[sector].total.push(globalSectors[sector].total);
+                demand.global.sectors[sector].electric.push(globalSectors[sector].electric);
+                demand.global.sectors[sector].nonElectric.push(globalSectors[sector].nonElectric);
+                demand.global.sectors[sector].electrificationRate.push(
+                    calculateSectorElectrification(sector, t)
+                );
+            }
+
+            // Global fuel breakdown
+            for (const fuel of Object.keys(globalFuels)) {
+                demand.global.fuels[fuel].push(globalFuels[fuel]);
+            }
+
+            // Final energy per capita per day (Twin-Engine format)
+            // TWh × 1e9 kWh/TWh / population / 365 days
+            const globalPop = demoGlobal.population[i];
+            const finalPerCapitaDay = (globalTotalFinal * 1e9 / globalPop) / 365;
+            demand.global.finalEnergyPerCapitaDay.push(finalPerCapitaDay);
 
             // Track initial for doubling calculation
             if (i === 0) {
@@ -2375,6 +2609,8 @@
 
         // Calculate metrics
         const idx2050 = years.indexOf(2050);
+        const idx2100 = years.length - 1;
+
         if (idx2050 !== -1) {
             demand.metrics.elec2050 = demand.global.electricityDemand[idx2050];
 
@@ -2383,6 +2619,13 @@
                 demand.regions.em.electricityDemand[idx2050] * 0.6;
             demand.metrics.asiaShare2050 = asiaElec / demand.global.electricityDemand[idx2050];
         }
+
+        // Final energy metrics (Twin-Engine calibration targets)
+        demand.metrics.finalEnergyPerCapitaDay2025 = demand.global.finalEnergyPerCapitaDay[0];
+        if (idx2050 !== -1) {
+            demand.metrics.finalEnergyPerCapitaDay2050 = demand.global.finalEnergyPerCapitaDay[idx2050];
+        }
+        demand.metrics.finalEnergyPerCapitaDay2100 = demand.global.finalEnergyPerCapitaDay[idx2100];
 
         return demand;
     }
@@ -2804,22 +3047,36 @@
      * @param {number} electrificationRate - Fraction of useful energy from electricity
      * @param {Object} effEnergySources - Effective energy source params (optional)
      * @param {Object} effClimateParams - Effective climate params (optional)
+     * @param {Object} fuelDemand - Optional fuel demand (TWh) by fuel type for non-electric emissions
+     *        If provided, calculates emissions from actual fuel consumption.
+     *        If null/undefined, falls back to linear proxy for backward compatibility.
      * @returns {Object} Emissions breakdown and total (Gt CO₂)
      */
-    function calculateEmissions(dispatchResult, electrificationRate, effEnergySources = energySources, effClimateParams = climateParams) {
+    function calculateEmissions(dispatchResult, electrificationRate, effEnergySources = energySources, effClimateParams = climateParams, fuelDemand = null) {
         // Electricity emissions (Gt CO₂)
         const electricityEmissions = (
             dispatchResult.gas * effEnergySources.gas.carbonIntensity +
             dispatchResult.coal * effEnergySources.coal.carbonIntensity
         ) / 1e6; // kg → Gt
 
-        // Non-electricity emissions decline with electrification
-        // As electrification increases, transport/industry/heating shift to grid
-        const nonElecBaseline = effClimateParams.nonElecEmissions2025;
-        const electrificationGain = electrificationRate - 0.40; // Above 2025 baseline
-        // electrificationGain is in decimal (0.10 = 10%), multiply by 20 to get 2 Gt per 10%
-        const nonElecReduction = Math.max(0, electrificationGain * 20); // 2 Gt reduction per 10% electrification
-        const nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction);
+        let nonElecEmissions;
+
+        if (fuelDemand) {
+            // NEW: Calculate from actual fuel consumption using carbon intensities
+            // Uses finalEnergyParams.carbonIntensity for fuel-specific emissions
+            nonElecEmissions = 0;
+            for (const [fuel, twh] of Object.entries(fuelDemand)) {
+                const intensity = finalEnergyParams.carbonIntensity[fuel] || 0;
+                nonElecEmissions += (twh * intensity) / 1e6;  // kg CO₂ → Gt CO₂
+            }
+        } else {
+            // LEGACY: Linear proxy for backward compatibility
+            // Non-electricity emissions decline with electrification
+            const nonElecBaseline = effClimateParams.nonElecEmissions2025;
+            const electrificationGain = electrificationRate - 0.25; // Above 2025 baseline
+            const nonElecReduction = Math.max(0, electrificationGain * 20); // 2 Gt per 10%
+            nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction);
+        }
 
         return {
             electricity: electricityEmissions,
@@ -3078,7 +3335,7 @@
                 const elecEmissions = (elecDemand * gridIntensityApprox) / 1e6; // Gt CO2
 
                 // Non-electricity emissions (scales with 1 - electrification rate)
-                const nonElecEmissions = effectiveClimateParams.nonElecEmissions2025 * (1 - electRate) / (1 - 0.22);
+                const nonElecEmissions = effectiveClimateParams.nonElecEmissions2025 * (1 - electRate) / (1 - 0.25);
 
                 const totalEmissions = elecEmissions + nonElecEmissions;
                 quickCumulativeEmissions += totalEmissions;
@@ -3313,7 +3570,18 @@
             // 5. Calculate emissions and update climate
             // -----------------------------------------------------------------
             const electrificationRate = demandData.global.electrificationRate[i];
-            const emissionsResult = calculateEmissions(dispatchResult, electrificationRate, effectiveEnergySources, effectiveClimateParams);
+
+            // Build fuel demand object from demand model for fuel-based emissions
+            const fuelDemand = {
+                oil: demandData.global.fuels.oil[i],
+                gas: demandData.global.fuels.gas[i],
+                coal: demandData.global.fuels.coal[i],
+                biomass: demandData.global.fuels.biomass[i],
+                hydrogen: demandData.global.fuels.hydrogen[i],
+                biofuel: demandData.global.fuels.biofuel[i]
+            };
+
+            const emissionsResult = calculateEmissions(dispatchResult, electrificationRate, effectiveEnergySources, effectiveClimateParams, fuelDemand);
 
             climate.emissions.push(emissionsResult.total);
             climate.electricityEmissions.push(emissionsResult.electricity);
@@ -3598,6 +3866,20 @@
             robotsPer10002050: dispatch.robotsPer1000[idx2050],         // Robots per 1000 workers
             robotsPer10002100: dispatch.robotsPer1000[idx2100],
 
+            // Final energy metrics (Twin-Engine format)
+            finalEnergyPerCapitaDay2025: demand.metrics.finalEnergyPerCapitaDay2025,  // kWh/person/day
+            finalEnergyPerCapitaDay2050: demand.metrics.finalEnergyPerCapitaDay2050,
+            finalEnergyPerCapitaDay2100: demand.metrics.finalEnergyPerCapitaDay2100,
+            totalFinalEnergy2025: demand.global.totalFinalEnergy[0],                  // TWh
+            totalFinalEnergy2050: demand.global.totalFinalEnergy[idx2050],
+            totalFinalEnergy2100: demand.global.totalFinalEnergy[idx2100],
+            nonElectricEnergy2050: demand.global.nonElectricEnergy[idx2050],          // TWh
+            transportElectrification2050: demand.global.sectors.transport.electrificationRate[idx2050],
+            buildingsElectrification2050: demand.global.sectors.buildings.electrificationRate[idx2050],
+            industryElectrification2050: demand.global.sectors.industry.electrificationRate[idx2050],
+            oilShareOfFinal2050: demand.global.fuels.oil[idx2050] / demand.global.nonElectricEnergy[idx2050],
+            gasShareOfFinal2050: demand.global.fuels.gas[idx2050] / demand.global.nonElectricEnergy[idx2050],
+
             // Resource metrics - Minerals
             copperPeakYear: resources.metrics.copperPeakYear,
             copperPeakDemand: resources.metrics.copperPeakDemand,       // Mt/year
@@ -3746,7 +4028,17 @@
         farmland: { unit: 'Mha', description: 'Cropland area (million hectares)' },
         urban: { unit: 'Mha', description: 'Urban land area' },
         forest: { unit: 'Mha', description: 'Forest area' },
-        yield: { unit: 't/ha', description: 'Crop yield (tonnes per hectare)' }
+        yield: { unit: 't/ha', description: 'Crop yield (tonnes per hectare)' },
+
+        // Final energy
+        totalFinalEnergy: { unit: 'TWh', description: 'Total final energy (electricity + non-electric)' },
+        nonElectricEnergy: { unit: 'TWh', description: 'Non-electric final energy (transport, buildings, industry)' },
+        finalEnergyPerCapitaDay: { unit: 'kWh/person/day', description: 'Total final energy per capita per day (Twin-Engine format)' },
+        sectorTotal: { unit: 'TWh', description: 'Sector total energy (electric + non-electric)' },
+        sectorElectric: { unit: 'TWh', description: 'Sector electricity consumption' },
+        sectorNonElectric: { unit: 'TWh', description: 'Sector non-electric energy' },
+        sectorElectrificationRate: { unit: 'fraction', description: 'Sector-specific electrification rate' },
+        fuelDemand: { unit: 'TWh', description: 'Fuel consumption by type (oil, gas, coal, biomass, hydrogen, biofuel)' }
     };
 
     // =============================================================================
@@ -4066,6 +4358,10 @@ const energySim = {
     landDemand,           // Calculate land use
     recyclingRate,        // Dynamic recycling rate based on stock-in-use
 
+    // Final energy functions
+    calculateSectorElectrification,  // Sector-specific electrification rate
+    calculateFuelMix,               // Fuel mix for a sector at time t
+
     // Parameters (read-only references)
     energySources,
     demographics,
@@ -4078,6 +4374,7 @@ const energySim = {
     resourceParams,       // Minerals, food, land parameters
     reboundParams,        // Jevons paradox, robot energy load parameters
     capacityParams,       // Capacity state: growth caps, penetration limits, CAPEX, lifetimes
+    finalEnergyParams,    // Sector breakdown, electrification curves, fuel mixes, carbon intensities
 
     // Rebound functions
     calculateReboundDemand,  // Calculate demand adjustment from Jevons + robots
