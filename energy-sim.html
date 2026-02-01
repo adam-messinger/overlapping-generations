@@ -459,7 +459,7 @@
     </div>
 
     <div class="chart-container">
-        <div class="chart-title">GDP per Working-Age Adult ($ thousands)</div>
+        <div class="chart-title">GDP per Capita & per Worker ($ thousands)</div>
         <canvas id="gdp-per-worker-chart"></canvas>
     </div>
 
@@ -486,6 +486,11 @@
     <div class="chart-container">
         <div class="chart-title">Climate Damages by Region (% GDP)</div>
         <canvas id="damages-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Critical Mineral Demand (Mt/year)</div>
+        <canvas id="minerals-chart"></canvas>
     </div>
 
     <table id="era-table">
@@ -3482,6 +3487,7 @@
     let emissionsChart = null;
     let temperatureChart = null;
     let damagesChart = null;
+    let mineralsChart = null;
     let currentDemographicsData = null;
     let currentDemandData = null;
     let currentClimateData = null;
@@ -3574,7 +3580,7 @@
         document.getElementById('efficiency-mult-value').textContent = `${efficiencyMultiplier.toFixed(2)}×`;
         document.getElementById('clim-sensitivity-value').textContent = `${climSensitivity.toFixed(1)}°C`;
 
-        const { years, results, demographics: demographicsData, demand: demandData, climate: climateData, dispatch: dispatchData } = runSimulation({
+        const { years, results, demographics: demographicsData, demand: demandData, climate: climateData, dispatch: dispatchData, resources: resourcesData } = runSimulation({
             carbonPrice, solarAlpha, solarGrowth, electrificationTarget, efficiencyMultiplier, climSensitivity
         });
         currentDemographicsData = demographicsData;
@@ -4270,7 +4276,16 @@
             }
         });
 
-        // GDP per Working-Age Adult Chart
+        // GDP per Worker & per Capita Chart
+        // Compute GDP per capita for each region
+        const gdpPerCapita = {
+            global: demandData.global.gdp.map((gdp, i) => (gdp * 1e12) / demographicsData.global.population[i] / 1000),
+            oecd: demandData.regions.oecd.gdp.map((gdp, i) => (gdp * 1e12) / demographicsData.regions.oecd.population[i] / 1000),
+            china: demandData.regions.china.gdp.map((gdp, i) => (gdp * 1e12) / demographicsData.regions.china.population[i] / 1000),
+            em: demandData.regions.em.gdp.map((gdp, i) => (gdp * 1e12) / demographicsData.regions.em.population[i] / 1000),
+            row: demandData.regions.row.gdp.map((gdp, i) => (gdp * 1e12) / demographicsData.regions.row.population[i] / 1000)
+        };
+
         const gdpCtx = document.getElementById('gdp-per-worker-chart').getContext('2d');
         if (gdpPerWorkerChart) gdpPerWorkerChart.destroy();
 
@@ -4279,8 +4294,9 @@
             data: {
                 labels: demographicsData.years,
                 datasets: [
+                    // Per Worker (solid lines)
                     {
-                        label: 'Global',
+                        label: 'Global /Worker',
                         data: demandData.global.gdpPerWorking.map(g => g / 1000),
                         borderColor: '#fff',
                         backgroundColor: 'transparent',
@@ -4289,7 +4305,7 @@
                         pointRadius: 0
                     },
                     {
-                        label: 'OECD',
+                        label: 'OECD /Worker',
                         data: demandData.regions.oecd.gdpPerWorking.map(g => g / 1000),
                         borderColor: demographics.oecd.color,
                         backgroundColor: 'transparent',
@@ -4298,7 +4314,7 @@
                         pointRadius: 0
                     },
                     {
-                        label: 'China',
+                        label: 'China /Worker',
                         data: demandData.regions.china.gdpPerWorking.map(g => g / 1000),
                         borderColor: demographics.china.color,
                         backgroundColor: 'transparent',
@@ -4306,21 +4322,34 @@
                         tension: 0.3,
                         pointRadius: 0
                     },
+                    // Per Capita (dashed lines)
                     {
-                        label: 'Emerging Markets',
-                        data: demandData.regions.em.gdpPerWorking.map(g => g / 1000),
-                        borderColor: demographics.em.color,
+                        label: 'Global /Capita',
+                        data: gdpPerCapita.global,
+                        borderColor: '#fff',
                         backgroundColor: 'transparent',
                         borderWidth: 2,
+                        borderDash: [5, 5],
                         tension: 0.3,
                         pointRadius: 0
                     },
                     {
-                        label: 'Rest of World',
-                        data: demandData.regions.row.gdpPerWorking.map(g => g / 1000),
-                        borderColor: demographics.row.color,
+                        label: 'OECD /Capita',
+                        data: gdpPerCapita.oecd,
+                        borderColor: demographics.oecd.color,
                         backgroundColor: 'transparent',
-                        borderWidth: 2,
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China /Capita',
+                        data: gdpPerCapita.china,
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
                         tension: 0.3,
                         pointRadius: 0
                     }
@@ -4359,7 +4388,7 @@
                         },
                         title: {
                             display: true,
-                            text: 'GDP per Working-Age Adult ($1000s)',
+                            text: 'GDP ($1000s) - solid=/Worker, dashed=/Capita',
                             color: '#888'
                         }
                     }
@@ -4832,6 +4861,95 @@
                         title: {
                             display: true,
                             text: 'Climate Damages (% GDP)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Minerals Chart
+        const mineralsCtx = document.getElementById('minerals-chart').getContext('2d');
+        if (mineralsChart) mineralsChart.destroy();
+
+        mineralsChart = new Chart(mineralsCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Copper',
+                        data: resourcesData.minerals.copper.demand,
+                        borderColor: '#b87333',  // Copper color
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Lithium (×10)',
+                        data: resourcesData.minerals.lithium.demand.map(d => d * 10),  // Scale up for visibility
+                        borderColor: '#90EE90',  // Light green
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rare Earths (×100)',
+                        data: resourcesData.minerals.rareEarths.demand.map(d => d * 100),  // Scale up for visibility
+                        borderColor: '#DDA0DD',  // Plum
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Steel (÷10)',
+                        data: resourcesData.minerals.steel.demand.map(d => d / 10),  // Scale down
+                        borderColor: '#708090',  // Slate gray
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label;
+                                let value = context.parsed.y;
+                                // Reverse scaling for tooltip
+                                if (label.includes('×10')) value /= 10;
+                                if (label.includes('×100')) value /= 100;
+                                if (label.includes('÷10')) value *= 10;
+                                return `${label.split(' ')[0]}: ${value.toFixed(1)} Mt/year`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' },
+                        title: {
+                            display: true,
+                            text: 'Scaled Demand (Mt/year)',
                             color: '#888'
                         }
                     }
