@@ -589,7 +589,8 @@
      */
     const climateParams = {
         preindustrialCO2: 280,          // ppm
-        currentCO2: 420,                 // ppm in 2025
+        // CO2 in 2025 (~420 ppm) derived from: cumulativeCO2_2025 * airborneraction * ppmPerGt + preindustrialCO2
+        // i.e., 2400 * 0.45 * 0.128 + 280 ≈ 418 ppm
         cumulativeCO2_2025: 2400,       // Gt cumulative since preindustrial
         airborneraction: 0.45,          // Fraction staying in atmosphere
         ppmPerGt: 0.128,                // ppm per Gt in atmosphere
@@ -889,7 +890,7 @@
 
         // Deaths by cohort (proportional to mortality rates)
         const youngDeaths = young * pop * 0.001;
-        const workingDeaths = working * pop * 0.002;
+        const workingDeaths = working * pop * 0.003; // Matches workingMortality in deathRate()
         const oldDeaths = deaths - youngDeaths - workingDeaths;
 
         // === EDUCATION TRACKING ===
@@ -1435,8 +1436,14 @@
      * Merit order dispatch - allocates demand to cheapest sources first
      * Respects capacity constraints and penetration limits
      *
+     * Solar has two dispatch modes:
+     * 1. Bare solar: capped at 40% penetration (intermittency limit)
+     * 2. Solar+Battery: dispatchable, can push total solar to 80% penetration
+     *    - Limited by battery capacity (how much solar it can firm)
+     *    - Competes in merit order at combined LCOE
+     *
      * @param {number} demandTWh - Total electricity demand in TWh
-     * @param {Object} lcoes - LCOE for each source ($/MWh)
+     * @param {Object} lcoes - LCOE for each source ($/MWh), including solarPlusBattery
      * @param {Object} capacities - Installed capacity (GW) for each source
      * @returns {Object} Generation (TWh) by source, plus grid intensity
      */
@@ -1461,48 +1468,71 @@
             nuclear: capacities.nuclear * dispatchParams.nuclear.capacityFactor * hoursPerYear / 1000
         };
 
+        // Solar+Battery capacity limited by battery storage
+        // Battery GWh can firm ~2x its capacity in solar (4h storage, solar produces for ~8h)
+        // Then convert to TWh using same capacity factor
+        const solarCapacityFirmable = capacities.battery * 2; // GW of solar that battery can firm
+        maxGen.solarPlusBattery = Math.min(
+            capacities.solar * 0.5, // At most half of solar can be battery-backed
+            solarCapacityFirmable
+        ) * dispatchParams.solarPlusBattery.capacityFactor * hoursPerYear / 1000;
+
+        // Track total solar penetration (bare + battery-backed)
+        let totalSolarAllocated = 0;
+        const maxBareSolarPen = dispatchParams.solar.maxPenetration; // 40%
+        const maxTotalSolarPen = dispatchParams.solarPlusBattery.maxPenetration; // 80%
+
         // Sort sources by LCOE (merit order)
+        // solarPlusBattery competes separately from bare solar
         const sources = [
-            { name: 'nuclear', lcoe: lcoes.nuclear, max: maxGen.nuclear, carbonIntensity: 0, maxPen: dispatchParams.nuclear.maxPenetration },
-            { name: 'solar', lcoe: lcoes.solar, max: maxGen.solar, carbonIntensity: 0, maxPen: dispatchParams.solar.maxPenetration },
-            { name: 'wind', lcoe: lcoes.wind, max: maxGen.wind, carbonIntensity: 0, maxPen: dispatchParams.wind.maxPenetration },
-            { name: 'gas', lcoe: lcoes.gas, max: maxGen.gas, carbonIntensity: energySources.gas.carbonIntensity, maxPen: 1.0 },
-            { name: 'coal', lcoe: lcoes.coal, max: maxGen.coal, carbonIntensity: energySources.coal.carbonIntensity, maxPen: 1.0 }
+            { name: 'nuclear', lcoe: lcoes.nuclear, max: maxGen.nuclear, carbonIntensity: 0, isSolar: false },
+            { name: 'solar', lcoe: lcoes.solar, max: maxGen.solar, carbonIntensity: 0, isSolar: true, isBareSolar: true },
+            { name: 'solarPlusBattery', lcoe: lcoes.solarPlusBattery, max: maxGen.solarPlusBattery, carbonIntensity: 0, isSolar: true, isBareSolar: false },
+            { name: 'wind', lcoe: lcoes.wind, max: maxGen.wind, carbonIntensity: 0, isSolar: false },
+            { name: 'gas', lcoe: lcoes.gas, max: maxGen.gas, carbonIntensity: energySources.gas.carbonIntensity, isSolar: false },
+            { name: 'coal', lcoe: lcoes.coal, max: maxGen.coal, carbonIntensity: energySources.coal.carbonIntensity, isSolar: false }
         ];
 
         sources.sort((a, b) => a.lcoe - b.lcoe);
 
         // Dispatch in merit order
         let remaining = demandTWh;
-        let totalVRE = 0; // Variable renewable (solar + wind)
-        const maxVREShare = Math.max(
-            dispatchParams.solar.maxPenetration,
-            dispatchParams.solarPlusBattery.maxPenetration * (capacities.battery > 50 ? 1 : 0.5)
-        );
+        let totalWind = 0;
+        const maxWindPen = dispatchParams.wind.maxPenetration;
 
         for (const source of sources) {
             if (remaining <= 0) break;
 
-            // Calculate penetration limit
-            let maxPenetration = source.maxPen;
+            // Calculate penetration limit based on source type
+            let maxAllocation = source.max;
 
-            // VRE sources share a combined penetration limit
-            if (source.name === 'solar' || source.name === 'wind') {
-                const remainingVRERoom = maxVREShare * demandTWh - totalVRE;
-                maxPenetration = Math.min(maxPenetration, remainingVRERoom / demandTWh);
+            if (source.isSolar) {
+                // Solar sources share total solar penetration limit
+                const totalSolarRoom = maxTotalSolarPen * demandTWh - totalSolarAllocated;
+
+                if (source.isBareSolar) {
+                    // Bare solar also limited by its own 40% cap
+                    const bareSolarRoom = maxBareSolarPen * demandTWh - totalSolarAllocated;
+                    maxAllocation = Math.min(maxAllocation, bareSolarRoom, totalSolarRoom);
+                } else {
+                    // solarPlusBattery only limited by total solar cap (80%)
+                    maxAllocation = Math.min(maxAllocation, totalSolarRoom);
+                }
+            } else if (source.name === 'wind') {
+                const windRoom = maxWindPen * demandTWh - totalWind;
+                maxAllocation = Math.min(maxAllocation, windRoom);
             }
 
-            // Calculate how much this source can provide
-            const maxByPenetration = maxPenetration * demandTWh;
-            const maxByCapacity = source.max;
-            const allocation = Math.min(remaining, maxByCapacity, maxByPenetration);
+            const allocation = Math.min(remaining, Math.max(0, maxAllocation));
 
             if (allocation > 0) {
                 result[source.name] = allocation;
                 remaining -= allocation;
 
-                if (source.name === 'solar' || source.name === 'wind') {
-                    totalVRE += allocation;
+                if (source.isSolar) {
+                    totalSolarAllocated += allocation;
+                } else if (source.name === 'wind') {
+                    totalWind += allocation;
                 }
             }
         }
@@ -1518,11 +1548,6 @@
         const totalEmissions = result.gas * energySources.gas.carbonIntensity +
                                result.coal * energySources.coal.carbonIntensity;
         result.gridIntensity = result.total > 0 ? totalEmissions / result.total : 0;
-
-        // Track solar+battery as the solar that's firm (backed by storage)
-        // This is for display purposes; actual dispatch uses solar directly
-        const firmSolarFraction = Math.min(1, capacities.battery / (capacities.solar * 0.5));
-        result.solarPlusBattery = result.solar * firmSolarFraction;
 
         return result;
     }
@@ -1549,8 +1574,9 @@
         // As electrification increases, transport/industry/heating shift to grid
         const nonElecBaseline = climateParams.nonElecEmissions2025;
         const electrificationGain = electrificationRate - 0.40; // Above 2025 baseline
-        const nonElecReduction = Math.max(0, electrificationGain * 2.0); // 2 Gt reduction per 10% electrification
-        const nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction * nonElecBaseline);
+        // electrificationGain is in decimal (0.10 = 10%), multiply by 20 to get 2 Gt per 10%
+        const nonElecReduction = Math.max(0, electrificationGain * 20); // 2 Gt reduction per 10% electrification
+        const nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction);
 
         return {
             electricity: electricityEmissions,
@@ -1756,6 +1782,7 @@
         // Dispatch results
         const dispatchData = {
             solar: [],
+            solarPlusBattery: [],
             wind: [],
             gas: [],
             coal: [],
@@ -1776,6 +1803,7 @@
             // Get LCOEs for this year
             const lcoes = {
                 solar: lcoeArrays.solar[i],
+                solarPlusBattery: results.solarPlusBattery[i],
                 wind: lcoeArrays.wind[i],
                 gas: lcoeArrays.gas[i],
                 coal: lcoeArrays.coal[i],
@@ -1793,6 +1821,7 @@
 
             // Store dispatch results
             dispatchData.solar.push(dispatchResult.solar);
+            dispatchData.solarPlusBattery.push(dispatchResult.solarPlusBattery);
             dispatchData.wind.push(dispatchResult.wind);
             dispatchData.gas.push(dispatchResult.gas);
             dispatchData.coal.push(dispatchResult.coal);
@@ -1949,16 +1978,13 @@
             'demand.regions.china.electricityDemand'
         );
 
-        // Find per-capita crossovers
-        const chinaPerCapElec = derived.perCapita.electricity.china;
-        const oecdPerCapElec = derived.perCapita.electricity.oecd;
-        let chinaPerCapCrossesOECD = null;
-        for (let i = 1; i < years.length; i++) {
-            if (chinaPerCapElec[i] > oecdPerCapElec[i] && chinaPerCapElec[i - 1] <= oecdPerCapElec[i - 1]) {
-                chinaPerCapCrossesOECD = years[i];
-                break;
-            }
-        }
+        // Find per-capita crossovers (using crossoverArrays for derived series)
+        const chinaPerCapCrossover = query.crossoverArrays(
+            years,
+            derived.perCapita.electricity.china,
+            derived.perCapita.electricity.oecd
+        );
+        const chinaPerCapCrossesOECD = chinaPerCapCrossover?.year ?? null;
 
         // Grid intensity thresholds
         const gridBelow200 = query.gridIntensityBelow(simData, 200);
@@ -2276,6 +2302,36 @@
             const path1 = metric.replace('{region}', region1);
             const path2 = metric.replace('{region}', region2);
             return this.crossover(data, path1, path2);
+        },
+
+        /**
+         * Find crossover year between two pre-computed arrays
+         * Useful for derived series (e.g., per-capita data) that aren't in the main data object
+         * @param {Array} years - Array of years
+         * @param {Array} arr1 - First array (the one crossing over)
+         * @param {Array} arr2 - Second array (being crossed)
+         * @returns {Object|null} { year, direction, values: { arr1, arr2 } } or null
+         */
+        crossoverArrays(years, arr1, arr2) {
+            if (!years || !arr1 || !arr2) return null;
+
+            for (let i = 1; i < years.length; i++) {
+                if (arr1[i] > arr2[i] && arr1[i - 1] <= arr2[i - 1]) {
+                    return {
+                        year: years[i],
+                        direction: 'above',
+                        values: { arr1: arr1[i], arr2: arr2[i] }
+                    };
+                }
+                if (arr1[i] < arr2[i] && arr1[i - 1] >= arr2[i - 1]) {
+                    return {
+                        year: years[i],
+                        direction: 'below',
+                        values: { arr1: arr1[i], arr2: arr2[i] }
+                    };
+                }
+            }
+            return null;
         }
     };
 

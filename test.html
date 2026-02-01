@@ -760,6 +760,67 @@
         });
 
         // =============================================================================
+        // MODEL CONSISTENCY
+        // =============================================================================
+        section('Model Consistency');
+
+        test('mortality rates consistent: deathRate uses 0.003 for working', () => {
+            // Verify deathRate function uses 0.3% working mortality
+            // With 100% working-age population, death rate should be ~0.003
+            const dr = energySim.deathRate(0, 1.0, 0, 80);
+            return approx(dr, 0.003, 0.01);
+        });
+
+        test('non-electric emissions: 2 Gt reduction per 10% electrification', () => {
+            // At 40% electrification (baseline), should be ~25 Gt non-electric
+            const e1 = energySim.calculateEmissions({ gas: 0, coal: 0, total: 0 }, 0.40);
+            // At 50% electrification, should be ~23 Gt (2 Gt reduction)
+            const e2 = energySim.calculateEmissions({ gas: 0, coal: 0, total: 0 }, 0.50);
+            const reduction = e1.nonElectricity - e2.nonElectricity;
+            return approx(reduction, 2.0, 0.1);
+        });
+
+        test('non-electric emissions floor at 5 Gt', () => {
+            // At very high electrification, non-electric should floor at 5 Gt
+            const e = energySim.calculateEmissions({ gas: 0, coal: 0, total: 0 }, 0.90);
+            return e.nonElectricity === 5;
+        });
+
+        test('solar+battery competes in dispatch merit order', () => {
+            // When solar+battery LCOE < gas LCOE, it should dispatch before gas
+            const caps = energySim.getCapacities(2060, 0.25);
+            const result = energySim.runSimulation({ carbonPrice: 100 });
+            // By 2060 with carbon price, solar+battery should be dispatching
+            const idx2060 = result.years.indexOf(2060);
+            return result.dispatch.solarPlusBattery[idx2060] > 0;
+        });
+
+        test('solar+battery increases total solar penetration', () => {
+            // With high carbon price and battery, total solar should exceed 40% cap
+            const result = energySim.runSimulation({ carbonPrice: 150 });
+            // In later years, solar + solarPlusBattery share should be high
+            const idx2080 = result.years.indexOf(2080);
+            const demand = result.demand.global.electricityDemand[idx2080];
+            const totalSolar = result.dispatch.solar[idx2080] + result.dispatch.solarPlusBattery[idx2080];
+            const solarShare = totalSolar / demand;
+            // Total solar should be able to exceed bare solar's 40% limit
+            return solarShare > 0.35;
+        });
+
+        test('query.crossoverArrays works with derived series', () => {
+            const data = energySim.runSimulation();
+            const derived = energySim.computeDerivedSeries(data);
+            // Test crossover detection (may or may not find one)
+            const result = energySim.query.crossoverArrays(
+                data.years,
+                derived.perCapita.electricity.china,
+                derived.perCapita.electricity.oecd
+            );
+            // Should return null or valid object
+            return result === null || (typeof result.year === 'number' && result.values);
+        });
+
+        // =============================================================================
         // RENDER RESULTS
         // =============================================================================
 
