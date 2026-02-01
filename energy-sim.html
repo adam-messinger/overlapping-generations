@@ -179,7 +179,7 @@
 </head>
 <body>
     <h1>Energy Futures: 2025-2100</h1>
-    <p class="subtitle">Phase 1: Supply-side LCOE projections with learning curves and EROEI depletion</p>
+    <p class="subtitle">Phase 2: Demographics module with population projections and dependency ratios</p>
 
     <div class="metrics-grid">
         <div class="metric-card">
@@ -201,6 +201,16 @@
             <div class="metric-label">Battery Cost 2035</div>
             <div class="metric-value" id="battery-2035">--</div>
             <div class="metric-detail">$/kWh storage cost</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Global Pop Peak</div>
+            <div class="metric-value" id="pop-peak">--</div>
+            <div class="metric-detail">Year population peaks</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Global Dependency 2075</div>
+            <div class="metric-value" id="dependency-2075">--</div>
+            <div class="metric-detail">Old-age dependency ratio</div>
         </div>
     </div>
 
@@ -244,6 +254,16 @@
         <div id="crossover-events"></div>
     </div>
 
+    <div class="chart-container">
+        <div class="chart-title">Global Population by Region (Billions)</div>
+        <canvas id="population-chart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Old-Age Dependency Ratio by Region</div>
+        <canvas id="dependency-chart"></canvas>
+    </div>
+
     <table id="era-table">
         <thead>
             <tr>
@@ -255,10 +275,15 @@
                 <th>Nuclear</th>
                 <th>Battery</th>
                 <th>Solar+Batt</th>
+                <th>Dependency</th>
             </tr>
         </thead>
         <tbody id="era-tbody"></tbody>
     </table>
+
+    <div class="controls" style="text-align: center;">
+        <button id="export-csv" style="background: #4cc9f0; color: #000; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600;">Export Demographics CSV</button>
+    </div>
 
     <script>
     // =============================================================================
@@ -377,6 +402,267 @@
     };
 
     // =============================================================================
+    // DEMOGRAPHICS - Fernández-Villaverde-informed population model
+    // =============================================================================
+
+    /**
+     * Regional demographic parameters (2025 baseline)
+     * Key insight: Global TFR already below replacement (~2.17 vs 2.21)
+     * All regions converging toward low fertility faster than expected
+     */
+    const demographics = {
+        oecd: {
+            name: 'OECD',
+            pop2025: 1.4e9,           // 1.4 billion
+            fertility: 1.6,           // TFR (below replacement)
+            fertilityFloor: 1.4,      // Long-term convergence target
+            fertilityDecay: 0.005,    // Annual convergence rate
+            lifeExpectancy: 82,
+            young: 0.18,              // 0-19 share
+            working: 0.59,            // 20-64 share
+            old: 0.23,                // 65+ share (high, aging societies)
+            migrationRate: 0.003,     // net immigration (helps offset aging)
+            color: '#4cc9f0'
+        },
+        china: {
+            name: 'China',
+            pop2025: 1.4e9,
+            fertility: 1.05,          // Very low TFR (lower than reported due to measurement issues)
+            fertilityFloor: 0.85,     // Could go very low (South Korea at 0.7)
+            fertilityDecay: 0.012,    // Faster decline
+            lifeExpectancy: 78,
+            young: 0.16,              // Already shrinking
+            working: 0.68,            // Still large working-age cohort
+            old: 0.16,                // Rising fast
+            migrationRate: 0.0,
+            color: '#f94144'
+        },
+        em: {  // Emerging Markets (India, Brazil, Indonesia, etc.)
+            name: 'Emerging Markets',
+            pop2025: 3.5e9,
+            fertility: 2.1,           // Near replacement
+            fertilityFloor: 1.4,      // Converging faster than expected
+            fertilityDecay: 0.02,     // Faster convergence (Colombia at 1.06!)
+            lifeExpectancy: 72,
+            young: 0.27,
+            working: 0.63,
+            old: 0.10,                // Still relatively young
+            migrationRate: -0.001,
+            color: '#90be6d'
+        },
+        row: {  // Rest of World (Africa, etc.)
+            name: 'Rest of World',
+            pop2025: 2.0e9,
+            fertility: 3.5,           // Still high but falling fast
+            fertilityFloor: 1.6,      // Even Africa converging
+            fertilityDecay: 0.03,     // Fast decline (Fernández-Villaverde: converging faster than expected)
+            lifeExpectancy: 65,
+            young: 0.40,              // Very young population
+            working: 0.54,
+            old: 0.06,
+            migrationRate: -0.001,
+            color: '#f9c74f'
+        }
+    };
+
+    /**
+     * Project fertility rate with convergence to floor
+     * TFR(t) = TFR_floor + (TFR_0 - TFR_floor) × e^(-decay × t)
+     */
+    function projectFertility(tfr0, floor, decay, years) {
+        return floor + (tfr0 - floor) * Math.exp(-decay * years);
+    }
+
+    /**
+     * Calculate crude birth rate from TFR
+     * CBR ≈ TFR × (women of childbearing age 15-49 as fraction of pop) / average age span
+     * Calibrated to produce ~18 births per 1000 globally in 2025
+     */
+    function birthRateFromTFR(tfr, workingShare, youngShare) {
+        // Women 15-49 are roughly split between young (15-19) and working (20-49) cohorts
+        // Approximate: 0.25 of young + 0.65 of working are women 15-49
+        const womenOfChildbearingAge = youngShare * 0.25 + workingShare * 0.65;
+        // Divide by 2 (only women) and by 32 (average childbearing span)
+        return (tfr * womenOfChildbearingAge * 0.5) / 32;
+    }
+
+    /**
+     * Calculate crude death rate based on age structure and life expectancy
+     * CDR ≈ 1/LE adjusted for age structure
+     * Calibrated to produce ~8 deaths per 1000 globally in 2025
+     */
+    function deathRate(youngShare, workingShare, oldShare, lifeExpectancy) {
+        // Age-specific mortality rates (approximate)
+        // Young: very low mortality, Working: low mortality, Old: moderate (people live long in old cohort)
+        const youngMortality = 0.001;  // 0.1% per year
+        const workingMortality = 0.003; // 0.3% per year
+        // Remaining life expectancy at 65 is about LE - 65 + 10 (selection effects)
+        const remainingLEat65 = Math.max(15, lifeExpectancy - 55);
+        const oldMortality = 1 / remainingLEat65;
+
+        return youngShare * youngMortality +
+               workingShare * workingMortality +
+               oldShare * oldMortality;
+    }
+
+    /**
+     * Age cohorts forward by one year
+     * 3-cohort model: Young (0-19), Working (20-64), Old (65+)
+     * Calibrated for realistic population dynamics
+     */
+    function ageCohorts(region, tfr, year) {
+        const { young, working, old, migrationRate, lifeExpectancy } = region;
+        const pop = region.population;
+
+        // Calculate births and deaths using improved formulas
+        const births = birthRateFromTFR(tfr, working, young) * pop;
+        const deaths = deathRate(young, working, old, lifeExpectancy) * pop;
+
+        // Aging transitions
+        // Young cohort: 20 years, so 1/20 age out per year
+        // Working cohort: 45 years (20-64), so 1/45 age out per year
+        const agingOutOfYoung = (young * pop) / 20;
+        const agingOutOfWorking = (working * pop) / 45;
+
+        // Deaths by cohort (proportional to mortality rates)
+        const youngDeaths = young * pop * 0.001;
+        const workingDeaths = working * pop * 0.002;
+        const oldDeaths = deaths - youngDeaths - workingDeaths;
+
+        // New cohort sizes
+        const newYoung = Math.max(0, young * pop + births - agingOutOfYoung - youngDeaths);
+        const newWorking = Math.max(0, working * pop + agingOutOfYoung - agingOutOfWorking - workingDeaths);
+        const newOld = Math.max(0, old * pop + agingOutOfWorking - Math.max(0, oldDeaths));
+
+        // Apply migration (to working-age primarily)
+        const migration = pop * migrationRate;
+        const adjustedWorking = newWorking + migration * 0.8;
+        const adjustedYoung = newYoung + migration * 0.15;
+        const adjustedOld = newOld + migration * 0.05;
+
+        const newPop = adjustedYoung + adjustedWorking + adjustedOld;
+
+        return {
+            population: newPop,
+            young: adjustedYoung / newPop,
+            working: adjustedWorking / newPop,
+            old: adjustedOld / newPop,
+            youngAbs: adjustedYoung,
+            workingAbs: adjustedWorking,
+            oldAbs: adjustedOld
+        };
+    }
+
+    /**
+     * Run full demographics simulation for 2025-2100
+     * Returns yearly data by region and global aggregates
+     */
+    function runDemographics() {
+        const years = [];
+        const regions = {
+            oecd: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
+            china: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
+            em: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] },
+            row: { population: [], young: [], working: [], old: [], fertility: [], dependency: [] }
+        };
+        const global = { population: [], young: [], working: [], old: [], dependency: [] };
+
+        // Initialize current state for each region
+        const currentState = {};
+        for (const [key, params] of Object.entries(demographics)) {
+            currentState[key] = {
+                population: params.pop2025,
+                young: params.young,
+                working: params.working,
+                old: params.old,
+                lifeExpectancy: params.lifeExpectancy,
+                migrationRate: params.migrationRate
+            };
+        }
+
+        for (let year = 2025; year <= 2100; year++) {
+            const t = year - 2025;
+            years.push(year);
+
+            let globalPop = 0, globalYoung = 0, globalWorking = 0, globalOld = 0;
+
+            for (const [key, params] of Object.entries(demographics)) {
+                // Project fertility for this year
+                const tfr = projectFertility(params.fertility, params.fertilityFloor, params.fertilityDecay, t);
+                regions[key].fertility.push(tfr);
+
+                // Store current values
+                const state = currentState[key];
+                regions[key].population.push(state.population);
+                regions[key].young.push(state.young * state.population);
+                regions[key].working.push(state.working * state.population);
+                regions[key].old.push(state.old * state.population);
+                regions[key].dependency.push(state.old / state.working);
+
+                // Accumulate global totals
+                globalPop += state.population;
+                globalYoung += state.young * state.population;
+                globalWorking += state.working * state.population;
+                globalOld += state.old * state.population;
+
+                // Age forward for next year (except last year)
+                if (year < 2100) {
+                    const nextState = ageCohorts(state, tfr, year);
+                    currentState[key] = {
+                        ...nextState,
+                        lifeExpectancy: params.lifeExpectancy + t * 0.1, // Slow improvement
+                        migrationRate: params.migrationRate
+                    };
+                }
+            }
+
+            // Store global aggregates
+            global.population.push(globalPop);
+            global.young.push(globalYoung);
+            global.working.push(globalWorking);
+            global.old.push(globalOld);
+            global.dependency.push(globalOld / globalWorking);
+        }
+
+        return { years, regions, global };
+    }
+
+    /**
+     * Find year of peak population
+     */
+    function findPopulationPeak(populationArray, years) {
+        let maxPop = 0;
+        let peakYear = years[0];
+        for (let i = 0; i < populationArray.length; i++) {
+            if (populationArray[i] > maxPop) {
+                maxPop = populationArray[i];
+                peakYear = years[i];
+            }
+        }
+        return { year: peakYear, population: maxPop };
+    }
+
+    /**
+     * Export demographics data as CSV
+     */
+    function exportDemographicsCSV(demographicsData) {
+        const { years, regions, global } = demographicsData;
+        let csv = 'Year,Region,Population,Young,Working,Old,TFR,Dependency\n';
+
+        for (let i = 0; i < years.length; i++) {
+            const year = years[i];
+
+            for (const [key, data] of Object.entries(regions)) {
+                csv += `${year},${demographics[key].name},${data.population[i].toFixed(0)},${data.young[i].toFixed(0)},${data.working[i].toFixed(0)},${data.old[i].toFixed(0)},${data.fertility[i].toFixed(2)},${(data.dependency[i] * 100).toFixed(1)}%\n`;
+            }
+
+            csv += `${year},Global,${global.population[i].toFixed(0)},${global.young[i].toFixed(0)},${global.working[i].toFixed(0)},${global.old[i].toFixed(0)},,${(global.dependency[i] * 100).toFixed(1)}%\n`;
+        }
+
+        return csv;
+    }
+
+    // =============================================================================
     // SIMULATION ENGINE
     // =============================================================================
 
@@ -457,7 +743,10 @@
             results.solarPlusBattery.push(solarLCOE + batteryLCOE * 1000); // Convert to $/MWh
         }
 
-        return { years, results };
+        // Run demographics simulation
+        const demographicsData = runDemographics();
+
+        return { years, results, demographics: demographicsData };
     }
 
     function findCrossovers(years, results) {
@@ -522,6 +811,9 @@
 
     let lcoeChart = null;
     let batteryChart = null;
+    let populationChart = null;
+    let dependencyChart = null;
+    let currentDemographicsData = null;
 
     function updateCharts() {
         const carbonPrice = parseFloat(document.getElementById('carbon-price').value);
@@ -532,7 +824,8 @@
         document.getElementById('solar-alpha-value').textContent = solarAlpha.toFixed(2);
         document.getElementById('solar-growth-value').textContent = `${(solarGrowth * 100).toFixed(0)}%`;
 
-        const { years, results } = runSimulation({ carbonPrice, solarAlpha, solarGrowth });
+        const { years, results, demographics: demographicsData } = runSimulation({ carbonPrice, solarAlpha, solarGrowth });
+        currentDemographicsData = demographicsData;
         const crossovers = findCrossovers(years, results);
 
         // Update metrics
@@ -547,6 +840,16 @@
 
         const battery2035Index = years.indexOf(2035);
         document.getElementById('battery-2035').textContent = `$${results.battery[battery2035Index].toFixed(0)}`;
+
+        // Update demographic metrics
+        const popPeak = findPopulationPeak(demographicsData.global.population, demographicsData.years);
+        document.getElementById('pop-peak').textContent = popPeak.year;
+
+        const dep2075Index = demographicsData.years.indexOf(2075);
+        const dep2025Index = 0;
+        const dep2025 = (demographicsData.global.dependency[dep2025Index] * 100).toFixed(0);
+        const dep2075 = (demographicsData.global.dependency[dep2075Index] * 100).toFixed(0);
+        document.getElementById('dependency-2075').textContent = `${dep2025}% → ${dep2075}%`;
 
         // Update crossover events
         const eventsHtml = crossovers.map(c => `
@@ -581,6 +884,13 @@
             const hasCrossover = crossovers.some(c => c.year >= eraStart && c.year <= eraEnd);
             if (hasCrossover) row.classList.add('crossover-highlight');
 
+            // Average dependency for era
+            const avgDep = (arr) => {
+                let sum = 0;
+                for (let i = startIdx; i < endIdx; i++) sum += arr[i];
+                return sum / (endIdx - startIdx);
+            };
+
             row.innerHTML = `
                 <td>${eras[e]}</td>
                 <td>$${avg(results.solar).toFixed(0)}</td>
@@ -590,6 +900,7 @@
                 <td>$${avg(results.nuclear).toFixed(0)}</td>
                 <td>$${avg(results.battery).toFixed(0)}/kWh</td>
                 <td>$${avg(results.solarPlusBattery).toFixed(0)}</td>
+                <td>${(avgDep(demographicsData.global.dependency) * 100).toFixed(0)}%</td>
             `;
             tbody.appendChild(row);
         }
@@ -775,12 +1086,219 @@
                 }
             }
         });
+
+        // Population Chart (stacked area)
+        const popCtx = document.getElementById('population-chart').getContext('2d');
+        if (populationChart) populationChart.destroy();
+
+        populationChart = new Chart(popCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'OECD',
+                        data: demographicsData.regions.oecd.population.map(p => p / 1e9),
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: demographics.oecd.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demographicsData.regions.china.population.map(p => p / 1e9),
+                        borderColor: demographics.china.color,
+                        backgroundColor: demographics.china.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demographicsData.regions.em.population.map(p => p / 1e9),
+                        borderColor: demographics.em.color,
+                        backgroundColor: demographics.em.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demographicsData.regions.row.population.map(p => p / 1e9),
+                        borderColor: demographics.row.color,
+                        backgroundColor: demographics.row.color + '40',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}B`;
+                            },
+                            footer: function(items) {
+                                const total = items.reduce((sum, item) => sum + item.parsed.y, 0);
+                                return `Total: ${total.toFixed(2)}B`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + 'B';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Population (Billions)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Dependency Ratio Chart
+        const depCtx = document.getElementById('dependency-chart').getContext('2d');
+        if (dependencyChart) dependencyChart.destroy();
+
+        dependencyChart = new Chart(depCtx, {
+            type: 'line',
+            data: {
+                labels: demographicsData.years,
+                datasets: [
+                    {
+                        label: 'Global',
+                        data: demographicsData.global.dependency.map(d => d * 100),
+                        borderColor: '#fff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'OECD',
+                        data: demographicsData.regions.oecd.dependency.map(d => d * 100),
+                        borderColor: demographics.oecd.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'China',
+                        data: demographicsData.regions.china.dependency.map(d => d * 100),
+                        borderColor: demographics.china.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Emerging Markets',
+                        data: demographicsData.regions.em.dependency.map(d => d * 100),
+                        borderColor: demographics.em.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Rest of World',
+                        data: demographicsData.regions.row.dependency.map(d => d * 100),
+                        borderColor: demographics.row.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#888' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#333' },
+                        ticks: { color: '#888' }
+                    },
+                    y: {
+                        grid: { color: '#333' },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Old-Age Dependency Ratio (65+ / 20-64)',
+                            color: '#888'
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Event listeners
     document.getElementById('carbon-price').addEventListener('input', updateCharts);
     document.getElementById('solar-alpha').addEventListener('input', updateCharts);
     document.getElementById('solar-growth').addEventListener('input', updateCharts);
+
+    // CSV Export
+    document.getElementById('export-csv').addEventListener('click', function() {
+        if (!currentDemographicsData) return;
+        const csv = exportDemographicsCSV(currentDemographicsData);
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'demographics_2025_2100.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
 
     // Initial render
     updateCharts();
@@ -793,12 +1311,20 @@
         logistic,
         poissonShock,
         runSimulation,
+        runDemographics,
         findCrossovers,
-        energySources
+        findPopulationPeak,
+        exportDemographicsCSV,
+        projectFertility,
+        energySources,
+        demographics,
+        get demographicsData() { return currentDemographicsData; }
     };
 
     console.log('Energy Simulation loaded. Access primitives via window.energySim');
     console.log('Test: energySim.learningCurve(100, 2, 0.2) =', learningCurve(100, 2, 0.2).toFixed(2), '(should be ~87 - 13% reduction per doubling)');
+    console.log('Demographics loaded. Access via window.energySim.demographicsData');
+    console.log('Try: energySim.demographicsData.regions.china.working[50] for China working-age pop in 2075');
     </script>
 </body>
 </html>
