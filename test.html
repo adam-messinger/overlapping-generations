@@ -346,9 +346,10 @@
             return 'co2ppm' in result && 'temperature' in result;
         });
 
-        test('updateClimate: ~420 ppm at 2400 Gt cumulative', () => {
+        test('updateClimate: ~418 ppm at 2400 Gt cumulative (derived)', () => {
             const result = energySim.updateClimate(2400, 1.2, 3.0);
-            return approx(result.co2ppm, 420, 0.15);
+            // Derived: 2400 * 0.45 * 0.128 + 280 ≈ 418 ppm
+            return approx(result.co2ppm, 418, 0.02);
         });
 
         test('climateDamages returns fraction 0-0.30', () => {
@@ -772,7 +773,7 @@
             const p = energySim.capitalParams;
             return p.alpha === 0.33 &&
                    p.depreciation === 0.05 &&
-                   p.savingsWorking === 0.25 &&
+                   p.savingsWorking === 0.45 &&
                    typeof p.savingsPremium === 'object' &&
                    typeof p.initialCapitalStock === 'number';
         });
@@ -1150,6 +1151,70 @@
                    parsed.resources.minerals &&
                    parsed.resources.food &&
                    parsed.resources.land;
+        });
+
+        // =============================================================================
+        // CALIBRATION FIXES (Bug Fixes)
+        // =============================================================================
+        section('Calibration Fixes');
+
+        test('CO2 ~418 ppm in 2025 (derived from cumulative emissions)', () => {
+            const result = energySim.runSimulation();
+            // Derived: 2400 * 0.45 * 0.128 + 280 ≈ 418 ppm
+            return approx(result.climate.co2ppm[0], 418, 0.02);
+        });
+
+        test('CO2 increases after 2025 with positive emissions', () => {
+            const result = energySim.runSimulation();
+            // CO2 in 2026 should be higher than 2025 due to emissions
+            return result.climate.co2ppm[1] > result.climate.co2ppm[0];
+        });
+
+        test('CO2 responds to counterfactual cumulative emissions', () => {
+            // The derived approach allows counterfactual analysis
+            const co2At2400 = energySim.updateClimate(2400, 1.2, 3.0).co2ppm;
+            const co2At2200 = energySim.updateClimate(2200, 1.2, 3.0).co2ppm;
+            // Lower cumulative emissions should give lower CO2
+            return co2At2200 < co2At2400;
+        });
+
+        test('peakEmissionsYear is never null', () => {
+            // Even in aggressive scenarios, peakEmissionsYear should be set
+            const result = energySim.runSimulation({ carbonPrice: 200 });
+            return result.climate.metrics.peakEmissionsYear !== null;
+        });
+
+        test('peakEmissionsYear is 2025 in aggressive scenario', () => {
+            // With very high carbon price, emissions peak immediately
+            const result = energySim.runSimulation({ carbonPrice: 200 });
+            // Should peak in 2025 or shortly after
+            return result.climate.metrics.peakEmissionsYear <= 2030;
+        });
+
+        test('default carbon price consistency', () => {
+            // runSimulation() with no params should use defaults.carbonPrice (35)
+            const defaultRun = energySim.runSimulation();
+            const explicitRun = energySim.runSimulation({ carbonPrice: 35 });
+            // Results should be identical
+            return defaultRun.results.gas[0] === explicitRun.results.gas[0];
+        });
+
+        test('runScenario uses defaults.carbonPrice', () => {
+            const m = energySim.runScenario();
+            return m.params.carbonPrice === 35;
+        });
+
+        test('savings rate 2025 ~22% (tight tolerance)', () => {
+            const result = energySim.runSimulation();
+            // After calibration fix, should be within 5% of 22%
+            return approx(result.capital.savingsRate[0], 0.22, 0.05);
+        });
+
+        test('stabilityFactor reduces investment at high damages', () => {
+            // At 30% damages, should have significant investment suppression
+            const stability = energySim.stabilityFactor(0.30);
+            // With lambda=2.0: 1/(1 + 2.0 × 0.09) = 0.847, so ~15% suppression
+            return stability < 0.90 && stability > 0.70;
         });
 
         // =============================================================================

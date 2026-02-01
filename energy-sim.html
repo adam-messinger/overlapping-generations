@@ -67,6 +67,114 @@
             font-size: 12px;
             color: #666;
         }
+
+        /* === REDESIGNED DASHBOARD === */
+        .dashboard-hero {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .hero-primary {
+            background: linear-gradient(135deg, #1e3a5f 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 28px;
+            border-left: 4px solid #f94144;
+        }
+        .hero-primary .hero-label {
+            font-size: 13px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .hero-primary .hero-value {
+            font-size: 56px;
+            font-weight: 300;
+            color: #fff;
+            line-height: 1.1;
+        }
+        .hero-primary .hero-value span {
+            font-size: 32px;
+            color: #888;
+        }
+        .hero-primary .hero-spark {
+            height: 40px;
+            margin-top: 12px;
+        }
+        .hero-primary .hero-context {
+            font-size: 13px;
+            color: #888;
+            margin-top: 8px;
+        }
+        .hero-secondary {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .hero-secondary .hero-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .hero-secondary .hero-value {
+            font-size: 32px;
+            font-weight: 400;
+            color: #4cc9f0;
+            line-height: 1.2;
+        }
+        .hero-secondary .hero-spark {
+            height: 30px;
+            margin-top: 8px;
+        }
+
+        .metrics-grouped {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .metric-group {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 16px 20px;
+        }
+        .metric-group-title {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a4e;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 6px 0;
+        }
+        .metric-row-label {
+            font-size: 13px;
+            color: #aaa;
+        }
+        .metric-row-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+        }
+        .metric-row-value.highlight {
+            color: #4cc9f0;
+        }
+
+        /* Sparkline canvas */
+        .sparkline {
+            display: block;
+            width: 100%;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -179,84 +287,94 @@
 </head>
 <body>
     <h1>Energy Futures: 2025-2100</h1>
-    <p class="subtitle">Phase 4: Climate module with emissions, warming, and economic damages (DICE-2023)</p>
+    <p class="subtitle">Overlapping generations model with demographics, energy transition, and climate damages</p>
 
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="metric-label">Solar Crosses Gas</div>
-            <div class="metric-value" id="solar-gas-cross">--</div>
-            <div class="metric-detail">Year when solar LCOE &lt; gas LCOE</div>
+    <!-- HERO METRICS: The 3 numbers that matter most -->
+    <div class="dashboard-hero">
+        <div class="hero-primary">
+            <div class="hero-label">Warming by 2100</div>
+            <div class="hero-value"><span id="warming-2100">--</span><span>°C</span></div>
+            <canvas id="spark-temperature" class="sparkline hero-spark"></canvas>
+            <div class="hero-context">Above pre-industrial. Current: 1.2°C</div>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Solar+Battery Crosses Gas</div>
-            <div class="metric-value" id="solar-battery-gas-cross">--</div>
-            <div class="metric-detail">Dispatchable clean energy milestone</div>
+        <div class="hero-secondary">
+            <div class="hero-label">Emissions Peak</div>
+            <div class="hero-value" id="peak-emissions">--</div>
+            <canvas id="spark-emissions" class="sparkline hero-spark"></canvas>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Coal Uneconomic</div>
-            <div class="metric-value" id="coal-uneconomic">--</div>
-            <div class="metric-detail">Year coal LCOE &gt; cheapest clean</div>
+        <div class="hero-secondary">
+            <div class="hero-label">Grid Zero-Carbon</div>
+            <div class="hero-value" id="grid-zero-year">--</div>
+            <canvas id="spark-grid" class="sparkline hero-spark"></canvas>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Battery Cost 2035</div>
-            <div class="metric-value" id="battery-2035">--</div>
-            <div class="metric-detail">$/kWh storage cost</div>
+    </div>
+
+    <!-- GROUPED SECONDARY METRICS -->
+    <div class="metrics-grouped">
+        <div class="metric-group">
+            <div class="metric-group-title">Energy Transition</div>
+            <div class="metric-row">
+                <span class="metric-row-label">Solar beats gas</span>
+                <span class="metric-row-value highlight" id="solar-gas-cross">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Solar+battery beats gas</span>
+                <span class="metric-row-value" id="solar-battery-gas-cross">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Coal uneconomic</span>
+                <span class="metric-row-value" id="coal-uneconomic">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Battery $/kWh (2035)</span>
+                <span class="metric-row-value" id="battery-2035">--</span>
+            </div>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Global Pop Peak</div>
-            <div class="metric-value" id="pop-peak">--</div>
-            <div class="metric-detail">Year population peaks</div>
+
+        <div class="metric-group">
+            <div class="metric-group-title">Demographics</div>
+            <div class="metric-row">
+                <span class="metric-row-label">Population peak</span>
+                <span class="metric-row-value highlight" id="pop-peak">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Dependency ratio 2075</span>
+                <span class="metric-row-value" id="dependency-2075">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">China college peak</span>
+                <span class="metric-row-value" id="china-college-peak">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">College share 2050</span>
+                <span class="metric-row-value" id="college-share-2050">--</span>
+            </div>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Global Dependency 2075</div>
-            <div class="metric-value" id="dependency-2075">--</div>
-            <div class="metric-detail">Old-age dependency ratio</div>
+
+        <div class="metric-group">
+            <div class="metric-group-title">Demand & Climate</div>
+            <div class="metric-row">
+                <span class="metric-row-label">Electricity 2050</span>
+                <span class="metric-row-value" id="elec-2050">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Electrification 2050</span>
+                <span class="metric-row-value" id="electrification-2050">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Grid intensity 2025</span>
+                <span class="metric-row-value" id="grid-intensity-2025">--</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Damages 2075</span>
+                <span class="metric-row-value highlight" id="damages-2075">--</span>
+            </div>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Global Electricity 2050</div>
-            <div class="metric-value" id="elec-2050">--</div>
-            <div class="metric-detail">TWh projected demand</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Electrification 2050</div>
-            <div class="metric-value" id="electrification-2050">--</div>
-            <div class="metric-detail">Share of useful energy</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">kWh/Worker 2050</div>
-            <div class="metric-value" id="kwh-worker-2050">--</div>
-            <div class="metric-detail">Per working-age adult</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Grid Intensity 2025</div>
-            <div class="metric-value" id="grid-intensity-2025">--</div>
-            <div class="metric-detail">kg CO2/MWh</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Peak Emissions Year</div>
-            <div class="metric-value" id="peak-emissions">--</div>
-            <div class="metric-detail">When global CO2 peaks</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Warming 2100</div>
-            <div class="metric-value" id="warming-2100">--</div>
-            <div class="metric-detail">Degrees C above preindustrial</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Climate Damages 2075</div>
-            <div class="metric-value" id="damages-2075">--</div>
-            <div class="metric-detail">% GDP lost to warming</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">China College Peak</div>
-            <div class="metric-value" id="china-college-peak">--</div>
-            <div class="metric-detail">Year college workers peak</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Global College Share 2050</div>
-            <div class="metric-value" id="college-share-2050">--</div>
-            <div class="metric-detail">% of workers with degrees</div>
-        </div>
+    </div>
+
+    <!-- Hidden legacy elements for JS compatibility -->
+    <div style="display:none">
+        <span id="kwh-worker-2050"></span>
     </div>
 
     <div class="controls">
@@ -589,8 +707,8 @@
      */
     const climateParams = {
         preindustrialCO2: 280,          // ppm
-        // CO2 in 2025 (~420 ppm) derived from: cumulativeCO2_2025 * airborneraction * ppmPerGt + preindustrialCO2
-        // i.e., 2400 * 0.45 * 0.128 + 280 ≈ 418 ppm
+        // CO2 in 2025 (~418 ppm) derived from: cumulativeCO2_2025 * airborneraction * ppmPerGt + preindustrialCO2
+        // i.e., 2400 * 0.45 * 0.128 + 280 ≈ 418 ppm (close to observed 420 ppm)
         cumulativeCO2_2025: 2400,       // Gt cumulative since preindustrial
         airborneraction: 0.45,          // Fraction staying in atmosphere
         ppmPerGt: 0.128,                // ppm per Gt in atmosphere
@@ -652,7 +770,7 @@
         // Savings by cohort (OLG lifecycle)
         // Note: These represent total savings including household, corporate, and government
         savingsYoung: 0.0,        // Ages 0-19: dependents
-        savingsWorking: 0.40,     // Ages 20-64: prime savers (calibrated to 26% global rate)
+        savingsWorking: 0.45,     // Ages 20-64: prime savers (calibrated to ~22% global rate)
         savingsOld: -0.05,        // Ages 65+: dissaving
 
         // Regional savings premiums
@@ -664,7 +782,7 @@
         },
 
         // Galbraith/Chen stability
-        stabilityLambda: 0.5,     // Sensitivity to damages
+        stabilityLambda: 2.0,     // Sensitivity to damages (at 30% damages: 15% investment suppression)
 
         // Automation
         automationShare2025: 0.02,    // 2% of capital is "robots"
@@ -2301,7 +2419,8 @@
      * @returns {Object} Updated CO₂ ppm and temperature
      */
     function updateClimate(cumulativeEmissions, previousTemp, climSensitivity) {
-        // Calculate atmospheric CO₂
+        // Calculate atmospheric CO₂ from cumulative emissions
+        // This derived approach allows counterfactual analysis (e.g., different emission histories)
         const atmosphericCO2 = cumulativeEmissions * climateParams.airborneraction * climateParams.ppmPerGt;
         const co2ppm = climateParams.preindustrialCO2 + atmosphericCO2;
 
@@ -2371,7 +2490,7 @@
     // =============================================================================
 
     function runSimulation(params = {}) {
-        const carbonPrice = params.carbonPrice ?? 50;
+        const carbonPrice = params.carbonPrice ?? defaults.carbonPrice;
         const solarAlpha = params.solarAlpha ?? 0.36;  // Farmer/Naam calibrated
         const solarGrowth = params.solarGrowth ?? 0.25;
         const electrificationTarget = params.electrificationTarget ?? 0.65;
@@ -2500,8 +2619,8 @@
         // Climate state variables
         let cumulativeEmissions = climateParams.cumulativeCO2_2025;
         let currentTemp = climateParams.currentTemp;
-        let peakEmissionsYear = null;
-        let peakEmissionsValue = 0;
+        let peakEmissionsYear = 2025;
+        let peakEmissionsValue = -Infinity;  // Will be set by first iteration
 
         // Run climate simulation year by year
         for (let i = 0; i < years.length; i++) {
@@ -3212,6 +3331,78 @@
     let currentClimateData = null;
     let currentDispatchData = null;
 
+    /**
+     * Render a sparkline on a canvas element
+     * Tufte-style: minimal, no axes, just the data
+     */
+    function renderSparkline(canvasId, data, color = '#4cc9f0', baseline = null) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+
+        // Set canvas size accounting for device pixel ratio
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const width = rect.width;
+        const height = rect.height;
+        const padding = 2;
+
+        // Find data range
+        const min = baseline !== null ? Math.min(baseline, ...data) : Math.min(...data);
+        const max = Math.max(...data);
+        const range = max - min || 1;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw baseline if provided (e.g., current temperature)
+        if (baseline !== null) {
+            const baseY = height - padding - ((baseline - min) / range) * (height - 2 * padding);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(0, baseY);
+            ctx.lineTo(width, baseY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Draw the sparkline
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+
+        const stepX = (width - 2 * padding) / (data.length - 1);
+
+        for (let i = 0; i < data.length; i++) {
+            const x = padding + i * stepX;
+            const y = height - padding - ((data[i] - min) / range) * (height - 2 * padding);
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+
+        // Draw endpoint dot
+        const lastX = padding + (data.length - 1) * stepX;
+        const lastY = height - padding - ((data[data.length - 1] - min) / range) * (height - 2 * padding);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
     function updateCharts() {
         const carbonPrice = parseFloat(document.getElementById('carbon-price').value);
         const solarAlpha = parseFloat(document.getElementById('solar-alpha').value);
@@ -3282,9 +3473,19 @@
         document.getElementById('peak-emissions').textContent =
             climateData.metrics.peakEmissionsYear || 'N/A';
         document.getElementById('warming-2100').textContent =
-            `${climateData.metrics.warming2100.toFixed(1)}°C`;
+            climateData.metrics.warming2100.toFixed(1);
         document.getElementById('damages-2075').textContent =
             `${climateData.metrics.damages2075.toFixed(1)}%`;
+
+        // Grid zero-carbon year (when intensity < 10 kg/MWh)
+        const gridZeroYear = dispatchData.gridIntensity.findIndex(g => g < 10);
+        document.getElementById('grid-zero-year').textContent =
+            gridZeroYear !== -1 ? years[gridZeroYear] : '>2100';
+
+        // Render sparklines
+        renderSparkline('spark-temperature', climateData.temperature, '#f94144', 1.2);
+        renderSparkline('spark-emissions', climateData.emissions, '#4cc9f0');
+        renderSparkline('spark-grid', dispatchData.gridIntensity, '#90be6d');
 
         // Update crossover events
         const eventsHtml = crossovers.map(c => `

@@ -225,6 +225,7 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Effective Workers**: Productivity-weighted count (nonCollege + college × premium)
 - **Differential Mortality**: College-educated live 1-3 years longer (Chetty et al.)
 - **China Paradox**: Total workers peak ~2025, but college workers peak ~2040 due to 60% enrollment
+- **Elderly College Share**: Uses fixed 0.5× multiplier for all regions (known limitation; full fix requires cohort-specific historical data)
 
 ### Demand (Phase 3)
 - **GDP Growth**: TFP + labor contribution + demographic adjustment (Fernández-Villaverde)
@@ -236,14 +237,17 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Dispatch**: Merit order allocation by LCOE with capacity/penetration constraints
 - **Emissions**: Computed from dispatch (electricity) + electrification-adjusted non-electric
 - **Carbon Cycle**: Simplified cumulative CO2 → ppm → temperature with lag
+  - CO2 derived from cumulative emissions (enables counterfactual analysis)
+  - Uses constant 45% airborne fraction; real fraction varies 40-50% with cumulative emissions
+  - 2025 baseline: 2400 Gt cumulative → ~418 ppm (close to observed 420 ppm)
 - **Damages**: DICE-2023 quadratic function with regional multipliers and tipping threshold
 - **Net GDP**: Gross GDP × (1 - damage fraction) as post-hoc adjustment
 
 ### Capital (Phase 5)
 - **Capital Accumulation**: Standard K_{t+1} = (1-δ)K_t + I_t dynamics
-- **OLG Savings**: Demographic-weighted savings rates (young 0%, working 25%, old -3%)
+- **OLG Savings**: Demographic-weighted savings rates (young 0%, working 45%, old -5%)
 - **Regional Premiums**: China +15% savings, EM -5%, ROW -8%
-- **Galbraith/Chen Stability**: Investment suppressed by climate uncertainty: Φ = 1/(1 + λ×damages²)
+- **Galbraith/Chen Stability**: Investment suppressed by climate uncertainty: Φ = 1/(1 + λ×damages²) with λ=2.0
 - **Interest Rate**: Marginal product of capital r = αY/K - δ
 - **Automation**: Robots per 1000 workers, growing from 2% to 20% share of capital
 - **K per Worker**: Capital intensity per effective worker
