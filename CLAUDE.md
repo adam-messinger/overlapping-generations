@@ -227,6 +227,7 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Solar/Wind**: Wright's Law learning curves (cost falls with cumulative deployment)
 - **Gas/Coal**: EROEI depletion + carbon pricing
 - **Battery**: Learning curve, combined with solar for dispatchable clean energy
+- **Hydro**: Mature technology (~1,400 GW), 1% growth, ~16% of global electricity, zero carbon
 
 ### Demographics (Phase 2)
 - **Fertility**: Exponential convergence to regional floor (Fernández-Villaverde thesis: all regions converging faster than expected)
@@ -308,6 +309,8 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Dependency 2025→2075 | 20% → 44% | Model projection |
 | Global electricity 2025 | ~30,000 TWh | IEA |
 | Global electricity 2050 | 52,000-71,000 TWh | IEA, IRENA |
+| Hydro capacity 2025 | ~1,400 GW | IEA |
+| Hydro share 2025 | ~16% of electricity | IEA |
 | Electrification 2050 | ~65% | IEA Net Zero |
 | Asia-Pacific share 2050 | >50% | IEA |
 | Total emissions 2025 | ~35 Gt CO2 | IEA |

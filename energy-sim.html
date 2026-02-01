@@ -644,6 +644,15 @@
             carbonIntensity: 0,
             color: '#9d4edd'
         },
+        hydro: {
+            name: 'Hydroelectric',
+            cost0: 40,           // $/MWh - cheap, mostly already built
+            alpha: 0.0,          // No learning (mature technology)
+            capacity2025: 1400,  // GW globally (IEA: ~1,400 GW)
+            growthRate: 0.01,    // 1% growth (best sites already developed)
+            carbonIntensity: 0,  // Zero operational emissions
+            color: '#00b4d8'
+        },
         battery: {
             name: 'Battery Storage',
             cost0: 140,          // $/kWh in 2025 (BloombergNEF: ~$130-150)
@@ -672,6 +681,7 @@
         solar: { capacityFactor: 0.20, maxPenetration: 0.40 },
         wind: { capacityFactor: 0.30, maxPenetration: 0.35 },
         solarPlusBattery: { capacityFactor: 0.20, maxPenetration: 0.80 },
+        hydro: { capacityFactor: 0.42, maxPenetration: 0.20 },  // ~16% of global electricity
         gas: { capacityFactor: 0.50, maxPenetration: 1.0 },
         coal: { capacityFactor: 0.60, maxPenetration: 1.0 },
         nuclear: { capacityFactor: 0.90, maxPenetration: 0.30 }
@@ -2296,6 +2306,7 @@
         return {
             solar: energySources.solar.capacity2025 * Math.pow(1 + solarGrowth, t),
             wind: energySources.wind.capacity2025 * Math.pow(1 + energySources.wind.growthRate, t),
+            hydro: energySources.hydro.capacity2025 * Math.pow(1 + energySources.hydro.growthRate, t),
             gas: 2500 * Math.pow(1 + 0.01, t),       // ~2500 GW global gas capacity, slow growth
             coal: 2100 * Math.pow(1 - 0.02, t),     // ~2100 GW global coal, declining
             nuclear: energySources.nuclear.capacity2025 * Math.pow(1 + energySources.nuclear.growthRate, t),
@@ -2323,6 +2334,7 @@
         const result = {
             solar: 0,
             wind: 0,
+            hydro: 0,
             gas: 0,
             coal: 0,
             nuclear: 0,
@@ -2334,6 +2346,7 @@
         const maxGen = {
             solar: capacities.solar * dispatchParams.solar.capacityFactor * hoursPerYear / 1000,
             wind: capacities.wind * dispatchParams.wind.capacityFactor * hoursPerYear / 1000,
+            hydro: capacities.hydro * dispatchParams.hydro.capacityFactor * hoursPerYear / 1000,
             gas: capacities.gas * dispatchParams.gas.capacityFactor * hoursPerYear / 1000,
             coal: capacities.coal * dispatchParams.coal.capacityFactor * hoursPerYear / 1000,
             nuclear: capacities.nuclear * dispatchParams.nuclear.capacityFactor * hoursPerYear / 1000
@@ -2355,8 +2368,11 @@
 
         // Sort sources by LCOE (merit order)
         // solarPlusBattery competes separately from bare solar
+        // Hydro has fixed LCOE (no learning, mature tech)
+        const hydroLcoe = energySources.hydro.cost0;
         const sources = [
             { name: 'nuclear', lcoe: lcoes.nuclear, max: maxGen.nuclear, carbonIntensity: 0, isSolar: false },
+            { name: 'hydro', lcoe: hydroLcoe, max: maxGen.hydro, carbonIntensity: 0, isSolar: false },
             { name: 'solar', lcoe: lcoes.solar, max: maxGen.solar, carbonIntensity: 0, isSolar: true, isBareSolar: true },
             { name: 'solarPlusBattery', lcoe: lcoes.solarPlusBattery, max: maxGen.solarPlusBattery, carbonIntensity: 0, isSolar: true, isBareSolar: false },
             { name: 'wind', lcoe: lcoes.wind, max: maxGen.wind, carbonIntensity: 0, isSolar: false },
@@ -2709,6 +2725,7 @@
             solar: [],
             solarPlusBattery: [],
             wind: [],
+            hydro: [],
             gas: [],
             coal: [],
             nuclear: [],
@@ -2769,6 +2786,7 @@
             dispatchData.solar.push(dispatchResult.solar);
             dispatchData.solarPlusBattery.push(dispatchResult.solarPlusBattery);
             dispatchData.wind.push(dispatchResult.wind);
+            dispatchData.hydro.push(dispatchResult.hydro);
             dispatchData.gas.push(dispatchResult.gas);
             dispatchData.coal.push(dispatchResult.coal);
             dispatchData.nuclear.push(dispatchResult.nuclear);
@@ -4476,6 +4494,16 @@
                         data: dispatchData.wind.map(d => d / 1000),
                         borderColor: energySources.wind.color,
                         backgroundColor: energySources.wind.color + '60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Hydro',
+                        data: dispatchData.hydro.map(d => d / 1000),
+                        borderColor: energySources.hydro.color,
+                        backgroundColor: energySources.hydro.color + '60',
                         fill: true,
                         borderWidth: 2,
                         tension: 0.3,

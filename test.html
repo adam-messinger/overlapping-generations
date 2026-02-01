@@ -294,7 +294,7 @@
 
         test('getCapacities returns valid structure', () => {
             const caps = energySim.getCapacities(2025, 0.25);
-            return caps.solar && caps.wind && caps.gas && caps.coal && caps.nuclear;
+            return !!(caps.solar && caps.wind && caps.gas && caps.coal && caps.nuclear && caps.hydro);
         });
 
         test('solar capacity grows 10x+ by 2050', () => {
@@ -305,23 +305,29 @@
 
         test('dispatch returns valid structure', () => {
             const caps = energySim.getCapacities(2025, 0.25);
-            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90 };
+            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90, hydro: 40 };
             const result = energySim.dispatch(30000, lcoes, caps);
-            return 'solar' in result && 'gridIntensity' in result && 'total' in result;
+            return 'solar' in result && 'hydro' in result && 'gridIntensity' in result && 'total' in result;
         });
 
         test('dispatch total ~= demand', () => {
             const caps = energySim.getCapacities(2025, 0.25);
-            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90 };
+            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90, hydro: 40 };
             const result = energySim.dispatch(30000, lcoes, caps);
             return approx(result.total, 30000, 0.05);
         });
 
         test('dispatch: merit order (cheap sources first)', () => {
             const caps = energySim.getCapacities(2050, 0.25);
-            const lcoes = { solar: 10, wind: 15, gas: 80, coal: 100, nuclear: 90 };
+            const lcoes = { solar: 10, wind: 15, gas: 80, coal: 100, nuclear: 90, hydro: 40 };
             const result = energySim.dispatch(30000, lcoes, caps);
             return (result.solar + result.wind) > (result.gas + result.coal);
+        });
+
+        test('hydro provides ~16% of 2025 electricity', () => {
+            const result = energySim.runSimulation();
+            const hydroShare = result.dispatch.hydro[0] / result.dispatch.total[0];
+            return approx(hydroShare, 0.16, 0.05);  // ~16% ± 5%
         });
 
         // =============================================================================
