@@ -65,16 +65,45 @@ The `<script>` section is organized into clear modules:
 Access simulation data via `window.energySim`:
 
 ```javascript
-// Quick scenario run (returns flat metrics object)
-const metrics = energySim.runScenario({ carbonPrice: 100 });
-metrics.warming2100        // °C
-metrics.peakEmissionsYear  // year
-metrics.elec2050           // TWh
-metrics.solarCrossesGas    // year or null
+// Quick scenario run (returns flat metrics + crossovers)
+const m = energySim.runScenario({ carbonPrice: 100 });
+m.warming2100              // °C
+m.peakEmissionsYear        // year
+m.solarCrossesGas          // year or null
+m.chinaElecCrossesOECD     // year when China electricity > OECD
+m.gridBelow100             // year when grid < 100 kg CO₂/MWh
+m.elecPerCapita2050_china  // kWh/person
 
-// Defaults and config
+// Query helpers for custom analysis
+const data = energySim.runSimulation({ carbonPrice: 100 });
+
+energySim.query.firstYear({
+  data,
+  series: 'demand.regions.china.electricityDemand',
+  gt: 'demand.regions.oecd.electricityDemand'
+});  // Year when China electricity > OECD
+
+energySim.query.crossover(data,
+  'demand.regions.em.electricityDemand',
+  'demand.regions.china.electricityDemand'
+);  // { year, direction, values }
+
+energySim.query.valueAt(data, 'climate.temperature', 2075);  // °C at 2075
+energySim.query.perCapita(data, 'china', 'electricity');     // kWh/person array
+energySim.query.gridIntensityBelow(data, 50);                // Year grid < 50 kg/MWh
+
+// Derived series (per-capita metrics)
+const derived = energySim.computeDerivedSeries(data);
+derived.perCapita.electricity.china  // kWh/person by year
+derived.global.gdpPerCapita          // $/person by year
+
+// Units map
+energySim.units.electricityDemand  // { unit: 'TWh', description: '...' }
+energySim.units.gridIntensity      // { unit: 'kg CO₂/MWh', description: '...' }
+
+// Config
 energySim.defaults              // { carbonPrice: 50, solarAlpha: 0.36, ... }
-energySim.config.quiet = true   // Suppress console warnings (dispatch shortfall, etc.)
+energySim.config.quiet = true   // Suppress ALL console output
 
 // Full simulation (returns all arrays)
 const { years, results, demographics, demand, climate, dispatch } = energySim.runSimulation({
@@ -88,17 +117,6 @@ const { years, results, demographics, demand, climate, dispatch } = energySim.ru
 
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
-
-// Climate data (after page loads)
-energySim.climate.emissions[0]           // 2025 emissions (Gt CO2)
-energySim.climate.temperature[75]        // 2100 temperature (°C)
-energySim.climate.globalDamages[50]      // 2075 global damages (% GDP)
-energySim.climate.regionalDamages.row[50] // 2075 ROW damages (% GDP)
-energySim.dispatchData.gridIntensity[0]  // 2025 grid intensity (kg CO2/MWh)
-
-// Climate functions
-energySim.climateDamages(3.0, 'row')     // Damage at 3°C for ROW (~4% GDP)
-energySim.calculateEmissions(dispatch, 0.5) // Emissions from dispatch result
 ```
 
 ### Units Reference

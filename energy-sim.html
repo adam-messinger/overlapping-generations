@@ -1642,43 +1642,103 @@
      */
     function runScenario(params = {}) {
         const mergedParams = { ...defaults, ...params };
-        const { years, results, demographics, demand, climate, dispatch } = runSimulation(mergedParams);
+        const simData = runSimulation(mergedParams);
+        const { years, results, demographics, demand, climate, dispatch } = simData;
         const crossovers = findCrossovers(years, results);
+        const derived = computeDerivedSeries(simData);
 
         const idx2050 = years.indexOf(2050);
         const idx2075 = years.indexOf(2075);
+        const idx2100 = years.length - 1;
+
+        // Find regional crossovers
+        const chinaElecCrossesOECD = query.crossover(simData,
+            'demand.regions.china.electricityDemand',
+            'demand.regions.oecd.electricityDemand'
+        );
+        const emElecCrossesChina = query.crossover(simData,
+            'demand.regions.em.electricityDemand',
+            'demand.regions.china.electricityDemand'
+        );
+
+        // Find per-capita crossovers
+        const chinaPerCapElec = derived.perCapita.electricity.china;
+        const oecdPerCapElec = derived.perCapita.electricity.oecd;
+        let chinaPerCapCrossesOECD = null;
+        for (let i = 1; i < years.length; i++) {
+            if (chinaPerCapElec[i] > oecdPerCapElec[i] && chinaPerCapElec[i - 1] <= oecdPerCapElec[i - 1]) {
+                chinaPerCapCrossesOECD = years[i];
+                break;
+            }
+        }
+
+        // Grid intensity thresholds
+        const gridBelow200 = query.gridIntensityBelow(simData, 200);
+        const gridBelow100 = query.gridIntensityBelow(simData, 100);
+        const gridBelow50 = query.gridIntensityBelow(simData, 50);
 
         return {
             // Input parameters used
             params: mergedParams,
 
-            // Energy crossovers
+            // Energy crossovers (LCOE)
             solarCrossesGas: crossovers.find(c => c.event.includes('Solar LCOE'))?.year ?? null,
             solarBatteryCrossesGas: crossovers.find(c => c.event.includes('Solar+Battery'))?.year ?? null,
             coalUneconomic: crossovers.find(c => c.event.includes('Coal'))?.year ?? null,
             windCrossesGas: crossovers.find(c => c.event.includes('Wind LCOE'))?.year ?? null,
+
+            // Regional electricity crossovers
+            chinaElecCrossesOECD: chinaElecCrossesOECD?.year ?? null,
+            emElecCrossesChina: emElecCrossesChina?.year ?? null,
+
+            // Per-capita crossovers
+            chinaPerCapElecCrossesOECD: chinaPerCapCrossesOECD,
+
+            // Grid intensity thresholds (year when grid falls below X kg CO₂/MWh)
+            gridBelow200: gridBelow200,
+            gridBelow100: gridBelow100,
+            gridBelow50: gridBelow50,
 
             // Climate metrics
             peakEmissionsYear: climate.metrics.peakEmissionsYear,
             peakEmissionsGt: climate.metrics.peakEmissionsValue,
             warming2100: climate.metrics.warming2100,               // °C
             damages2075: climate.metrics.damages2075,               // % GDP
+            damages2100: climate.globalDamages[idx2100],            // % GDP
             gridIntensity2025: climate.metrics.gridIntensity2025,   // kg CO₂/MWh
+            gridIntensity2050: dispatch.gridIntensity[idx2050],     // kg CO₂/MWh
+            gridIntensity2100: dispatch.gridIntensity[idx2100],     // kg CO₂/MWh
             emissions2025: climate.emissions[0],                    // Gt CO₂
             emissions2050: climate.emissions[idx2050],              // Gt CO₂
+            emissions2100: climate.emissions[idx2100],              // Gt CO₂
 
             // Demand metrics
             elec2025: demand.global.electricityDemand[0],           // TWh
             elec2050: demand.global.electricityDemand[idx2050],     // TWh
+            elec2100: demand.global.electricityDemand[idx2100],     // TWh
             electrification2050: demand.global.electrificationRate[idx2050], // fraction
+
+            // Per-capita metrics (kWh/person)
+            elecPerCapita2025: derived.global.electricityPerCapita[0],
+            elecPerCapita2050: derived.global.electricityPerCapita[idx2050],
+            elecPerCapita2100: derived.global.electricityPerCapita[idx2100],
+
+            // Regional per-capita electricity 2050 (kWh/person)
+            elecPerCapita2050_oecd: derived.perCapita.electricity.oecd[idx2050],
+            elecPerCapita2050_china: derived.perCapita.electricity.china[idx2050],
+            elecPerCapita2050_em: derived.perCapita.electricity.em[idx2050],
+            elecPerCapita2050_row: derived.perCapita.electricity.row[idx2050],
 
             // Demographics metrics
             popPeakYear: findPopulationPeak(demographics.global.population, demographics.years).year,
-            pop2100: demographics.global.population[demographics.years.length - 1], // billions
-            dependency2075: demographics.global.dependency[idx2075], // ratio
+            pop2100: demographics.global.population[idx2100],
+            dependency2075: demographics.global.dependency[idx2075],
+
+            // Derived series (for further analysis)
+            derived,
 
             // Full data (if needed for deeper analysis)
-            _fullData: { years, results, demographics, demand, climate, dispatch }
+            _fullData: simData
         };
     }
 
@@ -1710,6 +1770,257 @@
             dispatch: data.dispatch,
             crossovers
         }, null, 2);
+    }
+
+    // =============================================================================
+    // UNITS MAP - Canonical unit definitions
+    // =============================================================================
+
+    /**
+     * Units map for all simulation outputs
+     * Use energySim.units to check units for any series
+     */
+    const units = {
+        // Energy costs
+        lcoe: { unit: '$/MWh', description: 'Levelized cost of energy' },
+        batteryCost: { unit: '$/kWh', description: 'Battery storage cost' },
+
+        // Electricity
+        electricityDemand: { unit: 'TWh', description: 'Annual electricity demand' },
+        electricityPerWorking: { unit: 'kWh/person', description: 'Electricity per working-age adult' },
+        electricityPerCapita: { unit: 'kWh/person', description: 'Electricity per capita' },
+        generation: { unit: 'TWh', description: 'Electricity generation by source' },
+
+        // GDP
+        gdp: { unit: '$ trillions', description: 'Regional GDP' },
+        gdpPerWorking: { unit: '$/person', description: 'GDP per working-age adult' },
+        gdpPerCapita: { unit: '$/person', description: 'GDP per capita' },
+
+        // Population
+        population: { unit: 'persons', description: 'Absolute population count' },
+
+        // Climate
+        emissions: { unit: 'Gt CO₂/year', description: 'Annual CO₂ emissions' },
+        cumulative: { unit: 'Gt CO₂', description: 'Cumulative CO₂ since preindustrial' },
+        gridIntensity: { unit: 'kg CO₂/MWh', description: 'Grid carbon intensity' },
+        temperature: { unit: '°C', description: 'Temperature above preindustrial' },
+        co2ppm: { unit: 'ppm', description: 'Atmospheric CO₂ concentration' },
+
+        // Damages and rates
+        damages: { unit: '% GDP', description: 'Climate damages as percent of GDP' },
+        dependency: { unit: 'ratio', description: 'Old-age dependency ratio (65+/20-64)' },
+        electrificationRate: { unit: 'fraction', description: 'Electricity share of useful energy' },
+        energyIntensity: { unit: 'MWh/$1000 GDP', description: 'Energy intensity of economy' },
+        fertility: { unit: 'TFR', description: 'Total fertility rate (children per woman)' }
+    };
+
+    // =============================================================================
+    // QUERY HELPERS - Time series analysis utilities
+    // =============================================================================
+
+    /**
+     * Get array from dot-notation path in simulation data
+     * @param {Object} data - Simulation data object
+     * @param {string} path - Dot-notation path (e.g., 'demand.regions.china.electricityDemand')
+     * @returns {Array} The array at the specified path
+     */
+    function getSeriesFromPath(data, path) {
+        const parts = path.split('.');
+        let current = data;
+        for (const part of parts) {
+            if (current === undefined || current === null) return null;
+            current = current[part];
+        }
+        return Array.isArray(current) ? current : null;
+    }
+
+    /**
+     * Query helpers for time series analysis
+     */
+    const query = {
+        /**
+         * Find first year where condition is met
+         * @param {Object} options
+         * @param {Object} options.data - Simulation data (from runSimulation or runScenario._fullData)
+         * @param {string} options.series - Dot-notation path to series
+         * @param {string} [options.gt] - Path to series that must be less than main series
+         * @param {string} [options.lt] - Path to series that must be greater than main series
+         * @param {number} [options.above] - Threshold value that must be exceeded
+         * @param {number} [options.below] - Threshold value that must not be exceeded
+         * @returns {number|null} Year when condition first met, or null
+         */
+        firstYear(options) {
+            const { data, series, gt, lt, above, below } = options;
+            const years = data.years || data.demographics?.years;
+            const mainSeries = getSeriesFromPath(data, series);
+
+            if (!years || !mainSeries) return null;
+
+            const compareSeries = gt ? getSeriesFromPath(data, gt) : lt ? getSeriesFromPath(data, lt) : null;
+
+            for (let i = 0; i < years.length; i++) {
+                const val = mainSeries[i];
+                let conditionMet = true;
+
+                if (gt && compareSeries) conditionMet = conditionMet && val > compareSeries[i];
+                if (lt && compareSeries) conditionMet = conditionMet && val < compareSeries[i];
+                if (above !== undefined) conditionMet = conditionMet && val > above;
+                if (below !== undefined) conditionMet = conditionMet && val < below;
+
+                if (conditionMet) return years[i];
+            }
+            return null;
+        },
+
+        /**
+         * Find crossover year between two series
+         * @param {Object} data - Simulation data
+         * @param {string} series1 - Path to first series (the one crossing over)
+         * @param {string} series2 - Path to second series (being crossed)
+         * @returns {Object|null} { year, values: { series1, series2 } } or null
+         */
+        crossover(data, series1, series2) {
+            const years = data.years || data.demographics?.years;
+            const s1 = getSeriesFromPath(data, series1);
+            const s2 = getSeriesFromPath(data, series2);
+
+            if (!years || !s1 || !s2) return null;
+
+            for (let i = 1; i < years.length; i++) {
+                // series1 crosses above series2
+                if (s1[i] > s2[i] && s1[i - 1] <= s2[i - 1]) {
+                    return {
+                        year: years[i],
+                        direction: 'above',
+                        values: { series1: s1[i], series2: s2[i] }
+                    };
+                }
+                // series1 crosses below series2
+                if (s1[i] < s2[i] && s1[i - 1] >= s2[i - 1]) {
+                    return {
+                        year: years[i],
+                        direction: 'below',
+                        values: { series1: s1[i], series2: s2[i] }
+                    };
+                }
+            }
+            return null;
+        },
+
+        /**
+         * Get value at specific year
+         * @param {Object} data - Simulation data
+         * @param {string} series - Path to series
+         * @param {number} year - Year to look up
+         * @returns {number|null} Value at year or null
+         */
+        valueAt(data, series, year) {
+            const years = data.years || data.demographics?.years;
+            const s = getSeriesFromPath(data, series);
+            if (!years || !s) return null;
+
+            const idx = years.indexOf(year);
+            return idx >= 0 ? s[idx] : null;
+        },
+
+        /**
+         * Get per-capita series for a region
+         * @param {Object} data - Simulation data
+         * @param {string} region - Region key (oecd, china, em, row)
+         * @param {string} metric - 'electricity' or 'gdp'
+         * @returns {Array} Per-capita values
+         */
+        perCapita(data, region, metric = 'electricity') {
+            const pop = getSeriesFromPath(data, `demographics.regions.${region}.population`);
+            let values;
+
+            if (metric === 'electricity') {
+                values = getSeriesFromPath(data, `demand.regions.${region}.electricityDemand`);
+                // Convert TWh to kWh: TWh × 1e9 / population
+                return pop && values ? values.map((v, i) => (v * 1e9) / pop[i]) : null;
+            } else if (metric === 'gdp') {
+                values = getSeriesFromPath(data, `demand.regions.${region}.gdp`);
+                // Convert $ trillions to $: $T × 1e12 / population
+                return pop && values ? values.map((v, i) => (v * 1e12) / pop[i]) : null;
+            }
+            return null;
+        },
+
+        /**
+         * Find year when grid intensity falls below threshold
+         * @param {Object} data - Simulation data
+         * @param {number} threshold - kg CO₂/MWh threshold (default: 100 for "clean grid")
+         * @returns {number|null} Year when threshold crossed
+         */
+        gridIntensityBelow(data, threshold = 100) {
+            return this.firstYear({
+                data,
+                series: 'dispatch.gridIntensity',
+                below: threshold
+            });
+        },
+
+        /**
+         * Find all crossovers between regions for a metric
+         * @param {Object} data - Simulation data
+         * @param {string} metric - Path template with {region} placeholder
+         * @param {string} region1 - First region
+         * @param {string} region2 - Second region
+         * @returns {Object|null} Crossover info or null
+         */
+        regionCrossover(data, metric, region1, region2) {
+            const path1 = metric.replace('{region}', region1);
+            const path2 = metric.replace('{region}', region2);
+            return this.crossover(data, path1, path2);
+        }
+    };
+
+    // =============================================================================
+    // DERIVED SERIES - Pre-computed per-capita and other derived metrics
+    // =============================================================================
+
+    /**
+     * Compute derived series (per-capita metrics, etc.)
+     * @param {Object} simData - Output from runSimulation
+     * @returns {Object} Derived series
+     */
+    function computeDerivedSeries(simData) {
+        const { years, demographics, demand, climate, dispatch } = simData;
+        const regions = ['oecd', 'china', 'em', 'row'];
+
+        const derived = {
+            years,
+            perCapita: {
+                electricity: {},  // kWh/person by region
+                gdp: {}           // $/person by region
+            },
+            global: {
+                electricityPerCapita: [],  // kWh/person
+                gdpPerCapita: []           // $/person
+            }
+        };
+
+        // Compute regional per-capita
+        for (const region of regions) {
+            const pop = demographics.regions[region].population;
+            const elec = demand.regions[region].electricityDemand;
+            const gdp = demand.regions[region].gdp;
+
+            derived.perCapita.electricity[region] = elec.map((e, i) => (e * 1e9) / pop[i]);
+            derived.perCapita.gdp[region] = gdp.map((g, i) => (g * 1e12) / pop[i]);
+        }
+
+        // Compute global per-capita
+        for (let i = 0; i < years.length; i++) {
+            const globalPop = demographics.global.population[i];
+            const globalElec = demand.global.electricityDemand[i];
+            const globalGdp = demand.global.gdp[i];
+
+            derived.global.electricityPerCapita.push((globalElec * 1e9) / globalPop);
+            derived.global.gdpPerCapita.push((globalGdp * 1e12) / globalPop);
+        }
+
+        return derived;
     }
 
     // =============================================================================
@@ -2930,19 +3241,7 @@
     /**
      * Console API for programmatic access
      *
-     * UNITS REFERENCE:
-     * - LCOE: $/MWh
-     * - Battery cost: $/kWh
-     * - Electricity demand: TWh
-     * - Per-worker electricity: kWh/person
-     * - GDP: $ trillions (regional), $ per person (per-worker)
-     * - Population: absolute counts (not billions)
-     * - Emissions: Gt CO₂/year
-     * - Grid intensity: kg CO₂/MWh
-     * - Temperature: °C above preindustrial
-     * - Damages: % of GDP (0-100 scale in arrays)
-     * - Dependency ratio: fraction (0-1)
-     * - Electrification rate: fraction (0-1)
+     * See energySim.units for canonical unit definitions.
      */
     window.energySim = {
         // Primitives
@@ -2954,8 +3253,12 @@
 
         // Simulation (full runs)
         runSimulation,        // Full simulation, returns { years, results, demographics, demand, climate, dispatch }
-        runScenario,          // Convenience wrapper, returns flat metrics object
+        runScenario,          // Convenience wrapper, returns flat metrics object + derived series
         exportJSON,           // Export full run as JSON string
+
+        // Query helpers (time series analysis)
+        query,                // { firstYear, crossover, valueAt, perCapita, gridIntensityBelow, regionCrossover }
+        computeDerivedSeries, // Compute per-capita and other derived metrics
 
         // Sub-models
         runDemographics,
@@ -2980,6 +3283,9 @@
         dispatchParams,
         climateParams,
 
+        // Units map
+        units,                // Canonical unit definitions for all series
+
         // Defaults and config
         defaults,             // Default slider values
         config,               // Runtime config (set config.quiet = true to suppress warnings)
@@ -2991,12 +3297,14 @@
         get dispatchData() { return currentDispatchData; }
     };
 
-    console.log('Energy Simulation loaded. Access via window.energySim');
-    console.log('Quick start:');
-    console.log('  energySim.runScenario({ carbonPrice: 100 })  // Run with high carbon price');
-    console.log('  energySim.defaults                           // See default parameters');
-    console.log('  energySim.config.quiet = true                // Suppress console warnings');
-    console.log('Units: LCOE=$/MWh, demand=TWh, emissions=Gt CO₂, temp=°C, damages=% GDP');
+    if (!config.quiet) {
+        console.log('Energy Simulation loaded. Access via window.energySim');
+        console.log('Quick start:');
+        console.log('  energySim.runScenario({ carbonPrice: 100 })  // Returns flat metrics + crossovers');
+        console.log('  energySim.query.firstYear({ data, series, gt })  // Find crossover year');
+        console.log('  energySim.units                              // See unit definitions');
+        console.log('  energySim.config.quiet = true                // Suppress all console output');
+    }
     </script>
 </body>
 </html>

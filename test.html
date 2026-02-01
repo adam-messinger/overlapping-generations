@@ -502,6 +502,160 @@
         });
 
         // =============================================================================
+        // UNITS MAP
+        // =============================================================================
+        section('Units Map');
+
+        test('units object exists', () => {
+            return typeof energySim.units === 'object';
+        });
+
+        test('units has electricityDemand with TWh', () => {
+            return energySim.units.electricityDemand?.unit === 'TWh';
+        });
+
+        test('units has gridIntensity with kg CO₂/MWh', () => {
+            return energySim.units.gridIntensity?.unit === 'kg CO₂/MWh';
+        });
+
+        test('units has temperature with °C', () => {
+            return energySim.units.temperature?.unit === '°C';
+        });
+
+        test('units entries have unit and description', () => {
+            const entry = energySim.units.emissions;
+            return typeof entry.unit === 'string' && typeof entry.description === 'string';
+        });
+
+        // =============================================================================
+        // QUERY HELPERS
+        // =============================================================================
+        section('Query Helpers');
+
+        test('query object exists', () => {
+            return typeof energySim.query === 'object';
+        });
+
+        test('query.firstYear finds crossover year', () => {
+            const data = energySim.runSimulation({ carbonPrice: 100 });
+            const year = energySim.query.firstYear({
+                data,
+                series: 'results.solar',
+                lt: 'results.gas'
+            });
+            return year === null || (typeof year === 'number' && year >= 2025);
+        });
+
+        test('query.firstYear with threshold', () => {
+            const data = energySim.runSimulation();
+            const year = energySim.query.firstYear({
+                data,
+                series: 'climate.temperature',
+                above: 1.5
+            });
+            return typeof year === 'number' && year >= 2025;
+        });
+
+        test('query.crossover returns valid structure', () => {
+            const data = energySim.runSimulation({ carbonPrice: 100 });
+            const result = energySim.query.crossover(data,
+                'demand.regions.china.electricityDemand',
+                'demand.regions.oecd.electricityDemand'
+            );
+            return result === null || (typeof result.year === 'number' && result.values);
+        });
+
+        test('query.valueAt returns correct value', () => {
+            const data = energySim.runSimulation();
+            const temp2025 = energySim.query.valueAt(data, 'climate.temperature', 2025);
+            return approx(temp2025, 1.2, 0.15);
+        });
+
+        test('query.perCapita returns array', () => {
+            const data = energySim.runSimulation();
+            const perCap = energySim.query.perCapita(data, 'china', 'electricity');
+            return Array.isArray(perCap) && perCap.length === 76;
+        });
+
+        test('query.perCapita values are reasonable (kWh/person)', () => {
+            const data = energySim.runSimulation();
+            const perCap = energySim.query.perCapita(data, 'oecd', 'electricity');
+            // OECD ~10,000 kWh/person in 2025
+            return perCap[0] > 5000 && perCap[0] < 20000;
+        });
+
+        test('query.gridIntensityBelow finds year', () => {
+            const data = energySim.runSimulation({ carbonPrice: 100 });
+            const year = energySim.query.gridIntensityBelow(data, 200);
+            return year === null || (typeof year === 'number' && year >= 2025);
+        });
+
+        // =============================================================================
+        // DERIVED SERIES
+        // =============================================================================
+        section('Derived Series');
+
+        test('computeDerivedSeries returns valid structure', () => {
+            const data = energySim.runSimulation();
+            const derived = energySim.computeDerivedSeries(data);
+            return derived.years && derived.perCapita && derived.global;
+        });
+
+        test('derived.perCapita.electricity has all regions', () => {
+            const data = energySim.runSimulation();
+            const derived = energySim.computeDerivedSeries(data);
+            return derived.perCapita.electricity.oecd &&
+                   derived.perCapita.electricity.china &&
+                   derived.perCapita.electricity.em &&
+                   derived.perCapita.electricity.row;
+        });
+
+        test('derived series have correct length', () => {
+            const data = energySim.runSimulation();
+            const derived = energySim.computeDerivedSeries(data);
+            return derived.global.electricityPerCapita.length === 76;
+        });
+
+        test('runScenario includes derived series', () => {
+            const m = energySim.runScenario();
+            return m.derived && m.derived.perCapita;
+        });
+
+        // =============================================================================
+        // EXTENDED RUNSCENARIO METRICS
+        // =============================================================================
+        section('Extended runScenario');
+
+        test('runScenario has regional crossovers', () => {
+            const m = energySim.runScenario();
+            return 'chinaElecCrossesOECD' in m && 'emElecCrossesChina' in m;
+        });
+
+        test('runScenario has grid intensity thresholds', () => {
+            const m = energySim.runScenario();
+            return 'gridBelow200' in m && 'gridBelow100' in m && 'gridBelow50' in m;
+        });
+
+        test('runScenario has per-capita metrics', () => {
+            const m = energySim.runScenario();
+            return typeof m.elecPerCapita2050 === 'number' &&
+                   typeof m.elecPerCapita2050_china === 'number';
+        });
+
+        test('runScenario has 2100 metrics', () => {
+            const m = energySim.runScenario();
+            return typeof m.elec2100 === 'number' &&
+                   typeof m.emissions2100 === 'number' &&
+                   typeof m.damages2100 === 'number';
+        });
+
+        test('runScenario regional per-capita are ordered correctly', () => {
+            const m = energySim.runScenario();
+            // OECD should have higher per-capita electricity than ROW in 2050
+            return m.elecPerCapita2050_oecd > m.elecPerCapita2050_row;
+        });
+
+        // =============================================================================
         // RENDER RESULTS
         // =============================================================================
 
