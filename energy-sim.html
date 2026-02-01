@@ -530,7 +530,7 @@
             name: 'Battery Storage',
             cost0: 140,          // $/kWh in 2025 (BloombergNEF: ~$130-150)
             alpha: 0.26,         // 18% learning rate (Naam: 20%, BNEF: 18%)
-            capacity2025: 100,   // GWh
+            capacity2025: 2000,  // GWh grid storage (BloombergNEF: ~2000 GWh cumulative by 2025)
             growthRate: 0.35,    // Rapid growth
             color: '#06d6a0'
         }
@@ -674,6 +674,456 @@
         // Initial conditions (calibrated to 2025)
         initialCapitalStock: 420      // $420T global capital (Penn World Table, K/Y≈3.5)
     };
+
+    // =============================================================================
+    // RESOURCES - Minerals, food, and land demand (Phase 6)
+    // =============================================================================
+
+    /**
+     * Resource demand parameters
+     *
+     * INPUTS (calibration constants):
+     * - minerals: intensity per unit capacity (kg per GW/GWh), learning rates, prices, reserves
+     * - food: calories per capita, protein share dynamics, GLP-1 adoption
+     * - land: farmland, urban area, yield growth
+     *
+     * OUTPUTS (computed by runResourceModel):
+     * - minerals: demand, cumulative, intensity, reserveRatio per mineral
+     * - food: totalCalories, proteinShare, grainEquivalent, glp1Effect
+     * - land: farmland, urban, forest areas
+     *
+     * Sources:
+     * - IEA Critical Minerals: Mineral intensity per technology
+     * - ICSG: Global copper demand ~26 Mt/year (2024)
+     * - Benchmark Minerals: Lithium demand ~0.8 Mt LCE/year
+     * - FAO: Calories, protein shares, cropland, forest area
+     * - World Bank: GDP per capita for Bennett's Law
+     */
+    const resourceParams = {
+        // MINERALS - intensity per unit capacity (kg per unit)
+        minerals: {
+            copper: {
+                perMW_solar: 2800,        // kg Cu per MW solar
+                perMW_wind: 3500,         // kg Cu per MW wind
+                perMWh_grid: 1200,        // kg Cu per MW transmission
+                perGWh_battery: 800,      // kg Cu per GWh battery
+                learningRate: 0.02,       // 2% annual intensity decline
+                price2025: 9000,          // $/ton
+                reserves: 880,            // Mt known reserves
+                resources: 2100,          // Mt total resources
+                recyclingBase: 0.15,      // 15% baseline recycling rate
+                recyclingMax: 0.50,       // 50% max recycling rate
+                recyclingHalfway: 500     // Mt stock-in-use at halfway to max recycling
+            },
+            lithium: {
+                perGWh_battery: 600,      // kg Li (LCE) per GWh battery
+                perEV: 8,                 // kg Li per EV (redundant if using battery)
+                learningRate: 0.03,       // 3% decline (chemistry improvements)
+                price2025: 25000,         // $/ton LCE
+                reserves: 22,             // Mt LCE reserves
+                resources: 89,            // Mt LCE resources
+                recyclingBase: 0.05,      // 5% baseline (battery recycling nascent)
+                recyclingMax: 0.30,       // 30% max recycling
+                recyclingHalfway: 20      // Mt stock-in-use at halfway
+            },
+            rareEarths: {
+                perMW_wind: 200,          // kg REE per MW wind (magnets)
+                perEV: 1,                 // kg REE per EV motor
+                learningRate: 0.01,       // slower improvement
+                price2025: 50000,         // $/ton (basket)
+                reserves: 130,            // Mt reserves
+                resources: 400,           // Mt resources
+                recyclingBase: 0.01,      // 1% (very low currently)
+                recyclingMax: 0.20,       // 20% max
+                recyclingHalfway: 10      // Mt stock-in-use at halfway
+            },
+            steel: {
+                perMW_solar: 35000,       // kg steel per MW solar
+                perMW_wind: 120000,       // kg steel per MW wind
+                perMW_nuclear: 60000,     // kg steel per MW nuclear
+                learningRate: 0.01,
+                price2025: 800,           // $/ton
+                reserves: null,           // Effectively unlimited via iron ore
+                resources: null,
+                recyclingBase: 0.35,      // 35% already recycled
+                recyclingMax: 0.70,       // 70% max
+                recyclingHalfway: 5000    // Mt stock-in-use
+            }
+        },
+
+        // FOOD
+        food: {
+            caloriesPerCapita2025: 2800,  // kcal/day global average
+            caloriesGrowthRate: 0.002,    // 0.2% annual growth (developing world catch-up)
+            proteinShare2025: 0.11,       // 11% of calories from protein
+            proteinShareMax: 0.16,        // 16% saturation (OECD level)
+            proteinGDPHalfway: 15000,     // GDP/capita at halfway to max protein share
+            glp1Adoption: {
+                start: 2025,
+                halfwayYear: 2040,
+                maxPenetration: 0.15,     // 15% of population eventually
+                calorieReduction: 0.20    // 20% calorie reduction per user
+            },
+            grainToProteinRatio: 6,       // kg grain per kg protein (feed conversion)
+            caloriesPerKgGrain: 3400,     // kcal per kg grain
+            proteinCaloriesPerKg: 4000    // kcal per kg protein (meat/dairy average)
+        },
+
+        // LAND
+        land: {
+            farmland2025: 4800,           // Mha (million hectares) cropland
+            yieldGrowthRate: 0.01,        // 1% annual yield improvement
+            yield2025: 4.0,               // tons grain per hectare global average
+            nonFoodMultiplier: 4.9,       // Non-food crops (cotton, biofuels, etc.) expand grain-only to total cropland
+            urbanPerCapita: 0.04,         // ha per person urban
+            urban2025: 50,                // Mha urban area
+            urbanWealthElasticity: 0.3,   // 10% richer → 3% more urban land
+            forestArea2025: 4000,         // Mha forests
+            forestLossRate: 0.002         // 0.2% annual loss baseline
+        }
+    };
+
+    /**
+     * Calculate recycling rate based on stock-in-use
+     * Recycling increases as more material enters the circular economy
+     * @param {Object} mineral - Mineral parameters
+     * @param {number} stockInUse - Cumulative material in use (Mt)
+     * @returns {number} Recycling rate (0-1)
+     */
+    function recyclingRate(mineral, stockInUse) {
+        if (!mineral.recyclingMax) return 0;
+        return mineral.recyclingBase +
+               (mineral.recyclingMax - mineral.recyclingBase) *
+               (1 - Math.exp(-stockInUse / mineral.recyclingHalfway));
+    }
+
+    /**
+     * Calculate mineral demand for a given year
+     * @param {Object} capacities - Current capacities from getCapacities
+     * @param {Object} prevCapacities - Previous year capacities
+     * @param {number} year - Simulation year
+     * @param {string} mineralKey - Key in resourceParams.minerals
+     * @param {number} cumulativeStock - Cumulative stock-in-use (for recycling)
+     * @returns {Object} { demand, grossDemand, recycled, intensity }
+     */
+    function mineralDemand(capacities, prevCapacities, year, mineralKey, cumulativeStock = 0, maxCapacities = null) {
+        const mineral = resourceParams.minerals[mineralKey];
+        const t = year - 2025;
+        const intensityFactor = Math.pow(1 - mineral.learningRate, t);
+
+        // Apply capacity ceilings if provided (based on electricity demand)
+        let solarCap = capacities.solar;
+        let windCap = capacities.wind;
+        let batteryCap = capacities.battery;
+        let nuclearCap = capacities.nuclear;
+
+        if (maxCapacities) {
+            solarCap = Math.min(capacities.solar, maxCapacities.solar || capacities.solar);
+            windCap = Math.min(capacities.wind, maxCapacities.wind || capacities.wind);
+            batteryCap = Math.min(capacities.battery, maxCapacities.battery || capacities.battery);
+            nuclearCap = Math.min(capacities.nuclear, maxCapacities.nuclear || capacities.nuclear);
+        }
+
+        // Capacity additions (delta from previous year) in GW
+        const solarAdded = Math.max(0, solarCap - Math.min(prevCapacities.solar, solarCap));
+        const windAdded = Math.max(0, windCap - Math.min(prevCapacities.wind, windCap));
+        const nuclearAdded = Math.max(0, nuclearCap - Math.min(prevCapacities.nuclear, nuclearCap));
+        // Battery in GWh (convert from GW × 4h)
+        const batteryAdded = Math.max(0, (batteryCap - Math.min(prevCapacities.battery, batteryCap)) * 4);
+
+        // Calculate gross demand (before recycling) in kg
+        let grossDemandKg = 0;
+
+        if (mineral.perMW_solar) {
+            grossDemandKg += solarAdded * 1000 * mineral.perMW_solar * intensityFactor;
+        }
+        if (mineral.perMW_wind) {
+            grossDemandKg += windAdded * 1000 * mineral.perMW_wind * intensityFactor;
+        }
+        if (mineral.perMW_nuclear) {
+            grossDemandKg += nuclearAdded * 1000 * mineral.perMW_nuclear * intensityFactor;
+        }
+        if (mineral.perGWh_battery) {
+            grossDemandKg += batteryAdded * mineral.perGWh_battery * intensityFactor;
+        }
+
+        // Convert to Mt (million tonnes)
+        const grossDemand = grossDemandKg / 1e9;
+
+        // Calculate recycling contribution
+        const recycleRate = recyclingRate(mineral, cumulativeStock);
+        const recycled = grossDemand * recycleRate;
+        const netDemand = grossDemand - recycled;
+
+        return {
+            demand: Math.max(0, netDemand),  // Mt/year (net of recycling)
+            grossDemand,                      // Mt/year (before recycling)
+            recycled,                         // Mt/year recycled
+            intensity: intensityFactor,       // Intensity factor (0-1)
+            recyclingRate: recycleRate        // Current recycling rate
+        };
+    }
+
+    /**
+     * Calculate food demand following Bennett's Law + GLP-1 effects
+     * @param {number} population - Global population
+     * @param {number} gdpPerCapita - Global GDP per capita ($)
+     * @param {number} year - Simulation year
+     * @returns {Object} Food demand metrics
+     */
+    function foodDemand(population, gdpPerCapita, year) {
+        const { food } = resourceParams;
+        const t = year - 2025;
+
+        // Base calories (developing world catch-up)
+        const baseCalories = food.caloriesPerCapita2025 * Math.pow(1 + food.caloriesGrowthRate, t);
+
+        // GLP-1 effect (logistic adoption curve)
+        const yearsFromHalfway = year - food.glp1Adoption.halfwayYear;
+        const glp1Adoption = food.glp1Adoption.maxPenetration /
+                            (1 + Math.exp(-0.2 * yearsFromHalfway));
+        const glp1Effect = glp1Adoption * food.glp1Adoption.calorieReduction;
+
+        // Net calories per capita per day
+        const netCalories = baseCalories * (1 - glp1Effect);
+
+        // Protein share (Bennett's Law logistic curve)
+        // Higher GDP → more protein consumption, saturating at proteinShareMax
+        const proteinShare = food.proteinShare2025 +
+            (food.proteinShareMax - food.proteinShare2025) *
+            (gdpPerCapita / (gdpPerCapita + food.proteinGDPHalfway));
+
+        // Total calories per year (Pcal = petacalories = 10^15 kcal)
+        const totalCaloriesPcal = (population * netCalories * 365) / 1e15;
+
+        // Protein calories per year
+        const proteinCaloriesPcal = totalCaloriesPcal * proteinShare;
+
+        // Convert to grain equivalent (Mt)
+        // Direct grain: non-protein calories / caloriesPerKgGrain
+        // Protein via livestock: protein calories / proteinCaloriesPerKg × grainToProteinRatio
+        const directGrainMt = ((totalCaloriesPcal - proteinCaloriesPcal) * 1e15) /
+                              food.caloriesPerKgGrain / 1e9;
+        const proteinGrainMt = (proteinCaloriesPcal * 1e15) /
+                               food.proteinCaloriesPerKg *
+                               food.grainToProteinRatio / 1e9;
+        const grainEquivalent = directGrainMt + proteinGrainMt;
+
+        return {
+            caloriesPerCapita: netCalories,           // kcal/person/day
+            totalCalories: totalCaloriesPcal,         // Pcal/year
+            proteinShare,                              // fraction (0-0.16)
+            proteinCalories: proteinCaloriesPcal,     // Pcal/year
+            grainEquivalent,                           // Mt/year
+            glp1Adoption,                              // fraction of population
+            glp1Effect                                 // fraction calorie reduction
+        };
+    }
+
+    /**
+     * Calculate land demand
+     * @param {Object} foodData - Output from foodDemand()
+     * @param {number} population - Global population
+     * @param {number} gdpPerCapita - Global GDP per capita ($)
+     * @param {number} gdpPerCapita2025 - Baseline GDP per capita for comparison
+     * @param {number} year - Simulation year
+     * @returns {Object} Land use in Mha
+     */
+    function landDemand(foodData, population, gdpPerCapita, gdpPerCapita2025, year) {
+        const { land } = resourceParams;
+        const t = year - 2025;
+
+        // Yield improvement over time
+        const currentYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, t);
+
+        // Farmland = grain demand / yield × non-food multiplier
+        // grainEquivalent is in Mt (million tonnes), yield is in t/ha
+        // Mt / (t/ha) = (10^6 t) / (t/ha) = 10^6 ha = Mha
+        // Then multiply by nonFoodMultiplier to account for cotton, biofuels, etc.
+        const grainFarmland = foodData.grainEquivalent / currentYield;
+        const farmland = grainFarmland * land.nonFoodMultiplier;
+
+        // Urban land = population × per-capita × wealth adjustment
+        // urbanPerCapita is ha/person, population in persons, want Mha
+        const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
+        const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6; // ha → Mha
+
+        // Forest area: baseline with gradual loss, slowing as pressure from farmland eases
+        const farmlandPressure = Math.max(0, (farmland - land.farmland2025) / land.farmland2025);
+        const adjustedLossRate = land.forestLossRate * (1 + farmlandPressure);
+        const forest = land.forestArea2025 * Math.pow(1 - adjustedLossRate, t);
+
+        return {
+            farmland,                    // Mha
+            urban,                       // Mha
+            forest,                      // Mha
+            yield: currentYield          // t/ha
+        };
+    }
+
+    /**
+     * Run full resource demand model
+     * @param {Object} demographicsData - Output from runDemographics
+     * @param {Object} demandData - Output from runDemandModel
+     * @param {Object} dispatchData - Dispatch results { solar, wind, etc. arrays }
+     * @param {number} solarGrowth - Solar growth rate (for capacity calculation)
+     * @returns {Object} Resource demand projections
+     */
+    function runResourceModel(demographicsData, demandData, dispatchData, solarGrowth) {
+        const { years, global: demoGlobal } = demographicsData;
+
+        // Initialize output structure
+        const resources = {
+            minerals: {
+                copper: { demand: [], cumulative: [], grossDemand: [], recycled: [], intensity: [], reserveRatio: [] },
+                lithium: { demand: [], cumulative: [], grossDemand: [], recycled: [], intensity: [], reserveRatio: [] },
+                rareEarths: { demand: [], cumulative: [], grossDemand: [], recycled: [], intensity: [], reserveRatio: [] },
+                steel: { demand: [], cumulative: [], grossDemand: [], recycled: [], intensity: [], reserveRatio: [] }
+            },
+            food: {
+                caloriesPerCapita: [],    // kcal/person/day
+                totalCalories: [],        // Pcal/year
+                proteinShare: [],         // fraction
+                grainEquivalent: [],      // Mt/year
+                glp1Adoption: [],         // fraction
+                glp1Effect: []            // fraction calorie reduction
+            },
+            land: {
+                farmland: [],             // Mha
+                urban: [],                // Mha
+                forest: [],               // Mha
+                yield: []                 // t/ha
+            },
+            metrics: {}
+        };
+
+        // Track cumulative mineral stocks
+        const cumulativeStock = { copper: 0, lithium: 0, rareEarths: 0, steel: 0 };
+
+        // Baseline GDP per capita for land model
+        const gdpPerCapita2025 = (demandData.global.gdp[0] * 1e12) / demoGlobal.population[0];
+
+        // Previous year capacities (for delta calculation)
+        let prevCapacities = getCapacities(2024, solarGrowth);
+
+        for (let i = 0; i < years.length; i++) {
+            const year = years[i];
+            const population = demoGlobal.population[i];
+            const gdp = demandData.global.gdp[i];
+            const gdpPerCapita = (gdp * 1e12) / population;
+
+            // Get current capacities
+            const capacities = getCapacities(year, solarGrowth);
+
+            // Calculate max useful capacity based on electricity demand
+            // Once you have enough to meet demand at penetration limits, additions slow
+            const elecTWh = demandData.global.electricityDemand[i];
+            const hoursPerYear = 8760;
+            // Max solar: at 20% CF and 80% penetration, maxSolar = demand × 0.8 / (CF × hours) × 1000
+            const maxSolarGW = (elecTWh * 0.8 / (0.20 * hoursPerYear)) * 1000;
+            const maxWindGW = (elecTWh * 0.35 / (0.30 * hoursPerYear)) * 1000;
+            const maxBatteryGW = maxSolarGW * 0.5;  // 50% of solar needs battery backing
+            const maxNuclearGW = (elecTWh * 0.30 / (0.90 * hoursPerYear)) * 1000;
+
+            const maxCapacities = {
+                solar: maxSolarGW,
+                wind: maxWindGW,
+                battery: maxBatteryGW,
+                nuclear: maxNuclearGW
+            };
+
+            // === MINERALS ===
+            for (const mineralKey of ['copper', 'lithium', 'rareEarths', 'steel']) {
+                const result = mineralDemand(capacities, prevCapacities, year, mineralKey, cumulativeStock[mineralKey], maxCapacities);
+
+                resources.minerals[mineralKey].demand.push(result.demand);
+                resources.minerals[mineralKey].grossDemand.push(result.grossDemand);
+                resources.minerals[mineralKey].recycled.push(result.recycled);
+                resources.minerals[mineralKey].intensity.push(result.intensity);
+
+                // Update cumulative stock (stock-in-use grows by demand)
+                cumulativeStock[mineralKey] += result.demand;
+                resources.minerals[mineralKey].cumulative.push(cumulativeStock[mineralKey]);
+
+                // Reserve ratio (cumulative / reserves)
+                const mineral = resourceParams.minerals[mineralKey];
+                const reserveRatio = mineral.reserves ?
+                    cumulativeStock[mineralKey] / mineral.reserves : 0;
+                resources.minerals[mineralKey].reserveRatio.push(reserveRatio);
+            }
+
+            // === FOOD ===
+            const food = foodDemand(population, gdpPerCapita, year);
+            resources.food.caloriesPerCapita.push(food.caloriesPerCapita);
+            resources.food.totalCalories.push(food.totalCalories);
+            resources.food.proteinShare.push(food.proteinShare);
+            resources.food.grainEquivalent.push(food.grainEquivalent);
+            resources.food.glp1Adoption.push(food.glp1Adoption);
+            resources.food.glp1Effect.push(food.glp1Effect);
+
+            // === LAND ===
+            const land = landDemand(food, population, gdpPerCapita, gdpPerCapita2025, year);
+            resources.land.farmland.push(land.farmland);
+            resources.land.urban.push(land.urban);
+            resources.land.forest.push(land.forest);
+            resources.land.yield.push(land.yield);
+
+            // Update previous capacities for next iteration
+            prevCapacities = capacities;
+        }
+
+        // === METRICS ===
+        const idx2050 = years.indexOf(2050);
+        const idx2075 = years.indexOf(2075);
+        const idx2100 = years.length - 1;
+
+        // Find peak years for minerals (when annual demand peaks)
+        const findPeakYear = (arr) => {
+            let maxVal = 0, maxIdx = 0;
+            for (let i = 0; i < arr.length; i++) {
+                if (arr[i] > maxVal) { maxVal = arr[i]; maxIdx = i; }
+            }
+            return { year: years[maxIdx], value: maxVal };
+        };
+
+        resources.metrics = {
+            // Mineral peaks
+            copperPeakYear: findPeakYear(resources.minerals.copper.demand).year,
+            copperPeakDemand: findPeakYear(resources.minerals.copper.demand).value,
+            lithiumPeakYear: findPeakYear(resources.minerals.lithium.demand).year,
+            lithiumPeakDemand: findPeakYear(resources.minerals.lithium.demand).value,
+
+            // Cumulative by 2050, 2100
+            copperCumulative2050: resources.minerals.copper.cumulative[idx2050],
+            copperCumulative2100: resources.minerals.copper.cumulative[idx2100],
+            lithiumCumulative2050: resources.minerals.lithium.cumulative[idx2050],
+            lithiumCumulative2100: resources.minerals.lithium.cumulative[idx2100],
+
+            // Reserve warnings (>50% of reserves consumed)
+            copperReserveRatio2050: resources.minerals.copper.reserveRatio[idx2050],
+            copperReserveRatio2100: resources.minerals.copper.reserveRatio[idx2100],
+            lithiumReserveRatio2050: resources.minerals.lithium.reserveRatio[idx2050],
+            lithiumReserveRatio2100: resources.minerals.lithium.reserveRatio[idx2100],
+
+            // Food metrics
+            proteinShare2050: resources.food.proteinShare[idx2050],
+            proteinShare2100: resources.food.proteinShare[idx2100],
+            glp1Effect2050: resources.food.glp1Effect[idx2050],
+            grainDemand2050: resources.food.grainEquivalent[idx2050],
+            grainDemand2100: resources.food.grainEquivalent[idx2100],
+
+            // Land metrics
+            farmland2025: resources.land.farmland[0],
+            farmland2050: resources.land.farmland[idx2050],
+            farmland2100: resources.land.farmland[idx2100],
+            farmlandChange: (resources.land.farmland[idx2100] - resources.land.farmland[0]) / resources.land.farmland[0],
+            urban2050: resources.land.urban[idx2050],
+            forest2100: resources.land.forest[idx2100],
+            forestLoss: (resources.land.forest[0] - resources.land.forest[idx2100]) / resources.land.forest[0]
+        };
+
+        return resources;
+    }
 
     /**
      * Calculate aggregate savings rate (demographic-weighted)
@@ -1685,7 +2135,7 @@
             gas: 2500 * Math.pow(1 + 0.01, t),       // ~2500 GW global gas capacity, slow growth
             coal: 2100 * Math.pow(1 - 0.02, t),     // ~2100 GW global coal, declining
             nuclear: energySources.nuclear.capacity2025 * Math.pow(1 + energySources.nuclear.growthRate, t),
-            battery: energySources.battery.capacity2025 * Math.pow(1 + energySources.battery.growthRate, t) / 1000 // GWh → GW (4h storage)
+            battery: energySources.battery.capacity2025 * Math.pow(1 + energySources.battery.growthRate, t) / 4 // GWh → GW (4h storage = divide by 4)
         };
     }
 
@@ -2147,6 +2597,12 @@
 
         const capitalData = runCapitalModel(demographicsData, demandData, climate);
 
+        // =============================================================================
+        // RESOURCE MODULE - Minerals, food, and land demand
+        // =============================================================================
+
+        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, solarGrowth);
+
         return {
             years,
             results,
@@ -2154,7 +2610,8 @@
             demand: demandData,
             climate,
             dispatch: dispatchData,
-            capital: capitalData
+            capital: capitalData,
+            resources: resourceData
         };
     }
 
@@ -2224,7 +2681,7 @@
     function runScenario(params = {}) {
         const mergedParams = { ...defaults, ...params };
         const simData = runSimulation(mergedParams);
-        const { years, results, demographics, demand, climate, dispatch, capital } = simData;
+        const { years, results, demographics, demand, climate, dispatch, capital, resources } = simData;
         const crossovers = findCrossovers(years, results);
         const derived = computeDerivedSeries(simData);
 
@@ -2335,6 +2792,36 @@
             kPerWorker2025: capital.kPerWorker[0],                      // $K per effective worker
             kPerWorker2100: capital.kPerWorker[idx2100],
 
+            // Resource metrics - Minerals
+            copperPeakYear: resources.metrics.copperPeakYear,
+            copperPeakDemand: resources.metrics.copperPeakDemand,       // Mt/year
+            copperCumulative2050: resources.metrics.copperCumulative2050, // Mt
+            copperCumulative2100: resources.metrics.copperCumulative2100,
+            copperReserveRatio2050: resources.metrics.copperReserveRatio2050,
+            copperReserveRatio2100: resources.metrics.copperReserveRatio2100,
+            lithiumPeakYear: resources.metrics.lithiumPeakYear,
+            lithiumPeakDemand: resources.metrics.lithiumPeakDemand,     // Mt/year
+            lithiumCumulative2050: resources.metrics.lithiumCumulative2050,
+            lithiumCumulative2100: resources.metrics.lithiumCumulative2100,
+            lithiumReserveRatio2050: resources.metrics.lithiumReserveRatio2050,
+            lithiumReserveRatio2100: resources.metrics.lithiumReserveRatio2100,
+
+            // Resource metrics - Food
+            proteinShare2050: resources.metrics.proteinShare2050,       // fraction
+            proteinShare2100: resources.metrics.proteinShare2100,
+            glp1Effect2050: resources.metrics.glp1Effect2050,           // fraction calorie reduction
+            grainDemand2050: resources.metrics.grainDemand2050,         // Mt/year
+            grainDemand2100: resources.metrics.grainDemand2100,
+
+            // Resource metrics - Land
+            farmland2025: resources.metrics.farmland2025,               // Mha
+            farmland2050: resources.metrics.farmland2050,
+            farmland2100: resources.metrics.farmland2100,
+            farmlandChange: resources.metrics.farmlandChange,           // fraction change
+            urban2050: resources.metrics.urban2050,                     // Mha
+            forest2100: resources.metrics.forest2100,                   // Mha
+            forestLoss: resources.metrics.forestLoss,                   // fraction lost
+
             // Derived series (for further analysis)
             derived,
 
@@ -2370,6 +2857,7 @@
             climate: data.climate,
             dispatch: data.dispatch,
             capital: data.capital,
+            resources: data.resources,
             crossovers
         }, null, 2);
     }
@@ -2431,7 +2919,28 @@
         interestRate: { unit: 'fraction', description: 'Real interest rate (r = αY/K - δ)' },
         robotsDensity: { unit: 'robots/1000 workers', description: 'Robots per 1000 effective workers' },
         kPerWorker: { unit: '$K/person', description: 'Capital per effective worker (thousands of dollars)' },
-        kYRatio: { unit: 'ratio', description: 'Capital-to-output ratio (K/Y)' }
+        kYRatio: { unit: 'ratio', description: 'Capital-to-output ratio (K/Y)' },
+
+        // Resources - Minerals
+        mineralDemand: { unit: 'Mt/year', description: 'Annual mineral demand (net of recycling)' },
+        mineralCumulative: { unit: 'Mt', description: 'Cumulative mineral extraction' },
+        mineralIntensity: { unit: 'fraction', description: 'Intensity factor relative to 2025 (0-1)' },
+        reserveRatio: { unit: 'fraction', description: 'Cumulative demand / known reserves' },
+        recyclingRate: { unit: 'fraction', description: 'Recycling rate (0-1)' },
+
+        // Resources - Food
+        caloriesPerCapita: { unit: 'kcal/person/day', description: 'Daily calorie consumption per capita' },
+        totalCalories: { unit: 'Pcal/year', description: 'Global annual calorie demand (petacalories)' },
+        proteinShare: { unit: 'fraction', description: 'Fraction of calories from protein' },
+        grainEquivalent: { unit: 'Mt/year', description: 'Grain equivalent demand (direct + feed)' },
+        glp1Adoption: { unit: 'fraction', description: 'Population fraction using GLP-1 drugs' },
+        glp1Effect: { unit: 'fraction', description: 'Aggregate calorie reduction from GLP-1' },
+
+        // Resources - Land
+        farmland: { unit: 'Mha', description: 'Cropland area (million hectares)' },
+        urban: { unit: 'Mha', description: 'Urban land area' },
+        forest: { unit: 'Mha', description: 'Forest area' },
+        yield: { unit: 't/ha', description: 'Crop yield (tonnes per hectare)' }
     };
 
     // =============================================================================
@@ -4053,6 +4562,13 @@
         calculateInterestRate,// r = αY/K - δ
         robotsDensity,        // Robots per 1000 workers
 
+        // Resource functions
+        runResourceModel,     // Full resource model: { minerals, food, land, metrics }
+        mineralDemand,        // Calculate mineral demand for a year
+        foodDemand,           // Calculate food demand with Bennett's Law + GLP-1
+        landDemand,           // Calculate land use
+        recyclingRate,        // Dynamic recycling rate based on stock-in-use
+
         // Parameters (read-only references)
         energySources,
         demographics,
@@ -4062,6 +4578,7 @@
         dispatchParams,
         climateParams,
         capitalParams,        // Production, savings, automation parameters
+        resourceParams,       // Minerals, food, land parameters
 
         // Units map
         units,                // Canonical unit definitions for all series

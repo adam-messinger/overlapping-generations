@@ -988,6 +988,171 @@
         });
 
         // =============================================================================
+        // RESOURCE MODEL
+        // =============================================================================
+        section('Resource Model');
+
+        test('resourceParams object exists', () => {
+            return typeof energySim.resourceParams === 'object';
+        });
+
+        test('resourceParams has minerals, food, land sections', () => {
+            return energySim.resourceParams.minerals &&
+                   energySim.resourceParams.food &&
+                   energySim.resourceParams.land;
+        });
+
+        test('resourceParams.minerals has all minerals', () => {
+            const m = energySim.resourceParams.minerals;
+            return m.copper && m.lithium && m.rareEarths && m.steel;
+        });
+
+        test('runSimulation returns resources data', () => {
+            const result = energySim.runSimulation();
+            return result.resources &&
+                   result.resources.minerals &&
+                   result.resources.food &&
+                   result.resources.land;
+        });
+
+        test('resources.minerals has all minerals', () => {
+            const result = energySim.runSimulation();
+            return result.resources.minerals.copper &&
+                   result.resources.minerals.lithium &&
+                   result.resources.minerals.rareEarths &&
+                   result.resources.minerals.steel;
+        });
+
+        test('mineral demand arrays have 76 years', () => {
+            const result = energySim.runSimulation();
+            return result.resources.minerals.copper.demand.length === 76;
+        });
+
+        test('mineral intensity declines over time', () => {
+            const result = energySim.runSimulation();
+            const copper = result.resources.minerals.copper;
+            return copper.intensity[0] === 1 && copper.intensity[75] < 0.5;
+        });
+
+        test('cumulative mineral demand increases', () => {
+            const result = energySim.runSimulation();
+            const copper = result.resources.minerals.copper;
+            return copper.cumulative[75] > copper.cumulative[0];
+        });
+
+        test('recyclingRate increases with stock-in-use', () => {
+            const copper = energySim.resourceParams.minerals.copper;
+            const rate0 = energySim.recyclingRate(copper, 0);
+            const rate500 = energySim.recyclingRate(copper, 500);
+            return rate0 < rate500 && rate0 >= copper.recyclingBase;
+        });
+
+        test('food demand has all required fields', () => {
+            const result = energySim.runSimulation();
+            return result.resources.food.caloriesPerCapita &&
+                   result.resources.food.proteinShare &&
+                   result.resources.food.grainEquivalent &&
+                   result.resources.food.glp1Effect;
+        });
+
+        test('protein share follows Bennett\'s Law (increases with GDP)', () => {
+            const result = energySim.runSimulation();
+            // Protein share should increase as GDP grows (2025 vs 2050)
+            return result.resources.food.proteinShare[25] > result.resources.food.proteinShare[0];
+        });
+
+        test('protein share bounded by max', () => {
+            const result = energySim.runSimulation();
+            const maxProtein = energySim.resourceParams.food.proteinShareMax;
+            // Even at 2100, should not exceed max
+            return result.resources.food.proteinShare[75] <= maxProtein;
+        });
+
+        test('GLP-1 adoption follows logistic curve', () => {
+            const result = energySim.runSimulation();
+            const glp1 = result.resources.food.glp1Adoption;
+            // Should be low in 2025, higher in 2050, approaching max by 2100
+            return glp1[0] < glp1[25] && glp1[25] < glp1[75];
+        });
+
+        test('GLP-1 effect reduces calories', () => {
+            const result = energySim.runSimulation();
+            // Effect = adoption × calorieReduction (0.20)
+            // At 2050 (idx 25), adoption should be significant
+            return result.resources.food.glp1Effect[25] > 0;
+        });
+
+        test('land demand has all required fields', () => {
+            const result = energySim.runSimulation();
+            return result.resources.land.farmland &&
+                   result.resources.land.urban &&
+                   result.resources.land.forest &&
+                   result.resources.land.yield;
+        });
+
+        test('yield improves over time', () => {
+            const result = energySim.runSimulation();
+            return result.resources.land.yield[75] > result.resources.land.yield[0];
+        });
+
+        test('urban area grows with population and wealth', () => {
+            const result = energySim.runSimulation();
+            return result.resources.land.urban[25] > result.resources.land.urban[0];
+        });
+
+        test('forest area declines (baseline loss)', () => {
+            const result = energySim.runSimulation();
+            return result.resources.land.forest[75] < result.resources.land.forest[0];
+        });
+
+        test('resources.metrics has expected fields', () => {
+            const result = energySim.runSimulation();
+            const m = result.resources.metrics;
+            return m.copperPeakYear !== undefined &&
+                   m.lithiumPeakYear !== undefined &&
+                   m.proteinShare2050 !== undefined &&
+                   m.farmland2050 !== undefined;
+        });
+
+        test('runScenario has resource metrics', () => {
+            const m = energySim.runScenario();
+            return 'copperPeakYear' in m &&
+                   'lithiumPeakYear' in m &&
+                   'proteinShare2050' in m &&
+                   'farmland2050' in m;
+        });
+
+        test('foodDemand function exists and works', () => {
+            const food = energySim.foodDemand(8e9, 15000, 2030);
+            return food.caloriesPerCapita > 0 &&
+                   food.proteinShare > 0 &&
+                   food.grainEquivalent > 0;
+        });
+
+        test('landDemand function exists and works', () => {
+            const food = { grainEquivalent: 5000 };
+            const land = energySim.landDemand(food, 8e9, 15000, 14000, 2030);
+            return land.farmland > 0 &&
+                   land.urban > 0 &&
+                   land.forest > 0;
+        });
+
+        test('units has resource entries', () => {
+            return energySim.units.mineralDemand?.unit === 'Mt/year' &&
+                   energySim.units.proteinShare?.unit === 'fraction' &&
+                   energySim.units.farmland?.unit === 'Mha';
+        });
+
+        test('exportJSON includes resources data', () => {
+            const json = energySim.exportJSON();
+            const parsed = JSON.parse(json);
+            return parsed.resources &&
+                   parsed.resources.minerals &&
+                   parsed.resources.food &&
+                   parsed.resources.land;
+        });
+
+        // =============================================================================
         // RENDER RESULTS
         // =============================================================================
 

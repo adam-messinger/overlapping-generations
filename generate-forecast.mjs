@@ -233,6 +233,76 @@ console.log('| China dependency >60% by 2050 | Accelerate automation assumptions
 console.log('| Global savings rate <15% | Increase interest rate projections; slow capital accumulation |');
 console.log('| Robots >100/1000 by 2060 | Shift to automation-dominant path; model labor displacement |');
 
+// =============================================================================
+// RESOURCE DEMAND (Phase 6)
+// =============================================================================
+
+console.log('\n## Critical Mineral Demand\n');
+console.log('| Era | Copper (Mt/yr) | Lithium (Mt/yr) | Rare Earths (Mt/yr) | Steel (Mt/yr) |');
+console.log('|-----|---------------|-----------------|---------------------|---------------|');
+
+for (const era of eras) {
+  const copper = eraAvg(data.resources.minerals.copper.demand, era.start, era.end);
+  const lithium = eraAvg(data.resources.minerals.lithium.demand, era.start, era.end);
+  const rareEarths = eraAvg(data.resources.minerals.rareEarths.demand, era.start, era.end);
+  const steel = eraAvg(data.resources.minerals.steel.demand, era.start, era.end);
+
+  console.log(`| ${era.name} | ${copper.toFixed(2)} | ${lithium.toFixed(3)} | ${rareEarths.toFixed(3)} | ${steel.toFixed(0)} |`);
+}
+
+console.log('\n## Mineral Cumulative Demand & Reserve Ratios\n');
+console.log('| Mineral | Cumulative 2050 (Mt) | Cumulative 2100 (Mt) | Reserve Ratio 2050 | Reserve Ratio 2100 |');
+console.log('|---------|---------------------|---------------------|-------------------|-------------------|');
+
+const mineralNames = { copper: 'Copper', lithium: 'Lithium', rareEarths: 'Rare Earths' };
+for (const [key, name] of Object.entries(mineralNames)) {
+  const cum2050 = data.resources.minerals[key].cumulative[25];
+  const cum2100 = data.resources.minerals[key].cumulative[75];
+  const rr2050 = data.resources.minerals[key].reserveRatio[25];
+  const rr2100 = data.resources.minerals[key].reserveRatio[75];
+  const flag2050 = rr2050 > 0.5 ? ' ⚠️' : '';
+  const flag2100 = rr2100 > 0.5 ? ' ⚠️' : '';
+  console.log(`| ${name} | ${cum2050.toFixed(1)} | ${cum2100.toFixed(1)} | ${(rr2050*100).toFixed(0)}%${flag2050} | ${(rr2100*100).toFixed(0)}%${flag2100} |`);
+}
+
+console.log('\n## Food & Protein Demand\n');
+console.log('| Era | Calories/day | Protein Share | Grain Equiv (Mt) | GLP-1 Effect |');
+console.log('|-----|--------------|---------------|------------------|--------------|');
+
+for (const era of eras) {
+  const calories = eraAvg(data.resources.food.caloriesPerCapita, era.start, era.end);
+  const protein = eraAvg(data.resources.food.proteinShare, era.start, era.end) * 100;
+  const grain = eraAvg(data.resources.food.grainEquivalent, era.start, era.end);
+  const glp1 = eraAvg(data.resources.food.glp1Effect, era.start, era.end) * 100;
+
+  console.log(`| ${era.name} | ${calories.toFixed(0)} | ${protein.toFixed(1)}% | ${grain.toFixed(0)} | ${glp1.toFixed(1)}% |`);
+}
+
+console.log('\n## Land Use\n');
+console.log('| Era | Farmland (Mha) | Urban (Mha) | Forest (Mha) | Yield (t/ha) |');
+console.log('|-----|---------------|-------------|--------------|--------------|');
+
+for (const era of eras) {
+  const farmland = eraAvg(data.resources.land.farmland, era.start, era.end);
+  const urban = eraAvg(data.resources.land.urban, era.start, era.end);
+  const forest = eraAvg(data.resources.land.forest, era.start, era.end);
+  const yieldVal = eraAvg(data.resources.land.yield, era.start, era.end);
+
+  console.log(`| ${era.name} | ${farmland.toFixed(0)} | ${urban.toFixed(0)} | ${forest.toFixed(0)} | ${yieldVal.toFixed(2)} |`);
+}
+
+console.log('\n## Resource Milestones\n');
+console.log(`| Milestone | Value |`);
+console.log(`|-----------|-------|`);
+console.log(`| Copper demand peak | ${central.copperPeakYear} (${central.copperPeakDemand.toFixed(2)} Mt/yr) |`);
+console.log(`| Lithium demand peak | ${central.lithiumPeakYear} (${central.lithiumPeakDemand.toFixed(3)} Mt/yr) |`);
+console.log(`| Copper reserve ratio 2100 | ${(central.copperReserveRatio2100*100).toFixed(0)}% |`);
+console.log(`| Lithium reserve ratio 2100 | ${(central.lithiumReserveRatio2100*100).toFixed(0)}% |`);
+console.log(`| Protein share 2050 | ${(central.proteinShare2050*100).toFixed(1)}% |`);
+console.log(`| GLP-1 calorie reduction 2050 | ${(central.glp1Effect2050*100).toFixed(1)}% |`);
+console.log(`| Farmland change 2025→2100 | ${(central.farmlandChange*100).toFixed(1)}% |`);
+console.log(`| Forest loss 2025→2100 | ${(central.forestLoss*100).toFixed(1)}% |`);
+
 console.log('\n## Scenario Parameters Used\n');
 console.log('```');
 console.log(`carbonPrice: $${central.params.carbonPrice}/ton CO₂`);

@@ -69,11 +69,19 @@ The `<script>` section is organized into clear modules:
    - `robotsDensity()` - Robots per 1000 workers
    - `runCapitalModel()` - Full capital simulation with all outputs
 
-9. **SIMULATION ENGINE**
-   - `runSimulation()` - Main loop, returns energy + demographics + climate + capital data
+9. **RESOURCES** - Minerals, food, and land demand (Phase 6)
+   - `resourceParams` object - Mineral intensities, food parameters, land use
+   - `recyclingRate()` - Dynamic recycling based on stock-in-use
+   - `mineralDemand()` - Calculate mineral demand for energy infrastructure
+   - `foodDemand()` - Bennett's Law protein curve + GLP-1 effects
+   - `landDemand()` - Farmland, urban, forest projections
+   - `runResourceModel()` - Full resource simulation with all outputs
+
+10. **SIMULATION ENGINE**
+   - `runSimulation()` - Main loop, returns energy + demographics + climate + capital + resources data
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-10. **VISUALIZATION** - Chart.js-based charts and UI updates
+11. **VISUALIZATION** - Chart.js-based charts and UI updates
    - `updateCharts()` - Redraws all charts on parameter change
 
 ### Console API
@@ -95,6 +103,10 @@ m.kY2025                   // K/Y ratio (capital-to-output)
 m.interestRate2025         // Real interest rate
 m.robotsDensity2050        // Robots per 1000 workers
 m.savingsRate2025          // Aggregate savings rate
+m.copperPeakYear           // Year of peak copper demand
+m.lithiumReserveRatio2100  // Cumulative lithium / reserves
+m.proteinShare2050         // Protein share of calories (Bennett's Law)
+m.farmland2050             // Mha cropland
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -128,7 +140,7 @@ energySim.defaults              // { carbonPrice: 35, solarAlpha: 0.36, ... }
 energySim.config.quiet = true   // Suppress ALL console output
 
 // Full simulation (returns all arrays)
-const { years, results, demographics, demand, climate, dispatch, capital } = energySim.runSimulation({
+const { years, results, demographics, demand, climate, dispatch, capital, resources } = energySim.runSimulation({
   carbonPrice: 100,
   solarAlpha: 0.25,
   solarGrowth: 0.25,
@@ -138,11 +150,19 @@ const { years, results, demographics, demand, climate, dispatch, capital } = ene
 });
 
 // Capital model data
-capital.stock[0]           // 2025 capital stock: ~$350T
+capital.stock[0]           // 2025 capital stock: ~$420T
 capital.interestRate[25]   // 2050 interest rate
 capital.robotsDensity[50]  // 2075 robots per 1000 workers
 capital.savingsRate[0]     // 2025 aggregate savings rate
 capital.stability[50]      // 2075 Galbraith/Chen stability factor
+
+// Resource model data
+resources.minerals.copper.demand[0]     // 2025 copper demand (Mt/year)
+resources.minerals.copper.cumulative[75] // Cumulative copper by 2100
+resources.minerals.lithium.reserveRatio[25] // 2050 lithium reserve ratio
+resources.food.proteinShare[25]         // 2050 protein share
+resources.food.glp1Effect[25]           // 2050 GLP-1 calorie reduction effect
+resources.land.farmland[50]             // 2075 farmland (Mha)
 
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
@@ -172,6 +192,18 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Interest rate | fraction |
 | Robots density | robots/1000 workers |
 | K per worker | $K per person |
+| Mineral demand | Mt/year |
+| Mineral cumulative | Mt |
+| Reserve ratio | fraction (cumulative/reserves) |
+| Calories per capita | kcal/person/day |
+| Total calories | Pcal/year |
+| Protein share | fraction (0-0.16) |
+| Grain equivalent | Mt/year |
+| GLP-1 adoption | fraction of population |
+| Farmland | Mha (million hectares) |
+| Urban area | Mha |
+| Forest area | Mha |
+| Crop yield | t/ha |
 
 ## Key Models
 
@@ -216,6 +248,20 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Automation**: Robots per 1000 workers, growing from 2% to 20% share of capital
 - **K per Worker**: Capital intensity per effective worker
 
+### Resources (Phase 6)
+- **Mineral Demand**: Driven by energy infrastructure (solar GW, wind GW, battery GWh)
+  - Intensity declines via learning (2-3% per year)
+  - Dynamic recycling: rate increases with stock-in-use
+  - Tracks copper, lithium, rare earths, steel
+- **Food Demand**: Bennett's Law + GLP-1 effects
+  - Protein share rises with GDP per capita (logistic curve)
+  - GLP-1 adoption reduces calorie demand 15-20% for users
+  - Grain equivalent = direct consumption + feed conversion
+- **Land Demand**: Farmland, urban, forest
+  - Farmland = grain demand / yield (yield improves 1%/year)
+  - Urban grows with population and wealth
+  - Forest declines with baseline loss rate
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -241,6 +287,17 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 | Global savings rate | ~22% | Model (demographic-weighted) |
 | Real interest rate | ~4% | Model (r = αY/K - δ) |
 | Robot density (global) | ~12/1000 | Model calibration |
+| Global copper demand 2025 | ~26 Mt/year | ICSG |
+| Solar copper intensity | 2.8 t/MW | IEA |
+| Wind copper intensity | 3.5 t/MW | IEA |
+| Global lithium demand 2025 | ~0.8 Mt LCE/year | Benchmark Minerals |
+| Battery lithium intensity | 0.6 t LCE/GWh | BloombergNEF |
+| Global calories 2025 | ~2800 kcal/capita/day | FAO |
+| Protein share OECD | ~15% | FAO |
+| Protein share global | ~11% | FAO |
+| Cropland 2025 | 4.8 Bha | FAO |
+| Urban area 2025 | ~50 Mha | UN |
+| Forest area 2025 | 4.0 Bha | FAO |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
@@ -300,6 +357,8 @@ Open `test.html` in a browser to run the test suite. Tests cover:
 - Demand model (electricity, electrification, intensity)
 - Dispatch (capacity, merit order)
 - Climate functions (emissions, temperature, damages)
+- Capital model (savings, investment, robots)
+- Resource model (minerals, food, land)
 - Full simulation (calibration targets, scenario validation)
 - runScenario helper and exports
 
@@ -317,7 +376,8 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [x] Phase 3: Demand model (GDP per working-age adult, electricity demand)
 - [x] Phase 4: Climate module (emissions, warming, damages)
 - [x] Phase 5: Capital/savings (OLG savings, investment, automation)
-- [ ] Phase 6: Policy scenarios (carbon tax, immigration, retirement age)
+- [x] Phase 6: Resource demand (minerals, food, land)
+- [ ] Phase 7: Policy scenarios (carbon tax, immigration, retirement age)
 
 ## Academic Sources
 
