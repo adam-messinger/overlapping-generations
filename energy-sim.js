@@ -554,7 +554,11 @@
             forestCarbonDensity: 150,     // t C/ha average standing stock
             sequestrationRate: 7.5,       // t CO₂/ha/year for growing forest
             deforestationEmissionFactor: 0.5, // Fraction released immediately (rest decays)
-            decayRate: 0.05               // Annual decay rate for deferred emissions pool
+            decayRate: 0.05,              // Annual decay rate for deferred emissions pool
+
+            // Climate-yield damage (Schlenker/Roberts proxy)
+            yieldDamageThreshold: 2.0,    // °C above preindustrial where damage begins
+            yieldDamageCoeff: 0.15        // Quadratic damage coefficient
         }
     };
 
@@ -579,12 +583,15 @@
      * @param {number} year - Simulation year
      * @param {string} mineralKey - Key in resourceParams.minerals
      * @param {number} cumulativeStock - Cumulative stock-in-use (for recycling)
+     * @param {number} learningMultiplier - Multiplier on learning rate (default 1.0)
      * @returns {Object} { demand, grossDemand, recycled, intensity }
      */
-    function mineralDemand(capacities, prevCapacities, year, mineralKey, cumulativeStock = 0, maxCapacities = null) {
+    function mineralDemand(capacities, prevCapacities, year, mineralKey, cumulativeStock = 0, maxCapacities = null, learningMultiplier = 1.0) {
         const mineral = resourceParams.minerals[mineralKey];
         const t = year - 2025;
-        const intensityFactor = Math.pow(1 - mineral.learningRate, t);
+        // Apply learning multiplier: higher multiplier = faster intensity decline
+        const effectiveLearningRate = mineral.learningRate * learningMultiplier;
+        const intensityFactor = Math.pow(1 - effectiveLearningRate, t);
 
         // Apply capacity ceilings if provided (based on electricity demand)
         let solarCap = capacities.solar;
@@ -710,8 +717,16 @@
         const { land } = effResourceParams;
         const t = year - 2025;
 
-        // Yield improvement over time
-        const currentYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, t);
+        // Yield improvement over time (tech baseline continues to improve)
+        const techYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, t);
+
+        // Climate damage to yields (Schlenker/Roberts proxy)
+        // Below threshold: no damage. Above: quadratic damage factor
+        const excessTemp = Math.max(0, temperature - land.yieldDamageThreshold);
+        const yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * Math.pow(excessTemp, 2));
+
+        // Final yield = tech improvement × climate damage
+        const currentYield = techYield * yieldDamageFactor;
 
         // Farmland = grain demand / yield × non-food multiplier
         // grainEquivalent is in Mt (million tonnes), yield is in t/ha
@@ -769,6 +784,7 @@
             forest,                      // Mha
             desert,                      // Mha (residual + climate)
             yield: currentYield,         // t/ha
+            yieldDamageFactor,           // fraction (1 = no damage, <1 = climate damage)
             forestChange                 // Mha/year (positive = growth)
         };
     }
@@ -828,7 +844,7 @@
      * @param {Object} effResourceParams - Effective resource parameters
      * @returns {Object} Resource demand projections
      */
-    function runResourceModel(demographicsData, demandData, dispatchData, capacityState, climateData = null, effResourceParams = resourceParams) {
+    function runResourceModel(demographicsData, demandData, dispatchData, capacityState, climateData = null, effResourceParams = resourceParams, mineralLearningMultiplier = 1.0) {
         const { years, global: demoGlobal } = demographicsData;
 
         // Initialize output structure
@@ -853,6 +869,7 @@
                 forest: [],               // Mha
                 desert: [],               // Mha (residual + climate)
                 yield: [],                // t/ha
+                yieldDamageFactor: [],    // fraction (1 = no damage)
                 forestChange: []          // Mha/year (positive = growth)
             },
             carbon: {
@@ -907,7 +924,7 @@
             // === MINERALS ===
             // Use actual capacities from state (already constrained)
             for (const mineralKey of ['copper', 'lithium', 'rareEarths', 'steel']) {
-                const result = mineralDemand(currentCapacities, prevCapacities, year, mineralKey, cumulativeStock[mineralKey], null);
+                const result = mineralDemand(currentCapacities, prevCapacities, year, mineralKey, cumulativeStock[mineralKey], null, mineralLearningMultiplier);
 
                 resources.minerals[mineralKey].demand.push(result.demand);
                 resources.minerals[mineralKey].grossDemand.push(result.grossDemand);
@@ -944,6 +961,7 @@
             resources.land.forest.push(land.forest);
             resources.land.desert.push(land.desert);
             resources.land.yield.push(land.yield);
+            resources.land.yieldDamageFactor.push(land.yieldDamageFactor);
             resources.land.forestChange.push(land.forestChange);
 
             // === FOREST CARBON ===
@@ -1011,6 +1029,11 @@
             desert2025: resources.land.desert[0],
             desert2050: resources.land.desert[idx2050],
             desert2100: resources.land.desert[idx2100],
+
+            // Yield damage metrics (climate impact on agriculture)
+            yieldDamageFactor2050: resources.land.yieldDamageFactor[idx2050],
+            yieldDamageFactor2075: resources.land.yieldDamageFactor[idx2075],
+            yieldDamageFactor2100: resources.land.yieldDamageFactor[idx2100],
 
             // Forest carbon metrics
             netFlux2025: resources.carbon.netFlux[0],
@@ -1406,8 +1429,15 @@
         // Merge override params
         const finalParams = { ...applied.params, ...overrideParams };
 
-        // Run simulation with effective params
-        return runSimulation(finalParams);
+        // Run simulation with effective params (Tier-2 overrides now passed through)
+        return runSimulation(finalParams, {
+            energySources: applied.effectiveEnergySources,
+            climateParams: applied.effectiveClimateParams,
+            capitalParams: applied.effectiveCapitalParams,
+            demographics: applied.effectiveDemographics,
+            resourceParams: applied.effectiveResourceParams,
+            expansionParams: applied.effectiveExpansionParams
+        });
     }
 
     /**
@@ -1682,6 +1712,26 @@
                 unit: 'fraction/year',
                 tier: 1,
                 description: 'Annual crop yield improvement rate.'
+            },
+            yieldDamageThreshold: {
+                type: 'number',
+                default: null,
+                hardcoded: 2.0,
+                min: 1.0,
+                max: 4.0,
+                unit: '°C',
+                tier: 1,
+                description: 'Temperature threshold (°C above preindustrial) where yield damage begins. Based on Schlenker/Roberts (2009).'
+            },
+            yieldDamageCoeff: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.15,
+                min: 0.0,
+                max: 0.5,
+                unit: 'fraction',
+                tier: 1,
+                description: 'Quadratic coefficient for yield damage above threshold. Higher = steeper collapse.'
             },
 
             // Output description
@@ -3374,19 +3424,22 @@
      * @param {number} climSensitivity - Climate sensitivity (°C per CO₂ doubling)
      * @returns {Object} Updated CO₂ ppm and temperature
      */
-    function updateClimate(cumulativeEmissions, previousTemp, climSensitivity) {
+    function updateClimate(cumulativeEmissions, previousTemp, climSensitivity, effClimateParams = null) {
+        // Use effective params if provided (for scenario overrides), otherwise global
+        const params = effClimateParams ?? climateParams;
+
         // Calculate atmospheric CO₂ from cumulative emissions
         // This derived approach allows counterfactual analysis (e.g., different emission histories)
-        const atmosphericCO2 = cumulativeEmissions * climateParams.airborneraction * climateParams.ppmPerGt;
-        const co2ppm = climateParams.preindustrialCO2 + atmosphericCO2;
+        const atmosphericCO2 = cumulativeEmissions * params.airborneraction * params.ppmPerGt;
+        const co2ppm = params.preindustrialCO2 + atmosphericCO2;
 
         // Equilibrium temperature from radiative forcing
         // T = S × log₂(CO₂/280)
-        const equilibriumTemp = climSensitivity * Math.log2(co2ppm / climateParams.preindustrialCO2);
+        const equilibriumTemp = climSensitivity * Math.log2(co2ppm / params.preindustrialCO2);
 
         // Temperature lags behind equilibrium (ocean thermal inertia)
         // Simple exponential approach: T(t) = T(t-1) + (T_eq - T(t-1)) / lag
-        const lagFactor = 1 / climateParams.temperatureLag;
+        const lagFactor = 1 / params.temperatureLag;
         const temperature = previousTemp + (equilibriumTemp - previousTemp) * lagFactor;
 
         return {
@@ -3518,7 +3571,7 @@
     // SIMULATION ENGINE
     // =============================================================================
 
-    function runSimulation(params = {}) {
+    function runSimulation(params = {}, scenarioEffectiveParams = null) {
         // === EXISTING (6) - Primary parameters ===
         const carbonPrice = params.carbonPrice ?? defaults.carbonPrice;
         const solarAlpha = params.solarAlpha ?? defaults.solarAlpha;
@@ -3528,7 +3581,16 @@
         const climSensitivity = params.climSensitivity ?? defaults.climSensitivity;
 
         // === ENERGY TECH (6) - Apply Tier 1 overrides to energy sources ===
-        const effectiveEnergySources = {
+        // If scenario effective params provided, use them as base (Tier-2 overrides already applied)
+        const effectiveEnergySources = scenarioEffectiveParams?.energySources ? {
+            solar: { ...scenarioEffectiveParams.energySources.solar },
+            wind: { ...scenarioEffectiveParams.energySources.wind },
+            gas: { ...scenarioEffectiveParams.energySources.gas },
+            coal: { ...scenarioEffectiveParams.energySources.coal },
+            nuclear: { ...scenarioEffectiveParams.energySources.nuclear },
+            hydro: { ...scenarioEffectiveParams.energySources.hydro },
+            battery: { ...scenarioEffectiveParams.energySources.battery }
+        } : {
             solar: { ...energySources.solar },
             wind: { ...energySources.wind },
             gas: { ...energySources.gas },
@@ -3537,6 +3599,7 @@
             hydro: { ...energySources.hydro },
             battery: { ...energySources.battery }
         };
+        // Tier-1 overrides still apply on top of scenario
         if (params.windAlpha != null) effectiveEnergySources.wind.alpha = params.windAlpha;
         if (params.windGrowth != null) effectiveEnergySources.wind.growthRate = params.windGrowth;
         if (params.batteryAlpha != null) effectiveEnergySources.battery.alpha = params.batteryAlpha;
@@ -3544,20 +3607,31 @@
         if (params.nuclearCost0 != null) effectiveEnergySources.nuclear.cost0 = params.nuclearCost0;
         if (params.hydroGrowth != null) effectiveEnergySources.hydro.growthRate = params.hydroGrowth;
 
-        // === CLIMATE (3) - Apply Tier 1 overrides to climate params ===
-        const effectiveClimateParams = { ...climateParams };
+        // === CLIMATE (3+) - Apply Tier 1 overrides to climate params ===
+        const effectiveClimateParams = scenarioEffectiveParams?.climateParams
+            ? { ...scenarioEffectiveParams.climateParams }
+            : { ...climateParams };
+        // Tier-1 overrides
         if (params.damageCoeff != null) effectiveClimateParams.damageCoeff = params.damageCoeff;
         if (params.tippingThreshold != null) effectiveClimateParams.tippingThreshold = params.tippingThreshold;
         if (params.nonElecEmissions2025 != null) effectiveClimateParams.nonElecEmissions2025 = params.nonElecEmissions2025;
+        // Additional Tier-1 climate params (commonly adjusted in sensitivity analysis)
+        if (params.airborneraction != null) effectiveClimateParams.airborneraction = params.airborneraction;
+        if (params.temperatureLag != null) effectiveClimateParams.temperatureLag = params.temperatureLag;
+        if (params.maxDamage != null) effectiveClimateParams.maxDamage = params.maxDamage;
 
         // === CAPITAL (4) - Apply Tier 1 overrides to capital params ===
-        const effectiveCapitalParams = { ...capitalParams };
+        const effectiveCapitalParams = scenarioEffectiveParams?.capitalParams
+            ? { ...scenarioEffectiveParams.capitalParams }
+            : { ...capitalParams };
         if (params.savingsWorking != null) effectiveCapitalParams.savingsWorking = params.savingsWorking;
         if (params.automationGrowth != null) effectiveCapitalParams.automationGrowth = params.automationGrowth;
         if (params.stabilityLambda != null) effectiveCapitalParams.stabilityLambda = params.stabilityLambda;
 
         // === EXPANSION (1) - Apply Tier 1 overrides to expansion params ===
-        const effectiveExpansionParams = { ...expansionParams };
+        const effectiveExpansionParams = scenarioEffectiveParams?.expansionParams
+            ? { ...scenarioEffectiveParams.expansionParams }
+            : { ...expansionParams };
         if (params.robotGrowthRate != null) effectiveExpansionParams.robotGrowthRate = params.robotGrowthRate;
 
         // === DEMOGRAPHICS (3) - Apply Tier 1 multipliers ===
@@ -3565,11 +3639,17 @@
         const fertilityFloorMultiplier = params.fertilityFloorMultiplier ?? 1.0;
         const lifeExpectancyGrowth = params.lifeExpectancyGrowth; // null = use hardcoded
         const migrationMultiplier = params.migrationMultiplier ?? 1.0;
+        // Store scenario demographics for runDemographics (enables Tier-2 demographic overrides)
+        const effectiveDemographics = scenarioEffectiveParams?.demographics ?? null;
 
         // === RESOURCES (3) - Apply Tier 1 overrides ===
-        const effectiveResourceParams = JSON.parse(JSON.stringify(resourceParams)); // Deep copy
+        const effectiveResourceParams = scenarioEffectiveParams?.resourceParams
+            ? JSON.parse(JSON.stringify(scenarioEffectiveParams.resourceParams))
+            : JSON.parse(JSON.stringify(resourceParams)); // Deep copy
         if (params.glp1MaxPenetration != null) effectiveResourceParams.food.glp1Adoption.maxPenetration = params.glp1MaxPenetration;
         if (params.yieldGrowthRate != null) effectiveResourceParams.land.yieldGrowthRate = params.yieldGrowthRate;
+        if (params.yieldDamageThreshold != null) effectiveResourceParams.land.yieldDamageThreshold = params.yieldDamageThreshold;
+        if (params.yieldDamageCoeff != null) effectiveResourceParams.land.yieldDamageCoeff = params.yieldDamageCoeff;
         const mineralLearningMultiplier = params.mineralLearningMultiplier ?? 1.0;
 
         // Generate years array
@@ -3632,7 +3712,7 @@
                 quickCumulativeEmissions += totalEmissions;
 
                 // Update temperature
-                const quickClimateState = updateClimate(quickCumulativeEmissions, quickTemp, climSensitivity);
+                const quickClimateState = updateClimate(quickCumulativeEmissions, quickTemp, climSensitivity, effectiveClimateParams);
                 quickTemp = quickClimateState.temperature;
 
                 // Calculate regional damages
@@ -3935,7 +4015,7 @@
             cumulativeEmissions += emissionsResult.total;
             climate.cumulative.push(cumulativeEmissions);
 
-            const climateState = updateClimate(cumulativeEmissions, currentTemp, climSensitivity);
+            const climateState = updateClimate(cumulativeEmissions, currentTemp, climSensitivity, effectiveClimateParams);
             currentTemp = climateState.temperature;
 
             climate.co2ppm.push(climateState.co2ppm);
@@ -4028,7 +4108,7 @@
         // RESOURCE MODULE - Minerals, food, and land demand
         // =============================================================================
 
-        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState, climate, effectiveResourceParams);
+        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState, climate, effectiveResourceParams, mineralLearningMultiplier);
 
         // =============================================================================
         // UPDATE CLIMATE WITH LAND USE EMISSIONS
@@ -4058,9 +4138,9 @@
         // Temperature depends on cumulative emissions, so we must recalculate the
         // entire trajectory now that land use emissions are included.
         // This enables "negative emissions" from reforestation to actually reduce warming.
-        let tempWithLand = climateParams.currentTemp;
+        let tempWithLand = effectiveClimateParams.currentTemp;
         for (let i = 0; i < years.length; i++) {
-            const climateState = updateClimate(climate.cumulative[i], tempWithLand, climSensitivity);
+            const climateState = updateClimate(climate.cumulative[i], tempWithLand, climSensitivity, effectiveClimateParams);
             tempWithLand = climateState.temperature;
             climate.temperature[i] = climateState.temperature;
             climate.co2ppm[i] = climateState.co2ppm;
@@ -4068,6 +4148,18 @@
 
         // Update climate metrics with corrected temperature
         climate.metrics.warming2100 = climate.temperature[climate.temperature.length - 1];
+
+        // Recalculate peak emissions year after LULUCF adjustment
+        let peakEmissionsWithLand = 0;
+        let peakEmissionsYearWithLand = 2025;
+        for (let i = 0; i < years.length; i++) {
+            if (climate.emissions[i] > peakEmissionsWithLand) {
+                peakEmissionsWithLand = climate.emissions[i];
+                peakEmissionsYearWithLand = years[i];
+            }
+        }
+        climate.metrics.peakEmissionsYear = peakEmissionsYearWithLand;
+        climate.metrics.peakEmissionsValue = peakEmissionsWithLand;
 
         return {
             years,
@@ -4324,6 +4416,11 @@
             desert2050: resources.metrics.desert2050,                   // Mha
             desert2100: resources.metrics.desert2100,                   // Mha
 
+            // Resource metrics - Yield damage (climate impact on agriculture)
+            yieldDamageFactor2050: resources.metrics.yieldDamageFactor2050, // fraction (1 = no damage)
+            yieldDamageFactor2075: resources.metrics.yieldDamageFactor2075,
+            yieldDamageFactor2100: resources.metrics.yieldDamageFactor2100,
+
             // Resource metrics - Forest Carbon
             netFlux2025: resources.metrics.netFlux2025,                 // Gt CO₂/year
             netFlux2050: resources.metrics.netFlux2050,                 // Gt CO₂/year
@@ -4450,6 +4547,7 @@
         forest: { unit: 'Mha', description: 'Forest area' },
         desert: { unit: 'Mha', description: 'Desert/barren land area (residual from land budget)' },
         yield: { unit: 't/ha', description: 'Crop yield (tonnes per hectare)' },
+        yieldDamageFactor: { unit: 'fraction', description: 'Climate damage to yields (1 = no damage, <1 = collapse)' },
         forestChange: { unit: 'Mha/year', description: 'Annual change in forest area (positive = growth)' },
 
         // Resources - Forest Carbon

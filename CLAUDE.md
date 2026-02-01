@@ -6,7 +6,6 @@ An interactive economic simulation exploring energy transitions and demographic 
 
 ```
 overlapping-generations/
-├── energy-sim.html      # Single-file simulation (HTML + JS + CSS)
 ├── energy-sim.js        # Standalone Node.js module (headless)
 ├── run-simulation.js    # CLI runner
 ├── forecast.js          # Twin-Engine forecast generator
@@ -24,11 +23,11 @@ overlapping-generations/
 
 ## Architecture
 
-The simulation is a single HTML file with embedded JavaScript, designed for simplicity and portability. No build step required - just open in a browser.
+The simulation is a Node.js module designed for programmatic and CLI use. No browser dependencies.
 
-### Code Organization (in energy-sim.html)
+### Code Organization (in energy-sim.js)
 
-The `<script>` section is organized into clear modules:
+The module is organized into clear sections:
 
 1. **PRIMITIVES** - Core mathematical functions
    - `compound()` - Compound growth
@@ -110,12 +109,9 @@ The `<script>` section is organized into clear modules:
    - `runSimulation()` - Main loop, returns energy + demographics + climate + capital + resources + capacityState
    - `findCrossovers()` - Detect when clean energy beats fossil
 
-12. **VISUALIZATION** - Chart.js-based charts and UI updates
-   - `updateCharts()` - Redraws all charts on parameter change
+### Node.js API
 
-### Console API
-
-Access simulation data via `window.energySim`:
+Access simulation data via `require('./energy-sim.js')`:
 
 ```javascript
 // Quick scenario run (returns flat metrics + crossovers)
@@ -160,6 +156,9 @@ m.energyBurdenPeak         // Peak energy burden
 m.energyBurdenPeakYear     // Year of peak burden
 m.energyCost2025           // Total energy cost ($ trillions)
 m.energyCost2050           // Energy cost by 2050
+m.yieldDamageFactor2050    // Climate damage to yields (1 = no damage)
+m.yieldDamageFactor2075    // Yield damage at 2075
+m.yieldDamageFactor2100    // Yield damage at 2100
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -224,6 +223,7 @@ resources.food.proteinShare[25]         // 2050 protein share
 resources.food.glp1Effect[25]           // 2050 GLP-1 calorie reduction effect
 resources.land.farmland[50]             // 2075 farmland (Mha)
 resources.land.desert[0]                // 2025 desert/barren (Mha)
+resources.land.yieldDamageFactor[50]    // 2075 climate damage to yields (1 = no damage)
 resources.land.forestChange[25]         // 2050 forest change (Mha/year)
 resources.carbon.netFlux[0]             // 2025 net LULUCF (Gt CO₂/year)
 resources.carbon.sequestration[25]      // 2050 sequestration (Gt CO₂/year)
@@ -331,7 +331,7 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | **Climate (3)** | damageCoeff, tippingThreshold, nonElecEmissions2025 |
 | **Capital (4)** | savingsWorking, automationGrowth, stabilityLambda, robotGrowthRate |
 | **Demographics (3)** | fertilityFloorMultiplier, lifeExpectancyGrowth, migrationMultiplier |
-| **Resources (3)** | mineralLearningMultiplier, glp1MaxPenetration, yieldGrowthRate |
+| **Resources (5)** | mineralLearningMultiplier, glp1MaxPenetration, yieldGrowthRate, yieldDamageThreshold, yieldDamageCoeff |
 
 ### Units Reference
 
@@ -389,6 +389,9 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Energy burden | fraction of GDP (0-1) |
 | Energy burden damage | fraction (0-1) |
 | Fuel prices | $/MWh thermal |
+| Yield damage factor | fraction (0-1, 1 = no damage) |
+| Yield damage threshold | °C above preindustrial |
+| Yield damage coeff | quadratic coefficient |
 
 ## Key Models
 
@@ -472,12 +475,19 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - GLP-1 adoption reduces calorie demand 15-20% for users
   - Grain equivalent = direct consumption + feed conversion
 - **Land Demand**: Farmland, urban, forest, desert
-  - Farmland = grain demand / yield (yield improves 1%/year)
+  - Farmland = grain demand / yield
+  - Yield = tech improvement × climate damage factor
+  - Tech baseline improves 1%/year
+  - Climate damage: Schlenker/Roberts-inspired threshold (2°C), quadratic above
   - Urban grows with population and wealth
   - Forest: baseline loss + reforestation from abandoned farmland
   - Desert: residual from land budget (total - farm - urban - forest)
   - Desertification accelerates above 1.5°C warming
   - 50% of released farmland becomes forest (rewilding)
+- **Climate-Yield Feedback (Issue #10)**: High warming → yield collapse → more farmland → deforestation
+  - Below 2°C: yields grow normally with tech improvement
+  - Above 2°C: quadratic damage, ~37% yield loss at 4°C
+  - Creates bifurcation: green vs collapse scenarios diverge in land use
 - **Forest Carbon**: CDR and emissions from land use change
   - Growing forest sequesters ~7.5 t CO₂/ha/year
   - Deforestation: 50% immediate emissions, 50% enters decay pool
@@ -591,6 +601,9 @@ When energy costs drop, released resources get reinvested into new activities.
 | Fuel price - oil | ~$50/MWh | ~$80/barrel equivalent |
 | Fuel price - gas | ~$25/MWh | US/global blend |
 | Fuel price - coal | ~$15/MWh | Before carbon pricing |
+| Yield damage threshold | 2.0°C | Schlenker/Roberts (2009) proxy |
+| Yield damage at 3°C | ~13% loss | Quadratic damage curve |
+| Yield damage at 4°C | ~37% loss | Schlenker/Roberts: 30-46% |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
@@ -766,17 +779,11 @@ Without G/C expansion, the model shows demand declining from 2060 onward. With e
 3. Add regional damage multiplier to `climateParams.regionalDamage`
 4. Add chart datasets in population/dependency/damages charts
 
-### Adding a New Chart
-1. Add `<canvas>` element in HTML
-2. Declare chart variable (e.g., `let newChart = null`)
-3. Add Chart.js initialization in `updateCharts()`
-4. Remember to call `.destroy()` before recreating
-
-## Headless / Programmatic Use
-
-The simulation core has no DOM dependencies. UI code only runs in browser environments.
+## Programmatic Use
 
 ```javascript
+const energySim = require('./energy-sim.js');
+
 // Suppress console warnings for batch runs
 energySim.config.quiet = true;
 
@@ -796,7 +803,12 @@ for (const params of scenarios) {
 
 ## Testing
 
-Open `test.html` in a browser to run the test suite. Tests cover:
+Run the Node.js test suite:
+```bash
+node test-energy-burden.js
+```
+
+Tests cover:
 - Primitives (compound, learningCurve, depletion, logistic)
 - Defaults and config
 - Demographics model (population, dependency, fertility)
@@ -809,17 +821,9 @@ Open `test.html` in a browser to run the test suite. Tests cover:
 - Full simulation (calibration targets, scenario validation)
 - runScenario helper and exports
 
-Tests run in-browser via iframe to access the full `energySim` API.
-
-For Node.js testing of energy burden constraints:
-```bash
-node test-energy-burden.js
-```
-
 ## Dependencies
 
-- **Chart.js** (CDN): Visualization library
-- No other external dependencies
+- No external dependencies (pure Node.js)
 
 ## Planned Phases
 
@@ -840,6 +844,7 @@ node test-energy-burden.js
 - [Weitzman Fat Tails](https://scholar.harvard.edu/files/weitzman/files/fattaileduncertaintyeconomics.pdf) - Bounded damages approach
 - [Farmer/Way (INET Oxford)](https://www.doynefarmer.com/environmental-economics) - Technology learning curves
 - [Tipping Points (PNAS)](https://www.pnas.org/doi/10.1073/pnas.2103081118) - Threshold damages
+- [Schlenker/Roberts (2009)](sources/Schlenker-Roberts-Crop-Yields.md) - Nonlinear temperature-yield relationship for crops
 
 ### G/C Expansion / Entropy Economics
 - [Galbraith/Chen Entropy Economics](sources/Galbraith-Chen-Entropy-Economics.md) - Energy transitions are additive, not substitutive
