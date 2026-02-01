@@ -4326,6 +4326,16 @@
                         pointRadius: 0
                     },
                     {
+                        label: 'Solar+Battery',
+                        data: dispatchData.solarPlusBattery.map(d => d / 1000),
+                        borderColor: '#ff9f1c',
+                        backgroundColor: '#ff9f1c60',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
                         label: 'Wind',
                         data: dispatchData.wind.map(d => d / 1000),
                         borderColor: energySources.wind.color,
