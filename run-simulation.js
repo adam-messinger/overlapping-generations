@@ -4,9 +4,10 @@
  *
  * Usage:
  *   node run-simulation.js                    # Run with defaults
- *   node run-simulation.js --carbon=100       # Set carbon price
+ *   node run-simulation.js --carbonPrice=100  # Set carbon price
  *   node run-simulation.js --format=json      # Output JSON
  *   node run-simulation.js --format=forecast  # Twin-Engine Century Forecast
+ *   node run-simulation.js --scenario=path    # Load scenario from JSON file
  *   node run-simulation.js --help             # Show help
  */
 
@@ -18,12 +19,37 @@ energySim.config.quiet = true;
 // Parse command line arguments
 function parseArgs() {
     const args = {
-        carbonPrice: 35,
-        solarAlpha: 0.36,
-        solarGrowth: 0.25,
-        electrificationTarget: 0.65,
-        efficiencyMultiplier: 1.0,
-        climSensitivity: 3.0,
+        // Scenario file (optional)
+        scenario: null,
+
+        // Tier 1 params (can override scenario)
+        carbonPrice: null,
+        solarAlpha: null,
+        solarGrowth: null,
+        electrificationTarget: null,
+        efficiencyMultiplier: null,
+        climSensitivity: null,
+        windAlpha: null,
+        windGrowth: null,
+        batteryAlpha: null,
+        nuclearGrowth: null,
+        nuclearCost0: null,
+        hydroGrowth: null,
+        damageCoeff: null,
+        tippingThreshold: null,
+        nonElecEmissions2025: null,
+        savingsWorking: null,
+        automationGrowth: null,
+        stabilityLambda: null,
+        robotGrowthRate: null,
+        fertilityFloorMultiplier: null,
+        lifeExpectancyGrowth: null,
+        migrationMultiplier: null,
+        mineralLearningMultiplier: null,
+        glp1MaxPenetration: null,
+        yieldGrowthRate: null,
+
+        // Output format
         format: 'summary'  // summary, json, forecast, csv
     };
 
@@ -36,7 +62,12 @@ function parseArgs() {
         if (match) {
             const [, key, value] = match;
             if (key in args) {
-                args[key] = isNaN(Number(value)) ? value : Number(value);
+                // Keep scenario as string path
+                if (key === 'scenario' || key === 'format') {
+                    args[key] = value;
+                } else {
+                    args[key] = isNaN(Number(value)) ? value : Number(value);
+                }
             }
         }
     }
@@ -50,18 +81,54 @@ Overlapping Generations Energy Simulation - Headless Runner
 
 Usage: node run-simulation.js [options]
 
-Options:
+Scenario Options:
+  --scenario=PATH          Load scenario from JSON file
+
+Primary Parameters:
   --carbonPrice=N          Carbon price in $/ton (default: 35)
   --solarAlpha=N           Solar learning rate exponent (default: 0.36)
   --solarGrowth=N          Solar capacity growth rate (default: 0.25)
   --electrificationTarget=N Target electrification by 2050 (default: 0.65)
   --efficiencyMultiplier=N Energy efficiency multiplier (default: 1.0)
   --climSensitivity=N      Climate sensitivity °C/doubling (default: 3.0)
+
+Energy Tech Parameters:
+  --windAlpha=N            Wind learning rate exponent
+  --windGrowth=N           Wind capacity growth rate
+  --batteryAlpha=N         Battery learning rate exponent
+  --nuclearGrowth=N        Nuclear capacity growth rate
+  --nuclearCost0=N         Nuclear LCOE in 2025 ($/MWh)
+  --hydroGrowth=N          Hydro capacity growth rate
+
+Climate Parameters:
+  --damageCoeff=N          DICE damage coefficient
+  --tippingThreshold=N     Tipping point temperature (°C)
+  --nonElecEmissions2025=N Non-electricity emissions (Gt CO₂)
+
+Capital Parameters:
+  --savingsWorking=N       Working-age savings rate
+  --automationGrowth=N     Automation share growth rate
+  --stabilityLambda=N      Climate-investment sensitivity
+  --robotGrowthRate=N      Robot density growth rate
+
+Demographics Parameters:
+  --fertilityFloorMultiplier=N  Multiplier on fertility floors
+  --lifeExpectancyGrowth=N      Annual life expectancy gain
+  --migrationMultiplier=N       Multiplier on migration rates
+
+Resource Parameters:
+  --mineralLearningMultiplier=N Multiplier on mineral intensity decline
+  --glp1MaxPenetration=N        Max GLP-1 adoption fraction
+  --yieldGrowthRate=N           Crop yield improvement rate
+
+Output Options:
   --format=FORMAT          Output format: summary, json, forecast, csv
 
 Examples:
   node run-simulation.js
   node run-simulation.js --carbonPrice=100 --format=json
+  node run-simulation.js --scenario=scenarios/net-zero.json
+  node run-simulation.js --scenario=scenarios/baseline.json --carbonPrice=150
   node run-simulation.js --format=forecast > forecast.md
 `);
 }
@@ -81,8 +148,8 @@ function getEraValue(data, year, years) {
 }
 
 // Output formatters
-function formatSummary(metrics) {
-    console.log('\n=== Energy Simulation Results ===\n');
+function formatSummary(metrics, scenarioName = 'Custom') {
+    console.log(`\n=== Energy Simulation Results (${scenarioName}) ===\n`);
     console.log('Climate:');
     console.log(`  Warming by 2100:     ${metrics.warming2100.toFixed(2)}°C`);
     console.log(`  Peak emissions year: ${metrics.peakEmissionsYear}`);
@@ -115,7 +182,7 @@ function formatJSON(data) {
     console.log(JSON.stringify(data, null, 2));
 }
 
-function formatForecast(data, params) {
+function formatForecast(data, params, scenarioName = 'Custom') {
     const { years, demographics, demand, climate, capital, dispatch } = data;
 
     // Era definitions
@@ -148,7 +215,8 @@ function formatForecast(data, params) {
     console.log(`
 # Twin-Engine Century Forecast
 
-**Scenario:** Carbon price $${params.carbonPrice}/ton, Climate sensitivity ${params.climSensitivity}°C
+**Scenario:** ${scenarioName}
+**Parameters:** Carbon price $${params.carbonPrice ?? energySim.defaults.carbonPrice}/ton, Climate sensitivity ${params.climSensitivity ?? energySim.defaults.climSensitivity}°C
 
 ---
 
@@ -232,18 +300,57 @@ function formatCSV(data) {
     }
 }
 
+// Build params object from args, excluding null values
+function buildParams(args) {
+    const params = {};
+    const paramKeys = [
+        'carbonPrice', 'solarAlpha', 'solarGrowth', 'electrificationTarget',
+        'efficiencyMultiplier', 'climSensitivity', 'windAlpha', 'windGrowth',
+        'batteryAlpha', 'nuclearGrowth', 'nuclearCost0', 'hydroGrowth',
+        'damageCoeff', 'tippingThreshold', 'nonElecEmissions2025',
+        'savingsWorking', 'automationGrowth', 'stabilityLambda', 'robotGrowthRate',
+        'fertilityFloorMultiplier', 'lifeExpectancyGrowth', 'migrationMultiplier',
+        'mineralLearningMultiplier', 'glp1MaxPenetration', 'yieldGrowthRate'
+    ];
+
+    for (const key of paramKeys) {
+        if (args[key] != null) {
+            params[key] = args[key];
+        }
+    }
+
+    return params;
+}
+
 // Main
-function main() {
+async function main() {
     const args = parseArgs();
 
-    const params = {
-        carbonPrice: args.carbonPrice,
-        solarAlpha: args.solarAlpha,
-        solarGrowth: args.solarGrowth,
-        electrificationTarget: args.electrificationTarget,
-        efficiencyMultiplier: args.efficiencyMultiplier,
-        climSensitivity: args.climSensitivity
-    };
+    let params;
+    let scenarioName = 'Custom';
+
+    if (args.scenario) {
+        // Load scenario file and merge with CLI overrides
+        try {
+            const scenario = await energySim.loadScenario(args.scenario);
+            const applied = energySim.applyScenario(scenario);
+            scenarioName = applied.name;
+
+            // CLI args override scenario params
+            const cliOverrides = buildParams(args);
+            params = { ...applied.params, ...cliOverrides };
+        } catch (err) {
+            console.error(`Error loading scenario: ${err.message}`);
+            process.exit(1);
+        }
+    } else {
+        // No scenario - use defaults + CLI args
+        params = { ...energySim.defaults };
+        const cliOverrides = buildParams(args);
+        for (const key in cliOverrides) {
+            params[key] = cliOverrides[key];
+        }
+    }
 
     const data = energySim.runSimulation(params);
 
@@ -252,14 +359,14 @@ function main() {
             formatJSON(data);
             break;
         case 'forecast':
-            formatForecast(data, params);
+            formatForecast(data, params, scenarioName);
             break;
         case 'csv':
             formatCSV(data);
             break;
         case 'summary':
         default:
-            formatSummary(energySim.runScenario(params));
+            formatSummary(energySim.runScenario(params), scenarioName);
             break;
     }
 }

@@ -1,0 +1,17 @@
+{
+  "name": "IEA Net Zero 2050",
+  "description": "Aggressive decarbonization scenario aligned with IEA Net Zero by 2050 pathway. Features high carbon pricing, accelerated solar deployment, and rapid electrification.",
+
+  "params": {
+    "carbonPrice": 150,
+    "solarAlpha": 0.40,
+    "solarGrowth": 0.30,
+    "electrificationTarget": 0.80,
+    "efficiencyMultiplier": 1.3,
+    "climSensitivity": 3.0,
+    "windAlpha": 0.28,
+    "windGrowth": 0.22,
+    "batteryAlpha": 0.30,
+    "nuclearGrowth": 0.04
+  }
+}

@@ -7,6 +7,15 @@ An interactive economic simulation exploring energy transitions and demographic 
 ```
 overlapping-generations/
 ├── energy-sim.html      # Single-file simulation (HTML + JS + CSS)
+├── energy-sim.js        # Standalone Node.js module (headless)
+├── run-simulation.js    # CLI runner
+├── forecast.js          # Twin-Engine forecast generator
+├── scenarios/           # Scenario configuration files
+│   ├── baseline.json    # STEPS baseline (current policies)
+│   ├── net-zero.json    # IEA NZE 2050 (aggressive)
+│   ├── tech-stagnation.json # Pessimistic learning rates
+│   ├── high-sensitivity.json # Climate sensitivity 4.5°C
+│   └── README.md        # Scenario documentation
 ├── sources/             # Reference papers and data sources
 │   └── README.md        # Links to Fernández-Villaverde papers, etc.
 └── CLAUDE.md            # This file
@@ -195,7 +204,85 @@ dispatch.robotsPer1000[75]     // 2100 robots per 1000 workers
 
 // Export full run as JSON
 const json = energySim.exportJSON({ carbonPrice: 100 });
+
+// === SCENARIO LOADING ===
+
+// Load and run a scenario file
+const data = await energySim.runWithScenario('scenarios/net-zero.json');
+
+// Load scenario, apply overrides, then run
+const scenario = await energySim.loadScenario('scenarios/baseline.json');
+const applied = energySim.applyScenario(scenario);
+const data = energySim.runSimulation({
+  ...applied.params,
+  carbonPrice: 200  // Override scenario value
+});
+
+// Deep merge utility for custom config
+const merged = energySim.deepMerge(
+  { a: 1, nested: { x: 1 } },
+  { a: 2, nested: { y: 2 } }
+);  // { a: 2, nested: { x: 1, y: 2 } }
+
+// Tier 1 parameters (policy-relevant, ~25 total)
+energySim.defaults.carbonPrice           // 35 $/ton
+energySim.defaults.windAlpha             // null (use hardcoded 0.23)
+energySim.defaults.fertilityFloorMultiplier  // null (use 1.0)
+
+// Get full parameter schema
+const schema = energySim.describeParameters();
+schema.carbonPrice  // { type, default, min, max, unit, tier, description }
+schema._scenarioFormat  // Scenario file format documentation
 ```
+
+### Scenario CLI
+
+```bash
+# Run with a scenario file
+node run-simulation.js --scenario=scenarios/net-zero.json
+
+# Override scenario params from CLI
+node run-simulation.js --scenario=scenarios/baseline.json --carbonPrice=100
+
+# Generate forecast with scenario
+node forecast.js --scenarioFile=scenarios/high-sensitivity.json
+
+# Compare scenarios
+node run-simulation.js --scenario=scenarios/baseline.json
+node run-simulation.js --scenario=scenarios/net-zero.json
+```
+
+### Scenario File Format
+
+```json
+{
+  "name": "Human-readable name",
+  "description": "Description of the scenario",
+
+  "params": {
+    "carbonPrice": 150,
+    "solarAlpha": 0.40
+    // Tier 1 parameters (~25 policy-relevant)
+  },
+
+  "overrides": {
+    "climateParams": { "tippingThreshold": 2.0 },
+    "demographics": { "china": { "fertilityFloor": 0.8 } }
+    // Tier 2 deep overrides (optional, 250+ params)
+  }
+}
+```
+
+### Tier 1 Parameters
+
+| Category | Parameters |
+|----------|------------|
+| **Primary (6)** | carbonPrice, solarAlpha, solarGrowth, electrificationTarget, efficiencyMultiplier, climSensitivity |
+| **Energy Tech (6)** | windAlpha, windGrowth, batteryAlpha, nuclearGrowth, nuclearCost0, hydroGrowth |
+| **Climate (3)** | damageCoeff, tippingThreshold, nonElecEmissions2025 |
+| **Capital (4)** | savingsWorking, automationGrowth, stabilityLambda, robotGrowthRate |
+| **Demographics (3)** | fertilityFloorMultiplier, lifeExpectancyGrowth, migrationMultiplier |
+| **Resources (3)** | mineralLearningMultiplier, glp1MaxPenetration, yieldGrowthRate |
 
 ### Units Reference
 

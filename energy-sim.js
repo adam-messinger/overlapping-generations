@@ -1060,17 +1060,187 @@
     // =============================================================================
 
     /**
-     * Default simulation parameters (matches slider defaults)
+     * Default simulation parameters (Tier 1: policy-relevant)
      * Use energySim.defaults to see these without scanning the DOM
+     *
+     * Tier 1 (~25 params): Exposed via scenario files and CLI
+     * Tier 2 (250+ params): Available via 'overrides' deep-merge for power users
+     *
+     * null = use hardcoded value from parameter objects
      */
     const defaults = {
+        // === EXISTING (6) - User-tuneable via sliders ===
         carbonPrice: 35,              // $/ton CO₂ (STEPS-aligned baseline)
         solarAlpha: 0.36,             // Wright's Law exponent (learning rate)
         solarGrowth: 0.25,            // 25% annual capacity growth
         electrificationTarget: 0.65,  // 65% of useful energy from electricity
         efficiencyMultiplier: 1.0,    // Multiplier on intensity decline rates
-        climSensitivity: 3.0          // °C per CO₂ doubling
+        climSensitivity: 3.0,         // °C per CO₂ doubling
+
+        // === ENERGY TECH (6) - Technology trajectory parameters ===
+        windAlpha: null,              // Wind learning exponent (hardcoded: 0.23)
+        windGrowth: null,             // Wind capacity growth (hardcoded: 0.18)
+        batteryAlpha: null,           // Battery learning exponent (hardcoded: 0.26)
+        nuclearGrowth: null,          // Nuclear capacity growth (hardcoded: 0.02)
+        nuclearCost0: null,           // Nuclear LCOE 2025 (hardcoded: $90/MWh)
+        hydroGrowth: null,            // Hydro capacity growth (hardcoded: 0.01)
+
+        // === CLIMATE (3) - Climate response parameters ===
+        damageCoeff: null,            // DICE damage coefficient (hardcoded: 0.00236)
+        tippingThreshold: null,       // Tipping point temperature (hardcoded: 2.5°C)
+        nonElecEmissions2025: null,   // Non-electricity emissions (hardcoded: 25 Gt)
+
+        // === CAPITAL (4) - Investment and automation ===
+        savingsWorking: null,         // Working-age savings rate (hardcoded: 0.45)
+        automationGrowth: null,       // Automation share growth (hardcoded: 0.03)
+        stabilityLambda: null,        // Climate-investment sensitivity (hardcoded: 2.0)
+        robotGrowthRate: null,        // Robot density growth (hardcoded: 0.12)
+
+        // === DEMOGRAPHICS (3) - Population dynamics ===
+        fertilityFloorMultiplier: null, // Multiplier on all regional fertility floors (1.0 = no change)
+        lifeExpectancyGrowth: null,   // Annual life expectancy gain (hardcoded: ~0.15 years)
+        migrationMultiplier: null,    // Multiplier on migration rates (1.0 = no change)
+
+        // === RESOURCES (3) - Material constraints ===
+        mineralLearningMultiplier: null, // Multiplier on mineral intensity decline (1.0 = no change)
+        glp1MaxPenetration: null,     // Max GLP-1 adoption fraction (hardcoded: 0.15)
+        yieldGrowthRate: null         // Crop yield improvement rate (hardcoded: 0.01)
     };
+
+    // =============================================================================
+    // SCENARIO LOADING - JSON configuration file support
+    // =============================================================================
+
+    /**
+     * Deep merge utility for nested objects
+     * Source properties override target; arrays are replaced, not merged
+     * @param {Object} target - Base object
+     * @param {Object} source - Object to merge in
+     * @returns {Object} New merged object
+     */
+    function deepMerge(target, source) {
+        const result = { ...target };
+        for (const key in source) {
+            if (source.hasOwnProperty(key)) {
+                if (source[key] !== null &&
+                    typeof source[key] === 'object' &&
+                    !Array.isArray(source[key]) &&
+                    target[key] !== null &&
+                    typeof target[key] === 'object' &&
+                    !Array.isArray(target[key])) {
+                    result[key] = deepMerge(target[key], source[key]);
+                } else {
+                    result[key] = source[key];
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Load scenario from file path or object
+     * @param {string|Object} pathOrObject - Path to JSON file or scenario object
+     * @returns {Promise<Object>} Scenario object with name, description, params, overrides
+     */
+    async function loadScenario(pathOrObject) {
+        if (typeof pathOrObject === 'object') {
+            return pathOrObject;
+        }
+
+        // Node.js file loading
+        if (typeof require !== 'undefined') {
+            const fs = require('fs');
+            const path = require('path');
+            const resolvedPath = path.resolve(pathOrObject);
+            const content = fs.readFileSync(resolvedPath, 'utf8');
+            return JSON.parse(content);
+        }
+
+        // Browser fetch
+        if (typeof fetch !== 'undefined') {
+            const response = await fetch(pathOrObject);
+            return response.json();
+        }
+
+        throw new Error('Cannot load scenario: neither require nor fetch available');
+    }
+
+    /**
+     * Apply scenario to create effective parameter config
+     * @param {Object} scenario - Scenario object with params and optional overrides
+     * @param {Object} baseDefaults - Base defaults to start from
+     * @returns {Object} { params, effectiveEnergySources, effectiveClimateParams, ... }
+     */
+    function applyScenario(scenario, baseDefaults = defaults) {
+        // Start with base defaults, overlay scenario params
+        const params = { ...baseDefaults };
+        if (scenario.params) {
+            for (const key in scenario.params) {
+                if (scenario.params.hasOwnProperty(key)) {
+                    params[key] = scenario.params[key];
+                }
+            }
+        }
+
+        // Build effective parameter objects for deep configuration
+        let effectiveEnergySources = energySources;
+        let effectiveClimateParams = climateParams;
+        let effectiveCapitalParams = capitalParams;
+        let effectiveDemographics = demographics;
+        let effectiveResourceParams = resourceParams;
+        let effectiveReboundParams = reboundParams;
+
+        // Apply Tier 2 overrides (deep merge)
+        if (scenario.overrides) {
+            if (scenario.overrides.energySources) {
+                effectiveEnergySources = deepMerge(energySources, scenario.overrides.energySources);
+            }
+            if (scenario.overrides.climateParams) {
+                effectiveClimateParams = deepMerge(climateParams, scenario.overrides.climateParams);
+            }
+            if (scenario.overrides.capitalParams) {
+                effectiveCapitalParams = deepMerge(capitalParams, scenario.overrides.capitalParams);
+            }
+            if (scenario.overrides.demographics) {
+                effectiveDemographics = deepMerge(demographics, scenario.overrides.demographics);
+            }
+            if (scenario.overrides.resourceParams) {
+                effectiveResourceParams = deepMerge(resourceParams, scenario.overrides.resourceParams);
+            }
+            if (scenario.overrides.reboundParams) {
+                effectiveReboundParams = deepMerge(reboundParams, scenario.overrides.reboundParams);
+            }
+        }
+
+        return {
+            name: scenario.name || 'Custom Scenario',
+            description: scenario.description || '',
+            params,
+            effectiveEnergySources,
+            effectiveClimateParams,
+            effectiveCapitalParams,
+            effectiveDemographics,
+            effectiveResourceParams,
+            effectiveReboundParams
+        };
+    }
+
+    /**
+     * Run simulation with a scenario file
+     * @param {string|Object} scenarioPathOrObject - Path to scenario JSON or scenario object
+     * @param {Object} overrideParams - Additional params to override scenario params
+     * @returns {Promise<Object>} Full simulation results
+     */
+    async function runWithScenario(scenarioPathOrObject, overrideParams = {}) {
+        const scenario = await loadScenario(scenarioPathOrObject);
+        const applied = applyScenario(scenario);
+
+        // Merge override params
+        const finalParams = { ...applied.params, ...overrideParams };
+
+        // Run simulation with effective params
+        return runSimulation(finalParams);
+    }
 
     /**
      * Runtime configuration
@@ -1090,13 +1260,14 @@
      */
     function describeParameters() {
         return {
-            // Primary simulation inputs (slider-controllable)
+            // === EXISTING (6) - Primary simulation inputs (slider-controllable) ===
             carbonPrice: {
                 type: 'number',
                 default: 35,
                 min: 0,
                 max: 200,
                 unit: '$/ton CO₂',
+                tier: 1,
                 description: 'Carbon tax applied to fossil fuel generation. Higher values accelerate transition to renewables.'
             },
             solarAlpha: {
@@ -1105,6 +1276,7 @@
                 min: 0.1,
                 max: 0.5,
                 unit: 'dimensionless',
+                tier: 1,
                 description: "Wright's Law learning exponent for solar. 0.36 = 25% cost reduction per capacity doubling."
             },
             solarGrowth: {
@@ -1113,6 +1285,7 @@
                 min: 0.05,
                 max: 0.40,
                 unit: 'fraction/year',
+                tier: 1,
                 description: 'Annual solar capacity growth rate. 0.25 = 25% per year.'
             },
             electrificationTarget: {
@@ -1121,6 +1294,7 @@
                 min: 0.40,
                 max: 0.90,
                 unit: 'fraction',
+                tier: 1,
                 description: 'Target share of final energy from electricity by 2050. Higher = faster transition from direct fuel use.'
             },
             efficiencyMultiplier: {
@@ -1129,6 +1303,7 @@
                 min: 0.5,
                 max: 2.0,
                 unit: 'multiplier',
+                tier: 1,
                 description: 'Multiplier on energy intensity decline rate. 1.5 = 50% faster efficiency gains.'
             },
             climSensitivity: {
@@ -1137,7 +1312,208 @@
                 min: 2.0,
                 max: 4.5,
                 unit: '°C per CO₂ doubling',
+                tier: 1,
                 description: 'Equilibrium climate sensitivity. IPCC range is 2.5-4.0°C, with 3.0°C as best estimate.'
+            },
+
+            // === ENERGY TECH (6) - Technology trajectory parameters ===
+            windAlpha: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.23,
+                min: 0.1,
+                max: 0.4,
+                unit: 'dimensionless',
+                tier: 1,
+                description: "Wright's Law learning exponent for wind. 0.23 = 15% cost reduction per capacity doubling."
+            },
+            windGrowth: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.18,
+                min: 0.05,
+                max: 0.30,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual wind capacity growth rate.'
+            },
+            batteryAlpha: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.26,
+                min: 0.1,
+                max: 0.4,
+                unit: 'dimensionless',
+                tier: 1,
+                description: "Wright's Law learning exponent for batteries. 0.26 = 18% cost reduction per capacity doubling."
+            },
+            nuclearGrowth: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.02,
+                min: 0.0,
+                max: 0.10,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual nuclear capacity growth rate.'
+            },
+            nuclearCost0: {
+                type: 'number',
+                default: null,
+                hardcoded: 90,
+                min: 50,
+                max: 150,
+                unit: '$/MWh',
+                tier: 1,
+                description: 'Nuclear LCOE in 2025.'
+            },
+            hydroGrowth: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.01,
+                min: 0.0,
+                max: 0.05,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual hydro capacity growth rate (limited by site availability).'
+            },
+
+            // === CLIMATE (3) - Climate response parameters ===
+            damageCoeff: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.00236,
+                min: 0.001,
+                max: 0.01,
+                unit: 'fraction per °C²',
+                tier: 1,
+                description: 'DICE-2023 quadratic damage coefficient. Higher = more economic damage per degree warming.'
+            },
+            tippingThreshold: {
+                type: 'number',
+                default: null,
+                hardcoded: 2.5,
+                min: 1.5,
+                max: 4.0,
+                unit: '°C',
+                tier: 1,
+                description: 'Temperature midpoint for tipping point S-curve transition.'
+            },
+            nonElecEmissions2025: {
+                type: 'number',
+                default: null,
+                hardcoded: 25,
+                min: 15,
+                max: 35,
+                unit: 'Gt CO₂',
+                tier: 1,
+                description: 'Non-electricity emissions in 2025 (transport, industry, etc.).'
+            },
+
+            // === CAPITAL (4) - Investment and automation ===
+            savingsWorking: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.45,
+                min: 0.20,
+                max: 0.60,
+                unit: 'fraction',
+                tier: 1,
+                description: 'Working-age cohort savings rate.'
+            },
+            automationGrowth: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.03,
+                min: 0.01,
+                max: 0.10,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual growth rate of automation share of capital.'
+            },
+            stabilityLambda: {
+                type: 'number',
+                default: null,
+                hardcoded: 2.0,
+                min: 0.5,
+                max: 5.0,
+                unit: 'dimensionless',
+                tier: 1,
+                description: 'Galbraith/Chen sensitivity of investment to climate damages.'
+            },
+            robotGrowthRate: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.12,
+                min: 0.05,
+                max: 0.25,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual growth rate of robot density.'
+            },
+
+            // === DEMOGRAPHICS (3) - Population dynamics ===
+            fertilityFloorMultiplier: {
+                type: 'number',
+                default: null,
+                hardcoded: 1.0,
+                min: 0.5,
+                max: 1.5,
+                unit: 'multiplier',
+                tier: 1,
+                description: 'Multiplier on all regional fertility floors. <1 = lower fertility, >1 = higher.'
+            },
+            lifeExpectancyGrowth: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.1,
+                min: 0.0,
+                max: 0.3,
+                unit: 'years/year',
+                tier: 1,
+                description: 'Annual gain in life expectancy.'
+            },
+            migrationMultiplier: {
+                type: 'number',
+                default: null,
+                hardcoded: 1.0,
+                min: 0.0,
+                max: 3.0,
+                unit: 'multiplier',
+                tier: 1,
+                description: 'Multiplier on migration rates. 0 = no migration, 2 = double migration.'
+            },
+
+            // === RESOURCES (3) - Material constraints ===
+            mineralLearningMultiplier: {
+                type: 'number',
+                default: null,
+                hardcoded: 1.0,
+                min: 0.5,
+                max: 2.0,
+                unit: 'multiplier',
+                tier: 1,
+                description: 'Multiplier on mineral intensity decline rates. >1 = faster material efficiency gains.'
+            },
+            glp1MaxPenetration: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.15,
+                min: 0.0,
+                max: 0.40,
+                unit: 'fraction',
+                tier: 1,
+                description: 'Maximum GLP-1 adoption fraction of population.'
+            },
+            yieldGrowthRate: {
+                type: 'number',
+                default: null,
+                hardcoded: 0.01,
+                min: 0.0,
+                max: 0.03,
+                unit: 'fraction/year',
+                tier: 1,
+                description: 'Annual crop yield improvement rate.'
             },
 
             // Output description
@@ -1159,7 +1535,15 @@
                 'solarCrossesGas', 'coalUneconomic', 'popPeakYear',
                 'collegeShare2050', 'dependency2075', 'robotsDensity2050',
                 'copperPeakYear', 'lithiumReserveRatio2100'
-            ]
+            ],
+
+            // Scenario file format
+            _scenarioFormat: {
+                name: 'string - Human-readable scenario name',
+                description: 'string - Scenario description',
+                params: 'object - Tier 1 parameters (flat key-value)',
+                overrides: 'object - Tier 2 deep overrides (nested objects for energySources, climateParams, etc.)'
+            }
         };
     }
 
@@ -1514,7 +1898,18 @@
      * Returns yearly data by region and global aggregates
      * Includes education tracking: college/non-college splits and effective workers
      */
-    function runDemographics() {
+    /**
+     * Run demographics model with optional parameter overrides
+     * @param {Object} params - Optional parameter overrides
+     * @param {number} params.fertilityFloorMultiplier - Multiplier on fertility floors (1.0 = no change)
+     * @param {number} params.migrationMultiplier - Multiplier on migration rates (1.0 = no change)
+     * @param {number} params.lifeExpectancyGrowth - Annual LE gain (null = use default ~0.1 years)
+     */
+    function runDemographics(params = {}) {
+        const fertilityFloorMult = params.fertilityFloorMultiplier ?? 1.0;
+        const migrationMult = params.migrationMultiplier ?? 1.0;
+        const leGrowth = params.lifeExpectancyGrowth ?? 0.1; // Default ~0.1 years/year
+
         const years = [];
 
         // Initialize region data structures with education arrays
@@ -1553,18 +1948,27 @@
         const currentState = {};
         const eduState = {};
 
-        for (const [key, params] of Object.entries(demographics)) {
+        for (const [key, demoParams] of Object.entries(demographics)) {
             const eduParams = educationParams[key];
-            const workingPop = params.pop2025 * params.working;
-            const oldPop = params.pop2025 * params.old;
+            const workingPop = demoParams.pop2025 * demoParams.working;
+            const oldPop = demoParams.pop2025 * demoParams.old;
+
+            // Apply multipliers to create effective parameters
+            const effectiveFertilityFloor = demoParams.fertilityFloor * fertilityFloorMult;
+            const effectiveMigrationRate = demoParams.migrationRate * migrationMult;
 
             currentState[key] = {
-                population: params.pop2025,
-                young: params.young,
-                working: params.working,
-                old: params.old,
-                lifeExpectancy: params.lifeExpectancy,
-                migrationRate: params.migrationRate
+                population: demoParams.pop2025,
+                young: demoParams.young,
+                working: demoParams.working,
+                old: demoParams.old,
+                lifeExpectancy: demoParams.lifeExpectancy,
+                migrationRate: effectiveMigrationRate,
+                // Store effective params for use in aging
+                _fertilityFloor: effectiveFertilityFloor,
+                _fertility: demoParams.fertility,
+                _fertilityDecay: demoParams.fertilityDecay,
+                _leGrowth: leGrowth
             };
 
             // Initialize education state from 2025 baseline shares
@@ -1586,15 +1990,13 @@
             let globalOldCollege = 0, globalOldNonCollege = 0;
             let globalEffectiveWorkers = 0;
 
-            for (const [key, params] of Object.entries(demographics)) {
+            for (const [key, demoParams] of Object.entries(demographics)) {
                 const eduParams = educationParams[key];
-
-                // Project fertility for this year
-                const tfr = projectFertility(params.fertility, params.fertilityFloor, params.fertilityDecay, t);
-                regions[key].fertility.push(tfr);
-
-                // Store current values
                 const state = currentState[key];
+
+                // Project fertility for this year using effective parameters
+                const tfr = projectFertility(state._fertility, state._fertilityFloor, state._fertilityDecay, t);
+                regions[key].fertility.push(tfr);
                 const edu = eduState[key];
 
                 regions[key].population.push(state.population);
@@ -1638,8 +2040,13 @@
                     const nextState = ageCohorts(state, tfr, year, edu, eduParams);
                     currentState[key] = {
                         ...nextState,
-                        lifeExpectancy: params.lifeExpectancy + t * 0.1, // Slow improvement
-                        migrationRate: params.migrationRate
+                        lifeExpectancy: demoParams.lifeExpectancy + t * state._leGrowth,
+                        migrationRate: state.migrationRate,
+                        // Preserve effective params for next iteration
+                        _fertilityFloor: state._fertilityFloor,
+                        _fertility: state._fertility,
+                        _fertilityDecay: state._fertilityDecay,
+                        _leGrowth: state._leGrowth
                     };
                     // Update education state from cohort aging
                     eduState[key] = {
@@ -2509,12 +2916,58 @@
     // =============================================================================
 
     function runSimulation(params = {}) {
+        // === EXISTING (6) - Primary parameters ===
         const carbonPrice = params.carbonPrice ?? defaults.carbonPrice;
-        const solarAlpha = params.solarAlpha ?? 0.36;  // Farmer/Naam calibrated
-        const solarGrowth = params.solarGrowth ?? 0.25;
-        const electrificationTarget = params.electrificationTarget ?? 0.65;
-        const efficiencyMultiplier = params.efficiencyMultiplier ?? 1.0;
-        const climSensitivity = params.climSensitivity ?? climateParams.climSensitivity;
+        const solarAlpha = params.solarAlpha ?? defaults.solarAlpha;
+        const solarGrowth = params.solarGrowth ?? defaults.solarGrowth;
+        const electrificationTarget = params.electrificationTarget ?? defaults.electrificationTarget;
+        const efficiencyMultiplier = params.efficiencyMultiplier ?? defaults.efficiencyMultiplier;
+        const climSensitivity = params.climSensitivity ?? defaults.climSensitivity;
+
+        // === ENERGY TECH (6) - Apply Tier 1 overrides to energy sources ===
+        const effectiveEnergySources = {
+            solar: { ...energySources.solar },
+            wind: { ...energySources.wind },
+            gas: { ...energySources.gas },
+            coal: { ...energySources.coal },
+            nuclear: { ...energySources.nuclear },
+            hydro: { ...energySources.hydro },
+            battery: { ...energySources.battery }
+        };
+        if (params.windAlpha != null) effectiveEnergySources.wind.alpha = params.windAlpha;
+        if (params.windGrowth != null) effectiveEnergySources.wind.growthRate = params.windGrowth;
+        if (params.batteryAlpha != null) effectiveEnergySources.battery.alpha = params.batteryAlpha;
+        if (params.nuclearGrowth != null) effectiveEnergySources.nuclear.growthRate = params.nuclearGrowth;
+        if (params.nuclearCost0 != null) effectiveEnergySources.nuclear.cost0 = params.nuclearCost0;
+        if (params.hydroGrowth != null) effectiveEnergySources.hydro.growthRate = params.hydroGrowth;
+
+        // === CLIMATE (3) - Apply Tier 1 overrides to climate params ===
+        const effectiveClimateParams = { ...climateParams };
+        if (params.damageCoeff != null) effectiveClimateParams.damageCoeff = params.damageCoeff;
+        if (params.tippingThreshold != null) effectiveClimateParams.tippingThreshold = params.tippingThreshold;
+        if (params.nonElecEmissions2025 != null) effectiveClimateParams.nonElecEmissions2025 = params.nonElecEmissions2025;
+
+        // === CAPITAL (4) - Apply Tier 1 overrides to capital params ===
+        const effectiveCapitalParams = { ...capitalParams };
+        if (params.savingsWorking != null) effectiveCapitalParams.savingsWorking = params.savingsWorking;
+        if (params.automationGrowth != null) effectiveCapitalParams.automationGrowth = params.automationGrowth;
+        if (params.stabilityLambda != null) effectiveCapitalParams.stabilityLambda = params.stabilityLambda;
+
+        // === REBOUND (1) - Apply Tier 1 overrides to rebound params ===
+        const effectiveReboundParams = { ...reboundParams };
+        if (params.robotGrowthRate != null) effectiveReboundParams.robotGrowthRate = params.robotGrowthRate;
+
+        // === DEMOGRAPHICS (3) - Apply Tier 1 multipliers ===
+        // These are applied during demographics run via effectiveDemographics
+        const fertilityFloorMultiplier = params.fertilityFloorMultiplier ?? 1.0;
+        const lifeExpectancyGrowth = params.lifeExpectancyGrowth; // null = use hardcoded
+        const migrationMultiplier = params.migrationMultiplier ?? 1.0;
+
+        // === RESOURCES (3) - Apply Tier 1 overrides ===
+        const effectiveResourceParams = JSON.parse(JSON.stringify(resourceParams)); // Deep copy
+        if (params.glp1MaxPenetration != null) effectiveResourceParams.food.glp1Adoption.maxPenetration = params.glp1MaxPenetration;
+        if (params.yieldGrowthRate != null) effectiveResourceParams.land.yieldGrowthRate = params.yieldGrowthRate;
+        const mineralLearningMultiplier = params.mineralLearningMultiplier ?? 1.0;
 
         // Generate years array
         const years = [];
@@ -2523,7 +2976,12 @@
         }
 
         // Run demographics and demand models first (they don't depend on capacity state)
-        const demographicsData = runDemographics();
+        // Apply fertility and migration multipliers
+        const demographicsData = runDemographics({
+            fertilityFloorMultiplier,
+            migrationMultiplier,
+            lifeExpectancyGrowth
+        });
         const demandData = runDemandModel(demographicsData, {
             electrificationTarget,
             efficiencyMultiplier
@@ -3396,6 +3854,12 @@ const energySim = {
     runSimulation,        // Full simulation, returns { years, results, demographics, demand, climate, dispatch, capital, resources, capacityState }
     runScenario,          // Convenience wrapper, returns flat metrics object + derived series
     exportJSON,           // Export full run as JSON string
+
+    // Scenario loading (Phase: Scenario Configuration)
+    deepMerge,            // Deep merge utility for nested objects
+    loadScenario,         // Load scenario from file path or object (async)
+    applyScenario,        // Apply scenario to create effective parameter config
+    runWithScenario,      // Run simulation with a scenario file (async)
 
     // Query helpers (time series analysis)
     query,                // { firstYear, crossover, valueAt, perCapita, gridIntensityBelow, regionCrossover }
