@@ -86,9 +86,9 @@ The `<script>` section is organized into clear modules:
    - `landDemand()` - Farmland, urban, forest projections
    - `runResourceModel()` - Full resource simulation with all outputs
 
-10. **JEVONS PARADOX / REBOUND EFFECT** - Energy demand adjustments (Phase 7a)
-   - `reboundParams` object - Price rebound and robot energy parameters
-   - `calculateReboundDemand()` - Calculate demand adjustment from Jevons + robot load
+10. **G/C EXPANSION** - Galbraith/Chen entropy economics (Phase 7a)
+   - `expansionParams` object - Cost expansion and robot energy parameters
+   - `calculateExpansionDemand()` - Calculate demand from cost expansion + automation
 
 11. **CAPACITY STATE** - State-machine architecture for energy capacities (Phase 7b)
    - `capacityParams` object - Growth caps, penetration limits, CAPEX, lifetimes
@@ -129,9 +129,9 @@ m.copperPeakYear           // Year of peak copper demand
 m.lithiumReserveRatio2100  // Cumulative lithium / reserves
 m.proteinShare2050         // Protein share of calories (Bennett's Law)
 m.farmland2050             // Mha cropland
-m.reboundMultiplier2100    // Jevons price rebound multiplier
+m.expansionMultiplier2100  // G/C cost expansion multiplier
 m.robotLoadTWh2100         // Robot energy load (TWh)
-m.adjustedDemand2100       // Demand with rebound (TWh)
+m.adjustedDemand2100       // Demand with expansion (TWh)
 m.finalEnergyPerCapitaDay2025  // kWh/person/day total final energy
 m.finalEnergyPerCapitaDay2050
 m.finalEnergyPerCapitaDay2100
@@ -204,11 +204,11 @@ resources.food.proteinShare[25]         // 2050 protein share
 resources.food.glp1Effect[25]           // 2050 GLP-1 calorie reduction effect
 resources.land.farmland[50]             // 2075 farmland (Mha)
 
-// Rebound/Jevons data (in dispatch object)
-dispatch.robotLoadTWh[25]      // 2050 robot energy load (TWh)
-dispatch.priceMultiplier[50]   // 2075 Jevons price rebound multiplier
-dispatch.adjustedDemand[75]    // 2100 total demand with rebound
-dispatch.robotsPer1000[75]     // 2100 robots per 1000 workers
+// G/C expansion data (in dispatch object)
+dispatch.robotLoadTWh[25]        // 2050 robot energy load (TWh)
+dispatch.expansionMultiplier[50] // 2075 cost expansion multiplier
+dispatch.adjustedDemand[75]      // 2100 total demand with expansion
+dispatch.robotsPer1000[75]       // 2100 robots per 1000 workers
 
 // Final energy data (in demand object)
 demand.global.totalFinalEnergy[0]       // 2025 total final energy (TWh)
@@ -344,7 +344,7 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Urban area | Mha |
 | Forest area | Mha |
 | Crop yield | t/ha |
-| Rebound multiplier | fraction (1.0+) |
+| Expansion multiplier | fraction (1.0+) |
 | Robot load | TWh |
 | Adjusted demand | TWh |
 | Total final energy | TWh |
@@ -423,21 +423,23 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - Urban grows with population and wealth
   - Forest declines with baseline loss rate
 
-### Maximum Power Principle (Phase 7)
-Implements two distinct mechanisms that prevent demand collapse:
+### Galbraith/Chen Expansion (Phase 7)
+Implements G/C Entropy Economics: energy transitions are ADDITIVE, not substitutive.
+When energy costs drop, released resources get reinvested into new activities.
 
-- **Automation Energy (new species, NOT rebound)**
-  - Robots/AI are a NEW category of energy consumer — ecological succession
-  - Not "rebound" (existing uses expanding), but new species exploiting cheap energy niche
+- **Automation Energy (new species)**
+  - Robots/AI are genuinely NEW energy consumers — ecological succession (Odum)
+  - When cheap energy is available, new "species" evolve to fill the niche
   - ~10 MWh/robot-unit/year (datacenters + physical robots)
   - Grows 12%/year from ~50 TWh (2025) to ~10,000 TWh (2100)
   - Additive to base demand before any multipliers
 
-- **Jevons Price Rebound (existing uses expand)**
-  - When LCOE < $15/MWh, EXISTING consumption grows
-  - 2% demand increase per $1 below threshold (conservative)
+- **Cost Expansion (unlocking new activities)**
+  - Cost reduction releases resources → reinvested into activities that were too expensive
+  - Continuous (no threshold) — every cost reduction matters
+  - Uses log form: 25% expansion per cost halving (first halvings matter most)
+  - Examples: desalination, direct air capture, synthetic fuels, electric steel, compute
   - Multiplicative: applied to (base + automation) demand
-  - Activates ~2040 as solar becomes cheap
 
 - **Infrastructure Growth Cap (endogenous)**
   - Base rate 2.5%/year scales with investment capacity
@@ -445,7 +447,7 @@ Implements two distinct mechanisms that prevent demand collapse:
   - G/C insight: growth constrained by capital, not arbitrary caps
   - As population ages and savings decline, infrastructure growth slows
 
-- **Theory**: Odum Maximum Power Principle, Lotka (1922), Galbraith/Chen Entropy Economics
+- **Theory**: Galbraith/Chen Entropy Economics (2021), Odum Maximum Power Principle, Lotka (1922)
 
 ### Capacity State (Phase 7b)
 - **Architecture**: State-machine replaces exogenous growth projections
@@ -501,8 +503,8 @@ Implements two distinct mechanisms that prevent demand collapse:
 | Robot baseline 2025 | 1/1000 workers (~50 TWh) | Datacenter + physical robots |
 | Robot growth rate | 12%/year | AI/automation acceleration |
 | Robot energy | 10 MWh/robot-unit/year | Datacenter + physical avg |
-| Rebound threshold | $15/MWh | "Too cheap to meter" level |
-| Rebound elasticity | 2%/$ | Conservative (historical often higher) |
+| Baseline LCOE | $50/MWh | 2025 grid-average |
+| Expansion coefficient | 25% per halving | Log form (conservative) |
 | Max demand growth | 2.5%/year | Infrastructure build rate cap |
 | Total final energy 2025 | ~122,000 TWh | IEA |
 | Final energy/capita/day 2025 | ~40 kWh | IEA-calibrated |
@@ -551,13 +553,13 @@ This section provides a systems-level view of what's exogenous vs endogenous, ke
 - OLG savings rates by age — lifecycle theory
 - Initial capital stock (~$420T) — Penn World Table
 
-**Maximum Power Principle (MPP)**
-The key theoretical anchor: economies behave like ecosystems, evolving to maximize energy throughput (Odum 1971, Lotka 1922, Garrett 2011).
+**Galbraith/Chen Entropy Economics**
+The key theoretical anchor: energy transitions are ADDITIVE, not substitutive (G/C 2021, Odum 1971, Lotka 1922).
 
-When energy becomes cheap:
-- Existing uses expand (Jevons rebound)
-- New "species" emerge (robots, AI, datacenters)
-- Total energy throughput stabilizes rather than declining
+When energy costs drop:
+- Released resources get reinvested into new activities
+- New "species" emerge (robots, AI, datacenters) — ecological succession
+- Total energy throughput expands rather than declining
 
 This prevents the unrealistic "power down" scenario that pure efficiency models produce.
 
@@ -594,11 +596,11 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
 - Retirements (f: installed capacity, asset lifetime)
 - Installed capacity (f: prior + additions - retirements)
 
-**Maximum Power Principle**
+**G/C Expansion**
 - Automation energy (f: robot density × 10 MWh/unit) — new species, additive
-- Jevons price rebound (f: LCOE below $15, elasticity 2%/$) — existing uses, multiplicative
+- Cost expansion (f: log(baseline/LCOE) × 0.25) — continuous, multiplicative
 - Infrastructure cap (f: savings rate / baseline) — endogenous, scales with investment
-- Adjusted demand (f: (base + automation) × price rebound)
+- Adjusted demand (f: (base + automation) × expansion multiplier)
 
 ### Key Feedback Loops
 
@@ -610,10 +612,10 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
    - Higher damages → lower stability Φ → less investment → lower GDP growth
    - Creates "damage trap" at high warming levels
 
-3. **Efficiency → Demand ↓ → MPP → Demand ↑** (stabilizing)
+3. **Efficiency → Demand ↓ → G/C Expansion → Demand ↑** (stabilizing)
    - Efficiency gains reduce demand per unit GDP
-   - But cheap energy + robots expand to fill energy budget
-   - Economy as ecology: niches get filled
+   - But cheap energy unlocks new activities + robots fill energy niche
+   - G/C: released resources reinvested, not saved
 
 4. **Population ↓ → Workers ↓ → Robots ↑ → Demand stable** (substitution)
    - Demographic decline reduces human workers
@@ -630,26 +632,27 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
 | Infrastructure cap (2.5%/yr) | 2025-2050 | Total demand growth limited by build rate |
 | Penetration limits | Always | Nuclear ≤20%, wind ≤35%, solar ≤45% |
 
-### The MPP Thesis
+### The G/C Thesis
 
-The model's central insight: **energy demand doesn't collapse because the economy behaves like an ecosystem**.
+The model's central insight: **energy transitions are ADDITIVE, not substitutive**.
 
-In ecology, when a resource becomes abundant:
-- Existing species expand
-- New species evolve to exploit the niche
-- Total energy throughput maximizes (Odum/Lotka)
+G/C observe that historically:
+- Coal didn't replace wood — it added to total energy
+- Oil didn't replace coal — it added
+- When energy costs drop, released resources get reinvested into new activities
+- A system that voluntarily restricts growth while cheap energy is available is "evolutionarily disadvantaged"
 
 In this model, when energy becomes cheap:
-- Existing uses expand (Jevons rebound)
-- New "species" emerge (robots, AI, datacenters)
-- Total energy throughput stabilizes at ~80,000 TWh
+- Cost reduction unlocks new activities (desalination, DAC, e-fuels, compute)
+- New "species" emerge (robots, AI, datacenters) — ecological succession
+- Total energy throughput expands rather than declining
 
 **Robots are the key mechanism**—the new species in the economic ecology:
 - 2025: ~50 TWh (physical robots + datacenters)
 - 2050: ~2,000 TWh (automation acceleration)
 - 2100: ~20,000 TWh (25% of electricity)
 
-Without MPP/robot enforcement, the model shows demand declining from 2060 onward. With MPP, demand stabilizes because cheap energy creates its own demand.
+Without G/C expansion, the model shows demand declining from 2060 onward. With expansion, demand stabilizes because cheap energy creates its own demand.
 
 ### Known Limitations
 
@@ -715,7 +718,7 @@ Open `test.html` in a browser to run the test suite. Tests cover:
 - Climate functions (emissions, temperature, damages)
 - Capital model (savings, investment, robots)
 - Resource model (minerals, food, land)
-- Jevons paradox / rebound effect (price rebound, robot energy)
+- G/C expansion (cost expansion, robot energy)
 - Full simulation (calibration targets, scenario validation)
 - runScenario helper and exports
 
@@ -734,7 +737,7 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [x] Phase 4: Climate module (emissions, warming, damages)
 - [x] Phase 5: Capital/savings (OLG savings, investment, automation)
 - [x] Phase 6: Resource demand (minerals, food, land)
-- [x] Phase 7a: Jevons Paradox (robot energy, cheap energy rebound)
+- [x] Phase 7a: G/C Expansion (robot energy, cost expansion)
 - [x] Phase 7b: Capacity State (state-machine architecture, investment constraint, retirement)
 - [ ] Phase 8: Policy scenarios (carbon tax, immigration, retirement age)
 
@@ -746,11 +749,11 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [Farmer/Way (INET Oxford)](https://www.doynefarmer.com/environmental-economics) - Technology learning curves
 - [Tipping Points (PNAS)](https://www.pnas.org/doi/10.1073/pnas.2103081118) - Threshold damages
 
-### Jevons Paradox / Rebound Effect
+### G/C Expansion / Entropy Economics
+- [Galbraith/Chen Entropy Economics](sources/Galbraith-Chen-Entropy-Economics.md) - Energy transitions are additive, not substitutive
 - [Odum Maximum Power Principle](sources/Odum-Maximum-Power-Principle.md) - Systems evolve to maximize energy throughput
-- [Galbraith/Chen Entropy Economics](sources/Galbraith-Chen-Entropy-Economics.md) - Energy use correlates with economic complexity
-- Jevons, W.S. (1865) "The Coal Question" - Original observation of efficiency-consumption paradox
 - Lotka, A.J. (1922) "Contribution to the Energetics of Evolution" - Maximum power in biological systems
+- Jevons, W.S. (1865) "The Coal Question" - Historical observation of efficiency-consumption relationship
 - Garrett, T.J. (2011) "Are there basic physical constraints on future anthropogenic emissions of carbon dioxide?" - Economy-energy coupling
 
 ### Demographics

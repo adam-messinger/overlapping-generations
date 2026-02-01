@@ -317,40 +317,49 @@
     // =============================================================================
 
     /**
-     * Energy demand parameters implementing Maximum Power Principle
+     * Energy demand parameters implementing Galbraith/Chen Entropy Economics
      *
-     * TWO DISTINCT MECHANISMS prevent demand collapse:
+     * G/C KEY INSIGHT: Energy transitions are ADDITIVE, not substitutive.
+     * Coal didn't replace wood, oil didn't replace coal. When energy gets cheaper,
+     * the released resources get reinvested into NEW activities that weren't
+     * economically viable before. The economy expands to consume available energy.
      *
-     * 1. AUTOMATION ENERGY (new species, not rebound)
-     *    Robots/AI are a new category of energy consumer - a "new species" in
-     *    the economic ecology exploiting cheap energy niches. This is NOT rebound
-     *    (existing uses expanding), but ecological succession (new consumers emerging).
+     * TWO MECHANISMS of additive expansion:
+     *
+     * 1. AUTOMATION ENERGY (new species)
+     *    Robots/AI are genuinely new energy consumers - ecological succession (Odum).
+     *    When cheap energy is available, new "species" evolve to fill the niche.
+     *    Examples: datacenters, AI inference, physical robots, autonomous vehicles.
      *    Theory: Odum Maximum Power Principle, Lotka (1922)
      *
-     * 2. JEVONS PRICE REBOUND (true rebound)
-     *    When energy gets cheaper, EXISTING uses expand. More AC, more driving,
-     *    more compute-per-query. This is classic Jevons (1865).
+     * 2. COST EXPANSION (unlocking new activities)
+     *    When energy costs drop, activities that were too expensive become viable:
+     *    desalination, direct air capture, synthetic fuels, electric steel, compute.
+     *    This is continuous - every cost reduction releases resources for reinvestment.
+     *    Theory: Galbraith/Chen (2021), Jevons (1865)
      *
      * CALIBRATION:
      * - Automation energy: 10 MWh/year per robot-unit (datacenter + physical avg)
-     * - Price threshold: $15/MWh is "too cheap to meter" territory
-     * - Elasticity: 2% per $1 is conservative; historical effects often higher
+     * - Expansion coefficient: 25% demand expansion per cost halving (conservative)
      */
-    const reboundParams = {
-        // === AUTOMATION ENERGY (new species) ===
-        // Robots/AI emerge as new energy consumers when energy is cheap
-        // This is ecological succession, not rebound
+    const expansionParams = {
+        // === AUTOMATION ENERGY (new species in economic ecology) ===
+        // Robots/AI are NEW energy consumers - ecological succession (Odum)
+        // Not "rebound" - these activities didn't exist before
         // Calibration: Global datacenters ~250 TWh, industrial robots ~50 TWh in 2025
         energyPerRobotMWh: 10,         // MWh per robot-unit per year
         robotGrowthRate: 0.12,         // 12% annual growth (AI/automation acceleration)
         robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (~50 TWh)
         robotCap: 500,                 // Max robots per 1000 workers
 
-        // === JEVONS PRICE REBOUND (existing uses expand) ===
-        // When LCOE falls below threshold, existing consumption grows
-        cheapEnergyThreshold: 15,      // $/MWh - below this, existing uses expand
-        cheapEnergyElasticity: 0.02,   // 2% demand increase per $1 below threshold
-        maxReboundMultiplier: 10.0,    // Effectively uncapped (G/C: no physical law limits)
+        // === G/C COST EXPANSION (cheap energy unlocks new activities) ===
+        // When energy costs drop, released resources get reinvested into
+        // activities that were previously too expensive (desalination, DAC,
+        // synthetic fuels, industrial heat, compute). This is continuous,
+        // not threshold-based - every cost reduction matters.
+        baselineLCOE: 50,              // 2025 grid-average $/MWh
+        expansionCoefficient: 0.25,    // 25% demand expansion per cost halving
+        // Log form ensures diminishing returns (first halvings matter most)
 
         // === INFRASTRUCTURE CONSTRAINT (endogenous) ===
         // How fast can we build? Scales with investment capacity.
@@ -1209,7 +1218,7 @@
         let effectiveCapitalParams = capitalParams;
         let effectiveDemographics = demographics;
         let effectiveResourceParams = resourceParams;
-        let effectiveReboundParams = reboundParams;
+        let effectiveExpansionParams = expansionParams;
 
         // Apply Tier 2 overrides (deep merge)
         if (scenario.overrides) {
@@ -1228,8 +1237,8 @@
             if (scenario.overrides.resourceParams) {
                 effectiveResourceParams = deepMerge(resourceParams, scenario.overrides.resourceParams);
             }
-            if (scenario.overrides.reboundParams) {
-                effectiveReboundParams = deepMerge(reboundParams, scenario.overrides.reboundParams);
+            if (scenario.overrides.expansionParams) {
+                effectiveExpansionParams = deepMerge(expansionParams, scenario.overrides.expansionParams);
             }
         }
 
@@ -1242,7 +1251,7 @@
             effectiveCapitalParams,
             effectiveDemographics,
             effectiveResourceParams,
-            effectiveReboundParams
+            effectiveExpansionParams
         };
     }
 
@@ -1544,7 +1553,7 @@
                 demographics: 'Population, dependency, education by region and global',
                 demand: 'GDP, electricity demand, electrification by region',
                 climate: 'Emissions, temperature, damages',
-                dispatch: 'Generation by source, grid intensity, rebound effects',
+                dispatch: 'Generation by source, grid intensity, G/C expansion',
                 capital: 'Capital stock, investment, savings, robots',
                 resources: 'Minerals, food, land demand',
                 capacityState: 'Actual installed capacity by source (state-machine)'
@@ -3163,21 +3172,22 @@
     }
 
     // =============================================================================
-    // MAXIMUM POWER PRINCIPLE - Demand adjustment calculation
+    // GALBRAITH/CHEN EXPANSION - Demand adjustment calculation
     // =============================================================================
 
     /**
-     * Calculate demand adjustment from automation energy and Jevons rebound
+     * Calculate demand expansion from automation energy and cost reduction
      *
-     * Implements Maximum Power Principle via two distinct mechanisms:
+     * Implements Galbraith/Chen Entropy Economics: energy transitions are ADDITIVE.
+     * When energy costs drop, released resources get reinvested into new activities.
      *
      * 1. AUTOMATION ENERGY (new species, additive)
-     *    Robots/AI are new energy consumers - ecological succession, not rebound.
+     *    Robots/AI are genuinely new energy consumers - ecological succession (Odum).
      *    Added to base demand before any multipliers.
      *
-     * 2. JEVONS PRICE REBOUND (existing uses, multiplicative)
-     *    When energy gets cheap, existing uses expand. Applied as multiplier
-     *    to (base + automation) demand.
+     * 2. COST EXPANSION (unlocking new activities, multiplicative)
+     *    Cost reduction releases resources → reinvested into activities that were
+     *    previously too expensive. Uses log form (first halvings matter most).
      *
      * ROBOT DENSITY: Can be provided via options.robotsPer1000 (from capital model)
      * or calculated using exponential formula. When robotsPer1000 is provided,
@@ -3187,15 +3197,16 @@
      * @param {number} cheapestLCOE - Lowest LCOE among sources ($/MWh)
      * @param {number} year - Simulation year
      * @param {number} globalWorkers - Global working population
-     * @param {Object} effectiveParams - MPP parameters (optional, defaults to global)
+     * @param {Object} effectiveParams - Expansion parameters (optional, defaults to global)
      * @param {Object} options - Additional options { robotsPer1000 }
-     * @returns {Object} { adjustedDemand, automationTWh, priceMultiplier, robotsPer1000 }
+     * @returns {Object} { adjustedDemand, automationTWh, expansionMultiplier, robotsPer1000 }
      */
-    function calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers, effectiveParams = reboundParams, options = {}) {
+    function calculateExpansionDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers, effectiveParams = expansionParams, options = {}) {
         const t = year - 2025;
 
         // 1. AUTOMATION ENERGY (new species in economic ecology)
-        // Get robot density - prefer provided value (from capital model) over exponential formula
+        // Robots/AI are genuinely NEW energy consumers - not rebound of existing uses
+        // This is ecological succession (Odum): new species fill available energy niches
         const robotsPer1000 = options.robotsPer1000 ?? Math.min(
             effectiveParams.robotBaseline2025 * Math.pow(1 + effectiveParams.robotGrowthRate, t),
             effectiveParams.robotCap
@@ -3207,21 +3218,26 @@
         // Automation energy load (TWh) - additive, not multiplicative
         const robotLoadTWh = totalRobots * effectiveParams.energyPerRobotMWh / 1e6;
 
-        // 2. JEVONS PRICE REBOUND (existing uses expand when energy is cheap)
-        let priceMultiplier = 1.0;
-        if (cheapestLCOE < effectiveParams.cheapEnergyThreshold) {
-            const delta = effectiveParams.cheapEnergyThreshold - cheapestLCOE;
-            priceMultiplier = 1 + (delta * effectiveParams.cheapEnergyElasticity);
-            priceMultiplier = Math.min(priceMultiplier, effectiveParams.maxReboundMultiplier);
-        }
+        // 2. G/C COST EXPANSION (cheap energy unlocks new activities)
+        // G/C insight: cost reduction releases resources → reinvested into new activities
+        // Historical pattern: energy is additive, not substitutive
+        // This is CONTINUOUS, not threshold-based - every cost reduction matters
+        const costRatio = effectiveParams.baselineLCOE / Math.max(5, cheapestLCOE);
 
-        // 3. Combined: automation added first, then Jevons multiplier applied
-        const adjustedDemand = (baseDemandTWh + robotLoadTWh) * priceMultiplier;
+        // Log form: first cost halvings matter more than later ones
+        // log2(2) = 1.0, log2(4) = 2.0, etc.
+        // When energy is 2× cheaper: 25% more activities become viable
+        // When energy is 4× cheaper: 50% more activities become viable
+        const expansionMultiplier = 1 + effectiveParams.expansionCoefficient * Math.log2(Math.max(1, costRatio));
+
+        // 3. Combined: automation added first, then expansion multiplier applied
+        // G/C: released resources reinvested into both existing and new activities
+        const adjustedDemand = (baseDemandTWh + robotLoadTWh) * expansionMultiplier;
 
         return {
             adjustedDemand,
             robotLoadTWh,
-            priceMultiplier,
+            expansionMultiplier,
             robotsPer1000
         };
     }
@@ -3268,9 +3284,9 @@
         if (params.automationGrowth != null) effectiveCapitalParams.automationGrowth = params.automationGrowth;
         if (params.stabilityLambda != null) effectiveCapitalParams.stabilityLambda = params.stabilityLambda;
 
-        // === REBOUND (1) - Apply Tier 1 overrides to rebound params ===
-        const effectiveReboundParams = { ...reboundParams };
-        if (params.robotGrowthRate != null) effectiveReboundParams.robotGrowthRate = params.robotGrowthRate;
+        // === EXPANSION (1) - Apply Tier 1 overrides to expansion params ===
+        const effectiveExpansionParams = { ...expansionParams };
+        if (params.robotGrowthRate != null) effectiveExpansionParams.robotGrowthRate = params.robotGrowthRate;
 
         // === DEMOGRAPHICS (3) - Apply Tier 1 multipliers ===
         // These are applied during demographics run via effectiveDemographics
@@ -3406,9 +3422,9 @@
             nuclear: [],
             total: [],
             gridIntensity: [],
-            // Rebound effect tracking
+            // G/C expansion tracking (cheap energy unlocks new activities)
             robotLoadTWh: [],
-            priceMultiplier: [],
+            expansionMultiplier: [],
             adjustedDemand: [],
             robotsPer1000: []
         };
@@ -3517,7 +3533,7 @@
             };
 
             // -----------------------------------------------------------------
-            // 3. Calculate rebound demand (Jevons + robot energy)
+            // 3. Calculate G/C expansion demand (automation energy + cost expansion)
             // -----------------------------------------------------------------
             const baseDemandTWh = demandData.global.electricityDemand[i];
             const cheapestLCOE = Math.min(lcoes.solar, lcoes.wind);
@@ -3528,9 +3544,9 @@
             // This consolidates the two robot calculation systems into one source of truth
             const capitalBasedRobots = robotsDensity(currentCapital, globalEffectiveWorkers, year, effectiveCapitalParams);
 
-            const rebound = calculateReboundDemand(
+            const expansion = calculateExpansionDemand(
                 baseDemandTWh, cheapestLCOE, year, globalWorkers,
-                effectiveReboundParams,
+                effectiveExpansionParams,
                 { robotsPer1000: capitalBasedRobots }  // Use capital model robots
             );
 
@@ -3538,10 +3554,10 @@
             // Scale max growth rate by investment capacity relative to baseline
             // Higher savings/investment → faster infrastructure buildout
             const currentSavingsRate = aggregateSavingsRate(demographicsData.regions, i, effectiveCapitalParams);
-            const investmentCapacityRatio = currentSavingsRate.global / effectiveReboundParams.baseInvestmentRate;
-            const dynamicMaxGrowthRate = effectiveReboundParams.baseMaxDemandGrowthRate * investmentCapacityRatio;
+            const investmentCapacityRatio = currentSavingsRate.global / effectiveExpansionParams.baseInvestmentRate;
+            const dynamicMaxGrowthRate = effectiveExpansionParams.baseMaxDemandGrowthRate * investmentCapacityRatio;
             const maxDemand = prevAdjustedDemand * (1 + dynamicMaxGrowthRate);
-            const demandTWh = Math.min(rebound.adjustedDemand, maxDemand);
+            const demandTWh = Math.min(expansion.adjustedDemand, maxDemand);
             prevAdjustedDemand = demandTWh;
 
             // -----------------------------------------------------------------
@@ -3560,11 +3576,11 @@
             dispatchData.total.push(dispatchResult.total);
             dispatchData.gridIntensity.push(dispatchResult.gridIntensity);
 
-            // Store rebound metrics
-            dispatchData.robotLoadTWh.push(rebound.robotLoadTWh);
-            dispatchData.priceMultiplier.push(rebound.priceMultiplier);
+            // Store G/C expansion metrics
+            dispatchData.robotLoadTWh.push(expansion.robotLoadTWh);
+            dispatchData.expansionMultiplier.push(expansion.expansionMultiplier);
             dispatchData.adjustedDemand.push(demandTWh);
-            dispatchData.robotsPer1000.push(rebound.robotsPer1000);
+            dispatchData.robotsPer1000.push(expansion.robotsPer1000);
 
             // -----------------------------------------------------------------
             // 5. Calculate emissions and update climate
@@ -3856,12 +3872,12 @@
             kPerWorker2025: capital.kPerWorker[0],                      // $K per effective worker
             kPerWorker2100: capital.kPerWorker[idx2100],
 
-            // Rebound effect metrics (Jevons paradox)
-            reboundMultiplier2050: dispatch.priceMultiplier[idx2050],   // Price rebound multiplier
-            reboundMultiplier2100: dispatch.priceMultiplier[idx2100],
-            robotLoadTWh2050: dispatch.robotLoadTWh[idx2050],           // Robot energy load (TWh)
+            // G/C expansion metrics (cheap energy unlocks new activities)
+            expansionMultiplier2050: dispatch.expansionMultiplier[idx2050],   // Cost expansion multiplier
+            expansionMultiplier2100: dispatch.expansionMultiplier[idx2100],
+            robotLoadTWh2050: dispatch.robotLoadTWh[idx2050],                 // Robot energy load (TWh)
             robotLoadTWh2100: dispatch.robotLoadTWh[idx2100],
-            adjustedDemand2050: dispatch.adjustedDemand[idx2050],       // Demand with rebound (TWh)
+            adjustedDemand2050: dispatch.adjustedDemand[idx2050],             // Demand with expansion (TWh)
             adjustedDemand2100: dispatch.adjustedDemand[idx2100],
             robotsPer10002050: dispatch.robotsPer1000[idx2050],         // Robots per 1000 workers
             robotsPer10002100: dispatch.robotsPer1000[idx2100],
@@ -4372,12 +4388,12 @@ const energySim = {
     climateParams,
     capitalParams,        // Production, savings, automation parameters
     resourceParams,       // Minerals, food, land parameters
-    reboundParams,        // Jevons paradox, robot energy load parameters
+    expansionParams,      // G/C cost expansion, robot energy (new species)
     capacityParams,       // Capacity state: growth caps, penetration limits, CAPEX, lifetimes
     finalEnergyParams,    // Sector breakdown, electrification curves, fuel mixes, carbon intensities
 
-    // Rebound functions
-    calculateReboundDemand,  // Calculate demand adjustment from Jevons + robots
+    // G/C expansion functions
+    calculateExpansionDemand,  // Calculate demand from cost expansion + automation energy
 
     // Units map
     units,                // Canonical unit definitions for all series
