@@ -4041,6 +4041,23 @@
             climate.cumulative[i] = cumulativeWithLand;
         }
 
+        // =============================================================================
+        // RECALCULATE TEMPERATURE WITH LAND USE (closes #8)
+        // =============================================================================
+        // Temperature depends on cumulative emissions, so we must recalculate the
+        // entire trajectory now that land use emissions are included.
+        // This enables "negative emissions" from reforestation to actually reduce warming.
+        let tempWithLand = climateParams.currentTemp;
+        for (let i = 0; i < years.length; i++) {
+            const climateState = updateClimate(climate.cumulative[i], tempWithLand, climSensitivity);
+            tempWithLand = climateState.temperature;
+            climate.temperature[i] = climateState.temperature;
+            climate.co2ppm[i] = climateState.co2ppm;
+        }
+
+        // Update climate metrics with corrected temperature
+        climate.metrics.warming2100 = climate.temperature[climate.temperature.length - 1];
+
         return {
             years,
             results,
