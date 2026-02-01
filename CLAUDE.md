@@ -367,7 +367,7 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 - **Capital Accumulation**: Standard K_{t+1} = (1-δ)K_t + I_t dynamics
 - **OLG Savings**: Demographic-weighted savings rates (young 0%, working 45%, old -5%)
 - **Regional Premiums**: China +15% savings, EM -5%, ROW -8%
-- **Galbraith/Chen Stability**: Investment suppressed by climate uncertainty: Φ = 1/(1 + λ×damages²) with λ=2.0
+- **Galbraith/Chen Uncertainty Premium**: Investment depends on interest rates AND uncertainty. Higher uncertainty raises equity risk premium, suppressing investment: Φ = 1/(1 + λ×u²). Currently u = climate damage; future: social unrest, endogenous volatility, etc.
 - **Interest Rate**: Marginal product of capital r = αY/K - δ
 - **Automation**: Robots per 1000 workers, growing from 2% to 20% share of capital
 - **K per Worker**: Capital intensity per effective worker
@@ -386,22 +386,29 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - Urban grows with population and wealth
   - Forest declines with baseline loss rate
 
-### Jevons Paradox / Rebound Effect (Phase 7)
-- **Problem Solved**: Without rebound, model showed declining energy demand post-2060 due to population decline and efficiency gains—unrealistic given historical patterns
-- **Robot/AI Energy Load**: Automation + AI compute consumes ~10 MWh/robot-unit/year
-  - Includes both physical robots and "ethereal" AI (datacenters, training, inference)
-  - Grows 12%/year from ~50 TWh (2025) to ~20,000 TWh (2100)
-  - By 2100, robots/AI are ~25% of total electricity demand
-- **Price Rebound (Jevons)**: When LCOE < $15/MWh, demand grows
-  - 2% demand increase per $1 below threshold
-  - Rebound capped at 2x baseline to prevent runaway
-  - Activates around 2040-2050 as solar becomes very cheap
-- **Infrastructure Growth Cap**: Total demand growth capped at 2.5%/year
-  - Reflects real-world constraint: we can only build infrastructure so fast
-  - Cap binds 2025-2050; relaxes as base demand growth slows
-  - Robots/AI must fit within this energy budget
-- **Theory**: Odum Maximum Power Principle, Galbraith/Chen Entropy Economics
-- **Effect**: Prevents unrealistic "power down" scenario; demand stable ~80,000 TWh by 2100
+### Maximum Power Principle (Phase 7)
+Implements two distinct mechanisms that prevent demand collapse:
+
+- **Automation Energy (new species, NOT rebound)**
+  - Robots/AI are a NEW category of energy consumer — ecological succession
+  - Not "rebound" (existing uses expanding), but new species exploiting cheap energy niche
+  - ~10 MWh/robot-unit/year (datacenters + physical robots)
+  - Grows 12%/year from ~50 TWh (2025) to ~10,000 TWh (2100)
+  - Additive to base demand before any multipliers
+
+- **Jevons Price Rebound (existing uses expand)**
+  - When LCOE < $15/MWh, EXISTING consumption grows
+  - 2% demand increase per $1 below threshold (conservative)
+  - Multiplicative: applied to (base + automation) demand
+  - Activates ~2040 as solar becomes cheap
+
+- **Infrastructure Growth Cap (endogenous)**
+  - Base rate 2.5%/year scales with investment capacity
+  - Higher savings rate → faster infrastructure buildout
+  - G/C insight: growth constrained by capital, not arbitrary caps
+  - As population ages and savings decline, infrastructure growth slows
+
+- **Theory**: Odum Maximum Power Principle, Lotka (1922), Galbraith/Chen Entropy Economics
 
 ### Capacity State (Phase 7b)
 - **Architecture**: State-machine replaces exogenous growth projections
@@ -465,6 +472,145 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
 2. **Paris-aligned** (carbon $100+): Peak 2030, <2°C achievable
 3. **Aggressive** (carbon $150, high learning): Near-zero by 2070
+
+## Model Architecture
+
+This section provides a systems-level view of what's exogenous vs endogenous, key feedback loops, and what typically binds.
+
+### Exogenous Inputs (Given)
+
+**Energy Technology**
+- Learning curve α (Wright's Law exponent) — Farmer/Way 2021, Naam 2020
+- Initial costs and capacities (2025 baseline) — IEA, BloombergNEF
+- Capacity factors and penetration limits — engineering constraints
+- Asset lifetimes — industry data
+
+**Climate Physics**
+- Climate sensitivity (°C per CO₂ doubling) — IPCC AR6: 2.5-4.0°C
+- Damage coefficients — Nordhaus DICE-2023, regional multipliers
+- Airborne fraction (45%) — carbon cycle chemistry
+- Tipping threshold — PNAS 2021
+
+**Demographics**
+- Initial population by region/cohort (2025) — UN WPP
+- Fertility floor by region — Fernández-Villaverde 2023
+- Mortality improvement rates — UN life tables
+- College enrollment targets — World Bank
+
+**Economics**
+- Initial GDP by region (2025) — IMF
+- TFP growth rates — historical extrapolation
+- OLG savings rates by age — lifecycle theory
+- Initial capital stock (~$420T) — Penn World Table
+
+**Maximum Power Principle (MPP)**
+The key theoretical anchor: economies behave like ecosystems, evolving to maximize energy throughput (Odum 1971, Lotka 1922, Garrett 2011).
+
+When energy becomes cheap:
+- Existing uses expand (Jevons rebound)
+- New "species" emerge (robots, AI, datacenters)
+- Total energy throughput stabilizes rather than declining
+
+This prevents the unrealistic "power down" scenario that pure efficiency models produce.
+
+### Endogenous Variables (Computed)
+
+**Energy System**
+- LCOE by source (f: cumulative capacity, learning α, carbon price)
+- Cumulative capacity (f: capacity state, additions, retirements)
+- Dispatch mix (f: LCOE merit order, penetration limits, demand)
+- Grid intensity (f: dispatch mix, emission factors)
+
+**Demographics**
+- Fertility rate (f: time, regional floor, convergence rate)
+- Population by cohort (f: births, deaths, aging transitions)
+- Effective workers (f: working-age pop, college share, wage premium)
+- Dependency ratio (f: elderly / working-age)
+
+**Economy**
+- GDP by region (f: TFP growth, effective workers, lagged damages)
+- Savings rate (f: demographic composition, regional premiums)
+- Uncertainty premium Φ (f: uncertainty², λ=2.0) — G/C (currently climate, future: social unrest, etc.)
+- Investment (f: GDP × savings × stability)
+- Capital stock (f: prior capital, investment, depreciation)
+- Interest rate (f: αY/K - δ) — marginal product of capital
+
+**Climate**
+- Emissions (f: dispatch, electrification rate, non-electric baseline)
+- Cumulative CO₂ (f: prior cumulative + annual emissions)
+- Temperature (f: CO₂ ppm, climate sensitivity, lag)
+- Damages (f: temperature², regional multipliers, tipping threshold)
+
+**Capacity State**
+- Additions (f: min(demand ceiling, growth cap, investment budget))
+- Retirements (f: installed capacity, asset lifetime)
+- Installed capacity (f: prior + additions - retirements)
+
+**Maximum Power Principle**
+- Automation energy (f: robot density × 10 MWh/unit) — new species, additive
+- Jevons price rebound (f: LCOE below $15, elasticity 2%/$) — existing uses, multiplicative
+- Infrastructure cap (f: savings rate / baseline) — endogenous, scales with investment
+- Adjusted demand (f: (base + automation) × price rebound)
+
+### Key Feedback Loops
+
+1. **Learning → Cost → Deployment → Learning** (positive)
+   - More deployment → lower costs → more deployment
+   - Constrained by capacity state machine
+
+2. **Damages → Stability → Investment → Capital → GDP → Damages** (negative)
+   - Higher damages → lower stability Φ → less investment → lower GDP growth
+   - Creates "damage trap" at high warming levels
+
+3. **Efficiency → Demand ↓ → MPP → Demand ↑** (stabilizing)
+   - Efficiency gains reduce demand per unit GDP
+   - But cheap energy + robots expand to fill energy budget
+   - Economy as ecology: niches get filled
+
+4. **Population ↓ → Workers ↓ → Robots ↑ → Demand stable** (substitution)
+   - Demographic decline reduces human workers
+   - Automation fills labor gap
+   - Robot energy demand prevents demand collapse
+
+### Binding Constraints
+
+| Constraint | When Binding | Effect |
+|------------|--------------|--------|
+| Growth cap (30%) | 2025-2040 | Limits solar/wind deployment speed |
+| Demand ceiling | 2050+ | Can't overbuild beyond useful capacity |
+| Investment budget | High-damage scenarios | Climate uncertainty suppresses investment |
+| Infrastructure cap (2.5%/yr) | 2025-2050 | Total demand growth limited by build rate |
+| Penetration limits | Always | Nuclear ≤20%, wind ≤35%, solar ≤45% |
+
+### The MPP Thesis
+
+The model's central insight: **energy demand doesn't collapse because the economy behaves like an ecosystem**.
+
+In ecology, when a resource becomes abundant:
+- Existing species expand
+- New species evolve to exploit the niche
+- Total energy throughput maximizes (Odum/Lotka)
+
+In this model, when energy becomes cheap:
+- Existing uses expand (Jevons rebound)
+- New "species" emerge (robots, AI, datacenters)
+- Total energy throughput stabilizes at ~80,000 TWh
+
+**Robots are the key mechanism**—the new species in the economic ecology:
+- 2025: ~50 TWh (physical robots + datacenters)
+- 2050: ~2,000 TWh (automation acceleration)
+- 2100: ~20,000 TWh (25% of electricity)
+
+Without MPP/robot enforcement, the model shows demand declining from 2060 onward. With MPP, demand stabilizes because cheap energy creates its own demand.
+
+### Known Limitations
+
+1. **No regional electricity markets** — global dispatch, can't model regional carbon taxes
+2. **Elderly education uses fixed multiplier** — should track cohort-specific historical data
+3. **No storage dispatch optimization** — battery treated as solar add-on
+4. **Graceful decline assumption** — assumes aging economies follow Japan trajectory
+5. **No technology breakthroughs** — fusion, advanced geothermal not modeled
+6. **Deterministic** — no Monte Carlo uncertainty quantification
 
 ## Adding New Features
 
@@ -556,3 +702,19 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [Odum Maximum Power Principle](sources/Odum-Maximum-Power-Principle.md) - Systems evolve to maximize energy throughput
 - [Galbraith/Chen Entropy Economics](sources/Galbraith-Chen-Entropy-Economics.md) - Energy use correlates with economic complexity
 - Jevons, W.S. (1865) "The Coal Question" - Original observation of efficiency-consumption paradox
+- Lotka, A.J. (1922) "Contribution to the Energetics of Evolution" - Maximum power in biological systems
+- Garrett, T.J. (2011) "Are there basic physical constraints on future anthropogenic emissions of carbon dioxide?" - Economy-energy coupling
+
+### Demographics
+- [Fernández-Villaverde (2023)](https://www.sas.upenn.edu/~jesusfv/) - Fertility convergence thesis
+- UN World Population Prospects - Initial population data
+
+### Energy Technology
+- [Farmer/Way (2021)](https://www.inet.ox.ac.uk/publications/empirically-grounded-technology-forecasts-and-the-energy-transition/) - Technology learning curves, solar cost projections
+- [Naam (2020)](https://rameznaam.com/2020/05/14/solars-future-is-insanely-cheap-2020/) - Solar learning rates and cost trajectories
+- IEA World Energy Outlook - Capacity and demand baselines
+
+### Economics
+- Penn World Table - Capital stock estimates
+- OECD - Wage premiums and education returns
+- Chetty et al. - Differential mortality by education

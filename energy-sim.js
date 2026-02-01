@@ -252,7 +252,7 @@
      * - depreciation: Annual capital depreciation rate
      * - savingsYoung/Working/Old: Lifecycle savings rates by cohort (OLG)
      * - savingsPremium: Regional adjustments to savings rate
-     * - stabilityLambda: Sensitivity of investment to climate damages (Galbraith/Chen)
+     * - stabilityLambda: G/C uncertainty premium sensitivity (currently climate-driven)
      * - automationShare2025: Initial fraction of capital that is "robots"
      * - automationGrowth: Annual growth rate of automation share
      * - robotsPerCapitalUnit: Scaling factor for robots per $T automation capital
@@ -262,7 +262,7 @@
      * - capital.stock: Total capital by year
      * - capital.investment: Annual investment
      * - capital.savingsRate: Demographic-weighted aggregate savings rate
-     * - capital.stability: Galbraith/Chen stability factor (0-1)
+     * - capital.stability: G/C uncertainty premium Φ (0-1, currently climate-driven)
      * - capital.interestRate: Marginal product of capital minus depreciation
      * - capital.robotsDensity: Robots per 1000 workers
      * - capital.kPerWorker: Capital per effective worker
@@ -293,8 +293,15 @@
             row: -0.08
         },
 
-        // Galbraith/Chen stability
-        stabilityLambda: 2.0,     // Sensitivity to damages (at 30% damages: 15% investment suppression)
+        // Galbraith/Chen uncertainty premium
+        // Investment decisions depend on interest rates AND uncertainty (equity risk premium)
+        // Multiple sources of uncertainty can suppress investment:
+        //   - Climate damage uncertainty (currently modeled)
+        //   - Social unrest (TODO)
+        //   - Endogenous volatility (TODO)
+        //   - Policy uncertainty, etc.
+        // Stability Φ = 1 / (1 + λ × uncertainty²)
+        stabilityLambda: 2.0,     // Sensitivity to uncertainty (at 30% uncertainty: 15% investment suppression)
 
         // Automation
         automationShare2025: 0.02,    // 2% of capital is "robots"
@@ -306,47 +313,50 @@
     };
 
     // =============================================================================
-    // JEVONS PARADOX / REBOUND EFFECT (Phase 7)
+    // MAXIMUM POWER PRINCIPLE - Energy demand dynamics (Phase 7)
     // =============================================================================
 
     /**
-     * Rebound effect parameters
+     * Energy demand parameters implementing Maximum Power Principle
      *
-     * Implements two mechanisms that increase energy demand:
-     * 1. Jevons/Price Rebound: Cheaper energy leads to more consumption
-     * 2. Robot Energy Load: Automation consumes significant electricity
+     * TWO DISTINCT MECHANISMS prevent demand collapse:
      *
-     * THEORY:
-     * - Odum Maximum Power Principle: Systems evolve to maximize energy throughput
-     * - Galbraith/Chen Entropy Economics: Energy use correlates with complexity
-     * - Historical Jevons: UK coal consumption grew despite efficiency gains
+     * 1. AUTOMATION ENERGY (new species, not rebound)
+     *    Robots/AI are a new category of energy consumer - a "new species" in
+     *    the economic ecology exploiting cheap energy niches. This is NOT rebound
+     *    (existing uses expanding), but ecological succession (new consumers emerging).
+     *    Theory: Odum Maximum Power Principle, Lotka (1922)
+     *
+     * 2. JEVONS PRICE REBOUND (true rebound)
+     *    When energy gets cheaper, EXISTING uses expand. More AC, more driving,
+     *    more compute-per-query. This is classic Jevons (1865).
      *
      * CALIBRATION:
-     * - Robot energy: 10 MWh/year ≈ 27 kWh/day (datacenter + physical robot average)
-     * - Price threshold: $15/MWh is approximately "too cheap to meter" territory
+     * - Automation energy: 10 MWh/year per robot-unit (datacenter + physical avg)
+     * - Price threshold: $15/MWh is "too cheap to meter" territory
      * - Elasticity: 2% per $1 is conservative; historical effects often higher
      */
     const reboundParams = {
-        // Jevons/Price Rebound
-        cheapEnergyThreshold: 15,      // $/MWh - below this, demand grows
-        cheapEnergyElasticity: 0.02,   // 2% demand increase per $1 below threshold
-
-        // Robot Energy Load
+        // === AUTOMATION ENERGY (new species) ===
+        // Robots/AI emerge as new energy consumers when energy is cheap
+        // This is ecological succession, not rebound
         // Calibration: Global datacenters ~250 TWh, industrial robots ~50 TWh in 2025
-        // With 5B workers, 1 robot/1000 = ~50 TWh (conservative for 2025)
-        // Growth accelerates as AI/automation scales exponentially
         energyPerRobotMWh: 10,         // MWh per robot-unit per year
-        robotGrowthRate: 0.12,         // 12% annual growth (faster ramp-up)
+        robotGrowthRate: 0.12,         // 12% annual growth (AI/automation acceleration)
         robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (~50 TWh)
         robotCap: 500,                 // Max robots per 1000 workers
 
-        // Rebound cap to prevent runaway
-        maxReboundMultiplier: 2.0,     // Cap total rebound at 2x baseline
+        // === JEVONS PRICE REBOUND (existing uses expand) ===
+        // When LCOE falls below threshold, existing consumption grows
+        cheapEnergyThreshold: 15,      // $/MWh - below this, existing uses expand
+        cheapEnergyElasticity: 0.02,   // 2% demand increase per $1 below threshold
+        maxReboundMultiplier: 10.0,    // Effectively uncapped (G/C: no physical law limits)
 
-        // Infrastructure growth constraint
-        // Historical global electricity growth ~2-3%/year
-        // We can only build infrastructure so fast
-        maxDemandGrowthRate: 0.025     // 2.5% max annual growth in total demand
+        // === INFRASTRUCTURE CONSTRAINT (endogenous) ===
+        // How fast can we build? Scales with investment capacity.
+        // G/C insight: growth is constrained by capital, not arbitrary caps
+        baseMaxDemandGrowthRate: 0.025,  // 2.5% at baseline investment rate
+        baseInvestmentRate: 0.22         // Reference investment/GDP ratio
     };
 
     // =============================================================================
@@ -903,14 +913,21 @@
     }
 
     /**
-     * Galbraith/Chen stability factor
-     * Investment depends on stability expectations - high damages create uncertainty
-     * @param {number} damages - Damage as fraction (0.02 = 2% GDP)
-     * @returns {number} Stability factor in (0, 1]
+     * Galbraith/Chen uncertainty premium on investment
+     *
+     * Investment decisions depend on interest rates AND uncertainty. Higher uncertainty
+     * raises the equity risk premium demanded, suppressing investment.
+     *
+     * Currently: uncertainty = climate damage (proxy for climate-related uncertainty)
+     * Future: could add social unrest, endogenous volatility, policy uncertainty, etc.
+     *
+     * @param {number} uncertainty - Uncertainty level as fraction (e.g., 0.10 = 10%)
+     * @returns {number} Stability factor Φ in (0, 1], where 1 = full investment, <1 = suppressed
      */
-    function stabilityFactor(damages, effCapitalParams = capitalParams) {
-        // stability = 1 / (1 + λ × damages²)
-        return 1 / (1 + effCapitalParams.stabilityLambda * damages * damages);
+    function stabilityFactor(uncertainty, effCapitalParams = capitalParams) {
+        // Φ = 1 / (1 + λ × uncertainty²)
+        // At 30% uncertainty with λ=2: Φ = 1/(1 + 2×0.09) = 0.85 → 15% investment suppression
+        return 1 / (1 + effCapitalParams.stabilityLambda * uncertainty * uncertainty);
     }
 
     /**
@@ -983,7 +1000,7 @@
             investment: [],         // Annual investment ($ trillions)
             savingsRate: [],        // Aggregate savings rate
             regionalSavings: { oecd: [], china: [], em: [], row: [] },
-            stability: [],          // Galbraith/Chen stability factor
+            stability: [],          // G/C uncertainty premium Φ (currently climate-driven)
             interestRate: [],       // Real interest rate
             robotsDensity: [],      // Robots per 1000 workers
             kPerWorker: []          // Capital per effective worker ($K)
@@ -1442,7 +1459,7 @@
                 max: 5.0,
                 unit: 'dimensionless',
                 tier: 1,
-                description: 'Galbraith/Chen sensitivity of investment to climate damages.'
+                description: 'G/C uncertainty premium sensitivity (Φ = 1/(1+λ×u²), currently climate-driven).'
             },
             robotGrowthRate: {
                 type: 'number',
@@ -2888,33 +2905,39 @@
     }
 
     // =============================================================================
-    // REBOUND DEMAND CALCULATION
+    // MAXIMUM POWER PRINCIPLE - Demand adjustment calculation
     // =============================================================================
 
     /**
-     * Calculate demand adjustment from Jevons rebound and robot energy load
+     * Calculate demand adjustment from automation energy and Jevons rebound
      *
-     * This function implements two mechanisms that increase energy demand:
-     * 1. Price rebound (Jevons): When energy becomes cheap, people use more
-     * 2. Robot energy: Automation consumes significant electricity
+     * Implements Maximum Power Principle via two distinct mechanisms:
+     *
+     * 1. AUTOMATION ENERGY (new species, additive)
+     *    Robots/AI are new energy consumers - ecological succession, not rebound.
+     *    Added to base demand before any multipliers.
+     *
+     * 2. JEVONS PRICE REBOUND (existing uses, multiplicative)
+     *    When energy gets cheap, existing uses expand. Applied as multiplier
+     *    to (base + automation) demand.
      *
      * ROBOT DENSITY: Can be provided via options.robotsPer1000 (from capital model)
      * or calculated using exponential formula. When robotsPer1000 is provided,
      * it should come from robotsDensity() function for consistency with capital model.
      *
-     * @param {number} baseDemandTWh - Baseline electricity demand
+     * @param {number} baseDemandTWh - Baseline electricity demand (human economy)
      * @param {number} cheapestLCOE - Lowest LCOE among sources ($/MWh)
      * @param {number} year - Simulation year
      * @param {number} globalWorkers - Global working population
-     * @param {Object} effectiveParams - Rebound parameters (optional, defaults to global)
+     * @param {Object} effectiveParams - MPP parameters (optional, defaults to global)
      * @param {Object} options - Additional options { robotsPer1000 }
-     * @returns {Object} { adjustedDemand, robotLoadTWh, priceMultiplier, robotsPer1000 }
+     * @returns {Object} { adjustedDemand, automationTWh, priceMultiplier, robotsPer1000 }
      */
     function calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers, effectiveParams = reboundParams, options = {}) {
         const t = year - 2025;
 
-        // 1. Get robot density - prefer provided value (from capital model) over exponential formula
-        // This consolidates robot calculations: capital model is source of truth
+        // 1. AUTOMATION ENERGY (new species in economic ecology)
+        // Get robot density - prefer provided value (from capital model) over exponential formula
         const robotsPer1000 = options.robotsPer1000 ?? Math.min(
             effectiveParams.robotBaseline2025 * Math.pow(1 + effectiveParams.robotGrowthRate, t),
             effectiveParams.robotCap
@@ -2923,10 +2946,10 @@
         // Total robots globally
         const totalRobots = (robotsPer1000 / 1000) * globalWorkers;
 
-        // Robot energy load (TWh)
+        // Automation energy load (TWh) - additive, not multiplicative
         const robotLoadTWh = totalRobots * effectiveParams.energyPerRobotMWh / 1e6;
 
-        // 2. Calculate Jevons price rebound
+        // 2. JEVONS PRICE REBOUND (existing uses expand when energy is cheap)
         let priceMultiplier = 1.0;
         if (cheapestLCOE < effectiveParams.cheapEnergyThreshold) {
             const delta = effectiveParams.cheapEnergyThreshold - cheapestLCOE;
@@ -2934,7 +2957,7 @@
             priceMultiplier = Math.min(priceMultiplier, effectiveParams.maxReboundMultiplier);
         }
 
-        // 3. Combined adjustment: add robot load, then apply price multiplier
+        // 3. Combined: automation added first, then Jevons multiplier applied
         const adjustedDemand = (baseDemandTWh + robotLoadTWh) * priceMultiplier;
 
         return {
@@ -3253,8 +3276,13 @@
                 { robotsPer1000: capitalBasedRobots }  // Use capital model robots
             );
 
-            // Apply infrastructure growth cap
-            const maxDemand = prevAdjustedDemand * (1 + effectiveReboundParams.maxDemandGrowthRate);
+            // Apply ENDOGENOUS infrastructure growth cap (G/C: growth constrained by capital)
+            // Scale max growth rate by investment capacity relative to baseline
+            // Higher savings/investment → faster infrastructure buildout
+            const currentSavingsRate = aggregateSavingsRate(demographicsData.regions, i, effectiveCapitalParams);
+            const investmentCapacityRatio = currentSavingsRate.global / effectiveReboundParams.baseInvestmentRate;
+            const dynamicMaxGrowthRate = effectiveReboundParams.baseMaxDemandGrowthRate * investmentCapacityRatio;
+            const maxDemand = prevAdjustedDemand * (1 + dynamicMaxGrowthRate);
             const demandTWh = Math.min(rebound.adjustedDemand, maxDemand);
             prevAdjustedDemand = demandTWh;
 
@@ -3333,7 +3361,7 @@
                 //
                 // savingsRate: OLG demographic-weighted savings (young 0%, working 45%, old -5%)
                 //              plus regional premiums (China +15%, EM -5%, ROW -8%)
-                // stability: Galbraith/Chen factor where climate uncertainty reduces investment
+                // stability: G/C uncertainty premium Φ (currently climate-driven, future: social unrest, etc.)
                 //
                 // This replaces the simplified proxy (fixed 22%) with proper capital model integration
                 const savingsRates = aggregateSavingsRate(demographicsData.regions, i, effectiveCapitalParams);
@@ -3692,7 +3720,7 @@
         capitalStock: { unit: '$ trillions', description: 'Total capital stock' },
         investment: { unit: '$ trillions', description: 'Annual investment' },
         savingsRate: { unit: 'fraction', description: 'Aggregate savings rate (demographic-weighted)' },
-        stability: { unit: 'fraction', description: 'Galbraith/Chen stability factor (0-1)' },
+        stability: { unit: 'fraction', description: 'G/C uncertainty premium Φ (0-1, currently climate-driven)' },
         interestRate: { unit: 'fraction', description: 'Real interest rate (r = αY/K - δ)' },
         robotsDensity: { unit: 'robots/1000 workers', description: 'Robots per 1000 effective workers' },
         kPerWorker: { unit: '$K/person', description: 'Capital per effective worker (thousands of dollars)' },
@@ -4024,7 +4052,7 @@ const energySim = {
     // Capital functions
     runCapitalModel,      // Full capital model: { stock, investment, savingsRate, stability, interestRate, robotsDensity, kPerWorker }
     aggregateSavingsRate, // Demographic-weighted savings rate by region and global
-    stabilityFactor,      // Galbraith/Chen stability factor (0-1)
+    stabilityFactor,      // G/C uncertainty premium Φ (currently climate-driven)
     calculateInvestment,  // Investment = GDP × savingsRate × stability
     updateCapital,        // K_{t+1} = (1-δ)K_t + I_t
     calculateInterestRate,// r = αY/K - δ
