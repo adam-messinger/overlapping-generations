@@ -124,7 +124,7 @@ energySim.units.electricityDemand  // { unit: 'TWh', description: '...' }
 energySim.units.gridIntensity      // { unit: 'kg CO₂/MWh', description: '...' }
 
 // Config
-energySim.defaults              // { carbonPrice: 50, solarAlpha: 0.36, ... }
+energySim.defaults              // { carbonPrice: 35, solarAlpha: 0.36, ... }
 energySim.config.quiet = true   // Suppress ALL console output
 
 // Full simulation (returns all arrays)
