@@ -331,6 +331,96 @@
         });
 
         // =============================================================================
+        // CAPACITY STATE (State-machine architecture)
+        // =============================================================================
+        section('Capacity State');
+
+        test('initializeCapacityState returns valid structure', () => {
+            const state = energySim.initializeCapacityState();
+            return !!(state.solar && state.wind && state.battery && state.nuclear &&
+                     Array.isArray(state.solar.installed) && Array.isArray(state.solar.additions));
+        });
+
+        test('initializeCapacityState: solar starts at 1500 GW', () => {
+            const state = energySim.initializeCapacityState();
+            return state.solar.installed[0] === 1500;
+        });
+
+        test('capacityParams exists and has growth limits', () => {
+            return !!(energySim.capacityParams.maxGrowthRate &&
+                     energySim.capacityParams.maxGrowthRate.solar > 0);
+        });
+
+        test('runSimulation returns capacityState', () => {
+            const result = energySim.runSimulation();
+            return !!(result.capacityState &&
+                     result.capacityState.solar.installed.length === 76);
+        });
+
+        test('capacityState solar grows over time', () => {
+            const result = energySim.runSimulation();
+            return result.capacityState.solar.installed[50] > result.capacityState.solar.installed[0] * 10;
+        });
+
+        test('capacityState additions match delta', () => {
+            const result = energySim.runSimulation();
+            const state = result.capacityState;
+            // For year 25 (index 25), additions should equal installed[25] - installed[24]
+            const delta = state.solar.installed[25] - state.solar.installed[24];
+            return Math.abs(delta - state.solar.additions[25]) < 0.01;
+        });
+
+        test('capacity is constrained by demand ceiling', () => {
+            // With default params, solar should eventually hit the demand ceiling
+            // Check that growth slows as we approach ceiling
+            const result = energySim.runSimulation();
+            const state = result.capacityState;
+            // Early growth rate vs late growth rate
+            const earlyGrowth = (state.solar.installed[10] / state.solar.installed[5]) - 1;
+            const lateGrowth = (state.solar.installed[70] / state.solar.installed[65]) - 1;
+            // Late growth should be slower due to ceiling
+            return lateGrowth < earlyGrowth;
+        });
+
+        test('calculateMaxUsefulCapacity returns positive values', () => {
+            const max = energySim.calculateMaxUsefulCapacity(50000);
+            return max.solar > 0 && max.wind > 0 && max.nuclear > 0;
+        });
+
+        test('getCapacityFromState extracts correct values', () => {
+            const state = energySim.initializeCapacityState();
+            const caps = energySim.getCapacityFromState(state, 0);
+            return caps.solar === 1500 && caps.wind === 1000;
+        });
+
+        test('calculateInvestmentCapacity returns positive values', () => {
+            const caps = energySim.calculateInvestmentCapacity(100, 0.20, 2030);
+            return caps.solar > 0 && caps.wind > 0 && caps.battery > 0;
+        });
+
+        test('calculateRetirement is zero initially', () => {
+            const state = energySim.initializeCapacityState();
+            const retirement = energySim.calculateRetirement(state, 5, 'solar');
+            return retirement === 0;  // No retirements before year 30 (lifetime)
+        });
+
+        test('calculateRetirement is positive after lifetime', () => {
+            const state = energySim.initializeCapacityState();
+            // Extend state to year 35 (index 35) so we're past solar lifetime (30 years)
+            for (let i = 1; i <= 35; i++) {
+                state.solar.installed.push(state.solar.installed[i-1] * 1.25);  // Grow 25%/year
+            }
+            const retirement = energySim.calculateRetirement(state, 35, 'solar');
+            return retirement > 0;
+        });
+
+        test('capacityState includes retirement arrays', () => {
+            const result = energySim.runSimulation();
+            return !!(result.capacityState.solar.retirements &&
+                     result.capacityState.solar.retirements.length === 76);
+        });
+
+        // =============================================================================
         // CLIMATE FUNCTIONS
         // =============================================================================
         section('Climate Functions');
@@ -382,7 +472,7 @@
 
         test('runSimulation returns valid structure', () => {
             const result = energySim.runSimulation();
-            return !!(result.years && result.results && result.demographics && result.demand && result.climate && result.dispatch);
+            return !!(result.years && result.results && result.demographics && result.demand && result.climate && result.dispatch && result.capacityState);
         });
 
         test('runSimulation uses defaults', () => {

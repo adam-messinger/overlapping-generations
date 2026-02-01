@@ -77,12 +77,21 @@ The `<script>` section is organized into clear modules:
    - `landDemand()` - Farmland, urban, forest projections
    - `runResourceModel()` - Full resource simulation with all outputs
 
-10. **JEVONS PARADOX / REBOUND EFFECT** - Energy demand adjustments (Phase 7)
+10. **JEVONS PARADOX / REBOUND EFFECT** - Energy demand adjustments (Phase 7a)
    - `reboundParams` object - Price rebound and robot energy parameters
    - `calculateReboundDemand()` - Calculate demand adjustment from Jevons + robot load
 
-11. **SIMULATION ENGINE**
-   - `runSimulation()` - Main loop, returns energy + demographics + climate + capital + resources data
+11. **CAPACITY STATE** - State-machine architecture for energy capacities (Phase 7b)
+   - `capacityParams` object - Growth caps, penetration limits, CAPEX, lifetimes
+   - `initializeCapacityState()` - Create initial state from 2025 values
+   - `updateCapacityState()` - Update state with demand ceiling, growth cap, investment constraint
+   - `calculateMaxUsefulCapacity()` - Max useful capacity based on demand
+   - `calculateInvestmentCapacity()` - Max additions from investment budget
+   - `calculateRetirement()` - Asset retirement based on lifetime
+   - `getCapacityFromState()` - Extract capacity snapshot for dispatch
+
+12. **SIMULATION ENGINE**
+   - `runSimulation()` - Main loop, returns energy + demographics + climate + capital + resources + capacityState
    - `findCrossovers()` - Detect when clean energy beats fossil
 
 12. **VISUALIZATION** - Chart.js-based charts and UI updates
@@ -147,7 +156,7 @@ energySim.defaults              // { carbonPrice: 35, solarAlpha: 0.36, ... }
 energySim.config.quiet = true   // Suppress ALL console output
 
 // Full simulation (returns all arrays)
-const { years, results, demographics, demand, climate, dispatch, capital, resources } = energySim.runSimulation({
+const { years, results, demographics, demand, climate, dispatch, capital, resources, capacityState } = energySim.runSimulation({
   carbonPrice: 100,
   solarAlpha: 0.25,
   solarGrowth: 0.25,
@@ -155,6 +164,13 @@ const { years, results, demographics, demand, climate, dispatch, capital, resour
   efficiencyMultiplier: 1.2,
   climSensitivity: 3.0
 });
+
+// Capacity state (state-machine architecture)
+capacityState.solar.installed[0]    // 2025 solar capacity: 1500 GW
+capacityState.solar.installed[25]   // 2050 solar capacity
+capacityState.solar.additions[25]   // 2050 solar additions
+capacityState.solar.retirements[50] // 2075 solar retirements
+capacityState.battery.installed[25] // 2050 battery capacity (GWh)
 
 // Capital model data
 capital.stock[0]           // 2025 capital stock: ~$420T
@@ -300,6 +316,19 @@ const json = energySim.exportJSON({ carbonPrice: 100 });
 - **Theory**: Odum Maximum Power Principle, Galbraith/Chen Entropy Economics
 - **Effect**: Prevents unrealistic "power down" scenario; demand stable ~80,000 TWh by 2100
 
+### Capacity State (Phase 7b)
+- **Architecture**: State-machine replaces exogenous growth projections
+  - `actualCapacity[t] = actualCapacity[t-1] + additions[t] - retirements[t]`
+  - Capacity state propagates forward through timesteps
+  - LCOE now depends on actual cumulative capacity (feedback loop)
+- **Constraints on Additions**:
+  1. **Demand ceiling**: Can't overbuild beyond useful capacity at penetration limits
+  2. **Growth rate cap**: Manufacturing/supply chain limits (~30% for solar)
+  3. **Investment constraint**: Clean energy share of investment × GDP × stability
+- **Asset Retirement**: Assets retire based on lifetime (solar: 30y, battery: 15y, etc.)
+- **Feedback Loop**: Constrained deployment → slower learning → higher LCOE
+- **Effect**: Capacity growth matches economic reality; early constraints affect long-term costs
+
 ### Calibration Targets
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -425,7 +454,8 @@ Tests run in-browser via iframe to access the full `energySim` API.
 - [x] Phase 5: Capital/savings (OLG savings, investment, automation)
 - [x] Phase 6: Resource demand (minerals, food, land)
 - [x] Phase 7a: Jevons Paradox (robot energy, cheap energy rebound)
-- [ ] Phase 7b: Policy scenarios (carbon tax, immigration, retirement age)
+- [x] Phase 7b: Capacity State (state-machine architecture, investment constraint, retirement)
+- [ ] Phase 8: Policy scenarios (carbon tax, immigration, retirement age)
 
 ## Academic Sources
 
