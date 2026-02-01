@@ -421,7 +421,8 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 - **Land Demand**: Farmland, urban, forest
   - Farmland = grain demand / yield (yield improves 1%/year)
   - Urban grows with population and wealth
-  - Forest declines with baseline loss rate
+  - Forest: baseline loss + reforestation from abandoned farmland
+  - 50% of released farmland becomes forest (rewilding)
 
 ### Galbraith/Chen Expansion (Phase 7)
 Implements G/C Entropy Economics: energy transitions are ADDITIVE, not substitutive.

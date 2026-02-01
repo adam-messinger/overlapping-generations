@@ -541,7 +541,8 @@
             urban2025: 50,                // Mha urban area
             urbanWealthElasticity: 0.3,   // 10% richer → 3% more urban land
             forestArea2025: 4000,         // Mha forests
-            forestLossRate: 0.002         // 0.2% annual loss baseline
+            forestLossRate: 0.002,        // 0.2% annual loss baseline (logging, fire, other)
+            reforestationRate: 0.5        // 50% of abandoned farmland becomes forest
         }
     };
 
@@ -710,10 +711,31 @@
         const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
         const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6; // ha → Mha
 
-        // Forest area: baseline with gradual loss, slowing as pressure from farmland eases
-        const farmlandPressure = Math.max(0, (farmland - land.farmland2025) / land.farmland2025);
-        const adjustedLossRate = land.forestLossRate * (1 + farmlandPressure);
-        const forest = land.forestArea2025 * Math.pow(1 - adjustedLossRate, t);
+        // Forest area: baseline with losses + reforestation from abandoned farmland
+        // Two dynamics:
+        // 1. Forest loss from logging, fire, agricultural expansion
+        // 2. Forest gain from abandoned farmland reforestation
+
+        // Released farmland (positive when farmland < baseline)
+        const landReleased = Math.max(0, land.farmland2025 - farmland);
+
+        // Agricultural pressure (positive when farmland > baseline)
+        const agPressure = Math.max(0, farmland - land.farmland2025) / land.farmland2025;
+
+        // Forest loss rate: baseline + agricultural expansion
+        // When farmland contracts, no ag pressure, but baseline loss continues (halved)
+        const lossMultiplier = landReleased > 0 ? 0.5 : (1 + agPressure);
+        const effectiveLossRate = land.forestLossRate * lossMultiplier;
+
+        // Forest from baseline with losses
+        const forestFromBaseline = land.forestArea2025 * Math.pow(1 - effectiveLossRate, t);
+
+        // Reforestation from released farmland
+        // Fraction of abandoned farmland becomes forest (rest is degraded, urban, etc.)
+        const reforestation = landReleased * land.reforestationRate;
+
+        // Total forest = baseline with losses + reforestation
+        const forest = forestFromBaseline + reforestation;
 
         return {
             farmland,                    // Mha

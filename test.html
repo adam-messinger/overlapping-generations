@@ -1201,9 +1201,21 @@
             return result.resources.land.urban[25] > result.resources.land.urban[0];
         });
 
-        test('forest area declines (baseline loss)', () => {
+        test('forest area grows from reforestation of abandoned farmland', () => {
+            // Fix for issue #6: forest can now grow as farmland contracts
             const result = energySim.runSimulation();
-            return result.resources.land.forest[75] < result.resources.land.forest[0];
+            // By 2100, farmland contracts ~48%, releasing land for reforestation
+            // Forest should grow despite baseline loss
+            return result.resources.land.forest[75] > result.resources.land.forest[0];
+        });
+
+        test('reforestation exceeds baseline forest loss', () => {
+            const result = energySim.runSimulation();
+            const farmlandReleased = result.resources.land.farmland[0] - result.resources.land.farmland[75];
+            const forestGain = result.resources.land.forest[75] - result.resources.land.forest[0];
+            // Farmland should contract significantly
+            // And forest should gain (reforestation > loss)
+            return farmlandReleased > 1000 && forestGain > 0;
         });
 
         test('resources.metrics has expected fields', () => {
