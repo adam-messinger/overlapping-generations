@@ -612,8 +612,8 @@
      * @param {number} year - Simulation year
      * @returns {Object} Food demand metrics
      */
-    function foodDemand(population, gdpPerCapita, year) {
-        const { food } = resourceParams;
+    function foodDemand(population, gdpPerCapita, year, effResourceParams = resourceParams) {
+        const { food } = effResourceParams;
         const t = year - 2025;
 
         // Base calories (developing world catch-up)
@@ -670,8 +670,8 @@
      * @param {number} year - Simulation year
      * @returns {Object} Land use in Mha
      */
-    function landDemand(foodData, population, gdpPerCapita, gdpPerCapita2025, year) {
-        const { land } = resourceParams;
+    function landDemand(foodData, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams = resourceParams) {
+        const { land } = effResourceParams;
         const t = year - 2025;
 
         // Yield improvement over time
@@ -710,7 +710,7 @@
      * @param {Object} capacityState - Capacity state from runSimulation (actual installed capacity)
      * @returns {Object} Resource demand projections
      */
-    function runResourceModel(demographicsData, demandData, dispatchData, capacityState) {
+    function runResourceModel(demographicsData, demandData, dispatchData, capacityState, effResourceParams = resourceParams) {
         const { years, global: demoGlobal } = demographicsData;
 
         // Initialize output structure
@@ -787,14 +787,14 @@
                 resources.minerals[mineralKey].cumulative.push(cumulativeStock[mineralKey]);
 
                 // Reserve ratio (cumulative / reserves)
-                const mineral = resourceParams.minerals[mineralKey];
+                const mineral = effResourceParams.minerals[mineralKey];
                 const reserveRatio = mineral.reserves ?
                     cumulativeStock[mineralKey] / mineral.reserves : 0;
                 resources.minerals[mineralKey].reserveRatio.push(reserveRatio);
             }
 
             // === FOOD ===
-            const food = foodDemand(population, gdpPerCapita, year);
+            const food = foodDemand(population, gdpPerCapita, year, effResourceParams);
             resources.food.caloriesPerCapita.push(food.caloriesPerCapita);
             resources.food.totalCalories.push(food.totalCalories);
             resources.food.proteinShare.push(food.proteinShare);
@@ -803,7 +803,7 @@
             resources.food.glp1Effect.push(food.glp1Effect);
 
             // === LAND ===
-            const land = landDemand(food, population, gdpPerCapita, gdpPerCapita2025, year);
+            const land = landDemand(food, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams);
             resources.land.farmland.push(land.farmland);
             resources.land.urban.push(land.urban);
             resources.land.forest.push(land.forest);
@@ -869,8 +869,8 @@
      * @param {number} yearIndex - Index into demographic arrays
      * @returns {Object} { regional: { oecd, china, em, row }, global }
      */
-    function aggregateSavingsRate(demoRegions, yearIndex) {
-        const { savingsYoung, savingsWorking, savingsOld, savingsPremium } = capitalParams;
+    function aggregateSavingsRate(demoRegions, yearIndex, effCapitalParams = capitalParams) {
+        const { savingsYoung, savingsWorking, savingsOld, savingsPremium } = effCapitalParams;
         const regional = {};
         let totalPop = 0;
         let weightedRate = 0;
@@ -907,9 +907,9 @@
      * @param {number} damages - Damage as fraction (0.02 = 2% GDP)
      * @returns {number} Stability factor in (0, 1]
      */
-    function stabilityFactor(damages) {
+    function stabilityFactor(damages, effCapitalParams = capitalParams) {
         // stability = 1 / (1 + λ × damages²)
-        return 1 / (1 + capitalParams.stabilityLambda * damages * damages);
+        return 1 / (1 + effCapitalParams.stabilityLambda * damages * damages);
     }
 
     /**
@@ -927,10 +927,11 @@
      * Update capital stock: K_{t+1} = (1-δ)K_t + I_t
      * @param {number} capital - Current capital stock
      * @param {number} investment - Investment this period
+     * @param {Object} effCapitalParams - Effective capital params (optional)
      * @returns {number} Next period capital stock
      */
-    function updateCapital(capital, investment) {
-        return (1 - capitalParams.depreciation) * capital + investment;
+    function updateCapital(capital, investment, effCapitalParams = capitalParams) {
+        return (1 - effCapitalParams.depreciation) * capital + investment;
     }
 
     /**
@@ -940,9 +941,9 @@
      * @param {number} capital - Capital stock in $ trillions
      * @returns {number} Real interest rate
      */
-    function calculateInterestRate(gdp, capital) {
+    function calculateInterestRate(gdp, capital, effCapitalParams = capitalParams) {
         if (capital <= 0) return 0.05; // Fallback
-        return capitalParams.alpha * gdp / capital - capitalParams.depreciation;
+        return effCapitalParams.alpha * gdp / capital - effCapitalParams.depreciation;
     }
 
     /**
@@ -950,19 +951,20 @@
      * @param {number} capital - Capital stock in $ trillions
      * @param {number} workers - Effective workers (productivity-weighted)
      * @param {number} year - Simulation year
+     * @param {Object} effCapitalParams - Effective capital params (optional)
      * @returns {number} Robots per 1000 workers
      */
-    function robotsDensity(capital, workers, year) {
+    function robotsDensity(capital, workers, year, effCapitalParams = capitalParams) {
         const t = year - 2025;
         // Automation share grows but is capped at 20%
-        const autoShare = capitalParams.automationShare2025 * Math.pow(1 + capitalParams.automationGrowth, t);
+        const autoShare = effCapitalParams.automationShare2025 * Math.pow(1 + effCapitalParams.automationGrowth, t);
         const cappedShare = Math.min(autoShare, 0.20);
         const automationCapitalT = capital * cappedShare;  // $ trillions
         // Convert to $ per worker (capital in $T, workers in absolute count)
         const dollarsPerWorker = (automationCapitalT * 1e12) / workers;
         // robotsPerCapitalUnit: robots per $1000 of automation capital per worker
         // At 2025: ~$1750/worker → ~15 robots/1000 workers (IFR-calibrated)
-        return (dollarsPerWorker / 1000) * capitalParams.robotsPerCapitalUnit;
+        return (dollarsPerWorker / 1000) * effCapitalParams.robotsPerCapitalUnit;
     }
 
     /**
@@ -972,7 +974,7 @@
      * @param {Object} climateData - Climate data with globalDamages
      * @returns {Object} Capital model data
      */
-    function runCapitalModel(demographicsData, demandData, climateData) {
+    function runCapitalModel(demographicsData, demandData, climateData, effCapitalParams = capitalParams) {
         const { years, regions: demoRegions, global: demoGlobal } = demographicsData;
 
         const capital = {
@@ -987,13 +989,13 @@
         };
 
         // Initialize capital stock
-        let currentCapital = capitalParams.initialCapitalStock;
+        let currentCapital = effCapitalParams.initialCapitalStock;
 
         for (let i = 0; i < years.length; i++) {
             const year = years[i];
 
             // Get savings rates (demographic-weighted)
-            const savings = aggregateSavingsRate(demoRegions, i);
+            const savings = aggregateSavingsRate(demoRegions, i, effCapitalParams);
             capital.savingsRate.push(savings.global);
             for (const region of ['oecd', 'china', 'em', 'row']) {
                 capital.regionalSavings[region].push(savings.regional[region]);
@@ -1002,7 +1004,7 @@
             // Get stability factor from climate damages
             // globalDamages is stored as percentage (0-30), convert to fraction
             const damagesFraction = climateData.globalDamages[i] / 100;
-            const stability = stabilityFactor(damagesFraction);
+            const stability = stabilityFactor(damagesFraction, effCapitalParams);
             capital.stability.push(stability);
 
             // Store current capital stock
@@ -1016,12 +1018,12 @@
             capital.investment.push(invest);
 
             // Calculate interest rate
-            const r = calculateInterestRate(gdp, currentCapital);
+            const r = calculateInterestRate(gdp, currentCapital, effCapitalParams);
             capital.interestRate.push(r);
 
             // Calculate robots density
             const effectiveWorkersCount = demoGlobal.effectiveWorkers[i];
-            const robots = robotsDensity(currentCapital, effectiveWorkersCount, year);
+            const robots = robotsDensity(currentCapital, effectiveWorkersCount, year, effCapitalParams);
             capital.robotsDensity.push(robots);
 
             // Calculate K per effective worker (in $K per person)
@@ -1030,7 +1032,7 @@
 
             // Update capital for next period (except last year)
             if (i < years.length - 1) {
-                currentCapital = updateCapital(currentCapital, invest);
+                currentCapital = updateCapital(currentCapital, invest, effCapitalParams);
             }
         }
 
@@ -2177,25 +2179,33 @@
      * INPUTS (from parameters):
      * - electrificationTarget: Target electricity share of useful energy (slider)
      * - efficiencyMultiplier: Scales intensity decline rates (slider)
+     * - damageFractions: Optional regional damage fractions for GDP feedback
      *
      * INPUTS (from demographicsData - computed by Phase 2):
      * - working-age population per region
      * - dependency ratios per region
      *
      * OUTPUTS:
-     * - GDP trajectories per region
+     * - GDP trajectories per region (incorporating climate damage feedback if provided)
      * - Electricity demand per region (TWh)
      * - GDP per working-age adult
      * - kWh per working-age adult
      *
+     * GDP-DAMAGE FEEDBACK: If damageFractions is provided, year t's GDP growth is
+     * reduced by year t-1's damage fraction. This creates the proper feedback loop
+     * where climate damages compound over time by reducing economic capacity.
+     *
      * @param {Object} demographicsData - Output from runDemographics()
      * @param {Object} params - Optional overrides for electrification target, efficiency
+     * @param {Object} params.damageFractions - Regional damage fractions by year
+     *        Format: { oecd: [0.01, 0.012, ...], china: [...], em: [...], row: [...] }
      * @returns {Object} Demand data structure with regional and global projections
      */
     function runDemandModel(demographicsData, params = {}) {
         const { years, regions: demoRegions, global: demoGlobal } = demographicsData;
         const electTarget = params.electrificationTarget ?? demandParams.electrificationTarget;
         const efficiencyMult = params.efficiencyMultiplier ?? 1.0;
+        const damageFractions = params.damageFractions ?? null;  // For GDP-damages feedback
 
         // Compute baseline dependency from demographics model (not hardcoded)
         const baselineDependency = demoGlobal.dependency[0];
@@ -2282,7 +2292,21 @@
 
                 // Update GDP (first year is baseline)
                 if (i > 0) {
-                    currentState.gdp = currentState.gdp * (1 + growthRate);
+                    // Apply lagged damage feedback: year t-1's damage affects year t's GDP
+                    //
+                    // DICE damages have two components:
+                    // 1. Level effect: Temporary output loss (harvest failures, storms, etc.)
+                    //    - Applied post-hoc as netGdp = grossGdp × (1 - damage)
+                    // 2. Growth effect: Permanent capital destruction
+                    //    - Reduces GDP base for future years (compounds over time)
+                    //    - Literature suggests ~20-30% of damages are persistent
+                    //
+                    // We apply only the persistent fraction to growth, creating realistic
+                    // feedback without the unrealistic compounding of full damages.
+                    const laggedDamage = damageFractions?.[key]?.[i - 1] ?? 0;
+                    const persistentDamageFraction = 0.25;  // 25% of damages destroy capital permanently
+                    const persistentDamage = laggedDamage * persistentDamageFraction;
+                    currentState.gdp = currentState.gdp * (1 + growthRate) * (1 - persistentDamage);
                 }
                 demand.regions[key].gdp.push(currentState.gdp);
                 demand.regions[key].growthRate.push(growthRate);
@@ -2759,18 +2783,20 @@
      *
      * @param {Object} dispatchResult - Generation (TWh) by source from dispatch()
      * @param {number} electrificationRate - Fraction of useful energy from electricity
+     * @param {Object} effEnergySources - Effective energy source params (optional)
+     * @param {Object} effClimateParams - Effective climate params (optional)
      * @returns {Object} Emissions breakdown and total (Gt CO₂)
      */
-    function calculateEmissions(dispatchResult, electrificationRate) {
+    function calculateEmissions(dispatchResult, electrificationRate, effEnergySources = energySources, effClimateParams = climateParams) {
         // Electricity emissions (Gt CO₂)
         const electricityEmissions = (
-            dispatchResult.gas * energySources.gas.carbonIntensity +
-            dispatchResult.coal * energySources.coal.carbonIntensity
+            dispatchResult.gas * effEnergySources.gas.carbonIntensity +
+            dispatchResult.coal * effEnergySources.coal.carbonIntensity
         ) / 1e6; // kg → Gt
 
         // Non-electricity emissions decline with electrification
         // As electrification increases, transport/industry/heating shift to grid
-        const nonElecBaseline = climateParams.nonElecEmissions2025;
+        const nonElecBaseline = effClimateParams.nonElecEmissions2025;
         const electrificationGain = electrificationRate - 0.40; // Above 2025 baseline
         // electrificationGain is in decimal (0.10 = 10%), multiply by 20 to get 2 Gt per 10%
         const nonElecReduction = Math.max(0, electrificationGain * 20); // 2 Gt reduction per 10% electrification
@@ -2819,24 +2845,25 @@
      *
      * @param {number} temperature - °C above preindustrial
      * @param {string} region - Region key (oecd, china, em, row)
+     * @param {Object} effClimateParams - Effective climate params (optional)
      * @returns {number} Damage as fraction of GDP (0-0.30)
      */
-    function climateDamages(temperature, region) {
+    function climateDamages(temperature, region, effClimateParams = climateParams) {
         // Base quadratic damage: D = a × T²
-        let damage = climateParams.damageCoeff * Math.pow(temperature, 2);
+        let damage = effClimateParams.damageCoeff * Math.pow(temperature, 2);
 
         // Regional multiplier
-        const regionalMult = climateParams.regionalDamage[region] || 1.0;
+        const regionalMult = effClimateParams.regionalDamage[region] || 1.0;
         damage *= regionalMult;
 
         // Tipping point: smooth S-curve transition instead of binary switch
         // Steepness of 4.0 means transition happens mostly between 2.0°C and 3.0°C
-        const tippingTransition = 1 / (1 + Math.exp(-climateParams.tippingSteepness * (temperature - climateParams.tippingThreshold)));
+        const tippingTransition = 1 / (1 + Math.exp(-effClimateParams.tippingSteepness * (temperature - effClimateParams.tippingThreshold)));
         // If T << 2.5, transition ≈ 0. If T >> 2.5, transition ≈ 1.
-        damage *= (1 + (climateParams.tippingMultiplier - 1) * tippingTransition);
+        damage *= (1 + (effClimateParams.tippingMultiplier - 1) * tippingTransition);
 
         // Cap damages (Weitzman bounded utility)
-        return Math.min(damage, climateParams.maxDamage);
+        return Math.min(damage, effClimateParams.maxDamage);
     }
 
     /**
@@ -2870,34 +2897,40 @@
      * 1. Price rebound (Jevons): When energy becomes cheap, people use more
      * 2. Robot energy: Automation consumes significant electricity
      *
+     * ROBOT DENSITY: Can be provided via options.robotsPer1000 (from capital model)
+     * or calculated using exponential formula. When robotsPer1000 is provided,
+     * it should come from robotsDensity() function for consistency with capital model.
+     *
      * @param {number} baseDemandTWh - Baseline electricity demand
      * @param {number} cheapestLCOE - Lowest LCOE among sources ($/MWh)
      * @param {number} year - Simulation year
      * @param {number} globalWorkers - Global working population
+     * @param {Object} effectiveParams - Rebound parameters (optional, defaults to global)
+     * @param {Object} options - Additional options { robotsPer1000 }
      * @returns {Object} { adjustedDemand, robotLoadTWh, priceMultiplier, robotsPer1000 }
      */
-    function calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers) {
+    function calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers, effectiveParams = reboundParams, options = {}) {
         const t = year - 2025;
 
-        // 1. Calculate projected robot density (deterministic from year)
-        // Uses exponential growth from baseline to cap
-        const robotsPer1000 = Math.min(
-            reboundParams.robotBaseline2025 * Math.pow(1 + reboundParams.robotGrowthRate, t),
-            reboundParams.robotCap
+        // 1. Get robot density - prefer provided value (from capital model) over exponential formula
+        // This consolidates robot calculations: capital model is source of truth
+        const robotsPer1000 = options.robotsPer1000 ?? Math.min(
+            effectiveParams.robotBaseline2025 * Math.pow(1 + effectiveParams.robotGrowthRate, t),
+            effectiveParams.robotCap
         );
 
         // Total robots globally
         const totalRobots = (robotsPer1000 / 1000) * globalWorkers;
 
         // Robot energy load (TWh)
-        const robotLoadTWh = totalRobots * reboundParams.energyPerRobotMWh / 1e6;
+        const robotLoadTWh = totalRobots * effectiveParams.energyPerRobotMWh / 1e6;
 
         // 2. Calculate Jevons price rebound
         let priceMultiplier = 1.0;
-        if (cheapestLCOE < reboundParams.cheapEnergyThreshold) {
-            const delta = reboundParams.cheapEnergyThreshold - cheapestLCOE;
-            priceMultiplier = 1 + (delta * reboundParams.cheapEnergyElasticity);
-            priceMultiplier = Math.min(priceMultiplier, reboundParams.maxReboundMultiplier);
+        if (cheapestLCOE < effectiveParams.cheapEnergyThreshold) {
+            const delta = effectiveParams.cheapEnergyThreshold - cheapestLCOE;
+            priceMultiplier = 1 + (delta * effectiveParams.cheapEnergyElasticity);
+            priceMultiplier = Math.min(priceMultiplier, effectiveParams.maxReboundMultiplier);
         }
 
         // 3. Combined adjustment: add robot load, then apply price multiplier
@@ -2975,16 +3008,74 @@
             years.push(year);
         }
 
-        // Run demographics and demand models first (they don't depend on capacity state)
-        // Apply fertility and migration multipliers
+        // Run demographics first (doesn't depend on climate)
         const demographicsData = runDemographics({
             fertilityFloorMultiplier,
             migrationMultiplier,
             lifeExpectancyGrowth
         });
-        const demandData = runDemandModel(demographicsData, {
+
+        // =============================================================================
+        // TWO-PASS GDP-DAMAGES FEEDBACK
+        // =============================================================================
+        // Pass 1: Run demand model without damages to get initial demand trajectory
+        // This lets us calculate the temperature/damage trajectory
+        // Pass 2: Re-run demand model WITH damage trajectory, creating proper feedback
+        //
+        // Economic rationale: Climate damages destroy capital and reduce productivity.
+        // Damages in year t reduce GDP growth in year t+1 (lagged effect).
+        // This creates compounding: persistent warming leads to exponentially diverging
+        // GDP paths between high and low damage scenarios.
+        // =============================================================================
+
+        // Pass 1: Initial demand (undamaged)
+        const demandDataInitial = runDemandModel(demographicsData, {
             electrificationTarget,
             efficiencyMultiplier
+        });
+
+        // Run a "quick climate pass" to get damage trajectory
+        // This is a simplified version of the main loop that just tracks emissions → temperature → damages
+        const damageFractions = { oecd: [], china: [], em: [], row: [] };
+        {
+            let quickCumulativeEmissions = effectiveClimateParams.cumulativeCO2_2025;
+            let quickTemp = effectiveClimateParams.currentTemp;
+
+            for (let i = 0; i < years.length; i++) {
+                // Simplified emissions estimate: use grid intensity × demand
+                // Actual emissions depend on dispatch, but this gives a good approximation
+                const elecDemand = demandDataInitial.global.electricityDemand[i];
+                const electRate = demandDataInitial.global.electrificationRate[i];
+
+                // Estimate electricity emissions from current mix (starts high, declines)
+                // This is approximate - actual depends on dispatch merit order
+                const gridIntensityApprox = 340 * Math.exp(-0.03 * i); // ~340 kg/MWh in 2025, declining
+                const elecEmissions = (elecDemand * gridIntensityApprox) / 1e6; // Gt CO2
+
+                // Non-electricity emissions (scales with 1 - electrification rate)
+                const nonElecEmissions = effectiveClimateParams.nonElecEmissions2025 * (1 - electRate) / (1 - 0.22);
+
+                const totalEmissions = elecEmissions + nonElecEmissions;
+                quickCumulativeEmissions += totalEmissions;
+
+                // Update temperature
+                const quickClimateState = updateClimate(quickCumulativeEmissions, quickTemp, climSensitivity);
+                quickTemp = quickClimateState.temperature;
+
+                // Calculate regional damages
+                for (const region of ['oecd', 'china', 'em', 'row']) {
+                    const damage = climateDamages(quickTemp, region, effectiveClimateParams);
+                    damageFractions[region].push(damage);
+                }
+            }
+        }
+
+        // Pass 2: Re-run demand model WITH damage trajectory
+        // Now GDP at year t incorporates damage from year t-1 (lagged feedback)
+        const demandData = runDemandModel(demographicsData, {
+            electrificationTarget,
+            efficiencyMultiplier,
+            damageFractions  // This enables the GDP-damages feedback loop
         });
 
         // =============================================================================
@@ -3048,6 +3139,10 @@
         let gasExtracted = 0;
         let coalExtracted = 0;
 
+        // Capital stock tracking (for robot density calculation)
+        // This consolidates robot calculations: capital model formula is source of truth
+        let currentCapital = effectiveCapitalParams.initialCapitalStock;
+
         // Track previous year's demand for growth cap
         let prevAdjustedDemand = demandData.global.electricityDemand[0];
 
@@ -3069,48 +3164,56 @@
             //    slower learning → higher LCOE
             // -----------------------------------------------------------------
 
-            // Solar: learning curve based on actual installed capacity
-            const solarCumulative = capacityState.solar.installed[i] / energySources.solar.capacity2025;
-            const solarLCOE = learningCurve(energySources.solar.cost0, solarCumulative, solarAlpha);
+            // Solar: learning curve based on TRUE CUMULATIVE deployment (sum of all additions)
+            // Track cumulative GW-years as proper Wright's Law implementation
+            const solarCumulativeGW = capacityState.solar.additions.slice(0, i + 1).reduce((a, b) => a + b, effectiveEnergySources.solar.capacity2025);
+            const solarLCOE = learningCurve(effectiveEnergySources.solar.cost0, solarCumulativeGW / effectiveEnergySources.solar.capacity2025, solarAlpha);
             results.solar.push(solarLCOE);
 
-            // Wind: learning curve based on actual capacity
-            const windCumulative = capacityState.wind.installed[i] / energySources.wind.capacity2025;
-            const windLCOE = learningCurve(energySources.wind.cost0, windCumulative, energySources.wind.alpha);
+            // Wind: learning curve based on TRUE CUMULATIVE deployment
+            const windCumulativeGW = capacityState.wind.additions.slice(0, i + 1).reduce((a, b) => a + b, effectiveEnergySources.wind.capacity2025);
+            const windLCOE = learningCurve(effectiveEnergySources.wind.cost0, windCumulativeGW / effectiveEnergySources.wind.capacity2025, effectiveEnergySources.wind.alpha);
             results.wind.push(windLCOE);
 
             // Gas: EROEI depletion + carbon price
-            gasExtracted += energySources.gas.extractionRate;
+            // Scale extraction with actual generation (TWh to arbitrary extraction units)
+            // Previous year's dispatch determines this year's extraction (if i > 0)
+            const gasGenTWh = i > 0 ? dispatchData.gas[i - 1] : 2500; // ~2500 TWh gas in 2025
+            const gasExtractionThisYear = (gasGenTWh / 2500) * effectiveEnergySources.gas.extractionRate;
+            gasExtracted += gasExtractionThisYear;
             const gasDepletion = depletion(
-                energySources.gas.reserves,
+                effectiveEnergySources.gas.reserves,
                 gasExtracted,
-                energySources.gas.eroei0
+                effectiveEnergySources.gas.eroei0
             );
-            const gasBaseCost = energySources.gas.cost0 * (energySources.gas.eroei0 / gasDepletion.eroei);
-            const gasCarbonCost = (energySources.gas.carbonIntensity / 1000) * carbonPrice;
+            const gasBaseCost = effectiveEnergySources.gas.cost0 * (effectiveEnergySources.gas.eroei0 / gasDepletion.eroei);
+            const gasCarbonCost = (effectiveEnergySources.gas.carbonIntensity / 1000) * carbonPrice;
             const gasLCOE = gasBaseCost + gasCarbonCost;
             results.gas.push(gasLCOE);
 
             // Coal: EROEI depletion + carbon price
-            coalExtracted += energySources.coal.extractionRate;
+            // Scale extraction with actual generation
+            const coalGenTWh = i > 0 ? dispatchData.coal[i - 1] : 3000; // ~3000 TWh coal in 2025
+            const coalExtractionThisYear = (coalGenTWh / 3000) * effectiveEnergySources.coal.extractionRate;
+            coalExtracted += coalExtractionThisYear;
             const coalDepletion = depletion(
-                energySources.coal.reserves,
+                effectiveEnergySources.coal.reserves,
                 coalExtracted,
-                energySources.coal.eroei0
+                effectiveEnergySources.coal.eroei0
             );
-            const coalBaseCost = energySources.coal.cost0 * (energySources.coal.eroei0 / coalDepletion.eroei);
-            const coalCarbonCost = (energySources.coal.carbonIntensity / 1000) * carbonPrice;
+            const coalBaseCost = effectiveEnergySources.coal.cost0 * (effectiveEnergySources.coal.eroei0 / coalDepletion.eroei);
+            const coalCarbonCost = (effectiveEnergySources.coal.carbonIntensity / 1000) * carbonPrice;
             const coalLCOE = coalBaseCost + coalCarbonCost;
             results.coal.push(coalLCOE);
 
             // Nuclear: essentially flat (no learning in current environment)
-            const nuclearCumulative = capacityState.nuclear.installed[i] / energySources.nuclear.capacity2025;
-            const nuclearLCOE = learningCurve(energySources.nuclear.cost0, nuclearCumulative, energySources.nuclear.alpha);
+            const nuclearCumulativeGW = capacityState.nuclear.additions.slice(0, i + 1).reduce((a, b) => a + b, effectiveEnergySources.nuclear.capacity2025);
+            const nuclearLCOE = learningCurve(effectiveEnergySources.nuclear.cost0, nuclearCumulativeGW / effectiveEnergySources.nuclear.capacity2025, effectiveEnergySources.nuclear.alpha);
             results.nuclear.push(nuclearLCOE);
 
-            // Battery: learning curve based on actual capacity (GWh)
-            const batteryCumulative = capacityState.battery.installed[i] / energySources.battery.capacity2025;
-            const batteryCost = learningCurve(energySources.battery.cost0, batteryCumulative, energySources.battery.alpha);
+            // Battery: learning curve based on TRUE CUMULATIVE deployment (GWh)
+            const batteryCumulativeGWh = capacityState.battery.additions.slice(0, i + 1).reduce((a, b) => a + b, effectiveEnergySources.battery.capacity2025);
+            const batteryCost = learningCurve(effectiveEnergySources.battery.cost0, batteryCumulativeGWh / effectiveEnergySources.battery.capacity2025, effectiveEnergySources.battery.alpha);
             results.battery.push(batteryCost);
 
             // Solar + Battery: combined cost for dispatchable clean energy
@@ -3133,10 +3236,20 @@
             const baseDemandTWh = demandData.global.electricityDemand[i];
             const cheapestLCOE = Math.min(lcoes.solar, lcoes.wind);
             const globalWorkers = demographicsData.global.working[i];
-            const rebound = calculateReboundDemand(baseDemandTWh, cheapestLCOE, year, globalWorkers);
+            const globalEffectiveWorkers = demographicsData.global.effectiveWorkers[i];
+
+            // Calculate robot density using capital model formula (consistent with runCapitalModel)
+            // This consolidates the two robot calculation systems into one source of truth
+            const capitalBasedRobots = robotsDensity(currentCapital, globalEffectiveWorkers, year, effectiveCapitalParams);
+
+            const rebound = calculateReboundDemand(
+                baseDemandTWh, cheapestLCOE, year, globalWorkers,
+                effectiveReboundParams,
+                { robotsPer1000: capitalBasedRobots }  // Use capital model robots
+            );
 
             // Apply infrastructure growth cap
-            const maxDemand = prevAdjustedDemand * (1 + reboundParams.maxDemandGrowthRate);
+            const maxDemand = prevAdjustedDemand * (1 + effectiveReboundParams.maxDemandGrowthRate);
             const demandTWh = Math.min(rebound.adjustedDemand, maxDemand);
             prevAdjustedDemand = demandTWh;
 
@@ -3166,7 +3279,7 @@
             // 5. Calculate emissions and update climate
             // -----------------------------------------------------------------
             const electrificationRate = demandData.global.electrificationRate[i];
-            const emissionsResult = calculateEmissions(dispatchResult, electrificationRate);
+            const emissionsResult = calculateEmissions(dispatchResult, electrificationRate, effectiveEnergySources, effectiveClimateParams);
 
             climate.emissions.push(emissionsResult.total);
             climate.electricityEmissions.push(emissionsResult.electricity);
@@ -3191,7 +3304,7 @@
             let globalNetGdp = 0;
 
             for (const region of ['oecd', 'china', 'em', 'row']) {
-                const damage = climateDamages(currentTemp, region);
+                const damage = climateDamages(currentTemp, region, effectiveClimateParams);
                 climate.regionalDamages[region].push(damage * 100);
 
                 const grossGdp = demandData.regions[region].gdp[i];
@@ -3210,13 +3323,23 @@
             // 6. Update capacity state for NEXT year
             // -----------------------------------------------------------------
             if (i < years.length - 1) {
-                // Estimate investment from GDP for investment constraint
-                // This is a simplified proxy: investment ≈ 22% of GDP × stability factor
-                // Using current year's GDP as proxy for next year's investment (lag structure)
-                const stabilityFactor = 1 / (1 + capitalParams.stabilityLambda * Math.pow(globalDamage, 2));
-                const estimatedInvestment = demandData.global.gdp[i] * 0.22 * stabilityFactor;
+                // Calculate investment using full capital model methodology:
+                // Investment = GDP × savingsRate × stability
+                //
+                // savingsRate: OLG demographic-weighted savings (young 0%, working 45%, old -5%)
+                //              plus regional premiums (China +15%, EM -5%, ROW -8%)
+                // stability: Galbraith/Chen factor where climate uncertainty reduces investment
+                //
+                // This replaces the simplified proxy (fixed 22%) with proper capital model integration
+                const savingsRates = aggregateSavingsRate(demographicsData.regions, i, effectiveCapitalParams);
+                const stabilityFact = stabilityFactor(globalDamage, effectiveCapitalParams);
+                const estimatedInvestment = calculateInvestment(globalNetGdp, savingsRates.global, stabilityFact);
 
                 updateCapacityState(capacityState, i + 1, demandTWh, { solarGrowth }, estimatedInvestment);
+
+                // Update capital stock for next iteration's robot calculation
+                // K_{t+1} = (1-δ)K_t + I_t
+                currentCapital = updateCapital(currentCapital, estimatedInvestment, effectiveCapitalParams);
             }
         }
 
@@ -3233,13 +3356,13 @@
         // CAPITAL MODULE - Savings, investment, and automation
         // =============================================================================
 
-        const capitalData = runCapitalModel(demographicsData, demandData, climate);
+        const capitalData = runCapitalModel(demographicsData, demandData, climate, effectiveCapitalParams);
 
         // =============================================================================
         // RESOURCE MODULE - Minerals, food, and land demand
         // =============================================================================
 
-        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState);
+        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState, effectiveResourceParams);
 
         return {
             years,
