@@ -650,9 +650,10 @@
         depreciation: 0.05,       // Annual depreciation rate
 
         // Savings by cohort (OLG lifecycle)
+        // Note: These represent total savings including household, corporate, and government
         savingsYoung: 0.0,        // Ages 0-19: dependents
-        savingsWorking: 0.25,     // Ages 20-64: prime savers
-        savingsOld: -0.03,        // Ages 65+: dissaving
+        savingsWorking: 0.40,     // Ages 20-64: prime savers (calibrated to 26% global rate)
+        savingsOld: -0.05,        // Ages 65+: dissaving
 
         // Regional savings premiums
         savingsPremium: {
@@ -668,10 +669,10 @@
         // Automation
         automationShare2025: 0.02,    // 2% of capital is "robots"
         automationGrowth: 0.03,       // Share grows 3%/year
-        robotsPerCapitalUnit: 50,     // Scaling: robots per $1T automation capital
+        robotsPerCapitalUnit: 8.6,    // Robots per $1000 of automation capital per worker
 
         // Initial conditions (calibrated to 2025)
-        initialCapitalStock: 350      // $350T global capital (McKinsey)
+        initialCapitalStock: 420      // $420T global capital (Penn World Table, K/Y≈3.5)
     };
 
     /**
@@ -768,9 +769,12 @@
         // Automation share grows but is capped at 20%
         const autoShare = capitalParams.automationShare2025 * Math.pow(1 + capitalParams.automationGrowth, t);
         const cappedShare = Math.min(autoShare, 0.20);
-        const automationCapital = capital * cappedShare;
-        // Robots per 1000 workers
-        return (automationCapital / workers) * capitalParams.robotsPerCapitalUnit * 1000;
+        const automationCapitalT = capital * cappedShare;  // $ trillions
+        // Convert to $ per worker (capital in $T, workers in absolute count)
+        const dollarsPerWorker = (automationCapitalT * 1e12) / workers;
+        // robotsPerCapitalUnit: robots per $1000 of automation capital per worker
+        // At 2025: ~$1750/worker → ~15 robots/1000 workers (IFR-calibrated)
+        return (dollarsPerWorker / 1000) * capitalParams.robotsPerCapitalUnit;
     }
 
     /**
