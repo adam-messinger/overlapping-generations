@@ -10,6 +10,7 @@ overlapping-generations/
 ├── energy-sim.js        # Standalone Node.js module (headless)
 ├── run-simulation.js    # CLI runner
 ├── forecast.js          # Twin-Engine forecast generator
+├── test-energy-burden.js # Node.js tests for energy burden (Issue #7)
 ├── scenarios/           # Scenario configuration files
 │   ├── baseline.json    # STEPS baseline (current policies)
 │   ├── net-zero.json    # IEA NZE 2050 (aggressive)
@@ -64,9 +65,15 @@ The `<script>` section is organized into clear modules:
    - `effectiveWorkers()` - Productivity-weighted worker count (nonCollege + college × premium)
 
 7. **DEMAND MODEL** - GDP, energy intensity, electricity demand
-   - `economicParams` object - Regional GDP, TFP growth, energy intensity
+   - `economicParams` object - Regional GDP, TFP growth, energy intensity, energy burden params
    - `demandParams` object - Electrification targets and rates
    - `runDemandModel()` - Calculate electricity demand from demographics + GDP
+
+7b. **ENERGY BURDEN** - Supply-side energy cost constraint (Issue #7)
+   - `economicParams.energyBurden` object - Threshold (8%), elasticity, persistence
+   - `fuelPrices` object - Fuel prices for non-electric energy ($/MWh thermal)
+   - `calculateEnergyCost()` - Total energy cost from dispatch × LCOE + fuel demand
+   - `energyBurdenDamage()` - GDP damage when energy cost exceeds threshold
 
 8. **CAPITAL** - Savings, investment, and automation
    - `capitalParams` object - Production, savings, stability, automation parameters
@@ -129,6 +136,13 @@ m.copperPeakYear           // Year of peak copper demand
 m.lithiumReserveRatio2100  // Cumulative lithium / reserves
 m.proteinShare2050         // Protein share of calories (Bennett's Law)
 m.farmland2050             // Mha cropland
+m.desert2025               // Mha desert/barren
+m.desert2050               // Mha desert/barren
+m.desert2100               // Mha desert/barren
+m.netFlux2025              // Gt CO₂/year net LULUCF
+m.netFlux2050              // Gt CO₂/year net LULUCF
+m.netFlux2100              // Gt CO₂/year net LULUCF
+m.cumulativeSequestration2100 // Gt CO₂ total forest sequestration
 m.expansionMultiplier2100  // G/C cost expansion multiplier
 m.robotLoadTWh2100         // Robot energy load (TWh)
 m.adjustedDemand2100       // Demand with expansion (TWh)
@@ -140,6 +154,12 @@ m.buildingsElectrification2050
 m.industryElectrification2050
 m.oilShareOfFinal2050      // Fuel shares of non-electric
 m.gasShareOfFinal2050
+m.energyBurden2025         // Energy cost as fraction of GDP
+m.energyBurden2050         // Energy burden (should decline)
+m.energyBurdenPeak         // Peak energy burden
+m.energyBurdenPeakYear     // Year of peak burden
+m.energyCost2025           // Total energy cost ($ trillions)
+m.energyCost2050           // Energy cost by 2050
 
 // Query helpers for custom analysis
 const data = energySim.runSimulation({ carbonPrice: 100 });
@@ -203,6 +223,11 @@ resources.minerals.lithium.reserveRatio[25] // 2050 lithium reserve ratio
 resources.food.proteinShare[25]         // 2050 protein share
 resources.food.glp1Effect[25]           // 2050 GLP-1 calorie reduction effect
 resources.land.farmland[50]             // 2075 farmland (Mha)
+resources.land.desert[0]                // 2025 desert/barren (Mha)
+resources.land.forestChange[25]         // 2050 forest change (Mha/year)
+resources.carbon.netFlux[0]             // 2025 net LULUCF (Gt CO₂/year)
+resources.carbon.sequestration[25]      // 2050 sequestration (Gt CO₂/year)
+resources.carbon.cumulativeSequestration[75] // Cumulative sequestration by 2100
 
 // G/C expansion data (in dispatch object)
 dispatch.robotLoadTWh[25]        // 2050 robot energy load (TWh)
@@ -343,7 +368,13 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Farmland | Mha (million hectares) |
 | Urban area | Mha |
 | Forest area | Mha |
+| Desert/barren | Mha |
 | Crop yield | t/ha |
+| Forest change | Mha/year |
+| Sequestration | Gt CO₂/year |
+| Deforestation emissions | Gt CO₂/year |
+| Net LULUCF flux | Gt CO₂/year |
+| Cumulative sequestration | Gt CO₂ |
 | Expansion multiplier | fraction (1.0+) |
 | Robot load | TWh |
 | Adjusted demand | TWh |
@@ -354,6 +385,10 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Sector electrification | fraction (0-1) |
 | Fuel demand | TWh |
 | Carbon intensity | kg CO₂/MWh |
+| Energy cost | $ trillions/year |
+| Energy burden | fraction of GDP (0-1) |
+| Energy burden damage | fraction (0-1) |
+| Fuel prices | $/MWh thermal |
 
 ## Key Models
 
@@ -390,6 +425,24 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - Carbon intensities: oil 267, gas 202, coal 341 kg CO₂/MWh
   - Emissions calculated from actual fuel consumption
 
+### Energy Burden (Issue #7)
+- **Supply-Side Constraint**: Energy availability/cost constrains GDP, not just the reverse
+  - When energy costs exceed 8% of GDP, growth is constrained
+  - Historical precedent: 1970s oil shocks (10-14% burden) caused stagflation
+- **Energy Cost Calculation**: Total cost from electricity (dispatch × LCOE) + non-electric (fuel demand × prices)
+  - Fuel prices: oil $50/MWh, gas $25/MWh, coal $15/MWh + carbon pricing
+  - Carbon cost added to each fuel based on carbon intensity
+- **Burden Damage Function**: Above threshold, damage = (excess burden) × elasticity (1.5)
+  - Threshold: 8% of GDP (normal cheap energy)
+  - Max burden: 14% (1970s crisis level)
+  - Damage capped at 30% GDP reduction
+- **Feedback Loop**: Lagged effect on GDP growth (persistent fraction 25%)
+  - Similar to climate damages: year t-1 burden affects year t growth
+  - Creates stagflation dynamics when energy costs spike
+- **Jevons Integration**: G/C expansion still applies when burden is below threshold
+  - Cheap energy enables growth AND unlocks new activities
+  - High burden constrains growth AND suppresses expansion
+
 ### Climate (Phase 4)
 - **Dispatch**: Merit order allocation by LCOE with capacity/penetration constraints
 - **Emissions**: Computed from dispatch (electricity) + electrification-adjusted non-electric
@@ -418,11 +471,18 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - Protein share rises with GDP per capita (logistic curve)
   - GLP-1 adoption reduces calorie demand 15-20% for users
   - Grain equivalent = direct consumption + feed conversion
-- **Land Demand**: Farmland, urban, forest
+- **Land Demand**: Farmland, urban, forest, desert
   - Farmland = grain demand / yield (yield improves 1%/year)
   - Urban grows with population and wealth
   - Forest: baseline loss + reforestation from abandoned farmland
+  - Desert: residual from land budget (total - farm - urban - forest)
+  - Desertification accelerates above 1.5°C warming
   - 50% of released farmland becomes forest (rewilding)
+- **Forest Carbon**: CDR and emissions from land use change
+  - Growing forest sequesters ~7.5 t CO₂/ha/year
+  - Deforestation: 50% immediate emissions, 50% enters decay pool
+  - Decay pool emits 5%/year (deferred emissions)
+  - Net flux affects cumulative CO₂ and temperature
 
 ### Galbraith/Chen Expansion (Phase 7)
 Implements G/C Entropy Economics: energy transitions are ADDITIVE, not substitutive.
@@ -501,6 +561,11 @@ When energy costs drop, released resources get reinvested into new activities.
 | Cropland 2025 | 4.8 Bha | FAO |
 | Urban area 2025 | ~50 Mha | UN |
 | Forest area 2025 | 4.0 Bha | FAO |
+| Desert/barren 2025 | ~4.1 Bha | Residual (13B - others) |
+| Total land area | 13 Bha | FAO (ice-free) |
+| Forest carbon density | 100-200 t C/ha | IPCC AR6 |
+| Sequestration rate | 5-10 t CO₂/ha/yr | IPCC SRCCL |
+| Global LULUCF 2025 | ~5-6 Gt CO₂/yr (net) | GCP |
 | Robot baseline 2025 | 1/1000 workers (~50 TWh) | Datacenter + physical robots |
 | Robot growth rate | 12%/year | AI/automation acceleration |
 | Robot energy | 10 MWh/robot-unit/year | Datacenter + physical avg |
@@ -518,6 +583,14 @@ When energy costs drop, released resources get reinvested into new activities.
 | Transport electrification 2050 | ~66% | Model projection |
 | Oil share of non-electric 2025 | ~40% | Model output |
 | Non-electric emissions 2025 | ~25 Gt | IEA (fuel-based) |
+| Energy burden 2025 | ~5-7% of GDP | IEA (energy cost / GDP) |
+| 1970s crisis peak | 10-14% of GDP | Historical |
+| Burden threshold | 8% of GDP | Midpoint (constraint activates) |
+| Max sustainable burden | 14% of GDP | Historical max |
+| Burden elasticity | 1.5 | GDP damage per % excess burden |
+| Fuel price - oil | ~$50/MWh | ~$80/barrel equivalent |
+| Fuel price - gas | ~$25/MWh | US/global blend |
+| Fuel price - coal | ~$15/MWh | Before carbon pricing |
 
 ### Validation Scenarios
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
@@ -579,12 +652,14 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
 - Dependency ratio (f: elderly / working-age)
 
 **Economy**
-- GDP by region (f: TFP growth, effective workers, lagged damages)
+- GDP by region (f: TFP growth, effective workers, lagged damages, lagged energy burden)
 - Savings rate (f: demographic composition, regional premiums)
 - Uncertainty premium Φ (f: uncertainty², λ=2.0) — G/C (currently climate, future: social unrest, etc.)
 - Investment (f: GDP × savings × stability)
 - Capital stock (f: prior capital, investment, depreciation)
 - Interest rate (f: αY/K - δ) — marginal product of capital
+- Energy cost (f: dispatch × LCOE + fuel demand × prices) — supply-side constraint
+- Energy burden (f: energy cost / GDP) — threshold-based damage when >8%
 
 **Climate**
 - Emissions (f: dispatch, electrification rate, non-electric baseline)
@@ -623,6 +698,12 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
    - Automation fills labor gap
    - Robot energy demand prevents demand collapse
 
+5. **Energy Cost → Burden → GDP → Energy Demand → Cost** (stabilizing/constraining)
+   - High energy costs create burden on economy (1970s oil shocks)
+   - When burden > 8% GDP, growth is constrained
+   - Lower GDP → lower energy demand → lower costs
+   - Creates stagflation dynamics when supply-constrained
+
 ### Binding Constraints
 
 | Constraint | When Binding | Effect |
@@ -632,6 +713,7 @@ This prevents the unrealistic "power down" scenario that pure efficiency models 
 | Investment budget | High-damage scenarios | Climate uncertainty suppresses investment |
 | Infrastructure cap (2.5%/yr) | 2025-2050 | Total demand growth limited by build rate |
 | Penetration limits | Always | Nuclear ≤20%, wind ≤35%, solar ≤45% |
+| Energy burden (8%) | High carbon + slow transition | GDP constrained when energy cost > 8% GDP |
 
 ### The G/C Thesis
 
@@ -724,6 +806,11 @@ Open `test.html` in a browser to run the test suite. Tests cover:
 - runScenario helper and exports
 
 Tests run in-browser via iframe to access the full `energySim` API.
+
+For Node.js testing of energy burden constraints:
+```bash
+node test-energy-burden.js
+```
 
 ## Dependencies
 

@@ -542,7 +542,19 @@
             urbanWealthElasticity: 0.3,   // 10% richer → 3% more urban land
             forestArea2025: 4000,         // Mha forests
             forestLossRate: 0.002,        // 0.2% annual loss baseline (logging, fire, other)
-            reforestationRate: 0.5        // 50% of abandoned farmland becomes forest
+            reforestationRate: 0.5,       // 50% of abandoned farmland becomes forest
+
+            // Desert/barren land (residual from land budget)
+            totalLandArea: 13000,         // Mha total ice-free land
+            desert2025: 4150,             // Mha (residual: total - farm - urban - forest)
+            desertificationRate: 0.001,   // 0.1% baseline annual expansion
+            desertificationClimateCoeff: 0.002, // Additional % per °C above 1.5°C
+
+            // Forest carbon (CDR)
+            forestCarbonDensity: 150,     // t C/ha average standing stock
+            sequestrationRate: 7.5,       // t CO₂/ha/year for growing forest
+            deforestationEmissionFactor: 0.5, // Fraction released immediately (rest decays)
+            decayRate: 0.05               // Annual decay rate for deferred emissions pool
         }
     };
 
@@ -690,9 +702,11 @@
      * @param {number} gdpPerCapita - Global GDP per capita ($)
      * @param {number} gdpPerCapita2025 - Baseline GDP per capita for comparison
      * @param {number} year - Simulation year
+     * @param {number} temperature - Current temperature above preindustrial (°C), default 1.2
+     * @param {Object} prevLand - Previous year's land state (for forestChange calculation)
      * @returns {Object} Land use in Mha
      */
-    function landDemand(foodData, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams = resourceParams) {
+    function landDemand(foodData, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams = resourceParams, temperature = 1.2, prevLand = null) {
         const { land } = effResourceParams;
         const t = year - 2025;
 
@@ -737,11 +751,70 @@
         // Total forest = baseline with losses + reforestation
         const forest = forestFromBaseline + reforestation;
 
+        // Desert/barren land: residual from land budget + climate-driven desertification
+        // Desertification accelerates above 1.5°C
+        const climateExcess = Math.max(0, temperature - 1.5);
+        const desertificationFactor = 1 + land.desertificationClimateCoeff * climateExcess;
+        const baseDesert = land.totalLandArea - farmland - urban - forest;
+        const climateDrivenExpansion = t > 0 ? land.desert2025 * land.desertificationRate * desertificationFactor * t : 0;
+        const desert = Math.max(0, baseDesert + climateDrivenExpansion);
+
+        // Forest change (for carbon calculation)
+        // Positive = forest growth (sequestration), negative = deforestation (emissions)
+        const forestChange = prevLand ? forest - prevLand.forest : 0;
+
         return {
             farmland,                    // Mha
             urban,                       // Mha
             forest,                      // Mha
-            yield: currentYield          // t/ha
+            desert,                      // Mha (residual + climate)
+            yield: currentYield,         // t/ha
+            forestChange                 // Mha/year (positive = growth)
+        };
+    }
+
+    /**
+     * Calculate forest carbon flux (sequestration and emissions)
+     * Growing forest sequesters CO₂, deforestation releases it
+     *
+     * @param {number} forestChange - Annual change in forest area (Mha/year, positive = growth)
+     * @param {number} prevDecayPool - Previous year's decay pool (Gt CO₂)
+     * @param {Object} landParams - Land parameters from resourceParams.land
+     * @returns {Object} { sequestration, deforestationEmissions, decayEmissions, netFlux, newDecayPool }
+     */
+    function forestCarbon(forestChange, prevDecayPool, landParams) {
+        // Sequestration from forest growth (positive forestChange)
+        // sequestrationRate is t CO₂/ha/year for growing forest
+        // forestChange is Mha → multiply by 1e6 to get ha, then divide by 1e9 for Gt
+        const sequestration = forestChange > 0
+            ? (forestChange * 1e6 * landParams.sequestrationRate) / 1e9  // Gt CO₂/year (negative = sink)
+            : 0;
+
+        // Deforestation emissions (negative forestChange)
+        // forestCarbonDensity is t C/ha, convert to t CO₂ (* 44/12 = 3.67)
+        // deforestationEmissionFactor is fraction released immediately
+        const deforestationArea = forestChange < 0 ? -forestChange : 0;  // Mha lost
+        const totalCarbonReleased = deforestationArea * 1e6 * landParams.forestCarbonDensity * 3.67 / 1e9;  // Gt CO₂
+        const immediateEmissions = totalCarbonReleased * landParams.deforestationEmissionFactor;
+        const deferredEmissions = totalCarbonReleased * (1 - landParams.deforestationEmissionFactor);
+
+        // Decay pool emissions (from previous deforestation)
+        const decayEmissions = prevDecayPool * landParams.decayRate;
+
+        // Update decay pool: add new deferred emissions, subtract decay
+        const newDecayPool = prevDecayPool + deferredEmissions - decayEmissions;
+
+        // Net flux: positive = net emissions, negative = net sink
+        // deforestation and decay are positive (emissions)
+        // sequestration is negative (sink, but stored as positive value above)
+        const netFlux = immediateEmissions + decayEmissions - sequestration;
+
+        return {
+            sequestration,                // Gt CO₂/year (removed from atmosphere)
+            deforestationEmissions: immediateEmissions,  // Gt CO₂/year
+            decayEmissions,               // Gt CO₂/year
+            netFlux,                      // Gt CO₂/year (positive = net emissions)
+            newDecayPool                  // Gt CO₂ (remaining deferred emissions)
         };
     }
 
@@ -751,9 +824,11 @@
      * @param {Object} demandData - Output from runDemandModel
      * @param {Object} dispatchData - Dispatch results { solar, wind, etc. arrays }
      * @param {Object} capacityState - Capacity state from runSimulation (actual installed capacity)
+     * @param {Object} climateData - Climate data from main simulation (for temperature-land feedback)
+     * @param {Object} effResourceParams - Effective resource parameters
      * @returns {Object} Resource demand projections
      */
-    function runResourceModel(demographicsData, demandData, dispatchData, capacityState, effResourceParams = resourceParams) {
+    function runResourceModel(demographicsData, demandData, dispatchData, capacityState, climateData = null, effResourceParams = resourceParams) {
         const { years, global: demoGlobal } = demographicsData;
 
         // Initialize output structure
@@ -776,13 +851,27 @@
                 farmland: [],             // Mha
                 urban: [],                // Mha
                 forest: [],               // Mha
-                yield: []                 // t/ha
+                desert: [],               // Mha (residual + climate)
+                yield: [],                // t/ha
+                forestChange: []          // Mha/year (positive = growth)
+            },
+            carbon: {
+                sequestration: [],        // Gt CO₂/year (removed from atmosphere)
+                deforestationEmissions: [], // Gt CO₂/year
+                decayEmissions: [],       // Gt CO₂/year
+                netFlux: [],              // Gt CO₂/year (positive = net emissions)
+                cumulativeSequestration: [] // Gt CO₂ total sequestered
             },
             metrics: {}
         };
 
         // Track cumulative mineral stocks
         const cumulativeStock = { copper: 0, lithium: 0, rareEarths: 0, steel: 0 };
+
+        // Track carbon decay pool and cumulative sequestration
+        let decayPool = 0;  // Gt CO₂ in decay pool
+        let cumulativeSeq = 0;  // Gt CO₂ total sequestered
+        let prevLand = null;  // Previous year's land state
 
         // Baseline GDP per capita for land model
         const gdpPerCapita2025 = (demandData.global.gdp[0] * 1e12) / demoGlobal.population[0];
@@ -846,11 +935,29 @@
             resources.food.glp1Effect.push(food.glp1Effect);
 
             // === LAND ===
-            const land = landDemand(food, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams);
+            // Use previous year's temperature for land model (lagged feedback to avoid circular dependency)
+            // Default to 1.2°C if no climate data available
+            const temperature = climateData && i > 0 ? climateData.temperature[i - 1] : 1.2;
+            const land = landDemand(food, population, gdpPerCapita, gdpPerCapita2025, year, effResourceParams, temperature, prevLand);
             resources.land.farmland.push(land.farmland);
             resources.land.urban.push(land.urban);
             resources.land.forest.push(land.forest);
+            resources.land.desert.push(land.desert);
             resources.land.yield.push(land.yield);
+            resources.land.forestChange.push(land.forestChange);
+
+            // === FOREST CARBON ===
+            const carbonResult = forestCarbon(land.forestChange, decayPool, effResourceParams.land);
+            resources.carbon.sequestration.push(carbonResult.sequestration);
+            resources.carbon.deforestationEmissions.push(carbonResult.deforestationEmissions);
+            resources.carbon.decayEmissions.push(carbonResult.decayEmissions);
+            resources.carbon.netFlux.push(carbonResult.netFlux);
+
+            // Update state for next iteration
+            decayPool = carbonResult.newDecayPool;
+            cumulativeSeq += carbonResult.sequestration;
+            resources.carbon.cumulativeSequestration.push(cumulativeSeq);
+            prevLand = land;
         }
 
         // === METRICS ===
@@ -900,7 +1007,16 @@
             farmlandChange: (resources.land.farmland[idx2100] - resources.land.farmland[0]) / resources.land.farmland[0],
             urban2050: resources.land.urban[idx2050],
             forest2100: resources.land.forest[idx2100],
-            forestLoss: (resources.land.forest[0] - resources.land.forest[idx2100]) / resources.land.forest[0]
+            forestLoss: (resources.land.forest[0] - resources.land.forest[idx2100]) / resources.land.forest[0],
+            desert2025: resources.land.desert[0],
+            desert2050: resources.land.desert[idx2050],
+            desert2100: resources.land.desert[idx2100],
+
+            // Forest carbon metrics
+            netFlux2025: resources.carbon.netFlux[0],
+            netFlux2050: resources.carbon.netFlux[idx2050],
+            netFlux2100: resources.carbon.netFlux[idx2100],
+            cumulativeSequestration2100: resources.carbon.cumulativeSequestration[idx2100]
         };
 
         return resources;
@@ -2199,6 +2315,15 @@
             tfpDecay: 0.010,          // Gradual convergence
             energyIntensity: 1.53,    // Lower efficiency (IEA-calibrated)
             intensityDecline: 0.004   // 0.4%/year (Jevons: efficiency gains largely offset)
+        },
+        // Energy burden constraint parameters (supply-side feedback)
+        // When energy costs exceed threshold fraction of GDP, growth is constrained
+        // Historical precedent: 1970s oil shocks (10-14% energy burden) caused stagflation
+        energyBurden: {
+            threshold: 0.08,          // 8% of GDP - above this, growth is constrained
+            maxBurden: 0.14,          // 14% - historical max (1970s crisis)
+            elasticity: 1.5,          // How much GDP contracts per % above threshold
+            persistentFraction: 0.25  // 25% of burden effect persists (like climate damages)
         }
     };
 
@@ -2323,6 +2448,110 @@
         return mix;
     }
 
+    // =============================================================================
+    // ENERGY BURDEN - Supply-side energy cost constraint (Issue #7)
+    // =============================================================================
+
+    /**
+     * Fuel prices for non-electric energy cost calculation
+     * Prices in $/MWh thermal equivalent (for consistency with electricity LCOE)
+     *
+     * Note: These are rough proxies. In reality:
+     * - Oil price varies with crude oil market (~$60-100/barrel → ~$35-60/MWh)
+     * - Gas price varies regionally (US ~$15/MWh, Europe ~$30/MWh)
+     * - Coal is cheap but carbon pricing adds cost
+     */
+    const fuelPrices = {
+        oil: 50,          // ~$80/barrel → ~$50/MWh thermal
+        gas: 25,          // Natural gas price (US/global blend)
+        coal: 15,         // Cheap but adding carbon cost separately
+        biomass: 40,      // Higher cost for sustainable sourcing
+        hydrogen: 80,     // Green hydrogen (high but declining)
+        biofuel: 60       // Biofuel premium over fossil
+    };
+
+    /**
+     * Calculate total energy cost for a year
+     *
+     * INPUTS:
+     * - dispatchResult: Electricity generation by source (TWh)
+     * - lcoes: LCOE for each electricity source ($/MWh)
+     * - fuelDemand: Non-electric fuel consumption (TWh thermal)
+     * - carbonPrice: $/ton CO₂ (adds to fuel costs)
+     *
+     * OUTPUTS:
+     * - electricity: Total electricity cost ($ trillions)
+     * - nonElectric: Total non-electric fuel cost ($ trillions)
+     * - total: Combined energy cost ($ trillions)
+     *
+     * @param {Object} dispatchResult - Generation by source from dispatch()
+     * @param {Object} lcoes - LCOE by source
+     * @param {Object} fuelDemand - Non-electric fuel demand (TWh)
+     * @param {number} carbonPrice - Carbon price ($/ton CO₂)
+     * @returns {Object} Energy costs in $ trillions
+     */
+    function calculateEnergyCost(dispatchResult, lcoes, fuelDemand, carbonPrice = 0) {
+        // Electricity cost = dispatch × weighted LCOE
+        // Each source × its LCOE, summed (TWh × $/MWh = $M, / 1e6 = $T)
+        const elecCost =
+            (dispatchResult.solar || 0) * lcoes.solar +
+            (dispatchResult.wind || 0) * lcoes.wind +
+            (dispatchResult.gas || 0) * lcoes.gas +
+            (dispatchResult.coal || 0) * lcoes.coal +
+            (dispatchResult.nuclear || 0) * lcoes.nuclear +
+            (dispatchResult.hydro || 0) * 40;  // Hydro ~$40/MWh (mature tech)
+
+        // Non-electric cost (oil, gas, coal for heating/transport)
+        // Add carbon cost to each fuel based on carbon intensity
+        let nonElecCost = 0;
+        for (const [fuel, twh] of Object.entries(fuelDemand)) {
+            const basePrice = fuelPrices[fuel] || 0;
+            const carbonIntensity = finalEnergyParams.carbonIntensity[fuel] || 0;
+            const carbonCost = (carbonIntensity / 1000) * carbonPrice;  // $/MWh
+            nonElecCost += twh * (basePrice + carbonCost);
+        }
+
+        return {
+            electricity: elecCost / 1e6,      // $ trillions
+            nonElectric: nonElecCost / 1e6,   // $ trillions
+            total: (elecCost + nonElecCost) / 1e6
+        };
+    }
+
+    /**
+     * Calculate GDP damage from energy burden exceeding threshold
+     *
+     * When energy costs exceed 8% of GDP, the economy is constrained.
+     * Historical precedent: 1970s oil shocks saw 10-14% energy burden,
+     * causing stagflation and recession.
+     *
+     * @param {number} energyCost - Total energy cost ($ trillions)
+     * @param {number} gdp - GDP ($ trillions)
+     * @param {Object} params - Energy burden parameters (optional)
+     * @returns {Object} burden (fraction), damage (fraction), constrained (boolean)
+     */
+    function energyBurdenDamage(energyCost, gdp, params = economicParams.energyBurden) {
+        // Energy burden = total energy cost / GDP
+        const burden = energyCost / gdp;
+
+        if (burden <= params.threshold) {
+            return { burden, damage: 0, constrained: false };
+        }
+
+        // Above threshold: damage increases with excess burden
+        const excessBurden = burden - params.threshold;
+
+        // Damage fraction (0-1), capped at 30%
+        // Each 1% excess burden × elasticity (1.5) = damage fraction
+        const damage = Math.min(0.30, excessBurden * params.elasticity);
+
+        return {
+            burden,                    // Energy cost / GDP (fraction)
+            damage,                    // GDP reduction (fraction)
+            constrained: burden > params.threshold
+        };
+    }
+
     /**
      * Run demand model simulation
      * Calculates GDP growth, energy intensity, and electricity demand by region
@@ -2357,6 +2586,7 @@
         const electTarget = params.electrificationTarget ?? demandParams.electrificationTarget;
         const efficiencyMult = params.efficiencyMultiplier ?? 1.0;
         const damageFractions = params.damageFractions ?? null;  // For GDP-damages feedback
+        const energyBurdenFractions = params.energyBurdenFractions ?? null;  // For energy burden feedback (Issue #7)
 
         // Compute baseline dependency from demographics model (not hardcoded)
         const baselineDependency = demoGlobal.dependency[0];
@@ -2428,8 +2658,11 @@
         };
 
         // Initialize state per region
+        // Filter out non-region entries (like energyBurden) from economicParams
+        const regionKeys = ['oecd', 'china', 'em', 'row'];
         const state = {};
-        for (const [key, econ] of Object.entries(economicParams)) {
+        for (const key of regionKeys) {
+            const econ = economicParams[key];
             state[key] = {
                 gdp: econ.gdp2025,
                 intensity: econ.energyIntensity
@@ -2460,7 +2693,8 @@
             };
             const globalFuels = { oil: 0, gas: 0, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0 };
 
-            for (const [key, econ] of Object.entries(economicParams)) {
+            for (const key of regionKeys) {
+                const econ = economicParams[key];
                 const regionDemo = demoRegions[key];
                 const currentState = state[key];
 
@@ -2510,7 +2744,17 @@
                     const laggedDamage = damageFractions?.[key]?.[i - 1] ?? 0;
                     const persistentDamageFraction = 0.25;  // 25% of damages destroy capital permanently
                     const persistentDamage = laggedDamage * persistentDamageFraction;
-                    currentState.gdp = currentState.gdp * (1 + growthRate) * (1 - persistentDamage);
+
+                    // ENERGY BURDEN CONSTRAINT (Issue #7: supply-side feedback)
+                    // When energy costs exceed threshold (8% of GDP), growth is constrained.
+                    // Like climate damages, apply only the persistent fraction to growth.
+                    // This represents the lasting effects of energy shocks: capital destruction,
+                    // behavioral changes, and productivity losses.
+                    const laggedBurden = energyBurdenFractions?.[i - 1] ?? 0;
+                    const burdenPersistent = laggedBurden * (economicParams.energyBurden?.persistentFraction ?? 0.25);
+
+                    // Combined effect: (1 - climate damage) × (1 - energy burden damage)
+                    currentState.gdp = currentState.gdp * (1 + growthRate) * (1 - persistentDamage) * (1 - burdenPersistent);
                 }
                 demand.regions[key].gdp.push(currentState.gdp);
                 demand.regions[key].growthRate.push(growthRate);
@@ -3081,9 +3325,11 @@
      * @param {Object} fuelDemand - Optional fuel demand (TWh) by fuel type for non-electric emissions
      *        If provided, calculates emissions from actual fuel consumption.
      *        If null/undefined, falls back to linear proxy for backward compatibility.
+     * @param {number} landCarbonFlux - Optional land use carbon flux (Gt CO₂/year, positive = emissions)
+     *        If provided, adds land use emissions/sequestration to total.
      * @returns {Object} Emissions breakdown and total (Gt CO₂)
      */
-    function calculateEmissions(dispatchResult, electrificationRate, effEnergySources = energySources, effClimateParams = climateParams, fuelDemand = null) {
+    function calculateEmissions(dispatchResult, electrificationRate, effEnergySources = energySources, effClimateParams = climateParams, fuelDemand = null, landCarbonFlux = null) {
         // Electricity emissions (Gt CO₂)
         const electricityEmissions = (
             dispatchResult.gas * effEnergySources.gas.carbonIntensity +
@@ -3109,10 +3355,14 @@
             nonElecEmissions = Math.max(5, nonElecBaseline - nonElecReduction);
         }
 
+        // Land use emissions (positive = net emissions, negative = net sink)
+        const landUse = landCarbonFlux ?? 0;
+
         return {
             electricity: electricityEmissions,
             nonElectricity: nonElecEmissions,
-            total: electricityEmissions + nonElecEmissions
+            landUse: landUse,
+            total: electricityEmissions + nonElecEmissions + landUse
         };
     }
 
@@ -3354,9 +3604,12 @@
             efficiencyMultiplier
         });
 
-        // Run a "quick climate pass" to get damage trajectory
-        // This is a simplified version of the main loop that just tracks emissions → temperature → damages
+        // Run a "quick climate pass" to get damage trajectory AND energy burden
+        // This is a simplified version of the main loop that tracks:
+        // 1. emissions → temperature → climate damages (existing)
+        // 2. energy costs → energy burden → supply constraint (new, Issue #7)
         const damageFractions = { oecd: [], china: [], em: [], row: [] };
+        const energyBurdenFractions = [];
         {
             let quickCumulativeEmissions = effectiveClimateParams.cumulativeCO2_2025;
             let quickTemp = effectiveClimateParams.currentTemp;
@@ -3387,15 +3640,49 @@
                     const damage = climateDamages(quickTemp, region, effectiveClimateParams);
                     damageFractions[region].push(damage);
                 }
+
+                // =============================================================
+                // ENERGY BURDEN ESTIMATION (Issue #7: supply-side constraint)
+                // =============================================================
+                // Estimate energy cost using approximate average LCOE
+                // Actual LCOE depends on dispatch merit order, but this gives a
+                // reasonable first-pass approximation for the feedback loop.
+                //
+                // avgLCOE trajectory: starts ~$80/MWh (2025 grid average),
+                // declines to ~$40/MWh by 2050, ~$25/MWh by 2100 as clean energy
+                // learning curves dominate. Carbon price adds to fossil costs.
+                const baseLCOE = 80 * Math.exp(-0.015 * i);  // Clean energy learning
+                const carbonComponent = carbonPrice * 0.4 * Math.exp(-0.02 * i);  // Grid avg carbon intensity
+                const avgLCOE = baseLCOE + carbonComponent;
+
+                // Electricity cost ($ trillions) = TWh × $/MWh / 1e6
+                const elecCost = elecDemand * avgLCOE / 1e6;
+
+                // Non-electric cost: use total final energy minus electricity
+                // Apply approximate fuel price (~$40/MWh avg) + carbon pricing
+                const totalFinalEnergy = demandDataInitial.global.totalFinalEnergy[i];
+                const nonElecEnergy = totalFinalEnergy - elecDemand;
+                const avgFuelPrice = 40 + carbonPrice * 0.25;  // Fuel mix carbon intensity
+                const nonElecCost = nonElecEnergy * avgFuelPrice / 1e6;
+
+                const totalEnergyCost = elecCost + nonElecCost;
+                const quickGDP = demandDataInitial.global.gdp[i];
+
+                // Calculate energy burden damage
+                const burdenResult = energyBurdenDamage(totalEnergyCost, quickGDP, economicParams.energyBurden);
+                energyBurdenFractions.push(burdenResult.damage);
             }
         }
 
-        // Pass 2: Re-run demand model WITH damage trajectory
-        // Now GDP at year t incorporates damage from year t-1 (lagged feedback)
+        // Pass 2: Re-run demand model WITH damage trajectory AND energy burden
+        // Now GDP at year t incorporates:
+        // 1. Climate damage from year t-1 (lagged effect)
+        // 2. Energy burden constraint from year t-1 (lagged effect)
         const demandData = runDemandModel(demographicsData, {
             electrificationTarget,
             efficiencyMultiplier,
-            damageFractions  // This enables the GDP-damages feedback loop
+            damageFractions,           // Climate damages feedback loop
+            energyBurdenFractions      // Energy burden feedback loop (Issue #7)
         });
 
         // =============================================================================
@@ -3430,7 +3717,11 @@
             temperature: [],            // °C above preindustrial
             globalDamages: [],          // % GDP
             regionalDamages: { oecd: [], china: [], em: [], row: [] },
-            netGdp: { global: [], oecd: [], china: [], em: [], row: [] }
+            netGdp: { global: [], oecd: [], china: [], em: [], row: [] },
+            // Energy burden tracking (Issue #7: supply-side constraint)
+            energyCost: [],             // $ trillions/year
+            energyBurden: [],           // fraction of GDP
+            energyBurdenDamage: []      // GDP reduction from energy cost
         };
 
         // Dispatch results
@@ -3660,6 +3951,19 @@
             climate.netGdp.global.push(globalNetGdp);
 
             // -----------------------------------------------------------------
+            // 5b. Calculate energy cost and burden (Issue #7: supply-side constraint)
+            // -----------------------------------------------------------------
+            // Track actual energy costs using dispatch × LCOE for electricity
+            // and fuel demand × (fuel price + carbon cost) for non-electric
+            const energyCostResult = calculateEnergyCost(dispatchResult, lcoes, fuelDemand, carbonPrice);
+            climate.energyCost.push(energyCostResult.total);
+
+            // Calculate burden as fraction of GDP
+            const burdenResult = energyBurdenDamage(energyCostResult.total, globalGrosGdp, economicParams.energyBurden);
+            climate.energyBurden.push(burdenResult.burden);
+            climate.energyBurdenDamage.push(burdenResult.damage);
+
+            // -----------------------------------------------------------------
             // 6. Update capacity state for NEXT year
             // -----------------------------------------------------------------
             if (i < years.length - 1) {
@@ -3684,12 +3988,23 @@
         }
 
         // Store climate metrics
+        // Find peak energy burden year
+        const maxBurden = Math.max(...climate.energyBurden);
+        const peakBurdenYear = years[climate.energyBurden.indexOf(maxBurden)];
+
         climate.metrics = {
             peakEmissionsYear,
             peakEmissionsValue,
             warming2100: climate.temperature[climate.temperature.length - 1],
             damages2075: climate.globalDamages[years.indexOf(2075)],
-            gridIntensity2025: dispatchData.gridIntensity[0]
+            gridIntensity2025: dispatchData.gridIntensity[0],
+            // Energy burden metrics (Issue #7)
+            energyBurden2025: climate.energyBurden[0],
+            energyBurden2050: climate.energyBurden[years.indexOf(2050)],
+            energyBurdenPeak: maxBurden,
+            energyBurdenPeakYear: peakBurdenYear,
+            energyCost2025: climate.energyCost[0],
+            energyCost2050: climate.energyCost[years.indexOf(2050)]
         };
 
         // =============================================================================
@@ -3702,7 +4017,29 @@
         // RESOURCE MODULE - Minerals, food, and land demand
         // =============================================================================
 
-        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState, effectiveResourceParams);
+        const resourceData = runResourceModel(demographicsData, demandData, dispatchData, capacityState, climate, effectiveResourceParams);
+
+        // =============================================================================
+        // UPDATE CLIMATE WITH LAND USE EMISSIONS
+        // =============================================================================
+        // Add land use carbon flux to climate tracking (post-hoc adjustment)
+        // This is a one-pass approximation; land carbon calculated from temperature
+        // trajectory, then added to emissions. For most scenarios, the effect is small
+        // relative to fossil fuel emissions.
+
+        climate.landUseEmissions = resourceData.carbon.netFlux.slice();
+
+        // Recalculate total emissions including land use
+        for (let i = 0; i < years.length; i++) {
+            climate.emissions[i] += resourceData.carbon.netFlux[i];
+        }
+
+        // Recalculate cumulative emissions (important for temperature accuracy)
+        let cumulativeWithLand = climateParams.cumulativeCO2_2025;
+        for (let i = 0; i < years.length; i++) {
+            cumulativeWithLand += climate.emissions[i];
+            climate.cumulative[i] = cumulativeWithLand;
+        }
 
         return {
             years,
@@ -3849,6 +4186,14 @@
             emissions2050: climate.emissions[idx2050],              // Gt CO₂
             emissions2100: climate.emissions[idx2100],              // Gt CO₂
 
+            // Energy burden metrics (Issue #7: supply-side constraint)
+            energyBurden2025: climate.metrics.energyBurden2025,     // fraction of GDP
+            energyBurden2050: climate.metrics.energyBurden2050,     // fraction of GDP
+            energyBurdenPeak: climate.metrics.energyBurdenPeak,     // max burden fraction
+            energyBurdenPeakYear: climate.metrics.energyBurdenPeakYear, // year of peak burden
+            energyCost2025: climate.metrics.energyCost2025,         // $ trillions
+            energyCost2050: climate.metrics.energyCost2050,         // $ trillions
+
             // Demand metrics
             elec2025: demand.global.electricityDemand[0],           // TWh
             elec2050: demand.global.electricityDemand[idx2050],     // TWh
@@ -3947,6 +4292,15 @@
             urban2050: resources.metrics.urban2050,                     // Mha
             forest2100: resources.metrics.forest2100,                   // Mha
             forestLoss: resources.metrics.forestLoss,                   // fraction lost
+            desert2025: resources.metrics.desert2025,                   // Mha
+            desert2050: resources.metrics.desert2050,                   // Mha
+            desert2100: resources.metrics.desert2100,                   // Mha
+
+            // Resource metrics - Forest Carbon
+            netFlux2025: resources.metrics.netFlux2025,                 // Gt CO₂/year
+            netFlux2050: resources.metrics.netFlux2050,                 // Gt CO₂/year
+            netFlux2100: resources.metrics.netFlux2100,                 // Gt CO₂/year
+            cumulativeSequestration2100: resources.metrics.cumulativeSequestration2100, // Gt CO₂
 
             // Derived series (for further analysis)
             derived,
@@ -4066,7 +4420,17 @@
         farmland: { unit: 'Mha', description: 'Cropland area (million hectares)' },
         urban: { unit: 'Mha', description: 'Urban land area' },
         forest: { unit: 'Mha', description: 'Forest area' },
+        desert: { unit: 'Mha', description: 'Desert/barren land area (residual from land budget)' },
         yield: { unit: 't/ha', description: 'Crop yield (tonnes per hectare)' },
+        forestChange: { unit: 'Mha/year', description: 'Annual change in forest area (positive = growth)' },
+
+        // Resources - Forest Carbon
+        sequestration: { unit: 'Gt CO₂/year', description: 'Forest carbon sequestration (removed from atmosphere)' },
+        deforestationEmissions: { unit: 'Gt CO₂/year', description: 'Immediate emissions from deforestation' },
+        decayEmissions: { unit: 'Gt CO₂/year', description: 'Emissions from decay pool (deferred deforestation)' },
+        netFlux: { unit: 'Gt CO₂/year', description: 'Net land use carbon flux (positive = emissions)' },
+        cumulativeSequestration: { unit: 'Gt CO₂', description: 'Total carbon sequestered by forests' },
+        landUseEmissions: { unit: 'Gt CO₂/year', description: 'Net LULUCF emissions (same as netFlux)' },
 
         // Final energy
         totalFinalEnergy: { unit: 'TWh', description: 'Total final energy (electricity + non-electric)' },
@@ -4390,15 +4754,21 @@ const energySim = {
     robotsDensity,        // Robots per 1000 workers
 
     // Resource functions
-    runResourceModel,     // Full resource model: { minerals, food, land, metrics }
+    runResourceModel,     // Full resource model: { minerals, food, land, carbon, metrics }
     mineralDemand,        // Calculate mineral demand for a year
     foodDemand,           // Calculate food demand with Bennett's Law + GLP-1
-    landDemand,           // Calculate land use
+    landDemand,           // Calculate land use with desert and forestChange
+    forestCarbon,         // Calculate forest carbon flux (sequestration and emissions)
     recyclingRate,        // Dynamic recycling rate based on stock-in-use
 
     // Final energy functions
     calculateSectorElectrification,  // Sector-specific electrification rate
     calculateFuelMix,               // Fuel mix for a sector at time t
+
+    // Energy burden functions (Issue #7: supply-side constraint)
+    calculateEnergyCost,            // Calculate total energy cost from dispatch + fuel demand
+    energyBurdenDamage,             // Calculate GDP damage from energy burden exceeding threshold
+    fuelPrices,                     // Fuel price assumptions for non-electric energy
 
     // Parameters (read-only references)
     energySources,
