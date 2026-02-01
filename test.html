@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Simulation Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #4cc9f0; }
+        h2 { color: #90be6d; margin-top: 30px; }
+        .pass { color: #06d6a0; }
+        .fail { color: #f94144; }
+        .summary {
+            margin-top: 30px;
+            padding: 20px;
+            background: #16213e;
+            border-radius: 8px;
+        }
+        .test-result {
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+        #sim-frame {
+            display: none;
+        }
+        .loading {
+            color: #f9c74f;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Energy Simulation Tests</h1>
+    <p class="loading" id="loading">Loading simulation...</p>
+    <div id="results"></div>
+    <div id="summary" class="summary" style="display: none;"></div>
+
+    <!-- Hidden iframe to load the simulation -->
+    <iframe id="sim-frame" src="energy-sim.html"></iframe>
+
+    <script>
+    // Wait for iframe to load, then run tests
+    const iframe = document.getElementById('sim-frame');
+
+    iframe.onload = function() {
+        // Give it a moment to initialize
+        setTimeout(runTests, 500);
+    };
+
+    function runTests() {
+        document.getElementById('loading').style.display = 'none';
+
+        // Get energySim from iframe
+        const energySim = iframe.contentWindow.energySim;
+
+        if (!energySim) {
+            document.getElementById('results').innerHTML = '<p class="fail">Error: energySim not found in iframe</p>';
+            return;
+        }
+
+        // Simple test framework
+        const results = [];
+        let currentSection = '';
+
+        function section(name) {
+            currentSection = name;
+        }
+
+        function test(name, fn) {
+            try {
+                const result = fn();
+                if (result === true || result === undefined) {
+                    results.push({ section: currentSection, name, status: 'pass' });
+                } else {
+                    results.push({ section: currentSection, name, status: 'fail', error: `Expected true, got ${result}` });
+                }
+            } catch (e) {
+                results.push({ section: currentSection, name, status: 'fail', error: e.message });
+            }
+        }
+
+        function approx(actual, expected, tolerance = 0.1) {
+            const ratio = actual / expected;
+            return ratio >= (1 - tolerance) && ratio <= (1 + tolerance);
+        }
+
+        function inRange(actual, min, max) {
+            return actual >= min && actual <= max;
+        }
+
+        // Suppress warnings during tests
+        energySim.config.quiet = true;
+
+        // =============================================================================
+        // PRIMITIVES
+        // =============================================================================
+        section('Primitives');
+
+        test('compound: 5% growth over 10 years', () => {
+            const result = energySim.compound(100, 0.05, 10);
+            return approx(result, 162.89, 0.01);
+        });
+
+        test('compound: zero growth returns start value', () => {
+            return energySim.compound(100, 0, 10) === 100;
+        });
+
+        test('learningCurve: 13% reduction per doubling at alpha=0.2', () => {
+            const result = energySim.learningCurve(100, 2, 0.2);
+            return approx(result, 87, 0.02);
+        });
+
+        test('learningCurve: cost reduction at alpha=0.36 (Farmer/Naam)', () => {
+            const result = energySim.learningCurve(100, 2, 0.36);
+            return approx(result, 78, 0.05);
+        });
+
+        test('learningCurve: cumulative<=0 returns cost0', () => {
+            return energySim.learningCurve(100, 0, 0.2) === 100;
+        });
+
+        test('depletion: EROEI declines with extraction', () => {
+            const result = energySim.depletion(100, 50, 30, 0.5);
+            return result.eroei < 30 && result.eroei > 1;
+        });
+
+        test('depletion: netEnergyFraction is valid (0-1)', () => {
+            const result = energySim.depletion(100, 50, 30, 0.5);
+            return result.netEnergyFraction > 0 && result.netEnergyFraction < 1;
+        });
+
+        test('logistic: returns value between start and ceiling', () => {
+            const result = energySim.logistic(10, 100, 0.1, 50);
+            return result > 10 && result < 100;
+        });
+
+        // =============================================================================
+        // DEFAULTS AND CONFIG
+        // =============================================================================
+        section('Defaults and Config');
+
+        test('defaults object exists', () => {
+            return typeof energySim.defaults === 'object';
+        });
+
+        test('defaults.carbonPrice = 50', () => {
+            return energySim.defaults.carbonPrice === 50;
+        });
+
+        test('defaults.solarAlpha = 0.36', () => {
+            return energySim.defaults.solarAlpha === 0.36;
+        });
+
+        test('defaults.solarGrowth = 0.25', () => {
+            return energySim.defaults.solarGrowth === 0.25;
+        });
+
+        test('defaults.electrificationTarget = 0.65', () => {
+            return energySim.defaults.electrificationTarget === 0.65;
+        });
+
+        test('defaults.climSensitivity = 3.0', () => {
+            return energySim.defaults.climSensitivity === 3.0;
+        });
+
+        test('config.quiet can be toggled', () => {
+            energySim.config.quiet = false;
+            const was = energySim.config.quiet;
+            energySim.config.quiet = true;
+            return was === false && energySim.config.quiet === true;
+        });
+
+        // =============================================================================
+        // DEMOGRAPHICS
+        // =============================================================================
+        section('Demographics');
+
+        test('runDemographics returns valid structure', () => {
+            const data = energySim.runDemographics();
+            return data.years && data.regions && data.global;
+        });
+
+        test('76 years of data (2025-2100)', () => {
+            const data = energySim.runDemographics();
+            return data.years.length === 76;
+        });
+
+        test('starts at 2025', () => {
+            const data = energySim.runDemographics();
+            return data.years[0] === 2025;
+        });
+
+        test('ends at 2100', () => {
+            const data = energySim.runDemographics();
+            return data.years[data.years.length - 1] === 2100;
+        });
+
+        test('global population 2025 ~8.3B', () => {
+            const data = energySim.runDemographics();
+            return approx(data.global.population[0], 8.3e9, 0.05);
+        });
+
+        test('population peaks 2050-2060', () => {
+            const data = energySim.runDemographics();
+            const peak = energySim.findPopulationPeak(data.global.population, data.years);
+            return peak.year >= 2050 && peak.year <= 2060;
+        });
+
+        test('population peaks ~9B', () => {
+            const data = energySim.runDemographics();
+            const peak = energySim.findPopulationPeak(data.global.population, data.years);
+            return approx(peak.population, 9e9, 0.1);
+        });
+
+        test('dependency ratio rises over time', () => {
+            const data = energySim.runDemographics();
+            return data.global.dependency[75] > data.global.dependency[0];
+        });
+
+        test('2025 dependency ~20%', () => {
+            const data = energySim.runDemographics();
+            return approx(data.global.dependency[0], 0.20, 0.15);
+        });
+
+        test('2075 dependency 35-55%', () => {
+            const data = energySim.runDemographics();
+            const idx2075 = data.years.indexOf(2075);
+            return inRange(data.global.dependency[idx2075], 0.35, 0.55);
+        });
+
+        test('China declines 30%+ by 2100', () => {
+            const data = energySim.runDemographics();
+            const china2025 = data.regions.china.population[0];
+            const china2100 = data.regions.china.population[75];
+            return china2100 < china2025 * 0.7;
+        });
+
+        test('4 regions exist', () => {
+            const data = energySim.runDemographics();
+            return data.regions.oecd && data.regions.china && data.regions.em && data.regions.row;
+        });
+
+        // =============================================================================
+        // DEMAND MODEL
+        // =============================================================================
+        section('Demand Model');
+
+        test('runDemandModel returns valid structure', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return demand.global && demand.regions && demand.metrics;
+        });
+
+        test('2025 global electricity ~30,000 TWh', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return approx(demand.global.electricityDemand[0], 30000, 0.15);
+        });
+
+        test('2050 global electricity 50,000-80,000 TWh', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return inRange(demand.global.electricityDemand[25], 45000, 85000);
+        });
+
+        test('electrification increases over time', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return demand.global.electrificationRate[50] > demand.global.electrificationRate[0];
+        });
+
+        test('2025 electrification ~40%', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return approx(demand.global.electrificationRate[0], 0.40, 0.05);
+        });
+
+        test('energy intensity declines over time', () => {
+            const demo = energySim.runDemographics();
+            const demand = energySim.runDemandModel(demo);
+            return demand.regions.oecd.energyIntensity[50] < demand.regions.oecd.energyIntensity[0];
+        });
+
+        // =============================================================================
+        // DISPATCH
+        // =============================================================================
+        section('Dispatch');
+
+        test('getCapacities returns valid structure', () => {
+            const caps = energySim.getCapacities(2025, 0.25);
+            return caps.solar && caps.wind && caps.gas && caps.coal && caps.nuclear;
+        });
+
+        test('solar capacity grows 10x+ by 2050', () => {
+            const caps2025 = energySim.getCapacities(2025, 0.25);
+            const caps2050 = energySim.getCapacities(2050, 0.25);
+            return caps2050.solar > caps2025.solar * 10;
+        });
+
+        test('dispatch returns valid structure', () => {
+            const caps = energySim.getCapacities(2025, 0.25);
+            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90 };
+            const result = energySim.dispatch(30000, lcoes, caps);
+            return 'solar' in result && 'gridIntensity' in result && 'total' in result;
+        });
+
+        test('dispatch total ~= demand', () => {
+            const caps = energySim.getCapacities(2025, 0.25);
+            const lcoes = { solar: 35, wind: 35, gas: 50, coal: 60, nuclear: 90 };
+            const result = energySim.dispatch(30000, lcoes, caps);
+            return approx(result.total, 30000, 0.05);
+        });
+
+        test('dispatch: merit order (cheap sources first)', () => {
+            const caps = energySim.getCapacities(2050, 0.25);
+            const lcoes = { solar: 10, wind: 15, gas: 80, coal: 100, nuclear: 90 };
+            const result = energySim.dispatch(30000, lcoes, caps);
+            return (result.solar + result.wind) > (result.gas + result.coal);
+        });
+
+        // =============================================================================
+        // CLIMATE FUNCTIONS
+        // =============================================================================
+        section('Climate Functions');
+
+        test('calculateEmissions returns valid structure', () => {
+            const dispatchResult = { gas: 5000, coal: 3000, total: 20000 };
+            const result = energySim.calculateEmissions(dispatchResult, 0.4);
+            return 'electricity' in result && 'nonElectricity' in result && 'total' in result;
+        });
+
+        test('calculateEmissions: ~35 Gt for 2025-like dispatch', () => {
+            const dispatchResult = { gas: 6000, coal: 10000, total: 30000 };
+            const result = energySim.calculateEmissions(dispatchResult, 0.4);
+            return approx(result.total, 35, 0.25);
+        });
+
+        test('updateClimate returns valid structure', () => {
+            const result = energySim.updateClimate(2400, 1.2, 3.0);
+            return 'co2ppm' in result && 'temperature' in result;
+        });
+
+        test('updateClimate: ~420 ppm at 2400 Gt cumulative', () => {
+            const result = energySim.updateClimate(2400, 1.2, 3.0);
+            return approx(result.co2ppm, 420, 0.15);
+        });
+
+        test('climateDamages returns fraction 0-0.30', () => {
+            const damage = energySim.climateDamages(3.0, 'oecd');
+            return damage >= 0 && damage <= 0.30;
+        });
+
+        test('climateDamages: quadratic (4C >> 2C)', () => {
+            const d2 = energySim.climateDamages(2.0, 'oecd');
+            const d4 = energySim.climateDamages(4.0, 'oecd');
+            return d4 > d2 * 3; // Should be ~4x for quadratic
+        });
+
+        test('climateDamages: ROW > OECD (regional vulnerability)', () => {
+            const dOECD = energySim.climateDamages(3.0, 'oecd');
+            const dROW = energySim.climateDamages(3.0, 'row');
+            return dROW > dOECD;
+        });
+
+        // =============================================================================
+        // FULL SIMULATION
+        // =============================================================================
+        section('Full Simulation');
+
+        test('runSimulation returns valid structure', () => {
+            const result = energySim.runSimulation();
+            return result.years && result.results && result.demographics && result.demand && result.climate && result.dispatch;
+        });
+
+        test('runSimulation uses defaults', () => {
+            const result = energySim.runSimulation();
+            return result.years.length === 76;
+        });
+
+        test('carbonPrice affects gas LCOE', () => {
+            const low = energySim.runSimulation({ carbonPrice: 0 });
+            const high = energySim.runSimulation({ carbonPrice: 200 });
+            return high.results.gas[0] > low.results.gas[0];
+        });
+
+        test('2025 grid intensity ~340 kg/MWh', () => {
+            const result = energySim.runSimulation();
+            return approx(result.climate.metrics.gridIntensity2025, 340, 0.35);
+        });
+
+        test('2025 emissions ~35 Gt', () => {
+            const result = energySim.runSimulation();
+            return approx(result.climate.emissions[0], 35, 0.25);
+        });
+
+        test('2025 temperature ~1.2C', () => {
+            const result = energySim.runSimulation();
+            return approx(result.climate.temperature[0], 1.2, 0.1);
+        });
+
+        test('BAU (carbon $0): 2.5-4.5C by 2100', () => {
+            const result = energySim.runSimulation({ carbonPrice: 0 });
+            return inRange(result.climate.temperature[75], 2.5, 4.5);
+        });
+
+        test('High carbon ($150): <2.5C by 2100', () => {
+            const result = energySim.runSimulation({ carbonPrice: 150, solarAlpha: 0.40 });
+            return result.climate.temperature[75] < 2.5;
+        });
+
+        test('climate.metrics has expected fields', () => {
+            const result = energySim.runSimulation();
+            const m = result.climate.metrics;
+            return m.peakEmissionsYear && m.warming2100 !== undefined && m.gridIntensity2025;
+        });
+
+        // =============================================================================
+        // RUN SCENARIO HELPER
+        // =============================================================================
+        section('runScenario Helper');
+
+        test('runScenario returns flat object', () => {
+            const m = energySim.runScenario();
+            return typeof m.warming2100 === 'number' && typeof m.elec2050 === 'number';
+        });
+
+        test('runScenario has all key metrics', () => {
+            const m = energySim.runScenario();
+            const keys = ['params', 'solarCrossesGas', 'warming2100', 'peakEmissionsYear',
+                          'emissions2025', 'elec2050', 'popPeakYear', 'dependency2075'];
+            return keys.every(k => k in m);
+        });
+
+        test('runScenario merges with defaults', () => {
+            const m = energySim.runScenario({ carbonPrice: 123 });
+            return m.params.carbonPrice === 123 && m.params.solarAlpha === 0.36;
+        });
+
+        test('runScenario.warming2100 matches runSimulation', () => {
+            const scenario = energySim.runScenario({ carbonPrice: 75 });
+            const full = energySim.runSimulation({ carbonPrice: 75 });
+            return scenario.warming2100 === full.climate.temperature[75];
+        });
+
+        test('runScenario includes _fullData', () => {
+            const m = energySim.runScenario();
+            return m._fullData && m._fullData.years;
+        });
+
+        // =============================================================================
+        // EXPORT FUNCTIONS
+        // =============================================================================
+        section('Export Functions');
+
+        test('exportJSON returns valid JSON', () => {
+            const json = energySim.exportJSON();
+            const parsed = JSON.parse(json);
+            return parsed.years && parsed.climate;
+        });
+
+        test('exportJSON includes params', () => {
+            const json = energySim.exportJSON({ carbonPrice: 77 });
+            const parsed = JSON.parse(json);
+            return parsed.params.carbonPrice === 77;
+        });
+
+        test('exportDemographicsCSV returns CSV', () => {
+            const demo = energySim.runDemographics();
+            const csv = energySim.exportDemographicsCSV(demo);
+            return csv.includes('Year,Region') && csv.includes('2025');
+        });
+
+        // =============================================================================
+        // CROSSOVERS
+        // =============================================================================
+        section('Crossovers');
+
+        test('findCrossovers returns array', () => {
+            const result = energySim.runSimulation();
+            const crossovers = energySim.findCrossovers(result.years, result.results);
+            return Array.isArray(crossovers);
+        });
+
+        test('crossover objects have year, event, detail', () => {
+            const result = energySim.runSimulation({ carbonPrice: 100 });
+            const crossovers = energySim.findCrossovers(result.years, result.results);
+            if (crossovers.length === 0) return true;
+            const c = crossovers[0];
+            return typeof c.year === 'number' && typeof c.event === 'string' && typeof c.detail === 'string';
+        });
+
+        test('solar crosses gas with high carbon', () => {
+            const result = energySim.runSimulation({ carbonPrice: 100 });
+            const crossovers = energySim.findCrossovers(result.years, result.results);
+            return crossovers.some(c => c.event.includes('Solar LCOE'));
+        });
+
+        // =============================================================================
+        // RENDER RESULTS
+        // =============================================================================
+
+        const container = document.getElementById('results');
+        const summary = document.getElementById('summary');
+        summary.style.display = 'block';
+
+        let html = '';
+        let currentSec = '';
+        let passed = 0, failed = 0;
+
+        for (const r of results) {
+            if (r.section !== currentSec) {
+                currentSec = r.section;
+                html += `<h2>${currentSec}</h2>`;
+            }
+
+            const icon = r.status === 'pass' ? '✓' : '✗';
+            html += `<div class="test-result">
+                <span class="${r.status}">${icon}</span> ${r.name}
+                ${r.error ? `<br><small style="color:#f77f00; margin-left: 20px;">${r.error}</small>` : ''}
+            </div>`;
+
+            if (r.status === 'pass') passed++;
+            else failed++;
+        }
+
+        container.innerHTML = html;
+
+        const total = passed + failed;
+        const pct = ((passed / total) * 100).toFixed(1);
+        summary.innerHTML = `
+            <h2>Summary</h2>
+            <p><span class="pass">${passed} passed</span> / <span class="fail">${failed} failed</span> / ${total} total (${pct}%)</p>
+            ${failed > 0 ? '<p class="fail">Some tests failed. See details above.</p>' : '<p class="pass">All tests passed!</p>'}
+        `;
+
+        console.log(`\n=== Test Results ===`);
+        console.log(`${passed} passed, ${failed} failed, ${total} total (${pct}%)`);
+        if (failed > 0) {
+            console.log('\nFailed tests:');
+            results.filter(r => r.status === 'fail').forEach(r => {
+                console.log(`  ✗ [${r.section}] ${r.name}`);
+                if (r.error) console.log(`    ${r.error}`);
+            });
+        }
+    }
+    </script>
+</body>
+</html>

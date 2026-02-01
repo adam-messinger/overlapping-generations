@@ -211,6 +211,20 @@ for (const params of scenarios) {
 }
 ```
 
+## Testing
+
+Open `test.html` in a browser to run the test suite. Tests cover:
+- Primitives (compound, learningCurve, depletion, logistic)
+- Defaults and config
+- Demographics model (population, dependency, fertility)
+- Demand model (electricity, electrification, intensity)
+- Dispatch (capacity, merit order)
+- Climate functions (emissions, temperature, damages)
+- Full simulation (calibration targets, scenario validation)
+- runScenario helper and exports
+
+Tests run in-browser via iframe to access the full `energySim` API.
+
 ## Dependencies
 
 - **Chart.js** (CDN): Visualization library
