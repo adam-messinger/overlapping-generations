@@ -65,11 +65,9 @@ export interface DemandParams {
   // Global demand parameters
   electrification2025: number;    // Current electricity share (IEA: 25%)
   electrificationTarget: number;  // 2050+ target (IEA Net Zero: 65%)
-  electrificationSpeed: number;   // Logistic convergence rate (legacy, for fallback)
   demographicFactor: number;      // Dependency ratio impact on growth
 
-  // Cost-driven electrification parameters (Fix 1)
-  costDrivenElectrification: boolean;    // Enable cost-driven electrification
+  // Cost-driven electrification parameters
   costSensitivity: number;               // Elec gain per cost halving (default 0.05)
   maxAnnualElecChange: number;           // Infrastructure constraint (default 0.02)
   physicalElecCeiling: number;           // Physical max (~90%, some can't electrify)
@@ -131,8 +129,8 @@ interface DemandInputs {
   weightedAverageLCOE?: number;          // $/MWh (generation-weighted)
   carbonPrice?: number;                  // $/tonne for fuel carbon cost
 
-  // For cost-driven electrification (Fix 1)
-  laggedAvgLCOE?: number;                // $/MWh from previous year (for cost-driven elec)
+  // For cost-driven electrification
+  laggedAvgLCOE?: number;                // $/MWh from previous year
 }
 
 interface RegionalOutputs {
@@ -252,11 +250,9 @@ export const demandDefaults: DemandParams = {
   // Global parameters
   electrification2025: 0.25,    // Current electricity share (IEA)
   electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
-  electrificationSpeed: 0.08,   // Convergence rate (legacy fallback)
   demographicFactor: 0.015,     // Dependency ratio impact on growth
 
-  // Cost-driven electrification (Fix 1)
-  costDrivenElectrification: true,  // Enable emergent cost-driven behavior
+  // Cost-driven electrification
   costSensitivity: 0.05,            // 5% electrification gain per cost halving
   maxAnnualElecChange: 0.02,        // Infrastructure constraint: 2%/year max
   physicalElecCeiling: 0.90,        // ~90% max (aviation, shipping, high-temp heat)
@@ -487,12 +483,10 @@ export const demandModule: Module<
     // Merge scalar params
     if (partial.electrification2025 !== undefined) merged.electrification2025 = partial.electrification2025;
     if (partial.electrificationTarget !== undefined) merged.electrificationTarget = partial.electrificationTarget;
-    if (partial.electrificationSpeed !== undefined) merged.electrificationSpeed = partial.electrificationSpeed;
     if (partial.demographicFactor !== undefined) merged.demographicFactor = partial.demographicFactor;
     if (partial.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = partial.efficiencyMultiplier;
 
     // Cost-driven electrification params
-    if (partial.costDrivenElectrification !== undefined) merged.costDrivenElectrification = partial.costDrivenElectrification;
     if (partial.costSensitivity !== undefined) merged.costSensitivity = partial.costSensitivity;
     if (partial.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = partial.maxAnnualElecChange;
     if (partial.physicalElecCeiling !== undefined) merged.physicalElecCeiling = partial.physicalElecCeiling;
@@ -533,56 +527,45 @@ export const demandModule: Module<
       baselineDependency = inputs.dependency;
     }
 
-    // Calculate global electrification rate
-    let electrificationRate: number;
+    // Calculate global electrification rate (cost-driven)
+    // Electricity becomes more attractive when cheaper than fuel
+    const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
+    const avgFuelCost = calculateWeightedFuelCost(params.fuels, carbonPrice);
+    const electricityCost = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
 
-    if (params.costDrivenElectrification) {
-      // Cost-driven electrification (Fix 1)
-      // Electricity becomes more attractive when cheaper than fuel
-      const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
-      const avgFuelCost = calculateWeightedFuelCost(params.fuels, carbonPrice);
-      const electricityCost = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
+    // Cost ratio drives electrification pressure
+    // When electricity is cheaper than fuel (ratio > 1), electrification accelerates
+    const costRatio = avgFuelCost / electricityCost;
 
-      // Cost ratio drives electrification pressure
-      // When electricity is cheaper than fuel (ratio > 1), electrification accelerates
-      const costRatio = avgFuelCost / electricityCost;
+    // Baseline trend: natural electrification from existing infrastructure/policy momentum
+    // ~0.5%/year baseline + additional cost-driven pressure
+    const baselineTrend = 0.005;
 
-      // Baseline trend: natural electrification from existing infrastructure/policy momentum
-      // ~0.5%/year baseline + additional cost-driven pressure
-      const baselineTrend = 0.005;
+    // Additional cost pressure from favorable economics
+    // costSensitivity = 0.05 means 5% boost per cost halving (beyond baseline)
+    const costBonus = Math.log(Math.max(1, costRatio)) * params.costSensitivity;
 
-      // Additional cost pressure from favorable economics
-      // costSensitivity = 0.05 means 5% boost per cost halving (beyond baseline)
-      const costBonus = Math.log(Math.max(1, costRatio)) * params.costSensitivity;
+    // Total pressure = baseline + cost bonus
+    const totalPressure = baselineTrend + costBonus;
 
-      // Total pressure = baseline + cost bonus
-      const totalPressure = baselineTrend + costBonus;
+    // Get previous rate from state
+    const prevRate = state.electrificationRate;
 
-      // Get previous rate from state
-      const prevRate = state.electrificationRate;
+    // Apply pressure with infrastructure constraint
+    const targetRate = Math.min(
+      params.physicalElecCeiling,
+      prevRate + totalPressure
+    );
 
-      // Apply pressure with infrastructure constraint
-      const targetRate = Math.min(
+    // Limit annual change (infrastructure takes time to build)
+    const maxChange = params.maxAnnualElecChange;
+    const electrificationRate = Math.max(
+      params.electrification2025, // Floor at starting rate
+      Math.min(
         params.physicalElecCeiling,
-        prevRate + totalPressure
-      );
-
-      // Limit annual change (infrastructure takes time to build)
-      const maxChange = params.maxAnnualElecChange;
-      electrificationRate = Math.max(
-        params.electrification2025, // Floor at starting rate
-        Math.min(
-          params.physicalElecCeiling,
-          prevRate + Math.max(-maxChange, Math.min(maxChange, targetRate - prevRate))
-        )
-      );
-    } else {
-      // Legacy: exponential convergence S-curve
-      electrificationRate =
-        params.electrificationTarget -
-        (params.electrificationTarget - params.electrification2025) *
-        Math.exp(-params.electrificationSpeed * t);
-    }
+        prevRate + Math.max(-maxChange, Math.min(maxChange, targetRate - prevRate))
+      )
+    );
 
     // Process each region
     const newRegions = {} as Record<Region, RegionalState>;
@@ -753,7 +736,7 @@ export const demandModule: Module<
     let nonElectricEmissions = 0; // Gt CO2/year
 
     // Calculate fuel costs (with carbon pricing if provided)
-    const carbonPrice = inputs.carbonPrice ?? 0;
+    // (carbonPrice already declared above for electrification calculation)
     let fuelCost = 0; // $ trillions
 
     for (const fuel of fuelKeys) {
@@ -781,9 +764,9 @@ export const demandModule: Module<
     // TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
     const electricityGeneration = inputs.electricityGeneration ?? globalElec;
     const avgLCOE = inputs.weightedAverageLCOE ?? 50; // Default assumption
-    const electricityCost = (electricityGeneration * avgLCOE) / 1e6;
+    const electricityTotalCost = (electricityGeneration * avgLCOE) / 1e6;
 
-    const totalEnergyCost = electricityCost + fuelCost;
+    const totalEnergyCost = electricityTotalCost + fuelCost;
     const energyBurden = totalEnergyCost / globalGdp;
 
     // Energy burden damage: when burden exceeds threshold

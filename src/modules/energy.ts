@@ -71,9 +71,8 @@ export interface EnergyParams {
   capexLearningRate: number;
 
   /**
-   * Demand-driven capacity additions (Fix 2)
+   * Demand-driven capacity additions
    */
-  demandDrivenCapacity: boolean;        // Enable demand-driven behavior
   demandFillRate: number;               // Fill this fraction of demand gap per year (0.30)
   competitiveThreshold: number;         // Build if within this factor of fossil LCOE (1.20)
 }
@@ -177,8 +176,7 @@ export const energyDefaults: EnergyParams = {
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
 
-  // Demand-driven capacity (Fix 2)
-  demandDrivenCapacity: true,     // Enable emergent demand-driven additions
+  // Demand-driven capacity
   demandFillRate: 0.30,           // Fill 30% of demand gap per year
   competitiveThreshold: 1.20,     // Build if LCOE within 20% of fossil
 };
@@ -408,7 +406,7 @@ export const energyModule: Module<
     const cheapestFossilLCOE = Math.min(lcoes.gas, lcoes.coal);
 
     // =========================================================================
-    // Calculate desired additions (demand-driven or legacy growth rate)
+    // Calculate desired additions (demand-driven for clean, growth rate for fossil)
     // =========================================================================
 
     const desiredAdditions: Record<EnergySource, number> = {} as any;
@@ -441,8 +439,8 @@ export const energyModule: Module<
       // Calculate target addition
       let targetAddition: number;
 
-      if (params.demandDrivenCapacity && (source === 'solar' || source === 'wind' || source === 'nuclear' || source === 'hydro')) {
-        // Demand-driven additions for generators (Fix 2)
+      if (source === 'solar' || source === 'wind' || source === 'nuclear' || source === 'hydro') {
+        // Demand-driven additions for clean generators
         // Calculate current generation (TWh)
         const currentGenTWh = (prevInstalled * cf * 8760) / 1000;
 
@@ -460,7 +458,7 @@ export const energyModule: Module<
           // Not competitive or no gap - minimal maintenance growth
           targetAddition = prevInstalled * 0.01; // 1% maintenance/replacement
         }
-      } else if (params.demandDrivenCapacity && source === 'battery') {
+      } else if (source === 'battery') {
         // Battery follows solar: target is to have enough storage to firm solar
         // Max useful = solarGW × batteryDuration (GWh)
         const solarGW = state.capacities.solar.installed;
@@ -479,7 +477,7 @@ export const energyModule: Module<
           targetAddition = prevInstalled * 0.01; // Minimal maintenance
         }
       } else {
-        // Legacy: exogenous growth rate (for fossil or when feature disabled)
+        // Fossil fuels: use exogenous growth rate
         targetAddition = prevInstalled * s.growthRate;
       }
 
