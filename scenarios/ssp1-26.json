@@ -1,0 +1,44 @@
+{
+  "name": "SSP1-2.6 (Well Below 2°C)",
+  "description": "IPCC SSP1-2.6 aligned. Strong mitigation, sustainability focus. Target: 1.8°C by 2100.",
+
+  "energy": {
+    "carbonPrice": 300,
+    "sources": {
+      "solar": { "alpha": 0.40, "growthRate": 0.30 },
+      "wind": { "alpha": 0.28, "growthRate": 0.22 },
+      "battery": { "alpha": 0.30, "growthRate": 0.25 },
+      "nuclear": { "growthRate": 0.04 }
+    }
+  },
+
+  "demand": {
+    "electrificationTarget": 0.80,
+    "efficiencyMultiplier": 1.4,
+    "fuelMix": {
+      "priceSensitivity": 0.04,
+      "inertiaRate": 0.10
+    },
+    "sectors": {
+      "transport": {
+        "electrificationTarget": 0.80,
+        "costSensitivity": 0.10,
+        "basePressure": 0.02
+      },
+      "buildings": {
+        "electrificationTarget": 0.95,
+        "costSensitivity": 0.08,
+        "basePressure": 0.025
+      },
+      "industry": {
+        "electrificationTarget": 0.70,
+        "costSensitivity": 0.12,
+        "basePressure": 0.012
+      }
+    }
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  }
+}
