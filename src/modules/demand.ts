@@ -38,8 +38,14 @@ interface RegionalEconomicParams {
 interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
-  electrificationTarget: number;  // Target electrification rate
-  electrificationSpeed: number;   // Convergence rate
+  electrificationTarget: number;  // Physical ceiling (70%/95%/65%)
+  electrificationSpeed: number;   // Legacy param (used for backward compat)
+  // Cost-driven electrification parameters
+  costSensitivity: number;        // Response to cost ratio (0.08/0.06/0.10)
+  basePressure: number;           // Background pressure (0.015/0.02/0.008)
+  efficiencyMultiplier: number;   // EV=3.5x, heat pump=3.0x, industry=1.1x
+  maxAnnualChange: number;        // Infrastructure constraint (0.04/0.03/0.025)
+  primaryFuel: 'oil' | 'gas';     // Which fuel sector competes with
 }
 
 // Fuel parameters for non-electric energy
@@ -47,6 +53,12 @@ interface FuelParams {
   share2025: number;              // Share of non-electric in 2025
   carbonIntensity: number;        // kg CO2 per MWh thermal
   price: number;                  // Base fuel price $/MWh thermal
+}
+
+// Fuel mix evolution parameters
+interface FuelMixParams {
+  priceSensitivity: number;       // β in logit model (default 0.03)
+  inertiaRate: number;            // α blending rate (default 0.08 = ~9yr half-life)
 }
 
 // Energy burden parameters
@@ -92,6 +104,9 @@ export interface DemandParams {
   // Energy burden parameters
   energyBurden: EnergyBurdenParams;
 
+  // Fuel mix evolution parameters
+  fuelMix: FuelMixParams;
+
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
 }
@@ -105,6 +120,12 @@ interface DemandState {
   regions: Record<Region, RegionalState>;
   baselineDependency: number;  // Year 0 dependency for adjustment
   electrificationRate: number; // Current electrification rate (cost-driven)
+  fuelShares: Record<FuelType, number>; // Evolved fuel shares (for non-electric)
+  sectorElectrification: {     // Sector-level electrification rates
+    transport: number;
+    buildings: number;
+    industry: number;
+  };
 }
 
 // Inputs from demographics module
@@ -265,20 +286,35 @@ export const demandDefaults: DemandParams = {
     transport: {
       share: 0.45,                // 45% of final energy (IEA)
       electrification2025: 0.02,  // 2% (mostly rail)
-      electrificationTarget: 0.75, // 75% by 2100 (trucks, ships harder)
-      electrificationSpeed: 0.06, // Moderate S-curve
+      electrificationTarget: 0.70, // 70% ceiling (aviation 12%, long-haul shipping 10% can't)
+      electrificationSpeed: 0.06, // Legacy param (backward compat)
+      costSensitivity: 0.08,      // Response to fuel/elec cost ratio
+      basePressure: 0.015,        // Background electrification pressure
+      efficiencyMultiplier: 3.5,  // EVs 3.5x more efficient than ICE
+      maxAnnualChange: 0.04,      // 4%/year max (infrastructure)
+      primaryFuel: 'oil',         // Competes with oil (gasoline/diesel)
     },
     buildings: {
       share: 0.30,                // 30% of final energy
       electrification2025: 0.35,  // 35% (heating, appliances)
-      electrificationTarget: 0.90, // 90% (heat pumps dominate)
-      electrificationSpeed: 0.08, // Faster adoption
+      electrificationTarget: 0.95, // 95% ceiling (nearly all can electrify)
+      electrificationSpeed: 0.08, // Legacy param (backward compat)
+      costSensitivity: 0.06,      // Less sensitive than transport
+      basePressure: 0.02,         // Higher baseline (heat pump momentum)
+      efficiencyMultiplier: 3.0,  // Heat pump COP ~3
+      maxAnnualChange: 0.03,      // 3%/year max
+      primaryFuel: 'gas',         // Competes with gas (heating)
     },
     industry: {
       share: 0.25,                // 25% of final energy
       electrification2025: 0.30,  // 30% (motors, EAFs)
-      electrificationTarget: 0.60, // 60% (high-temp heat hard)
-      electrificationSpeed: 0.05, // Slower transition
+      electrificationTarget: 0.65, // 65% ceiling (high-temp processes need H2)
+      electrificationSpeed: 0.05, // Legacy param (backward compat)
+      costSensitivity: 0.10,      // Most cost-sensitive sector
+      basePressure: 0.008,        // Slower baseline (heavy equipment)
+      efficiencyMultiplier: 1.1,  // Motors ~10% more efficient
+      maxAnnualChange: 0.025,     // 2.5%/year max (long-lived equipment)
+      primaryFuel: 'gas',         // Competes with gas (process heat)
     },
   },
 
@@ -326,6 +362,12 @@ export const demandDefaults: DemandParams = {
     persistent: 0.25,            // 25% of damage persists
   },
 
+  // Fuel mix evolution parameters
+  fuelMix: {
+    priceSensitivity: 0.03,      // β in logit model ($/MWh scale)
+    inertiaRate: 0.08,           // α = ~9yr half-life for fleet turnover
+  },
+
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 };
 
@@ -337,12 +379,14 @@ export const demandDefaults: DemandParams = {
  * Calculate weighted average fuel cost for non-electric energy.
  * Used for cost-driven electrification.
  *
- * @param fuels Fuel parameters (price, carbon intensity, share)
+ * @param fuels Fuel parameters (price, carbon intensity)
+ * @param fuelShares Current evolved fuel shares (sums to ~1)
  * @param carbonPrice Carbon price ($/tonne)
  * @returns Weighted average fuel cost ($/MWh)
  */
 function calculateWeightedFuelCost(
   fuels: DemandParams['fuels'],
+  fuelShares: Record<FuelType, number>,
   carbonPrice: number
 ): number {
   const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
@@ -351,14 +395,141 @@ function calculateWeightedFuelCost(
 
   for (const fuel of fuelKeys) {
     const f = fuels[fuel];
+    const share = fuelShares[fuel];
     // Effective price = base price + carbon cost
     const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
     const effectivePrice = f.price + carbonCost;
-    totalCost += effectivePrice * f.share2025;
-    totalShare += f.share2025;
+    totalCost += effectivePrice * share;
+    totalShare += share;
   }
 
   return totalShare > 0 ? totalCost / totalShare : 50; // Default to $50/MWh
+}
+
+/**
+ * Calculate logit-based fuel shares with inertia.
+ * Fuel shares respond to effective prices (base + carbon cost).
+ *
+ * @param fuels Fuel parameters (price, carbon intensity)
+ * @param prevShares Previous year's fuel shares
+ * @param carbonPrice Carbon price ($/tonne)
+ * @param priceSensitivity β in logit model
+ * @param inertiaRate α blending rate (0 = all inertia, 1 = pure logit)
+ * @returns New fuel shares (normalized to sum to 1)
+ */
+function calculateLogitFuelShares(
+  fuels: DemandParams['fuels'],
+  prevShares: Record<FuelType, number>,
+  carbonPrice: number,
+  priceSensitivity: number,
+  inertiaRate: number
+): Record<FuelType, number> {
+  const fuelKeys: FuelType[] = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'];
+
+  // Calculate effective prices for each fuel
+  const effectivePrices: Record<FuelType, number> = {} as Record<FuelType, number>;
+  for (const fuel of fuelKeys) {
+    const f = fuels[fuel];
+    const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
+    effectivePrices[fuel] = f.price + carbonCost;
+  }
+
+  // Calculate logit shares: exp(-β × price) / Σ exp(-β × price)
+  let logitSum = 0;
+  const logitRaw: Record<FuelType, number> = {} as Record<FuelType, number>;
+  for (const fuel of fuelKeys) {
+    logitRaw[fuel] = Math.exp(-priceSensitivity * effectivePrices[fuel]);
+    logitSum += logitRaw[fuel];
+  }
+
+  const logitShares: Record<FuelType, number> = {} as Record<FuelType, number>;
+  for (const fuel of fuelKeys) {
+    logitShares[fuel] = logitRaw[fuel] / logitSum;
+  }
+
+  // Blend with previous shares using inertia rate
+  // newShare = α × logitShare + (1-α) × prevShare
+  const blendedShares: Record<FuelType, number> = {} as Record<FuelType, number>;
+  let total = 0;
+  for (const fuel of fuelKeys) {
+    blendedShares[fuel] = inertiaRate * logitShares[fuel] + (1 - inertiaRate) * prevShares[fuel];
+    // Apply minimum floor (0.1%)
+    blendedShares[fuel] = Math.max(0.001, blendedShares[fuel]);
+    total += blendedShares[fuel];
+  }
+
+  // Renormalize to sum to 1
+  for (const fuel of fuelKeys) {
+    blendedShares[fuel] /= total;
+  }
+
+  return blendedShares;
+}
+
+/**
+ * Calculate cost-driven sector electrification rate.
+ * Electrification accelerates when electricity is cheaper than fuel (adjusted for efficiency).
+ *
+ * @param prevRate Previous year's electrification rate
+ * @param electricityPrice Electricity price ($/MWh)
+ * @param fuelPrice Primary fuel price ($/MWh)
+ * @param carbonPrice Carbon price ($/tonne)
+ * @param fuelCarbonIntensity Fuel carbon intensity (kg CO2/MWh)
+ * @param sectorParams Sector parameters
+ * @param yearIndex Year index for infrastructure score
+ * @returns New sector electrification rate
+ */
+function calculateSectorElectrification(
+  prevRate: number,
+  electricityPrice: number,
+  fuelPrice: number,
+  carbonPrice: number,
+  fuelCarbonIntensity: number,
+  sectorParams: SectorParams,
+  yearIndex: number
+): number {
+  // Calculate effective fuel cost with carbon pricing
+  const fuelCarbonCost = (fuelCarbonIntensity * carbonPrice) / 1000; // $/MWh
+  const effectiveFuelCost = fuelPrice + fuelCarbonCost;
+
+  // Adjust electricity cost for efficiency (EVs use 1/3.5 the energy of ICE)
+  const effectiveElecCost = electricityPrice / sectorParams.efficiencyMultiplier;
+
+  // Infrastructure score builds with adoption and time (0-1)
+  // Higher adoption → better charging/grid infrastructure → lower effective cost
+  const infraScore = Math.min(1, prevRate * 2 + yearIndex * 0.01);
+
+  // Adjust cost ratio for infrastructure (lower infra → higher effective elec cost)
+  const infraPenalty = 1 + 0.3 * (1 - infraScore); // 30% penalty at zero infra
+  const adjustedElecCost = effectiveElecCost * infraPenalty;
+
+  // Cost ratio: fuel cost / adjusted electricity cost
+  // When ratio > 1, electricity is cheaper → pressure to electrify
+  const costRatio = effectiveFuelCost / adjustedElecCost;
+
+  // Pressure = base + sensitivity × log(max(1, ratio))
+  // log(1) = 0, so no bonus when costs are equal
+  const costPressure = sectorParams.costSensitivity * Math.log(Math.max(1, costRatio));
+  const totalPressure = sectorParams.basePressure + costPressure;
+
+  // Apply pressure to gap-to-ceiling
+  const ceiling = sectorParams.electrificationTarget;
+  const gapToCeiling = ceiling - prevRate;
+  const desiredChange = totalPressure * gapToCeiling;
+
+  // Clamp annual change
+  const clampedChange = Math.max(
+    -sectorParams.maxAnnualChange,
+    Math.min(sectorParams.maxAnnualChange, desiredChange)
+  );
+
+  // New rate with floor at starting value and ceiling at target
+  const newRate = Math.max(
+    sectorParams.electrification2025,
+    Math.min(ceiling, prevRate + clampedChange)
+  );
+
+  return newRate;
 }
 
 // =============================================================================
@@ -502,6 +673,14 @@ export const demandModule: Module<
     if (partial.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = partial.maxAnnualElecChange;
     if (partial.physicalElecCeiling !== undefined) merged.physicalElecCeiling = partial.physicalElecCeiling;
 
+    // Merge fuelMix params
+    if (partial.fuelMix) {
+      merged.fuelMix = {
+        ...demandDefaults.fuelMix,
+        ...partial.fuelMix,
+      };
+    }
+
     return merged;
   },
 
@@ -516,10 +695,29 @@ export const demandModule: Module<
       };
     }
 
+    // Initialize fuel shares from 2025 values
+    const fuelShares: Record<FuelType, number> = {
+      oil: params.fuels.oil.share2025,
+      gas: params.fuels.gas.share2025,
+      coal: params.fuels.coal.share2025,
+      biomass: params.fuels.biomass.share2025,
+      hydrogen: params.fuels.hydrogen.share2025,
+      biofuel: params.fuels.biofuel.share2025,
+    };
+
+    // Initialize sector electrification from 2025 values
+    const sectorElectrification = {
+      transport: params.sectors.transport.electrification2025,
+      buildings: params.sectors.buildings.electrification2025,
+      industry: params.sectors.industry.electrification2025,
+    };
+
     return {
       regions,
       baselineDependency: 0, // Will be set on first step
       electrificationRate: params.electrification2025, // Initial electrification
+      fuelShares,
+      sectorElectrification,
     };
   },
 
@@ -541,7 +739,7 @@ export const demandModule: Module<
     // Calculate global electrification rate (cost-driven)
     // Electricity becomes more attractive when cheaper than fuel
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
-    const avgFuelCost = calculateWeightedFuelCost(params.fuels, carbonPrice);
+    const avgFuelCost = calculateWeightedFuelCost(params.fuels, state.fuelShares, carbonPrice);
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
 
     // Cost ratio drives electrification pressure
@@ -672,18 +870,34 @@ export const demandModule: Module<
     const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
     // =========================================================================
-    // Sector-level breakdown with independent electrification curves
+    // Sector-level breakdown with cost-driven electrification
     // =========================================================================
     const sectorKeys = ['transport', 'buildings', 'industry'] as const;
     const sectors = {} as Record<typeof sectorKeys[number], SectorOutput>;
+    const newSectorElectrification = { ...state.sectorElectrification };
 
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
+      const prevSectorRate = state.sectorElectrification[sectorKey];
 
-      // Sector-specific electrification rate (exponential convergence)
-      const sectorElecRate = sectorParams.electrificationTarget -
-        (sectorParams.electrificationTarget - sectorParams.electrification2025) *
-        Math.exp(-sectorParams.electrificationSpeed * t);
+      // Get primary fuel price for this sector
+      const primaryFuel = sectorParams.primaryFuel;
+      const fuelPrice = params.fuels[primaryFuel].price;
+      const fuelCarbonIntensity = params.fuels[primaryFuel].carbonIntensity;
+
+      // Calculate cost-driven electrification rate
+      const sectorElecRate = calculateSectorElectrification(
+        prevSectorRate,
+        electricityPrice,
+        fuelPrice,
+        carbonPrice,
+        fuelCarbonIntensity,
+        sectorParams,
+        yearIndex
+      );
+
+      // Update sector electrification state
+      newSectorElectrification[sectorKey] = sectorElecRate;
 
       // Sector total energy
       const sectorTotal = globalTotalFinal * sectorParams.share;
@@ -699,40 +913,20 @@ export const demandModule: Module<
     }
 
     // =========================================================================
-    // Fuel mix for non-electric energy (evolving over time)
+    // Fuel mix for non-electric energy (price-driven with inertia)
     // =========================================================================
-    // Fuel shares evolve: oil declines, hydrogen/biofuel grow
-    // Use logistic transition based on year
+    // Fuel shares evolve based on effective prices (base + carbon cost)
+    // Uses logit model blended with previous shares for fleet inertia
     const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
 
-    // Calculate evolved fuel shares
-    // Oil and coal decline, hydrogen and biofuel grow
-    const transitionProgress = 1 - Math.exp(-0.03 * t); // 0 at 2025, ~0.78 at 2075
-
-    // Target shares by 2100 (hydrogen economy + biofuels for hard-to-electrify)
-    const targetShares: Record<typeof fuelKeys[number], number> = {
-      oil: 0.15,       // Reduced from 50% (aviation, chemicals)
-      gas: 0.20,       // Reduced from 30%
-      coal: 0.02,      // Nearly eliminated
-      biomass: 0.08,   // Slight increase
-      hydrogen: 0.35,  // Major growth (green hydrogen)
-      biofuel: 0.20,   // Aviation, shipping
-    };
-
-    // Interpolate between 2025 and target shares
-    const evolvedShares = {} as Record<typeof fuelKeys[number], number>;
-    let totalShare = 0;
-    for (const fuel of fuelKeys) {
-      const start = params.fuels[fuel].share2025;
-      const target = targetShares[fuel];
-      evolvedShares[fuel] = start + (target - start) * transitionProgress;
-      totalShare += evolvedShares[fuel];
-    }
-
-    // Normalize to ensure shares sum to 1
-    for (const fuel of fuelKeys) {
-      evolvedShares[fuel] /= totalShare;
-    }
+    // Calculate evolved fuel shares using logit model with inertia
+    const evolvedShares = calculateLogitFuelShares(
+      params.fuels,
+      state.fuelShares,
+      carbonPrice,
+      params.fuelMix.priceSensitivity,
+      params.fuelMix.inertiaRate
+    );
 
     // Calculate fuel consumption (TWh) and emissions (Gt CO2/year)
     const fuels: FuelOutput = {
@@ -796,6 +990,8 @@ export const demandModule: Module<
         regions: newRegions,
         baselineDependency,
         electrificationRate, // Persist for next step (cost-driven)
+        fuelShares: evolvedShares, // Persist evolved fuel shares
+        sectorElectrification: newSectorElectrification, // Persist sector rates
       },
       outputs: {
         regional: regionalOutputs,

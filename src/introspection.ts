@@ -152,30 +152,83 @@ export function describeParameters(): ParameterSchema {
     },
     transportElecTarget: {
       type: 'number',
-      default: 0.75,
+      default: 0.70,
       min: 0.50,
-      max: 0.95,
+      max: 0.85,
       unit: 'fraction',
-      description: 'Transport sector electrification target (EVs, rail, ships).',
+      description: 'Transport sector electrification ceiling (70% - aviation/shipping limits).',
       path: 'demand.sectors.transport.electrificationTarget',
     },
     buildingsElecTarget: {
       type: 'number',
-      default: 0.90,
+      default: 0.95,
       min: 0.60,
       max: 0.98,
       unit: 'fraction',
-      description: 'Buildings sector electrification target (heat pumps, cooking).',
+      description: 'Buildings sector electrification ceiling (95% - nearly all can electrify).',
       path: 'demand.sectors.buildings.electrificationTarget',
     },
     industryElecTarget: {
       type: 'number',
-      default: 0.60,
+      default: 0.65,
       min: 0.40,
       max: 0.85,
       unit: 'fraction',
-      description: 'Industry sector electrification target. Lower due to high-heat processes.',
+      description: 'Industry sector electrification ceiling (65% - high-temp needs H2).',
       path: 'demand.sectors.industry.electrificationTarget',
+    },
+
+    // =========================================================================
+    // DEMAND - Fuel Mix Evolution
+    // =========================================================================
+    fuelPriceSensitivity: {
+      type: 'number',
+      default: 0.03,
+      min: 0.01,
+      max: 0.10,
+      unit: 'per $/MWh',
+      description: 'Logit model sensitivity to effective fuel prices. Higher = faster response to price signals.',
+      path: 'demand.fuelMix.priceSensitivity',
+    },
+    fuelInertiaRate: {
+      type: 'number',
+      default: 0.08,
+      min: 0.02,
+      max: 0.20,
+      unit: 'fraction/year',
+      description: 'Rate of fuel mix adjustment (0.08 = ~9yr half-life matching fleet turnover).',
+      path: 'demand.fuelMix.inertiaRate',
+    },
+
+    // =========================================================================
+    // DEMAND - Sector Electrification Dynamics
+    // =========================================================================
+    transportCostSensitivity: {
+      type: 'number',
+      default: 0.08,
+      min: 0.02,
+      max: 0.20,
+      unit: 'fraction per cost ratio',
+      description: 'Transport sector response to electricity/fuel cost ratio. Higher = faster EV adoption when cheap.',
+      path: 'demand.sectors.transport.costSensitivity',
+    },
+    buildingsCostSensitivity: {
+      type: 'number',
+      default: 0.06,
+      min: 0.02,
+      max: 0.15,
+      unit: 'fraction per cost ratio',
+      description: 'Buildings sector response to electricity/gas cost ratio. Heat pump adoption sensitivity.',
+      path: 'demand.sectors.buildings.costSensitivity',
+    },
+    industryCostSensitivity: {
+      type: 'number',
+      default: 0.10,
+      min: 0.02,
+      max: 0.25,
+      unit: 'fraction per cost ratio',
+      description: 'Industry sector response to cost signals. Most cost-sensitive sector.',
+      path: 'demand.sectors.industry.costSensitivity',
     },
 
     // =========================================================================

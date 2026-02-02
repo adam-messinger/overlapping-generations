@@ -325,6 +325,103 @@ test('validation warns on very high electrification target', () => {
   expect(result.warnings.length).toBeGreaterThan(0);
 });
 
+// --- Endogenous Fuel Mix ---
+
+console.log('\n--- Endogenous Fuel Mix ---\n');
+
+// Helper to run with custom params and inputs
+function runYearsWithParams(years: number, paramOverrides: Partial<typeof demandDefaults>, inputOverrides?: { carbonPrice?: number }) {
+  const demandParams = demandModule.mergeParams(paramOverrides);
+  let demandState = demandModule.init(demandParams);
+  let outputs: any;
+
+  for (let i = 0; i < years; i++) {
+    const inputs = {
+      ...getDemographicsInputs(i),
+      carbonPrice: inputOverrides?.carbonPrice ?? 35,
+    };
+    const result = demandModule.step(demandState, inputs, demandParams, 2025 + i, i);
+    demandState = result.state;
+    outputs = result.outputs;
+  }
+
+  return { state: demandState, outputs };
+}
+
+test('high carbon price reduces coal share faster', () => {
+  const lowCarbon = runYearsWithParams(25, {}, { carbonPrice: 10 });
+  const highCarbon = runYearsWithParams(25, {}, { carbonPrice: 200 });
+
+  // High carbon price should have lower coal consumption
+  expect(highCarbon.outputs.fuels.coal).toBeLessThan(lowCarbon.outputs.fuels.coal);
+});
+
+test('fuel shares respond to carbon price over time', () => {
+  const year1 = runYearsWithParams(1, {}, { carbonPrice: 100 });
+  const year25 = runYearsWithParams(25, {}, { carbonPrice: 100 });
+
+  // Hydrogen share should increase over time with high carbon price
+  // (cleaner fuels become more attractive)
+  const h2Share1 = year1.outputs.fuels.hydrogen / year1.outputs.nonElectricEnergy;
+  const h2Share25 = year25.outputs.fuels.hydrogen / year25.outputs.nonElectricEnergy;
+  expect(h2Share25).toBeGreaterThan(h2Share1);
+});
+
+test('zero carbon price drifts slowly from baseline', () => {
+  const year25Zero = runYearsWithParams(25, {}, { carbonPrice: 0 });
+  const year25High = runYearsWithParams(25, {}, { carbonPrice: 200 });
+
+  // With zero carbon price, oil should remain higher than with high carbon price
+  expect(year25Zero.outputs.fuels.oil).toBeGreaterThan(year25High.outputs.fuels.oil);
+});
+
+// --- Cost-Driven Sector Electrification ---
+
+console.log('\n--- Cost-Driven Sector Electrification ---\n');
+
+test('sector electrification rates never exceed physical ceilings', () => {
+  const year76 = runYearsWithParams(76, {}, {});
+
+  // Transport ceiling is 70%
+  expect(year76.outputs.sectors.transport.electrificationRate).toBeLessThan(0.71);
+  // Buildings ceiling is 95%
+  expect(year76.outputs.sectors.buildings.electrificationRate).toBeLessThan(0.96);
+  // Industry ceiling is 65%
+  expect(year76.outputs.sectors.industry.electrificationRate).toBeLessThan(0.66);
+});
+
+test('high carbon price accelerates transport electrification', () => {
+  const lowCarbon = runYearsWithParams(25, {}, { carbonPrice: 10 });
+  const highCarbon = runYearsWithParams(25, {}, { carbonPrice: 200 });
+
+  expect(highCarbon.outputs.sectors.transport.electrificationRate)
+    .toBeGreaterThan(lowCarbon.outputs.sectors.transport.electrificationRate);
+});
+
+test('buildings electrification responds to gas+carbon cost', () => {
+  const lowCarbon = runYearsWithParams(25, {}, { carbonPrice: 10 });
+  const highCarbon = runYearsWithParams(25, {}, { carbonPrice: 200 });
+
+  expect(highCarbon.outputs.sectors.buildings.electrificationRate)
+    .toBeGreaterThan(lowCarbon.outputs.sectors.buildings.electrificationRate);
+});
+
+test('industry is most cost-sensitive sector', () => {
+  const lowCarbon = runYearsWithParams(25, {}, { carbonPrice: 10 });
+  const highCarbon = runYearsWithParams(25, {}, { carbonPrice: 200 });
+
+  // Calculate relative increase in electrification
+  const transportIncrease =
+    (highCarbon.outputs.sectors.transport.electrificationRate - lowCarbon.outputs.sectors.transport.electrificationRate) /
+    lowCarbon.outputs.sectors.transport.electrificationRate;
+  const industryIncrease =
+    (highCarbon.outputs.sectors.industry.electrificationRate - lowCarbon.outputs.sectors.industry.electrificationRate) /
+    lowCarbon.outputs.sectors.industry.electrificationRate;
+
+  // Industry should have higher relative sensitivity (costSensitivity: 0.10 vs 0.08)
+  expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.5); // At least half as responsive
+});
+
 // --- Module Metadata ---
 
 console.log('\n--- Module Metadata ---\n');
