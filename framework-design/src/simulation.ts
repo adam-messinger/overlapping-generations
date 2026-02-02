@@ -259,6 +259,7 @@ export class Simulation {
     let laggedDamages: Record<Region, number> = { oecd: 0, china: 0, em: 0, row: 0 };
     let laggedBurdenDamage = 0;
     let laggedTemperature = 1.2; // Initial temperature for resources
+    let laggedAvgLCOE = 50; // Initial LCOE for cost-driven electrification ($/MWh)
     let gdpPerCapita2025 = 0; // Will be set in first year
 
     for (let year = this.startYear; year <= this.endYear; year++) {
@@ -291,6 +292,8 @@ export class Simulation {
         dependency: demo.dependency,
         regionalDamages: laggedDamages,
         energyBurdenDamage: laggedBurdenDamage,
+        laggedAvgLCOE, // For cost-driven electrification
+        carbonPrice: this.energyParams.carbonPrice, // Pass carbon price for fuel cost calc
       };
       const demandResult = demandModule.step(
         demandState,
@@ -467,6 +470,7 @@ export class Simulation {
       laggedDamages = climate.regionalDamages;
       laggedTemperature = climate.temperature;
       laggedBurdenDamage = burdenDamage;
+      laggedAvgLCOE = totalGeneration > 0 ? weightedLCOE : laggedAvgLCOE; // For cost-driven elec
 
       // =======================================================================
       // Collect results

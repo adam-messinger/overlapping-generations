@@ -69,6 +69,13 @@ export interface EnergyParams {
    * CAPEX learning rate (annual decline for solar/wind/battery)
    */
   capexLearningRate: number;
+
+  /**
+   * Demand-driven capacity additions (Fix 2)
+   */
+  demandDrivenCapacity: boolean;        // Enable demand-driven behavior
+  demandFillRate: number;               // Fill this fraction of demand gap per year (0.30)
+  competitiveThreshold: number;         // Build if within this factor of fossil LCOE (1.20)
 }
 
 export const energyDefaults: EnergyParams = {
@@ -169,6 +176,11 @@ export const energyDefaults: EnergyParams = {
   cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
+
+  // Demand-driven capacity (Fix 2)
+  demandDrivenCapacity: true,     // Enable emergent demand-driven additions
+  demandFillRate: 0.30,           // Fill 30% of demand gap per year
+  competitiveThreshold: 1.20,     // Build if LCOE within 20% of fossil
 };
 
 // =============================================================================
@@ -364,15 +376,12 @@ export const energyModule: Module<
     }
 
     // =========================================================================
-    // First pass: Calculate LCOEs and desired additions (growth cap + ceiling)
+    // First pass: Calculate LCOEs
     // =========================================================================
-
-    const desiredAdditions: Record<EnergySource, number> = {} as any;
 
     for (const source of ENERGY_SOURCES) {
       const s = params.sources[source];
       const cap = state.capacities[source];
-      const prevInstalled = cap.installed;
       const prevCumulative = cap.cumulative;
 
       // Calculate LCOE
@@ -393,15 +402,23 @@ export const energyModule: Module<
       }
 
       lcoes[source] = lcoe;
+    }
 
-      // Calculate desired addition (before investment constraint)
-      let targetAddition = prevInstalled * s.growthRate;
+    // Find cheapest fossil LCOE for competitiveness check
+    const cheapestFossilLCOE = Math.min(lcoes.gas, lcoes.coal);
 
-      // Growth cap constraint (manufacturing/supply chain limits)
-      const maxGrowth = params.maxGrowthRate[source];
-      const growthCapped = prevInstalled * maxGrowth;
+    // =========================================================================
+    // Calculate desired additions (demand-driven or legacy growth rate)
+    // =========================================================================
 
-      // Demand ceiling constraint
+    const desiredAdditions: Record<EnergySource, number> = {} as any;
+
+    for (const source of ENERGY_SOURCES) {
+      const s = params.sources[source];
+      const cap = state.capacities[source];
+      const prevInstalled = cap.installed;
+
+      // Capacity factor and penetration limits
       const cf = source === 'solar' ? 0.2 :
                  source === 'wind' ? 0.3 :
                  source === 'nuclear' ? 0.9 :
@@ -410,8 +427,9 @@ export const energyModule: Module<
                      source === 'wind' ? 0.35 :
                      source === 'nuclear' ? 0.3 :
                      source === 'hydro' ? 0.2 : 1.0;
-      const maxUsefulGen = electricityDemand * maxPen;
 
+      // Max useful capacity based on demand ceiling
+      const maxUsefulGen = electricityDemand * maxPen;
       let maxUsefulCapacity: number;
       if (source === 'battery') {
         const solarGW = state.capacities.solar.installed;
@@ -419,6 +437,57 @@ export const energyModule: Module<
       } else {
         maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
       }
+
+      // Calculate target addition
+      let targetAddition: number;
+
+      if (params.demandDrivenCapacity && (source === 'solar' || source === 'wind' || source === 'nuclear' || source === 'hydro')) {
+        // Demand-driven additions for generators (Fix 2)
+        // Calculate current generation (TWh)
+        const currentGenTWh = (prevInstalled * cf * 8760) / 1000;
+
+        // Demand gap: how much more can this source contribute?
+        const demandGapTWh = Math.max(0, maxUsefulGen - currentGenTWh);
+        const demandGapGW = (demandGapTWh * 1000) / (cf * 8760);
+
+        // Check if this source is competitive with fossil
+        const isCompetitive = lcoes[source] <= cheapestFossilLCOE * params.competitiveThreshold;
+
+        // Target: fill demandFillRate (30%) of gap per year if competitive
+        if (isCompetitive && demandGapGW > 0) {
+          targetAddition = demandGapGW * params.demandFillRate;
+        } else {
+          // Not competitive or no gap - minimal maintenance growth
+          targetAddition = prevInstalled * 0.01; // 1% maintenance/replacement
+        }
+      } else if (params.demandDrivenCapacity && source === 'battery') {
+        // Battery follows solar: target is to have enough storage to firm solar
+        // Max useful = solarGW × batteryDuration (GWh)
+        const solarGW = state.capacities.solar.installed;
+        const solarAdditions = desiredAdditions.solar ?? 0; // Already calculated
+        const futureSolarGW = solarGW + solarAdditions;
+        const targetBatteryGWh = futureSolarGW * params.batteryDuration;
+        const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
+
+        // Check if battery is cost-competitive (use solar+battery vs fossil)
+        const solarPlusBatteryLCOE = lcoes.solar * 1.5; // Rough approximation
+        const isCompetitive = solarPlusBatteryLCOE <= cheapestFossilLCOE * params.competitiveThreshold;
+
+        if (isCompetitive && batteryGap > 0) {
+          targetAddition = batteryGap * params.demandFillRate;
+        } else {
+          targetAddition = prevInstalled * 0.01; // Minimal maintenance
+        }
+      } else {
+        // Legacy: exogenous growth rate (for fossil or when feature disabled)
+        targetAddition = prevInstalled * s.growthRate;
+      }
+
+      // Growth cap constraint (manufacturing/supply chain limits)
+      const maxGrowth = params.maxGrowthRate[source];
+      const growthCapped = prevInstalled * maxGrowth;
+
+      // Ceiling room
       const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
 
       // Apply growth cap and ceiling (not investment yet)

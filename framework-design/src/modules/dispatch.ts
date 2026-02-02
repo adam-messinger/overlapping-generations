@@ -43,6 +43,12 @@ export interface DispatchParams {
 
   /** Battery storage duration (hours) for solar firming calculation */
   batteryDuration: number;
+
+  /** Storage-based VRE limits (Fix 3) */
+  storageDrivenVRELimits: boolean;   // Enable dynamic VRE limits
+  baseVRELimit: number;              // VRE limit with 0h storage (default 0.30)
+  storageBonusPerHour: number;       // Additional VRE share per storage hour (0.08)
+  maxVRECeiling: number;             // Physical max VRE share (0.95)
 }
 
 export const dispatchDefaults: DispatchParams = {
@@ -87,6 +93,12 @@ export const dispatchDefaults: DispatchParams = {
   },
   hoursPerYear: 8760,
   batteryDuration: 4,
+
+  // Storage-based VRE limits (Fix 3)
+  storageDrivenVRELimits: true,      // Enable emergent VRE limits
+  baseVRELimit: 0.30,                // Grid handles 30% VRE with no storage
+  storageBonusPerHour: 0.08,         // Each storage hour adds 8% VRE capacity
+  maxVRECeiling: 0.95,               // Physical max (need some dispatchable)
 };
 
 // =============================================================================
@@ -351,9 +363,43 @@ export const dispatchModule: Module<
     let totalSolarAllocated = 0;
     let totalWindAllocated = 0;
 
-    const maxBareSolarPen = params.maxPenetration.solar;
-    const maxTotalSolarPen = params.maxPenetration.battery;
-    const maxWindPen = params.maxPenetration.wind;
+    // Calculate VRE penetration limits
+    let maxBareSolarPen: number;
+    let maxTotalSolarPen: number;
+    let maxWindPen: number;
+
+    if (params.storageDrivenVRELimits) {
+      // Storage-based VRE limits (Fix 3)
+      // Calculate effective storage hours
+      const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * 2; // Peak ~2x average
+      const storageHours = batteryGWh / Math.max(1, peakDemandGW);
+
+      // Combined VRE limit based on storage
+      // 0h storage → 30% VRE (grid stability without storage)
+      // 4h storage → 62% VRE (each hour adds 8%)
+      // 8h storage → 94% VRE (close to max)
+      const maxVREPenetration = Math.min(
+        params.maxVRECeiling,
+        params.baseVRELimit + storageHours * params.storageBonusPerHour
+      );
+
+      // Split VRE limit between solar and wind
+      // Solar can use up to 50% of VRE limit bare, rest needs battery
+      maxBareSolarPen = maxVREPenetration * 0.5;  // Bare solar = 50% of VRE limit
+      maxTotalSolarPen = maxVREPenetration * 0.7; // Solar+battery = 70% of VRE limit
+      maxWindPen = maxVREPenetration * 0.6;       // Wind = 60% of VRE limit
+    } else {
+      // Legacy: fixed penetration limits
+      maxBareSolarPen = params.maxPenetration.solar;
+      maxTotalSolarPen = params.maxPenetration.battery;
+      maxWindPen = params.maxPenetration.wind;
+    }
+
+    // Combined VRE ceiling (only active in storage-driven mode)
+    const maxCombinedVRE = params.storageDrivenVRELimits
+      ? (params.baseVRELimit + (batteryGWh / Math.max(1, (demandTWh * 1000) / params.hoursPerYear * 2)) * params.storageBonusPerHour)
+      : 1.0; // No combined limit in legacy mode
+    let totalVREAllocated = 0;
 
     for (const source of sources) {
       if (remaining <= 0) break;
@@ -369,9 +415,19 @@ export const dispatchModule: Module<
         } else {
           maxAllocation = Math.min(maxAllocation, totalSolarRoom);
         }
+        // Combined VRE limit
+        if (params.storageDrivenVRELimits) {
+          const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+          maxAllocation = Math.min(maxAllocation, combinedRoom);
+        }
       } else if (source.name === 'wind') {
         const windRoom = maxWindPen * demandTWh - totalWindAllocated;
         maxAllocation = Math.min(maxAllocation, windRoom);
+        // Combined VRE limit
+        if (params.storageDrivenVRELimits) {
+          const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+          maxAllocation = Math.min(maxAllocation, combinedRoom);
+        }
       }
 
       const allocation = Math.min(remaining, Math.max(0, maxAllocation));
@@ -382,8 +438,10 @@ export const dispatchModule: Module<
 
         if (source.isSolar) {
           totalSolarAllocated += allocation;
+          totalVREAllocated += allocation;
         } else if (source.name === 'wind') {
           totalWindAllocated += allocation;
+          totalVREAllocated += allocation;
         }
       }
     }

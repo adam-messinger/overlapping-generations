@@ -65,8 +65,14 @@ export interface DemandParams {
   // Global demand parameters
   electrification2025: number;    // Current electricity share (IEA: 25%)
   electrificationTarget: number;  // 2050+ target (IEA Net Zero: 65%)
-  electrificationSpeed: number;   // Logistic convergence rate
+  electrificationSpeed: number;   // Logistic convergence rate (legacy, for fallback)
   demographicFactor: number;      // Dependency ratio impact on growth
+
+  // Cost-driven electrification parameters (Fix 1)
+  costDrivenElectrification: boolean;    // Enable cost-driven electrification
+  costSensitivity: number;               // Elec gain per cost halving (default 0.05)
+  maxAnnualElecChange: number;           // Infrastructure constraint (default 0.02)
+  physicalElecCeiling: number;           // Physical max (~90%, some can't electrify)
 
   // Sector-level parameters
   sectors: {
@@ -100,6 +106,7 @@ interface RegionalState {
 interface DemandState {
   regions: Record<Region, RegionalState>;
   baselineDependency: number;  // Year 0 dependency for adjustment
+  electrificationRate: number; // Current electrification rate (cost-driven)
 }
 
 // Inputs from demographics module
@@ -123,6 +130,9 @@ interface DemandInputs {
   electricityGeneration?: number;        // TWh
   weightedAverageLCOE?: number;          // $/MWh (generation-weighted)
   carbonPrice?: number;                  // $/tonne for fuel carbon cost
+
+  // For cost-driven electrification (Fix 1)
+  laggedAvgLCOE?: number;                // $/MWh from previous year (for cost-driven elec)
 }
 
 interface RegionalOutputs {
@@ -242,8 +252,14 @@ export const demandDefaults: DemandParams = {
   // Global parameters
   electrification2025: 0.25,    // Current electricity share (IEA)
   electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
-  electrificationSpeed: 0.08,   // Convergence rate
+  electrificationSpeed: 0.08,   // Convergence rate (legacy fallback)
   demographicFactor: 0.015,     // Dependency ratio impact on growth
+
+  // Cost-driven electrification (Fix 1)
+  costDrivenElectrification: true,  // Enable emergent cost-driven behavior
+  costSensitivity: 0.05,            // 5% electrification gain per cost halving
+  maxAnnualElecChange: 0.02,        // Infrastructure constraint: 2%/year max
+  physicalElecCeiling: 0.90,        // ~90% max (aviation, shipping, high-temp heat)
 
   // Sector-level parameters (IEA-calibrated)
   // Transport: EVs growing fast, aviation/shipping slow
@@ -316,6 +332,38 @@ export const demandDefaults: DemandParams = {
 
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 };
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Calculate weighted average fuel cost for non-electric energy.
+ * Used for cost-driven electrification.
+ *
+ * @param fuels Fuel parameters (price, carbon intensity, share)
+ * @param carbonPrice Carbon price ($/tonne)
+ * @returns Weighted average fuel cost ($/MWh)
+ */
+function calculateWeightedFuelCost(
+  fuels: DemandParams['fuels'],
+  carbonPrice: number
+): number {
+  const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
+  let totalCost = 0;
+  let totalShare = 0;
+
+  for (const fuel of fuelKeys) {
+    const f = fuels[fuel];
+    // Effective price = base price + carbon cost
+    const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
+    const effectivePrice = f.price + carbonCost;
+    totalCost += effectivePrice * f.share2025;
+    totalShare += f.share2025;
+  }
+
+  return totalShare > 0 ? totalCost / totalShare : 50; // Default to $50/MWh
+}
 
 // =============================================================================
 // MODULE DEFINITION
@@ -443,6 +491,12 @@ export const demandModule: Module<
     if (partial.demographicFactor !== undefined) merged.demographicFactor = partial.demographicFactor;
     if (partial.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = partial.efficiencyMultiplier;
 
+    // Cost-driven electrification params
+    if (partial.costDrivenElectrification !== undefined) merged.costDrivenElectrification = partial.costDrivenElectrification;
+    if (partial.costSensitivity !== undefined) merged.costSensitivity = partial.costSensitivity;
+    if (partial.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = partial.maxAnnualElecChange;
+    if (partial.physicalElecCeiling !== undefined) merged.physicalElecCeiling = partial.physicalElecCeiling;
+
     return merged;
   },
 
@@ -460,6 +514,7 @@ export const demandModule: Module<
     return {
       regions,
       baselineDependency: 0, // Will be set on first step
+      electrificationRate: params.electrification2025, // Initial electrification
     };
   },
 
@@ -478,11 +533,56 @@ export const demandModule: Module<
       baselineDependency = inputs.dependency;
     }
 
-    // Calculate global electrification rate (exponential convergence)
-    const electrificationRate =
-      params.electrificationTarget -
-      (params.electrificationTarget - params.electrification2025) *
-      Math.exp(-params.electrificationSpeed * t);
+    // Calculate global electrification rate
+    let electrificationRate: number;
+
+    if (params.costDrivenElectrification) {
+      // Cost-driven electrification (Fix 1)
+      // Electricity becomes more attractive when cheaper than fuel
+      const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
+      const avgFuelCost = calculateWeightedFuelCost(params.fuels, carbonPrice);
+      const electricityCost = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
+
+      // Cost ratio drives electrification pressure
+      // When electricity is cheaper than fuel (ratio > 1), electrification accelerates
+      const costRatio = avgFuelCost / electricityCost;
+
+      // Baseline trend: natural electrification from existing infrastructure/policy momentum
+      // ~0.5%/year baseline + additional cost-driven pressure
+      const baselineTrend = 0.005;
+
+      // Additional cost pressure from favorable economics
+      // costSensitivity = 0.05 means 5% boost per cost halving (beyond baseline)
+      const costBonus = Math.log(Math.max(1, costRatio)) * params.costSensitivity;
+
+      // Total pressure = baseline + cost bonus
+      const totalPressure = baselineTrend + costBonus;
+
+      // Get previous rate from state
+      const prevRate = state.electrificationRate;
+
+      // Apply pressure with infrastructure constraint
+      const targetRate = Math.min(
+        params.physicalElecCeiling,
+        prevRate + totalPressure
+      );
+
+      // Limit annual change (infrastructure takes time to build)
+      const maxChange = params.maxAnnualElecChange;
+      electrificationRate = Math.max(
+        params.electrification2025, // Floor at starting rate
+        Math.min(
+          params.physicalElecCeiling,
+          prevRate + Math.max(-maxChange, Math.min(maxChange, targetRate - prevRate))
+        )
+      );
+    } else {
+      // Legacy: exponential convergence S-curve
+      electrificationRate =
+        params.electrificationTarget -
+        (params.electrificationTarget - params.electrification2025) *
+        Math.exp(-params.electrificationSpeed * t);
+    }
 
     // Process each region
     const newRegions = {} as Record<Region, RegionalState>;
@@ -701,6 +801,7 @@ export const demandModule: Module<
       state: {
         regions: newRegions,
         baselineDependency,
+        electrificationRate, // Persist for next step (cost-driven)
       },
       outputs: {
         regional: regionalOutputs,
