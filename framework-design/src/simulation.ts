@@ -15,7 +15,9 @@
  *        ↓
  *      dispatch ← demand, energy
  *        ↓
- *      climate ← dispatch
+ *      resources ← energy, demographics, demand, climate (lagged)
+ *        ↓
+ *      climate ← dispatch, resources (land use carbon)
  *        ↓
  *      (damages feed back to demand, capital for next year)
  */
@@ -25,6 +27,7 @@ import { demandModule, DemandParams } from './modules/demand.js';
 import { capitalModule, CapitalParams } from './modules/capital.js';
 import { energyModule, EnergyParams } from './modules/energy.js';
 import { dispatchModule, DispatchParams } from './modules/dispatch.js';
+import { resourcesModule, ResourcesParams } from './modules/resources.js';
 import { climateModule, ClimateParams } from './modules/climate.js';
 import { Region, EnergySource } from './framework/types.js';
 
@@ -40,6 +43,7 @@ export interface SimulationParams {
   capital?: Partial<CapitalParams>;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
+  resources?: Partial<ResourcesParams>;
   climate?: Partial<ClimateParams>;
 }
 
@@ -86,6 +90,22 @@ export interface YearResult {
   co2ppm: number;
   damages: number;
   cumulativeEmissions: number;
+
+  // Resources - Minerals
+  copperDemand: number;
+  lithiumDemand: number;
+  copperCumulative: number;
+  lithiumCumulative: number;
+
+  // Resources - Land
+  farmland: number;
+  forest: number;
+  desert: number;
+  yieldDamageFactor: number;
+
+  // Resources - Carbon
+  forestNetFlux: number;
+  cumulativeSequestration: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
@@ -136,6 +156,7 @@ export class Simulation {
   private capitalParams: CapitalParams;
   private energyParams: EnergyParams;
   private dispatchParams: DispatchParams;
+  private resourcesParams: ResourcesParams;
   private climateParams: ClimateParams;
 
   constructor(params: SimulationParams = {}) {
@@ -149,6 +170,7 @@ export class Simulation {
     this.capitalParams = capitalModule.mergeParams(params.capital ?? {});
     this.energyParams = energyModule.mergeParams(params.energy ?? {});
     this.dispatchParams = dispatchModule.mergeParams(params.dispatch ?? {});
+    this.resourcesParams = resourcesModule.mergeParams(params.resources ?? {});
     this.climateParams = climateModule.mergeParams(params.climate ?? {});
   }
 
@@ -165,6 +187,7 @@ export class Simulation {
       { name: 'capital', result: capitalModule.validate(this.capitalParams) },
       { name: 'energy', result: energyModule.validate(this.energyParams) },
       { name: 'dispatch', result: dispatchModule.validate(this.dispatchParams) },
+      { name: 'resources', result: resourcesModule.validate(this.resourcesParams) },
       { name: 'climate', result: climateModule.validate(this.climateParams) },
     ];
 
@@ -193,11 +216,14 @@ export class Simulation {
     let capitalState = capitalModule.init(this.capitalParams);
     let energyState = energyModule.init(this.energyParams);
     let dispatchState = dispatchModule.init(this.dispatchParams);
+    let resourcesState = resourcesModule.init(this.resourcesParams);
     let climateState = climateModule.init(this.climateParams);
 
     // Track lagged values for feedback loops
     let laggedDamages: Record<Region, number> = { oecd: 0, china: 0, em: 0, row: 0 };
     let laggedBurdenDamage = 0;
+    let laggedTemperature = 1.2; // Initial temperature for resources
+    let gdpPerCapita2025 = 0; // Will be set in first year
 
     for (let year = this.startYear; year <= this.endYear; year++) {
       const yearIndex = year - this.startYear;
@@ -301,12 +327,43 @@ export class Simulation {
       const dispatch = dispatchResult.outputs;
 
       // =======================================================================
-      // Step 6: Climate (needs emissions from dispatch)
+      // Step 6: Resources (needs energy, demographics, demand, lagged temperature)
       // =======================================================================
-      // Total emissions = electricity + non-electric
-      // Non-electric emissions decline with electrification
+      // Calculate GDP per capita for land use calculations
+      const gdpPerCapita = (demand.gdp * 1e12) / demo.population;
+      if (yearIndex === 0) {
+        gdpPerCapita2025 = gdpPerCapita;
+      }
+
+      // Simplified grain demand: ~0.35 kg/person/day → ~1000 Mt for 8B people
+      const grainDemand = (demo.population / 1e9) * 0.35 * 365 / 1000 * 1000; // Mt
+
+      const resourcesInputs = {
+        capacities: energy.capacities,
+        additions: energy.additions,
+        population: demo.population,
+        gdpPerCapita,
+        gdpPerCapita2025,
+        temperature: laggedTemperature,
+        grainDemand,
+      };
+      const resourcesResult = resourcesModule.step(
+        resourcesState,
+        resourcesInputs,
+        this.resourcesParams,
+        year,
+        yearIndex
+      );
+      resourcesState = resourcesResult.state;
+      const resources = resourcesResult.outputs;
+
+      // =======================================================================
+      // Step 7: Climate (needs emissions from dispatch + land use)
+      // =======================================================================
+      // Total emissions = electricity + non-electric + land use change
       const nonElectricEmissions = 25 * (1 - demand.electrificationRate); // Rough proxy
-      const totalEmissions = dispatch.electricityEmissions + nonElectricEmissions;
+      const landUseEmissions = resources.carbon.netFlux; // Can be negative (sink)
+      const totalEmissions = dispatch.electricityEmissions + nonElectricEmissions + landUseEmissions;
 
       const climateInputs = {
         emissions: totalEmissions,
@@ -325,6 +382,7 @@ export class Simulation {
       // Update lagged values for next year's feedback
       // =======================================================================
       laggedDamages = climate.regionalDamages;
+      laggedTemperature = climate.temperature;
       // Energy burden damage would come from energy cost calculation (simplified here)
       laggedBurdenDamage = 0; // TODO: implement energy burden feedback
 
@@ -381,6 +439,22 @@ export class Simulation {
         co2ppm: climate.co2ppm,
         damages: climate.damages,
         cumulativeEmissions: climate.cumulativeEmissions,
+
+        // Resources - Minerals
+        copperDemand: resources.minerals.copper.demand,
+        lithiumDemand: resources.minerals.lithium.demand,
+        copperCumulative: resources.minerals.copper.cumulative,
+        lithiumCumulative: resources.minerals.lithium.cumulative,
+
+        // Resources - Land
+        farmland: resources.land.farmland,
+        forest: resources.land.forest,
+        desert: resources.land.desert,
+        yieldDamageFactor: resources.land.yieldDamageFactor,
+
+        // Resources - Carbon
+        forestNetFlux: resources.carbon.netFlux,
+        cumulativeSequestration: resources.carbon.cumulativeSequestration,
 
         // Regional
         regionalPopulation: demo.regionalPopulation,
@@ -518,4 +592,15 @@ if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('sim
   console.log(`GDP 2050: $${result.metrics.gdp2050.toFixed(0)}T`);
   console.log(`GDP 2100: $${result.metrics.gdp2100.toFixed(0)}T`);
   console.log(`K/Y 2050: ${result.metrics.kY2050.toFixed(2)}`);
+
+  // Resource metrics
+  const idx2050 = result.results.findIndex(r => r.year === 2050);
+  const idx2100 = result.results.length - 1;
+  console.log('\n=== Resources ===\n');
+  console.log(`Copper cumulative 2100: ${result.results[idx2100].copperCumulative.toFixed(0)} Mt`);
+  console.log(`Lithium cumulative 2100: ${result.results[idx2100].lithiumCumulative.toFixed(1)} Mt`);
+  console.log(`Forest 2100: ${result.results[idx2100].forest.toFixed(0)} Mha`);
+  console.log(`Farmland 2100: ${result.results[idx2100].farmland.toFixed(0)} Mha`);
+  console.log(`Yield damage 2100: ${((1 - result.results[idx2100].yieldDamageFactor) * 100).toFixed(0)}%`);
+  console.log(`Cumulative sequestration: ${result.results[idx2100].cumulativeSequestration.toFixed(1)} Gt CO2`);
 }
