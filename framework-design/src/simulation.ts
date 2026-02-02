@@ -335,8 +335,14 @@ export class Simulation {
         gdpPerCapita2025 = gdpPerCapita;
       }
 
-      // Simplified grain demand: ~0.35 kg/person/day → ~1000 Mt for 8B people
-      const grainDemand = (demo.population / 1e9) * 0.35 * 365 / 1000 * 1000; // Mt
+      // Grain equivalent demand (simplified from full food model)
+      // Calibrated to match 2025: ~4700 Mha farmland at 4.0 t/ha yield
+      // grainFarmland = 4700/4.9 = 959 Mha, grain = 959 * 4.0 = 3836 Mt
+      // At 8.3B people = 462 kg/person/year = 1.27 kg/person/day
+      // Grows slowly with wealth (protein transition increases feed demand)
+      const baseGrainPerCapita = 1.27; // kg/person/day
+      const wealthGrowth = Math.pow(gdpPerCapita / gdpPerCapita2025, 0.1); // Slight increase
+      const grainDemand = (demo.population / 1e9) * baseGrainPerCapita * wealthGrowth * 365; // Mt
 
       const resourcesInputs = {
         capacities: energy.capacities,
