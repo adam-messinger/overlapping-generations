@@ -1,18 +1,22 @@
 {
   "name": "Technology Stagnation",
-  "description": "Pessimistic scenario with slower-than-expected technology learning rates. Represents a world where renewable cost reductions plateau and supply chain constraints persist.",
+  "description": "Pessimistic learning rates. Solar and battery cost reductions slow significantly. Represents supply chain constraints or policy barriers to deployment.",
 
-  "params": {
+  "energy": {
     "carbonPrice": 35,
-    "solarAlpha": 0.20,
-    "solarGrowth": 0.15,
-    "electrificationTarget": 0.55,
-    "efficiencyMultiplier": 0.8,
-    "climSensitivity": 3.0,
-    "windAlpha": 0.15,
-    "windGrowth": 0.12,
-    "batteryAlpha": 0.18,
-    "nuclearGrowth": 0.01,
-    "mineralLearningMultiplier": 0.7
+    "sources": {
+      "solar": { "alpha": 0.20, "growthRate": 0.15 },
+      "wind": { "alpha": 0.15, "growthRate": 0.10 },
+      "battery": { "alpha": 0.15, "growthRate": 0.20 }
+    },
+    "maxGrowthRate": {
+      "solar": 0.18,
+      "wind": 0.12,
+      "battery": 0.25
+    }
+  },
+
+  "demand": {
+    "electrificationTarget": 0.55
   }
 }

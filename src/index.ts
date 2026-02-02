@@ -5,25 +5,12 @@
  */
 
 // Simulation
-export {
-  Simulation,
-  runSimulation,
-  runWithScenario,
-  SimulationParams,
-  SimulationResult,
-  SimulationMetrics,
-  YearResult,
-} from './simulation.js';
+export { Simulation, runSimulation, runWithScenario } from './simulation.js';
+export type { SimulationParams, SimulationResult, SimulationMetrics, YearResult } from './simulation.js';
 
 // Scenario loader
-export {
-  Scenario,
-  loadScenario,
-  scenarioToParams,
-  listScenarios,
-  getScenarioPath,
-  deepMerge,
-} from './scenario.js';
+export { loadScenario, scenarioToParams, listScenarios, getScenarioPath, deepMerge } from './scenario.js';
+export type { Scenario } from './scenario.js';
 
 // Modules (for advanced use)
 export { demographicsModule, demographicsDefaults } from './modules/demographics.js';
@@ -37,6 +24,10 @@ export { climateModule, climateDefaults } from './modules/climate.js';
 
 // Framework primitives
 export { compound, learningCurve, depletion, logistic, poissonShock } from './primitives/math.js';
+
+// Agent introspection
+export { describeParameters, buildParams, listParameters } from './introspection.js';
+export type { ParameterInfo, ParameterSchema } from './introspection.js';
 
 // Types
 export type { Region, EnergySource, ValidationResult } from './framework/types.js';
