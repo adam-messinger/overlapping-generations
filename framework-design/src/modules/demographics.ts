@@ -43,6 +43,8 @@ export interface RegionEduParams {
   wagePremium2025: number;      // College wage premium (1.5 = 50% more)
   premiumTarget: number;        // Long-term premium
   premiumDecay: number;         // Annual decay rate
+  lifeBonusCollege: number;     // Extra years of life for college grads
+  lifePenaltyNonCollege: number; // Penalty for non-college
 }
 
 export interface DemographicsParams {
@@ -113,6 +115,8 @@ export const demographicsDefaults: DemographicsParams = {
       wagePremium2025: 1.5,
       premiumTarget: 1.4,
       premiumDecay: 0.003,
+      lifeBonusCollege: 3,
+      lifePenaltyNonCollege: 1,
     },
     china: {
       enrollmentRate2025: 0.60,
@@ -122,6 +126,8 @@ export const demographicsDefaults: DemographicsParams = {
       wagePremium2025: 1.8,
       premiumTarget: 1.5,
       premiumDecay: 0.005,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 1,
     },
     em: {
       enrollmentRate2025: 0.35,
@@ -131,6 +137,8 @@ export const demographicsDefaults: DemographicsParams = {
       wagePremium2025: 2.0,
       premiumTarget: 1.6,
       premiumDecay: 0.004,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 1,
     },
     row: {
       enrollmentRate2025: 0.15,
@@ -140,6 +148,8 @@ export const demographicsDefaults: DemographicsParams = {
       wagePremium2025: 2.2,
       premiumTarget: 1.7,
       premiumDecay: 0.003,
+      lifeBonusCollege: 1,
+      lifePenaltyNonCollege: 1,
     },
   },
   fertilityFloorMultiplier: 1.0,
@@ -148,17 +158,27 @@ export const demographicsDefaults: DemographicsParams = {
 };
 
 // =============================================================================
-// STATE
+// STATE - Track absolute counts, not shares
 // =============================================================================
 
 interface RegionState {
   population: number;
-  young: number;      // Fraction
-  working: number;    // Fraction
-  old: number;        // Fraction
-  fertility: number;  // Current TFR
-  collegeShare: number;
+  // Absolute cohort counts
+  young: number;
+  working: number;
+  old: number;
+  // Education splits (absolute counts)
+  workingCollege: number;
+  workingNonCollege: number;
+  oldCollege: number;
+  oldNonCollege: number;
+  // Other state
   lifeExpectancy: number;
+  // Cached params for projections
+  _fertility0: number;
+  _fertilityFloor: number;
+  _fertilityDecay: number;
+  _migrationRate: number;
 }
 
 export interface DemographicsState {
@@ -195,24 +215,22 @@ export interface DemographicsOutputs {
 // =============================================================================
 
 function projectFertility(
-  current: number,
+  initial: number,
   floor: number,
   decayRate: number,
   years: number
 ): number {
-  return exponentialConvergence(current, floor, decayRate, years);
+  return exponentialConvergence(initial, floor, decayRate, years);
 }
 
-function projectCollegeShare(
+function projectEnrollmentRate(
   initial: number,
-  enrollmentRate: number,
+  target: number,
+  growthRate: number,
   years: number
 ): number {
-  // College share grows based on enrollment rate
-  // New graduates enter workforce each year
-  const maxShare = 0.6; // Cap at 60%
-  const growth = enrollmentRate * 0.02; // ~2% of enrollment becomes new share
-  return Math.min(initial + growth * years, maxShare);
+  // Use logistic function correctly: logistic(start, ceiling, rate, years)
+  return logistic(initial, target, growthRate * 10, years);
 }
 
 function projectWagePremium(
@@ -224,69 +242,122 @@ function projectWagePremium(
   return exponentialConvergence(initial, target, decayRate, years);
 }
 
-function ageForward(
+function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number): number {
+  // Women 15-49 are roughly split between young (15-19) and working (20-49) cohorts
+  // Approximate: 0.25 of young + 0.65 of working are women 15-49
+  const womenOfChildbearingAge = youngShare * 0.25 + workingShare * 0.65;
+  // Divide by 2 (only women) and by 32 (average childbearing span)
+  return (tfr * womenOfChildbearingAge * 0.5) / 32;
+}
+
+function deathRate(youngShare: number, workingShare: number, oldShare: number, lifeExpectancy: number): number {
+  const youngMortality = 0.001;  // 0.1% per year
+  const workingMortality = 0.003; // 0.3% per year
+  // Remaining life expectancy at 65 is about LE - 65 + 10 (selection effects)
+  const remainingLEat65 = Math.max(15, lifeExpectancy - 55);
+  const oldMortality = 1 / remainingLEat65;
+
+  return youngShare * youngMortality + workingShare * workingMortality + oldShare * oldMortality;
+}
+
+function ageCohorts(
   state: RegionState,
-  params: RegionDemoParams,
+  tfr: number,
   eduParams: RegionEduParams,
-  years: number,
-  fertilityFloorMult: number,
-  migrationMult: number
+  yearIndex: number
 ): RegionState {
-  const effectiveFloor = params.fertilityFloor * fertilityFloorMult;
-  const effectiveMigration = params.migrationRate * migrationMult;
+  const pop = state.population;
+  const youngShare = state.young / pop;
+  const workingShare = state.working / pop;
+  const oldShare = state.old / pop;
 
-  // Project fertility
-  const newFertility = projectFertility(
-    params.fertility,
-    effectiveFloor,
-    params.fertilityDecay,
-    years
-  );
+  // Calculate births and deaths
+  const births = birthRateFromTFR(tfr, workingShare, youngShare) * pop;
+  const deaths = deathRate(youngShare, workingShare, oldShare, state.lifeExpectancy) * pop;
 
-  // Birth rate from TFR (simplified)
-  const birthRate = (newFertility / 2.1) * 0.012; // ~1.2% at replacement
+  // Aging transitions - KEY: use correct cohort lengths
+  // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
+  // Working cohort: 45 years (ages 20-64), so 1/45 age out per year
+  const agingOutOfYoung = state.young / 20;
+  const agingOutOfWorking = state.working / 45;
 
-  // Death rate (simplified, age-adjusted)
-  const youngDeathRate = 0.001;
-  const workingDeathRate = 0.003;
-  const oldDeathRate = 0.035;
+  // Deaths by cohort (proportional to mortality rates)
+  const youngDeaths = state.young * 0.001;
+  const workingDeaths = state.working * 0.003;
+  const oldDeaths = deaths - youngDeaths - workingDeaths;
 
-  // Cohort transitions (simplified 20-year cohorts)
-  const agingRate = 1 / 20; // 5% of each cohort ages up per year
-
-  // Calculate new cohort shares
-  let newYoung = state.young * (1 - agingRate) + birthRate - state.young * youngDeathRate;
-  let newWorking = state.working + state.young * agingRate - state.working * agingRate
-                   - state.working * workingDeathRate + effectiveMigration;
-  let newOld = state.old + state.working * agingRate - state.old * oldDeathRate;
-
-  // Normalize to ensure they sum to 1
-  const total = newYoung + newWorking + newOld;
-  newYoung /= total;
-  newWorking /= total;
-  newOld /= total;
-
-  // Population growth
-  const growthRate = birthRate - (state.young * youngDeathRate +
-                                   state.working * workingDeathRate +
-                                   state.old * oldDeathRate) + effectiveMigration;
-  const newPopulation = state.population * (1 + growthRate);
-
-  // Education
-  const newCollegeShare = projectCollegeShare(
-    eduParams.collegeShare2025,
+  // === EDUCATION TRACKING ===
+  // Split new workers by enrollment rate (determined at age 18-22)
+  const enrollRate = projectEnrollmentRate(
     eduParams.enrollmentRate2025,
-    years
+    eduParams.enrollmentTarget,
+    eduParams.enrollmentGrowth,
+    yearIndex
   );
+  const newCollegeWorkers = agingOutOfYoung * enrollRate;
+  const newNonCollegeWorkers = agingOutOfYoung * (1 - enrollRate);
+
+  // Calculate aging out of working by education
+  const totalWorking = state.workingCollege + state.workingNonCollege;
+  const collegeShareOfWorking = totalWorking > 0 ? state.workingCollege / totalWorking : 0.5;
+  const agingOutCollegeWorkers = agingOutOfWorking * collegeShareOfWorking;
+  const agingOutNonCollegeWorkers = agingOutOfWorking * (1 - collegeShareOfWorking);
+
+  // Working deaths split by education share
+  const workingDeathsCollege = workingDeaths * collegeShareOfWorking;
+  const workingDeathsNonCollege = workingDeaths * (1 - collegeShareOfWorking);
+
+  // Old cohort deaths with differential mortality
+  const remainingLEat65Base = Math.max(15, state.lifeExpectancy - 55);
+  const remainingLEat65College = remainingLEat65Base + eduParams.lifeBonusCollege * 0.5;
+  const remainingLEat65NonCollege = Math.max(10, remainingLEat65Base - eduParams.lifePenaltyNonCollege * 0.5);
+
+  const oldMortalityCollege = 1 / remainingLEat65College;
+  const oldMortalityNonCollege = 1 / remainingLEat65NonCollege;
+
+  const oldDeathsCollege = Math.min(state.oldCollege * oldMortalityCollege, state.oldCollege);
+  const oldDeathsNonCollege = Math.min(state.oldNonCollege * oldMortalityNonCollege, state.oldNonCollege);
+
+  // Update education cohorts
+  let newWorkingCollege = Math.max(0, state.workingCollege + newCollegeWorkers - agingOutCollegeWorkers - workingDeathsCollege);
+  let newWorkingNonCollege = Math.max(0, state.workingNonCollege + newNonCollegeWorkers - agingOutNonCollegeWorkers - workingDeathsNonCollege);
+  let newOldCollege = Math.max(0, state.oldCollege + agingOutCollegeWorkers - oldDeathsCollege);
+  let newOldNonCollege = Math.max(0, state.oldNonCollege + agingOutNonCollegeWorkers - oldDeathsNonCollege);
+
+  // === STANDARD COHORT UPDATES ===
+  let newYoung = Math.max(0, state.young + births - agingOutOfYoung - youngDeaths);
+  let newWorking = newWorkingCollege + newWorkingNonCollege;
+  let newOld = newOldCollege + newOldNonCollege;
+
+  // Apply migration (primarily to working-age, 70% college for migrants)
+  const migration = pop * state._migrationRate;
+  const migrationCollege = migration * 0.8 * 0.70;
+  const migrationNonCollege = migration * 0.8 * 0.30;
+
+  newWorkingCollege += migrationCollege;
+  newWorkingNonCollege += migrationNonCollege;
+  newWorking = newWorkingCollege + newWorkingNonCollege;
+  newYoung += migration * 0.15;
+  newOld += migration * 0.05;
+  newOldCollege += migration * 0.05 * 0.5;
+  newOldNonCollege += migration * 0.05 * 0.5;
+
+  const newPop = newYoung + newWorking + newOld;
 
   return {
-    population: newPopulation,
+    population: newPop,
     young: newYoung,
     working: newWorking,
     old: newOld,
-    fertility: newFertility,
-    collegeShare: newCollegeShare,
-    lifeExpectancy: state.lifeExpectancy + 0.1, // Simplified
+    workingCollege: newWorkingCollege,
+    workingNonCollege: newWorkingNonCollege,
+    oldCollege: newOldCollege,
+    oldNonCollege: newOldNonCollege,
+    lifeExpectancy: state.lifeExpectancy + 0.1, // Annual improvement
+    _fertility0: state._fertility0,
+    _fertilityFloor: state._fertilityFloor,
+    _fertilityDecay: state._fertilityDecay,
+    _migrationRate: state._migrationRate,
   };
 }
 
@@ -381,14 +452,35 @@ export const demographicsModule: Module<
     for (const region of REGIONS) {
       const r = params.regions[region];
       const e = params.education[region];
+
+      // Initialize with ABSOLUTE counts, not shares
+      const pop = r.pop2025;
+      const youngAbs = r.young * pop;
+      const workingAbs = r.working * pop;
+      const oldAbs = r.old * pop;
+
+      // Education splits
+      const workingCollege = workingAbs * e.collegeShare2025;
+      const workingNonCollege = workingAbs * (1 - e.collegeShare2025);
+      // Elderly college share starts lower (they got degrees decades ago)
+      const oldCollege = oldAbs * e.collegeShare2025 * 0.5;
+      const oldNonCollege = oldAbs - oldCollege;
+
       regions[region] = {
-        population: r.pop2025,
-        young: r.young,
-        working: r.working,
-        old: r.old,
-        fertility: r.fertility,
-        collegeShare: e.collegeShare2025,
+        population: pop,
+        young: youngAbs,
+        working: workingAbs,
+        old: oldAbs,
+        workingCollege,
+        workingNonCollege,
+        oldCollege,
+        oldNonCollege,
         lifeExpectancy: r.lifeExpectancy,
+        // Cache effective params
+        _fertility0: r.fertility,
+        _fertilityFloor: r.fertilityFloor * params.fertilityFloorMultiplier,
+        _fertilityDecay: r.fertilityDecay,
+        _migrationRate: r.migrationRate * params.migrationMultiplier,
       };
     }
 
@@ -412,29 +504,35 @@ export const demographicsModule: Module<
 
     for (const region of REGIONS) {
       const regionState = state.regions[region];
-      const regionParams = params.regions[region];
       const eduParams = params.education[region];
 
-      // Age forward
-      const newState = ageForward(
-        regionState,
-        regionParams,
-        eduParams,
-        yearIndex,
-        params.fertilityFloorMultiplier,
-        params.migrationMultiplier
+      // Project fertility for this year
+      const tfr = projectFertility(
+        regionState._fertility0,
+        regionState._fertilityFloor,
+        regionState._fertilityDecay,
+        yearIndex
       );
+
+      // For year 0 (2025), just output current state
+      // For subsequent years, age forward
+      let newState: RegionState;
+      if (yearIndex === 0) {
+        newState = regionState;
+      } else {
+        newState = ageCohorts(regionState, tfr, eduParams, yearIndex);
+      }
 
       newRegions[region] = newState;
 
       // Calculate regional outputs
-      const workingPop = newState.population * newState.working;
-      const oldPop = newState.population * newState.old;
+      const workingPop = newState.working;
+      const oldPop = newState.old;
 
       regionalPopulation[region] = newState.population;
       regionalWorking[region] = workingPop;
-      regionalDependency[region] = newState.old / newState.working;
-      regionalFertility[region] = newState.fertility;
+      regionalDependency[region] = workingPop > 0 ? oldPop / workingPop : 0;
+      regionalFertility[region] = tfr;
 
       // Aggregate
       totalPop += newState.population;
@@ -448,8 +546,8 @@ export const demographicsModule: Module<
         eduParams.premiumDecay,
         yearIndex
       );
-      const collegeWorkers = workingPop * newState.collegeShare;
-      const nonCollegeWorkers = workingPop * (1 - newState.collegeShare);
+      const collegeWorkers = newState.workingCollege;
+      const nonCollegeWorkers = newState.workingNonCollege;
       totalEffective += nonCollegeWorkers + collegeWorkers * wagePremium;
       totalCollegeWorkers += collegeWorkers;
     }
@@ -462,7 +560,7 @@ export const demographicsModule: Module<
         population: totalPop,
         working: totalWorking,
         old: totalOld,
-        dependency: totalOld / totalWorking,
+        dependency: totalWorking > 0 ? totalOld / totalWorking : 0,
         effectiveWorkers: totalEffective,
         collegeShare: globalCollegeShare,
         regionalPopulation,
