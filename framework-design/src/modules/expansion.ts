@@ -71,6 +71,7 @@ export const expansionDefaults: ExpansionParams = {
 export interface ExpansionState {
   robotsPer1000: number;         // Current robots per 1000 workers
   prevAdjustedDemand: number;    // Previous year's adjusted demand (for growth cap)
+  prevBaseDemand: number;        // Previous year's base demand (for expansion cap)
 }
 
 // =============================================================================
@@ -170,6 +171,7 @@ export const expansionModule: Module<
     return {
       robotsPer1000: params.robotBaseline2025,
       prevAdjustedDemand: 0,
+      prevBaseDemand: 0,
     };
   },
 
@@ -217,18 +219,32 @@ export const expansionModule: Module<
     // 4. COMBINED DEMAND
     // =========================================================================
     // Automation added first, then expansion multiplier applied
+    // The expansion is ADDITIONAL demand on top of base, never reduces it
     let adjustedDemand = (baseDemand + robotLoadTWh) * expansionMultiplier;
 
-    // Apply infrastructure growth cap (can't grow faster than we can build)
+    // Apply infrastructure growth cap to the EXPANSION PORTION only
+    // Base demand must be met; only the G/C expansion is infrastructure-limited
+    // This ensures adjustedDemand >= baseDemand always
     if (state.prevAdjustedDemand > 0 && yearIndex > 0) {
-      const maxDemand = state.prevAdjustedDemand * (1 + maxDemandGrowth);
-      adjustedDemand = Math.min(adjustedDemand, maxDemand);
+      // Expansion portion = adjustedDemand - baseDemand
+      const expansionPortion = adjustedDemand - baseDemand;
+
+      // Max allowable expansion this year based on infrastructure
+      // Use previous year's expansion as the base for growth cap
+      const prevExpansionPortion = Math.max(0, state.prevAdjustedDemand - state.prevBaseDemand);
+      const maxExpansion = prevExpansionPortion * (1 + maxDemandGrowth);
+
+      // Cap only the expansion portion
+      const cappedExpansion = Math.min(expansionPortion, maxExpansion);
+
+      adjustedDemand = baseDemand + cappedExpansion;
     }
 
     return {
       state: {
         robotsPer1000,
         prevAdjustedDemand: adjustedDemand,
+        prevBaseDemand: baseDemand,
       },
       outputs: {
         adjustedDemand,

@@ -203,7 +203,7 @@ test('damages capped at maxDamage', () => {
 
 test('validation catches invalid parameters', () => {
   const result = climateModule.validate({
-    climSensitivity: 10, // Way too high
+    sensitivity: 10, // Way too high
     damageCoeff: -1, // Negative
   });
 
@@ -213,7 +213,7 @@ test('validation catches invalid parameters', () => {
 
 test('validation warns on unusual but valid parameters', () => {
   const result = climateModule.validate({
-    climSensitivity: 5.0, // High but valid
+    sensitivity: 5.0, // High but valid
   });
 
   expect(result.valid).toBeTrue();

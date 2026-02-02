@@ -32,7 +32,7 @@ export interface ClimateParams {
   ppmPerGt: number;              // ppm per Gt in atmosphere (0.128)
 
   // Temperature dynamics
-  climSensitivity: number;       // °C per CO2 doubling (2.0-4.5)
+  sensitivity: number;       // °C per CO2 doubling (2.0-4.5)
   temperatureLag: number;        // Years for temp to equilibrate (10)
   currentTemp: number;           // °C above preindustrial in 2025 (1.2)
 
@@ -54,7 +54,7 @@ export const climateDefaults: ClimateParams = {
   cumulativeCO2_2025: 2400,
   airborneraction: 0.45,
   ppmPerGt: 0.128,
-  climSensitivity: 3.0,
+  sensitivity: 3.0,
   temperatureLag: 10,
   currentTemp: 1.2,
   damageCoeff: 0.00236,
@@ -135,14 +135,14 @@ export const climateModule: Module<
     const p = { ...climateDefaults, ...params };
 
     // Climate sensitivity range check (IPCC AR6)
-    if (p.climSensitivity < 1.5 || p.climSensitivity > 6.0) {
+    if (p.sensitivity < 1.5 || p.sensitivity > 6.0) {
       errors.push(
-        `climSensitivity ${p.climSensitivity} outside valid range [1.5, 6.0]`
+        `sensitivity ${p.sensitivity} outside valid range [1.5, 6.0]`
       );
     }
-    if (p.climSensitivity > 4.5) {
+    if (p.sensitivity > 4.5) {
       warnings.push(
-        `climSensitivity ${p.climSensitivity} above IPCC likely range (2.5-4.0)`
+        `sensitivity ${p.sensitivity} above IPCC likely range (2.5-4.0)`
       );
     }
 
@@ -207,7 +207,7 @@ export const climateModule: Module<
     // Equilibrium temperature from radiative forcing
     // T = S × log₂(CO₂/280)
     const equilibriumTemp =
-      params.climSensitivity *
+      params.sensitivity *
       Math.log2(co2ppm / params.preindustrialCO2);
 
     // Temperature lags behind equilibrium (ocean thermal inertia)
