@@ -66,12 +66,6 @@ export interface EnergyParams {
   cleanEnergyShareGrowth: number;
 
   /**
-   * Investment allocation across clean sources (must sum to 1.0)
-   * Determines how clean energy budget is split across sources
-   */
-  investmentAllocation: Partial<Record<EnergySource, number>>;
-
-  /**
    * CAPEX learning rate (annual decline for solar/wind/battery)
    */
   capexLearningRate: number;
@@ -172,18 +166,8 @@ export const energyDefaults: EnergyParams = {
   },
 
   // Investment constraint parameters
-  cleanEnergyShare2025: 0.15,      // 15% of investment to clean energy in 2025
+  cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
-
-  investmentAllocation: {
-    solar: 0.40,       // 40% of clean budget to solar
-    wind: 0.25,        // 25% to wind
-    battery: 0.20,     // 20% to battery
-    nuclear: 0.10,     // 10% to nuclear
-    hydro: 0.05,       // 5% to hydro
-    // gas/coal: no allocation (handled separately)
-  },
-
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
 };
 
@@ -323,12 +307,6 @@ export const energyModule: Module<
     if (partial.capex) {
       result.capex = { ...energyDefaults.capex, ...partial.capex };
     }
-    if (partial.investmentAllocation) {
-      result.investmentAllocation = {
-        ...energyDefaults.investmentAllocation,
-        ...partial.investmentAllocation,
-      };
-    }
 
     return result;
   },
@@ -361,7 +339,7 @@ export const energyModule: Module<
     const retirements: Record<EnergySource, number> = {} as any;
 
     // =========================================================================
-    // Calculate investment-constrained capacity
+    // Calculate investment budget
     // =========================================================================
 
     // Clean energy share grows over time (e.g., 15% → 30% over 25 years)
@@ -375,33 +353,21 @@ export const energyModule: Module<
     // CAPEX learning factor (declines 2%/year for solar/wind/battery)
     const capexLearningFactor = Math.pow(1 - params.capexLearningRate, yearIndex);
 
-    // Calculate max additions from investment budget for each source
-    const investmentCap: Partial<Record<EnergySource, number>> = {};
+    // Get effective CAPEX for each source (with learning applied)
+    const effectiveCapex: Record<EnergySource, number> = {} as any;
     for (const source of ENERGY_SOURCES) {
-      const allocation = params.investmentAllocation[source];
-      if (allocation !== undefined && allocation > 0) {
-        const budget = cleanBudget * allocation; // $B for this source
-        let capex = params.capex[source]; // $M/GW or $M/GWh
-
-        // Apply CAPEX learning to solar, wind, battery
-        if (source === 'solar' || source === 'wind' || source === 'battery') {
-          capex *= capexLearningFactor;
-        }
-
-        // Budget ($B) / CAPEX ($M/GW) × 1000 = GW (or GWh for battery)
-        investmentCap[source] = (budget / capex) * 1000;
-      } else if (source === 'gas') {
-        // Gas: no investment constraint
-        investmentCap[source] = Infinity;
-      } else if (source === 'coal') {
-        // Coal: no new investment
-        investmentCap[source] = 0;
+      let capex = params.capex[source];
+      if (source === 'solar' || source === 'wind' || source === 'battery') {
+        capex *= capexLearningFactor;
       }
+      effectiveCapex[source] = capex;
     }
 
     // =========================================================================
-    // Calculate additions for each source
+    // First pass: Calculate LCOEs and desired additions (growth cap + ceiling)
     // =========================================================================
+
+    const desiredAdditions: Record<EnergySource, number> = {} as any;
 
     for (const source of ENERGY_SOURCES) {
       const s = params.sources[source];
@@ -413,8 +379,6 @@ export const energyModule: Module<
       let lcoe: number;
       if (s.alpha > 0) {
         // Learning curve (solar, wind, battery)
-        // Wright's Law: cost = cost₀ × (cumulative / cumulative₀)^(-α)
-        // cost0 is the cost at capacity2025, so we normalize by initial capacity
         const ratio = prevCumulative / s.capacity2025;
         lcoe = s.cost0 * Math.pow(Math.max(1, ratio), -s.alpha);
       } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
@@ -430,50 +394,92 @@ export const energyModule: Module<
 
       lcoes[source] = lcoe;
 
-      // Calculate additions - demand-driven growth
+      // Calculate desired addition (before investment constraint)
       let targetAddition = prevInstalled * s.growthRate;
 
       // Growth cap constraint (manufacturing/supply chain limits)
       const maxGrowth = params.maxGrowthRate[source];
       const growthCapped = prevInstalled * maxGrowth;
 
-      // Demand ceiling constraint - can't overbuild beyond useful capacity
-      // Use capacity factor and penetration limit to estimate useful capacity
+      // Demand ceiling constraint
       const cf = source === 'solar' ? 0.2 :
                  source === 'wind' ? 0.3 :
                  source === 'nuclear' ? 0.9 :
                  source === 'hydro' ? 0.42 : 0.5;
-      const maxPen = source === 'solar' ? 0.8 :  // Solar+battery can reach 80%
+      const maxPen = source === 'solar' ? 0.8 :
                      source === 'wind' ? 0.35 :
                      source === 'nuclear' ? 0.3 :
                      source === 'hydro' ? 0.2 : 1.0;
       const maxUsefulGen = electricityDemand * maxPen;
 
-      // For battery: capacity is in GWh, so ceiling is also in GWh
-      // Battery should roughly match solar capacity for firming
-      // GWh needed ≈ solar GW × batteryDuration hours
       let maxUsefulCapacity: number;
       if (source === 'battery') {
-        // Battery GWh needed to firm solar: solarGW × duration
         const solarGW = state.capacities.solar.installed;
         maxUsefulCapacity = solarGW * params.batteryDuration;
       } else {
-        // Generators: convert TWh demand to GW capacity
         maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
       }
       const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
 
-      // Investment constraint (from capital model)
-      const investmentRoom = investmentCap[source] ?? Infinity;
+      // Apply growth cap and ceiling (not investment yet)
+      let desired = Math.max(0, targetAddition);
+      desired = Math.min(desired, growthCapped, ceilingRoom);
 
-      // Apply all constraints: growth cap, demand ceiling, investment budget
-      let addition = Math.max(0, targetAddition);
-      addition = Math.min(addition, growthCapped, ceilingRoom, investmentRoom);
-
-      // Coal: no new additions (already constrained by investmentCap = 0)
+      // Coal: no new additions
       if (source === 'coal') {
-        addition = 0;
+        desired = 0;
       }
+
+      desiredAdditions[source] = desired;
+    }
+
+    // =========================================================================
+    // Second pass: Apply investment constraint (LCOE priority)
+    // =========================================================================
+
+    // Sort clean sources by LCOE (fund cheapest first)
+    const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
+    cleanSources.sort((a, b) => lcoes[a] - lcoes[b]);
+
+    // Allocate budget by LCOE priority
+    let remainingBudget = cleanBudget; // $B
+    const fundedAdditions: Record<EnergySource, number> = {} as any;
+
+    for (const source of cleanSources) {
+      const desired = desiredAdditions[source];
+      const capex = effectiveCapex[source]; // $M/GW or $M/GWh
+
+      // Cost of desired additions: GW × $M/GW / 1000 = $B
+      const cost = (desired * capex) / 1000;
+
+      if (cost <= remainingBudget) {
+        // Fully funded
+        fundedAdditions[source] = desired;
+        remainingBudget -= cost;
+      } else {
+        // Partially funded - get as much as budget allows
+        const affordable = (remainingBudget / capex) * 1000; // GW or GWh
+        fundedAdditions[source] = affordable;
+        remainingBudget = 0;
+      }
+    }
+
+    // Gas and coal don't use clean budget
+    fundedAdditions.gas = desiredAdditions.gas ?? 0;
+    fundedAdditions.coal = 0;
+
+    // =========================================================================
+    // Third pass: Calculate retirements and update state
+    // =========================================================================
+
+    for (const source of ENERGY_SOURCES) {
+      const s = params.sources[source];
+      const cap = state.capacities[source];
+      const prevInstalled = cap.installed;
+      const prevCumulative = cap.cumulative;
+
+      const addition = fundedAdditions[source];
+      additions[source] = addition;
 
       // Calculate retirements
       // Two components: initial capacity + additions from lifetime years ago
