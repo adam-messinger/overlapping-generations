@@ -239,6 +239,8 @@ export class Simulation {
       let prevOutputs: Record<string, any> | null = null;
 
       // Iterate for feedback convergence
+      const newStates = new Map<string, any>();
+
       for (let iter = 0; iter < this.config.maxIterations; iter++) {
         const iterOutputs: Record<string, any> = {};
 
@@ -258,10 +260,8 @@ export class Simulation {
           // Execute step
           const result = module.step(state, inputs, params, year, i);
 
-          // Update state for next year (only on final iteration)
-          if (iter === this.config.maxIterations - 1 || this.hasConverged(iterOutputs, currentOutputs)) {
-            reg.state = result.state;
-          }
+          // Store new state for later (don't update yet)
+          newStates.set(moduleName, result.state);
 
           // Collect outputs
           for (const [key, value] of Object.entries(result.outputs)) {
@@ -269,8 +269,18 @@ export class Simulation {
           }
         }
 
+        const converged = this.hasConverged(iterOutputs, currentOutputs);
+
+        // Update all module states after full iteration completes (not inside module loop)
+        if (converged || iter === this.config.maxIterations - 1) {
+          for (const moduleName of this.executionOrder) {
+            const reg = this.modules.get(moduleName)!;
+            reg.state = newStates.get(moduleName);
+          }
+        }
+
         // Check convergence
-        if (this.hasConverged(iterOutputs, currentOutputs)) {
+        if (converged) {
           currentOutputs = iterOutputs;
           break;
         }

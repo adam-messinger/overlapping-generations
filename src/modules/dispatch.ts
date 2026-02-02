@@ -255,9 +255,9 @@ export const dispatchModule: Module<
 
     // Solar+battery capacity limited by battery storage
     // Battery capacity is in GWh; convert to GW for comparison with solar GW
-    // batteryGW = batteryGWh / batteryDuration (4h default)
+    // batteryGW = batteryGWh / batteryDuration
     const batteryGWh = capacities.battery;
-    const batteryDuration = 4; // hours
+    const batteryDuration = params.batteryDuration;
     const batteryGW = batteryGWh / batteryDuration;
 
     // Battery GW can firm roughly equal GW of solar (assumes 4h storage, 8h solar production)

@@ -143,21 +143,21 @@ export function describeParameters(): ParameterSchema {
     // =========================================================================
     electrificationTarget: {
       type: 'number',
-      default: 0.80,
+      default: 0.65,
       min: 0.50,
       max: 0.95,
       unit: 'fraction',
-      description: 'Long-run electrification target. 0.80 means 80% of final energy as electricity by late century.',
+      description: 'Long-run electrification target. 0.65 means 65% of final energy as electricity by late century.',
       path: 'demand.electrificationTarget',
     },
     transportElecTarget: {
       type: 'number',
-      default: 0.85,
+      default: 0.75,
       min: 0.50,
       max: 0.95,
       unit: 'fraction',
       description: 'Transport sector electrification target (EVs, rail, ships).',
-      path: 'demand.sectors.transport.target',
+      path: 'demand.sectors.transport.electrificationTarget',
     },
     buildingsElecTarget: {
       type: 'number',
@@ -166,16 +166,16 @@ export function describeParameters(): ParameterSchema {
       max: 0.98,
       unit: 'fraction',
       description: 'Buildings sector electrification target (heat pumps, cooking).',
-      path: 'demand.sectors.buildings.target',
+      path: 'demand.sectors.buildings.electrificationTarget',
     },
     industryElecTarget: {
       type: 'number',
-      default: 0.65,
+      default: 0.60,
       min: 0.40,
       max: 0.85,
       unit: 'fraction',
       description: 'Industry sector electrification target. Lower due to high-heat processes.',
-      path: 'demand.sectors.industry.target',
+      path: 'demand.sectors.industry.electrificationTarget',
     },
 
     // =========================================================================

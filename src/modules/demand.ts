@@ -383,6 +383,12 @@ export const demandModule: Module<
     'population',
     'working',
     'dependency',
+    'regionalDamages',
+    'energyBurdenDamage',
+    'electricityGeneration',
+    'weightedAverageLCOE',
+    'carbonPrice',
+    'laggedAvgLCOE',
   ] as const,
 
   outputs: [
@@ -398,6 +404,11 @@ export const demandModule: Module<
     'sectors',
     'fuels',
     'nonElectricEmissions',
+    'electricityCost',
+    'fuelCost',
+    'totalEnergyCost',
+    'energyBurden',
+    'burdenDamage',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -531,11 +542,11 @@ export const demandModule: Module<
     // Electricity becomes more attractive when cheaper than fuel
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
     const avgFuelCost = calculateWeightedFuelCost(params.fuels, carbonPrice);
-    const electricityCost = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
+    const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
 
     // Cost ratio drives electrification pressure
     // When electricity is cheaper than fuel (ratio > 1), electrification accelerates
-    const costRatio = avgFuelCost / electricityCost;
+    const costRatio = avgFuelCost / electricityPrice;
 
     // Baseline trend: natural electrification from existing infrastructure/policy momentum
     // ~0.5%/year baseline + additional cost-driven pressure
@@ -799,7 +810,7 @@ export const demandModule: Module<
         sectors,
         fuels,
         nonElectricEmissions,
-        electricityCost,
+        electricityCost: electricityTotalCost,
         fuelCost,
         totalEnergyCost,
         energyBurden,

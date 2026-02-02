@@ -28,7 +28,7 @@ export interface ClimateParams {
   cumulativeCO2_2025: number;    // Gt cumulative since preindustrial (2400)
 
   // Carbon cycle
-  airborneraction: number;       // Fraction staying in atmosphere (0.45)
+  airborneFraction: number;      // Fraction staying in atmosphere (0.45)
   ppmPerGt: number;              // ppm per Gt in atmosphere (0.128)
 
   // Temperature dynamics
@@ -52,7 +52,7 @@ export interface ClimateParams {
 export const climateDefaults: ClimateParams = {
   preindustrialCO2: 280,
   cumulativeCO2_2025: 2400,
-  airborneraction: 0.45,
+  airborneFraction: 0.45,
   ppmPerGt: 0.128,
   sensitivity: 3.0,
   temperatureLag: 10,
@@ -201,7 +201,7 @@ export const climateModule: Module<
 
     // Calculate atmospheric CO2 from cumulative emissions
     const atmosphericCO2 =
-      newCumulative * params.airborneraction * params.ppmPerGt;
+      newCumulative * params.airborneFraction * params.ppmPerGt;
     const co2ppm = params.preindustrialCO2 + atmosphericCO2;
 
     // Equilibrium temperature from radiative forcing

@@ -699,9 +699,17 @@ export async function runWithScenario(
 async function runCLI() {
   const args = process.argv.slice(2);
 
+  // Known flags
+  const knownFlags = new Set([
+    '--scenario', '--list', '--help', '-h',
+    '--carbonPrice', '--sensitivity', '--electrificationTarget',
+  ]);
+
   // Parse --scenario=name or --scenario name
   let scenarioName: string | undefined;
   let scenarioPath: string | undefined;
+  const unknownFlags: string[] = [];
+  const paramOverrides: SimulationParams = {};
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -722,11 +730,42 @@ async function runCLI() {
       console.log('Usage: npx tsx src/simulation.ts [options]');
       console.log('');
       console.log('Options:');
-      console.log('  --scenario=NAME    Run with named scenario');
-      console.log('  --list             List available scenarios');
-      console.log('  --help, -h         Show this help');
+      console.log('  --scenario=NAME           Run with named scenario');
+      console.log('  --list                    List available scenarios');
+      console.log('  --carbonPrice=VALUE       Override carbon price ($/ton)');
+      console.log('  --sensitivity=VALUE       Override climate sensitivity (°C)');
+      console.log('  --electrificationTarget=VALUE  Override electrification target (0-1)');
+      console.log('  --help, -h                Show this help');
       return;
+    } else if (arg.startsWith('--carbonPrice=')) {
+      const value = parseFloat(arg.split('=')[1]);
+      if (!isNaN(value)) {
+        paramOverrides.energy = { ...paramOverrides.energy, carbonPrice: value };
+      }
+    } else if (arg.startsWith('--sensitivity=')) {
+      const value = parseFloat(arg.split('=')[1]);
+      if (!isNaN(value)) {
+        paramOverrides.climate = { ...paramOverrides.climate, sensitivity: value };
+      }
+    } else if (arg.startsWith('--electrificationTarget=')) {
+      const value = parseFloat(arg.split('=')[1]);
+      if (!isNaN(value)) {
+        paramOverrides.demand = { ...paramOverrides.demand, electrificationTarget: value };
+      }
+    } else if (arg.startsWith('--') || arg.startsWith('-')) {
+      // Check if it's a known flag with separate value
+      const flagName = arg.split('=')[0];
+      if (!knownFlags.has(flagName)) {
+        unknownFlags.push(arg);
+      }
     }
+  }
+
+  // Warn about unknown flags
+  if (unknownFlags.length > 0) {
+    console.warn(`Warning: Unknown flags ignored: ${unknownFlags.join(', ')}`);
+    console.warn('Run with --help to see available options.');
+    console.warn('');
   }
 
   // Load scenario if specified
@@ -747,6 +786,12 @@ async function runCLI() {
       console.error(`Error loading scenario '${scenarioName}': ${(err as Error).message}`);
       process.exit(1);
     }
+  }
+
+  // Merge CLI parameter overrides
+  const { deepMerge } = await import('./scenario.js');
+  if (Object.keys(paramOverrides).length > 0) {
+    params = deepMerge(params, paramOverrides);
   }
 
   // Run simulation
