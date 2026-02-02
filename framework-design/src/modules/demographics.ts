@@ -205,7 +205,9 @@ export interface DemographicsOutputs {
 
   // Regional breakdown
   regionalPopulation: Record<Region, number>;
+  regionalYoung: Record<Region, number>;
   regionalWorking: Record<Region, number>;
+  regionalOld: Record<Region, number>;
   regionalEffectiveWorkers: Record<Region, number>;
   regionalDependency: Record<Region, number>;
   regionalFertility: Record<Region, number>;
@@ -387,7 +389,9 @@ export const demographicsModule: Module<
     'effectiveWorkers',
     'collegeShare',
     'regionalPopulation',
+    'regionalYoung',
     'regionalWorking',
+    'regionalOld',
     'regionalEffectiveWorkers',
     'regionalDependency',
     'regionalFertility',
@@ -500,7 +504,9 @@ export const demographicsModule: Module<
     let totalCollegeWorkers = 0;
 
     const regionalPopulation: Record<Region, number> = {} as Record<Region, number>;
+    const regionalYoung: Record<Region, number> = {} as Record<Region, number>;
     const regionalWorking: Record<Region, number> = {} as Record<Region, number>;
+    const regionalOld: Record<Region, number> = {} as Record<Region, number>;
     const regionalDependency: Record<Region, number> = {} as Record<Region, number>;
     const regionalFertility: Record<Region, number> = {} as Record<Region, number>;
     const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
@@ -533,7 +539,9 @@ export const demographicsModule: Module<
       const oldPop = newState.old;
 
       regionalPopulation[region] = newState.population;
+      regionalYoung[region] = newState.young;
       regionalWorking[region] = workingPop;
+      regionalOld[region] = oldPop;
       regionalDependency[region] = workingPop > 0 ? oldPop / workingPop : 0;
       regionalFertility[region] = tfr;
 
@@ -569,7 +577,9 @@ export const demographicsModule: Module<
         effectiveWorkers: totalEffective,
         collegeShare: globalCollegeShare,
         regionalPopulation,
+        regionalYoung,
         regionalWorking,
+        regionalOld,
         regionalEffectiveWorkers,
         regionalDependency,
         regionalFertility,
