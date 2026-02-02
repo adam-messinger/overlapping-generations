@@ -155,6 +155,7 @@ export interface CapacityState {
   cumulative: number;     // Cumulative deployed (for learning)
   extracted: number;      // Fossil fuels: extracted so far
   additions: number[];    // History of additions (for retirement)
+  initialCapacity: number; // Original 2025 capacity (for retirement)
 }
 
 export interface EnergyState {
@@ -295,6 +296,7 @@ export const energyModule: Module<
         cumulative: s.capacity2025,
         extracted: 0,
         additions: [0], // Year 0 has no additions
+        initialCapacity: s.capacity2025, // Track for retirement
       };
     }
 
@@ -302,7 +304,7 @@ export const energyModule: Module<
   },
 
   step(state, inputs, params, year, yearIndex) {
-    const { electricityDemand, availableInvestment, stabilityFactor } = inputs;
+    const { electricityDemand } = inputs;
     const newCapacities: Record<EnergySource, CapacityState> = {} as any;
 
     const lcoes: Record<EnergySource, number> = {} as any;
@@ -311,8 +313,7 @@ export const energyModule: Module<
     const additions: Record<EnergySource, number> = {} as any;
     const retirements: Record<EnergySource, number> = {} as any;
 
-    // Total investment available for clean energy (simplified)
-    const cleanInvestmentBudget = availableInvestment * stabilityFactor * 0.1; // 10% to clean energy
+    // Demand-driven growth: investment follows demand, not the reverse
 
     for (const source of ENERGY_SOURCES) {
       const s = params.sources[source];
@@ -341,24 +342,31 @@ export const energyModule: Module<
 
       lcoes[source] = lcoe;
 
-      // Calculate additions with constraints
+      // Calculate additions - demand-driven growth
       let targetAddition = prevInstalled * s.growthRate;
 
-      // Growth cap constraint
+      // Growth cap constraint (manufacturing/supply chain limits)
       const maxGrowth = params.maxGrowthRate[source];
       const growthCapped = prevInstalled * maxGrowth;
 
-      // Demand ceiling constraint (simplified)
-      const maxUsefulCapacity = electricityDemand * 10; // Very rough approximation
+      // Demand ceiling constraint - can't overbuild beyond useful capacity
+      // Use capacity factor and penetration limit to estimate useful capacity
+      const cf = source === 'battery' ? 0.2 :
+                 source === 'solar' ? 0.2 :
+                 source === 'wind' ? 0.3 :
+                 source === 'nuclear' ? 0.9 :
+                 source === 'hydro' ? 0.42 : 0.5;
+      const maxPen = source === 'solar' ? 0.8 :  // Solar+battery can reach 80%
+                     source === 'wind' ? 0.35 :
+                     source === 'nuclear' ? 0.3 :
+                     source === 'hydro' ? 0.2 : 1.0;
+      const maxUsefulGen = electricityDemand * maxPen;
+      const maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
       const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
 
-      // Investment constraint
-      const capexPerGW = params.capex[source];
-      const investmentRoom = (cleanInvestmentBudget * 1000) / capexPerGW; // $T -> $M -> GW
-
-      // Apply constraints
+      // Apply constraints (no investment constraint - demand-driven)
       let addition = Math.max(0, targetAddition);
-      addition = Math.min(addition, growthCapped, ceilingRoom, investmentRoom);
+      addition = Math.min(addition, growthCapped, ceilingRoom);
 
       // Coal: no new additions
       if (source === 'coal') {
@@ -366,10 +374,18 @@ export const energyModule: Module<
       }
 
       // Calculate retirements
+      // Two components: initial capacity + additions from lifetime years ago
       const lifetime = params.lifetime[source];
       let retirement = 0;
+
+      // 1. Initial capacity retires over lifetime (1/lifetime per year)
+      if (yearIndex < lifetime) {
+        retirement += cap.initialCapacity / lifetime;
+      }
+
+      // 2. Additions from lifetime years ago retire
       if (yearIndex >= lifetime && cap.additions.length > lifetime) {
-        retirement = cap.additions[yearIndex - lifetime] || 0;
+        retirement += cap.additions[yearIndex - lifetime] || 0;
       }
 
       // Update capacity
@@ -388,6 +404,7 @@ export const energyModule: Module<
         cumulative: newCumulative,
         extracted,
         additions: [...cap.additions, addition],
+        initialCapacity: cap.initialCapacity,
       };
 
       outputCapacities[source] = newInstalled;

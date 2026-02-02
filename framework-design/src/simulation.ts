@@ -281,13 +281,14 @@ export class Simulation {
       const energy = energyResult.outputs;
 
       // =======================================================================
-      // Step 5: Dispatch (needs demand, energy)
+      // Step 5: Dispatch (needs demand, energy, carbon price)
       // =======================================================================
       const dispatchInputs = {
         electricityDemand: demand.electricityDemand,
         capacities: energy.capacities,
         lcoes: energy.lcoes,
         solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
+        carbonPrice: this.energyParams.carbonPrice,
       };
       const dispatchResult = dispatchModule.step(
         dispatchState,

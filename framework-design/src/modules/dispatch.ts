@@ -1,8 +1,10 @@
 /**
  * Dispatch Module
  *
- * Merit order dispatch - allocates electricity demand to sources by LCOE.
- * Respects capacity constraints and penetration limits.
+ * Merit order dispatch - allocates electricity demand to sources by marginal cost.
+ * Real markets dispatch by marginal cost (fuel + variable O&M), not LCOE.
+ * Nuclear has high LCOE (~$90) but low marginal cost (~$12), so it dispatches
+ * as baseload after renewables.
  *
  * Inputs (from other modules):
  * - electricityDemand: Total demand (TWh)
@@ -32,6 +34,9 @@ export interface DispatchParams {
 
   /** Carbon intensity by source (kg CO2/MWh) */
   carbonIntensity: Record<EnergySource, number>;
+
+  /** Marginal cost by source ($/MWh) - fuel + variable O&M, no capital */
+  marginalCost: Record<EnergySource, number>;
 
   /** Hours per year (for capacity -> energy conversion) */
   hoursPerYear: number;
@@ -68,6 +73,18 @@ export const dispatchDefaults: DispatchParams = {
     coal: 900,
     battery: 0,
   },
+  // Marginal cost = fuel + variable O&M (no capital)
+  // Nuclear: low marginal (~$12) despite high LCOE (~$90)
+  // Gas/coal: fuel cost + carbon price applied dynamically
+  marginalCost: {
+    solar: 0,
+    wind: 0,
+    hydro: 5,
+    nuclear: 12,
+    gas: 35,      // Base fuel cost, carbon added dynamically
+    coal: 25,     // Base fuel cost, carbon added dynamically
+    battery: 5,
+  },
   hoursPerYear: 8760,
   batteryDuration: 4,
 };
@@ -97,6 +114,9 @@ export interface DispatchInputs {
 
   /** Combined solar+battery LCOE ($/MWh) */
   solarPlusBatteryLCOE: number;
+
+  /** Carbon price ($/ton CO2) for marginal cost calculation */
+  carbonPrice: number;
 }
 
 export interface DispatchOutputs {
@@ -142,6 +162,7 @@ export const dispatchModule: Module<
     'capacities',
     'lcoes',
     'solarPlusBatteryLCOE',
+    'carbonPrice',
   ] as const,
 
   outputs: [
@@ -174,6 +195,11 @@ export const dispatchModule: Module<
       if (ci < 0) {
         errors.push(`carbonIntensity.${source} cannot be negative`);
       }
+
+      const mc = p.marginalCost[source];
+      if (mc < 0) {
+        errors.push(`marginalCost.${source} cannot be negative`);
+      }
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -186,6 +212,7 @@ export const dispatchModule: Module<
       capacityFactor: { ...dispatchDefaults.capacityFactor, ...partial.capacityFactor },
       maxPenetration: { ...dispatchDefaults.maxPenetration, ...partial.maxPenetration },
       carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...partial.carbonIntensity },
+      marginalCost: { ...dispatchDefaults.marginalCost, ...partial.marginalCost },
     };
   },
 
@@ -194,8 +221,19 @@ export const dispatchModule: Module<
   },
 
   step(_state, inputs, params, _year, _yearIndex) {
-    const { electricityDemand, capacities, lcoes, solarPlusBatteryLCOE } = inputs;
+    const { electricityDemand, capacities, lcoes, solarPlusBatteryLCOE, carbonPrice } = inputs;
     const demandTWh = electricityDemand;
+
+    // Calculate marginal costs with carbon price
+    // Marginal cost = base fuel/O&M + (carbon intensity * carbon price / 1000)
+    const marginalCosts: Record<string, number> = {};
+    for (const source of ENERGY_SOURCES) {
+      const baseMC = params.marginalCost[source];
+      const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
+      marginalCosts[source] = baseMC + carbonCost;
+    }
+    // Solar+battery marginal cost (slightly higher than bare solar due to battery losses)
+    marginalCosts['solarPlusBattery'] = 5;
 
     // Calculate max generation (TWh) each source can provide
     const maxGen: Record<string, number> = {};
@@ -215,10 +253,10 @@ export const dispatchModule: Module<
         params.hoursPerYear) /
       1000;
 
-    // Build source list for merit order
+    // Build source list for merit order (sorted by marginal cost, not LCOE)
     interface MeritSource {
       name: string;
-      lcoe: number;
+      marginalCost: number;
       max: number;
       carbonIntensity: number;
       isSolar: boolean;
@@ -228,7 +266,7 @@ export const dispatchModule: Module<
     const sources: MeritSource[] = [
       {
         name: 'nuclear',
-        lcoe: lcoes.nuclear,
+        marginalCost: marginalCosts.nuclear,
         max: maxGen.nuclear,
         carbonIntensity: params.carbonIntensity.nuclear,
         isSolar: false,
@@ -236,7 +274,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'hydro',
-        lcoe: lcoes.hydro,
+        marginalCost: marginalCosts.hydro,
         max: maxGen.hydro,
         carbonIntensity: params.carbonIntensity.hydro,
         isSolar: false,
@@ -244,7 +282,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'solar',
-        lcoe: lcoes.solar,
+        marginalCost: marginalCosts.solar,
         max: maxGen.solar,
         carbonIntensity: 0,
         isSolar: true,
@@ -252,7 +290,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'solarPlusBattery',
-        lcoe: solarPlusBatteryLCOE,
+        marginalCost: marginalCosts.solarPlusBattery,
         max: maxGen.solarPlusBattery,
         carbonIntensity: 0,
         isSolar: true,
@@ -260,7 +298,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'wind',
-        lcoe: lcoes.wind,
+        marginalCost: marginalCosts.wind,
         max: maxGen.wind,
         carbonIntensity: params.carbonIntensity.wind,
         isSolar: false,
@@ -268,7 +306,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'gas',
-        lcoe: lcoes.gas,
+        marginalCost: marginalCosts.gas,
         max: maxGen.gas,
         carbonIntensity: params.carbonIntensity.gas,
         isSolar: false,
@@ -276,7 +314,7 @@ export const dispatchModule: Module<
       },
       {
         name: 'coal',
-        lcoe: lcoes.coal,
+        marginalCost: marginalCosts.coal,
         max: maxGen.coal,
         carbonIntensity: params.carbonIntensity.coal,
         isSolar: false,
@@ -284,8 +322,9 @@ export const dispatchModule: Module<
       },
     ];
 
-    // Sort by LCOE (merit order)
-    sources.sort((a, b) => a.lcoe - b.lcoe);
+    // Sort by marginal cost (merit order) - NOT by LCOE
+    // Nuclear has high LCOE but low marginal cost, so it dispatches early
+    sources.sort((a, b) => a.marginalCost - b.marginalCost);
 
     // Find cheapest source
     const cheapestSource = sources[0].name as EnergySource;

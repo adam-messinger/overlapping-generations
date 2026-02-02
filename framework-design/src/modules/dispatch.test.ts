@@ -74,6 +74,7 @@ function createInputs(options: {
   windLCOE?: number;
   gasLCOE?: number;
   coalLCOE?: number;
+  carbonPrice?: number;
 } = {}) {
   return {
     electricityDemand: options.demand ?? 30000, // TWh
@@ -96,6 +97,7 @@ function createInputs(options: {
       battery: 140,
     },
     solarPlusBatteryLCOE: (options.solarLCOE ?? 35) + 20,
+    carbonPrice: options.carbonPrice ?? 35, // $/ton CO2
   };
 }
 
