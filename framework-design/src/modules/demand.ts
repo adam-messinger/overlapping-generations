@@ -33,6 +33,30 @@ interface RegionalEconomicParams {
   intensityDecline: number;  // Annual efficiency improvement rate
 }
 
+// Sector parameters
+interface SectorParams {
+  share: number;                  // Share of total final energy (sums to 1)
+  electrification2025: number;    // Current sector electrification rate
+  electrificationTarget: number;  // Target electrification rate
+  electrificationSpeed: number;   // Convergence rate
+}
+
+// Fuel parameters for non-electric energy
+interface FuelParams {
+  share2025: number;              // Share of non-electric in 2025
+  carbonIntensity: number;        // kg CO2 per MWh thermal
+  price: number;                  // Base fuel price $/MWh thermal
+}
+
+// Energy burden parameters
+interface EnergyBurdenParams {
+  threshold: number;              // Burden threshold (fraction of GDP, default 0.08)
+  elasticity: number;             // GDP damage per % excess burden (default 1.5)
+  maxDamage: number;              // Maximum GDP damage (fraction, default 0.30)
+  maxBurden: number;              // Historical max burden (fraction, default 0.14)
+  persistent: number;             // Fraction of damage that persists (default 0.25)
+}
+
 interface DemandParams {
   // Regional economic parameters
   regions: Record<Region, RegionalEconomicParams>;
@@ -42,6 +66,26 @@ interface DemandParams {
   electrificationTarget: number;  // 2050+ target (IEA Net Zero: 65%)
   electrificationSpeed: number;   // Logistic convergence rate
   demographicFactor: number;      // Dependency ratio impact on growth
+
+  // Sector-level parameters
+  sectors: {
+    transport: SectorParams;
+    buildings: SectorParams;
+    industry: SectorParams;
+  };
+
+  // Fuel mix for non-electric energy
+  fuels: {
+    oil: FuelParams;
+    gas: FuelParams;
+    coal: FuelParams;
+    biomass: FuelParams;
+    hydrogen: FuelParams;
+    biofuel: FuelParams;
+  };
+
+  // Energy burden parameters
+  energyBurden: EnergyBurdenParams;
 
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
@@ -73,6 +117,11 @@ interface DemandInputs {
   // Optional damage fractions for GDP feedback
   regionalDamages?: Record<Region, number>;
   energyBurdenDamage?: number;
+
+  // For energy burden calculation (from dispatch/energy)
+  electricityGeneration?: number;        // TWh
+  weightedAverageLCOE?: number;          // $/MWh (generation-weighted)
+  carbonPrice?: number;                  // $/tonne for fuel carbon cost
 }
 
 interface RegionalOutputs {
@@ -85,6 +134,27 @@ interface RegionalOutputs {
   gdpPerWorking: number;        // $ per working-age person
   electricityPerWorking: number; // kWh per working-age person
 }
+
+// Sector-level output
+interface SectorOutput {
+  total: number;                // TWh (sector total)
+  electric: number;             // TWh (electricity portion)
+  nonElectric: number;          // TWh (non-electric portion)
+  electrificationRate: number;  // Fraction electrified
+}
+
+// Fuel consumption output
+interface FuelOutput {
+  oil: number;        // TWh
+  gas: number;        // TWh
+  coal: number;       // TWh
+  biomass: number;    // TWh
+  hydrogen: number;   // TWh
+  biofuel: number;    // TWh
+}
+
+export type FuelType = 'oil' | 'gas' | 'coal' | 'biomass' | 'hydrogen' | 'biofuel';
+export type SectorType = 'transport' | 'buildings' | 'industry';
 
 interface DemandOutputs {
   // Regional outputs
@@ -99,6 +169,26 @@ interface DemandOutputs {
   gdpPerWorking: number;        // $ per person (global)
   electricityPerWorking: number; // kWh per person (global)
   finalEnergyPerCapitaDay: number; // kWh/person/day
+
+  // Sector breakdown
+  sectors: {
+    transport: SectorOutput;
+    buildings: SectorOutput;
+    industry: SectorOutput;
+  };
+
+  // Fuel consumption (non-electric only)
+  fuels: FuelOutput;
+
+  // Non-electric emissions (Gt CO2/year)
+  nonElectricEmissions: number;
+
+  // Energy burden outputs
+  electricityCost: number;   // $ trillions
+  fuelCost: number;          // $ trillions
+  totalEnergyCost: number;   // $ trillions
+  energyBurden: number;      // Fraction of GDP (0-1)
+  burdenDamage: number;      // GDP damage fraction (0-1)
 }
 
 // =============================================================================
@@ -154,6 +244,75 @@ export const demandDefaults: DemandParams = {
   electrificationSpeed: 0.08,   // Convergence rate
   demographicFactor: 0.015,     // Dependency ratio impact on growth
 
+  // Sector-level parameters (IEA-calibrated)
+  // Transport: EVs growing fast, aviation/shipping slow
+  // Buildings: Heat pumps, electric heating
+  // Industry: Electric arc furnaces, hydrogen steel
+  sectors: {
+    transport: {
+      share: 0.45,                // 45% of final energy (IEA)
+      electrification2025: 0.02,  // 2% (mostly rail)
+      electrificationTarget: 0.75, // 75% by 2100 (trucks, ships harder)
+      electrificationSpeed: 0.06, // Moderate S-curve
+    },
+    buildings: {
+      share: 0.30,                // 30% of final energy
+      electrification2025: 0.35,  // 35% (heating, appliances)
+      electrificationTarget: 0.90, // 90% (heat pumps dominate)
+      electrificationSpeed: 0.08, // Faster adoption
+    },
+    industry: {
+      share: 0.25,                // 25% of final energy
+      electrification2025: 0.30,  // 30% (motors, EAFs)
+      electrificationTarget: 0.60, // 60% (high-temp heat hard)
+      electrificationSpeed: 0.05, // Slower transition
+    },
+  },
+
+  // Fuel mix for non-electric energy (2025 shares, will evolve)
+  // Carbon intensities from IEA/IPCC, prices calibrated to IEA
+  fuels: {
+    oil: {
+      share2025: 0.50,           // Dominates transport
+      carbonIntensity: 267,      // kg CO2/MWh (gasoline/diesel)
+      price: 50,                 // $/MWh (~$80/barrel equivalent)
+    },
+    gas: {
+      share2025: 0.30,           // Heating, industry
+      carbonIntensity: 202,      // kg CO2/MWh
+      price: 25,                 // $/MWh (US/global blend)
+    },
+    coal: {
+      share2025: 0.12,           // Industrial heat, developing countries
+      carbonIntensity: 341,      // kg CO2/MWh
+      price: 15,                 // $/MWh (before carbon pricing)
+    },
+    biomass: {
+      share2025: 0.06,           // Traditional biomass
+      carbonIntensity: 100,      // kg CO2/MWh (net with regrowth)
+      price: 30,                 // $/MWh
+    },
+    hydrogen: {
+      share2025: 0.01,           // Negligible today
+      carbonIntensity: 0,        // Green hydrogen (assume clean)
+      price: 150,                // $/MWh (2025, will decline)
+    },
+    biofuel: {
+      share2025: 0.01,           // Aviation, blends
+      carbonIntensity: 50,       // kg CO2/MWh (lifecycle)
+      price: 80,                 // $/MWh
+    },
+  },
+
+  // Energy burden parameters (1970s oil shock calibrated)
+  energyBurden: {
+    threshold: 0.08,             // 8% of GDP is threshold (normal cheap energy)
+    elasticity: 1.5,             // GDP damage per % excess burden
+    maxDamage: 0.30,             // Max 30% GDP reduction
+    maxBurden: 0.14,             // 1970s crisis peak
+    persistent: 0.25,            // 25% of damage persists
+  },
+
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 };
 
@@ -189,6 +348,9 @@ export const demandModule: ModuleDefinition<
     'electricityPerWorking',
     'finalEnergyPerCapitaDay',
     'regional',
+    'sectors',
+    'fuels',
+    'nonElectricEmissions',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -240,6 +402,32 @@ export const demandModule: ModuleDefinition<
           merged.regions[region] = {
             ...demandDefaults.regions[region],
             ...partial.regions[region],
+          };
+        }
+      }
+    }
+
+    // Merge sectors
+    if (partial.sectors) {
+      merged.sectors = { ...demandDefaults.sectors };
+      for (const sector of ['transport', 'buildings', 'industry'] as const) {
+        if (partial.sectors[sector]) {
+          merged.sectors[sector] = {
+            ...demandDefaults.sectors[sector],
+            ...partial.sectors[sector],
+          };
+        }
+      }
+    }
+
+    // Merge fuels
+    if (partial.fuels) {
+      merged.fuels = { ...demandDefaults.fuels };
+      for (const fuel of ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const) {
+        if (partial.fuels[fuel]) {
+          merged.fuels[fuel] = {
+            ...demandDefaults.fuels[fuel],
+            ...partial.fuels[fuel],
           };
         }
       }
@@ -386,6 +574,126 @@ export const demandModule: ModuleDefinition<
     // TWh × 1e9 kWh/TWh / population / 365 days
     const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
+    // =========================================================================
+    // Sector-level breakdown with independent electrification curves
+    // =========================================================================
+    const sectorKeys = ['transport', 'buildings', 'industry'] as const;
+    const sectors = {} as Record<typeof sectorKeys[number], SectorOutput>;
+
+    for (const sectorKey of sectorKeys) {
+      const sectorParams = params.sectors[sectorKey];
+
+      // Sector-specific electrification rate (exponential convergence)
+      const sectorElecRate = sectorParams.electrificationTarget -
+        (sectorParams.electrificationTarget - sectorParams.electrification2025) *
+        Math.exp(-sectorParams.electrificationSpeed * t);
+
+      // Sector total energy
+      const sectorTotal = globalTotalFinal * sectorParams.share;
+      const sectorElectric = sectorTotal * sectorElecRate;
+      const sectorNonElectric = sectorTotal - sectorElectric;
+
+      sectors[sectorKey] = {
+        total: sectorTotal,
+        electric: sectorElectric,
+        nonElectric: sectorNonElectric,
+        electrificationRate: sectorElecRate,
+      };
+    }
+
+    // =========================================================================
+    // Fuel mix for non-electric energy (evolving over time)
+    // =========================================================================
+    // Fuel shares evolve: oil declines, hydrogen/biofuel grow
+    // Use logistic transition based on year
+    const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
+
+    // Calculate evolved fuel shares
+    // Oil and coal decline, hydrogen and biofuel grow
+    const transitionProgress = 1 - Math.exp(-0.03 * t); // 0 at 2025, ~0.78 at 2075
+
+    // Target shares by 2100 (hydrogen economy + biofuels for hard-to-electrify)
+    const targetShares: Record<typeof fuelKeys[number], number> = {
+      oil: 0.15,       // Reduced from 50% (aviation, chemicals)
+      gas: 0.20,       // Reduced from 30%
+      coal: 0.02,      // Nearly eliminated
+      biomass: 0.08,   // Slight increase
+      hydrogen: 0.35,  // Major growth (green hydrogen)
+      biofuel: 0.20,   // Aviation, shipping
+    };
+
+    // Interpolate between 2025 and target shares
+    const evolvedShares = {} as Record<typeof fuelKeys[number], number>;
+    let totalShare = 0;
+    for (const fuel of fuelKeys) {
+      const start = params.fuels[fuel].share2025;
+      const target = targetShares[fuel];
+      evolvedShares[fuel] = start + (target - start) * transitionProgress;
+      totalShare += evolvedShares[fuel];
+    }
+
+    // Normalize to ensure shares sum to 1
+    for (const fuel of fuelKeys) {
+      evolvedShares[fuel] /= totalShare;
+    }
+
+    // Calculate fuel consumption (TWh) and emissions (Gt CO2/year)
+    const fuels: FuelOutput = {
+      oil: 0,
+      gas: 0,
+      coal: 0,
+      biomass: 0,
+      hydrogen: 0,
+      biofuel: 0,
+    };
+
+    let nonElectricEmissions = 0; // Gt CO2/year
+
+    // Calculate fuel costs (with carbon pricing if provided)
+    const carbonPrice = inputs.carbonPrice ?? 0;
+    let fuelCost = 0; // $ trillions
+
+    for (const fuel of fuelKeys) {
+      const fuelConsumption = globalNonElec * evolvedShares[fuel];
+      fuels[fuel] = fuelConsumption;
+
+      // Emissions: TWh × 1e6 MWh/TWh × kg/MWh / 1e12 kg/Gt = Gt CO2
+      // Simplified: TWh × kg/MWh / 1e6 = Gt CO2
+      const emissions = (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
+      nonElectricEmissions += emissions;
+
+      // Fuel cost with carbon pricing
+      // Base price + (carbonIntensity kg/MWh × carbonPrice $/t / 1000 kg/t)
+      const carbonCost = (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
+      const effectivePrice = params.fuels[fuel].price + carbonCost;
+
+      // Cost: TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
+      fuelCost += (fuelConsumption * effectivePrice) / 1e6;
+    }
+
+    // =========================================================================
+    // Energy Burden Calculation
+    // =========================================================================
+    // Electricity cost: generation × weighted LCOE
+    // TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
+    const electricityGeneration = inputs.electricityGeneration ?? globalElec;
+    const avgLCOE = inputs.weightedAverageLCOE ?? 50; // Default assumption
+    const electricityCost = (electricityGeneration * avgLCOE) / 1e6;
+
+    const totalEnergyCost = electricityCost + fuelCost;
+    const energyBurden = totalEnergyCost / globalGdp;
+
+    // Energy burden damage: when burden exceeds threshold
+    let burdenDamage = 0;
+    if (energyBurden > params.energyBurden.threshold) {
+      const excessBurden = energyBurden - params.energyBurden.threshold;
+      // Linear damage up to max
+      burdenDamage = Math.min(
+        excessBurden * params.energyBurden.elasticity,
+        params.energyBurden.maxDamage
+      );
+    }
+
     return {
       state: {
         regions: newRegions,
@@ -401,6 +709,14 @@ export const demandModule: ModuleDefinition<
         gdpPerWorking: (globalGdp * 1e12) / globalWorking,
         electricityPerWorking: (globalElec * 1e9) / globalWorking,
         finalEnergyPerCapitaDay,
+        sectors,
+        fuels,
+        nonElectricEmissions,
+        electricityCost,
+        fuelCost,
+        totalEnergyCost,
+        energyBurden,
+        burdenDamage,
       },
     };
   },

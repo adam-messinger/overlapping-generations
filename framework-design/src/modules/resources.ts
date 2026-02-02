@@ -279,8 +279,8 @@ function calculateMineralDemand(
     grossDemandKg += additions.nuclear * 1000 * mineral.perMW_nuclear * intensityFactor;
   }
   if (mineral.perGWh_battery) {
-    // Battery additions are in GWh (capacity * 4h duration assumption)
-    const batteryGWh = additions.battery * 4;
+    // Battery additions are already in GWh (from energy module)
+    const batteryGWh = additions.battery;
     grossDemandKg += batteryGWh * mineral.perGWh_battery * intensityFactor;
   }
 

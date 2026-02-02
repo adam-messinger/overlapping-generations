@@ -244,9 +244,15 @@ export const dispatchModule: Module<
     }
 
     // Solar+battery capacity limited by battery storage
-    // Battery GWh can firm ~2x its capacity in solar (4h storage, solar produces ~8h)
+    // Battery capacity is in GWh; convert to GW for comparison with solar GW
+    // batteryGW = batteryGWh / batteryDuration (4h default)
     const batteryGWh = capacities.battery;
-    const solarCapacityFirmable = batteryGWh * 2; // GW of solar that battery can firm
+    const batteryDuration = 4; // hours
+    const batteryGW = batteryGWh / batteryDuration;
+
+    // Battery GW can firm roughly equal GW of solar (assumes 4h storage, 8h solar production)
+    // So solarCapacityFirmable (GW) ≈ batteryGW
+    const solarCapacityFirmable = batteryGW; // GW of solar that battery can firm
     maxGen['solarPlusBattery'] =
       (Math.min(capacities.solar * 0.5, solarCapacityFirmable) *
         params.capacityFactor.battery *

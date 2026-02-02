@@ -48,7 +48,14 @@ export interface EnergyParams {
   /** Battery round-trip efficiency */
   batteryEfficiency: number;
 
-  /** CAPEX per GW for investment constraint ($M/GW) */
+  /** Battery duration (hours) - converts GWh to GW */
+  batteryDuration: number;
+
+  /**
+   * CAPEX for investment constraint
+   * - Generators: $M/GW
+   * - Battery: $M/GWh
+   */
   capex: Record<EnergySource, number>;
 }
 
@@ -135,6 +142,7 @@ export const energyDefaults: EnergyParams = {
     coal: 45,
   },
   batteryEfficiency: 0.85,
+  batteryDuration: 4, // hours (for GWh → GW conversion)
   capex: {
     solar: 800,
     wind: 1200,
@@ -190,10 +198,10 @@ export interface EnergyOutputs {
   /** Cumulative capacity (for external tracking) */
   cumulativeCapacity: Record<EnergySource, number>;
 
-  /** Capacity additions this year (GW) */
+  /** Capacity additions this year (GW; GWh for battery) */
   additions: Record<EnergySource, number>;
 
-  /** Capacity retirements this year (GW) */
+  /** Capacity retirements this year (GW; GWh for battery) */
   retirements: Record<EnergySource, number>;
 
   /** Battery cost ($/kWh) */
@@ -351,8 +359,7 @@ export const energyModule: Module<
 
       // Demand ceiling constraint - can't overbuild beyond useful capacity
       // Use capacity factor and penetration limit to estimate useful capacity
-      const cf = source === 'battery' ? 0.2 :
-                 source === 'solar' ? 0.2 :
+      const cf = source === 'solar' ? 0.2 :
                  source === 'wind' ? 0.3 :
                  source === 'nuclear' ? 0.9 :
                  source === 'hydro' ? 0.42 : 0.5;
@@ -361,7 +368,19 @@ export const energyModule: Module<
                      source === 'nuclear' ? 0.3 :
                      source === 'hydro' ? 0.2 : 1.0;
       const maxUsefulGen = electricityDemand * maxPen;
-      const maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
+
+      // For battery: capacity is in GWh, so ceiling is also in GWh
+      // Battery should roughly match solar capacity for firming
+      // GWh needed ≈ solar GW × batteryDuration hours
+      let maxUsefulCapacity: number;
+      if (source === 'battery') {
+        // Battery GWh needed to firm solar: solarGW × duration
+        const solarGW = state.capacities.solar.installed;
+        maxUsefulCapacity = solarGW * params.batteryDuration;
+      } else {
+        // Generators: convert TWh demand to GW capacity
+        maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
+      }
       const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
 
       // Apply constraints (no investment constraint - demand-driven)
@@ -419,8 +438,16 @@ export const energyModule: Module<
       Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha);
 
     // Solar + battery combined LCOE
-    // 4h battery adds ~$15-30/MWh depending on cost
-    const batteryLCOEContribution = (batteryCost * 4) / (8760 * 0.2 / 1000) * 0.15;
+    // Battery adds to solar LCOE based on:
+    // - Battery cost ($/kWh) × 1000 = $/MWh storage capacity
+    // - Amortized over cycles: $/MWh × (1 / cycles_per_year)
+    // - A 4h battery with daily cycling: 365 cycles/year
+    // - Contribution = batteryCost($/kWh) × 1000 × duration / (cycles × duration)
+    //                = batteryCost × 1000 / cycles
+    // For daily cycling: batteryLCOEContribution = batteryCost $/kWh × 1000 / 365 ≈ batteryCost × 2.74 $/MWh
+    // Plus efficiency losses
+    const cyclesPerYear = 365; // Assume daily cycling
+    const batteryLCOEContribution = (batteryCost * 1000) / cyclesPerYear; // $/MWh
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 

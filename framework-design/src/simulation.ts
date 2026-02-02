@@ -27,6 +27,7 @@ import { demandModule, DemandParams } from './modules/demand.js';
 import { capitalModule, CapitalParams } from './modules/capital.js';
 import { energyModule, EnergyParams } from './modules/energy.js';
 import { dispatchModule, DispatchParams } from './modules/dispatch.js';
+import { expansionModule, ExpansionParams } from './modules/expansion.js';
 import { resourcesModule, ResourcesParams } from './modules/resources.js';
 import { climateModule, ClimateParams } from './modules/climate.js';
 import { Region, EnergySource } from './framework/types.js';
@@ -43,6 +44,7 @@ export interface SimulationParams {
   capital?: Partial<CapitalParams>;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
+  expansion?: Partial<ExpansionParams>;
   resources?: Partial<ResourcesParams>;
   climate?: Partial<ClimateParams>;
 }
@@ -62,7 +64,27 @@ export interface YearResult {
   electricityDemand: number;
   electrificationRate: number;
   totalFinalEnergy: number;
+  nonElectricEnergy: number;
   finalEnergyPerCapitaDay: number;
+
+  // Sectors
+  transportElectrification: number;
+  buildingsElectrification: number;
+  industryElectrification: number;
+
+  // Fuels (TWh)
+  oilConsumption: number;
+  gasConsumption: number;
+  coalConsumption: number;
+  hydrogenConsumption: number;
+
+  // Non-electric emissions (Gt CO2/year)
+  nonElectricEmissions: number;
+
+  // Energy burden
+  totalEnergyCost: number;    // $ trillions
+  energyBurden: number;       // Fraction of GDP
+  burdenDamage: number;       // GDP damage fraction
 
   // Capital
   capitalStock: number;
@@ -106,6 +128,12 @@ export interface YearResult {
   // Resources - Carbon
   forestNetFlux: number;
   cumulativeSequestration: number;
+
+  // G/C Expansion
+  robotLoadTWh: number;
+  expansionMultiplier: number;
+  adjustedDemand: number;
+  robotsPer1000: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
@@ -156,6 +184,7 @@ export class Simulation {
   private capitalParams: CapitalParams;
   private energyParams: EnergyParams;
   private dispatchParams: DispatchParams;
+  private expansionParams: ExpansionParams;
   private resourcesParams: ResourcesParams;
   private climateParams: ClimateParams;
 
@@ -170,6 +199,7 @@ export class Simulation {
     this.capitalParams = capitalModule.mergeParams(params.capital ?? {});
     this.energyParams = energyModule.mergeParams(params.energy ?? {});
     this.dispatchParams = dispatchModule.mergeParams(params.dispatch ?? {});
+    this.expansionParams = expansionModule.mergeParams(params.expansion ?? {});
     this.resourcesParams = resourcesModule.mergeParams(params.resources ?? {});
     this.climateParams = climateModule.mergeParams(params.climate ?? {});
   }
@@ -187,6 +217,7 @@ export class Simulation {
       { name: 'capital', result: capitalModule.validate(this.capitalParams) },
       { name: 'energy', result: energyModule.validate(this.energyParams) },
       { name: 'dispatch', result: dispatchModule.validate(this.dispatchParams) },
+      { name: 'expansion', result: expansionModule.validate(this.expansionParams) },
       { name: 'resources', result: resourcesModule.validate(this.resourcesParams) },
       { name: 'climate', result: climateModule.validate(this.climateParams) },
     ];
@@ -216,6 +247,7 @@ export class Simulation {
     let capitalState = capitalModule.init(this.capitalParams);
     let energyState = energyModule.init(this.energyParams);
     let dispatchState = dispatchModule.init(this.dispatchParams);
+    let expansionState = expansionModule.init(this.expansionParams);
     let resourcesState = resourcesModule.init(this.resourcesParams);
     let climateState = climateModule.init(this.climateParams);
 
@@ -307,10 +339,32 @@ export class Simulation {
       const energy = energyResult.outputs;
 
       // =======================================================================
-      // Step 5: Dispatch (needs demand, energy, carbon price)
+      // Step 5: G/C Expansion (needs demand, energy, demographics, capital)
+      // =======================================================================
+      // Find cheapest LCOE (for cost expansion calculation)
+      const cheapestLCOE = Math.min(...Object.values(energy.lcoes));
+
+      const expansionInputs = {
+        baseDemand: demand.electricityDemand,
+        cheapestLCOE,
+        workingPopulation: demo.working,
+        investmentRate: capital.savingsRate, // Use savings as proxy for investment capacity
+      };
+      const expansionResult = expansionModule.step(
+        expansionState,
+        expansionInputs,
+        this.expansionParams,
+        year,
+        yearIndex
+      );
+      expansionState = expansionResult.state;
+      const expansion = expansionResult.outputs;
+
+      // =======================================================================
+      // Step 6: Dispatch (uses adjusted demand from expansion)
       // =======================================================================
       const dispatchInputs = {
-        electricityDemand: demand.electricityDemand,
+        electricityDemand: expansion.adjustedDemand, // Use expanded demand
         capacities: energy.capacities,
         lcoes: energy.lcoes,
         solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
@@ -327,7 +381,7 @@ export class Simulation {
       const dispatch = dispatchResult.outputs;
 
       // =======================================================================
-      // Step 6: Resources (needs energy, demographics, demand, lagged temperature)
+      // Step 7: Resources (needs energy, demographics, demand, lagged temperature)
       // =======================================================================
       // Calculate GDP per capita for land use calculations
       const gdpPerCapita = (demand.gdp * 1e12) / demo.population;
@@ -364,12 +418,11 @@ export class Simulation {
       const resources = resourcesResult.outputs;
 
       // =======================================================================
-      // Step 7: Climate (needs emissions from dispatch + land use)
+      // Step 8: Climate (needs emissions from dispatch + land use)
       // =======================================================================
-      // Total emissions = electricity + non-electric + land use change
-      const nonElectricEmissions = 25 * (1 - demand.electrificationRate); // Rough proxy
+      // Total emissions = electricity + non-electric (fuel-based) + land use change
       const landUseEmissions = resources.carbon.netFlux; // Can be negative (sink)
-      const totalEmissions = dispatch.electricityEmissions + nonElectricEmissions + landUseEmissions;
+      const totalEmissions = dispatch.electricityEmissions + demand.nonElectricEmissions + landUseEmissions;
 
       const climateInputs = {
         emissions: totalEmissions,
@@ -385,12 +438,40 @@ export class Simulation {
       const climate = climateResult.outputs;
 
       // =======================================================================
+      // Step 9: Energy Burden (supply-side constraint)
+      // =======================================================================
+      // Electricity cost: TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
+      // Use generation-weighted LCOE (simplified: average of dispatched sources)
+      let totalGeneration = 0;
+      let weightedLCOE = 0;
+      for (const source of Object.keys(dispatch.generation) as Array<keyof typeof dispatch.generation>) {
+        const gen = dispatch.generation[source];
+        totalGeneration += gen;
+        weightedLCOE += gen * (energy.lcoes[source as keyof typeof energy.lcoes] ?? 50);
+      }
+      weightedLCOE = totalGeneration > 0 ? weightedLCOE / totalGeneration : 50;
+      const electricityCost = (totalGeneration * weightedLCOE) / 1e6;
+
+      // Fuel cost already in demand.fuelCost ($ trillions)
+      const totalEnergyCost = electricityCost + demand.fuelCost;
+      const energyBurden = totalEnergyCost / demand.gdp;
+
+      // Energy burden damage: when burden exceeds threshold (8%)
+      const burdenThreshold = 0.08;
+      const burdenElasticity = 1.5;
+      const maxBurdenDamage = 0.30;
+      let burdenDamage = 0;
+      if (energyBurden > burdenThreshold) {
+        const excessBurden = energyBurden - burdenThreshold;
+        burdenDamage = Math.min(excessBurden * burdenElasticity, maxBurdenDamage);
+      }
+
+      // =======================================================================
       // Update lagged values for next year's feedback
       // =======================================================================
       laggedDamages = climate.regionalDamages;
       laggedTemperature = climate.temperature;
-      // Energy burden damage would come from energy cost calculation (simplified here)
-      laggedBurdenDamage = 0; // TODO: implement energy burden feedback
+      laggedBurdenDamage = burdenDamage;
 
       // =======================================================================
       // Collect results
@@ -417,7 +498,27 @@ export class Simulation {
         electricityDemand: demand.electricityDemand,
         electrificationRate: demand.electrificationRate,
         totalFinalEnergy: demand.totalFinalEnergy,
+        nonElectricEnergy: demand.nonElectricEnergy,
         finalEnergyPerCapitaDay: demand.finalEnergyPerCapitaDay,
+
+        // Sectors
+        transportElectrification: demand.sectors.transport.electrificationRate,
+        buildingsElectrification: demand.sectors.buildings.electrificationRate,
+        industryElectrification: demand.sectors.industry.electrificationRate,
+
+        // Fuels
+        oilConsumption: demand.fuels.oil,
+        gasConsumption: demand.fuels.gas,
+        coalConsumption: demand.fuels.coal,
+        hydrogenConsumption: demand.fuels.hydrogen,
+
+        // Non-electric emissions
+        nonElectricEmissions: demand.nonElectricEmissions,
+
+        // Energy burden
+        totalEnergyCost,
+        energyBurden,
+        burdenDamage,
 
         // Capital
         capitalStock: capital.stock,
@@ -462,6 +563,12 @@ export class Simulation {
         forestNetFlux: resources.carbon.netFlux,
         cumulativeSequestration: resources.carbon.cumulativeSequestration,
 
+        // G/C Expansion
+        robotLoadTWh: expansion.robotLoadTWh,
+        expansionMultiplier: expansion.expansionMultiplier,
+        adjustedDemand: expansion.adjustedDemand,
+        robotsPer1000: expansion.robotsPer1000,
+
         // Regional
         regionalPopulation: demo.regionalPopulation,
         regionalGdp,
@@ -492,7 +599,7 @@ export class Simulation {
     let peakEmissions = 0;
     let peakEmissionsYear = 2025;
     for (const r of results) {
-      const totalEmissions = r.electricityEmissions + 25 * (1 - r.electrificationRate);
+      const totalEmissions = r.electricityEmissions + r.nonElectricEmissions;
       if (totalEmissions > peakEmissions) {
         peakEmissions = totalEmissions;
         peakEmissionsYear = r.year;
@@ -600,6 +707,7 @@ if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('sim
   console.log(`K/Y 2050: ${result.metrics.kY2050.toFixed(2)}`);
 
   // Resource metrics
+  const idx2025 = 0;
   const idx2050 = result.results.findIndex(r => r.year === 2050);
   const idx2100 = result.results.length - 1;
   console.log('\n=== Resources ===\n');
@@ -609,4 +717,62 @@ if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('sim
   console.log(`Farmland 2100: ${result.results[idx2100].farmland.toFixed(0)} Mha`);
   console.log(`Yield damage 2100: ${((1 - result.results[idx2100].yieldDamageFactor) * 100).toFixed(0)}%`);
   console.log(`Cumulative sequestration: ${result.results[idx2100].cumulativeSequestration.toFixed(1)} Gt CO2`);
+
+  // G/C Expansion metrics
+  console.log('\n=== G/C Expansion ===\n');
+  console.log(`Robot load 2025: ${result.results[idx2025].robotLoadTWh.toFixed(0)} TWh`);
+  console.log(`Robot load 2050: ${result.results[idx2050].robotLoadTWh.toFixed(0)} TWh`);
+  console.log(`Robot load 2100: ${result.results[idx2100].robotLoadTWh.toFixed(0)} TWh`);
+  console.log(`Robots/1000 workers 2025: ${result.results[idx2025].robotsPer1000.toFixed(1)}`);
+  console.log(`Robots/1000 workers 2100: ${result.results[idx2100].robotsPer1000.toFixed(1)}`);
+  console.log(`Expansion multiplier 2025: ${result.results[idx2025].expansionMultiplier.toFixed(2)}x`);
+  console.log(`Expansion multiplier 2050: ${result.results[idx2050].expansionMultiplier.toFixed(2)}x`);
+  console.log(`Expansion multiplier 2100: ${result.results[idx2100].expansionMultiplier.toFixed(2)}x`);
+  console.log(`Base demand 2025: ${result.results[idx2025].electricityDemand.toFixed(0)} TWh`);
+  console.log(`Adjusted demand 2025: ${result.results[idx2025].adjustedDemand.toFixed(0)} TWh`);
+  console.log(`Adjusted demand 2100: ${result.results[idx2100].adjustedDemand.toFixed(0)} TWh`);
+
+  // Sector electrification
+  console.log('\n=== Sector Electrification ===\n');
+  console.log(`Transport 2025: ${(result.results[idx2025].transportElectrification * 100).toFixed(0)}%`);
+  console.log(`Transport 2050: ${(result.results[idx2050].transportElectrification * 100).toFixed(0)}%`);
+  console.log(`Transport 2100: ${(result.results[idx2100].transportElectrification * 100).toFixed(0)}%`);
+  console.log(`Buildings 2025: ${(result.results[idx2025].buildingsElectrification * 100).toFixed(0)}%`);
+  console.log(`Buildings 2050: ${(result.results[idx2050].buildingsElectrification * 100).toFixed(0)}%`);
+  console.log(`Buildings 2100: ${(result.results[idx2100].buildingsElectrification * 100).toFixed(0)}%`);
+  console.log(`Industry 2025: ${(result.results[idx2025].industryElectrification * 100).toFixed(0)}%`);
+  console.log(`Industry 2050: ${(result.results[idx2050].industryElectrification * 100).toFixed(0)}%`);
+  console.log(`Industry 2100: ${(result.results[idx2100].industryElectrification * 100).toFixed(0)}%`);
+
+  // Fuel mix
+  console.log('\n=== Fuel Mix (non-electric TWh) ===\n');
+  console.log(`Non-electric 2025: ${result.results[idx2025].nonElectricEnergy.toFixed(0)} TWh`);
+  console.log(`Non-electric 2050: ${result.results[idx2050].nonElectricEnergy.toFixed(0)} TWh`);
+  console.log(`Non-electric 2100: ${result.results[idx2100].nonElectricEnergy.toFixed(0)} TWh`);
+  console.log(`Oil 2025: ${result.results[idx2025].oilConsumption.toFixed(0)} TWh`);
+  console.log(`Oil 2100: ${result.results[idx2100].oilConsumption.toFixed(0)} TWh`);
+  console.log(`Hydrogen 2025: ${result.results[idx2025].hydrogenConsumption.toFixed(0)} TWh`);
+  console.log(`Hydrogen 2100: ${result.results[idx2100].hydrogenConsumption.toFixed(0)} TWh`);
+  console.log(`Non-electric emissions 2025: ${result.results[idx2025].nonElectricEmissions.toFixed(1)} Gt`);
+  console.log(`Non-electric emissions 2100: ${result.results[idx2100].nonElectricEmissions.toFixed(1)} Gt`);
+
+  // Energy burden
+  console.log('\n=== Energy Burden ===\n');
+  console.log(`Energy cost 2025: $${result.results[idx2025].totalEnergyCost.toFixed(1)}T`);
+  console.log(`Energy cost 2050: $${result.results[idx2050].totalEnergyCost.toFixed(1)}T`);
+  console.log(`Energy cost 2100: $${result.results[idx2100].totalEnergyCost.toFixed(1)}T`);
+  console.log(`Energy burden 2025: ${(result.results[idx2025].energyBurden * 100).toFixed(1)}% of GDP`);
+  console.log(`Energy burden 2050: ${(result.results[idx2050].energyBurden * 100).toFixed(1)}% of GDP`);
+  console.log(`Energy burden 2100: ${(result.results[idx2100].energyBurden * 100).toFixed(1)}% of GDP`);
+
+  // Find peak burden
+  let peakBurden = 0;
+  let peakBurdenYear = 2025;
+  for (const r of result.results) {
+    if (r.energyBurden > peakBurden) {
+      peakBurden = r.energyBurden;
+      peakBurdenYear = r.year;
+    }
+  }
+  console.log(`Peak burden: ${(peakBurden * 100).toFixed(1)}% in ${peakBurdenYear}`);
 }
