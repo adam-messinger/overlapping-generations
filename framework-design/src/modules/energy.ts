@@ -57,6 +57,24 @@ export interface EnergyParams {
    * - Battery: $M/GWh
    */
   capex: Record<EnergySource, number>;
+
+  /**
+   * Clean energy share of investment (grows over time)
+   * cleanShare = cleanEnergyShare2025 + cleanEnergyShareGrowth × min(1, yearIndex/25)
+   */
+  cleanEnergyShare2025: number;
+  cleanEnergyShareGrowth: number;
+
+  /**
+   * Investment allocation across clean sources (must sum to 1.0)
+   * Determines how clean energy budget is split across sources
+   */
+  investmentAllocation: Partial<Record<EnergySource, number>>;
+
+  /**
+   * CAPEX learning rate (annual decline for solar/wind/battery)
+   */
+  capexLearningRate: number;
 }
 
 export const energyDefaults: EnergyParams = {
@@ -152,6 +170,21 @@ export const energyDefaults: EnergyParams = {
     gas: 800,
     coal: 2000,
   },
+
+  // Investment constraint parameters
+  cleanEnergyShare2025: 0.15,      // 15% of investment to clean energy in 2025
+  cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
+
+  investmentAllocation: {
+    solar: 0.40,       // 40% of clean budget to solar
+    wind: 0.25,        // 25% to wind
+    battery: 0.20,     // 20% to battery
+    nuclear: 0.10,     // 10% to nuclear
+    hydro: 0.05,       // 5% to hydro
+    // gas/coal: no allocation (handled separately)
+  },
+
+  capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
 };
 
 // =============================================================================
@@ -290,6 +323,12 @@ export const energyModule: Module<
     if (partial.capex) {
       result.capex = { ...energyDefaults.capex, ...partial.capex };
     }
+    if (partial.investmentAllocation) {
+      result.investmentAllocation = {
+        ...energyDefaults.investmentAllocation,
+        ...partial.investmentAllocation,
+      };
+    }
 
     return result;
   },
@@ -312,7 +351,7 @@ export const energyModule: Module<
   },
 
   step(state, inputs, params, year, yearIndex) {
-    const { electricityDemand } = inputs;
+    const { electricityDemand, availableInvestment, stabilityFactor } = inputs;
     const newCapacities: Record<EnergySource, CapacityState> = {} as any;
 
     const lcoes: Record<EnergySource, number> = {} as any;
@@ -321,7 +360,48 @@ export const energyModule: Module<
     const additions: Record<EnergySource, number> = {} as any;
     const retirements: Record<EnergySource, number> = {} as any;
 
-    // Demand-driven growth: investment follows demand, not the reverse
+    // =========================================================================
+    // Calculate investment-constrained capacity
+    // =========================================================================
+
+    // Clean energy share grows over time (e.g., 15% → 30% over 25 years)
+    const cleanShare = params.cleanEnergyShare2025 +
+      params.cleanEnergyShareGrowth * Math.min(1, yearIndex / 25);
+
+    // Total clean energy budget ($B)
+    // Investment is adjusted by stability factor (Galbraith/Chen uncertainty)
+    const cleanBudget = availableInvestment * cleanShare * stabilityFactor * 1000; // $T → $B
+
+    // CAPEX learning factor (declines 2%/year for solar/wind/battery)
+    const capexLearningFactor = Math.pow(1 - params.capexLearningRate, yearIndex);
+
+    // Calculate max additions from investment budget for each source
+    const investmentCap: Partial<Record<EnergySource, number>> = {};
+    for (const source of ENERGY_SOURCES) {
+      const allocation = params.investmentAllocation[source];
+      if (allocation !== undefined && allocation > 0) {
+        const budget = cleanBudget * allocation; // $B for this source
+        let capex = params.capex[source]; // $M/GW or $M/GWh
+
+        // Apply CAPEX learning to solar, wind, battery
+        if (source === 'solar' || source === 'wind' || source === 'battery') {
+          capex *= capexLearningFactor;
+        }
+
+        // Budget ($B) / CAPEX ($M/GW) × 1000 = GW (or GWh for battery)
+        investmentCap[source] = (budget / capex) * 1000;
+      } else if (source === 'gas') {
+        // Gas: no investment constraint
+        investmentCap[source] = Infinity;
+      } else if (source === 'coal') {
+        // Coal: no new investment
+        investmentCap[source] = 0;
+      }
+    }
+
+    // =========================================================================
+    // Calculate additions for each source
+    // =========================================================================
 
     for (const source of ENERGY_SOURCES) {
       const s = params.sources[source];
@@ -383,11 +463,14 @@ export const energyModule: Module<
       }
       const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
 
-      // Apply constraints (no investment constraint - demand-driven)
-      let addition = Math.max(0, targetAddition);
-      addition = Math.min(addition, growthCapped, ceilingRoom);
+      // Investment constraint (from capital model)
+      const investmentRoom = investmentCap[source] ?? Infinity;
 
-      // Coal: no new additions
+      // Apply all constraints: growth cap, demand ceiling, investment budget
+      let addition = Math.max(0, targetAddition);
+      addition = Math.min(addition, growthCapped, ceilingRoom, investmentRoom);
+
+      // Coal: no new additions (already constrained by investmentCap = 0)
       if (source === 'coal') {
         addition = 0;
       }
