@@ -66,6 +66,22 @@ export interface LandParams {
   yieldDamageCoeff: number;       // Quadratic damage coefficient
 }
 
+export interface FoodParams {
+  // Calories
+  caloriesPerCapita2025: number;  // kcal/day global average
+  caloriesGrowthRate: number;     // Annual growth (developing world catch-up)
+
+  // Bennett's Law - protein transition with wealth
+  proteinShare2025: number;       // Fraction of calories from protein
+  proteinShareMax: number;        // Saturation level (OECD)
+  proteinGDPHalfway: number;      // GDP/capita at halfway to max protein
+
+  // Conversion factors
+  grainToProteinRatio: number;    // kg grain per kg protein (feed conversion)
+  caloriesPerKgGrain: number;     // kcal per kg grain
+  proteinCaloriesPerKg: number;   // kcal per kg protein (meat/dairy)
+}
+
 export interface ResourcesParams {
   minerals: {
     copper: MineralParams;
@@ -74,6 +90,7 @@ export interface ResourcesParams {
     steel: MineralParams;
   };
   land: LandParams;
+  food: FoodParams;
 }
 
 export const resourcesDefaults: ResourcesParams = {
@@ -146,6 +163,21 @@ export const resourcesDefaults: ResourcesParams = {
     yieldDamageThreshold: 2.0,
     yieldDamageCoeff: 0.15,
   },
+  food: {
+    // Calories baseline (FAO global average)
+    caloriesPerCapita2025: 2800,  // kcal/day
+    caloriesGrowthRate: 0.002,    // 0.2%/year (developing world catch-up)
+
+    // Bennett's Law - protein share rises with income
+    proteinShare2025: 0.11,       // 11% of calories from protein (global avg)
+    proteinShareMax: 0.16,        // 16% saturation (OECD level)
+    proteinGDPHalfway: 15000,     // GDP/capita at halfway to max ($15k)
+
+    // Conversion factors
+    grainToProteinRatio: 6,       // kg grain per kg protein (feed conversion)
+    caloriesPerKgGrain: 3400,     // kcal per kg grain
+    proteinCaloriesPerKg: 4000,   // kcal per kg protein (meat/dairy avg)
+  },
 };
 
 // =============================================================================
@@ -197,9 +229,6 @@ export interface ResourcesInputs {
 
   /** Global temperature (°C above preindustrial) */
   temperature: number;
-
-  /** Food grain demand (Mt) - simplified, derived from population */
-  grainDemand: number;
 }
 
 export interface MineralOutput {
@@ -229,6 +258,12 @@ export interface CarbonOutput {
   cumulativeSequestration: number; // Gt CO2 total sequestered
 }
 
+export interface FoodOutput {
+  caloriesPerCapita: number;  // kcal/person/day
+  proteinShare: number;       // Fraction (0-0.16)
+  grainEquivalent: number;    // Mt/year (total grain needed for food)
+}
+
 export interface ResourcesOutputs {
   minerals: {
     copper: MineralOutput;
@@ -238,6 +273,7 @@ export interface ResourcesOutputs {
   };
   land: LandOutput;
   carbon: CarbonOutput;
+  food: FoodOutput;
 }
 
 // =============================================================================
@@ -295,6 +331,54 @@ function calculateMineralDemand(
   return { demand, grossDemand, recycled, recyclingRate: recycleRate };
 }
 
+/**
+ * Calculate food demand with Bennett's Law protein transition
+ *
+ * As people get richer, they eat more protein (meat/dairy), which requires
+ * more grain via feed conversion (~6kg grain per kg protein).
+ */
+function calculateFoodDemand(
+  population: number,
+  gdpPerCapita: number,
+  yearIndex: number,
+  food: FoodParams
+): FoodOutput {
+  // Base calories with slow growth for developing world catch-up
+  const caloriesPerCapita = food.caloriesPerCapita2025 *
+    Math.pow(1 + food.caloriesGrowthRate, yearIndex);
+
+  // Bennett's Law: protein share rises with income (logistic saturation)
+  // proteinShare = base + (max - base) × gdp/(gdp + halfwayGDP)
+  const proteinShare = food.proteinShare2025 +
+    (food.proteinShareMax - food.proteinShare2025) *
+    (gdpPerCapita / (gdpPerCapita + food.proteinGDPHalfway));
+
+  // Total calories per year (convert to useful units)
+  // population × kcal/day × 365 days = kcal/year
+  const totalCaloriesPerYear = population * caloriesPerCapita * 365;
+
+  // Split into protein and non-protein calories
+  const proteinCalories = totalCaloriesPerYear * proteinShare;
+  const nonProteinCalories = totalCaloriesPerYear - proteinCalories;
+
+  // Convert to grain equivalent (Mt)
+  // Direct grain: non-protein calories / caloriesPerKgGrain / 1e9 (kg → Mt)
+  const directGrainMt = nonProteinCalories / food.caloriesPerKgGrain / 1e9;
+
+  // Protein via livestock: protein calories / proteinCaloriesPerKg × grainToProteinRatio / 1e9
+  // This is the key Bennett's Law effect: more protein = much more grain
+  const proteinGrainMt =
+    (proteinCalories / food.proteinCaloriesPerKg) * food.grainToProteinRatio / 1e9;
+
+  const grainEquivalent = directGrainMt + proteinGrainMt;
+
+  return {
+    caloriesPerCapita,
+    proteinShare,
+    grainEquivalent,
+  };
+}
+
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
@@ -320,13 +404,13 @@ export const resourcesModule: Module<
     'gdpPerCapita',
     'gdpPerCapita2025',
     'temperature',
-    'grainDemand',
   ] as const,
 
   outputs: [
     'minerals',
     'land',
     'carbon',
+    'food',
   ] as const,
 
   validate(params: Partial<ResourcesParams>): ValidationResult {
@@ -409,9 +493,14 @@ export const resourcesModule: Module<
       gdpPerCapita,
       gdpPerCapita2025,
       temperature,
-      grainDemand,
     } = inputs;
-    const { land } = params;
+    const { land, food } = params;
+
+    // =========================================================================
+    // FOOD (Bennett's Law)
+    // =========================================================================
+    const foodOutput = calculateFoodDemand(population, gdpPerCapita, yearIndex, food);
+    const grainDemand = foodOutput.grainEquivalent;
 
     // =========================================================================
     // MINERALS
@@ -549,6 +638,7 @@ export const resourcesModule: Module<
         minerals: mineralOutputs,
         land: landOutput,
         carbon: carbonOutput,
+        food: foodOutput,
       },
     };
   },

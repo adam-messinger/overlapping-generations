@@ -125,6 +125,10 @@ export interface YearResult {
   desert: number;
   yieldDamageFactor: number;
 
+  // Resources - Food (Bennett's Law)
+  proteinShare: number;          // Fraction of calories from protein
+  grainEquivalent: number;       // Mt grain needed (direct + feed)
+
   // Resources - Carbon
   forestNetFlux: number;
   cumulativeSequestration: number;
@@ -389,15 +393,7 @@ export class Simulation {
         gdpPerCapita2025 = gdpPerCapita;
       }
 
-      // Grain equivalent demand (simplified from full food model)
-      // Calibrated to match 2025: ~4700 Mha farmland at 4.0 t/ha yield
-      // grainFarmland = 4700/4.9 = 959 Mha, grain = 959 * 4.0 = 3836 Mt
-      // At 8.3B people = 462 kg/person/year = 1.27 kg/person/day
-      // Grows slowly with wealth (protein transition increases feed demand)
-      const baseGrainPerCapita = 1.27; // kg/person/day
-      const wealthGrowth = Math.pow(gdpPerCapita / gdpPerCapita2025, 0.1); // Slight increase
-      const grainDemand = (demo.population / 1e9) * baseGrainPerCapita * wealthGrowth * 365; // Mt
-
+      // Resources module now calculates grain demand internally via Bennett's Law
       const resourcesInputs = {
         capacities: energy.capacities,
         additions: energy.additions,
@@ -405,7 +401,6 @@ export class Simulation {
         gdpPerCapita,
         gdpPerCapita2025,
         temperature: laggedTemperature,
-        grainDemand,
       };
       const resourcesResult = resourcesModule.step(
         resourcesState,
@@ -558,6 +553,10 @@ export class Simulation {
         forest: resources.land.forest,
         desert: resources.land.desert,
         yieldDamageFactor: resources.land.yieldDamageFactor,
+
+        // Resources - Food (Bennett's Law)
+        proteinShare: resources.food.proteinShare,
+        grainEquivalent: resources.food.grainEquivalent,
 
         // Resources - Carbon
         forestNetFlux: resources.carbon.netFlux,
@@ -800,6 +799,14 @@ async function runCLI() {
   console.log(`Farmland 2100: ${result.results[idx2100].farmland.toFixed(0)} Mha`);
   console.log(`Yield damage 2100: ${((1 - result.results[idx2100].yieldDamageFactor) * 100).toFixed(0)}%`);
   console.log(`Cumulative sequestration: ${result.results[idx2100].cumulativeSequestration.toFixed(1)} Gt CO2`);
+
+  console.log('\n=== Food (Bennett\'s Law) ===\n');
+  console.log(`Protein share 2025: ${(result.results[idx2025].proteinShare * 100).toFixed(1)}%`);
+  console.log(`Protein share 2050: ${(result.results[idx2050].proteinShare * 100).toFixed(1)}%`);
+  console.log(`Protein share 2100: ${(result.results[idx2100].proteinShare * 100).toFixed(1)}%`);
+  console.log(`Grain demand 2025: ${result.results[idx2025].grainEquivalent.toFixed(0)} Mt`);
+  console.log(`Grain demand 2050: ${result.results[idx2050].grainEquivalent.toFixed(0)} Mt`);
+  console.log(`Grain demand 2100: ${result.results[idx2100].grainEquivalent.toFixed(0)} Mt`);
 
   // G/C Expansion metrics
   console.log('\n=== G/C Expansion ===\n');

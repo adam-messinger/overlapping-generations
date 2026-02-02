@@ -68,7 +68,6 @@ function createInputs(options: {
   population?: number;
   gdpPerCapita?: number;
   temperature?: number;
-  grainDemand?: number;
 } = {}) {
   return {
     capacities: {
@@ -93,7 +92,7 @@ function createInputs(options: {
     gdpPerCapita: options.gdpPerCapita ?? 14000,
     gdpPerCapita2025: 14000,
     temperature: options.temperature ?? 1.3,
-    grainDemand: options.grainDemand ?? 2800, // Mt
+    // grainDemand is now calculated internally via Bennett's Law
   };
 }
 
@@ -211,9 +210,10 @@ test('reserve ratio calculated correctly', () => {
 
 console.log('\n--- Land Use ---\n');
 
-test('farmland responds to grain demand', () => {
-  const low = runYears(1, { grainDemand: 2000 }).outputs.land.farmland;
-  const high = runYears(1, { grainDemand: 4000 }).outputs.land.farmland;
+test('farmland responds to gdpPerCapita (Bennett\'s Law)', () => {
+  // Higher GDP → more protein → more grain (feed conversion) → more farmland
+  const low = runYears(1, { gdpPerCapita: 5000 }).outputs.land.farmland;
+  const high = runYears(1, { gdpPerCapita: 50000 }).outputs.land.farmland;
   expect(high).toBeGreaterThan(low);
 });
 
@@ -270,20 +270,20 @@ test('desert is residual from land budget', () => {
 console.log('\n--- Forest Carbon ---\n');
 
 test('sequestration from forest growth', () => {
-  // Low grain demand = less farmland = more forest = sequestration
-  const { outputs } = runYears(5, { grainDemand: 2000 });
+  // Lower GDP = less protein = less grain = less farmland = more forest = sequestration
+  const { outputs } = runYears(5, { gdpPerCapita: 8000, population: 6e9 });
   expect(outputs.carbon.sequestration).toBeGreaterThan(0);
 });
 
 test('deforestation emissions from forest loss', () => {
-  // High grain demand = more farmland = less forest = emissions
-  const { outputs } = runYears(5, { grainDemand: 5000 });
+  // High population + high GDP = high grain demand = more farmland = less forest = emissions
+  const { outputs } = runYears(5, { population: 12e9, gdpPerCapita: 40000 });
   expect(outputs.carbon.deforestationEmissions >= 0).toBeTrue();
 });
 
 test('cumulative sequestration increases over time', () => {
-  const year5 = runYears(5, { grainDemand: 2000 }).outputs.carbon.cumulativeSequestration;
-  const year20 = runYears(20, { grainDemand: 2000 }).outputs.carbon.cumulativeSequestration;
+  const year5 = runYears(5, { population: 6e9, gdpPerCapita: 8000 }).outputs.carbon.cumulativeSequestration;
+  const year20 = runYears(20, { population: 6e9, gdpPerCapita: 8000 }).outputs.carbon.cumulativeSequestration;
   expect(year20).toBeGreaterThan(year5);
 });
 
@@ -294,9 +294,52 @@ test('net flux can be positive or negative', () => {
 
 test('decay emissions from decay pool', () => {
   // After deforestation, decay pool accumulates and emits
-  const { outputs, state } = runYears(5, { grainDemand: 5000 });
+  const { outputs, state } = runYears(5, { population: 12e9, gdpPerCapita: 40000 });
   // Decay emissions should be non-negative
   expect(outputs.carbon.decayEmissions >= 0).toBeTrue();
+});
+
+// --- Food (Bennett's Law) ---
+
+console.log('\n--- Food (Bennett\'s Law) ---\n');
+
+test('food output includes calories per capita', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.food.caloriesPerCapita).toBeGreaterThan(2500);
+  expect(outputs.food.caloriesPerCapita).toBeLessThan(3500);
+});
+
+test('protein share increases with GDP', () => {
+  const lowGDP = runYears(1, { gdpPerCapita: 5000 }).outputs.food.proteinShare;
+  const highGDP = runYears(1, { gdpPerCapita: 50000 }).outputs.food.proteinShare;
+  expect(highGDP).toBeGreaterThan(lowGDP);
+});
+
+test('protein share saturates at max', () => {
+  const { outputs } = runYears(1, { gdpPerCapita: 100000 });
+  // Should be close to max (0.16) but not exceed it
+  expect(outputs.food.proteinShare <= 0.16).toBeTrue();
+  expect(outputs.food.proteinShare).toBeGreaterThan(0.14);
+});
+
+test('grain equivalent increases with population', () => {
+  const lowPop = runYears(1, { population: 6e9 }).outputs.food.grainEquivalent;
+  const highPop = runYears(1, { population: 10e9 }).outputs.food.grainEquivalent;
+  expect(highPop).toBeGreaterThan(lowPop);
+});
+
+test('grain equivalent increases with wealth (more protein = more feed)', () => {
+  const lowWealth = runYears(1, { gdpPerCapita: 5000 }).outputs.food.grainEquivalent;
+  const highWealth = runYears(1, { gdpPerCapita: 50000 }).outputs.food.grainEquivalent;
+  // Higher wealth → more protein → ~6x more grain per calorie
+  expect(highWealth).toBeGreaterThan(lowWealth);
+});
+
+test('grain equivalent is reasonable magnitude', () => {
+  // 2025 calibration: ~3800-4000 Mt grain equivalent
+  const { outputs } = runYears(1, { population: 8.3e9, gdpPerCapita: 14000 });
+  expect(outputs.food.grainEquivalent).toBeGreaterThan(3000);
+  expect(outputs.food.grainEquivalent).toBeLessThan(5000);
 });
 
 // --- Validation ---
@@ -353,6 +396,7 @@ test('module declares correct outputs', () => {
   expect(resourcesModule.outputs.includes('minerals')).toBeTrue();
   expect(resourcesModule.outputs.includes('land')).toBeTrue();
   expect(resourcesModule.outputs.includes('carbon')).toBeTrue();
+  expect(resourcesModule.outputs.includes('food')).toBeTrue();
 });
 
 // =============================================================================
