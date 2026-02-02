@@ -344,10 +344,16 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
       const history = lagHistory.get(inputName)!;
       // Shift: remove oldest, add newest
       history.shift();
-      const sourceValue = currentOutputs[lagConfig.source];
+
+      // Check outputs first, then transforms for the source value
+      let sourceValue = currentOutputs[lagConfig.source];
+      if (sourceValue === undefined && transforms[lagConfig.source]) {
+        // Source is a transform, compute it
+        sourceValue = transforms[lagConfig.source](currentOutputs, year, yearIndex);
+      }
       if (sourceValue === undefined) {
         throw new Error(
-          `Lag source '${lagConfig.source}' for input '${inputName}' not found in outputs.`
+          `Lag source '${lagConfig.source}' for input '${inputName}' not found in outputs or transforms.`
         );
       }
       history.push(sourceValue);

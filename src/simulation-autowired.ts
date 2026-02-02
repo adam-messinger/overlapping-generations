@@ -104,6 +104,26 @@ const transforms = {
 
   // Resources needs population from demographics (already output, but name might differ)
   population: (outputs: Record<string, any>) => outputs.population,
+
+  // Demand needs electricityGeneration (from dispatch.totalGeneration)
+  electricityGeneration: (outputs: Record<string, any>) => outputs.totalGeneration,
+
+  // Demand needs weightedAverageLCOE (derived from generation-weighted lcoes)
+  weightedAverageLCOE: (outputs: Record<string, any>) => {
+    const generation = outputs.generation;
+    const lcoes = outputs.lcoes;
+    if (!generation || !lcoes) return 50; // Default
+
+    let totalGen = 0;
+    let weightedSum = 0;
+    for (const source of Object.keys(generation)) {
+      const gen = generation[source] ?? 0;
+      const lcoe = lcoes[source] ?? 50;
+      totalGen += gen;
+      weightedSum += gen * lcoe;
+    }
+    return totalGen > 0 ? weightedSum / totalGen : 50;
+  },
 };
 
 // =============================================================================
@@ -140,6 +160,13 @@ const lags = {
     source: 'temperature',
     delay: 1,
     initial: 1.2,
+  },
+
+  // Demand needs lagged average LCOE for cost-driven electrification
+  laggedAvgLCOE: {
+    source: 'weightedAverageLCOE',
+    delay: 1,
+    initial: 50, // $/MWh default
   },
 };
 

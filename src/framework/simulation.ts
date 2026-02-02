@@ -315,15 +315,67 @@ export class Simulation {
       const prev = previous[key];
       if (prev === undefined) continue;
 
-      if (typeof value === 'number' && typeof prev === 'number') {
-        const diff = Math.abs(value - prev) / (Math.abs(prev) + 1e-10);
-        if (diff > this.config.convergenceThreshold) {
-          return false;
-        }
+      if (!this.valuesConverged(value, prev)) {
+        return false;
       }
     }
 
     return true;
+  }
+
+  /**
+   * Recursively check if two values have converged
+   */
+  private valuesConverged(current: any, previous: any): boolean {
+    // Handle nulls/undefined
+    if (current === null || current === undefined) {
+      return previous === null || previous === undefined;
+    }
+    if (previous === null || previous === undefined) {
+      return false;
+    }
+
+    // Numeric comparison with threshold
+    if (typeof current === 'number' && typeof previous === 'number') {
+      const diff = Math.abs(current - previous) / (Math.abs(previous) + 1e-10);
+      return diff <= this.config.convergenceThreshold;
+    }
+
+    // Boolean/string exact match
+    if (typeof current === 'boolean' || typeof current === 'string') {
+      return current === previous;
+    }
+
+    // Array comparison
+    if (Array.isArray(current) && Array.isArray(previous)) {
+      if (current.length !== previous.length) return false;
+      for (let i = 0; i < current.length; i++) {
+        if (!this.valuesConverged(current[i], previous[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Object comparison (Record types)
+    if (typeof current === 'object' && typeof previous === 'object') {
+      const currentKeys = Object.keys(current);
+      const previousKeys = Object.keys(previous);
+
+      // Different keys = not converged
+      if (currentKeys.length !== previousKeys.length) return false;
+
+      for (const key of currentKeys) {
+        if (!(key in previous)) return false;
+        if (!this.valuesConverged(current[key], previous[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Fallback: exact equality
+    return current === previous;
   }
 }
 
