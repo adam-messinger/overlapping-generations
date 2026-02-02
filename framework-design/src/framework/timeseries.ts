@@ -5,8 +5,8 @@
  * that exist in the current energy-sim.js
  */
 
-import { Year, YearIndex, Region } from './types';
-import { SimulationResults } from './simulation';
+import { Year, YearIndex, Region } from './types.js';
+import { SimulationResults } from './simulation.js';
 
 /**
  * Time series type
@@ -222,7 +222,7 @@ export const query = {
 
     if (!values || !pop) return null;
 
-    return values.map((v, i) => v / (pop[i] || 1));
+    return values.map((v: number, i: number) => v / (pop[i] || 1));
   },
 
   /**
@@ -268,7 +268,7 @@ export const query = {
     if (startIdx === -1 || endIdx === -1) return null;
 
     const slice = series.slice(startIdx, endIdx + 1);
-    return slice.reduce((a, b) => a + b, 0) / slice.length;
+    return slice.reduce((a: number, b: number) => a + b, 0) / slice.length;
   },
 };
 

@@ -8,9 +8,9 @@
  * - Time series collection
  */
 
-import { Module, ModuleOutputs } from './module';
-import { Year, YearIndex } from './types';
-import { TimeSeries, TimeSeriesStore } from './timeseries';
+import { Module, ModuleOutputs } from './module.js';
+import { Year, YearIndex } from './types.js';
+import { TimeSeries, TimeSeriesStore } from './timeseries.js';
 
 /**
  * Registered module with runtime type info

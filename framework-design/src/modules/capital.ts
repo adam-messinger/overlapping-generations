@@ -17,13 +17,14 @@
  * - Galbraith/Chen (2021): Uncertainty premium on investment
  */
 
-import { REGIONS, Region, ModuleDefinition } from '../framework/types.js';
+import { REGIONS, Region } from '../framework/types.js';
+import { Module } from '../framework/module.js';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-interface CapitalParams {
+export interface CapitalParams {
   // Production
   alpha: number;              // Capital share in Cobb-Douglas (~0.33)
   depreciation: number;       // Annual depreciation rate (~0.05)
@@ -184,13 +185,15 @@ function calculateRobotsDensity(
 // MODULE DEFINITION
 // =============================================================================
 
-export const capitalModule: ModuleDefinition<
+export const capitalModule: Module<
   CapitalParams,
   CapitalState,
   CapitalInputs,
   CapitalOutputs
 > = {
   name: 'capital',
+  description: 'OLG capital accumulation with demographic-weighted savings',
+  defaults: capitalDefaults,
 
   inputs: [
     'regionalYoung',

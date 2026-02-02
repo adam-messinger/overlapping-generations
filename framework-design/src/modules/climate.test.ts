@@ -5,7 +5,7 @@
  * No need to set up demographics, demand, or any other module.
  */
 
-import { climateModule, climateDefaults } from './climate';
+import { climateModule, climateDefaults } from './climate.js';
 
 // Simple test framework (would use Jest/Vitest in real project)
 function test(name: string, fn: () => void) {

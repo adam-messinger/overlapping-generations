@@ -9,7 +9,7 @@
  * - Pure step function (no side effects)
  */
 
-import { YearIndex, Year, ValidationResult } from './types';
+import { YearIndex, Year, ValidationResult } from './types.js';
 
 /**
  * Module definition interface

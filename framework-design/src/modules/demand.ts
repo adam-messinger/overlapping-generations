@@ -19,7 +19,8 @@
  * - demographicAdj penalizes high dependency ratios
  */
 
-import { REGIONS, Region, ModuleDefinition } from '../framework/types.js';
+import { REGIONS, Region } from '../framework/types.js';
+import { Module } from '../framework/module.js';
 
 // =============================================================================
 // TYPES
@@ -57,7 +58,7 @@ interface EnergyBurdenParams {
   persistent: number;             // Fraction of damage that persists (default 0.25)
 }
 
-interface DemandParams {
+export interface DemandParams {
   // Regional economic parameters
   regions: Record<Region, RegionalEconomicParams>;
 
@@ -320,13 +321,15 @@ export const demandDefaults: DemandParams = {
 // MODULE DEFINITION
 // =============================================================================
 
-export const demandModule: ModuleDefinition<
+export const demandModule: Module<
   DemandParams,
   DemandState,
   DemandInputs,
   DemandOutputs
 > = {
   name: 'demand',
+  description: 'GDP and electricity demand model with regional economics',
+  defaults: demandDefaults,
 
   inputs: [
     'regionalPopulation',

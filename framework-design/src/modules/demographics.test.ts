@@ -5,8 +5,8 @@
  * Validates against Fernández-Villaverde calibration targets.
  */
 
-import { demographicsModule, demographicsDefaults } from './demographics';
-import { REGIONS } from '../framework/types';
+import { demographicsModule, demographicsDefaults } from './demographics.js';
+import { REGIONS } from '../framework/types.js';
 
 // Simple test framework
 let passed = 0;
