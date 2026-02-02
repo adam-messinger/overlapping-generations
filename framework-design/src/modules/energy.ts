@@ -13,9 +13,9 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module } from '../framework/module';
-import { EnergySource, ENERGY_SOURCES, ValidationResult } from '../framework/types';
-import { learningCurve, depletion } from '../primitives/math';
+import { defineModule, Module } from '../framework/module.js';
+import { EnergySource, ENERGY_SOURCES, ValidationResult } from '../framework/types.js';
+import { learningCurve, depletion } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS

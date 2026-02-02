@@ -14,9 +14,9 @@
  * - regionalDamages: Per-region damage fractions
  */
 
-import { defineModule, Module } from '../framework/module';
-import { Region, REGIONS, ValidationResult } from '../framework/types';
-import { quadraticDamage, smoothStep } from '../primitives/math';
+import { defineModule, Module } from '../framework/module.js';
+import { Region, REGIONS, ValidationResult } from '../framework/types.js';
+import { quadraticDamage, smoothStep } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS

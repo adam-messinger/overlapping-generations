@@ -16,8 +16,8 @@
  * - emissions: Gt CO2 from electricity
  */
 
-import { defineModule, Module } from '../framework/module';
-import { EnergySource, ENERGY_SOURCES, ValidationResult } from '../framework/types';
+import { defineModule, Module } from '../framework/module.js';
+import { EnergySource, ENERGY_SOURCES, ValidationResult } from '../framework/types.js';
 
 // =============================================================================
 // PARAMETERS
