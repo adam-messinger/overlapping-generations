@@ -235,6 +235,83 @@ test('buildDependencyGraph allows transforms for computed inputs', () => {
   expect(graph.size).toBe(2);
 });
 
+test('transforms with dependsOn create proper dependency edges', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces rawValue',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['rawValue'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { rawValue: 42 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Consumes derivedValue (provided by transform)',
+    defaults: {},
+    inputs: ['derivedValue'] as const,
+    outputs: ['result'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { result: inputs.derivedValue * 2 } }),
+  });
+
+  const transforms = {
+    derivedValue: {
+      fn: (outputs: Record<string, any>) => outputs.rawValue * 2,
+      dependsOn: ['rawValue'],
+    },
+  };
+
+  const registry = buildOutputRegistry([producer, consumer]);
+  const graph = buildDependencyGraph([producer, consumer], registry, transforms);
+
+  // Consumer should depend on producer (via transform's dependsOn)
+  expect(graph.get('consumer')!.dependsOn.has('producer')).toBeTrue();
+  expect(graph.get('producer')!.providesTo.has('consumer')).toBeTrue();
+});
+
+test('transforms without dependsOn (bare functions) still work but create no edges', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces rawValue',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['rawValue'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { rawValue: 42 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Consumes derivedValue (provided by transform)',
+    defaults: {},
+    inputs: ['derivedValue'] as const,
+    outputs: ['result'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { result: inputs.derivedValue * 2 } }),
+  });
+
+  // Bare function - backwards compatible but no dependency edge
+  const transforms = {
+    derivedValue: (outputs: Record<string, any>) => outputs.rawValue * 2,
+  };
+
+  const registry = buildOutputRegistry([producer, consumer]);
+  const graph = buildDependencyGraph([producer, consumer], registry, transforms);
+
+  // Consumer should NOT depend on producer (bare function has no dependsOn)
+  expect(graph.get('consumer')!.dependsOn.has('producer')).toBeFalse();
+});
+
 // =============================================================================
 // TESTS: TOPOLOGICAL SORT
 // =============================================================================

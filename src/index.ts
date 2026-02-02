@@ -29,5 +29,10 @@ export { compound, learningCurve, depletion, logistic, poissonShock } from './pr
 export { describeParameters, buildParams, listParameters } from './introspection.js';
 export type { ParameterInfo, ParameterSchema } from './introspection.js';
 
+// Auto-wired simulation
+export { runAutowired, buildOutputRegistry, buildDependencyGraph, topologicalSort, getOutputsAtYear, getTimeSeries } from './framework/autowire.js';
+export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AnyModule } from './framework/autowire.js';
+export { runAutowiredSimulation } from './simulation-autowired.js';
+
 // Types
 export type { Region, EnergySource, ValidationResult } from './framework/types.js';

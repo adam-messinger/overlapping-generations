@@ -29,6 +29,31 @@ export type AnyModule = Module<any, any, any, any>;
 export type TransformFn = (outputs: Record<string, any>, year: Year, yearIndex: YearIndex) => any;
 
 /**
+ * Transform configuration with explicit dependencies
+ */
+export interface TransformConfig {
+  /** Function that computes the transform */
+  fn: TransformFn;
+  /** Output names this transform reads (creates dependency edges) */
+  dependsOn: string[];
+}
+
+/**
+ * Transform entry: either a bare function (backwards compat) or config with dependencies
+ */
+export type TransformEntry = TransformFn | TransformConfig;
+
+/**
+ * Normalize a transform entry to TransformConfig
+ */
+function normalizeTransform(entry: TransformEntry): TransformConfig {
+  if (typeof entry === 'function') {
+    return { fn: entry, dependsOn: [] };  // Backwards compat: no deps
+  }
+  return entry;
+}
+
+/**
  * Lag configuration for feedback loops
  */
 export interface LagConfig {
@@ -49,9 +74,9 @@ export interface AutowireConfig {
 
   /**
    * Transforms: compute derived inputs from outputs
-   * Key is the input name, value is a function that computes it
+   * Key is the input name, value is a function or config with dependencies
    */
-  transforms?: Record<string, TransformFn>;
+  transforms?: Record<string, TransformEntry>;
 
   /**
    * Lags: handle feedback loops with delayed values
@@ -116,7 +141,7 @@ export function buildOutputRegistry(modules: AnyModule[]): Map<string, string> {
 export function buildDependencyGraph(
   modules: AnyModule[],
   outputRegistry: Map<string, string>,
-  transforms: Record<string, TransformFn> = {},
+  transforms: Record<string, TransformEntry> = {},
   lags: Record<string, LagConfig> = {}
 ): Map<string, DepNode> {
   const graph = new Map<string, DepNode>();
@@ -137,8 +162,22 @@ export function buildDependencyGraph(
     for (const input of mod.inputs) {
       const inputName = input as string;
 
-      // Skip if this input is provided by a transform or lag
-      if (transforms[inputName] || lags[inputName]) {
+      // Handle transforms - now with dependency tracking
+      if (transforms[inputName]) {
+        const config = normalizeTransform(transforms[inputName]);
+        // Add edges for transform's declared dependencies
+        for (const depOutput of config.dependsOn) {
+          const provider = outputRegistry.get(depOutput);
+          if (provider && provider !== mod.name) {
+            node.dependsOn.add(provider);
+            graph.get(provider)!.providesTo.add(mod.name);
+          }
+        }
+        continue;  // Input is handled by transform
+      }
+
+      // Handle lags (unchanged - lags break cycles intentionally)
+      if (lags[inputName]) {
         continue;
       }
 
@@ -299,7 +338,8 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
 
         // Check transforms first
         if (transforms[inputName]) {
-          inputs[inputName] = transforms[inputName](currentOutputs, year, yearIndex);
+          const config = normalizeTransform(transforms[inputName]);
+          inputs[inputName] = config.fn(currentOutputs, year, yearIndex);
           continue;
         }
 
@@ -349,7 +389,8 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
       let sourceValue = currentOutputs[lagConfig.source];
       if (sourceValue === undefined && transforms[lagConfig.source]) {
         // Source is a transform, compute it
-        sourceValue = transforms[lagConfig.source](currentOutputs, year, yearIndex);
+        const config = normalizeTransform(transforms[lagConfig.source]);
+        sourceValue = config.fn(currentOutputs, year, yearIndex);
       }
       if (sourceValue === undefined) {
         throw new Error(

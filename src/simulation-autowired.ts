@@ -25,104 +25,178 @@ import { Region } from './framework/types.js';
 /**
  * Transforms compute derived inputs from available outputs.
  * These handle cases where the input isn't a direct 1:1 mapping.
+ *
+ * Each transform declares its dependencies via `dependsOn` so the
+ * dependency graph builder can create proper execution order.
  */
 const transforms = {
   // Energy needs availableInvestment (from capital.investment)
-  availableInvestment: (outputs: Record<string, any>) => outputs.investment ?? 30,
+  availableInvestment: {
+    fn: (outputs: Record<string, any>) => outputs.investment ?? 30,
+    dependsOn: ['investment'],
+  },
 
   // Energy needs stabilityFactor (from capital.stability)
-  stabilityFactor: (outputs: Record<string, any>) => outputs.stability ?? 1.0,
+  stabilityFactor: {
+    fn: (outputs: Record<string, any>) => outputs.stability ?? 1.0,
+    dependsOn: ['stability'],
+  },
 
   // Expansion needs cheapest LCOE (derived from lcoes record)
-  cheapestLCOE: (outputs: Record<string, any>) => {
-    const lcoes = outputs.lcoes;
-    if (!lcoes) return 50; // Default
-    return Math.min(...Object.values(lcoes) as number[]);
+  cheapestLCOE: {
+    fn: (outputs: Record<string, any>) => {
+      const lcoes = outputs.lcoes;
+      if (!lcoes) return 50; // Default
+      return Math.min(...Object.values(lcoes) as number[]);
+    },
+    dependsOn: ['lcoes'],
   },
 
   // Expansion uses baseDemand (same as electricityDemand)
-  baseDemand: (outputs: Record<string, any>) => outputs.electricityDemand,
-
-  // Expansion uses workingPopulation (same as working)
-  workingPopulation: (outputs: Record<string, any>) => outputs.working,
-
-  // Expansion uses investmentRate (from savingsRate)
-  investmentRate: (outputs: Record<string, any>) => outputs.savingsRate,
-
-  // Capital uses effectiveWorkers from demographics
-  effectiveWorkers: (outputs: Record<string, any>) => outputs.effectiveWorkers,
-
-  // Capital uses gdp from demand
-  gdp: (outputs: Record<string, any>) => outputs.gdp,
-
-  // Dispatch uses adjusted demand from expansion
-  electricityDemand: (outputs: Record<string, any>) =>
-    outputs.adjustedDemand ?? outputs.electricityDemand ?? 30000,
-
-  // Resources needs gdpPerCapita (derived)
-  gdpPerCapita: (outputs: Record<string, any>) => {
-    const gdp = outputs.gdp ?? 120;
-    const pop = outputs.population ?? 8e9;
-    return (gdp * 1e12) / pop;
+  baseDemand: {
+    fn: (outputs: Record<string, any>) => outputs.electricityDemand,
+    dependsOn: ['electricityDemand'],
   },
 
-  // Resources needs gdpPerCapita2025 (capture from year 0)
-  gdpPerCapita2025: (outputs: Record<string, any>, _year: number, yearIndex: number) => {
-    // For simplicity, calculate same as gdpPerCapita for year 0
-    if (yearIndex === 0) {
+  // Expansion uses workingPopulation (same as working)
+  workingPopulation: {
+    fn: (outputs: Record<string, any>) => outputs.working,
+    dependsOn: ['working'],
+  },
+
+  // Expansion uses investmentRate (from savingsRate)
+  investmentRate: {
+    fn: (outputs: Record<string, any>) => outputs.savingsRate,
+    dependsOn: ['savingsRate'],
+  },
+
+  // Capital uses effectiveWorkers from demographics
+  effectiveWorkers: {
+    fn: (outputs: Record<string, any>) => outputs.effectiveWorkers,
+    dependsOn: ['effectiveWorkers'],
+  },
+
+  // Capital uses gdp from demand
+  gdp: {
+    fn: (outputs: Record<string, any>) => outputs.gdp,
+    dependsOn: ['gdp'],
+  },
+
+  // Dispatch uses adjusted demand from expansion (when available).
+  // Energy also needs electricityDemand but runs BEFORE expansion, so it gets
+  // the base value from demand module (via fallback).
+  // NOTE: No dependsOn for adjustedDemand - that would create a cycle
+  // (energy → expansion → energy). The transform uses fallback logic:
+  // - After expansion runs: uses adjustedDemand
+  // - Before expansion runs (for energy): uses electricityDemand from demand
+  electricityDemand: {
+    fn: (outputs: Record<string, any>) =>
+      outputs.adjustedDemand ?? outputs.electricityDemand ?? 30000,
+    dependsOn: ['electricityDemand'],  // Depend on base demand, not adjusted
+  },
+
+  // Resources needs gdpPerCapita (derived)
+  gdpPerCapita: {
+    fn: (outputs: Record<string, any>) => {
       const gdp = outputs.gdp ?? 120;
       const pop = outputs.population ?? 8e9;
       return (gdp * 1e12) / pop;
-    }
-    // TODO: Would need state to track this properly
-    return 15000; // Approximate 2025 value
+    },
+    dependsOn: ['gdp', 'population'],
+  },
+
+  // Resources needs gdpPerCapita2025 (capture from year 0)
+  gdpPerCapita2025: {
+    fn: (outputs: Record<string, any>, _year: number, yearIndex: number) => {
+      // For simplicity, calculate same as gdpPerCapita for year 0
+      if (yearIndex === 0) {
+        const gdp = outputs.gdp ?? 120;
+        const pop = outputs.population ?? 8e9;
+        return (gdp * 1e12) / pop;
+      }
+      // TODO: Would need state to track this properly
+      return 15000; // Approximate 2025 value
+    },
+    dependsOn: ['gdp', 'population'],
   },
 
   // Climate needs total emissions
-  emissions: (outputs: Record<string, any>) => {
-    const elecEmissions = outputs.electricityEmissions ?? 10;
-    const nonElecEmissions = outputs.nonElectricEmissions ?? 25;
-    const landUse = outputs.netFlux ?? 0;
-    return elecEmissions + nonElecEmissions + landUse;
+  emissions: {
+    fn: (outputs: Record<string, any>) => {
+      const elecEmissions = outputs.electricityEmissions ?? 10;
+      const nonElecEmissions = outputs.nonElectricEmissions ?? 25;
+      const landUse = outputs.netFlux ?? 0;
+      return elecEmissions + nonElecEmissions + landUse;
+    },
+    dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'netFlux'],
   },
 
   // Dispatch needs carbonPrice (parameter, not output - design limitation)
   // TODO: Refactor dispatch to take carbonPrice as param, not input
-  carbonPrice: () => 35,
+  carbonPrice: {
+    fn: () => 35,
+    dependsOn: [],  // No dependencies - constant value
+  },
 
   // Dispatch needs solarPlusBatteryLCOE from energy
-  solarPlusBatteryLCOE: (outputs: Record<string, any>) => outputs.solarPlusBatteryLCOE ?? 30,
+  solarPlusBatteryLCOE: {
+    fn: (outputs: Record<string, any>) => outputs.solarPlusBatteryLCOE ?? 30,
+    dependsOn: ['solarPlusBatteryLCOE'],
+  },
 
   // Dispatch needs capacities from energy
-  capacities: (outputs: Record<string, any>) => outputs.capacities,
+  capacities: {
+    fn: (outputs: Record<string, any>) => outputs.capacities,
+    dependsOn: ['capacities'],
+  },
 
   // Dispatch needs lcoes from energy
-  lcoes: (outputs: Record<string, any>) => outputs.lcoes,
+  lcoes: {
+    fn: (outputs: Record<string, any>) => outputs.lcoes,
+    dependsOn: ['lcoes'],
+  },
 
   // Resources needs additions from energy
-  additions: (outputs: Record<string, any>) => outputs.additions ?? {},
+  additions: {
+    fn: (outputs: Record<string, any>) => outputs.additions ?? {},
+    dependsOn: ['additions'],
+  },
 
   // Resources needs population from demographics (already output, but name might differ)
-  population: (outputs: Record<string, any>) => outputs.population,
+  population: {
+    fn: (outputs: Record<string, any>) => outputs.population,
+    dependsOn: ['population'],
+  },
 
   // Demand needs electricityGeneration (from dispatch.totalGeneration)
-  electricityGeneration: (outputs: Record<string, any>) => outputs.totalGeneration,
+  // NOTE: No dependsOn - this would create a cycle (demand→dispatch→demand).
+  // The transform uses current-year value if available, otherwise defaults.
+  // The lag 'laggedAvgLCOE' handles the feedback for cost-driven electrification.
+  electricityGeneration: {
+    fn: (outputs: Record<string, any>) => outputs.totalGeneration,
+    dependsOn: [],
+  },
 
   // Demand needs weightedAverageLCOE (derived from generation-weighted lcoes)
-  weightedAverageLCOE: (outputs: Record<string, any>) => {
-    const generation = outputs.generation;
-    const lcoes = outputs.lcoes;
-    if (!generation || !lcoes) return 50; // Default
+  // NOTE: No dependsOn - this would create a cycle (demand→dispatch→demand).
+  // Uses default when dispatch hasn't run yet this year.
+  weightedAverageLCOE: {
+    fn: (outputs: Record<string, any>) => {
+      const generation = outputs.generation;
+      const lcoes = outputs.lcoes;
+      if (!generation || !lcoes) return 50; // Default
 
-    let totalGen = 0;
-    let weightedSum = 0;
-    for (const source of Object.keys(generation)) {
-      const gen = generation[source] ?? 0;
-      const lcoe = lcoes[source] ?? 50;
-      totalGen += gen;
-      weightedSum += gen * lcoe;
-    }
-    return totalGen > 0 ? weightedSum / totalGen : 50;
+      let totalGen = 0;
+      let weightedSum = 0;
+      for (const source of Object.keys(generation)) {
+        const gen = generation[source] ?? 0;
+        const lcoe = lcoes[source] ?? 50;
+        totalGen += gen;
+        weightedSum += gen * lcoe;
+      }
+      return totalGen > 0 ? weightedSum / totalGen : 50;
+    },
+    dependsOn: [],
   },
 };
 
