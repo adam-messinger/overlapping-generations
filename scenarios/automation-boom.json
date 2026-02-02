@@ -1,0 +1,23 @@
+{
+  "name": "Automation Boom",
+  "description": "Accelerated AI/robotics adoption. Higher robot energy demand, faster cost expansion as cheap energy enables new activities.",
+
+  "energy": {
+    "carbonPrice": 50,
+    "sources": {
+      "solar": { "alpha": 0.40 },
+      "battery": { "alpha": 0.30 }
+    }
+  },
+
+  "expansion": {
+    "robotGrowthRate": 0.18,
+    "robotCap": 800,
+    "energyPerRobotMWh": 12,
+    "expansionCoefficient": 0.30
+  },
+
+  "capital": {
+    "automationGrowth": 0.12
+  }
+}

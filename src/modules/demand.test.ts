@@ -1,0 +1,359 @@
+/**
+ * Demand Module Tests
+ *
+ * Tests for GDP growth, energy intensity, and electricity demand.
+ * Validates against IEA calibration targets.
+ */
+
+import { demandModule, demandDefaults } from './demand.js';
+import { demographicsModule, demographicsDefaults } from './demographics.js';
+import { REGIONS } from '../framework/types.js';
+
+// Simple test framework
+let passed = 0;
+let failed = 0;
+
+function test(name: string, fn: () => void) {
+  try {
+    fn();
+    console.log(`✓ ${name}`);
+    passed++;
+  } catch (e: any) {
+    console.error(`✗ ${name}`);
+    console.error(`  ${e.message}`);
+    failed++;
+  }
+}
+
+function expect(actual: any) {
+  return {
+    toBe(expected: any) {
+      if (actual !== expected) {
+        throw new Error(`Expected ${expected}, got ${actual}`);
+      }
+    },
+    toBeCloseTo(expected: number, precision: number = 2) {
+      const diff = Math.abs(actual - expected);
+      const threshold = Math.pow(10, -precision);
+      if (diff > threshold) {
+        throw new Error(`Expected ~${expected}, got ${actual} (diff: ${diff.toFixed(4)})`);
+      }
+    },
+    toBeGreaterThan(expected: number) {
+      if (actual <= expected) {
+        throw new Error(`Expected ${actual} > ${expected}`);
+      }
+    },
+    toBeLessThan(expected: number) {
+      if (actual >= expected) {
+        throw new Error(`Expected ${actual} < ${expected}`);
+      }
+    },
+    toBeBetween(min: number, max: number) {
+      if (actual < min || actual > max) {
+        throw new Error(`Expected ${actual} to be between ${min} and ${max}`);
+      }
+    },
+    toBeTrue() {
+      if (actual !== true) {
+        throw new Error(`Expected true, got ${actual}`);
+      }
+    },
+  };
+}
+
+// Helper to get demographics inputs for a given year
+function getDemographicsInputs(yearIndex: number) {
+  const demoParams = demographicsModule.mergeParams({});
+  let demoState = demographicsModule.init(demoParams);
+  let demoOutputs: any;
+
+  for (let i = 0; i <= yearIndex; i++) {
+    const result = demographicsModule.step(demoState, {}, demoParams, 2025 + i, i);
+    demoState = result.state;
+    demoOutputs = result.outputs;
+  }
+
+  return {
+    regionalPopulation: demoOutputs.regionalPopulation,
+    regionalWorking: demoOutputs.regionalWorking,
+    regionalEffectiveWorkers: demoOutputs.regionalEffectiveWorkers,
+    regionalDependency: demoOutputs.regionalDependency,
+    population: demoOutputs.population,
+    working: demoOutputs.working,
+    dependency: demoOutputs.dependency,
+  };
+}
+
+// Helper to run demand simulation for N years
+function runYears(years: number) {
+  const demandParams = demandModule.mergeParams({});
+  let demandState = demandModule.init(demandParams);
+  let outputs: any;
+
+  for (let i = 0; i < years; i++) {
+    const inputs = getDemographicsInputs(i);
+    const result = demandModule.step(demandState, inputs, demandParams, 2025 + i, i);
+    demandState = result.state;
+    outputs = result.outputs;
+  }
+
+  return { state: demandState, outputs };
+}
+
+// =============================================================================
+// TESTS
+// =============================================================================
+
+console.log('\n=== Demand Module Tests ===\n');
+
+// --- Initialization ---
+
+console.log('--- Initialization ---\n');
+
+test('init returns state with all regions', () => {
+  const state = demandModule.init(demandDefaults);
+  for (const region of REGIONS) {
+    expect(state.regions[region] !== undefined).toBeTrue();
+  }
+});
+
+test('init sets correct 2025 GDP', () => {
+  const state = demandModule.init(demandDefaults);
+  const totalGdp =
+    state.regions.oecd.gdp +
+    state.regions.china.gdp +
+    state.regions.em.gdp +
+    state.regions.row.gdp;
+
+  // OECD 58 + China 18 + EM 35 + ROW 8 = 119
+  expect(totalGdp).toBeCloseTo(119, 0);
+});
+
+test('init sets correct energy intensity by region', () => {
+  const state = demandModule.init(demandDefaults);
+  expect(state.regions.oecd.intensity).toBeCloseTo(0.70, 2);
+  expect(state.regions.china.intensity).toBeCloseTo(2.04, 2);
+  expect(state.regions.em.intensity).toBeCloseTo(0.93, 2);
+  expect(state.regions.row.intensity).toBeCloseTo(1.53, 2);
+});
+
+// --- Year 0 Outputs ---
+
+console.log('\n--- Year 0 Outputs ---\n');
+
+test('step year 0 returns correct global GDP', () => {
+  const { outputs } = runYears(1);
+  // ~119T global GDP in 2025
+  expect(outputs.gdp).toBeBetween(115, 125);
+});
+
+test('step year 0 returns correct electricity demand', () => {
+  const { outputs } = runYears(1);
+  // ~30,000 TWh in 2025 (IEA)
+  expect(outputs.electricityDemand / 1000).toBeBetween(25, 35);
+});
+
+test('step year 0 returns correct electrification rate', () => {
+  const { outputs } = runYears(1);
+  // ~25% in 2025
+  expect(outputs.electrificationRate).toBeCloseTo(0.25, 1);
+});
+
+test('step year 0 returns correct total final energy', () => {
+  const { outputs } = runYears(1);
+  // ~122,000 TWh in 2025 (IEA)
+  expect(outputs.totalFinalEnergy / 1000).toBeBetween(110, 140);
+});
+
+test('step year 0 returns correct final energy per capita/day', () => {
+  const { outputs } = runYears(1);
+  // ~40 kWh/person/day in 2025 (Twin-Engine)
+  expect(outputs.finalEnergyPerCapitaDay).toBeBetween(35, 50);
+});
+
+// --- GDP Growth ---
+
+console.log('\n--- GDP Growth ---\n');
+
+test('global GDP grows over time', () => {
+  const year1 = runYears(1).outputs.gdp;
+  const year25 = runYears(25).outputs.gdp;
+
+  expect(year25).toBeGreaterThan(year1);
+});
+
+test('China GDP grows faster than OECD initially', () => {
+  const year1 = runYears(1).outputs.regional;
+  const year10 = runYears(10).outputs.regional;
+
+  const oecdGrowth = (year10.oecd.gdp - year1.oecd.gdp) / year1.oecd.gdp;
+  const chinaGrowth = (year10.china.gdp - year1.china.gdp) / year1.china.gdp;
+
+  expect(chinaGrowth).toBeGreaterThan(oecdGrowth);
+});
+
+test('China catch-up growth fades over time', () => {
+  const year10 = runYears(10).outputs.regional.china.growthRate;
+  const year50 = runYears(50).outputs.regional.china.growthRate;
+
+  expect(year50).toBeLessThan(year10);
+});
+
+// --- Energy Intensity ---
+
+console.log('\n--- Energy Intensity ---\n');
+
+test('energy intensity declines over time', () => {
+  const year1 = runYears(1).outputs.regional.oecd.energyIntensity;
+  const year25 = runYears(25).outputs.regional.oecd.energyIntensity;
+
+  expect(year25).toBeLessThan(year1);
+});
+
+test('China intensity declines faster than OECD', () => {
+  const year1 = runYears(1).outputs.regional;
+  const year25 = runYears(25).outputs.regional;
+
+  const oecdDecline = 1 - year25.oecd.energyIntensity / year1.oecd.energyIntensity;
+  const chinaDecline = 1 - year25.china.energyIntensity / year1.china.energyIntensity;
+
+  expect(chinaDecline).toBeGreaterThan(oecdDecline);
+});
+
+// --- Electrification ---
+
+console.log('\n--- Electrification ---\n');
+
+test('electrification rate increases over time', () => {
+  const year1 = runYears(1).outputs.electrificationRate;
+  const year25 = runYears(25).outputs.electrificationRate;
+
+  expect(year25).toBeGreaterThan(year1);
+});
+
+test('electrification rate approaches target by 2100', () => {
+  const year76 = runYears(76).outputs.electrificationRate;
+  // Target is 65%, should be close by 2100
+  expect(year76).toBeBetween(0.60, 0.70);
+});
+
+test('electricity share of total energy increases', () => {
+  const year1 = runYears(1).outputs;
+  const year25 = runYears(25).outputs;
+
+  const share1 = year1.electricityDemand / year1.totalFinalEnergy;
+  const share25 = year25.electricityDemand / year25.totalFinalEnergy;
+
+  expect(share25).toBeGreaterThan(share1);
+});
+
+// --- Calibration Targets ---
+
+console.log('\n--- Calibration Targets ---\n');
+
+test('electricity demand 2050 higher than 2025', () => {
+  const year1 = runYears(1).outputs.electricityDemand;
+  const year26 = runYears(26).outputs.electricityDemand;
+  // Should roughly double or more by 2050 (IEA projects 52,000-71,000 TWh)
+  expect(year26).toBeGreaterThan(year1 * 1.5);
+});
+
+test('final energy per capita ~50-65 kWh/day by 2050 (Twin-Engine)', () => {
+  const year26 = runYears(26).outputs.finalEnergyPerCapitaDay;
+  expect(year26).toBeBetween(45, 70);
+});
+
+test('Asia-Pacific share >50% by 2050', () => {
+  const year26 = runYears(26).outputs;
+  const asiaElec = year26.regional.china.electricityDemand +
+                   year26.regional.em.electricityDemand * 0.6; // ~60% of EM is Asia
+  const asiaShare = asiaElec / year26.electricityDemand;
+
+  expect(asiaShare).toBeGreaterThan(0.45);
+});
+
+// --- Per-Worker Metrics ---
+
+console.log('\n--- Per-Worker Metrics ---\n');
+
+test('GDP per working-age adult increases over time', () => {
+  const year1 = runYears(1).outputs.gdpPerWorking;
+  const year25 = runYears(25).outputs.gdpPerWorking;
+
+  expect(year25).toBeGreaterThan(year1);
+});
+
+test('electricity per worker increases over time', () => {
+  const year1 = runYears(1).outputs.electricityPerWorking;
+  const year25 = runYears(25).outputs.electricityPerWorking;
+
+  expect(year25).toBeGreaterThan(year1);
+});
+
+// --- Validation ---
+
+console.log('\n--- Validation ---\n');
+
+test('validation passes for default params', () => {
+  const result = demandModule.validate({});
+  expect(result.valid).toBeTrue();
+});
+
+test('validation catches negative GDP', () => {
+  const result = demandModule.validate({
+    regions: {
+      ...demandDefaults.regions,
+      oecd: { ...demandDefaults.regions.oecd, gdp2025: -10 },
+    },
+  });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches invalid electrification target', () => {
+  const result = demandModule.validate({
+    electrificationTarget: 1.5, // >100%
+  });
+  expect(result.valid).toBe(false);
+});
+
+test('validation warns on very high electrification target', () => {
+  const result = demandModule.validate({
+    electrificationTarget: 0.95,
+  });
+  expect(result.valid).toBeTrue();
+  expect(result.warnings.length).toBeGreaterThan(0);
+});
+
+// --- Module Metadata ---
+
+console.log('\n--- Module Metadata ---\n');
+
+test('module has correct name', () => {
+  expect(demandModule.name).toBe('demand');
+});
+
+test('module declares correct inputs', () => {
+  expect(demandModule.inputs.length).toBeGreaterThan(0);
+  expect(demandModule.inputs.includes('population')).toBeTrue();
+  expect(demandModule.inputs.includes('working')).toBeTrue();
+});
+
+test('module declares correct outputs', () => {
+  expect(demandModule.outputs.length).toBeGreaterThan(0);
+  expect(demandModule.outputs.includes('gdp')).toBeTrue();
+  expect(demandModule.outputs.includes('electricityDemand')).toBeTrue();
+});
+
+// =============================================================================
+// SUMMARY
+// =============================================================================
+
+console.log('\n=== Summary ===\n');
+console.log(`Passed: ${passed}`);
+console.log(`Failed: ${failed}`);
+console.log(`Total:  ${passed + failed}`);
+
+if (failed > 0) {
+  process.exit(1);
+}

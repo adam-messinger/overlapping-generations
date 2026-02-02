@@ -1,13 +1,17 @@
 {
-  "name": "STEPS Baseline",
-  "description": "IEA Stated Policies Scenario (STEPS) aligned baseline. Represents current policy trajectory without additional climate action beyond already announced measures.",
+  "name": "Baseline",
+  "description": "Current policies trajectory. Moderate carbon pricing, default technology learning rates, IEA STEPS-aligned electrification.",
 
-  "params": {
-    "carbonPrice": 35,
-    "solarAlpha": 0.36,
-    "solarGrowth": 0.25,
+  "energy": {
+    "carbonPrice": 35
+  },
+
+  "demand": {
     "electrificationTarget": 0.65,
-    "efficiencyMultiplier": 1.0,
-    "climSensitivity": 3.0
+    "efficiencyMultiplier": 1.0
+  },
+
+  "climate": {
+    "sensitivity": 3.0
   }
 }

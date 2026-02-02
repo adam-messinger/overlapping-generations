@@ -1,15 +1,18 @@
 {
   "name": "High Climate Sensitivity",
-  "description": "Scenario with climate sensitivity at the upper end of IPCC range (4.5°C per CO2 doubling). Explores higher warming outcomes and associated damages even with moderate decarbonization.",
+  "description": "Climate sensitivity at upper IPCC range (4.5°C). Explores higher warming outcomes and damages even with moderate decarbonization.",
 
-  "params": {
-    "carbonPrice": 35,
-    "solarAlpha": 0.36,
-    "solarGrowth": 0.25,
-    "electrificationTarget": 0.65,
-    "efficiencyMultiplier": 1.0,
-    "climSensitivity": 4.5,
-    "damageCoeff": 0.003,
+  "meta": {
+    "source": "IPCC AR6 high-end sensitivity"
+  },
+
+  "energy": {
+    "carbonPrice": 35
+  },
+
+  "climate": {
+    "sensitivity": 4.5,
+    "damageCoefficient": 0.003,
     "tippingThreshold": 2.0
   }
 }
