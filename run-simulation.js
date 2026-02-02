@@ -328,6 +328,7 @@ async function main() {
 
     let params;
     let scenarioName = 'Custom';
+    let scenarioEffectiveParams = null;
 
     if (args.scenario) {
         // Load scenario file and merge with CLI overrides
@@ -339,6 +340,16 @@ async function main() {
             // CLI args override scenario params
             const cliOverrides = buildParams(args);
             params = { ...applied.params, ...cliOverrides };
+
+            // Pass Tier-2 effective params (deep overrides from scenario file)
+            scenarioEffectiveParams = {
+                energySources: applied.effectiveEnergySources,
+                climateParams: applied.effectiveClimateParams,
+                capitalParams: applied.effectiveCapitalParams,
+                demographics: applied.effectiveDemographics,
+                resourceParams: applied.effectiveResourceParams,
+                expansionParams: applied.effectiveExpansionParams
+            };
         } catch (err) {
             console.error(`Error loading scenario: ${err.message}`);
             process.exit(1);
@@ -352,7 +363,7 @@ async function main() {
         }
     }
 
-    const data = energySim.runSimulation(params);
+    const data = energySim.runSimulation(params, scenarioEffectiveParams);
 
     switch (args.format) {
         case 'json':
