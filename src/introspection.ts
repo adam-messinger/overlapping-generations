@@ -256,6 +256,46 @@ export function describeParameters(): ParameterSchema {
       description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
       path: 'resources.yieldDamageThreshold',
     },
+
+    // =========================================================================
+    // REGIONAL ENERGY PARAMETERS
+    // =========================================================================
+    oecdCarbonPrice: {
+      type: 'number',
+      default: 50,
+      min: 0,
+      max: 300,
+      unit: '$/ton CO₂',
+      description: 'Carbon price for OECD region (EU ETS ~80, US implicit ~25, blended ~50).',
+      path: 'energy.regional.oecd.carbonPrice',
+    },
+    chinaCarbonPrice: {
+      type: 'number',
+      default: 15,
+      min: 0,
+      max: 300,
+      unit: '$/ton CO₂',
+      description: 'Carbon price for China (nascent national ETS).',
+      path: 'energy.regional.china.carbonPrice',
+    },
+    emCarbonPrice: {
+      type: 'number',
+      default: 10,
+      min: 0,
+      max: 300,
+      unit: '$/ton CO₂',
+      description: 'Carbon price for Emerging Markets (India, Brazil, Indonesia, etc.).',
+      path: 'energy.regional.em.carbonPrice',
+    },
+    rowCarbonPrice: {
+      type: 'number',
+      default: 0,
+      min: 0,
+      max: 300,
+      unit: '$/ton CO₂',
+      description: 'Carbon price for Rest of World (Africa, etc.). No effective pricing.',
+      path: 'energy.regional.row.carbonPrice',
+    },
   };
 }
 
@@ -346,7 +386,8 @@ async function runCLI() {
   }
 
   // Default: show summary table
-  console.log('Available parameters (21 total):\n');
+  const paramCount = Object.keys(schema).length;
+  console.log(`Available parameters (${paramCount} total):\n`);
   console.log('Name                     Default    Unit                    Range');
   console.log('----                     -------    ----                    -----');
   for (const [name, info] of Object.entries(schema)) {

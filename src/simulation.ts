@@ -30,7 +30,7 @@ import { dispatchModule, DispatchParams } from './modules/dispatch.js';
 import { expansionModule, ExpansionParams } from './modules/expansion.js';
 import { resourcesModule, ResourcesParams } from './modules/resources.js';
 import { climateModule, ClimateParams } from './modules/climate.js';
-import { Region, EnergySource } from './framework/types.js';
+import { Region, REGIONS, EnergySource } from './framework/types.js';
 
 // =============================================================================
 // TYPES
@@ -142,6 +142,16 @@ export interface YearResult {
   // Regional
   regionalPopulation: Record<Region, number>;
   regionalGdp: Record<Region, number>;
+
+  // Regional Energy (v2)
+  regionalCapacities: Record<Region, Record<EnergySource, number>>;
+  regionalAdditions: Record<Region, Record<EnergySource, number>>;
+
+  // Regional Dispatch (v2)
+  regionalGeneration: Record<Region, Record<string, number>>;
+  regionalGridIntensity: Record<Region, number>;
+  regionalFossilShare: Record<Region, number>;
+  regionalEmissions: Record<Region, number>;
 }
 
 export interface SimulationResult {
@@ -330,9 +340,29 @@ export class Simulation {
       // =======================================================================
       // Step 4: Energy (needs demand, capital)
       // =======================================================================
+
+      // Compute regional electricity demand from demand module
+      const regionalElectricityDemand: Record<Region, number> = {
+        oecd: demand.regional.oecd.electricityDemand,
+        china: demand.regional.china.electricityDemand,
+        em: demand.regional.em.electricityDemand,
+        row: demand.regional.row.electricityDemand,
+      };
+
+      // Compute regional investment from capital's regional savings
+      const totalSavings = Object.values(capital.regionalSavings).reduce((a, b) => a + b, 0);
+      const regionalInvestment: Record<Region, number> = {} as Record<Region, number>;
+      for (const region of REGIONS) {
+        regionalInvestment[region] = totalSavings > 0
+          ? capital.investment * (capital.regionalSavings[region] / totalSavings)
+          : capital.investment / 4;
+      }
+
       const energyInputs = {
         electricityDemand: demand.electricityDemand,
+        regionalElectricityDemand,
         availableInvestment: capital.investment,
+        regionalInvestment,
         stabilityFactor: capital.stability,
       };
       const energyResult = energyModule.step(
@@ -370,12 +400,31 @@ export class Simulation {
       // =======================================================================
       // Step 6: Dispatch (uses adjusted demand from expansion)
       // =======================================================================
+
+      // Scale regional demand by expansion factor
+      const expansionFactor = demand.electricityDemand > 0
+        ? expansion.adjustedDemand / demand.electricityDemand
+        : 1.0;
+      const regionalAdjustedDemand: Record<Region, number> = {} as Record<Region, number>;
+      for (const region of REGIONS) {
+        regionalAdjustedDemand[region] = regionalElectricityDemand[region] * expansionFactor;
+      }
+
+      // Get regional carbon prices from energy params
+      const regionalCarbonPrice: Record<Region, number> = {} as Record<Region, number>;
+      for (const region of REGIONS) {
+        regionalCarbonPrice[region] = this.energyParams.regional[region].carbonPrice;
+      }
+
       const dispatchInputs = {
         electricityDemand: expansion.adjustedDemand, // Use expanded demand
+        regionalElectricityDemand: regionalAdjustedDemand,
         capacities: energy.capacities,
+        regionalCapacities: energy.regionalCapacities,
         lcoes: energy.lcoes,
         solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
         carbonPrice: this.energyParams.carbonPrice,
+        regionalCarbonPrice,
       };
       const dispatchResult = dispatchModule.step(
         dispatchState,
@@ -575,6 +624,16 @@ export class Simulation {
         // Regional
         regionalPopulation: demo.regionalPopulation,
         regionalGdp,
+
+        // Regional Energy (v2)
+        regionalCapacities: energy.regionalCapacities,
+        regionalAdditions: energy.regionalAdditions,
+
+        // Regional Dispatch (v2)
+        regionalGeneration: dispatch.regionalGeneration,
+        regionalGridIntensity: dispatch.regionalGridIntensity,
+        regionalFossilShare: dispatch.regionalFossilShare,
+        regionalEmissions: dispatch.regionalEmissions,
       });
     }
 

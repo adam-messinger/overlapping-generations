@@ -6,20 +6,30 @@
  * Nuclear has high LCOE (~$90) but low marginal cost (~$12), so it dispatches
  * as baseload after renewables.
  *
+ * REGIONALIZATION (v2):
+ * - Each region has an independent grid (no inter-regional trade)
+ * - Regional carbon prices affect merit order (higher carbon → gas/coal more expensive)
+ * - Regional capacities determine generation limits
+ * - Global aggregates preserved for backwards compatibility
+ *
  * Inputs (from other modules):
- * - electricityDemand: Total demand (TWh)
- * - capacities: Installed capacity by source (GW)
- * - lcoes: Levelized cost by source ($/MWh)
+ * - electricityDemand: Total demand (TWh) - GLOBAL
+ * - regionalElectricityDemand: Regional demand (TWh)
+ * - capacities: Installed capacity by source (GW) - GLOBAL (sum)
+ * - regionalCapacities: Regional capacity breakdown
+ * - regionalCarbonPrice: Regional carbon prices
+ * - lcoes: Levelized cost by source ($/MWh) - GLOBAL
  *
  * Outputs (to other modules):
- * - generation: TWh by source
- * - gridIntensity: kg CO2/MWh
- * - totalGeneration: TWh
- * - emissions: Gt CO2 from electricity
+ * - generation: TWh by source - GLOBAL (sum)
+ * - regional: Regional breakdown
+ * - gridIntensity: kg CO2/MWh - GLOBAL (weighted avg)
+ * - totalGeneration: TWh - GLOBAL
+ * - emissions: Gt CO2 from electricity - GLOBAL
  */
 
 import { defineModule, Module } from '../framework/module.js';
-import { EnergySource, ENERGY_SOURCES, ValidationResult } from '../framework/types.js';
+import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
 
 // =============================================================================
 // PARAMETERS
@@ -113,43 +123,235 @@ export interface DispatchState {
 // =============================================================================
 
 export interface DispatchInputs {
-  /** Total electricity demand (TWh) */
+  /** Total electricity demand (TWh) - GLOBAL */
   electricityDemand: number;
 
-  /** Installed capacity by source (GW, GWh for battery) */
+  /** Regional electricity demand (TWh) */
+  regionalElectricityDemand?: Record<Region, number>;
+
+  /** Installed capacity by source (GW, GWh for battery) - GLOBAL (sum) */
   capacities: Record<EnergySource, number>;
 
-  /** Levelized cost by source ($/MWh) */
+  /** Regional capacity breakdown */
+  regionalCapacities?: Record<Region, Record<EnergySource, number>>;
+
+  /** Levelized cost by source ($/MWh) - GLOBAL */
   lcoes: Record<EnergySource, number>;
 
-  /** Combined solar+battery LCOE ($/MWh) */
+  /** Combined solar+battery LCOE ($/MWh) - GLOBAL */
   solarPlusBatteryLCOE: number;
 
-  /** Carbon price ($/ton CO2) for marginal cost calculation */
+  /** Carbon price ($/ton CO2) - GLOBAL fallback */
   carbonPrice: number;
+
+  /** Regional carbon prices ($/ton CO2) */
+  regionalCarbonPrice?: Record<Region, number>;
+}
+
+/** Regional dispatch outputs */
+export interface RegionalDispatchOutputs {
+  generation: Record<EnergySource | 'solarPlusBattery', number>;
+  gridIntensity: number;
+  electricityEmissions: number;
+  fossilShare: number;
+  totalGeneration: number;
+  shortfall: number;
 }
 
 export interface DispatchOutputs {
-  /** Generation by source (TWh) */
+  /** Generation by source (TWh) - GLOBAL (sum of regional) */
   generation: Record<EnergySource | 'solarPlusBattery', number>;
 
-  /** Grid carbon intensity (kg CO2/MWh) */
+  /** Regional generation breakdown */
+  regionalGeneration: Record<Region, Record<EnergySource | 'solarPlusBattery', number>>;
+
+  /** Grid carbon intensity (kg CO2/MWh) - GLOBAL (generation-weighted avg) */
   gridIntensity: number;
 
-  /** Total generation (TWh) */
+  /** Regional grid intensity */
+  regionalGridIntensity: Record<Region, number>;
+
+  /** Total generation (TWh) - GLOBAL */
   totalGeneration: number;
 
-  /** Electricity emissions (Gt CO2) */
+  /** Electricity emissions (Gt CO2) - GLOBAL (sum) */
   electricityEmissions: number;
 
-  /** Unmet demand, if any (TWh) */
+  /** Regional emissions */
+  regionalEmissions: Record<Region, number>;
+
+  /** Unmet demand, if any (TWh) - GLOBAL */
   shortfall: number;
 
   /** Cheapest source this year */
   cheapestSource: EnergySource;
 
-  /** Fossil share of generation (fraction) */
+  /** Fossil share of generation (fraction) - GLOBAL */
   fossilShare: number;
+
+  /** Regional fossil share */
+  regionalFossilShare: Record<Region, number>;
+
+  /** Regional detail for other modules */
+  dispatchRegional: Record<Region, RegionalDispatchOutputs>;
+}
+
+// =============================================================================
+// MODULE DEFINITION
+// =============================================================================
+
+// =============================================================================
+// HELPER: Dispatch for a single region
+// =============================================================================
+
+interface MeritSource {
+  name: string;
+  marginalCost: number;
+  max: number;
+  carbonIntensity: number;
+  isSolar: boolean;
+  isBareSolar: boolean;
+}
+
+function dispatchRegion(
+  demandTWh: number,
+  capacities: Record<EnergySource, number>,
+  carbonPrice: number,
+  params: DispatchParams
+): RegionalDispatchOutputs {
+  // Calculate marginal costs with regional carbon price
+  const marginalCosts: Record<string, number> = {};
+  for (const source of ENERGY_SOURCES) {
+    const baseMC = params.marginalCost[source];
+    const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
+    marginalCosts[source] = baseMC + carbonCost;
+  }
+  marginalCosts['solarPlusBattery'] = 5;
+
+  // Calculate max generation (TWh) each source can provide
+  const maxGen: Record<string, number> = {};
+  for (const source of ENERGY_SOURCES) {
+    const capacity = capacities[source];
+    const cf = params.capacityFactor[source];
+    maxGen[source] = (capacity * cf * params.hoursPerYear) / 1000;
+  }
+
+  // Solar+battery capacity limited by battery storage
+  const batteryGWh = capacities.battery;
+  const batteryGW = batteryGWh / params.batteryDuration;
+  const solarCapacityFirmable = batteryGW;
+  maxGen['solarPlusBattery'] =
+    (Math.min(capacities.solar * 0.5, solarCapacityFirmable) *
+      params.capacityFactor.battery *
+      params.hoursPerYear) /
+    1000;
+
+  // Build merit order
+  const sources: MeritSource[] = [
+    { name: 'nuclear', marginalCost: marginalCosts.nuclear, max: maxGen.nuclear, carbonIntensity: params.carbonIntensity.nuclear, isSolar: false, isBareSolar: false },
+    { name: 'hydro', marginalCost: marginalCosts.hydro, max: maxGen.hydro, carbonIntensity: params.carbonIntensity.hydro, isSolar: false, isBareSolar: false },
+    { name: 'solar', marginalCost: marginalCosts.solar, max: maxGen.solar, carbonIntensity: 0, isSolar: true, isBareSolar: true },
+    { name: 'solarPlusBattery', marginalCost: marginalCosts.solarPlusBattery, max: maxGen.solarPlusBattery, carbonIntensity: 0, isSolar: true, isBareSolar: false },
+    { name: 'wind', marginalCost: marginalCosts.wind, max: maxGen.wind, carbonIntensity: params.carbonIntensity.wind, isSolar: false, isBareSolar: false },
+    { name: 'gas', marginalCost: marginalCosts.gas, max: maxGen.gas, carbonIntensity: params.carbonIntensity.gas, isSolar: false, isBareSolar: false },
+    { name: 'coal', marginalCost: marginalCosts.coal, max: maxGen.coal, carbonIntensity: params.carbonIntensity.coal, isSolar: false, isBareSolar: false },
+  ];
+
+  sources.sort((a, b) => a.marginalCost - b.marginalCost);
+
+  // Dispatch in merit order
+  const generation: Record<string, number> = {
+    solar: 0, wind: 0, hydro: 0, nuclear: 0, gas: 0, coal: 0, battery: 0, solarPlusBattery: 0,
+  };
+
+  let remaining = demandTWh;
+  let totalSolarAllocated = 0;
+  let totalWindAllocated = 0;
+  let totalVREAllocated = 0;
+
+  // VRE limits based on storage
+  const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * 2;
+  const storageHours = batteryGWh / Math.max(1, peakDemandGW);
+  const maxVREPenetration = Math.min(
+    params.maxVRECeiling,
+    params.baseVRELimit + storageHours * params.storageBonusPerHour
+  );
+  const maxBareSolarPen = maxVREPenetration * 0.5;
+  const maxTotalSolarPen = maxVREPenetration * 0.7;
+  const maxWindPen = maxVREPenetration * 0.6;
+  const maxCombinedVRE = params.baseVRELimit + storageHours * params.storageBonusPerHour;
+
+  for (const source of sources) {
+    if (remaining <= 0) break;
+
+    let maxAllocation = source.max;
+
+    if (source.isSolar) {
+      const totalSolarRoom = maxTotalSolarPen * demandTWh - totalSolarAllocated;
+      if (source.isBareSolar) {
+        const bareSolarRoom = maxBareSolarPen * demandTWh - totalSolarAllocated;
+        maxAllocation = Math.min(maxAllocation, bareSolarRoom, totalSolarRoom);
+      } else {
+        maxAllocation = Math.min(maxAllocation, totalSolarRoom);
+      }
+      const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+      maxAllocation = Math.min(maxAllocation, combinedRoom);
+    } else if (source.name === 'wind') {
+      const windRoom = maxWindPen * demandTWh - totalWindAllocated;
+      maxAllocation = Math.min(maxAllocation, windRoom);
+      const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+      maxAllocation = Math.min(maxAllocation, combinedRoom);
+    }
+
+    const allocation = Math.min(remaining, Math.max(0, maxAllocation));
+
+    if (allocation > 0) {
+      generation[source.name] = allocation;
+      remaining -= allocation;
+
+      if (source.isSolar) {
+        totalSolarAllocated += allocation;
+        totalVREAllocated += allocation;
+      } else if (source.name === 'wind') {
+        totalWindAllocated += allocation;
+        totalVREAllocated += allocation;
+      }
+    }
+  }
+
+  const totalGeneration = demandTWh - remaining;
+  const shortfall = remaining;
+
+  const totalEmissionsKg =
+    generation.gas * params.carbonIntensity.gas +
+    generation.coal * params.carbonIntensity.coal;
+  const gridIntensity = totalGeneration > 0 ? totalEmissionsKg / totalGeneration : 0;
+  const electricityEmissions = totalEmissionsKg / 1e6;
+
+  const fossilGen = generation.gas + generation.coal;
+  const fossilShare = totalGeneration > 0 ? fossilGen / totalGeneration : 0;
+
+  return {
+    generation: generation as Record<EnergySource | 'solarPlusBattery', number>,
+    gridIntensity,
+    electricityEmissions,
+    fossilShare,
+    totalGeneration,
+    shortfall,
+  };
+}
+
+// =============================================================================
+// HELPER: Distribute value by GDP share (fallback)
+// =============================================================================
+
+function distributeByGDP(total: number): Record<Region, number> {
+  const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+  const result: Record<Region, number> = {} as any;
+  for (const region of REGIONS) {
+    result[region] = total * shares[region];
+  }
+  return result;
 }
 
 // =============================================================================
@@ -163,26 +365,34 @@ export const dispatchModule: Module<
   DispatchOutputs
 > = defineModule({
   name: 'dispatch',
-  description: 'Merit order dispatch with penetration limits',
+  description: 'Regional merit order dispatch with penetration limits',
 
   defaults: dispatchDefaults,
 
   inputs: [
     'electricityDemand',
+    'regionalElectricityDemand',
     'capacities',
+    'regionalCapacities',
     'lcoes',
     'solarPlusBatteryLCOE',
     'carbonPrice',
+    'regionalCarbonPrice',
   ] as const,
 
   outputs: [
     'generation',
+    'regionalGeneration',
     'gridIntensity',
+    'regionalGridIntensity',
     'totalGeneration',
     'electricityEmissions',
+    'regionalEmissions',
     'shortfall',
     'cheapestSource',
     'fossilShare',
+    'regionalFossilShare',
+    'dispatchRegional',
   ] as const,
 
   validate(params: Partial<DispatchParams>): ValidationResult {
@@ -231,226 +441,106 @@ export const dispatchModule: Module<
   },
 
   step(_state, inputs, params, _year, _yearIndex) {
-    const { electricityDemand, capacities, lcoes, solarPlusBatteryLCOE, carbonPrice } = inputs;
-    const demandTWh = electricityDemand;
+    const {
+      electricityDemand,
+      capacities,
+      carbonPrice,
+    } = inputs;
 
-    // Calculate marginal costs with carbon price
-    // Marginal cost = base fuel/O&M + (carbon intensity * carbon price / 1000)
-    const marginalCosts: Record<string, number> = {};
-    for (const source of ENERGY_SOURCES) {
-      const baseMC = params.marginalCost[source];
-      const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
-      marginalCosts[source] = baseMC + carbonCost;
-    }
-    // Solar+battery marginal cost (slightly higher than bare solar due to battery losses)
-    marginalCosts['solarPlusBattery'] = 5;
-
-    // Calculate max generation (TWh) each source can provide
-    const maxGen: Record<string, number> = {};
-    for (const source of ENERGY_SOURCES) {
-      const capacity = capacities[source];
-      const cf = params.capacityFactor[source];
-      maxGen[source] = (capacity * cf * params.hoursPerYear) / 1000;
-    }
-
-    // Solar+battery capacity limited by battery storage
-    // Battery capacity is in GWh; convert to GW for comparison with solar GW
-    // batteryGW = batteryGWh / batteryDuration
-    const batteryGWh = capacities.battery;
-    const batteryDuration = params.batteryDuration;
-    const batteryGW = batteryGWh / batteryDuration;
-
-    // Battery GW can firm roughly equal GW of solar (assumes 4h storage, 8h solar production)
-    // So solarCapacityFirmable (GW) ≈ batteryGW
-    const solarCapacityFirmable = batteryGW; // GW of solar that battery can firm
-    maxGen['solarPlusBattery'] =
-      (Math.min(capacities.solar * 0.5, solarCapacityFirmable) *
-        params.capacityFactor.battery *
-        params.hoursPerYear) /
-      1000;
-
-    // Build source list for merit order (sorted by marginal cost, not LCOE)
-    interface MeritSource {
-      name: string;
-      marginalCost: number;
-      max: number;
-      carbonIntensity: number;
-      isSolar: boolean;
-      isBareSolar: boolean;
-    }
-
-    const sources: MeritSource[] = [
-      {
-        name: 'nuclear',
-        marginalCost: marginalCosts.nuclear,
-        max: maxGen.nuclear,
-        carbonIntensity: params.carbonIntensity.nuclear,
-        isSolar: false,
-        isBareSolar: false,
-      },
-      {
-        name: 'hydro',
-        marginalCost: marginalCosts.hydro,
-        max: maxGen.hydro,
-        carbonIntensity: params.carbonIntensity.hydro,
-        isSolar: false,
-        isBareSolar: false,
-      },
-      {
-        name: 'solar',
-        marginalCost: marginalCosts.solar,
-        max: maxGen.solar,
-        carbonIntensity: 0,
-        isSolar: true,
-        isBareSolar: true,
-      },
-      {
-        name: 'solarPlusBattery',
-        marginalCost: marginalCosts.solarPlusBattery,
-        max: maxGen.solarPlusBattery,
-        carbonIntensity: 0,
-        isSolar: true,
-        isBareSolar: false,
-      },
-      {
-        name: 'wind',
-        marginalCost: marginalCosts.wind,
-        max: maxGen.wind,
-        carbonIntensity: params.carbonIntensity.wind,
-        isSolar: false,
-        isBareSolar: false,
-      },
-      {
-        name: 'gas',
-        marginalCost: marginalCosts.gas,
-        max: maxGen.gas,
-        carbonIntensity: params.carbonIntensity.gas,
-        isSolar: false,
-        isBareSolar: false,
-      },
-      {
-        name: 'coal',
-        marginalCost: marginalCosts.coal,
-        max: maxGen.coal,
-        carbonIntensity: params.carbonIntensity.coal,
-        isSolar: false,
-        isBareSolar: false,
-      },
-    ];
-
-    // Sort by marginal cost (merit order) - NOT by LCOE
-    // Nuclear has high LCOE but low marginal cost, so it dispatches early
-    sources.sort((a, b) => a.marginalCost - b.marginalCost);
-
-    // Find cheapest source
-    const cheapestSource = sources[0].name as EnergySource;
-
-    // Dispatch in merit order
-    const generation: Record<string, number> = {
-      solar: 0,
-      wind: 0,
-      hydro: 0,
-      nuclear: 0,
-      gas: 0,
-      coal: 0,
-      battery: 0,
-      solarPlusBattery: 0,
+    // Get regional inputs (or distribute by GDP share)
+    const regionalDemand = inputs.regionalElectricityDemand ?? distributeByGDP(electricityDemand);
+    const regionalCapacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(capacities);
+    const regionalCarbonPrice = inputs.regionalCarbonPrice ?? {
+      oecd: carbonPrice, china: carbonPrice, em: carbonPrice, row: carbonPrice,
     };
 
-    let remaining = demandTWh;
-    let totalSolarAllocated = 0;
-    let totalWindAllocated = 0;
+    // Process each region independently
+    const regionalOutputs: Record<Region, RegionalDispatchOutputs> = {} as any;
+    const regionalGeneration: Record<Region, Record<EnergySource | 'solarPlusBattery', number>> = {} as any;
+    const regionalGridIntensity: Record<Region, number> = {} as any;
+    const regionalEmissions: Record<Region, number> = {} as any;
+    const regionalFossilShare: Record<Region, number> = {} as any;
 
-    // Calculate VRE penetration limits (storage-based)
-    // Calculate effective storage hours
-    const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * 2; // Peak ~2x average
-    const storageHours = batteryGWh / Math.max(1, peakDemandGW);
+    for (const region of REGIONS) {
+      const regionResult = dispatchRegion(
+        regionalDemand[region],
+        regionalCapacities[region],
+        regionalCarbonPrice[region],
+        params
+      );
 
-    // Combined VRE limit based on storage
-    // 0h storage → 30% VRE (grid stability without storage)
-    // 4h storage → 62% VRE (each hour adds 8%)
-    // 8h storage → 94% VRE (close to max)
-    const maxVREPenetration = Math.min(
-      params.maxVRECeiling,
-      params.baseVRELimit + storageHours * params.storageBonusPerHour
-    );
-
-    // Split VRE limit between solar and wind
-    // Solar can use up to 50% of VRE limit bare, rest needs battery
-    const maxBareSolarPen = maxVREPenetration * 0.5;  // Bare solar = 50% of VRE limit
-    const maxTotalSolarPen = maxVREPenetration * 0.7; // Solar+battery = 70% of VRE limit
-    const maxWindPen = maxVREPenetration * 0.6;       // Wind = 60% of VRE limit
-
-    // Combined VRE ceiling
-    const maxCombinedVRE = params.baseVRELimit + storageHours * params.storageBonusPerHour;
-    let totalVREAllocated = 0;
-
-    for (const source of sources) {
-      if (remaining <= 0) break;
-
-      let maxAllocation = source.max;
-
-      // Apply penetration limits
-      if (source.isSolar) {
-        const totalSolarRoom = maxTotalSolarPen * demandTWh - totalSolarAllocated;
-        if (source.isBareSolar) {
-          const bareSolarRoom = maxBareSolarPen * demandTWh - totalSolarAllocated;
-          maxAllocation = Math.min(maxAllocation, bareSolarRoom, totalSolarRoom);
-        } else {
-          maxAllocation = Math.min(maxAllocation, totalSolarRoom);
-        }
-        // Combined VRE limit
-        const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
-        maxAllocation = Math.min(maxAllocation, combinedRoom);
-      } else if (source.name === 'wind') {
-        const windRoom = maxWindPen * demandTWh - totalWindAllocated;
-        maxAllocation = Math.min(maxAllocation, windRoom);
-        // Combined VRE limit
-        const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
-        maxAllocation = Math.min(maxAllocation, combinedRoom);
-      }
-
-      const allocation = Math.min(remaining, Math.max(0, maxAllocation));
-
-      if (allocation > 0) {
-        generation[source.name] = allocation;
-        remaining -= allocation;
-
-        if (source.isSolar) {
-          totalSolarAllocated += allocation;
-          totalVREAllocated += allocation;
-        } else if (source.name === 'wind') {
-          totalWindAllocated += allocation;
-          totalVREAllocated += allocation;
-        }
-      }
+      regionalOutputs[region] = regionResult;
+      regionalGeneration[region] = regionResult.generation;
+      regionalGridIntensity[region] = regionResult.gridIntensity;
+      regionalEmissions[region] = regionResult.electricityEmissions;
+      regionalFossilShare[region] = regionResult.fossilShare;
     }
 
-    const totalGeneration = demandTWh - remaining;
-    const shortfall = remaining;
+    // Aggregate global totals
+    const globalGeneration: Record<string, number> = {
+      solar: 0, wind: 0, hydro: 0, nuclear: 0, gas: 0, coal: 0, battery: 0, solarPlusBattery: 0,
+    };
 
-    // Calculate grid carbon intensity
-    const totalEmissionsKg =
-      generation.gas * params.carbonIntensity.gas +
-      generation.coal * params.carbonIntensity.coal;
-    const gridIntensity = totalGeneration > 0 ? totalEmissionsKg / totalGeneration : 0;
-    const electricityEmissions = totalEmissionsKg / 1e6; // kg -> Gt
+    let globalTotalGeneration = 0;
+    let globalShortfall = 0;
+    let totalEmissionsKg = 0;
 
-    // Calculate fossil share
-    const fossilGen = generation.gas + generation.coal;
-    const fossilShare = totalGeneration > 0 ? fossilGen / totalGeneration : 0;
+    for (const region of REGIONS) {
+      const rg = regionalGeneration[region];
+      for (const source of [...ENERGY_SOURCES, 'solarPlusBattery'] as const) {
+        globalGeneration[source] += rg[source];
+      }
+      globalTotalGeneration += regionalOutputs[region].totalGeneration;
+      globalShortfall += regionalOutputs[region].shortfall;
+      totalEmissionsKg += regionalOutputs[region].electricityEmissions * 1e6; // Gt → kg
+    }
+
+    const globalGridIntensity = globalTotalGeneration > 0 ? totalEmissionsKg / globalTotalGeneration : 0;
+    const globalElectricityEmissions = totalEmissionsKg / 1e6;
+
+    const fossilGen = globalGeneration.gas + globalGeneration.coal;
+    const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;
+
+    // Find cheapest source (based on first region with lowest marginal cost)
+    // In practice, all regions have same base marginal costs, carbon differs
+    const cheapestSource = 'solar' as EnergySource; // Solar/wind have 0 marginal cost
 
     return {
       state: {},
       outputs: {
-        generation: generation as Record<EnergySource | 'solarPlusBattery', number>,
-        gridIntensity,
-        totalGeneration,
-        electricityEmissions,
-        shortfall,
+        generation: globalGeneration as Record<EnergySource | 'solarPlusBattery', number>,
+        regionalGeneration,
+        gridIntensity: globalGridIntensity,
+        regionalGridIntensity,
+        totalGeneration: globalTotalGeneration,
+        electricityEmissions: globalElectricityEmissions,
+        regionalEmissions,
+        shortfall: globalShortfall,
         cheapestSource,
-        fossilShare,
+        fossilShare: globalFossilShare,
+        regionalFossilShare,
+        dispatchRegional: regionalOutputs,
       },
     };
   },
 });
+
+// =============================================================================
+// HELPER: Distribute capacities by GDP share (fallback)
+// =============================================================================
+
+function distributeCapacitiesByGDP(
+  capacities: Record<EnergySource, number>
+): Record<Region, Record<EnergySource, number>> {
+  const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+  const result: Record<Region, Record<EnergySource, number>> = {} as any;
+
+  for (const region of REGIONS) {
+    result[region] = {} as any;
+    for (const source of ENERGY_SOURCES) {
+      result[region][source] = capacities[source] * shares[region];
+    }
+  }
+
+  return result;
+}

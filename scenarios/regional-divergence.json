@@ -1,0 +1,31 @@
+{
+  "name": "Regional Divergence",
+  "description": "OECD fossil lock-in (political capture) while China accelerates solar transition. Tests regional independence with global learning.",
+
+  "energy": {
+    "regional": {
+      "oecd": {
+        "carbonPrice": 20,
+        "maxGrowthRate": { "solar": 0.10, "wind": 0.08 }
+      },
+      "china": {
+        "carbonPrice": 100,
+        "maxGrowthRate": { "solar": 0.35, "wind": 0.30 }
+      },
+      "em": {
+        "carbonPrice": 30
+      },
+      "row": {
+        "carbonPrice": 10
+      }
+    }
+  },
+
+  "demand": {
+    "electrificationTarget": 0.70
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  }
+}

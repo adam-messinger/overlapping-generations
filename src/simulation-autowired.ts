@@ -11,12 +11,12 @@ import { runAutowired, getOutputsAtYear, AutowireResult } from './framework/auto
 import { demographicsModule } from './modules/demographics.js';
 import { demandModule } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
-import { energyModule } from './modules/energy.js';
+import { energyModule, energyDefaults } from './modules/energy.js';
 import { dispatchModule } from './modules/dispatch.js';
 import { expansionModule } from './modules/expansion.js';
 import { resourcesModule } from './modules/resources.js';
 import { climateModule } from './modules/climate.js';
-import { Region } from './framework/types.js';
+import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './framework/types.js';
 
 // =============================================================================
 // TRANSFORMS
@@ -197,6 +197,86 @@ const transforms = {
       return totalGen > 0 ? weightedSum / totalGen : 50;
     },
     dependsOn: [],
+  },
+
+  // ==========================================================================
+  // REGIONAL TRANSFORMS (for regionalized energy/dispatch)
+  // ==========================================================================
+
+  // Regional electricity demand from demand module's regional outputs
+  // Distribute based on demand module's regional electricity demand
+  regionalElectricityDemand: {
+    fn: (outputs: Record<string, any>) => {
+      const regional = outputs.regional;
+      if (!regional) {
+        // Fallback: distribute global demand by GDP share
+        const globalDemand = outputs.electricityDemand ?? 30000;
+        const shares: Record<Region, number> = { oecd: 0.38, china: 0.31, em: 0.25, row: 0.06 };
+        const result: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          result[r] = globalDemand * shares[r];
+        }
+        return result;
+      }
+      // Use regional electricity demand from demand module
+      const result: Record<Region, number> = {} as any;
+      for (const r of REGIONS) {
+        result[r] = regional[r]?.electricityDemand ?? 0;
+      }
+      return result;
+    },
+    dependsOn: ['regional', 'electricityDemand'],
+  },
+
+  // Regional investment from capital module's regional savings
+  regionalInvestment: {
+    fn: (outputs: Record<string, any>) => {
+      const investment = outputs.investment ?? 30;
+      const regionalSavings = outputs.regionalSavings;
+
+      if (!regionalSavings) {
+        // Fallback: distribute by GDP share
+        const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+        const result: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          result[r] = investment * shares[r];
+        }
+        return result;
+      }
+
+      // Weight investment by regional savings rates
+      let totalSavings = 0;
+      for (const r of REGIONS) {
+        totalSavings += regionalSavings[r] ?? 0;
+      }
+      const result: Record<Region, number> = {} as any;
+      for (const r of REGIONS) {
+        result[r] = totalSavings > 0 ? investment * ((regionalSavings[r] ?? 0) / totalSavings) : investment / 4;
+      }
+      return result;
+    },
+    dependsOn: ['investment', 'regionalSavings'],
+  },
+
+  // Regional capacities from energy module
+  regionalCapacities: {
+    fn: (outputs: Record<string, any>) => {
+      return outputs.regionalCapacities ?? null;
+    },
+    dependsOn: ['regionalCapacities'],
+  },
+
+  // Regional carbon prices (from energy params - defaults)
+  regionalCarbonPrice: {
+    fn: () => {
+      // Use energy module's regional carbon price defaults
+      const result: Record<Region, number> = {} as any;
+      for (const r of REGIONS) {
+        result[r] = energyDefaults.regional[r].carbonPrice;
+      }
+      return result;
+    },
+    dependsOn: [],  // No dependencies - constant value from params
   },
 };
 

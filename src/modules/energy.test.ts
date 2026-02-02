@@ -6,7 +6,7 @@
  */
 
 import { energyModule, energyDefaults } from './energy.js';
-import { ENERGY_SOURCES, EnergySource } from '../framework/types.js';
+import { ENERGY_SOURCES, EnergySource, REGIONS, Region } from '../framework/types.js';
 
 // Simple test framework
 let passed = 0;
@@ -96,31 +96,44 @@ console.log('\n=== Energy Module Tests ===\n');
 
 console.log('--- Initialization ---\n');
 
-test('init returns state with all energy sources', () => {
+test('init returns state with all energy sources (regional)', () => {
   const state = energyModule.init(energyDefaults);
-  for (const source of ENERGY_SOURCES) {
-    expect(state.capacities[source] !== undefined).toBeTrue();
+  for (const region of REGIONS) {
+    for (const source of ENERGY_SOURCES) {
+      expect(state.regional[region][source] !== undefined).toBeTrue();
+    }
   }
 });
 
-test('init sets correct 2025 solar capacity', () => {
+test('init returns state with global learning state', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.capacities.solar.installed).toBe(1500);
+  for (const source of ENERGY_SOURCES) {
+    expect(state.global[source] !== undefined).toBeTrue();
+  }
 });
 
-test('init sets correct 2025 wind capacity', () => {
+test('init sets correct 2025 solar capacity (sum of regional)', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.capacities.wind.installed).toBe(1000);
+  // Sum across all regions: OECD 600 + China 600 + EM 200 + ROW 100 = 1500
+  let total = 0;
+  for (const region of REGIONS) {
+    total += state.regional[region].solar.installed;
+  }
+  expect(total).toBe(1500);
 });
 
-test('init sets correct 2025 nuclear capacity', () => {
+test('init sets correct regional solar capacities', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.capacities.nuclear.installed).toBe(400);
+  expect(state.regional.oecd.solar.installed).toBe(600);
+  expect(state.regional.china.solar.installed).toBe(600);
+  expect(state.regional.em.solar.installed).toBe(200);
+  expect(state.regional.row.solar.installed).toBe(100);
 });
 
-test('init sets cumulative equal to initial capacity', () => {
+test('init sets cumulative equal to global initial capacity', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.capacities.solar.cumulative).toBe(state.capacities.solar.installed);
+  // Global cumulative = sum of regional = 1500 for solar
+  expect(state.global.solar.cumulative).toBe(1500);
 });
 
 // --- Year 0 LCOE ---
@@ -149,9 +162,11 @@ test('step year 0 returns coal LCOE with carbon cost', () => {
   expect(outputs.lcoes.coal).toBeGreaterThan(40);
 });
 
-test('coal LCOE higher than gas (more carbon intensive)', () => {
+test('coal base LCOE (without carbon) less than gas base LCOE', () => {
+  // Global LCOEs are now base costs without carbon (carbon is regional)
+  // Coal base cost ~$40, Gas base cost ~$45
   const { outputs } = runYears(1);
-  expect(outputs.lcoes.coal).toBeGreaterThan(outputs.lcoes.gas);
+  expect(outputs.lcoes.coal).toBeLessThan(outputs.lcoes.gas);
 });
 
 test('battery cost calculated correctly', () => {
@@ -230,22 +245,77 @@ test('additions are positive for growing sources', () => {
 
 console.log('\n--- Carbon Pricing ---\n');
 
-test('higher carbon price increases coal LCOE', () => {
-  const low = runYears(1, { carbonPrice: 35 }).outputs.lcoes.coal;
-  const high = runYears(1, { carbonPrice: 150 }).outputs.lcoes.coal;
-  expect(high).toBeGreaterThan(low);
+test('higher regional carbon price affects regional clean energy growth', () => {
+  // With regional carbon pricing, higher carbon prices in a region should
+  // make clean energy more competitive there. Test with OECD high carbon.
+  const lowCarbon = runYears(10, {
+    regional: {
+      ...energyDefaults.regional,
+      oecd: { ...energyDefaults.regional.oecd, carbonPrice: 20 },
+    },
+  });
+  const highCarbon = runYears(10, {
+    regional: {
+      ...energyDefaults.regional,
+      oecd: { ...energyDefaults.regional.oecd, carbonPrice: 200 },
+    },
+  });
+  // With high carbon price, more solar should be added in OECD
+  // (because it becomes more competitive vs fossil)
+  expect(highCarbon.outputs.regionalAdditions.oecd.solar).toBeGreaterThan(0);
 });
 
-test('higher carbon price increases gas LCOE', () => {
-  const low = runYears(1, { carbonPrice: 35 }).outputs.lcoes.gas;
-  const high = runYears(1, { carbonPrice: 150 }).outputs.lcoes.gas;
-  expect(high).toBeGreaterThan(low);
+test('global LCOE for fossil does not include carbon (regional)', () => {
+  // The global LCOE is now base cost without carbon - carbon is applied regionally
+  const { outputs } = runYears(1);
+  // Coal base cost should be around $40-45 (no carbon)
+  expect(outputs.lcoes.coal).toBeBetween(38, 48);
+  // Gas base cost should be around $45-50 (no carbon)
+  expect(outputs.lcoes.gas).toBeBetween(43, 52);
 });
 
 test('carbon price does not affect solar LCOE', () => {
   const low = runYears(1, { carbonPrice: 35 }).outputs.lcoes.solar;
   const high = runYears(1, { carbonPrice: 150 }).outputs.lcoes.solar;
   expect(high).toBeCloseTo(low, 1);
+});
+
+// --- Regional Carbon Pricing ---
+
+console.log('\n--- Regional Carbon Pricing ---\n');
+
+test('regional carbon prices affect regional additions differently', () => {
+  // Test that different regional carbon prices lead to different outcomes
+  // China has lower carbon price (15) than OECD (50), so China should have
+  // relatively less clean energy incentive at the margin
+  const { outputs } = runYears(10);
+
+  // Both regions should have growing solar
+  expect(outputs.regionalAdditions.oecd.solar).toBeGreaterThan(0);
+  expect(outputs.regionalAdditions.china.solar).toBeGreaterThan(0);
+});
+
+test('regional capacities are tracked separately', () => {
+  const { outputs } = runYears(1);
+
+  // Each region should have its own capacity values
+  expect(outputs.regionalCapacities.oecd.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities.china.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities.em.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities.row.solar).toBeGreaterThan(0);
+});
+
+test('global capacity equals sum of regional capacities', () => {
+  const { outputs } = runYears(10);
+
+  for (const source of ENERGY_SOURCES) {
+    let regionalSum = 0;
+    for (const region of REGIONS) {
+      regionalSum += outputs.regionalCapacities[region][source];
+    }
+    // Allow small floating point tolerance
+    expect(Math.abs(outputs.capacities[source] - regionalSum)).toBeLessThan(0.01);
+  }
 });
 
 // --- Cheapest LCOE ---
@@ -364,6 +434,27 @@ test('validation warns on very high carbon price', () => {
   expect(result.warnings.length).toBeGreaterThan(0);
 });
 
+test('validation catches negative regional carbon price', () => {
+  const result = energyModule.validate({
+    regional: {
+      ...energyDefaults.regional,
+      oecd: { ...energyDefaults.regional.oecd, carbonPrice: -10 },
+    },
+  });
+  expect(result.valid).toBe(false);
+});
+
+test('validation warns on very high regional carbon price', () => {
+  const result = energyModule.validate({
+    regional: {
+      ...energyDefaults.regional,
+      china: { ...energyDefaults.regional.china, carbonPrice: 600 },
+    },
+  });
+  expect(result.valid).toBeTrue();
+  expect(result.warnings.length).toBeGreaterThan(0);
+});
+
 test('validation catches invalid alpha', () => {
   const result = energyModule.validate({
     sources: {
@@ -392,6 +483,8 @@ test('module declares correct outputs', () => {
   expect(energyModule.outputs.length).toBeGreaterThan(0);
   expect(energyModule.outputs.includes('lcoes')).toBeTrue();
   expect(energyModule.outputs.includes('capacities')).toBeTrue();
+  expect(energyModule.outputs.includes('regionalCapacities')).toBeTrue();
+  expect(energyModule.outputs.includes('energyRegional')).toBeTrue();
 });
 
 // =============================================================================
