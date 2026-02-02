@@ -324,7 +324,10 @@ export const energyModule: Module<
       let lcoe: number;
       if (s.alpha > 0) {
         // Learning curve (solar, wind, battery)
-        lcoe = learningCurve(s.cost0, prevCumulative, s.alpha);
+        // Wright's Law: cost = cost₀ × (cumulative / cumulative₀)^(-α)
+        // cost0 is the cost at capacity2025, so we normalize by initial capacity
+        const ratio = prevCumulative / s.capacity2025;
+        lcoe = s.cost0 * Math.pow(Math.max(1, ratio), -s.alpha);
       } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
         // Fossil fuel with depletion
         const dep = depletion(s.reserves, cap.extracted, s.eroei0);
@@ -393,12 +396,10 @@ export const energyModule: Module<
       retirements[source] = retirement;
     }
 
-    // Battery cost ($/kWh)
-    const batteryCost = learningCurve(
-      params.sources.battery.cost0,
-      state.capacities.battery.cumulative,
-      params.sources.battery.alpha
-    );
+    // Battery cost ($/kWh) - normalized learning curve
+    const batteryRatio = state.capacities.battery.cumulative / params.sources.battery.capacity2025;
+    const batteryCost = params.sources.battery.cost0 *
+      Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha);
 
     // Solar + battery combined LCOE
     // 4h battery adds ~$15-30/MWh depending on cost
