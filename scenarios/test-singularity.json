@@ -1,0 +1,18 @@
+{
+  "name": "Singularity",
+  "description": "Massive AI boom and renewable breakthroughs.",
+  "energy": {
+    "sources": {
+      "solar": { "alpha": 0.45, "growthRate": 0.40 },
+      "battery": { "alpha": 0.40, "growthRate": 0.40 }
+    }
+  },
+  "expansion": {
+    "robotGrowthRate": 0.25,
+    "expansionCoefficient": 0.5,
+    "robotCap": 2000
+  },
+  "capital": {
+    "automationGrowth": 0.15
+  }
+}

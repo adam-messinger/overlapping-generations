@@ -1,0 +1,7 @@
+{
+  "name": "Hyper Carbon Tax",
+  "description": "Carbon price set to $500/ton immediately.",
+  "energy": {
+    "carbonPrice": 500
+  }
+}

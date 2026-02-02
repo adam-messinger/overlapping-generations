@@ -2,38 +2,50 @@
   "name": "Technology Breakthrough",
   "description": "Twin-Engine scenario (20% probability). Faster-than-expected learning. Fusion or advanced geothermal delivers <$40/MWh by 2040s. Battery costs drop below $50/kWh by 2030. Rapid electrification enables net-zero by 2060s.",
 
-  "params": {
+  "energy": {
     "carbonPrice": 50,
-    "solarAlpha": 0.42,
-    "solarGrowth": 0.30,
-    "electrificationTarget": 0.85,
-    "efficiencyMultiplier": 1.2,
-    "climSensitivity": 3.0,
-    "windAlpha": 0.28,
-    "windGrowth": 0.22,
-    "batteryAlpha": 0.25,
-    "nuclearGrowth": 0.08,
-    "nuclearCost0": 80,
-    "robotGrowthRate": 0.15,
-    "mineralLearningMultiplier": 1.3
+    "sources": {
+      "solar": { "alpha": 0.42, "growthRate": 0.30 },
+      "wind": { "alpha": 0.28, "growthRate": 0.22 },
+      "battery": { "alpha": 0.25 },
+      "nuclear": { "growthRate": 0.08, "cost0": 80 }
+    },
+    "maxGrowthRate": {
+      "solar": 0.40,
+      "wind": 0.25,
+      "battery": 0.50,
+      "nuclear": 0.10
+    }
   },
 
-  "overrides": {
-    "capacityParams": {
-      "penetrationLimits": {
-        "solar": 0.90,
-        "wind": 0.45,
-        "nuclear": 0.35
-      },
-      "maxGrowthRate": {
-        "solar": 0.40,
-        "wind": 0.25,
-        "battery": 0.50,
-        "nuclear": 0.10
-      }
-    },
-    "expansionParams": {
-      "expansionCoefficient": 0.30
+  "dispatch": {
+    "maxPenetration": {
+      "solar": 0.90,
+      "wind": 0.45,
+      "nuclear": 0.35
+    }
+  },
+
+  "demand": {
+    "electrificationTarget": 0.85,
+    "efficiencyMultiplier": 1.2
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  },
+
+  "expansion": {
+    "robotGrowthRate": 0.15,
+    "expansionCoefficient": 0.30
+  },
+
+  "resources": {
+    "minerals": {
+      "copper": { "learningRate": 0.026 },
+      "lithium": { "learningRate": 0.039 },
+      "rareEarths": { "learningRate": 0.013 },
+      "steel": { "learningRate": 0.013 }
     }
   }
 }

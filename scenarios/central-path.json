@@ -2,23 +2,35 @@
   "name": "Central Path",
   "description": "Twin-Engine Managed Acceleration central scenario (30% probability). Represents most likely trajectory with gradual decarbonization, VRE expansion constrained by grids/minerals, and temperature stabilizing near 2°C.",
 
-  "params": {
+  "energy": {
     "carbonPrice": 35,
-    "solarAlpha": 0.36,
-    "solarGrowth": 0.22,
-    "electrificationTarget": 0.65,
-    "efficiencyMultiplier": 1.0,
-    "climSensitivity": 3.0,
-    "windAlpha": 0.23,
-    "windGrowth": 0.15,
-    "batteryAlpha": 0.18,
-    "robotGrowthRate": 0.10,
-    "mineralLearningMultiplier": 0.9
+    "sources": {
+      "solar": { "alpha": 0.36, "growthRate": 0.22 },
+      "wind": { "alpha": 0.23, "growthRate": 0.15 },
+      "battery": { "alpha": 0.18 }
+    }
   },
 
-  "overrides": {
-    "expansionParams": {
-      "expansionCoefficient": 0.20
+  "demand": {
+    "electrificationTarget": 0.65,
+    "efficiencyMultiplier": 1.0
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  },
+
+  "expansion": {
+    "robotGrowthRate": 0.10,
+    "expansionCoefficient": 0.20
+  },
+
+  "resources": {
+    "minerals": {
+      "copper": { "learningRate": 0.018 },
+      "lithium": { "learningRate": 0.027 },
+      "rareEarths": { "learningRate": 0.009 },
+      "steel": { "learningRate": 0.009 }
     }
   }
 }

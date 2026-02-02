@@ -4,37 +4,49 @@
 
   "_limitations": "Model lacks explicit debt/GDP tracking. Uses stability mechanism as proxy for investment suppression from policy uncertainty.",
 
-  "params": {
+  "energy": {
     "carbonPrice": 10,
-    "solarAlpha": 0.32,
-    "solarGrowth": 0.18,
-    "electrificationTarget": 0.50,
-    "efficiencyMultiplier": 0.85,
-    "climSensitivity": 3.0,
-    "stabilityLambda": 4.0,
-    "savingsWorking": 0.35,
-    "robotGrowthRate": 0.06,
-    "mineralLearningMultiplier": 0.8
+    "sources": {
+      "solar": { "alpha": 0.32, "growthRate": 0.18 }
+    },
+    "maxGrowthRate": {
+      "solar": 0.15,
+      "wind": 0.10,
+      "battery": 0.20
+    }
   },
 
-  "overrides": {
-    "capitalParams": {
-      "savingsRegionalPremiums": {
-        "oecd": -0.05,
-        "china": 0.10,
-        "em": -0.10,
-        "row": -0.12
-      }
-    },
-    "capacityParams": {
-      "maxGrowthRate": {
-        "solar": 0.15,
-        "wind": 0.10,
-        "battery": 0.20
-      }
-    },
-    "expansionParams": {
-      "expansionCoefficient": 0.18
+  "demand": {
+    "electrificationTarget": 0.50,
+    "efficiencyMultiplier": 0.85
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  },
+
+  "capital": {
+    "stabilityLambda": 4.0,
+    "savingsWorking": 0.35,
+    "savingsPremium": {
+      "oecd": -0.05,
+      "china": 0.10,
+      "em": -0.10,
+      "row": -0.12
+    }
+  },
+
+  "expansion": {
+    "robotGrowthRate": 0.06,
+    "expansionCoefficient": 0.18
+  },
+
+  "resources": {
+    "minerals": {
+      "copper": { "learningRate": 0.016 },
+      "lithium": { "learningRate": 0.024 },
+      "rareEarths": { "learningRate": 0.008 },
+      "steel": { "learningRate": 0.008 }
     }
   }
 }
