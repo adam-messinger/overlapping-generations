@@ -206,6 +206,7 @@ export interface DemographicsOutputs {
   // Regional breakdown
   regionalPopulation: Record<Region, number>;
   regionalWorking: Record<Region, number>;
+  regionalEffectiveWorkers: Record<Region, number>;
   regionalDependency: Record<Region, number>;
   regionalFertility: Record<Region, number>;
 }
@@ -387,6 +388,7 @@ export const demographicsModule: Module<
     'collegeShare',
     'regionalPopulation',
     'regionalWorking',
+    'regionalEffectiveWorkers',
     'regionalDependency',
     'regionalFertility',
   ] as const,
@@ -501,6 +503,7 @@ export const demographicsModule: Module<
     const regionalWorking: Record<Region, number> = {} as Record<Region, number>;
     const regionalDependency: Record<Region, number> = {} as Record<Region, number>;
     const regionalFertility: Record<Region, number> = {} as Record<Region, number>;
+    const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const regionState = state.regions[region];
@@ -548,8 +551,10 @@ export const demographicsModule: Module<
       );
       const collegeWorkers = newState.workingCollege;
       const nonCollegeWorkers = newState.workingNonCollege;
-      totalEffective += nonCollegeWorkers + collegeWorkers * wagePremium;
+      const regionEffective = nonCollegeWorkers + collegeWorkers * wagePremium;
+      totalEffective += regionEffective;
       totalCollegeWorkers += collegeWorkers;
+      regionalEffectiveWorkers[region] = regionEffective;
     }
 
     const globalCollegeShare = totalWorking > 0 ? totalCollegeWorkers / totalWorking : 0;
@@ -565,6 +570,7 @@ export const demographicsModule: Module<
         collegeShare: globalCollegeShare,
         regionalPopulation,
         regionalWorking,
+        regionalEffectiveWorkers,
         regionalDependency,
         regionalFertility,
       },
