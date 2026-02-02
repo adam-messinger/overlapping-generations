@@ -665,14 +665,97 @@ export function runSimulation(params: SimulationParams = {}): SimulationResult {
   return sim.run();
 }
 
+/**
+ * Run a simulation with a scenario file
+ */
+export async function runWithScenario(
+  scenarioPath: string,
+  overrides?: SimulationParams
+): Promise<{ scenario: { name: string; description: string }; result: SimulationResult }> {
+  const { loadScenario, scenarioToParams, deepMerge } = await import('./scenario.js');
+
+  const scenario = await loadScenario(scenarioPath);
+  let params = scenarioToParams(scenario);
+
+  if (overrides) {
+    params = deepMerge(params, overrides);
+  }
+
+  const result = runSimulation(params);
+
+  return {
+    scenario: { name: scenario.name, description: scenario.description },
+    result,
+  };
+}
+
 // =============================================================================
 // CLI RUNNER
 // =============================================================================
 
-if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('simulation.js')) {
-  console.log('=== SimTS Full Simulation ===\n');
+async function runCLI() {
+  const args = process.argv.slice(2);
 
-  const result = runSimulation();
+  // Parse --scenario=name or --scenario name
+  let scenarioName: string | undefined;
+  let scenarioPath: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--scenario=')) {
+      scenarioName = arg.split('=')[1];
+    } else if (arg === '--scenario' && args[i + 1]) {
+      scenarioName = args[++i];
+    } else if (arg === '--list') {
+      // List available scenarios
+      const { listScenarios } = await import('./scenario.js');
+      const scenarios = await listScenarios();
+      console.log('Available scenarios:');
+      for (const s of scenarios) {
+        console.log(`  ${s}`);
+      }
+      return;
+    } else if (arg === '--help' || arg === '-h') {
+      console.log('Usage: npx tsx src/simulation.ts [options]');
+      console.log('');
+      console.log('Options:');
+      console.log('  --scenario=NAME    Run with named scenario');
+      console.log('  --list             List available scenarios');
+      console.log('  --help, -h         Show this help');
+      return;
+    }
+  }
+
+  // Load scenario if specified
+  let params: SimulationParams = {};
+  let loadedScenario: { name: string; description: string } | undefined;
+
+  if (scenarioName) {
+    const { loadScenario, scenarioToParams, getScenarioPath } = await import('./scenario.js');
+    try {
+      // Try as path first, then as name
+      scenarioPath = scenarioName.endsWith('.json')
+        ? scenarioName
+        : getScenarioPath(scenarioName);
+      const scenario = await loadScenario(scenarioPath);
+      params = scenarioToParams(scenario);
+      loadedScenario = { name: scenario.name, description: scenario.description };
+    } catch (err) {
+      console.error(`Error loading scenario '${scenarioName}': ${(err as Error).message}`);
+      process.exit(1);
+    }
+  }
+
+  // Run simulation
+  if (loadedScenario) {
+    console.log(`=== ${loadedScenario.name} ===`);
+    console.log(loadedScenario.description);
+    console.log('');
+  } else {
+    console.log('=== SimTS Full Simulation ===\n');
+  }
+
+  const result = runSimulation(params);
 
   // Print sample years
   const sampleYears = [2025, 2030, 2040, 2050, 2075, 2100];
@@ -775,4 +858,11 @@ if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('sim
     }
   }
   console.log(`Peak burden: ${(peakBurden * 100).toFixed(1)}% in ${peakBurdenYear}`);
+}
+
+if (process.argv[1]?.endsWith('simulation.ts') || process.argv[1]?.endsWith('simulation.js')) {
+  runCLI().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
 }

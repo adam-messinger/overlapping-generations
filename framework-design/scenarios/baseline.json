@@ -1,0 +1,17 @@
+{
+  "name": "Baseline",
+  "description": "Current policies trajectory. Moderate carbon pricing, default technology learning rates, IEA STEPS-aligned electrification.",
+
+  "energy": {
+    "carbonPrice": 35
+  },
+
+  "demand": {
+    "electrificationTarget": 0.65,
+    "efficiencyMultiplier": 1.0
+  },
+
+  "climate": {
+    "sensitivity": 3.0
+  }
+}

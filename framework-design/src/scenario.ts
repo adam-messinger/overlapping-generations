@@ -1,0 +1,156 @@
+/**
+ * Scenario Loader
+ *
+ * Loads and applies scenario files to simulation parameters.
+ * Scenario format mirrors the module structure for clarity.
+ */
+
+import { readFile } from 'fs/promises';
+import { SimulationParams } from './simulation.js';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+/**
+ * Scenario file format - mirrors SimulationParams with metadata
+ */
+export interface Scenario {
+  /** Human-readable name */
+  name: string;
+
+  /** Description of scenario assumptions */
+  description: string;
+
+  /** Optional scenario metadata */
+  meta?: {
+    author?: string;
+    source?: string;
+    probability?: number;  // For probabilistic scenarios (e.g., Twin-Engine)
+  };
+
+  // Module parameters (all optional - only specify overrides)
+  demographics?: SimulationParams['demographics'];
+  demand?: SimulationParams['demand'];
+  capital?: SimulationParams['capital'];
+  energy?: SimulationParams['energy'];
+  dispatch?: SimulationParams['dispatch'];
+  expansion?: SimulationParams['expansion'];
+  resources?: SimulationParams['resources'];
+  climate?: SimulationParams['climate'];
+}
+
+// =============================================================================
+// LOADER
+// =============================================================================
+
+/**
+ * Load a scenario from a JSON file
+ */
+export async function loadScenario(path: string): Promise<Scenario> {
+  const content = await readFile(path, 'utf-8');
+  const scenario = JSON.parse(content) as Scenario;
+
+  if (!scenario.name) {
+    throw new Error(`Scenario file missing required 'name' field: ${path}`);
+  }
+
+  return scenario;
+}
+
+/**
+ * Convert scenario to SimulationParams
+ */
+export function scenarioToParams(scenario: Scenario): SimulationParams {
+  const params: SimulationParams = {};
+
+  if (scenario.demographics) params.demographics = scenario.demographics;
+  if (scenario.demand) params.demand = scenario.demand;
+  if (scenario.capital) params.capital = scenario.capital;
+  if (scenario.energy) params.energy = scenario.energy;
+  if (scenario.dispatch) params.dispatch = scenario.dispatch;
+  if (scenario.expansion) params.expansion = scenario.expansion;
+  if (scenario.resources) params.resources = scenario.resources;
+  if (scenario.climate) params.climate = scenario.climate;
+
+  return params;
+}
+
+/**
+ * Deep merge two objects (scenario params override defaults)
+ */
+export function deepMerge<T extends object>(base: T, override: Partial<T>): T {
+  const result = { ...base };
+
+  for (const key of Object.keys(override) as Array<keyof T>) {
+    const overrideValue = override[key];
+    const baseValue = base[key];
+
+    if (
+      overrideValue !== undefined &&
+      typeof overrideValue === 'object' &&
+      overrideValue !== null &&
+      !Array.isArray(overrideValue) &&
+      typeof baseValue === 'object' &&
+      baseValue !== null &&
+      !Array.isArray(baseValue)
+    ) {
+      // Recursively merge nested objects
+      result[key] = deepMerge(baseValue as object, overrideValue as object) as T[keyof T];
+    } else if (overrideValue !== undefined) {
+      result[key] = overrideValue as T[keyof T];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Load scenario and convert to params, with optional CLI overrides
+ */
+export async function loadScenarioAsParams(
+  path: string,
+  cliOverrides?: SimulationParams
+): Promise<{ scenario: Scenario; params: SimulationParams }> {
+  const scenario = await loadScenario(path);
+  let params = scenarioToParams(scenario);
+
+  // Apply CLI overrides on top of scenario
+  if (cliOverrides) {
+    params = deepMerge(params, cliOverrides);
+  }
+
+  return { scenario, params };
+}
+
+// =============================================================================
+// SCENARIO LISTING
+// =============================================================================
+
+import { readdir } from 'fs/promises';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+/**
+ * List available scenarios in the scenarios directory
+ */
+export async function listScenarios(scenariosDir?: string): Promise<string[]> {
+  const dir = scenariosDir ?? join(dirname(fileURLToPath(import.meta.url)), '../scenarios');
+
+  try {
+    const files = await readdir(dir);
+    return files
+      .filter(f => f.endsWith('.json'))
+      .map(f => f.replace('.json', ''));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get scenario path from name
+ */
+export function getScenarioPath(name: string, scenariosDir?: string): string {
+  const dir = scenariosDir ?? join(dirname(fileURLToPath(import.meta.url)), '../scenarios');
+  return join(dir, `${name}.json`);
+}
