@@ -72,9 +72,9 @@ export const demographicsDefaults: DemographicsParams = {
     china: {
       name: 'China',
       pop2025: 1.4e9,
-      fertility: 1.05,
-      fertilityFloor: 0.85,
-      fertilityDecay: 0.012,
+      fertility: 1.05,        // TFR 2023 (JFV)
+      fertilityFloor: 0.8,    // Lower floor (South Korea at 0.7)
+      fertilityDecay: 0.05,   // Fast convergence (JFV: steepest decline)
       lifeExpectancy: 78,
       young: 0.16,
       working: 0.68,
@@ -84,9 +84,9 @@ export const demographicsDefaults: DemographicsParams = {
     em: {
       name: 'Emerging Markets',
       pop2025: 3.5e9,
-      fertility: 2.1,
+      fertility: 2.3,         // Slightly higher starting TFR
       fertilityFloor: 1.4,
-      fertilityDecay: 0.02,
+      fertilityDecay: 0.02,   // JFV: faster convergence than expected
       lifeExpectancy: 72,
       young: 0.27,
       working: 0.63,
@@ -95,13 +95,13 @@ export const demographicsDefaults: DemographicsParams = {
     },
     row: {
       name: 'Rest of World',
-      pop2025: 2.0e9,
-      fertility: 3.5,
-      fertilityFloor: 1.6,
-      fertilityDecay: 0.03,
+      pop2025: 2.0e9,           // Africa + others
+      fertility: 4.2,           // High starting TFR (Sub-Saharan Africa ~4.5)
+      fertilityFloor: 1.5,      // Lower floor (JFV: even Africa converging)
+      fertilityDecay: 0.028,    // Balance: high enough peak, declining by 2100
       lifeExpectancy: 65,
-      young: 0.40,
-      working: 0.54,
+      young: 0.42,              // Very young population
+      working: 0.52,
       old: 0.06,
       migrationRate: -0.001,
     },
@@ -109,8 +109,8 @@ export const demographicsDefaults: DemographicsParams = {
   education: {
     oecd: {
       enrollmentRate2025: 0.55,
-      enrollmentTarget: 0.65,
-      enrollmentGrowth: 0.008,
+      enrollmentTarget: 0.70,   // Higher target (UNESCO projections)
+      enrollmentGrowth: 0.012,  // Faster growth
       collegeShare2025: 0.40,
       wagePremium2025: 1.5,
       premiumTarget: 1.4,
@@ -120,8 +120,8 @@ export const demographicsDefaults: DemographicsParams = {
     },
     china: {
       enrollmentRate2025: 0.60,
-      enrollmentTarget: 0.70,
-      enrollmentGrowth: 0.012,
+      enrollmentTarget: 0.75,   // Higher target (China pushing education)
+      enrollmentGrowth: 0.015,  // Faster growth
       collegeShare2025: 0.22,
       wagePremium2025: 1.8,
       premiumTarget: 1.5,
@@ -131,8 +131,8 @@ export const demographicsDefaults: DemographicsParams = {
     },
     em: {
       enrollmentRate2025: 0.35,
-      enrollmentTarget: 0.55,
-      enrollmentGrowth: 0.015,
+      enrollmentTarget: 0.60,   // Higher target
+      enrollmentGrowth: 0.02,   // Faster growth (catching up)
       collegeShare2025: 0.18,
       wagePremium2025: 2.0,
       premiumTarget: 1.6,
@@ -142,8 +142,8 @@ export const demographicsDefaults: DemographicsParams = {
     },
     row: {
       enrollmentRate2025: 0.15,
-      enrollmentTarget: 0.40,
-      enrollmentGrowth: 0.02,
+      enrollmentTarget: 0.45,   // Higher target
+      enrollmentGrowth: 0.025,  // Faster growth (catching up)
       collegeShare2025: 0.08,
       wagePremium2025: 2.2,
       premiumTarget: 1.7,
