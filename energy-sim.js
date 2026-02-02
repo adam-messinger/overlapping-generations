@@ -178,14 +178,40 @@
      * subject to capacity and penetration constraints.
      */
     const dispatchParams = {
-        solar: { capacityFactor: 0.20, maxPenetration: 0.40 },
-        wind: { capacityFactor: 0.30, maxPenetration: 0.35 },
-        solarPlusBattery: { capacityFactor: 0.20, maxPenetration: 0.80 },
-        hydro: { capacityFactor: 0.42, maxPenetration: 0.20 },  // ~16% of global electricity
-        gas: { capacityFactor: 0.50, maxPenetration: 1.0 },
-        coal: { capacityFactor: 0.60, maxPenetration: 1.0 },
-        nuclear: { capacityFactor: 0.90, maxPenetration: 0.30 }
+        solar: { capacityFactor: 0.20, maxPenetration: 0.40, marginalCost: 0 },
+        wind: { capacityFactor: 0.30, maxPenetration: 0.35, marginalCost: 0 },
+        solarPlusBattery: { capacityFactor: 0.20, maxPenetration: 0.80, marginalCost: 5 },
+        hydro: { capacityFactor: 0.42, maxPenetration: 0.20, marginalCost: 5 },  // ~16% of global electricity
+        gas: { capacityFactor: 0.50, maxPenetration: 1.0, marginalCost: 35 },
+        coal: { capacityFactor: 0.60, maxPenetration: 1.0, marginalCost: 25 },
+        nuclear: { capacityFactor: 0.90, maxPenetration: 0.30, marginalCost: 12 }
     };
+
+    /**
+     * Calculate marginal costs for dispatch (fuel + variable O&M + carbon)
+     *
+     * Real electricity markets dispatch by marginal cost, not LCOE.
+     * Nuclear has high LCOE (~$90/MWh) but very low marginal cost (~$12/MWh)
+     * because fuel is cheap and capital costs are sunk.
+     *
+     * @param {number} carbonPrice - Carbon price ($/ton CO₂)
+     * @returns {Object} Marginal costs by source ($/MWh)
+     */
+    function calculateMarginalCosts(carbonPrice) {
+        // Carbon cost: kg CO₂/MWh × $/ton × ton/1000kg = $/MWh
+        const gasCarbonCost = (energySources.gas.carbonIntensity / 1000) * carbonPrice;
+        const coalCarbonCost = (energySources.coal.carbonIntensity / 1000) * carbonPrice;
+
+        return {
+            solar: dispatchParams.solar.marginalCost,
+            wind: dispatchParams.wind.marginalCost,
+            solarPlusBattery: dispatchParams.solarPlusBattery.marginalCost,
+            hydro: dispatchParams.hydro.marginalCost,
+            nuclear: dispatchParams.nuclear.marginalCost,
+            gas: dispatchParams.gas.marginalCost + gasCarbonCost,
+            coal: dispatchParams.coal.marginalCost + coalCarbonCost
+        };
+    }
 
     // =============================================================================
     // CLIMATE - Emissions and damage parameters
@@ -3247,11 +3273,11 @@
      *    - Competes in merit order at combined LCOE
      *
      * @param {number} demandTWh - Total electricity demand in TWh
-     * @param {Object} lcoes - LCOE for each source ($/MWh), including solarPlusBattery
+     * @param {Object} marginalCosts - Marginal cost for each source ($/MWh)
      * @param {Object} capacities - Installed capacity (GW) for each source
      * @returns {Object} Generation (TWh) by source, plus grid intensity
      */
-    function dispatch(demandTWh, lcoes, capacities) {
+    function dispatch(demandTWh, marginalCosts, capacities) {
         const hoursPerYear = 8760;
         const result = {
             solar: 0,
@@ -3288,21 +3314,20 @@
         const maxBareSolarPen = dispatchParams.solar.maxPenetration; // 40%
         const maxTotalSolarPen = dispatchParams.solarPlusBattery.maxPenetration; // 80%
 
-        // Sort sources by LCOE (merit order)
-        // solarPlusBattery competes separately from bare solar
-        // Hydro has fixed LCOE (no learning, mature tech)
-        const hydroLcoe = energySources.hydro.cost0;
+        // Sort sources by marginal cost (merit order dispatch)
+        // Real markets dispatch by marginal cost (fuel + variable O&M + carbon), not LCOE.
+        // Nuclear has high LCOE but very low marginal cost, so it runs as baseload.
         const sources = [
-            { name: 'nuclear', lcoe: lcoes.nuclear, max: maxGen.nuclear, carbonIntensity: 0, isSolar: false },
-            { name: 'hydro', lcoe: hydroLcoe, max: maxGen.hydro, carbonIntensity: 0, isSolar: false },
-            { name: 'solar', lcoe: lcoes.solar, max: maxGen.solar, carbonIntensity: 0, isSolar: true, isBareSolar: true },
-            { name: 'solarPlusBattery', lcoe: lcoes.solarPlusBattery, max: maxGen.solarPlusBattery, carbonIntensity: 0, isSolar: true, isBareSolar: false },
-            { name: 'wind', lcoe: lcoes.wind, max: maxGen.wind, carbonIntensity: 0, isSolar: false },
-            { name: 'gas', lcoe: lcoes.gas, max: maxGen.gas, carbonIntensity: energySources.gas.carbonIntensity, isSolar: false },
-            { name: 'coal', lcoe: lcoes.coal, max: maxGen.coal, carbonIntensity: energySources.coal.carbonIntensity, isSolar: false }
+            { name: 'nuclear', marginalCost: marginalCosts.nuclear, max: maxGen.nuclear, carbonIntensity: 0, isSolar: false },
+            { name: 'hydro', marginalCost: marginalCosts.hydro, max: maxGen.hydro, carbonIntensity: 0, isSolar: false },
+            { name: 'solar', marginalCost: marginalCosts.solar, max: maxGen.solar, carbonIntensity: 0, isSolar: true, isBareSolar: true },
+            { name: 'solarPlusBattery', marginalCost: marginalCosts.solarPlusBattery, max: maxGen.solarPlusBattery, carbonIntensity: 0, isSolar: true, isBareSolar: false },
+            { name: 'wind', marginalCost: marginalCosts.wind, max: maxGen.wind, carbonIntensity: 0, isSolar: false },
+            { name: 'gas', marginalCost: marginalCosts.gas, max: maxGen.gas, carbonIntensity: energySources.gas.carbonIntensity, isSolar: false },
+            { name: 'coal', marginalCost: marginalCosts.coal, max: maxGen.coal, carbonIntensity: energySources.coal.carbonIntensity, isSolar: false }
         ];
 
-        sources.sort((a, b) => a.lcoe - b.lcoe);
+        sources.sort((a, b) => a.marginalCost - b.marginalCost);
 
         // Dispatch in merit order
         let remaining = demandTWh;
@@ -3967,7 +3992,10 @@
             // -----------------------------------------------------------------
             // 4. Dispatch sources to meet demand
             // -----------------------------------------------------------------
-            const dispatchResult = dispatch(demandTWh, lcoes, capacities);
+            // Use marginal costs for merit order (not LCOE)
+            // Nuclear: $12/MWh marginal cost vs $90/MWh LCOE - runs as baseload
+            const marginalCosts = calculateMarginalCosts(carbonPrice);
+            const dispatchResult = dispatch(demandTWh, marginalCosts, capacities);
 
             // Store dispatch results
             dispatchData.solar.push(dispatchResult.solar);
@@ -4895,6 +4923,9 @@ const energySim = {
     calculateEnergyCost,            // Calculate total energy cost from dispatch + fuel demand
     energyBurdenDamage,             // Calculate GDP damage from energy burden exceeding threshold
     fuelPrices,                     // Fuel price assumptions for non-electric energy
+
+    // Dispatch functions (Issue #12: marginal cost dispatch)
+    calculateMarginalCosts,         // Calculate marginal costs for merit order dispatch
 
     // Parameters (read-only references)
     energySources,

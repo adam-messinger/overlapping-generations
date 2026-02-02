@@ -212,6 +212,53 @@ test('Energy cost reflects LCOE learning curves', () => {
 });
 
 // =============================================================================
+// MARGINAL COST DISPATCH TESTS (Issue #12)
+// =============================================================================
+
+console.log('\n=== Marginal Cost Dispatch (Issue #12) ===\n');
+
+test('calculateMarginalCosts exists', () => {
+    return typeof e.calculateMarginalCosts === 'function';
+});
+
+test('Marginal costs ordered correctly at $0 carbon', () => {
+    const mc = e.calculateMarginalCosts(0);
+    // Order: solar/wind (0) < hydro/solarPlusBattery (5) < nuclear (12) < coal (25) < gas (35)
+    return mc.solar === 0 &&
+           mc.wind === 0 &&
+           mc.hydro === 5 &&
+           mc.nuclear === 12 &&
+           mc.coal === 25 &&
+           mc.gas === 35;
+});
+
+test('Marginal costs include carbon pricing', () => {
+    const mc = e.calculateMarginalCosts(100);
+    // Coal: 25 + (900 kg/MWh × $100/ton × 1ton/1000kg) = 25 + 90 = 115
+    // Gas: 35 + (400 kg/MWh × $100/ton × 1ton/1000kg) = 35 + 40 = 75
+    return approx(mc.coal, 115, 0.01) && approx(mc.gas, 75, 0.01);
+});
+
+test('Nuclear now dispatches (was 0 before fix)', () => {
+    const result = e.runSimulation({ carbonPrice: 35 });
+    // Nuclear should produce ~2800-3200 TWh at 400 GW × 90% CF
+    return result.dispatch.nuclear[0] > 2500 && result.dispatch.nuclear[0] < 3500;
+});
+
+test('Grid intensity lower with nuclear dispatch', () => {
+    const result = e.runSimulation({ carbonPrice: 35 });
+    // Grid intensity should be lower now that nuclear is dispatched
+    // Before fix: ~427 kg/MWh; After fix: ~300 kg/MWh
+    return result.dispatch.gridIntensity[0] < 350;
+});
+
+test('dispatchParams includes marginalCost', () => {
+    return e.dispatchParams.nuclear.marginalCost === 12 &&
+           e.dispatchParams.solar.marginalCost === 0 &&
+           e.dispatchParams.gas.marginalCost === 35;
+});
+
+// =============================================================================
 // SUMMARY
 // =============================================================================
 

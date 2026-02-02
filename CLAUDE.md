@@ -338,6 +338,7 @@ node run-simulation.js --scenario=scenarios/net-zero.json
 | Dataset | Unit |
 |---------|------|
 | LCOE | $/MWh |
+| Marginal cost | $/MWh |
 | Battery cost | $/kWh |
 | Electricity demand | TWh |
 | Per-worker electricity | kWh/person |
@@ -447,7 +448,11 @@ node run-simulation.js --scenario=scenarios/net-zero.json
   - High burden constrains growth AND suppresses expansion
 
 ### Climate (Phase 4)
-- **Dispatch**: Merit order allocation by LCOE with capacity/penetration constraints
+- **Dispatch**: Merit order allocation by marginal cost with capacity/penetration constraints
+  - Real markets dispatch by marginal cost (fuel + variable O&M + carbon), not LCOE
+  - Nuclear has $90/MWh LCOE but $12/MWh marginal cost → dispatches as baseload
+  - Renewables have $0 marginal cost → dispatch first
+  - Carbon price adds to fossil fuel marginal costs
 - **Emissions**: Computed from dispatch (electricity) + electrification-adjusted non-electric
 - **Carbon Cycle**: Simplified cumulative CO2 → ppm → temperature with lag
   - CO2 derived from cumulative emissions (enables counterfactual analysis)
@@ -544,11 +549,12 @@ When energy costs drop, released resources get reinvested into new activities.
 | Global electricity 2050 | 52,000-71,000 TWh | IEA, IRENA |
 | Hydro capacity 2025 | ~1,400 GW | IEA |
 | Hydro share 2025 | ~16% of electricity | IEA |
+| Nuclear generation 2025 | ~2,700-3,000 TWh | IEA (400 GW × 90% CF) |
 | Electrification 2050 | ~65% | IEA Net Zero |
 | Asia-Pacific share 2050 | >50% | IEA |
 | Total emissions 2025 | ~35 Gt CO2 | IEA |
 | Electricity emissions 2025 | ~10 Gt CO2 | IEA |
-| Grid intensity 2025 | ~340 kg CO2/MWh | Computed |
+| Grid intensity 2025 | ~300 kg CO2/MWh | Computed (with marginal cost dispatch) |
 | Temperature 2025 | 1.2°C | NASA |
 | Atmospheric CO2 2025 | 420 ppm | NOAA |
 | China college share 2025 | ~22% | World Bank |
