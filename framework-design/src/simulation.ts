@@ -751,7 +751,7 @@ async function runCLI() {
     console.log(loadedScenario.description);
     console.log('');
   } else {
-    console.log('=== SimTS Full Simulation ===\n');
+    console.log('=== tsimulation Full Simulation ===\n');
   }
 
   const result = runSimulation(params);

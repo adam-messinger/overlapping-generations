@@ -8,7 +8,7 @@
 import { demographicsModule } from './modules/demographics.js';
 import { climateModule } from './modules/climate.js';
 
-console.log('=== SimTS Framework Demo ===\n');
+console.log('=== tsimulation Framework Demo ===\n');
 
 // =============================================================================
 // DEMO 1: Run demographics module standalone

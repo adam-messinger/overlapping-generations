@@ -1,5 +1,5 @@
 /**
- * SimTS - TypeScript Energy/Demographics Simulation Framework
+ * tsimulation - TypeScript Energy/Demographics Simulation Framework
  *
  * Main entry point for programmatic use.
  */

@@ -1,5 +1,5 @@
 {
-  "name": "simts",
+  "name": "tsimulation",
   "version": "0.1.0",
   "description": "TypeScript micro-framework for modular simulations",
   "type": "module",

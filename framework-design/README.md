@@ -1,4 +1,4 @@
-# SimTS: A TypeScript Micro-Framework for Modular Simulations
+# tsimulation: A TypeScript Micro-Framework for Modular Simulations
 
 Inspired by Julia's approach to scientific computing, designed for the Overlapping Generations simulation.
 
@@ -6,7 +6,7 @@ Inspired by Julia's approach to scientific computing, designed for the Overlappi
 
 The current energy-sim.js has grown to ~5,000 lines with these pain points:
 
-| Problem | Current Code | SimTS Solution |
+| Problem | Current Code | tsimulation Solution |
 |---------|--------------|----------------|
 | **250+ untyped params** | Easy to mistype, no validation | TypeScript interfaces with `validate()` |
 | **Can't test in isolation** | Need full setup to test dispatch() | Each module is self-contained |
@@ -186,7 +186,7 @@ function runSimulation(params = {}) {
 }
 ```
 
-### After (SimTS)
+### After (tsimulation)
 ```typescript
 // Each concern in its own file
 // climate.ts: 150 lines
