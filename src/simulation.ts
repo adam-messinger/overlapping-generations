@@ -761,7 +761,7 @@ async function runCLI() {
   // Known flags
   const knownFlags = new Set([
     '--scenario', '--list', '--help', '-h',
-    '--carbonPrice', '--sensitivity', '--electrificationTarget',
+    '--carbonPrice', '--sensitivity',
   ]);
 
   // Parse --scenario=name or --scenario name
@@ -793,7 +793,6 @@ async function runCLI() {
       console.log('  --list                    List available scenarios');
       console.log('  --carbonPrice=VALUE       Override carbon price ($/ton)');
       console.log('  --sensitivity=VALUE       Override climate sensitivity (°C)');
-      console.log('  --electrificationTarget=VALUE  Override electrification target (0-1)');
       console.log('  --help, -h                Show this help');
       return;
     } else if (arg.startsWith('--carbonPrice=')) {
@@ -805,11 +804,6 @@ async function runCLI() {
       const value = parseFloat(arg.split('=')[1]);
       if (!isNaN(value)) {
         paramOverrides.climate = { ...paramOverrides.climate, sensitivity: value };
-      }
-    } else if (arg.startsWith('--electrificationTarget=')) {
-      const value = parseFloat(arg.split('=')[1]);
-      if (!isNaN(value)) {
-        paramOverrides.demand = { ...paramOverrides.demand, electrificationTarget: value };
       }
     } else if (arg.startsWith('--') || arg.startsWith('-')) {
       // Check if it's a known flag with separate value
