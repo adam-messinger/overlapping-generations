@@ -82,6 +82,12 @@ const transforms = {
     dependsOn: ['gdp'],
   },
 
+  // Capital uses lagged net energy factor (not wired in autowire yet)
+  netEnergyFactor: {
+    fn: () => 1,
+    dependsOn: [],
+  },
+
   // Dispatch uses adjusted demand from expansion (when available).
   // Energy also needs electricityDemand but runs BEFORE expansion, so it gets
   // the base value from demand module (via fallback).

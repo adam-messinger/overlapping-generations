@@ -270,6 +270,7 @@ export class Simulation {
     let laggedBurdenDamage = 0;
     let laggedTemperature = 1.2; // Initial temperature for resources
     let laggedAvgLCOE = 50; // Initial LCOE for cost-driven electrification ($/MWh)
+    let laggedNetEnergyFactor = 1; // Initial net energy factor for investment
     let gdpPerCapita2025 = 0; // Will be set in first year
 
     for (let year = this.startYear; year <= this.endYear; year++) {
@@ -326,6 +327,7 @@ export class Simulation {
         effectiveWorkers: demo.effectiveWorkers,
         gdp: demand.gdp,
         damages: laggedDamages.oecd, // Use OECD as proxy for global
+        netEnergyFactor: laggedNetEnergyFactor,
       };
       const capitalResult = capitalModule.step(
         capitalState,
@@ -435,6 +437,27 @@ export class Simulation {
       );
       dispatchState = dispatchResult.state;
       const dispatch = dispatchResult.outputs;
+
+      // =======================================================================
+      // Update net energy factor (lagged to next year)
+      // =======================================================================
+      let grossElectricity = 0;
+      let netElectricity = 0;
+      for (const [source, gen] of Object.entries(dispatch.generation)) {
+        const generation = gen ?? 0;
+        if (generation <= 0) continue;
+        let energySource: EnergySource;
+        if (source === 'solarPlusBattery') {
+          energySource = 'solar';
+        } else {
+          energySource = source as EnergySource;
+        }
+        const fraction = energy.netEnergyFraction[energySource] ?? 1;
+        grossElectricity += generation;
+        netElectricity += generation * fraction;
+      }
+      const netEnergyFactor = grossElectricity > 0 ? netElectricity / grossElectricity : 1;
+      laggedNetEnergyFactor = Math.max(0, Math.min(1, netEnergyFactor));
 
       // =======================================================================
       // Step 7: Resources (needs energy, demographics, demand, lagged temperature)

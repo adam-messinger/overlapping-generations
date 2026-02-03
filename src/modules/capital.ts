@@ -69,6 +69,9 @@ interface CapitalInputs {
 
   // From climate (optional)
   damages?: number;           // Damage fraction (0-1) for stability
+
+  // From energy/dispatch (optional)
+  netEnergyFactor?: number;   // Net energy fraction (0-1), lagged
 }
 
 interface CapitalOutputs {
@@ -203,6 +206,7 @@ export const capitalModule: Module<
     'effectiveWorkers',
     'gdp',
     'damages',
+    'netEnergyFactor',
   ] as const,
 
   outputs: [
@@ -323,7 +327,8 @@ export const capitalModule: Module<
     const stability = calculateStability(uncertainty, params.stabilityLambda);
 
     // Calculate investment
-    const investment = inputs.gdp * savingsRate * stability;
+    const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
+    const investment = inputs.gdp * savingsRate * stability * netEnergyFactor;
 
     // Calculate interest rate
     const interestRate = calculateInterestRate(inputs.gdp, state.stock, params);

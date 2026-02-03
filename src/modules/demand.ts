@@ -196,6 +196,8 @@ interface DemandOutputs {
   electrificationRate: number;  // Fraction (0-1)
   totalFinalEnergy: number;     // TWh (global)
   nonElectricEnergy: number;    // TWh (global)
+  usefulEnergy: number;         // TWh (useful, efficiency-adjusted)
+  usefulEnergyFactor: number;   // Useful energy / total final energy
   gdpPerWorking: number;        // $ per person (global)
   electricityPerWorking: number; // kWh per person (global)
   finalEnergyPerCapitaDay: number; // kWh/person/day
@@ -568,6 +570,8 @@ export const demandModule: Module<
     'electrificationRate',
     'totalFinalEnergy',
     'nonElectricEnergy',
+    'usefulEnergy',
+    'usefulEnergyFactor',
     'gdpPerWorking',
     'electricityPerWorking',
     'finalEnergyPerCapitaDay',
@@ -912,6 +916,16 @@ export const demandModule: Module<
       };
     }
 
+    // Useful energy = electrified energy * efficiency multiplier + non-electric energy
+    let usefulEnergy = 0;
+    for (const sectorKey of sectorKeys) {
+      const sectorParams = params.sectors[sectorKey];
+      const sectorOutput = sectors[sectorKey];
+      usefulEnergy += sectorOutput.electric * sectorParams.efficiencyMultiplier;
+      usefulEnergy += sectorOutput.nonElectric;
+    }
+    const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
+
     // =========================================================================
     // Fuel mix for non-electric energy (price-driven with inertia)
     // =========================================================================
@@ -1000,6 +1014,8 @@ export const demandModule: Module<
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,
         nonElectricEnergy: globalNonElec,
+        usefulEnergy,
+        usefulEnergyFactor,
         gdpPerWorking: (globalGdp * 1e12) / globalWorking,
         electricityPerWorking: (globalElec * 1e9) / globalWorking,
         finalEnergyPerCapitaDay,

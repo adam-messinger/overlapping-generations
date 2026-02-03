@@ -59,6 +59,9 @@ export interface EnergyParams {
   /** Regional policy parameters (carbon price, growth constraints) */
   regional: Record<Region, RegionalEnergyParams>;
 
+  /** EROI assumptions by source (non-fossil used directly; fossil uses depletion) */
+  eroi: Record<EnergySource, number>;
+
   /** Global carbon price (fallback if regional not specified) - DEPRECATED, use regional */
   carbonPrice: number;
 
@@ -238,6 +241,17 @@ export const energyDefaults: EnergyParams = {
     },
   },
 
+  // Non-fossil EROI assumptions (used for net energy fraction)
+  eroi: {
+    solar: 20,
+    wind: 25,
+    nuclear: 60,
+    hydro: 30,
+    battery: 10,
+    gas: 30,
+    coal: 25,
+  },
+
   // Global fallback carbon price (DEPRECATED - use regional)
   carbonPrice: 35,
 
@@ -337,6 +351,9 @@ export interface RegionalEnergyOutputs {
 export interface EnergyOutputs {
   /** Current LCOE by source ($/MWh) - GLOBAL (from learning curves) */
   lcoes: Record<EnergySource, number>;
+
+  /** Net energy fraction by source (1 - 1/EROI) */
+  netEnergyFraction: Record<EnergySource, number>;
 
   /** Solar + battery combined LCOE ($/MWh) */
   solarPlusBatteryLCOE: number;
@@ -450,6 +467,7 @@ export const energyModule: Module<
 
   outputs: [
     'lcoes',
+    'netEnergyFraction',
     'solarPlusBatteryLCOE',
     'capacities',
     'regionalCapacities',
@@ -466,7 +484,11 @@ export const energyModule: Module<
   validate(params: Partial<EnergyParams>): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    const p = { ...energyDefaults, ...params };
+    const p = {
+      ...energyDefaults,
+      ...params,
+      eroi: { ...energyDefaults.eroi, ...(params.eroi ?? {}) },
+    };
 
     // Validate regional carbon prices
     if (p.regional) {
@@ -496,6 +518,10 @@ export const energyModule: Module<
       }
       if (s.cost0 < 0) {
         errors.push(`sources.${source}.cost0 cannot be negative`);
+      }
+      const eroi = p.eroi[source];
+      if (eroi !== undefined && eroi <= 1) {
+        errors.push(`eroi.${source} must be > 1`);
       }
     }
 
@@ -561,6 +587,9 @@ export const energyModule: Module<
     if (partial.capex) {
       result.capex = { ...energyDefaults.capex, ...partial.capex };
     }
+    if (partial.eroi) {
+      result.eroi = { ...energyDefaults.eroi, ...partial.eroi };
+    }
 
     return result;
   },
@@ -602,6 +631,7 @@ export const energyModule: Module<
 
     // Output accumulators
     const lcoes: Record<EnergySource, number> = {} as any;
+    const netEnergyFraction: Record<EnergySource, number> = {} as any;
     const globalCapacities: Record<EnergySource, number> = {} as any;
     const globalAdditions: Record<EnergySource, number> = {} as any;
     const globalRetirements: Record<EnergySource, number> = {} as any;
@@ -644,15 +674,20 @@ export const energyModule: Module<
         // Learning curve (solar, wind, battery) - GLOBAL cumulative
         const ratio = prevCumulative / globalCumulative2025;
         lcoe = s.cost0 * Math.pow(Math.max(1, ratio), -s.alpha);
+        const eroi = params.eroi[source];
+        netEnergyFraction[source] = eroi > 1 ? 1 - 1 / eroi : 0;
       } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
         // Fossil fuel with depletion - GLOBAL extraction
         const dep = depletion(s.reserves, globalState.extracted, s.eroei0);
         const baseCost = s.cost0 / dep.netEnergyFraction;
         // Note: carbon cost added regionally below
         lcoe = baseCost;
+        netEnergyFraction[source] = dep.netEnergyFraction;
       } else {
         // Fixed cost (nuclear, hydro)
         lcoe = s.cost0;
+        const eroi = params.eroi[source];
+        netEnergyFraction[source] = eroi > 1 ? 1 - 1 / eroi : 0;
       }
 
       lcoes[source] = lcoe;
@@ -896,6 +931,7 @@ export const energyModule: Module<
       state: { regional: newRegional, global: newGlobal },
       outputs: {
         lcoes,
+        netEnergyFraction,
         solarPlusBatteryLCOE,
         capacities: globalCapacities,
         regionalCapacities,
