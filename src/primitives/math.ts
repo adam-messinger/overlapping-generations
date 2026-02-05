@@ -49,7 +49,8 @@ export function learningRate(alpha: number): number {
  * @returns Alpha exponent for Wright's Law
  */
 export function alphaFromLearningRate(rate: number): number {
-  return -Math.log2(1 - rate);
+  const clamped = Math.max(0.001, Math.min(0.99, rate));
+  return -Math.log2(1 - clamped);
 }
 
 /**
@@ -96,6 +97,9 @@ export function logistic(
   rate: number,
   years: number
 ): number {
+  if (start >= ceiling) return ceiling;
+  if (start <= 0) return 0;
+  if (rate <= 0) return start;
   const midpoint = Math.log((ceiling - start) / start) / rate;
   return ceiling / (1 + Math.exp(-rate * (years - midpoint)));
 }

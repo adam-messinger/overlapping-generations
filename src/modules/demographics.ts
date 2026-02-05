@@ -267,7 +267,8 @@ function ageCohorts(
   state: RegionState,
   tfr: number,
   eduParams: RegionEduParams,
-  yearIndex: number
+  yearIndex: number,
+  lifeExpectancyGrowth: number
 ): RegionState {
   const pop = state.population;
   const youngShare = state.young / pop;
@@ -356,7 +357,7 @@ function ageCohorts(
     workingNonCollege: newWorkingNonCollege,
     oldCollege: newOldCollege,
     oldNonCollege: newOldNonCollege,
-    lifeExpectancy: state.lifeExpectancy + 0.1, // Annual improvement
+    lifeExpectancy: state.lifeExpectancy + lifeExpectancyGrowth,
     _fertility0: state._fertility0,
     _fertilityFloor: state._fertilityFloor,
     _fertilityDecay: state._fertilityDecay,
@@ -529,7 +530,7 @@ export const demographicsModule: Module<
       if (yearIndex === 0) {
         newState = regionState;
       } else {
-        newState = ageCohorts(regionState, tfr, eduParams, yearIndex);
+        newState = ageCohorts(regionState, tfr, eduParams, yearIndex, params.lifeExpectancyGrowth);
       }
 
       newRegions[region] = newState;

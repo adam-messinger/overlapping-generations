@@ -39,7 +39,7 @@
   },
 
   "climate": {
-    "sensitivity": 3.5,
+    "sensitivity": 3.0,
     "tippingThreshold": 2.0,
     "tippingMultiplier": 1.5
   }

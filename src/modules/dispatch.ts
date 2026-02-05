@@ -246,6 +246,10 @@ function dispatchRegion(
       params.hoursPerYear) /
     1000;
 
+  // Solar and solar+storage share the same underlying solar capacity.
+  // Track remaining solar generation potential to avoid double-counting.
+  let remainingSolarGen = maxGen.solar;
+
   // Build merit order
   const sources: MeritSource[] = [
     { name: 'nuclear', marginalCost: marginalCosts.nuclear, max: maxGen.nuclear, carbonIntensity: params.carbonIntensity.nuclear, isSolar: false, isBareSolar: false },
@@ -303,6 +307,11 @@ function dispatchRegion(
       maxAllocation = Math.min(maxAllocation, combinedRoom);
     }
 
+    // Ensure solar and solar+storage do not exceed total solar potential
+    if (source.isSolar) {
+      maxAllocation = Math.min(maxAllocation, remainingSolarGen);
+    }
+
     const allocation = Math.min(remaining, Math.max(0, maxAllocation));
 
     if (allocation > 0) {
@@ -312,6 +321,7 @@ function dispatchRegion(
       if (source.isSolar) {
         totalSolarAllocated += allocation;
         totalVREAllocated += allocation;
+        remainingSolarGen = Math.max(0, remainingSolarGen - allocation);
       } else if (source.name === 'wind') {
         totalWindAllocated += allocation;
         totalVREAllocated += allocation;
@@ -501,9 +511,20 @@ export const dispatchModule: Module<
     const fossilGen = globalGeneration.gas + globalGeneration.coal;
     const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;
 
-    // Find cheapest source (based on first region with lowest marginal cost)
-    // In practice, all regions have same base marginal costs, carbon differs
-    const cheapestSource = 'solar' as EnergySource; // Solar/wind have 0 marginal cost
+    // Find cheapest source with non-zero generation (by marginal cost)
+    let cheapestSource: EnergySource = 'solar';
+    let lowestMC = Infinity;
+    for (const source of ENERGY_SOURCES) {
+      if (globalGeneration[source] > 0) {
+        const baseMC = params.marginalCost[source];
+        const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
+        const mc = baseMC + carbonCost;
+        if (mc < lowestMC) {
+          lowestMC = mc;
+          cheapestSource = source;
+        }
+      }
+    }
 
     return {
       state: {},

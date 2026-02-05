@@ -126,6 +126,7 @@ interface DemandState {
     buildings: number;
     industry: number;
   };
+  previousEffectiveWorkers: Record<Region, number>; // For labor growth calculation
 }
 
 // Inputs from demographics module
@@ -685,6 +686,14 @@ export const demandModule: Module<
       };
     }
 
+    // Merge energyBurden params
+    if (partial.energyBurden) {
+      merged.energyBurden = {
+        ...demandDefaults.energyBurden,
+        ...partial.energyBurden,
+      };
+    }
+
     return merged;
   },
 
@@ -722,6 +731,7 @@ export const demandModule: Module<
       electrificationRate: params.electrification2025, // Initial electrification
       fuelShares,
       sectorElectrification,
+      previousEffectiveWorkers: { oecd: 0, china: 0, em: 0, row: 0 }, // Set on first step
     };
   },
 
@@ -796,13 +806,14 @@ export const demandModule: Module<
 
       // Get demographics for this region
       const working = inputs.regionalWorking[region];
-      const workingPrev = working; // TODO: track previous for growth calc
       const effective = inputs.regionalEffectiveWorkers[region];
       const dependency = inputs.regionalDependency[region];
 
-      // Calculate labor growth using effective workers
-      // For now, approximate from year index (proper tracking would need prior state)
-      const laborGrowth = yearIndex > 0 ? 0.01 : 0; // Placeholder - ideally track effective workers
+      // Calculate labor growth from effective workers (education-weighted)
+      const prevEffective = state.previousEffectiveWorkers[region];
+      const laborGrowth = (yearIndex > 0 && prevEffective > 0)
+        ? (effective - prevEffective) / prevEffective
+        : 0;
 
       // Demographic adjustment (Fernández-Villaverde)
       // Higher dependency = lower growth
@@ -1006,6 +1017,7 @@ export const demandModule: Module<
         electrificationRate, // Persist for next step (cost-driven)
         fuelShares: evolvedShares, // Persist evolved fuel shares
         sectorElectrification: newSectorElectrification, // Persist sector rates
+        previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth
       },
       outputs: {
         regional: regionalOutputs,

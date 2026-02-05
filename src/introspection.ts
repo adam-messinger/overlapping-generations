@@ -272,19 +272,19 @@ export function describeParameters(): ParameterSchema {
       max: 20,
       unit: 'MWh/robot-unit/year',
       description: 'Energy consumption per robot-equivalent (datacenter + physical robots).',
-      path: 'expansion.robotEnergyPerUnit',
+      path: 'expansion.energyPerRobotMWh',
     },
 
     // =========================================================================
     // DEMOGRAPHICS
     // =========================================================================
-    fertilityFloor: {
+    oecdFertilityFloor: {
       type: 'number',
-      default: 1.5,
+      default: 1.4,
       min: 1.0,
       max: 2.1,
       unit: 'children/woman',
-      description: 'Long-run fertility floor (global average). 2.1 = replacement level.',
+      description: 'Long-run fertility floor for OECD region. 2.1 = replacement level.',
       path: 'demographics.regions.oecd.fertilityFloor',
     },
 
@@ -298,7 +298,7 @@ export function describeParameters(): ParameterSchema {
       max: 0.02,
       unit: 'fraction/year',
       description: 'Annual agricultural yield improvement from technology.',
-      path: 'resources.yieldGrowthRate',
+      path: 'resources.land.yieldGrowthRate',
     },
     yieldDamageThreshold: {
       type: 'number',
@@ -307,7 +307,7 @@ export function describeParameters(): ParameterSchema {
       max: 3.0,
       unit: '°C',
       description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
-      path: 'resources.yieldDamageThreshold',
+      path: 'resources.land.yieldDamageThreshold',
     },
 
     // =========================================================================
@@ -368,6 +368,15 @@ export function buildParams(paramName: string, value: number | boolean): Record<
     throw new Error(`Unknown parameter: ${paramName}`);
   }
 
+  if (typeof value === 'number') {
+    if (info.min !== undefined && value < info.min) {
+      throw new Error(`Parameter ${paramName}: value ${value} is below minimum ${info.min}`);
+    }
+    if (info.max !== undefined && value > info.max) {
+      throw new Error(`Parameter ${paramName}: value ${value} is above maximum ${info.max}`);
+    }
+  }
+
   const parts = info.path.split('.');
   let result: Record<string, unknown> = {};
   let current = result;
@@ -382,10 +391,170 @@ export function buildParams(paramName: string, value: number | boolean): Record<
 }
 
 /**
+ * Build SimulationParams from multiple parameter name/value pairs.
+ * Deep-merges individual buildParams results.
+ *
+ * Example:
+ *   buildMultiParams({ carbonPrice: 100, climateSensitivity: 4.0 })
+ *   // Returns: { energy: { carbonPrice: 100 }, climate: { sensitivity: 4.0 } }
+ */
+export function buildMultiParams(params: Record<string, number | boolean>): Record<string, unknown> {
+  let result: Record<string, unknown> = {};
+
+  for (const [name, value] of Object.entries(params)) {
+    const single = buildParams(name, value);
+    result = deepMergeObjects(result, single);
+  }
+
+  return result;
+}
+
+function deepMergeObjects(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>
+): Record<string, unknown> {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const overrideVal = override[key];
+    const baseVal = result[key];
+    if (
+      typeof overrideVal === 'object' && overrideVal !== null && !Array.isArray(overrideVal) &&
+      typeof baseVal === 'object' && baseVal !== null && !Array.isArray(baseVal)
+    ) {
+      result[key] = deepMergeObjects(
+        baseVal as Record<string, unknown>,
+        overrideVal as Record<string, unknown>
+      );
+    } else {
+      result[key] = overrideVal;
+    }
+  }
+  return result;
+}
+
+/**
  * Lists all parameter names.
  */
 export function listParameters(): string[] {
   return Object.keys(describeParameters());
+}
+
+// =============================================================================
+// OUTPUT SCHEMA
+// =============================================================================
+
+export interface OutputInfo {
+  unit: string;
+  description: string;
+  module: string;
+}
+
+export interface OutputSchema {
+  [key: string]: OutputInfo;
+}
+
+/**
+ * Returns structured metadata for YearResult output fields.
+ * Enables agents to understand simulation outputs without reading source.
+ */
+export function describeOutputs(): OutputSchema {
+  return {
+    // Demographics
+    year: { unit: 'year', description: 'Simulation year', module: 'framework' },
+    population: { unit: 'people', description: 'Global population', module: 'demographics' },
+    working: { unit: 'people', description: 'Working-age population (20-64)', module: 'demographics' },
+    dependency: { unit: 'ratio', description: 'Old-age dependency ratio (65+/working)', module: 'demographics' },
+    effectiveWorkers: { unit: 'people', description: 'Productivity-weighted workers (education premium)', module: 'demographics' },
+    collegeShare: { unit: 'fraction', description: 'Share of workers with college degree', module: 'demographics' },
+
+    // Demand
+    gdp: { unit: '$T', description: 'Global GDP in trillions', module: 'demand' },
+    electricityDemand: { unit: 'TWh', description: 'Global electricity demand', module: 'demand' },
+    electrificationRate: { unit: 'fraction', description: 'Electricity share of final energy', module: 'demand' },
+    totalFinalEnergy: { unit: 'TWh', description: 'Total final energy consumption', module: 'demand' },
+    nonElectricEnergy: { unit: 'TWh', description: 'Non-electric energy consumption', module: 'demand' },
+    finalEnergyPerCapitaDay: { unit: 'kWh/person/day', description: 'Final energy per capita per day', module: 'demand' },
+
+    // Sectors
+    transportElectrification: { unit: 'fraction', description: 'Transport sector electrification rate', module: 'demand' },
+    buildingsElectrification: { unit: 'fraction', description: 'Buildings sector electrification rate', module: 'demand' },
+    industryElectrification: { unit: 'fraction', description: 'Industry sector electrification rate', module: 'demand' },
+
+    // Fuels
+    oilConsumption: { unit: 'TWh', description: 'Oil consumption (non-electric)', module: 'demand' },
+    gasConsumption: { unit: 'TWh', description: 'Gas consumption (non-electric)', module: 'demand' },
+    coalConsumption: { unit: 'TWh', description: 'Coal consumption (non-electric)', module: 'demand' },
+    hydrogenConsumption: { unit: 'TWh', description: 'Hydrogen consumption (non-electric)', module: 'demand' },
+    nonElectricEmissions: { unit: 'Gt CO2/year', description: 'Non-electric fuel combustion emissions', module: 'demand' },
+
+    // Energy burden
+    totalEnergyCost: { unit: '$T', description: 'Total energy cost (electricity + fuel)', module: 'demand' },
+    energyBurden: { unit: 'fraction', description: 'Energy cost as fraction of GDP', module: 'demand' },
+    burdenDamage: { unit: 'fraction', description: 'GDP damage from excess energy burden', module: 'demand' },
+
+    // Capital
+    capitalStock: { unit: '$T', description: 'Global capital stock', module: 'capital' },
+    investment: { unit: '$T', description: 'Annual investment', module: 'capital' },
+    savingsRate: { unit: 'fraction', description: 'Aggregate savings rate', module: 'capital' },
+    stability: { unit: 'index', description: 'Financial stability index (0-1)', module: 'capital' },
+    interestRate: { unit: 'fraction', description: 'Real interest rate', module: 'capital' },
+    robotsDensity: { unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'capital' },
+
+    // Energy
+    lcoes: { unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
+    capacities: { unit: 'GW (GWh for battery)', description: 'Installed capacity by source', module: 'energy' },
+    solarLCOE: { unit: '$/MWh', description: 'Solar levelized cost', module: 'energy' },
+    windLCOE: { unit: '$/MWh', description: 'Wind levelized cost', module: 'energy' },
+    batteryCost: { unit: '$/kWh', description: 'Battery storage cost', module: 'energy' },
+
+    // Dispatch
+    generation: { unit: 'TWh', description: 'Electricity generation by source', module: 'dispatch' },
+    gridIntensity: { unit: 'kg CO2/MWh', description: 'Grid carbon intensity', module: 'dispatch' },
+    electricityEmissions: { unit: 'Gt CO2/year', description: 'Electricity generation emissions', module: 'dispatch' },
+    fossilShare: { unit: 'fraction', description: 'Fossil share of electricity generation', module: 'dispatch' },
+
+    // Climate
+    temperature: { unit: '°C', description: 'Temperature above preindustrial', module: 'climate' },
+    co2ppm: { unit: 'ppm', description: 'Atmospheric CO2 concentration', module: 'climate' },
+    damages: { unit: 'fraction', description: 'Global climate damage (fraction of GDP)', module: 'climate' },
+    cumulativeEmissions: { unit: 'Gt CO2', description: 'Cumulative CO2 emissions since preindustrial', module: 'climate' },
+
+    // Resources - Minerals
+    copperDemand: { unit: 'Mt/year', description: 'Annual copper demand (net of recycling)', module: 'resources' },
+    lithiumDemand: { unit: 'Mt/year', description: 'Annual lithium demand (net of recycling)', module: 'resources' },
+    copperCumulative: { unit: 'Mt', description: 'Cumulative copper extracted', module: 'resources' },
+    lithiumCumulative: { unit: 'Mt', description: 'Cumulative lithium extracted', module: 'resources' },
+
+    // Resources - Land
+    farmland: { unit: 'Mha', description: 'Global cropland area', module: 'resources' },
+    forest: { unit: 'Mha', description: 'Global forest area', module: 'resources' },
+    desert: { unit: 'Mha', description: 'Desert/barren area', module: 'resources' },
+    yieldDamageFactor: { unit: 'fraction', description: 'Climate yield damage (1=none, <1=damage)', module: 'resources' },
+
+    // Resources - Food
+    proteinShare: { unit: 'fraction', description: 'Fraction of calories from protein (Bennett\'s Law)', module: 'resources' },
+    grainEquivalent: { unit: 'Mt', description: 'Total grain needed (direct + feed conversion)', module: 'resources' },
+
+    // Resources - Carbon
+    forestNetFlux: { unit: 'Gt CO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },
+    cumulativeSequestration: { unit: 'Gt CO2', description: 'Cumulative forest carbon sequestration', module: 'resources' },
+
+    // G/C Expansion
+    robotLoadTWh: { unit: 'TWh', description: 'Automation energy consumption', module: 'expansion' },
+    expansionMultiplier: { unit: 'multiplier', description: 'G/C cost expansion factor', module: 'expansion' },
+    adjustedDemand: { unit: 'TWh', description: 'Electricity demand after expansion', module: 'expansion' },
+    robotsPer1000: { unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'expansion' },
+
+    // Regional
+    regionalPopulation: { unit: 'people', description: 'Population by region', module: 'demographics' },
+    regionalGdp: { unit: '$T', description: 'GDP by region', module: 'demand' },
+    regionalCapacities: { unit: 'GW', description: 'Energy capacity by region and source', module: 'energy' },
+    regionalAdditions: { unit: 'GW', description: 'Capacity additions by region and source', module: 'energy' },
+    regionalGeneration: { unit: 'TWh', description: 'Generation by region and source', module: 'dispatch' },
+    regionalGridIntensity: { unit: 'kg CO2/MWh', description: 'Grid intensity by region', module: 'dispatch' },
+    regionalFossilShare: { unit: 'fraction', description: 'Fossil share by region', module: 'dispatch' },
+    regionalEmissions: { unit: 'Gt CO2/year', description: 'Electricity emissions by region', module: 'dispatch' },
+  };
 }
 
 // =============================================================================

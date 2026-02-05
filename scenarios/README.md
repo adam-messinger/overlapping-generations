@@ -107,7 +107,7 @@ const result = runSimulation(params);
 ```json
 {
   "sensitivity": 4.5,
-  "damageCoefficient": 0.003,
+  "damageCoeff": 0.003,
   "tippingThreshold": 2.0,
   "regionalDamage": { "oecd": 0.8, "china": 1.0, "em": 1.8, "row": 2.0 }
 }

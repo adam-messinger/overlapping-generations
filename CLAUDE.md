@@ -63,21 +63,21 @@ interface Module<TParams, TState, TInputs, TOutputs> {
 ```
 demographics (no inputs)
      ↓
-   demand ← demographics, lagged damages
+   demand ← demographics, lagged damages, lagged energy burden
      ↓
-   capital ← demographics, demand
+   capital ← demographics, demand, lagged damages
      ↓
    energy ← demand, capital
      ↓
-  expansion ← demand, energy, demographics
+  expansion ← demand, energy, demographics, capital
      ↓
-  dispatch ← demand, energy, expansion
+  dispatch ← expansion (adjusted demand), energy
      ↓
-  resources ← energy, demographics, climate (lagged)
+  resources ← energy, demographics, demand, climate (lagged)
      ↓
-   climate ← dispatch, resources
+   climate ← dispatch, resources (land use carbon)
      ↓
-(damages feed back to demand, capital for next year)
+(damages + energy burden feed back to demand, capital for next year)
 ```
 
 ## Key Models
@@ -116,6 +116,11 @@ demographics (no inputs)
 | `central-path` | Twin-Engine 30% probability |
 | `tech-plateau` | Twin-Engine learning saturation |
 | `debt-populism` | Twin-Engine policy instability |
+| `regional-divergence` | Regional policy divergence |
+| `ssp1-19` | IPCC SSP1-1.9 (sustainability) |
+| `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
+| `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
+| `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
 
 ## Agent Introspection
 
@@ -132,7 +137,7 @@ const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-21 Tier-1 parameters available for scenario exploration.
+30 Tier-1 parameters available for scenario exploration.
 
 ## Programmatic Use
 

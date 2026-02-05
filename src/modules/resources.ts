@@ -558,9 +558,14 @@ export const resourcesModule: Module<
     const lossMultiplier = landReleased > 0 ? 0.5 : (1 + agPressure);
     const effectiveLossRate = land.forestLossRate * lossMultiplier;
 
-    const forestFromBaseline = land.forestArea2025 * Math.pow(1 - effectiveLossRate, yearIndex);
-    const reforestation = landReleased * land.reforestationRate;
-    const forest = forestFromBaseline + reforestation;
+    // Path-dependent: use previous year's forest area from state
+    const prevForest = state.land.forest;
+    const forestAfterLoss = prevForest * (1 - effectiveLossRate);
+    // Only newly released farmland this year contributes to reforestation
+    const prevLandReleased = Math.max(0, land.farmland2025 - state.land.farmland);
+    const newlyReleased = Math.max(0, landReleased - prevLandReleased);
+    const reforestation = newlyReleased * land.reforestationRate;
+    const forest = forestAfterLoss + reforestation;
 
     // Desert/barren
     const climateExcess = Math.max(0, temperature - 1.5);

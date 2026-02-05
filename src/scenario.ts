@@ -59,10 +59,24 @@ export async function loadScenario(path: string): Promise<Scenario> {
 }
 
 /**
- * Convert scenario to SimulationParams
+ * Convert scenario to SimulationParams, warning about unrecognized keys
  */
 export function scenarioToParams(scenario: Scenario): SimulationParams {
   const params: SimulationParams = {};
+
+  // Known top-level keys
+  const knownKeys = new Set([
+    'name', 'description', 'meta',
+    'demographics', 'demand', 'capital', 'energy',
+    'dispatch', 'expansion', 'resources', 'climate',
+    'startYear', 'endYear',
+  ]);
+
+  for (const key of Object.keys(scenario)) {
+    if (!knownKeys.has(key)) {
+      console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
+    }
+  }
 
   if (scenario.demographics) params.demographics = scenario.demographics;
   if (scenario.demand) params.demand = scenario.demand;

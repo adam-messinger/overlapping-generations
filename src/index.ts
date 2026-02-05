@@ -26,13 +26,16 @@ export { climateModule, climateDefaults } from './modules/climate.js';
 export { compound, learningCurve, depletion, logistic, poissonShock } from './primitives/math.js';
 
 // Agent introspection
-export { describeParameters, buildParams, listParameters } from './introspection.js';
-export type { ParameterInfo, ParameterSchema } from './introspection.js';
+export { describeParameters, describeOutputs, buildParams, buildMultiParams, listParameters } from './introspection.js';
+export type { ParameterInfo, ParameterSchema, OutputInfo, OutputSchema } from './introspection.js';
 
 // Auto-wired simulation
 export { runAutowired, buildOutputRegistry, buildDependencyGraph, topologicalSort, getOutputsAtYear, getTimeSeries } from './framework/autowire.js';
 export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AnyModule } from './framework/autowire.js';
 export { runAutowiredSimulation } from './simulation-autowired.js';
+
+// Result helpers
+export { getAtYear, extractTimeSeries } from './helpers.js';
 
 // Types
 export type { Region, EnergySource, ValidationResult } from './framework/types.js';

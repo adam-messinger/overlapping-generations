@@ -319,6 +319,18 @@ export class Simulation {
       // =======================================================================
       // Step 3: Capital (needs demographics, demand, lagged damages)
       // =======================================================================
+      // Compute GDP-weighted average of regional damages
+      const regionalGdpValues: Record<Region, number> = {
+        oecd: demand.regional.oecd.gdp,
+        china: demand.regional.china.gdp,
+        em: demand.regional.em.gdp,
+        row: demand.regional.row.gdp,
+      };
+      const totalRegionalGdp = REGIONS.reduce((sum, r) => sum + regionalGdpValues[r], 0);
+      const globalDamage = totalRegionalGdp > 0
+        ? REGIONS.reduce((sum, r) => sum + laggedDamages[r] * regionalGdpValues[r], 0) / totalRegionalGdp
+        : 0;
+
       const capitalInputs = {
         regionalYoung: demo.regionalYoung,
         regionalWorking: demo.regionalWorking,
@@ -326,7 +338,7 @@ export class Simulation {
         regionalPopulation: demo.regionalPopulation,
         effectiveWorkers: demo.effectiveWorkers,
         gdp: demand.gdp,
-        damages: laggedDamages.oecd, // Use OECD as proxy for global
+        damages: globalDamage,
         netEnergyFactor: laggedNetEnergyFactor,
       };
       const capitalResult = capitalModule.step(
@@ -508,10 +520,14 @@ export class Simulation {
       const climate = climateResult.outputs;
 
       // =======================================================================
-      // Step 9: Energy Burden (supply-side constraint)
+      // Step 9: Energy Burden (from demand module)
       // =======================================================================
-      // Electricity cost: TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
-      // Use generation-weighted LCOE (simplified: average of dispatched sources)
+      // Use the demand module's burden calculation (uses proper params)
+      const totalEnergyCost = demand.totalEnergyCost;
+      const energyBurden = demand.energyBurden;
+      const burdenDamage = demand.burdenDamage;
+
+      // Compute generation-weighted LCOE for lagged feedback
       let totalGeneration = 0;
       let weightedLCOE = 0;
       for (const source of Object.keys(dispatch.generation) as Array<keyof typeof dispatch.generation>) {
@@ -520,21 +536,6 @@ export class Simulation {
         weightedLCOE += gen * (energy.lcoes[source as keyof typeof energy.lcoes] ?? 50);
       }
       weightedLCOE = totalGeneration > 0 ? weightedLCOE / totalGeneration : 50;
-      const electricityCost = (totalGeneration * weightedLCOE) / 1e6;
-
-      // Fuel cost already in demand.fuelCost ($ trillions)
-      const totalEnergyCost = electricityCost + demand.fuelCost;
-      const energyBurden = totalEnergyCost / demand.gdp;
-
-      // Energy burden damage: when burden exceeds threshold (8%)
-      const burdenThreshold = 0.08;
-      const burdenElasticity = 1.5;
-      const maxBurdenDamage = 0.30;
-      let burdenDamage = 0;
-      if (energyBurden > burdenThreshold) {
-        const excessBurden = energyBurden - burdenThreshold;
-        burdenDamage = Math.min(excessBurden * burdenElasticity, maxBurdenDamage);
-      }
 
       // =======================================================================
       // Update lagged values for next year's feedback
@@ -684,7 +685,7 @@ export class Simulation {
     let peakEmissions = 0;
     let peakEmissionsYear = 2025;
     for (const r of results) {
-      const totalEmissions = r.electricityEmissions + r.nonElectricEmissions;
+      const totalEmissions = r.electricityEmissions + r.nonElectricEmissions + r.forestNetFlux;
       if (totalEmissions > peakEmissions) {
         peakEmissions = totalEmissions;
         peakEmissionsYear = r.year;
@@ -739,8 +740,7 @@ export function runSimulation(params: SimulationParams = {}): SimulationResult {
   const validation = sim.validate();
 
   if (!validation.valid) {
-    console.error('Validation errors:', validation.errors);
-    throw new Error('Simulation validation failed');
+    throw new Error(`Simulation validation failed:\n${validation.errors.join('\n')}`);
   }
 
   if (validation.warnings.length > 0) {
@@ -876,7 +876,7 @@ async function runCLI() {
     console.log(loadedScenario.description);
     console.log('');
   } else {
-    console.log('=== tsimulation Full Simulation ===\n');
+    console.log('=== Full Simulation ===\n');
   }
 
   const result = runSimulation(params);
