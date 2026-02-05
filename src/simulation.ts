@@ -131,6 +131,7 @@ export interface YearResult {
   // Resources - Food (Bennett's Law)
   proteinShare: number;          // Fraction of calories from protein
   grainEquivalent: number;       // Mt grain needed (direct + feed)
+  foodStress: number;            // 0-1, fraction of food demand unmet (land cap)
 
   // Resources - Carbon
   forestNetFlux: number;
@@ -644,6 +645,7 @@ export class Simulation {
         // Resources - Food (Bennett's Law)
         proteinShare: resources.food.proteinShare,
         grainEquivalent: resources.food.grainEquivalent,
+        foodStress: resources.foodStress,
 
         // Resources - Carbon
         forestNetFlux: resources.carbon.netFlux,

@@ -10,11 +10,13 @@
  * - Ole Peters: Ergodicity economics (time-average vs ensemble-average)
  * - Odum: Energy as basis of real wealth
  *
- * GDP growth equation:
- *   growthRate = TFP + 0.65 × laborGrowth + demographicAdj
+ * GDP growth equation (Ayres/Warr):
+ *   growthRate = residualTFP + ε·usefulWorkGrowth + α·capitalGrowth + (1-α)·laborGrowth + demographicAdj
  *
  * Where:
- * - TFP decays over time (catch-up growth fades)
+ * - residualTFP decays over time (catch-up growth fades)
+ * - usefulWorkGrowth = growth in useful energy per worker (lagged 1 year)
+ * - ε = usefulWorkElasticity (default 0.7) — Ayres/Warr finding
  * - laborGrowth uses effective workers (education-weighted)
  * - demographicAdj penalizes high dependency ratios
  */
@@ -110,6 +112,9 @@ export interface DemandParams {
 
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
+
+  // Ayres/Warr useful work elasticity
+  usefulWorkElasticity: number;  // Share of GDP growth explained by useful work (default 0.7)
 }
 
 interface RegionalState {
@@ -128,6 +133,8 @@ interface DemandState {
     industry: number;
   };
   previousEffectiveWorkers: Record<Region, number>; // For labor growth calculation
+  previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
+  usefulWorkGrowthRate: number;          // Exposed for diagnostics
 }
 
 // Inputs from demographics module
@@ -226,6 +233,9 @@ interface DemandOutputs {
   totalEnergyCost: number;   // $ trillions
   energyBurden: number;      // Fraction of GDP (0-1)
   burdenDamage: number;      // GDP damage fraction (0-1)
+
+  // Ayres/Warr useful work diagnostics
+  usefulWorkGrowthRate: number; // Growth rate of useful energy per worker
 }
 
 // =============================================================================
@@ -247,28 +257,28 @@ export const demandDefaults: DemandParams = {
   regions: {
     oecd: {
       gdp2025: 58,              // $58T (World Bank)
-      tfpGrowth: 0.015,         // 1.5% baseline TFP
+      tfpGrowth: 0.008,         // Residual TFP after useful work extraction (Ayres/Warr)
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.70,    // MWh per $1000 GDP (IEA-calibrated)
       intensityDecline: 0.003,  // 0.3%/year
     },
     china: {
       gdp2025: 18,              // $18T (World Bank)
-      tfpGrowth: 0.035,         // 3.5% catch-up growth
+      tfpGrowth: 0.025,         // Residual TFP (catch-up component)
       tfpDecay: 0.015,          // Converging toward OECD
       energyIntensity: 2.04,    // High - industrial economy
       intensityDecline: 0.008,  // 0.8%/year
     },
     em: {
       gdp2025: 35,              // $35T (India, Brazil, Indonesia, etc.)
-      tfpGrowth: 0.025,         // 2.5% baseline
+      tfpGrowth: 0.016,         // Residual TFP
       tfpDecay: 0.008,          // Slow convergence
       energyIntensity: 0.93,    // Mixed economies
       intensityDecline: 0.005,  // 0.5%/year
     },
     row: {
       gdp2025: 8,               // $8T (Africa, etc.)
-      tfpGrowth: 0.030,         // 3.0% demographic dividend
+      tfpGrowth: 0.020,         // Residual TFP (demographic dividend)
       tfpDecay: 0.010,          // Gradual convergence
       energyIntensity: 1.53,    // Lower efficiency
       intensityDecline: 0.004,  // 0.4%/year
@@ -376,6 +386,8 @@ export const demandDefaults: DemandParams = {
   },
 
   efficiencyMultiplier: 1.0,    // Default: no adjustment
+
+  usefulWorkElasticity: 0.4,   // Ayres/Warr: useful work contribution to GDP growth
 };
 
 // =============================================================================
@@ -610,6 +622,12 @@ export const demandModule: Module<
         },
       },
     },
+    usefulWorkElasticity: {
+      description: 'Ayres/Warr useful work contribution to GDP growth. Higher = energy drives more growth, lower = more exogenous TFP.',
+      unit: 'fraction',
+      range: { min: 0.1, max: 0.7, default: 0.4 },
+      tier: 1 as const,
+    },
     fuelMix: {
       priceSensitivity: {
         paramName: 'fuelPriceSensitivity',
@@ -665,6 +683,7 @@ export const demandModule: Module<
     'totalEnergyCost',
     'energyBurden',
     'burdenDamage',
+    'usefulWorkGrowthRate',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -689,6 +708,13 @@ export const demandModule: Module<
         if (r.intensityDecline !== undefined && r.intensityDecline > 0.05) {
           warnings.push(`${region}: Energy intensity decline >5%/year is unusually high`);
         }
+      }
+    }
+
+    // Validate useful work elasticity
+    if (params.usefulWorkElasticity !== undefined) {
+      if (params.usefulWorkElasticity < 0 || params.usefulWorkElasticity > 1) {
+        errors.push('usefulWorkElasticity must be between 0 and 1');
       }
     }
 
@@ -754,6 +780,9 @@ export const demandModule: Module<
       if (p.demographicFactor !== undefined) merged.demographicFactor = p.demographicFactor;
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
 
+      // Useful work elasticity
+      if (p.usefulWorkElasticity !== undefined) merged.usefulWorkElasticity = p.usefulWorkElasticity;
+
       // Cost-driven electrification params
       if (p.costSensitivity !== undefined) merged.costSensitivity = p.costSensitivity;
       if (p.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = p.maxAnnualElecChange;
@@ -814,6 +843,8 @@ export const demandModule: Module<
       fuelShares,
       sectorElectrification,
       previousEffectiveWorkers: { oecd: 0, china: 0, em: 0, row: 0 }, // Set on first step
+      previousUsefulEnergyPerWorker: 0, // Set after first year
+      usefulWorkGrowthRate: 0,          // No growth in first year
     };
   },
 
@@ -904,10 +935,15 @@ export const demandModule: Module<
       // TFP with decay (catch-up growth fades)
       const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
 
-      // Solow growth: gY = gA + α·gK + (1-α)·gL + demographic adjustment
-      // Capital share α ≈ 0.35, labor share (1-α) ≈ 0.65
+      // Ayres/Warr: gY = residualTFP + ε·gU + α·gK + (1-α)·gL + demographic adjustment
+      // where gU = growth in useful energy per worker (lagged 1 year)
       const capitalGrowth = inputs.capitalGrowthRate ?? 0;
-      const growthRate = tfp + 0.35 * capitalGrowth + 0.65 * laborGrowth + demographicAdj;
+      const usefulWorkGrowth = state.usefulWorkGrowthRate;
+      const growthRate = tfp
+        + params.usefulWorkElasticity * usefulWorkGrowth
+        + 0.35 * capitalGrowth
+        + 0.65 * laborGrowth
+        + demographicAdj;
 
       // Update GDP
       let newGdp = currentState.gdp;
@@ -1020,6 +1056,17 @@ export const demandModule: Module<
     }
     const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
 
+    // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP
+    const totalEffectiveWorkers = REGIONS.reduce(
+      (sum, r) => sum + inputs.regionalEffectiveWorkers[r], 0
+    );
+    const usefulEnergyPerWorker = totalEffectiveWorkers > 0
+      ? usefulEnergy / totalEffectiveWorkers
+      : 0;
+    const newUsefulWorkGrowthRate = state.previousUsefulEnergyPerWorker > 0
+      ? (usefulEnergyPerWorker - state.previousUsefulEnergyPerWorker) / state.previousUsefulEnergyPerWorker
+      : 0;
+
     // =========================================================================
     // Fuel mix for non-electric energy (price-driven with inertia)
     // =========================================================================
@@ -1101,6 +1148,8 @@ export const demandModule: Module<
         fuelShares: evolvedShares, // Persist evolved fuel shares
         sectorElectrification: newSectorElectrification, // Persist sector rates
         previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth
+        previousUsefulEnergyPerWorker: usefulEnergyPerWorker, // For Ayres/Warr
+        usefulWorkGrowthRate: newUsefulWorkGrowthRate,
       },
       outputs: {
         regional: regionalOutputs,
@@ -1122,6 +1171,7 @@ export const demandModule: Module<
         totalEnergyCost,
         energyBurden,
         burdenDamage,
+        usefulWorkGrowthRate: newUsefulWorkGrowthRate,
       },
     };
   },

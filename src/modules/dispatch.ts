@@ -269,6 +269,11 @@ function dispatchRegion(
   // Track pre-penalty available VRE for curtailment accounting
   const totalAvailableVRE = maxGen.solar + maxGen.solarPlusBattery + maxGen.wind;
 
+  // Save pre-curtailment VRE values for shortfall release
+  const preCurtailmentSolar = maxGen.solar;
+  const preCurtailmentSolarBattery = maxGen.solarPlusBattery;
+  const preCurtailmentWind = maxGen.wind;
+
   // Soft curtailment: reduce effective VRE as share increases beyond onset
   const expectedVREShare = demandTWh > 0 ? totalAvailableVRE / demandTWh : 0;
   if (expectedVREShare > params.curtailmentOnset) {
@@ -362,7 +367,24 @@ function dispatchRegion(
     }
   }
 
-  // Curtailment tracking
+  // Release curtailed VRE to fill any shortfall before tracking curtailment
+  if (remaining > 0) {
+    const curtailedSolar = preCurtailmentSolar - maxGen.solar;
+    const curtailedSolarBattery = preCurtailmentSolarBattery - maxGen.solarPlusBattery;
+    const curtailedWind = preCurtailmentWind - maxGen.wind;
+    const totalCurtailed = curtailedSolar + curtailedSolarBattery + curtailedWind;
+
+    if (totalCurtailed > 0) {
+      const release = Math.min(remaining, totalCurtailed);
+      // Pro-rata release across VRE sources
+      generation.solar += release * (curtailedSolar / totalCurtailed);
+      generation.solarPlusBattery += release * (curtailedSolarBattery / totalCurtailed);
+      generation.wind += release * (curtailedWind / totalCurtailed);
+      remaining -= release;
+    }
+  }
+
+  // Curtailment tracking (from final dispatched vs pre-curtailment available)
   const totalDispatchedVRE = generation.solar + generation.solarPlusBattery + generation.wind;
   const curtailmentTWh = Math.max(0, totalAvailableVRE - totalDispatchedVRE);
   const curtailmentRate = totalAvailableVRE > 0 ? curtailmentTWh / totalAvailableVRE : 0;

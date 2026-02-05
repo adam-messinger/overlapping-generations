@@ -492,6 +492,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       // Resources - Food
       proteinShare: o.food?.proteinShare ?? 0,
       grainEquivalent: o.food?.grainEquivalent ?? 0,
+      foodStress: o.foodStress ?? 0,
 
       // Resources - Carbon
       forestNetFlux: o.carbon?.netFlux ?? 0,

@@ -208,6 +208,7 @@ export function describeOutputs(): OutputSchema {
     totalEnergyCost: { unit: '$T', description: 'Total energy cost (electricity + fuel)', module: 'demand' },
     energyBurden: { unit: 'fraction', description: 'Energy cost as fraction of GDP', module: 'demand' },
     burdenDamage: { unit: 'fraction', description: 'GDP damage from excess energy burden', module: 'demand' },
+    usefulWorkGrowthRate: { unit: 'fraction/year', description: 'Growth rate of useful energy per worker (Ayres/Warr)', module: 'demand' },
 
     // Capital
     capitalStock: { unit: '$T', description: 'Global capital stock', module: 'capital' },
@@ -253,6 +254,7 @@ export function describeOutputs(): OutputSchema {
     // Resources - Food
     proteinShare: { unit: 'fraction', description: 'Fraction of calories from protein (Bennett\'s Law)', module: 'resources' },
     grainEquivalent: { unit: 'Mt', description: 'Total grain needed (direct + feed conversion)', module: 'resources' },
+    foodStress: { unit: 'fraction', description: 'Fraction of food demand unmet due to land constraint (0=none, 1=total)', module: 'resources' },
 
     // Resources - Carbon
     forestNetFlux: { unit: 'Gt CO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },

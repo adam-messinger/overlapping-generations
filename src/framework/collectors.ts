@@ -285,6 +285,7 @@ export const standardCollectors: CollectorConfig = {
     // Resources - Food
     { source: 'food', as: 'proteinShare', path: 'proteinShare' },
     { source: 'food', as: 'grainEquivalent', path: 'grainEquivalent' },
+    { source: 'foodStress' },
 
     // Resources - Carbon
     { source: 'carbon', as: 'forestNetFlux', path: 'netFlux' },

@@ -62,6 +62,9 @@ export interface LandParams {
   deforestationEmissionFactor: number; // Fraction released immediately
   decayRate: number;              // Annual decay rate for deferred pool
 
+  // Hard land budget
+  minForestArea: number;          // Mha ecological minimum (default 2000)
+
   // Climate-yield damage
   yieldDamageThreshold: number;   // °C where damage begins
   yieldDamageCoeff: number;       // Quadratic damage coefficient
@@ -164,6 +167,8 @@ export const resourcesDefaults: ResourcesParams = {
     sequestrationRate: 7.5,
     deforestationEmissionFactor: 0.5,
     decayRate: 0.05,
+
+    minForestArea: 2000,          // Mha ecological minimum forest
 
     yieldDamageThreshold: 2.0,
     yieldDamageCoeff: 0.15,
@@ -282,6 +287,7 @@ export interface ResourcesOutputs {
   land: LandOutput;
   carbon: CarbonOutput;
   food: FoodOutput;
+  foodStress: number;  // 0-1, fraction of food demand that cannot be met
 }
 
 // =============================================================================
@@ -413,6 +419,12 @@ export const resourcesModule: Module<
         range: { min: 0.005, max: 0.02, default: 0.01 },
         tier: 1 as const,
       },
+      minForestArea: {
+        description: 'Minimum ecologically viable forest area. Farmland cannot expand beyond totalLandArea - urban - minForestArea.',
+        unit: 'Mha',
+        range: { min: 1000, max: 3000, default: 2000 },
+        tier: 1 as const,
+      },
       yieldDamageThreshold: {
         description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
         unit: '°C',
@@ -448,6 +460,7 @@ export const resourcesModule: Module<
     'land',
     'carbon',
     'food',
+    'foodStress',
   ] as const,
 
   validate(params: Partial<ResourcesParams>): ValidationResult {
@@ -595,11 +608,18 @@ export const resourcesModule: Module<
     // Farmland = grain demand / yield × non-food multiplier
     // grainDemand is in Mt, yield is t/ha → result in Mha
     const grainFarmland = grainDemand / currentYield;
-    const farmland = grainFarmland * land.nonFoodMultiplier;
+    const uncappedFarmland = grainFarmland * land.nonFoodMultiplier;
 
-    // Urban land
+    // Urban land (compute early for land budget)
     const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
     const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
+
+    // Hard land budget constraint: farmland cannot exceed available land
+    const availableLand = land.totalLandArea - urban - land.minForestArea;
+    const farmland = Math.min(uncappedFarmland, availableLand);
+    const foodStress = uncappedFarmland > 0
+      ? Math.max(0, 1 - farmland / uncappedFarmland)
+      : 0;
 
     // Forest dynamics
     const landReleased = Math.max(0, land.farmland2025 - farmland);
@@ -693,6 +713,7 @@ export const resourcesModule: Module<
         land: landOutput,
         carbon: carbonOutput,
         food: foodOutput,
+        foodStress,
       },
     };
   },
