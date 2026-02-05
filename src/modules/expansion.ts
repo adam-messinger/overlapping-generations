@@ -27,6 +27,7 @@
 
 import { defineModule, Module } from '../framework/module.js';
 import { ValidationResult } from '../framework/types.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -124,6 +125,29 @@ export const expansionModule: Module<
 
   defaults: expansionDefaults,
 
+  paramMeta: {
+    robotGrowthRate: {
+      description: 'Annual growth rate of robot/AI automation. 12% = doubling every 6 years.',
+      unit: 'fraction/year',
+      range: { min: 0.05, max: 0.25, default: 0.12 },
+      tier: 1 as const,
+    },
+    expansionCoefficient: {
+      paramName: 'expansionCoeff',
+      description: 'Energy demand expansion per LCOE halving (G/C Entropy Economics). 0.25 = 25% more demand when costs halve.',
+      unit: 'fraction per cost halving',
+      range: { min: 0.10, max: 0.50, default: 0.25 },
+      tier: 1 as const,
+    },
+    energyPerRobotMWh: {
+      paramName: 'robotEnergyPerUnit',
+      description: 'Energy consumption per robot-equivalent (datacenter + physical robots).',
+      unit: 'MWh/robot-unit/year',
+      range: { min: 5, max: 20, default: 10 },
+      tier: 1 as const,
+    },
+  },
+
   inputs: [
     'baseDemand',
     'cheapestLCOE',
@@ -164,7 +188,10 @@ export const expansionModule: Module<
   },
 
   mergeParams(partial: Partial<ExpansionParams>): ExpansionParams {
-    return { ...expansionDefaults, ...partial };
+    return validatedMerge('expansion', this.validate, (p) => ({
+      ...expansionDefaults,
+      ...p,
+    }), partial);
   },
 
   init(params: ExpansionParams): ExpansionState {

@@ -21,6 +21,7 @@
 
 import { REGIONS, Region } from '../framework/types.js';
 import { Module } from '../framework/module.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // TYPES
@@ -552,6 +553,81 @@ export const demandModule: Module<
   description: 'GDP and electricity demand model with regional economics',
   defaults: demandDefaults,
 
+  paramMeta: {
+    electrificationTarget: {
+      description: 'Long-run electrification target. 0.65 means 65% of final energy as electricity by late century.',
+      unit: 'fraction',
+      range: { min: 0.50, max: 0.95, default: 0.65 },
+      tier: 1 as const,
+    },
+    sectors: {
+      transport: {
+        electrificationTarget: {
+          paramName: 'transportElecTarget',
+          description: 'Transport sector electrification ceiling (70% - aviation/shipping limits).',
+          unit: 'fraction',
+          range: { min: 0.50, max: 0.85, default: 0.70 },
+          tier: 1 as const,
+        },
+        costSensitivity: {
+          paramName: 'transportCostSensitivity',
+          description: 'Transport sector response to electricity/fuel cost ratio. Higher = faster EV adoption when cheap.',
+          unit: 'fraction per cost ratio',
+          range: { min: 0.02, max: 0.20, default: 0.08 },
+          tier: 1 as const,
+        },
+      },
+      buildings: {
+        electrificationTarget: {
+          paramName: 'buildingsElecTarget',
+          description: 'Buildings sector electrification ceiling (95% - nearly all can electrify).',
+          unit: 'fraction',
+          range: { min: 0.60, max: 0.98, default: 0.95 },
+          tier: 1 as const,
+        },
+        costSensitivity: {
+          paramName: 'buildingsCostSensitivity',
+          description: 'Buildings sector response to electricity/gas cost ratio. Heat pump adoption sensitivity.',
+          unit: 'fraction per cost ratio',
+          range: { min: 0.02, max: 0.15, default: 0.06 },
+          tier: 1 as const,
+        },
+      },
+      industry: {
+        electrificationTarget: {
+          paramName: 'industryElecTarget',
+          description: 'Industry sector electrification ceiling (65% - high-temp needs H2).',
+          unit: 'fraction',
+          range: { min: 0.40, max: 0.85, default: 0.65 },
+          tier: 1 as const,
+        },
+        costSensitivity: {
+          paramName: 'industryCostSensitivity',
+          description: 'Industry sector response to cost signals. Most cost-sensitive sector.',
+          unit: 'fraction per cost ratio',
+          range: { min: 0.02, max: 0.25, default: 0.10 },
+          tier: 1 as const,
+        },
+      },
+    },
+    fuelMix: {
+      priceSensitivity: {
+        paramName: 'fuelPriceSensitivity',
+        description: 'Logit model sensitivity to effective fuel prices. Higher = faster response to price signals.',
+        unit: 'per $/MWh',
+        range: { min: 0.01, max: 0.10, default: 0.03 },
+        tier: 1 as const,
+      },
+      inertiaRate: {
+        paramName: 'fuelInertiaRate',
+        description: 'Rate of fuel mix adjustment (0.08 = ~9yr half-life matching fleet turnover).',
+        unit: 'fraction/year',
+        range: { min: 0.02, max: 0.20, default: 0.08 },
+        tier: 1 as const,
+      },
+    },
+  },
+
   inputs: [
     'regionalPopulation',
     'regionalWorking',
@@ -630,75 +706,77 @@ export const demandModule: Module<
   },
 
   mergeParams(partial: Partial<DemandParams>): DemandParams {
-    const merged = { ...demandDefaults };
+    return validatedMerge('demand', this.validate, (p) => {
+      const merged = { ...demandDefaults };
 
-    // Merge regions
-    if (partial.regions) {
-      merged.regions = { ...demandDefaults.regions };
-      for (const region of REGIONS) {
-        if (partial.regions[region]) {
-          merged.regions[region] = {
-            ...demandDefaults.regions[region],
-            ...partial.regions[region],
-          };
+      // Merge regions
+      if (p.regions) {
+        merged.regions = { ...demandDefaults.regions };
+        for (const region of REGIONS) {
+          if (p.regions[region]) {
+            merged.regions[region] = {
+              ...demandDefaults.regions[region],
+              ...p.regions[region],
+            };
+          }
         }
       }
-    }
 
-    // Merge sectors
-    if (partial.sectors) {
-      merged.sectors = { ...demandDefaults.sectors };
-      for (const sector of ['transport', 'buildings', 'industry'] as const) {
-        if (partial.sectors[sector]) {
-          merged.sectors[sector] = {
-            ...demandDefaults.sectors[sector],
-            ...partial.sectors[sector],
-          };
+      // Merge sectors
+      if (p.sectors) {
+        merged.sectors = { ...demandDefaults.sectors };
+        for (const sector of ['transport', 'buildings', 'industry'] as const) {
+          if (p.sectors[sector]) {
+            merged.sectors[sector] = {
+              ...demandDefaults.sectors[sector],
+              ...p.sectors[sector],
+            };
+          }
         }
       }
-    }
 
-    // Merge fuels
-    if (partial.fuels) {
-      merged.fuels = { ...demandDefaults.fuels };
-      for (const fuel of ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const) {
-        if (partial.fuels[fuel]) {
-          merged.fuels[fuel] = {
-            ...demandDefaults.fuels[fuel],
-            ...partial.fuels[fuel],
-          };
+      // Merge fuels
+      if (p.fuels) {
+        merged.fuels = { ...demandDefaults.fuels };
+        for (const fuel of ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const) {
+          if (p.fuels[fuel]) {
+            merged.fuels[fuel] = {
+              ...demandDefaults.fuels[fuel],
+              ...p.fuels[fuel],
+            };
+          }
         }
       }
-    }
 
-    // Merge scalar params
-    if (partial.electrification2025 !== undefined) merged.electrification2025 = partial.electrification2025;
-    if (partial.electrificationTarget !== undefined) merged.electrificationTarget = partial.electrificationTarget;
-    if (partial.demographicFactor !== undefined) merged.demographicFactor = partial.demographicFactor;
-    if (partial.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = partial.efficiencyMultiplier;
+      // Merge scalar params
+      if (p.electrification2025 !== undefined) merged.electrification2025 = p.electrification2025;
+      if (p.electrificationTarget !== undefined) merged.electrificationTarget = p.electrificationTarget;
+      if (p.demographicFactor !== undefined) merged.demographicFactor = p.demographicFactor;
+      if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
 
-    // Cost-driven electrification params
-    if (partial.costSensitivity !== undefined) merged.costSensitivity = partial.costSensitivity;
-    if (partial.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = partial.maxAnnualElecChange;
-    if (partial.physicalElecCeiling !== undefined) merged.physicalElecCeiling = partial.physicalElecCeiling;
+      // Cost-driven electrification params
+      if (p.costSensitivity !== undefined) merged.costSensitivity = p.costSensitivity;
+      if (p.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = p.maxAnnualElecChange;
+      if (p.physicalElecCeiling !== undefined) merged.physicalElecCeiling = p.physicalElecCeiling;
 
-    // Merge fuelMix params
-    if (partial.fuelMix) {
-      merged.fuelMix = {
-        ...demandDefaults.fuelMix,
-        ...partial.fuelMix,
-      };
-    }
+      // Merge fuelMix params
+      if (p.fuelMix) {
+        merged.fuelMix = {
+          ...demandDefaults.fuelMix,
+          ...p.fuelMix,
+        };
+      }
 
-    // Merge energyBurden params
-    if (partial.energyBurden) {
-      merged.energyBurden = {
-        ...demandDefaults.energyBurden,
-        ...partial.energyBurden,
-      };
-    }
+      // Merge energyBurden params
+      if (p.energyBurden) {
+        merged.energyBurden = {
+          ...demandDefaults.energyBurden,
+          ...p.energyBurden,
+        };
+      }
 
-    return merged;
+      return merged;
+    }, partial);
   },
 
   init(params: DemandParams): DemandState {

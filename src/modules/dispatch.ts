@@ -30,6 +30,7 @@
 
 import { defineModule, Module } from '../framework/module.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -447,6 +448,50 @@ export const dispatchModule: Module<
     'dispatchRegional',
   ] as const,
 
+  paramMeta: {
+    curtailmentOnset: {
+      description: 'VRE share of demand at which soft curtailment begins.',
+      unit: 'fraction',
+      range: { min: 0.15, max: 0.50, default: 0.30 },
+      tier: 1 as const,
+    },
+    curtailmentCoeff: {
+      description: 'Quadratic penalty coefficient for VRE curtailment beyond onset.',
+      unit: 'per fraction²',
+      range: { min: 0.5, max: 3.0, default: 1.5 },
+      tier: 1 as const,
+    },
+  },
+
+  connectorTypes: {
+    inputs: {
+      electricityDemand: 'number',
+      regionalElectricityDemand: 'record',
+      capacities: 'record',
+      regionalCapacities: 'nested-record',
+      lcoes: 'record',
+      solarPlusBatteryLCOE: 'number',
+      carbonPrice: 'number',
+      regionalCarbonPrice: 'record',
+    },
+    outputs: {
+      generation: 'record',
+      regionalGeneration: 'nested-record',
+      gridIntensity: 'number',
+      regionalGridIntensity: 'record',
+      totalGeneration: 'number',
+      electricityEmissions: 'number',
+      regionalEmissions: 'record',
+      shortfall: 'number',
+      fossilShare: 'number',
+      regionalFossilShare: 'record',
+      curtailmentTWh: 'number',
+      curtailmentRate: 'number',
+      regionalCurtailment: 'record',
+      dispatchRegional: 'nested-record',
+    },
+  },
+
   validate(params: Partial<DispatchParams>): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -478,14 +523,14 @@ export const dispatchModule: Module<
   },
 
   mergeParams(partial: Partial<DispatchParams>): DispatchParams {
-    return {
+    return validatedMerge('dispatch', this.validate, (p) => ({
       ...dispatchDefaults,
-      ...partial,
-      capacityFactor: { ...dispatchDefaults.capacityFactor, ...partial.capacityFactor },
-      maxPenetration: { ...dispatchDefaults.maxPenetration, ...partial.maxPenetration },
-      carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...partial.carbonIntensity },
-      marginalCost: { ...dispatchDefaults.marginalCost, ...partial.marginalCost },
-    };
+      ...p,
+      capacityFactor: { ...dispatchDefaults.capacityFactor, ...p.capacityFactor },
+      maxPenetration: { ...dispatchDefaults.maxPenetration, ...p.maxPenetration },
+      carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...p.carbonIntensity },
+      marginalCost: { ...dispatchDefaults.marginalCost, ...p.marginalCost },
+    }), partial);
   },
 
   init(_params: DispatchParams): DispatchState {

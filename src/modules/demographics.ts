@@ -17,6 +17,7 @@
 import { defineModule, Module } from '../framework/module.js';
 import { Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { exponentialConvergence, logistic } from '../primitives/math.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -380,6 +381,20 @@ export const demographicsModule: Module<
 
   defaults: demographicsDefaults,
 
+  paramMeta: {
+    regions: {
+      oecd: {
+        fertilityFloor: {
+          paramName: 'oecdFertilityFloor',
+          description: 'Long-run fertility floor for OECD region. 2.1 = replacement level.',
+          unit: 'children/woman',
+          range: { min: 1.0, max: 2.1, default: 1.4 },
+          tier: 1 as const,
+        },
+      },
+    },
+  },
+
   inputs: [] as const, // No dependencies - root module
 
   outputs: [
@@ -422,35 +437,37 @@ export const demographicsModule: Module<
   },
 
   mergeParams(partial: Partial<DemographicsParams>): DemographicsParams {
-    const result = { ...demographicsDefaults, ...partial };
+    return validatedMerge('demographics', this.validate, (p) => {
+      const result = { ...demographicsDefaults, ...p };
 
-    // Deep merge regions
-    if (partial.regions) {
-      result.regions = { ...demographicsDefaults.regions };
-      for (const region of REGIONS) {
-        if (partial.regions[region]) {
-          result.regions[region] = {
-            ...demographicsDefaults.regions[region],
-            ...partial.regions[region],
-          };
+      // Deep merge regions
+      if (p.regions) {
+        result.regions = { ...demographicsDefaults.regions };
+        for (const region of REGIONS) {
+          if (p.regions[region]) {
+            result.regions[region] = {
+              ...demographicsDefaults.regions[region],
+              ...p.regions[region],
+            };
+          }
         }
       }
-    }
 
-    // Deep merge education
-    if (partial.education) {
-      result.education = { ...demographicsDefaults.education };
-      for (const region of REGIONS) {
-        if (partial.education[region]) {
-          result.education[region] = {
-            ...demographicsDefaults.education[region],
-            ...partial.education[region],
-          };
+      // Deep merge education
+      if (p.education) {
+        result.education = { ...demographicsDefaults.education };
+        for (const region of REGIONS) {
+          if (p.education[region]) {
+            result.education[region] = {
+              ...demographicsDefaults.education[region],
+              ...p.education[region],
+            };
+          }
         }
       }
-    }
 
-    return result;
+      return result;
+    }, partial);
   },
 
   init(params: DemographicsParams): DemographicsState {

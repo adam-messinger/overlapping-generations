@@ -11,7 +11,7 @@
  * - Lags: handle feedback loops with delayed values
  */
 
-import { Module } from './module.js';
+import { Module, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
 
 // =============================================================================
@@ -252,6 +252,53 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
 }
 
 // =============================================================================
+// CONNECTOR TYPE VALIDATION
+// =============================================================================
+
+/**
+ * Validate connector type compatibility between providers and consumers.
+ * Only checks modules that declare connectorTypes - others are skipped.
+ */
+export function validateConnectorTypes(
+  modules: AnyModule[],
+  outputRegistry: Map<string, string>,
+  transforms: Record<string, TransformEntry> = {},
+  lags: Record<string, LagConfig> = {}
+): string[] {
+  const warnings: string[] = [];
+
+  // Build output type registry from modules that declare connectorTypes
+  const outputTypes = new Map<string, { module: string; type: ConnectorType }>();
+  for (const mod of modules) {
+    if (!mod.connectorTypes?.outputs) continue;
+    for (const [outputName, type] of Object.entries(mod.connectorTypes.outputs)) {
+      outputTypes.set(outputName, { module: mod.name, type: type as ConnectorType });
+    }
+  }
+
+  // Check each consumer's declared input types against provider types
+  for (const mod of modules) {
+    if (!mod.connectorTypes?.inputs) continue;
+    for (const [inputName, expectedType] of Object.entries(mod.connectorTypes.inputs)) {
+      // Skip transforms and lags (they handle type conversion)
+      if (transforms[inputName] || lags[inputName]) continue;
+
+      const providerInfo = outputTypes.get(inputName);
+      if (!providerInfo) continue; // Provider doesn't declare types - skip
+
+      if (providerInfo.type !== expectedType) {
+        warnings.push(
+          `Type mismatch: ${mod.name}.${inputName} expects '${expectedType}' ` +
+          `but ${providerInfo.module}.${inputName} provides '${providerInfo.type}'`
+        );
+      }
+    }
+  }
+
+  return warnings;
+}
+
+// =============================================================================
 // AUTO-WIRED SIMULATION
 // =============================================================================
 
@@ -265,9 +312,29 @@ export interface AutowireResult {
 }
 
 /**
- * Create and run an auto-wired simulation
+ * Mutable state for step-by-step simulation
  */
-export function runAutowired(config: AutowireConfig): AutowireResult {
+export interface AutowireState {
+  sortedModules: AnyModule[];
+  transforms: Record<string, TransformEntry>;
+  lags: Record<string, LagConfig>;
+  stateMap: Map<string, any>;
+  paramsMap: Map<string, any>;
+  lagHistory: Map<string, any[]>;
+  years: number[];
+  outputs: Record<string, Record<string, any[]>>;
+  states: Record<string, any[]>;
+  currentOutputs: Record<string, any>;
+  startYear: number;
+  endYear: number;
+  currentYear: number;
+}
+
+/**
+ * Initialize an auto-wired simulation (builds graph, inits states).
+ * Returns mutable state for step-by-step execution.
+ */
+export function initAutowired(config: AutowireConfig): AutowireState {
   const {
     modules,
     transforms = {},
@@ -279,16 +346,21 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
 
   // Build registry and graph
   const outputRegistry = buildOutputRegistry(modules);
+
+  // Validate connector types (warnings only - incremental adoption)
+  const connectorWarnings = validateConnectorTypes(modules, outputRegistry, transforms, lags);
+  for (const warning of connectorWarnings) {
+    console.warn(`[autowire] ${warning}`);
+  }
+
   const graph = buildDependencyGraph(modules, outputRegistry, transforms, lags);
   const sortedModules = topologicalSort(graph);
 
   // Initialize module states and params
-  const moduleMap = new Map<string, AnyModule>();
   const stateMap = new Map<string, any>();
   const paramsMap = new Map<string, any>();
 
   for (const mod of sortedModules) {
-    moduleMap.set(mod.name, mod);
     const mergedParams = mod.mergeParams(params[mod.name] ?? {});
     paramsMap.set(mod.name, mergedParams);
     stateMap.set(mod.name, mod.init(mergedParams));
@@ -305,7 +377,6 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
   }
 
   // Result storage
-  const years: number[] = [];
   const outputs: Record<string, Record<string, any[]>> = {};
   const states: Record<string, any[]> = {};
 
@@ -317,91 +388,130 @@ export function runAutowired(config: AutowireConfig): AutowireResult {
     states[mod.name] = [];
   }
 
-  // Current year's outputs (for dependency resolution)
-  let currentOutputs: Record<string, any> = {};
+  return {
+    sortedModules,
+    transforms,
+    lags,
+    stateMap,
+    paramsMap,
+    lagHistory,
+    years: [],
+    outputs,
+    states,
+    currentOutputs: {},
+    startYear,
+    endYear,
+    currentYear: startYear,
+  };
+}
 
-  // Run simulation
-  for (let year = startYear; year <= endYear; year++) {
-    const yearIndex = year - startYear;
-    years.push(year);
+/**
+ * Advance the simulation by one year.
+ * Returns the year that was stepped and a flat record of all outputs.
+ */
+export function stepAutowired(state: AutowireState): { year: number; outputs: Record<string, any>; done: boolean } {
+  const year = state.currentYear;
+  const yearIndex = year - state.startYear;
 
-    // Clear current outputs for this year
-    currentOutputs = {};
+  if (year > state.endYear) {
+    return { year: year - 1, outputs: state.currentOutputs, done: true };
+  }
 
-    // Step each module in sorted order
-    for (const mod of sortedModules) {
-      // Build inputs for this module
-      const inputs: Record<string, any> = {};
+  state.years.push(year);
 
-      for (const input of mod.inputs) {
-        const inputName = input as string;
+  // Clear current outputs for this year
+  state.currentOutputs = {};
 
-        // Check transforms first
-        if (transforms[inputName]) {
-          const config = normalizeTransform(transforms[inputName]);
-          inputs[inputName] = config.fn(currentOutputs, year, yearIndex);
-          continue;
-        }
+  // Step each module in sorted order
+  for (const mod of state.sortedModules) {
+    const inputs: Record<string, any> = {};
 
-        // Check lags
-        if (lags[inputName]) {
-          const history = lagHistory.get(inputName)!;
-          inputs[inputName] = history[0]; // Oldest value
-          continue;
-        }
+    for (const input of mod.inputs) {
+      const inputName = input as string;
 
-        // Get from current outputs
-        if (currentOutputs[inputName] !== undefined) {
-          inputs[inputName] = currentOutputs[inputName];
-        } else {
-          throw new Error(
-            `Input '${inputName}' for module '${mod.name}' not available. ` +
-            `This shouldn't happen if topological sort is correct.`
-          );
-        }
+      if (state.transforms[inputName]) {
+        const config = normalizeTransform(state.transforms[inputName]);
+        inputs[inputName] = config.fn(state.currentOutputs, year, yearIndex);
+        continue;
       }
 
-      // Run module step
-      const state = stateMap.get(mod.name)!;
-      const modParams = paramsMap.get(mod.name)!;
-      const result = mod.step(state, inputs, modParams, year, yearIndex);
+      if (state.lags[inputName]) {
+        const history = state.lagHistory.get(inputName)!;
+        inputs[inputName] = history[0];
+        continue;
+      }
 
-      // Update state
-      stateMap.set(mod.name, result.state);
-      states[mod.name].push(result.state);
-
-      // Store outputs
-      for (const output of mod.outputs) {
-        const outputName = output as string;
-        const value = result.outputs[outputName];
-        outputs[mod.name][outputName].push(value);
-        currentOutputs[outputName] = value;
+      if (state.currentOutputs[inputName] !== undefined) {
+        inputs[inputName] = state.currentOutputs[inputName];
+      } else {
+        throw new Error(
+          `Input '${inputName}' for module '${mod.name}' not available. ` +
+          `This shouldn't happen if topological sort is correct.`
+        );
       }
     }
 
-    // Update lag histories
-    for (const [inputName, lagConfig] of Object.entries(lags)) {
-      const history = lagHistory.get(inputName)!;
-      // Shift: remove oldest, add newest
-      history.shift();
+    const modState = state.stateMap.get(mod.name)!;
+    const modParams = state.paramsMap.get(mod.name)!;
+    const result = mod.step(modState, inputs, modParams, year, yearIndex);
 
-      // Check outputs first, then transforms for the source value
-      let sourceValue = currentOutputs[lagConfig.source];
-      if (sourceValue === undefined && transforms[lagConfig.source]) {
-        // Source is a transform, compute it
-        const config = normalizeTransform(transforms[lagConfig.source]);
-        sourceValue = config.fn(currentOutputs, year, yearIndex);
-      }
-      if (sourceValue === undefined) {
-        throw new Error(
-          `Lag source '${lagConfig.source}' for input '${inputName}' not found in outputs or transforms.`
-        );
-      }
-      history.push(sourceValue);
+    state.stateMap.set(mod.name, result.state);
+    state.states[mod.name].push(result.state);
+
+    for (const output of mod.outputs) {
+      const outputName = output as string;
+      const value = result.outputs[outputName];
+      state.outputs[mod.name][outputName].push(value);
+      state.currentOutputs[outputName] = value;
     }
   }
 
-  return { years, outputs, states };
+  // Update lag histories
+  for (const [inputName, lagConfig] of Object.entries(state.lags)) {
+    const history = state.lagHistory.get(inputName)!;
+    history.shift();
+
+    let sourceValue = state.currentOutputs[lagConfig.source];
+    if (sourceValue === undefined && state.transforms[lagConfig.source]) {
+      const config = normalizeTransform(state.transforms[lagConfig.source]);
+      sourceValue = config.fn(state.currentOutputs, year, yearIndex);
+    }
+    if (sourceValue === undefined) {
+      throw new Error(
+        `Lag source '${lagConfig.source}' for input '${inputName}' not found in outputs or transforms.`
+      );
+    }
+    history.push(sourceValue);
+  }
+
+  state.currentYear = year + 1;
+  const done = state.currentYear > state.endYear;
+
+  return { year, outputs: state.currentOutputs, done };
+}
+
+/**
+ * Collect accumulated results from a completed (or in-progress) simulation.
+ */
+export function finalizeAutowired(state: AutowireState): AutowireResult {
+  return {
+    years: state.years,
+    outputs: state.outputs,
+    states: state.states,
+  };
+}
+
+/**
+ * Create and run an auto-wired simulation (convenience wrapper).
+ */
+export function runAutowired(config: AutowireConfig): AutowireResult {
+  const state = initAutowired(config);
+
+  while (state.currentYear <= state.endYear) {
+    stepAutowired(state);
+  }
+
+  return finalizeAutowired(state);
 }
 
 // =============================================================================

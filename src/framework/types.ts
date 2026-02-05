@@ -61,6 +61,8 @@ export interface ParamMeta {
   range: Range;
   tier: 1 | 2 | 3;  // 1 = user-facing, 2 = scenario, 3 = calibration
   source?: string;  // Academic source
+  /** Friendly key for introspection (e.g., 'climateSensitivity'). Defaults to leaf key name. */
+  paramName?: string;
 }
 
 /**

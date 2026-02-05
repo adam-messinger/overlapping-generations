@@ -18,6 +18,7 @@
 
 import { defineModule, Module } from '../framework/module.js';
 import { EnergySource, ValidationResult } from '../framework/types.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -404,6 +405,35 @@ export const resourcesModule: Module<
 
   defaults: resourcesDefaults,
 
+  paramMeta: {
+    land: {
+      yieldGrowthRate: {
+        description: 'Annual agricultural yield improvement from technology.',
+        unit: 'fraction/year',
+        range: { min: 0.005, max: 0.02, default: 0.01 },
+        tier: 1 as const,
+      },
+      yieldDamageThreshold: {
+        description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
+        unit: '°C',
+        range: { min: 1.5, max: 3.0, default: 2.0 },
+        tier: 1 as const,
+      },
+      yieldCliffExcess: {
+        description: 'Excess temperature above damage threshold where yield cliff begins (Schlenker/Roberts).',
+        unit: '°C above threshold',
+        range: { min: 0.5, max: 3.0, default: 1.0 },
+        tier: 1 as const,
+      },
+      yieldCliffSteepness: {
+        description: 'Exponential decay rate for yield collapse beyond cliff threshold.',
+        unit: 'per °C',
+        range: { min: 0.5, max: 3.0, default: 1.5 },
+        tier: 1 as const,
+      },
+    },
+  },
+
   inputs: [
     'capacities',
     'additions',
@@ -451,27 +481,29 @@ export const resourcesModule: Module<
   },
 
   mergeParams(partial: Partial<ResourcesParams>): ResourcesParams {
-    const result = { ...resourcesDefaults, ...partial };
+    return validatedMerge('resources', this.validate, (p) => {
+      const result = { ...resourcesDefaults, ...p };
 
-    // Deep merge minerals
-    if (partial.minerals) {
-      result.minerals = { ...resourcesDefaults.minerals };
-      for (const key of MINERAL_KEYS) {
-        if (partial.minerals[key]) {
-          result.minerals[key] = {
-            ...resourcesDefaults.minerals[key],
-            ...partial.minerals[key],
-          };
+      // Deep merge minerals
+      if (p.minerals) {
+        result.minerals = { ...resourcesDefaults.minerals };
+        for (const key of MINERAL_KEYS) {
+          if (p.minerals[key]) {
+            result.minerals[key] = {
+              ...resourcesDefaults.minerals[key],
+              ...p.minerals[key],
+            };
+          }
         }
       }
-    }
 
-    // Deep merge land
-    if (partial.land) {
-      result.land = { ...resourcesDefaults.land, ...partial.land };
-    }
+      // Deep merge land
+      if (p.land) {
+        result.land = { ...resourcesDefaults.land, ...p.land };
+      }
 
-    return result;
+      return result;
+    }, partial);
   },
 
   init(params: ResourcesParams): ResourcesState {

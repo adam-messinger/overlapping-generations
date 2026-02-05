@@ -19,6 +19,7 @@
 
 import { REGIONS, Region } from '../framework/types.js';
 import { Module } from '../framework/module.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // TYPES
@@ -201,6 +202,16 @@ export const capitalModule: Module<
   description: 'OLG capital accumulation with demographic-weighted savings',
   defaults: capitalDefaults,
 
+  paramMeta: {
+    savingsWorking: {
+      paramName: 'savingsRateWorking',
+      description: 'Savings rate for working-age population. Higher in aging societies.',
+      unit: 'fraction',
+      range: { min: 0.20, max: 0.60, default: 0.45 },
+      tier: 1 as const,
+    },
+  },
+
   inputs: [
     'regionalYoung',
     'regionalWorking',
@@ -267,27 +278,16 @@ export const capitalModule: Module<
   },
 
   mergeParams(partial: Partial<CapitalParams>): CapitalParams {
-    const merged = { ...capitalDefaults };
+    return validatedMerge('capital', this.validate, (p) => {
+      const merged = { ...capitalDefaults, ...p };
 
-    // Merge scalar params
-    if (partial.alpha !== undefined) merged.alpha = partial.alpha;
-    if (partial.depreciation !== undefined) merged.depreciation = partial.depreciation;
-    if (partial.savingsYoung !== undefined) merged.savingsYoung = partial.savingsYoung;
-    if (partial.savingsWorking !== undefined) merged.savingsWorking = partial.savingsWorking;
-    if (partial.savingsOld !== undefined) merged.savingsOld = partial.savingsOld;
-    if (partial.stabilityLambda !== undefined) merged.stabilityLambda = partial.stabilityLambda;
-    if (partial.automationShare2025 !== undefined) merged.automationShare2025 = partial.automationShare2025;
-    if (partial.automationGrowth !== undefined) merged.automationGrowth = partial.automationGrowth;
-    if (partial.automationShareCap !== undefined) merged.automationShareCap = partial.automationShareCap;
-    if (partial.robotsPerCapitalUnit !== undefined) merged.robotsPerCapitalUnit = partial.robotsPerCapitalUnit;
-    if (partial.initialCapitalStock !== undefined) merged.initialCapitalStock = partial.initialCapitalStock;
+      // Merge regional premiums
+      if (p.savingsPremium) {
+        merged.savingsPremium = { ...capitalDefaults.savingsPremium, ...p.savingsPremium };
+      }
 
-    // Merge regional premiums
-    if (partial.savingsPremium) {
-      merged.savingsPremium = { ...capitalDefaults.savingsPremium, ...partial.savingsPremium };
-    }
-
-    return merged;
+      return merged;
+    }, partial);
   },
 
   init(params: CapitalParams): CapitalState {

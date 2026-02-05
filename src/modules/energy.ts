@@ -27,6 +27,7 @@
 import { defineModule, Module } from '../framework/module.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -457,6 +458,96 @@ export const energyModule: Module<
 
   defaults: energyDefaults,
 
+  paramMeta: {
+    carbonPrice: {
+      description: 'Carbon tax applied to fossil fuel generation. Higher values accelerate clean energy transition.',
+      unit: '$/ton CO₂',
+      range: { min: 0, max: 300, default: 35 },
+      tier: 1 as const,
+    },
+    sources: {
+      solar: {
+        alpha: {
+          paramName: 'solarAlpha',
+          description: "Wright's Law learning exponent for solar. 0.36 means 22% cost reduction per capacity doubling.",
+          unit: 'dimensionless',
+          range: { min: 0.1, max: 0.5, default: 0.36 },
+          tier: 1 as const,
+        },
+        growthRate: {
+          paramName: 'solarGrowthRate',
+          description: 'Base annual growth rate for solar capacity (25% = doubling every ~3 years).',
+          unit: 'fraction/year',
+          range: { min: 0.05, max: 0.40, default: 0.25 },
+          tier: 1 as const,
+        },
+      },
+      wind: {
+        alpha: {
+          paramName: 'windAlpha',
+          description: "Wright's Law learning exponent for wind. Lower than solar due to mature technology.",
+          unit: 'dimensionless',
+          range: { min: 0.1, max: 0.4, default: 0.23 },
+          tier: 1 as const,
+        },
+        growthRate: {
+          paramName: 'windGrowthRate',
+          description: 'Base annual growth rate for wind capacity.',
+          unit: 'fraction/year',
+          range: { min: 0.05, max: 0.30, default: 0.18 },
+          tier: 1 as const,
+        },
+      },
+      battery: {
+        alpha: {
+          paramName: 'batteryAlpha',
+          description: "Wright's Law learning exponent for battery storage.",
+          unit: 'dimensionless',
+          range: { min: 0.1, max: 0.4, default: 0.26 },
+          tier: 1 as const,
+        },
+      },
+    },
+    regional: {
+      oecd: {
+        carbonPrice: {
+          paramName: 'oecdCarbonPrice',
+          description: 'Carbon price for OECD region (EU ETS ~80, US implicit ~25, blended ~50).',
+          unit: '$/ton CO₂',
+          range: { min: 0, max: 300, default: 50 },
+          tier: 1 as const,
+        },
+      },
+      china: {
+        carbonPrice: {
+          paramName: 'chinaCarbonPrice',
+          description: 'Carbon price for China (nascent national ETS).',
+          unit: '$/ton CO₂',
+          range: { min: 0, max: 300, default: 15 },
+          tier: 1 as const,
+        },
+      },
+      em: {
+        carbonPrice: {
+          paramName: 'emCarbonPrice',
+          description: 'Carbon price for Emerging Markets (India, Brazil, Indonesia, etc.).',
+          unit: '$/ton CO₂',
+          range: { min: 0, max: 300, default: 10 },
+          tier: 1 as const,
+        },
+      },
+      row: {
+        carbonPrice: {
+          paramName: 'rowCarbonPrice',
+          description: 'Carbon price for Rest of World (Africa, etc.). No effective pricing.',
+          unit: '$/ton CO₂',
+          range: { min: 0, max: 300, default: 0 },
+          tier: 1 as const,
+        },
+      },
+    },
+  },
+
   inputs: [
     'electricityDemand',
     'regionalElectricityDemand',
@@ -529,69 +620,70 @@ export const energyModule: Module<
   },
 
   mergeParams(partial: Partial<EnergyParams>): EnergyParams {
-    const result = { ...energyDefaults, ...partial };
+    return validatedMerge('energy', this.validate, (p) => {
+      const result = { ...energyDefaults, ...p };
 
-    // Deep merge sources
-    if (partial.sources) {
-      result.sources = { ...energyDefaults.sources };
-      for (const source of ENERGY_SOURCES) {
-        if (partial.sources[source]) {
-          result.sources[source] = {
-            ...energyDefaults.sources[source],
-            ...partial.sources[source],
-          };
-          // Deep merge regional capacity2025
-          if (partial.sources[source].capacity2025) {
-            result.sources[source].capacity2025 = {
-              ...energyDefaults.sources[source].capacity2025,
-              ...partial.sources[source].capacity2025,
+      // Deep merge sources
+      if (p.sources) {
+        result.sources = { ...energyDefaults.sources };
+        for (const source of ENERGY_SOURCES) {
+          if (p.sources[source]) {
+            result.sources[source] = {
+              ...energyDefaults.sources[source],
+              ...p.sources[source],
             };
+            // Deep merge regional capacity2025
+            if (p.sources[source].capacity2025) {
+              result.sources[source].capacity2025 = {
+                ...energyDefaults.sources[source].capacity2025,
+                ...p.sources[source].capacity2025,
+              };
+            }
           }
         }
       }
-    }
 
-    // Deep merge regional params
-    if (partial.regional) {
-      result.regional = { ...energyDefaults.regional };
-      for (const region of REGIONS) {
-        if (partial.regional[region]) {
-          result.regional[region] = {
-            ...energyDefaults.regional[region],
-            ...partial.regional[region],
-          };
-          // Deep merge optional records
-          if (partial.regional[region].maxGrowthRate) {
-            result.regional[region].maxGrowthRate = {
-              ...energyDefaults.regional[region].maxGrowthRate,
-              ...partial.regional[region].maxGrowthRate,
+      // Deep merge regional params
+      if (p.regional) {
+        result.regional = { ...energyDefaults.regional };
+        for (const region of REGIONS) {
+          if (p.regional[region]) {
+            result.regional[region] = {
+              ...energyDefaults.regional[region],
+              ...p.regional[region],
             };
-          }
-          if (partial.regional[region].capacityFactor) {
-            result.regional[region].capacityFactor = {
-              ...energyDefaults.regional[region].capacityFactor,
-              ...partial.regional[region].capacityFactor,
-            };
+            if (p.regional[region].maxGrowthRate) {
+              result.regional[region].maxGrowthRate = {
+                ...energyDefaults.regional[region].maxGrowthRate,
+                ...p.regional[region].maxGrowthRate,
+              };
+            }
+            if (p.regional[region].capacityFactor) {
+              result.regional[region].capacityFactor = {
+                ...energyDefaults.regional[region].capacityFactor,
+                ...p.regional[region].capacityFactor,
+              };
+            }
           }
         }
       }
-    }
 
-    // Deep merge other records
-    if (partial.maxGrowthRate) {
-      result.maxGrowthRate = { ...energyDefaults.maxGrowthRate, ...partial.maxGrowthRate };
-    }
-    if (partial.lifetime) {
-      result.lifetime = { ...energyDefaults.lifetime, ...partial.lifetime };
-    }
-    if (partial.capex) {
-      result.capex = { ...energyDefaults.capex, ...partial.capex };
-    }
-    if (partial.eroi) {
-      result.eroi = { ...energyDefaults.eroi, ...partial.eroi };
-    }
+      // Deep merge other records
+      if (p.maxGrowthRate) {
+        result.maxGrowthRate = { ...energyDefaults.maxGrowthRate, ...p.maxGrowthRate };
+      }
+      if (p.lifetime) {
+        result.lifetime = { ...energyDefaults.lifetime, ...p.lifetime };
+      }
+      if (p.capex) {
+        result.capex = { ...energyDefaults.capex, ...p.capex };
+      }
+      if (p.eroi) {
+        result.eroi = { ...energyDefaults.eroi, ...p.eroi };
+      }
 
-    return result;
+      return result;
+    }, partial);
   },
 
   init(params: EnergyParams): EnergyState {

@@ -31,6 +31,7 @@ import { expansionModule, ExpansionParams } from './modules/expansion.js';
 import { resourcesModule, ResourcesParams } from './modules/resources.js';
 import { climateModule, ClimateParams } from './modules/climate.js';
 import { Region, REGIONS, EnergySource } from './framework/types.js';
+import { runAutowiredFull } from './simulation-autowired.js';
 
 // =============================================================================
 // TYPES
@@ -742,9 +743,18 @@ export class Simulation {
 // =============================================================================
 
 /**
- * Run a simulation with optional parameter overrides
+ * Run a simulation with optional parameter overrides.
+ * Delegates to the autowired simulation path.
  */
 export function runSimulation(params: SimulationParams = {}): SimulationResult {
+  return runAutowiredFull(params);
+}
+
+/**
+ * Run a simulation using the manual (hand-wired) path.
+ * Kept for regression testing and comparison.
+ */
+export function runSimulationManual(params: SimulationParams = {}): SimulationResult {
   const sim = new Simulation(params);
   const validation = sim.validate();
 

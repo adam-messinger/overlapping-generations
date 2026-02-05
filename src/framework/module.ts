@@ -9,7 +9,7 @@
  * - Pure step function (no side effects)
  */
 
-import { YearIndex, Year, ValidationResult } from './types.js';
+import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
 
 /**
  * Module definition interface
@@ -19,6 +19,9 @@ import { YearIndex, Year, ValidationResult } from './types.js';
  * @template TInputs - What this module needs from other modules
  * @template TOutputs - What this module provides to other modules
  */
+/** Connector type for runtime validation of module wiring */
+export type ConnectorType = 'number' | 'record' | 'nested-record';
+
 export interface Module<
   TParams extends object,
   TState extends object,
@@ -45,6 +48,23 @@ export interface Module<
    * Used by framework to resolve dependencies
    */
   readonly outputs: readonly (keyof TOutputs)[];
+
+  /**
+   * Optional connector type declarations for runtime wiring validation.
+   * When present, the framework validates type compatibility between
+   * providers and consumers at startup.
+   */
+  readonly connectorTypes?: {
+    inputs?: Partial<Record<keyof TInputs, ConnectorType>>;
+    outputs?: Partial<Record<keyof TOutputs, ConnectorType>>;
+  };
+
+  /**
+   * Parameter metadata tree, mirroring the structure of `defaults`.
+   * Leaf nodes are ParamMeta objects (have `description` + `unit` + `range`).
+   * Used by generateParameterSchema() to auto-generate introspection data.
+   */
+  readonly paramMeta?: Record<string, any>;
 
   /**
    * Validate parameters

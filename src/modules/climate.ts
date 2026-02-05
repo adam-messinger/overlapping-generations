@@ -17,6 +17,7 @@
 import { defineModule, Module } from '../framework/module.js';
 import { Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { quadraticDamage, smoothStep } from '../primitives/math.js';
+import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -118,6 +119,34 @@ export const climateModule: Module<
 
   defaults: climateDefaults,
 
+  paramMeta: {
+    sensitivity: {
+      paramName: 'climateSensitivity',
+      description: 'Equilibrium climate sensitivity. IPCC AR6 range is 2.5-4.0°C, with 3.0°C as best estimate.',
+      unit: '°C per CO₂ doubling',
+      range: { min: 2.0, max: 5.0, default: 3.0 },
+      tier: 1 as const,
+    },
+    damageCoeff: {
+      description: 'DICE-2023 quadratic damage coefficient. damage = coeff × T². 0.00236 gives ~1.7% GDP loss at 2.7°C.',
+      unit: 'per °C²',
+      range: { min: 0.001, max: 0.005, default: 0.00236 },
+      tier: 1 as const,
+    },
+    tippingThreshold: {
+      description: 'Temperature threshold for tipping point multiplier. Damages increase faster above this.',
+      unit: '°C',
+      range: { min: 1.5, max: 4.0, default: 2.5 },
+      tier: 1 as const,
+    },
+    maxDamage: {
+      description: 'Cap on climate damages as fraction of GDP (30% = Great Depression level).',
+      unit: 'fraction of GDP',
+      range: { min: 0.15, max: 0.50, default: 0.30 },
+      tier: 1 as const,
+    },
+  },
+
   inputs: ['emissions'] as const,
   outputs: [
     'temperature',
@@ -127,6 +156,20 @@ export const climateModule: Module<
     'regionalDamages',
     'cumulativeEmissions',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      emissions: 'number',
+    },
+    outputs: {
+      temperature: 'number',
+      co2ppm: 'number',
+      equilibriumTemp: 'number',
+      damages: 'number',
+      regionalDamages: 'record',
+      cumulativeEmissions: 'number',
+    },
+  },
 
   validate(params: Partial<ClimateParams>): ValidationResult {
     const errors: string[] = [];
@@ -178,14 +221,14 @@ export const climateModule: Module<
   },
 
   mergeParams(partial: Partial<ClimateParams>): ClimateParams {
-    return {
+    return validatedMerge('climate', this.validate, (p) => ({
       ...climateDefaults,
-      ...partial,
+      ...p,
       regionalDamage: {
         ...climateDefaults.regionalDamage,
-        ...partial.regionalDamage,
+        ...p.regionalDamage,
       },
-    };
+    }), partial);
   },
 
   init(params: ClimateParams): ClimateState {
