@@ -216,7 +216,7 @@ export function describeOutputs(): OutputSchema {
     savingsRate: { unit: 'fraction', description: 'Aggregate savings rate', module: 'capital' },
     stability: { unit: 'index', description: 'Financial stability index (0-1)', module: 'capital' },
     interestRate: { unit: 'fraction', description: 'Real interest rate', module: 'capital' },
-    robotsDensity: { unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'capital' },
+    robotsDensity: { unit: 'per 1000 workers', description: 'Automation capital density (capital-derived; see robotsPer1000 for energy-driving metric)', module: 'capital' },
 
     // Energy
     lcoes: { unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },

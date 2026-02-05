@@ -87,7 +87,7 @@ interface CapitalOutputs {
   interestRate: number;       // Real interest rate
 
   // Automation
-  robotsDensity: number;      // Robots per 1000 workers
+  robotsDensity: number;      // Automation capital density (capital-derived, $/worker scaled)
   automationShare: number;    // Fraction of capital that is automation
 
   // Intensity
@@ -175,7 +175,9 @@ function calculateInterestRate(gdp: number, capital: number, params: CapitalPara
 }
 
 /**
- * Robots per 1000 workers
+ * Automation capital density (capital-derived metric).
+ * NOT the same as expansion.robotsPer1000 (which uses exponential growth and
+ * drives energy demand). This metric tracks automation as a share of capital stock.
  */
 function calculateRobotsDensity(
   capital: number,

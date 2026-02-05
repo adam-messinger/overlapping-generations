@@ -392,11 +392,12 @@ function dispatchRegion(
   const totalGeneration = demandTWh - remaining;
   const shortfall = remaining;
 
-  const totalEmissionsKg =
+  // TWh × kg/MWh = 1e6 × Gt CO2 (intermediate unit for both intensity and emissions)
+  const emissionsProduct =
     generation.gas * params.carbonIntensity.gas +
     generation.coal * params.carbonIntensity.coal;
-  const gridIntensity = totalGeneration > 0 ? totalEmissionsKg / totalGeneration : 0;
-  const electricityEmissions = totalEmissionsKg / 1e6;
+  const gridIntensity = totalGeneration > 0 ? emissionsProduct / totalGeneration : 0; // kg CO2/MWh
+  const electricityEmissions = emissionsProduct / 1e6; // Gt CO2
 
   const fossilGen = generation.gas + generation.coal;
   const fossilShare = totalGeneration > 0 ? fossilGen / totalGeneration : 0;
@@ -602,7 +603,7 @@ export const dispatchModule: Module<
 
     let globalTotalGeneration = 0;
     let globalShortfall = 0;
-    let totalEmissionsKg = 0;
+    let globalEmissionsProduct = 0; // TWh × kg/MWh (intermediate unit)
     let globalCurtailmentTWh = 0;
     const regionalCurtailment: Record<Region, number> = {} as Record<Region, number>;
 
@@ -613,7 +614,7 @@ export const dispatchModule: Module<
       }
       globalTotalGeneration += regionalOutputs[region].totalGeneration;
       globalShortfall += regionalOutputs[region].shortfall;
-      totalEmissionsKg += regionalOutputs[region].electricityEmissions * 1e6; // Gt → kg
+      globalEmissionsProduct += regionalOutputs[region].electricityEmissions * 1e6; // Gt → intermediate unit
       globalCurtailmentTWh += regionalOutputs[region].curtailmentTWh;
       regionalCurtailment[region] = regionalOutputs[region].curtailmentTWh;
     }
@@ -622,8 +623,8 @@ export const dispatchModule: Module<
     const globalAvailableVRE = globalGeneration.solar + globalGeneration.solarPlusBattery + globalGeneration.wind + globalCurtailmentTWh;
     const globalCurtailmentRate = globalAvailableVRE > 0 ? globalCurtailmentTWh / globalAvailableVRE : 0;
 
-    const globalGridIntensity = globalTotalGeneration > 0 ? totalEmissionsKg / globalTotalGeneration : 0;
-    const globalElectricityEmissions = totalEmissionsKg / 1e6;
+    const globalGridIntensity = globalTotalGeneration > 0 ? globalEmissionsProduct / globalTotalGeneration : 0;
+    const globalElectricityEmissions = globalEmissionsProduct / 1e6;
 
     const fossilGen = globalGeneration.gas + globalGeneration.coal;
     const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;

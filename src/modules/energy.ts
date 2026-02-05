@@ -35,13 +35,13 @@ import { validatedMerge } from '../framework/validated-merge.js';
 
 export interface EnergySourceParams {
   name: string;
-  cost0: number;           // $/MWh baseline (2025)
+  cost0: number;           // $/MWh baseline (2025); battery is $/kWh
   alpha: number;           // Wright's Law exponent (0 = no learning)
   growthRate: number;      // Annual capacity growth rate (default, can be overridden regionally)
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
   eroei0?: number;         // Initial EROEI
-  reserves?: number;       // Total reserves
+  reserves?: number;       // Depletion budget (dimensionless; extraction accrues as installed_GW × 0.01/yr)
 
   // Regional 2025 baselines (replaces single capacity2025)
   capacity2025: Record<Region, number>;
@@ -978,7 +978,8 @@ export const energyModule: Module<
 
       let extracted = state.global[source].extracted;
       if (s.reserves !== undefined) {
-        // Sum global installed for extraction estimate
+        // Extraction proxy: installed capacity (GW) × 0.01 per year.
+        // Dimensionless — calibrated so reserves/extracted ratio drives EROEI decay.
         let globalInstalled = 0;
         for (const region of REGIONS) {
           globalInstalled += state.regional[region][source].installed;
@@ -1008,9 +1009,12 @@ export const energyModule: Module<
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 
-    // Find cheapest LCOE
+    // Find cheapest LCOE ($/MWh)
+    // Note: lcoes.battery is $/kWh (storage cost), not $/MWh like generation sources.
+    // Skip battery here; its contribution is captured via solarPlusBatteryLCOE.
     let cheapestLCOE = Infinity;
     for (const source of ENERGY_SOURCES) {
+      if (source === 'battery') continue;
       if (lcoes[source] < cheapestLCOE) {
         cheapestLCOE = lcoes[source];
       }
