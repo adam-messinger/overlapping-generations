@@ -309,6 +309,24 @@ export function describeParameters(): ParameterSchema {
       description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
       path: 'resources.land.yieldDamageThreshold',
     },
+    yieldCliffExcess: {
+      type: 'number',
+      default: 1.0,
+      min: 0.5,
+      max: 3.0,
+      unit: '°C above threshold',
+      description: 'Excess temperature above damage threshold where yield cliff begins (Schlenker/Roberts).',
+      path: 'resources.land.yieldCliffExcess',
+    },
+    yieldCliffSteepness: {
+      type: 'number',
+      default: 1.5,
+      min: 0.5,
+      max: 3.0,
+      unit: 'per °C',
+      description: 'Exponential decay rate for yield collapse beyond cliff threshold.',
+      path: 'resources.land.yieldCliffSteepness',
+    },
 
     // =========================================================================
     // REGIONAL ENERGY PARAMETERS
@@ -348,6 +366,28 @@ export function describeParameters(): ParameterSchema {
       unit: '$/ton CO₂',
       description: 'Carbon price for Rest of World (Africa, etc.). No effective pricing.',
       path: 'energy.regional.row.carbonPrice',
+    },
+
+    // =========================================================================
+    // DISPATCH - Curtailment
+    // =========================================================================
+    curtailmentOnset: {
+      type: 'number',
+      default: 0.30,
+      min: 0.15,
+      max: 0.50,
+      unit: 'fraction',
+      description: 'VRE share of demand at which soft curtailment begins.',
+      path: 'dispatch.curtailmentOnset',
+    },
+    curtailmentCoeff: {
+      type: 'number',
+      default: 1.5,
+      min: 0.5,
+      max: 3.0,
+      unit: 'per fraction²',
+      description: 'Quadratic penalty coefficient for VRE curtailment beyond onset.',
+      path: 'dispatch.curtailmentCoeff',
     },
   };
 }
@@ -512,6 +552,8 @@ export function describeOutputs(): OutputSchema {
     gridIntensity: { unit: 'kg CO2/MWh', description: 'Grid carbon intensity', module: 'dispatch' },
     electricityEmissions: { unit: 'Gt CO2/year', description: 'Electricity generation emissions', module: 'dispatch' },
     fossilShare: { unit: 'fraction', description: 'Fossil share of electricity generation', module: 'dispatch' },
+    curtailmentTWh: { unit: 'TWh', description: 'VRE generation curtailed', module: 'dispatch' },
+    curtailmentRate: { unit: 'fraction', description: 'Fraction of available VRE curtailed', module: 'dispatch' },
 
     // Climate
     temperature: { unit: '°C', description: 'Temperature above preindustrial', module: 'climate' },

@@ -92,6 +92,9 @@ interface CapitalOutputs {
   // Intensity
   kPerWorker: number;         // Capital per effective worker ($K/person)
   capitalOutputRatio: number; // K/Y ratio
+
+  // Growth rate (for Solow feedback to demand)
+  capitalGrowthRate: number;  // Annual growth rate of capital stock
 }
 
 // =============================================================================
@@ -220,6 +223,7 @@ export const capitalModule: Module<
     'automationShare',
     'kPerWorker',
     'capitalOutputRatio',
+    'capitalGrowthRate',
   ] as const,
 
   validate(params: Partial<CapitalParams>) {
@@ -354,6 +358,11 @@ export const capitalModule: Module<
     // Update capital stock for next period: K_{t+1} = (1-δ)K_t + I_t
     const newStock = (1 - params.depreciation) * state.stock + investment;
 
+    // Capital growth rate (for Solow feedback)
+    const capitalGrowthRate = yearIndex > 0 && state.stock > 0
+      ? (newStock - state.stock) / state.stock
+      : 0;
+
     return {
       state: {
         stock: newStock,
@@ -369,6 +378,7 @@ export const capitalModule: Module<
         automationShare,
         kPerWorker,
         capitalOutputRatio,
+        capitalGrowthRate,
       },
     };
   },

@@ -106,6 +106,8 @@ export interface YearResult {
   gridIntensity: number;
   electricityEmissions: number;
   fossilShare: number;
+  curtailmentTWh: number;
+  curtailmentRate: number;
 
   // Climate
   temperature: number;
@@ -271,6 +273,7 @@ export class Simulation {
     let laggedTemperature = 1.2; // Initial temperature for resources
     let laggedAvgLCOE = 50; // Initial LCOE for cost-driven electrification ($/MWh)
     let laggedNetEnergyFactor = 1; // Initial net energy factor for investment
+    let laggedCapitalGrowthRate = 0; // Initial capital growth rate for Solow feedback
     let gdpPerCapita2025 = 0; // Will be set in first year
 
     for (let year = this.startYear; year <= this.endYear; year++) {
@@ -305,6 +308,7 @@ export class Simulation {
         energyBurdenDamage: laggedBurdenDamage,
         laggedAvgLCOE, // For cost-driven electrification
         carbonPrice: this.energyParams.carbonPrice, // Pass carbon price for fuel cost calc
+        capitalGrowthRate: laggedCapitalGrowthRate, // Solow capital contribution
       };
       const demandResult = demandModule.step(
         demandState,
@@ -350,6 +354,9 @@ export class Simulation {
       );
       capitalState = capitalResult.state;
       const capital = capitalResult.outputs;
+
+      // Update lagged capital growth rate for next year's Solow feedback
+      laggedCapitalGrowthRate = capital.capitalGrowthRate;
 
       // =======================================================================
       // Step 4: Energy (needs demand, capital)
@@ -612,6 +619,8 @@ export class Simulation {
         gridIntensity: dispatch.gridIntensity,
         electricityEmissions: dispatch.electricityEmissions,
         fossilShare: dispatch.fossilShare,
+        curtailmentTWh: dispatch.curtailmentTWh,
+        curtailmentRate: dispatch.curtailmentRate,
 
         // Climate
         temperature: climate.temperature,

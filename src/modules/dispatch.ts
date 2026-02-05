@@ -58,6 +58,10 @@ export interface DispatchParams {
   baseVRELimit: number;              // VRE limit with 0h storage (default 0.30)
   storageBonusPerHour: number;       // Additional VRE share per storage hour (0.08)
   maxVRECeiling: number;             // Physical max VRE share (0.95)
+
+  /** Soft curtailment parameters */
+  curtailmentOnset: number;          // VRE share where curtailment begins (default 0.30)
+  curtailmentCoeff: number;          // Quadratic penalty coefficient (default 1.5)
 }
 
 export const dispatchDefaults: DispatchParams = {
@@ -107,6 +111,10 @@ export const dispatchDefaults: DispatchParams = {
   baseVRELimit: 0.30,                // Grid handles 30% VRE with no storage
   storageBonusPerHour: 0.08,         // Each storage hour adds 8% VRE capacity
   maxVRECeiling: 0.95,               // Physical max (need some dispatchable)
+
+  // Soft curtailment
+  curtailmentOnset: 0.30,            // VRE curtailment begins at 30% share
+  curtailmentCoeff: 1.5,             // Quadratic penalty coefficient
 };
 
 // =============================================================================
@@ -156,6 +164,8 @@ export interface RegionalDispatchOutputs {
   fossilShare: number;
   totalGeneration: number;
   shortfall: number;
+  curtailmentTWh: number;
+  curtailmentRate: number;
 }
 
 export interface DispatchOutputs {
@@ -191,6 +201,15 @@ export interface DispatchOutputs {
 
   /** Regional fossil share */
   regionalFossilShare: Record<Region, number>;
+
+  /** VRE curtailment (TWh) - GLOBAL */
+  curtailmentTWh: number;
+
+  /** Curtailment rate (fraction of available VRE) - GLOBAL */
+  curtailmentRate: number;
+
+  /** Regional curtailment (TWh) */
+  regionalCurtailment: Record<Region, number>;
 
   /** Regional detail for other modules */
   dispatchRegional: Record<Region, RegionalDispatchOutputs>;
@@ -245,6 +264,19 @@ function dispatchRegion(
       params.capacityFactor.battery *
       params.hoursPerYear) /
     1000;
+
+  // Track pre-penalty available VRE for curtailment accounting
+  const totalAvailableVRE = maxGen.solar + maxGen.solarPlusBattery + maxGen.wind;
+
+  // Soft curtailment: reduce effective VRE as share increases beyond onset
+  const expectedVREShare = demandTWh > 0 ? totalAvailableVRE / demandTWh : 0;
+  if (expectedVREShare > params.curtailmentOnset) {
+    const excess = expectedVREShare - params.curtailmentOnset;
+    const penalty = Math.min(0.5, params.curtailmentCoeff * excess * excess);
+    maxGen.solar *= (1 - penalty);
+    maxGen.solarPlusBattery *= (1 - penalty);
+    maxGen.wind *= (1 - penalty);
+  }
 
   // Solar and solar+storage share the same underlying solar capacity.
   // Track remaining solar generation potential to avoid double-counting.
@@ -329,6 +361,11 @@ function dispatchRegion(
     }
   }
 
+  // Curtailment tracking
+  const totalDispatchedVRE = generation.solar + generation.solarPlusBattery + generation.wind;
+  const curtailmentTWh = Math.max(0, totalAvailableVRE - totalDispatchedVRE);
+  const curtailmentRate = totalAvailableVRE > 0 ? curtailmentTWh / totalAvailableVRE : 0;
+
   const totalGeneration = demandTWh - remaining;
   const shortfall = remaining;
 
@@ -348,6 +385,8 @@ function dispatchRegion(
     fossilShare,
     totalGeneration,
     shortfall,
+    curtailmentTWh,
+    curtailmentRate,
   };
 }
 
@@ -402,6 +441,9 @@ export const dispatchModule: Module<
     'cheapestSource',
     'fossilShare',
     'regionalFossilShare',
+    'curtailmentTWh',
+    'curtailmentRate',
+    'regionalCurtailment',
     'dispatchRegional',
   ] as const,
 
@@ -494,6 +536,8 @@ export const dispatchModule: Module<
     let globalTotalGeneration = 0;
     let globalShortfall = 0;
     let totalEmissionsKg = 0;
+    let globalCurtailmentTWh = 0;
+    const regionalCurtailment: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const rg = regionalGeneration[region];
@@ -503,7 +547,13 @@ export const dispatchModule: Module<
       globalTotalGeneration += regionalOutputs[region].totalGeneration;
       globalShortfall += regionalOutputs[region].shortfall;
       totalEmissionsKg += regionalOutputs[region].electricityEmissions * 1e6; // Gt → kg
+      globalCurtailmentTWh += regionalOutputs[region].curtailmentTWh;
+      regionalCurtailment[region] = regionalOutputs[region].curtailmentTWh;
     }
+
+    // Global curtailment rate from regional sums
+    const globalAvailableVRE = globalGeneration.solar + globalGeneration.solarPlusBattery + globalGeneration.wind + globalCurtailmentTWh;
+    const globalCurtailmentRate = globalAvailableVRE > 0 ? globalCurtailmentTWh / globalAvailableVRE : 0;
 
     const globalGridIntensity = globalTotalGeneration > 0 ? totalEmissionsKg / globalTotalGeneration : 0;
     const globalElectricityEmissions = totalEmissionsKg / 1e6;
@@ -540,6 +590,9 @@ export const dispatchModule: Module<
         cheapestSource,
         fossilShare: globalFossilShare,
         regionalFossilShare,
+        curtailmentTWh: globalCurtailmentTWh,
+        curtailmentRate: globalCurtailmentRate,
+        regionalCurtailment,
         dispatchRegional: regionalOutputs,
       },
     };

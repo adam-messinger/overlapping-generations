@@ -153,6 +153,9 @@ interface DemandInputs {
 
   // For cost-driven electrification
   laggedAvgLCOE?: number;                // $/MWh from previous year
+
+  // For Solow capital contribution to GDP growth
+  capitalGrowthRate?: number;            // Annual capital stock growth rate
 }
 
 interface RegionalOutputs {
@@ -563,6 +566,7 @@ export const demandModule: Module<
     'weightedAverageLCOE',
     'carbonPrice',
     'laggedAvgLCOE',
+    'capitalGrowthRate',
   ] as const,
 
   outputs: [
@@ -822,9 +826,10 @@ export const demandModule: Module<
       // TFP with decay (catch-up growth fades)
       const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
 
-      // Total growth rate: TFP + labor contribution + demographic adjustment
-      // Labor share (1 - α) ≈ 0.65
-      const growthRate = tfp + 0.65 * laborGrowth + demographicAdj;
+      // Solow growth: gY = gA + α·gK + (1-α)·gL + demographic adjustment
+      // Capital share α ≈ 0.35, labor share (1-α) ≈ 0.65
+      const capitalGrowth = inputs.capitalGrowthRate ?? 0;
+      const growthRate = tfp + 0.35 * capitalGrowth + 0.65 * laborGrowth + demographicAdj;
 
       // Update GDP
       let newGdp = currentState.gdp;

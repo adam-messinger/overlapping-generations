@@ -64,6 +64,10 @@ export interface LandParams {
   // Climate-yield damage
   yieldDamageThreshold: number;   // °C where damage begins
   yieldDamageCoeff: number;       // Quadratic damage coefficient
+
+  // Schlenker/Roberts yield cliff
+  yieldCliffExcess: number;       // °C above threshold where cliff begins (default 1.0)
+  yieldCliffSteepness: number;    // Exponential decay rate beyond cliff (default 1.5)
 }
 
 export interface FoodParams {
@@ -162,6 +166,9 @@ export const resourcesDefaults: ResourcesParams = {
 
     yieldDamageThreshold: 2.0,
     yieldDamageCoeff: 0.15,
+
+    yieldCliffExcess: 1.0,
+    yieldCliffSteepness: 1.5,
   },
   food: {
     // Calories baseline (FAO global average)
@@ -539,8 +546,18 @@ export const resourcesModule: Module<
 
     // Yield with tech improvement and climate damage
     const techYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, yearIndex);
+    // Schlenker/Roberts yield damage: smooth quadratic below cliff, exponential collapse above
     const excessTemp = Math.max(0, temperature - land.yieldDamageThreshold);
-    const yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
+    let yieldDamageFactor: number;
+    if (excessTemp <= land.yieldCliffExcess) {
+      // Moderate zone: smooth quadratic
+      yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
+    } else {
+      // Cliff zone: exponential collapse beyond threshold
+      const precliff = 1 / (1 + land.yieldDamageCoeff * land.yieldCliffExcess * land.yieldCliffExcess);
+      const cliffDelta = excessTemp - land.yieldCliffExcess;
+      yieldDamageFactor = precliff * Math.exp(-land.yieldCliffSteepness * cliffDelta);
+    }
     const currentYield = techYield * yieldDamageFactor;
 
     // Farmland = grain demand / yield × non-food multiplier
