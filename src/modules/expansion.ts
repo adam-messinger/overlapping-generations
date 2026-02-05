@@ -146,6 +146,12 @@ export const expansionModule: Module<
       range: { min: 5, max: 20, default: 10 },
       tier: 1 as const,
     },
+    robotCap: {
+      description: 'Maximum robots per 1000 workers (saturation ceiling for automation).',
+      unit: 'per 1000 workers',
+      range: { min: 100, max: 2000, default: 500 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -227,7 +233,8 @@ export const expansionModule: Module<
     // =========================================================================
     // Cost reduction releases resources → reinvested into new activities
     // This is CONTINUOUS, not threshold-based
-    const costRatio = params.baselineLCOE / Math.max(5, cheapestLCOE);
+    const MIN_LCOE_FLOOR = 5; // $/MWh floor to prevent division by near-zero
+    const costRatio = params.baselineLCOE / Math.max(MIN_LCOE_FLOOR, cheapestLCOE);
 
     // Log form: first cost halvings matter more than later ones
     // log2(2) = 1.0 → 25% expansion when energy is 2× cheaper

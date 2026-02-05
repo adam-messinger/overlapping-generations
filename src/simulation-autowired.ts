@@ -306,6 +306,24 @@ function buildTransforms(mergedEnergyParams: any) {
       },
       dependsOn: [],
     },
+
+    // GDP-weighted average of regional damages (matches manual path's capital input)
+    gdpWeightedDamages: {
+      fn: (outputs: Record<string, any>) => {
+        const regionalDamages = outputs.regionalDamages;
+        const regional = outputs.regional; // demand regional outputs
+        if (!regionalDamages || !regional) return outputs.damages ?? 0;
+        let totalGdp = 0;
+        let weightedSum = 0;
+        for (const r of REGIONS) {
+          const gdp = regional[r]?.gdp ?? 0;
+          totalGdp += gdp;
+          weightedSum += (regionalDamages[r] ?? 0) * gdp;
+        }
+        return totalGdp > 0 ? weightedSum / totalGdp : 0;
+      },
+      dependsOn: [],  // No deps to avoid cycle - uses current outputs
+    },
   };
 }
 
@@ -328,9 +346,9 @@ function buildLags() {
       initial: 0,
     },
 
-    // Capital needs lagged damages
+    // Capital needs lagged GDP-weighted damages (matches manual path)
     damages: {
-      source: 'damages',
+      source: 'gdpWeightedDamages',
       delay: 1,
       initial: 0,
     },
@@ -405,7 +423,7 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
 /**
  * Convert autowire result to flat YearResult array (matches simulation.ts output).
  */
-export function toYearResults(result: AutowireResult): YearResult[] {
+export function toYearResults(result: AutowireResult, mergedDemandParams?: any): YearResult[] {
   const yearResults: YearResult[] = [];
 
   for (let i = 0; i < result.years.length; i++) {
@@ -422,6 +440,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       collegeShare: o.collegeShare,
 
       // Demand
+      capitalElasticity: mergedDemandParams?.capitalElasticity ?? 0.35,
       gdp: o.gdp,
       electricityDemand: o.electricityDemand,
       electrificationRate: o.electrificationRate,
@@ -455,6 +474,9 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       stability: o.stability,
       interestRate: o.interestRate,
       robotsDensity: o.robotsDensity,
+      automationShare: o.automationShare,
+      capitalOutputRatio: o.capitalOutputRatio,
+      capitalGrowthRate: o.capitalGrowthRate,
 
       // Energy
       lcoes: o.lcoes,
@@ -462,10 +484,14 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       solarLCOE: o.lcoes?.solar ?? 0,
       windLCOE: o.lcoes?.wind ?? 0,
       batteryCost: o.batteryCost ?? 0,
+      cheapestLCOE: o.cheapestLCOE ?? 0,
+      solarPlusBatteryLCOE: o.solarPlusBatteryLCOE ?? 0,
 
       // Dispatch
       generation: o.generation,
       gridIntensity: o.gridIntensity,
+      totalGeneration: o.totalGeneration,
+      shortfall: o.shortfall,
       electricityEmissions: o.electricityEmissions,
       fossilShare: o.fossilShare,
       curtailmentTWh: o.curtailmentTWh,
@@ -474,6 +500,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       // Climate
       temperature: o.temperature,
       co2ppm: o.co2ppm,
+      equilibriumTemp: o.equilibriumTemp,
       damages: o.damages,
       cumulativeEmissions: o.cumulativeEmissions,
 
@@ -596,7 +623,8 @@ export function computeMetrics(results: YearResult[]): SimulationMetrics {
  */
 export function runAutowiredFull(params: SimulationParams = {}): SimulationResult {
   const autowireResult = runAutowiredSimulation(params);
-  const results = toYearResults(autowireResult);
+  const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
+  const results = toYearResults(autowireResult, mergedDemandParams);
   const metrics = computeMetrics(results);
   return { years: autowireResult.years, results, metrics };
 }

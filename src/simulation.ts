@@ -61,6 +61,7 @@ export interface YearResult {
   collegeShare: number;
 
   // Demand
+  capitalElasticity: number;
   gdp: number;
   electricityDemand: number;
   electrificationRate: number;
@@ -94,6 +95,9 @@ export interface YearResult {
   stability: number;
   interestRate: number;
   robotsDensity: number;
+  automationShare: number;
+  capitalOutputRatio: number;
+  capitalGrowthRate: number;
 
   // Energy
   lcoes: Record<EnergySource, number>;
@@ -101,10 +105,14 @@ export interface YearResult {
   solarLCOE: number;
   windLCOE: number;
   batteryCost: number;
+  cheapestLCOE: number;
+  solarPlusBatteryLCOE: number;
 
   // Dispatch
   generation: Record<string, number>;
   gridIntensity: number;
+  totalGeneration: number;
+  shortfall: number;
   electricityEmissions: number;
   fossilShare: number;
   curtailmentTWh: number;
@@ -113,6 +121,7 @@ export interface YearResult {
   // Climate
   temperature: number;
   co2ppm: number;
+  equilibriumTemp: number;
   damages: number;
   cumulativeEmissions: number;
 
@@ -575,6 +584,7 @@ export class Simulation {
         collegeShare: demo.collegeShare,
 
         // Demand
+        capitalElasticity: this.demandParams.capitalElasticity,
         gdp: demand.gdp,
         electricityDemand: demand.electricityDemand,
         electrificationRate: demand.electrificationRate,
@@ -608,6 +618,9 @@ export class Simulation {
         stability: capital.stability,
         interestRate: capital.interestRate,
         robotsDensity: capital.robotsDensity,
+        automationShare: capital.automationShare,
+        capitalOutputRatio: capital.capitalOutputRatio,
+        capitalGrowthRate: capital.capitalGrowthRate,
 
         // Energy
         lcoes: energy.lcoes,
@@ -615,10 +628,14 @@ export class Simulation {
         solarLCOE: energy.lcoes.solar,
         windLCOE: energy.lcoes.wind,
         batteryCost: energy.batteryCost,
+        cheapestLCOE: energy.cheapestLCOE,
+        solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
 
         // Dispatch
         generation: dispatch.generation,
         gridIntensity: dispatch.gridIntensity,
+        totalGeneration: dispatch.totalGeneration,
+        shortfall: dispatch.shortfall,
         electricityEmissions: dispatch.electricityEmissions,
         fossilShare: dispatch.fossilShare,
         curtailmentTWh: dispatch.curtailmentTWh,
@@ -627,6 +644,7 @@ export class Simulation {
         // Climate
         temperature: climate.temperature,
         co2ppm: climate.co2ppm,
+        equilibriumTemp: climate.equilibriumTemp,
         damages: climate.damages,
         cumulativeEmissions: climate.cumulativeEmissions,
 

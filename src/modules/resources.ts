@@ -669,7 +669,8 @@ export const resourcesModule: Module<
 
     // Deforestation emissions
     const deforestationArea = forestChange < 0 ? -forestChange : 0;
-    const totalCarbonReleased = (deforestationArea * 1e6 * land.forestCarbonDensity * 3.67) / 1e9;
+    const CO2_PER_CARBON = 44 / 12; // molecular weight ratio CO2/C
+    const totalCarbonReleased = (deforestationArea * 1e6 * land.forestCarbonDensity * CO2_PER_CARBON) / 1e9;
     const immediateEmissions = totalCarbonReleased * land.deforestationEmissionFactor;
     const deferredEmissions = totalCarbonReleased * (1 - land.deforestationEmissionFactor);
 

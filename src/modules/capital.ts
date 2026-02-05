@@ -170,7 +170,7 @@ function calculateStability(uncertainty: number, lambda: number): number {
  * r = α × Y/K - δ
  */
 function calculateInterestRate(gdp: number, capital: number, params: CapitalParams): number {
-  if (capital <= 0) return 0.05; // Fallback
+  if (capital <= 0) return params.depreciation; // Fallback
   return params.alpha * gdp / capital - params.depreciation;
 }
 

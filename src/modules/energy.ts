@@ -102,6 +102,12 @@ export interface EnergyParams {
    */
   demandFillRate: number;               // Fill this fraction of demand gap per year (0.30)
   competitiveThreshold: number;         // Build if within this factor of fossil LCOE (1.20)
+
+  /** Capacity planning ceilings (max share of demand each source can serve) */
+  capacityCeiling: Record<EnergySource, number>;
+
+  /** Battery cycles per year for LCOE calculation */
+  batteryCyclesPerYear: number;
 }
 
 /**
@@ -294,6 +300,20 @@ export const energyDefaults: EnergyParams = {
   // Demand-driven capacity
   demandFillRate: 0.30,           // Fill 30% of demand gap per year
   competitiveThreshold: 1.20,     // Build if LCOE within 20% of fossil
+
+  // Capacity planning ceilings (how much to build, not how much to generate)
+  capacityCeiling: {
+    solar: 0.8,
+    wind: 0.35,
+    nuclear: 0.3,
+    hydro: 0.2,
+    gas: 1.0,
+    coal: 1.0,
+    battery: 1.0,
+  },
+
+  // Battery LCOE cycles
+  batteryCyclesPerYear: 365,
 };
 
 // =============================================================================
@@ -681,6 +701,9 @@ export const energyModule: Module<
       if (p.eroi) {
         result.eroi = { ...energyDefaults.eroi, ...p.eroi };
       }
+      if (p.capacityCeiling) {
+        result.capacityCeiling = { ...energyDefaults.capacityCeiling, ...p.capacityCeiling };
+      }
 
       return result;
     }, partial);
@@ -836,10 +859,7 @@ export const energyModule: Module<
         const prevInstalled = regionState.installed;
 
         const cf = getRegionalCapacityFactor(params, region, source);
-        const maxPen = source === 'solar' ? 0.8 :
-                       source === 'wind' ? 0.35 :
-                       source === 'nuclear' ? 0.3 :
-                       source === 'hydro' ? 0.2 : 1.0;
+        const maxPen = params.capacityCeiling[source];
 
         // Max useful capacity based on regional demand ceiling
         const maxUsefulGen = regionDemand * maxPen;
@@ -864,7 +884,8 @@ export const energyModule: Module<
           if (isCompetitive && demandGapGW > 0) {
             targetAddition = demandGapGW * params.demandFillRate;
           } else {
-            targetAddition = prevInstalled * 0.01;
+            const MIN_CAPACITY_GROWTH = 0.01;
+            targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
           }
         } else if (source === 'battery') {
           const solarGW = state.regional[region].solar.installed;
@@ -873,13 +894,15 @@ export const energyModule: Module<
           const targetBatteryGWh = futureSolarGW * params.batteryDuration;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
 
-          const solarPlusBatteryLCOE = regionalLCOE.solar * 1.5;
+          const REGIONAL_BATTERY_MARKUP = 1.5;
+          const solarPlusBatteryLCOE = regionalLCOE.solar * REGIONAL_BATTERY_MARKUP;
           const isCompetitive = solarPlusBatteryLCOE <= cheapestFossilLCOE * params.competitiveThreshold;
 
           if (isCompetitive && batteryGap > 0) {
             targetAddition = batteryGap * params.demandFillRate;
           } else {
-            targetAddition = prevInstalled * 0.01;
+            const MIN_CAPACITY_GROWTH = 0.01;
+            targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
           }
         } else {
           targetAddition = prevInstalled * s.growthRate;
@@ -893,6 +916,7 @@ export const energyModule: Module<
         let desired = Math.max(0, targetAddition);
         desired = Math.min(desired, growthCapped, ceilingRoom);
 
+        // No new coal: existing plants retire at lifetime but no new capacity built
         if (source === 'coal') {
           desired = 0;
         }
@@ -923,7 +947,8 @@ export const energyModule: Module<
       }
 
       fundedAdditions.gas = desiredAdditions.gas ?? 0;
-      fundedAdditions.coal = 0;
+      // Coal already zeroed above (desired = 0), but not in cleanSources so set explicitly
+      fundedAdditions.coal = desiredAdditions.coal ?? 0;
 
       // Calculate retirements and update regional state
       for (const source of ENERGY_SOURCES) {
@@ -1004,7 +1029,7 @@ export const energyModule: Module<
     const batteryCost = params.sources.battery.cost0 *
       Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha);
 
-    const cyclesPerYear = 365;
+    const cyclesPerYear = params.batteryCyclesPerYear;
     const batteryLCOEContribution = (batteryCost * 1000) / cyclesPerYear;
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;

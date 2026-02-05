@@ -185,6 +185,7 @@ export function describeOutputs(): OutputSchema {
     collegeShare: { unit: 'fraction', description: 'Share of workers with college degree', module: 'demographics' },
 
     // Demand
+    capitalElasticity: { unit: 'fraction', description: 'Capital elasticity parameter used in GDP growth', module: 'demand' },
     gdp: { unit: '$T', description: 'Global GDP in trillions', module: 'demand' },
     electricityDemand: { unit: 'TWh', description: 'Global electricity demand', module: 'demand' },
     electrificationRate: { unit: 'fraction', description: 'Electricity share of final energy', module: 'demand' },
@@ -217,6 +218,9 @@ export function describeOutputs(): OutputSchema {
     stability: { unit: 'index', description: 'Financial stability index (0-1)', module: 'capital' },
     interestRate: { unit: 'fraction', description: 'Real interest rate', module: 'capital' },
     robotsDensity: { unit: 'per 1000 workers', description: 'Automation capital density (capital-derived; see robotsPer1000 for energy-driving metric)', module: 'capital' },
+    automationShare: { unit: 'fraction', description: 'Fraction of capital stock that is automation', module: 'capital' },
+    capitalOutputRatio: { unit: 'ratio', description: 'Capital-to-output ratio (K/Y)', module: 'capital' },
+    capitalGrowthRate: { unit: 'fraction/year', description: 'Annual capital stock growth rate', module: 'capital' },
 
     // Energy
     lcoes: { unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
@@ -224,10 +228,14 @@ export function describeOutputs(): OutputSchema {
     solarLCOE: { unit: '$/MWh', description: 'Solar levelized cost', module: 'energy' },
     windLCOE: { unit: '$/MWh', description: 'Wind levelized cost', module: 'energy' },
     batteryCost: { unit: '$/kWh', description: 'Battery storage cost', module: 'energy' },
+    cheapestLCOE: { unit: '$/MWh', description: 'Cheapest LCOE across all sources', module: 'energy' },
+    solarPlusBatteryLCOE: { unit: '$/MWh', description: 'Solar + battery combined LCOE', module: 'energy' },
 
     // Dispatch
     generation: { unit: 'TWh', description: 'Electricity generation by source', module: 'dispatch' },
     gridIntensity: { unit: 'kg CO2/MWh', description: 'Grid carbon intensity', module: 'dispatch' },
+    totalGeneration: { unit: 'TWh', description: 'Total electricity generation', module: 'dispatch' },
+    shortfall: { unit: 'TWh', description: 'Unmet electricity demand', module: 'dispatch' },
     electricityEmissions: { unit: 'Gt CO2/year', description: 'Electricity generation emissions', module: 'dispatch' },
     fossilShare: { unit: 'fraction', description: 'Fossil share of electricity generation', module: 'dispatch' },
     curtailmentTWh: { unit: 'TWh', description: 'VRE generation curtailed', module: 'dispatch' },
@@ -236,6 +244,7 @@ export function describeOutputs(): OutputSchema {
     // Climate
     temperature: { unit: '°C', description: 'Temperature above preindustrial', module: 'climate' },
     co2ppm: { unit: 'ppm', description: 'Atmospheric CO2 concentration', module: 'climate' },
+    equilibriumTemp: { unit: '°C', description: 'Equilibrium temperature if emissions stopped', module: 'climate' },
     damages: { unit: 'fraction', description: 'Global climate damage (fraction of GDP)', module: 'climate' },
     cumulativeEmissions: { unit: 'Gt CO2', description: 'Cumulative CO2 emissions since preindustrial', module: 'climate' },
 

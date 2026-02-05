@@ -63,6 +63,12 @@ export interface DispatchParams {
   /** Soft curtailment parameters */
   curtailmentOnset: number;          // VRE share where curtailment begins (default 0.30)
   curtailmentCoeff: number;          // Quadratic penalty coefficient (default 1.5)
+  maxCurtailmentPenalty: number;     // Cap on curtailment penalty (default 0.5)
+
+  /** VRE sub-fraction allocation within maxVREPenetration */
+  vreSolarFraction: number;          // Bare solar share of VRE capacity (default 0.5)
+  vreTotalSolarFraction: number;     // Total solar (bare + battery) share (default 0.7)
+  vreWindFraction: number;           // Wind share of VRE capacity (default 0.6)
 }
 
 export const dispatchDefaults: DispatchParams = {
@@ -116,6 +122,12 @@ export const dispatchDefaults: DispatchParams = {
   // Soft curtailment
   curtailmentOnset: 0.30,            // VRE curtailment begins at 30% share
   curtailmentCoeff: 1.5,             // Quadratic penalty coefficient
+  maxCurtailmentPenalty: 0.5,        // Cap on curtailment penalty
+
+  // VRE sub-fraction allocation
+  vreSolarFraction: 0.5,             // Bare solar share of VRE capacity
+  vreTotalSolarFraction: 0.7,        // Total solar (bare + battery) share of VRE
+  vreWindFraction: 0.6,              // Wind share of VRE capacity
 };
 
 // =============================================================================
@@ -246,7 +258,7 @@ function dispatchRegion(
     const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
     marginalCosts[source] = baseMC + carbonCost;
   }
-  marginalCosts['solarPlusBattery'] = 5;
+  marginalCosts['solarPlusBattery'] = params.marginalCost.battery;
 
   // Calculate max generation (TWh) each source can provide
   const maxGen: Record<string, number> = {};
@@ -278,7 +290,7 @@ function dispatchRegion(
   const expectedVREShare = demandTWh > 0 ? totalAvailableVRE / demandTWh : 0;
   if (expectedVREShare > params.curtailmentOnset) {
     const excess = expectedVREShare - params.curtailmentOnset;
-    const penalty = Math.min(0.5, params.curtailmentCoeff * excess * excess);
+    const penalty = Math.min(params.maxCurtailmentPenalty, params.curtailmentCoeff * excess * excess);
     maxGen.solar *= (1 - penalty);
     maxGen.solarPlusBattery *= (1 - penalty);
     maxGen.wind *= (1 - penalty);
@@ -312,15 +324,16 @@ function dispatchRegion(
   let totalVREAllocated = 0;
 
   // VRE limits based on storage
-  const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * 2;
+  const PEAK_TO_AVERAGE_RATIO = 2;
+  const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * PEAK_TO_AVERAGE_RATIO;
   const storageHours = batteryGWh / Math.max(1, peakDemandGW);
   const maxVREPenetration = Math.min(
     params.maxVRECeiling,
     params.baseVRELimit + storageHours * params.storageBonusPerHour
   );
-  const maxBareSolarPen = maxVREPenetration * 0.5;
-  const maxTotalSolarPen = maxVREPenetration * 0.7;
-  const maxWindPen = maxVREPenetration * 0.6;
+  const maxBareSolarPen = Math.min(maxVREPenetration * params.vreSolarFraction, params.maxPenetration.solar);
+  const maxTotalSolarPen = Math.min(maxVREPenetration * params.vreTotalSolarFraction, params.maxPenetration.solar + params.maxPenetration.battery);
+  const maxWindPen = Math.min(maxVREPenetration * params.vreWindFraction, params.maxPenetration.wind);
   const maxCombinedVRE = params.baseVRELimit + storageHours * params.storageBonusPerHour;
 
   for (const source of sources) {

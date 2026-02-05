@@ -274,12 +274,17 @@ export const climateModule: Module<
     const tippingMult =
       1 + (params.tippingMultiplier - 1) * tippingTransition;
 
+    // Cap needed: tippingMult can push baseDamage * tippingMult above maxDamage
+    // even though quadraticDamage already caps at maxDamage (baseDamage ≤ maxDamage),
+    // because tippingMult > 1 multiplies after the quadratic cap.
     const globalDamages = Math.min(
       baseDamage * tippingMult,
       params.maxDamage
     );
 
     // Regional damages
+    // Cap needed: regional multipliers (e.g., row=1.8) and tippingMult together
+    // can push regional damage well above maxDamage.
     const regionalDamages: Record<Region, number> = {} as Record<Region, number>;
     for (const region of REGIONS) {
       regionalDamages[region] = Math.min(

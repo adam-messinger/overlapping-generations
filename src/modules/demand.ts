@@ -16,7 +16,7 @@
  * Where:
  * - residualTFP decays over time (catch-up growth fades)
  * - usefulWorkGrowth = growth in useful energy per worker (lagged 1 year)
- * - ε = usefulWorkElasticity (default 0.7) — Ayres/Warr finding
+ * - ε = usefulWorkElasticity (default 0.4) — Ayres/Warr finding
  * - laborGrowth uses effective workers (education-weighted)
  * - demographicAdj penalizes high dependency ratios
  */
@@ -42,7 +42,8 @@ interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
   electrificationTarget: number;  // Physical ceiling (70%/95%/65%)
-  electrificationSpeed: number;   // Legacy param (used for backward compat)
+  /** @deprecated Retained for backward-compatible scenario loading; not read by step() */
+  electrificationSpeed: number;
   // Cost-driven electrification parameters
   costSensitivity: number;        // Response to cost ratio (0.08/0.06/0.10)
   basePressure: number;           // Background pressure (0.015/0.02/0.008)
@@ -114,7 +115,13 @@ export interface DemandParams {
   efficiencyMultiplier: number;
 
   // Ayres/Warr useful work elasticity
-  usefulWorkElasticity: number;  // Share of GDP growth explained by useful work (default 0.7)
+  usefulWorkElasticity: number;  // Share of GDP growth explained by useful work (default 0.4)
+
+  // GDP growth Solow capital elasticity
+  capitalElasticity: number;     // Capital share in GDP growth (labor = 1 - this, default 0.35)
+
+  // Baseline electrification trend
+  baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
 }
 
 interface RegionalState {
@@ -388,6 +395,9 @@ export const demandDefaults: DemandParams = {
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 
   usefulWorkElasticity: 0.4,   // Ayres/Warr: useful work contribution to GDP growth
+
+  capitalElasticity: 0.35,     // Capital share in GDP growth (Solow)
+  baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
 };
 
 // =============================================================================
@@ -516,7 +526,9 @@ function calculateSectorElectrification(
 
   // Infrastructure score builds with adoption and time (0-1)
   // Higher adoption → better charging/grid infrastructure → lower effective cost
-  const infraScore = Math.min(1, prevRate * 2 + yearIndex * 0.01);
+  const INFRA_ADOPTION_WEIGHT = 2;
+  const INFRA_TIME_INCREMENT = 0.01;
+  const infraScore = Math.min(1, prevRate * INFRA_ADOPTION_WEIGHT + yearIndex * INFRA_TIME_INCREMENT);
 
   // Adjust cost ratio for infrastructure (lower infra → higher effective elec cost)
   const infraPenalty = 1 + 0.3 * (1 - infraScore); // 30% penalty at zero infra
@@ -628,6 +640,12 @@ export const demandModule: Module<
       range: { min: 0.1, max: 0.7, default: 0.4 },
       tier: 1 as const,
     },
+    capitalElasticity: {
+      description: 'Capital elasticity in GDP growth (labor = 1 - this).',
+      unit: 'fraction',
+      range: { min: 0.2, max: 0.5, default: 0.35 },
+      tier: 1 as const,
+    },
     fuelMix: {
       priceSensitivity: {
         paramName: 'fuelPriceSensitivity',
@@ -647,7 +665,6 @@ export const demandModule: Module<
   },
 
   inputs: [
-    'regionalPopulation',
     'regionalWorking',
     'regionalEffectiveWorkers',
     'regionalDependency',
@@ -783,6 +800,10 @@ export const demandModule: Module<
       // Useful work elasticity
       if (p.usefulWorkElasticity !== undefined) merged.usefulWorkElasticity = p.usefulWorkElasticity;
 
+      // GDP growth params
+      if (p.capitalElasticity !== undefined) merged.capitalElasticity = p.capitalElasticity;
+      if (p.baselineElecTrend !== undefined) merged.baselineElecTrend = p.baselineElecTrend;
+
       // Cost-driven electrification params
       if (p.costSensitivity !== undefined) merged.costSensitivity = p.costSensitivity;
       if (p.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = p.maxAnnualElecChange;
@@ -875,7 +896,7 @@ export const demandModule: Module<
 
     // Baseline trend: natural electrification from existing infrastructure/policy momentum
     // ~0.5%/year baseline + additional cost-driven pressure
-    const baselineTrend = 0.005;
+    const baselineTrend = params.baselineElecTrend;
 
     // Additional cost pressure from favorable economics
     // costSensitivity = 0.05 means 5% boost per cost halving (beyond baseline)
@@ -941,8 +962,8 @@ export const demandModule: Module<
       const usefulWorkGrowth = state.usefulWorkGrowthRate;
       const growthRate = tfp
         + params.usefulWorkElasticity * usefulWorkGrowth
-        + 0.35 * capitalGrowth
-        + 0.65 * laborGrowth
+        + params.capitalElasticity * capitalGrowth
+        + (1 - params.capitalElasticity) * laborGrowth
         + demographicAdj;
 
       // Update GDP
@@ -950,9 +971,9 @@ export const demandModule: Module<
       if (yearIndex > 0) {
         // Apply optional damage feedback
         const damageFraction = inputs.regionalDamages?.[region] ?? 0;
-        const persistentDamage = damageFraction * 0.25; // 25% of damages permanent
+        const persistentDamage = damageFraction * params.energyBurden.persistent;
         const burdenDamage = inputs.energyBurdenDamage ?? 0;
-        const persistentBurden = burdenDamage * 0.25;
+        const persistentBurden = burdenDamage * params.energyBurden.persistent;
 
         newGdp = currentState.gdp * (1 + growthRate) * (1 - persistentDamage) * (1 - persistentBurden);
       }
@@ -1129,10 +1150,13 @@ export const demandModule: Module<
     const totalEnergyCost = electricityTotalCost + fuelCost;
     const energyBurden = totalEnergyCost / globalGdp;
 
+    // Cap burden at historical max (e.g., 1970s oil crisis peak)
+    const cappedBurden = Math.min(energyBurden, params.energyBurden.maxBurden);
+
     // Energy burden damage: when burden exceeds threshold
     let burdenDamage = 0;
-    if (energyBurden > params.energyBurden.threshold) {
-      const excessBurden = energyBurden - params.energyBurden.threshold;
+    if (cappedBurden > params.energyBurden.threshold) {
+      const excessBurden = cappedBurden - params.energyBurden.threshold;
       // Linear damage up to max
       burdenDamage = Math.min(
         excessBurden * params.energyBurden.elasticity,
