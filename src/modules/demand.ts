@@ -123,11 +123,15 @@ export interface DemandParams {
   // Baseline electrification trend
   baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
 
-  // Robot/automation energy demand (from expansion module)
-  robotBaseline2025: number;     // Robots per 1000 workers in 2025
-  robotGrowthRate: number;       // Annual growth rate
-  robotCap: number;              // Max robots per 1000 workers
-  energyPerRobotMWh: number;    // MWh per robot-unit per year
+  // Robot/automation (endogenous logistic adoption)
+  robotBaseline2025: number;      // Initial robots per 1000 workers
+  robotBaseGrowth: number;        // Base logistic growth rate
+  robotSaturation: number;        // Carrying capacity (robots per 1000 workers)
+  energyPerRobotMWh: number;     // MWh per robot-unit per year
+  robotEnergySensitivity: number; // LCOE elasticity (cheap energy → more robots)
+  robotWageSensitivity: number;   // Wage elasticity (high wages → more robots)
+  robotReferenceLCOE: number;     // Reference LCOE $/MWh
+  robotReferenceWage: number;     // Reference GDP/worker $/yr
 }
 
 interface RegionalState {
@@ -148,6 +152,7 @@ interface DemandState {
   previousEffectiveWorkers: Record<Region, number>; // For labor growth calculation
   previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
+  robotsPer1000: number;                 // Current robot adoption level
 }
 
 // Inputs from demographics and production modules
@@ -408,11 +413,15 @@ export const demandDefaults: DemandParams = {
   capitalElasticity: 0.35,     // Legacy (now in production module)
   baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
 
-  // Robot/automation energy demand
-  robotBaseline2025: 1,        // 1 robot per 1000 workers in 2025
-  robotGrowthRate: 0.12,       // 12% annual growth
-  robotCap: 500,               // Max robots per 1000 workers
-  energyPerRobotMWh: 10,      // MWh per robot-unit per year
+  // Robot/automation (endogenous logistic adoption)
+  robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025
+  robotBaseGrowth: 0.12,         // Base logistic growth rate
+  robotSaturation: 600,          // Carrying capacity
+  energyPerRobotMWh: 10,        // MWh per robot-unit per year
+  robotEnergySensitivity: 0.5,   // LCOE elasticity
+  robotWageSensitivity: 0.3,     // Wage elasticity
+  robotReferenceLCOE: 50,        // Reference LCOE $/MWh
+  robotReferenceWage: 34000,     // Reference GDP/worker $/yr
 };
 
 // =============================================================================
@@ -677,6 +686,30 @@ export const demandModule: Module<
         tier: 1 as const,
       },
     },
+    robotBaseGrowth: {
+      description: 'Base logistic growth rate for robot adoption. Higher = faster S-curve.',
+      unit: 'fraction/year',
+      range: { min: 0.05, max: 0.30, default: 0.12 },
+      tier: 1 as const,
+    },
+    robotSaturation: {
+      description: 'Robot carrying capacity (per 1000 workers). Logistic ceiling.',
+      unit: 'robots per 1000 workers',
+      range: { min: 200, max: 2000, default: 600 },
+      tier: 1 as const,
+    },
+    robotEnergySensitivity: {
+      description: 'LCOE elasticity for robot adoption. Cheap energy accelerates automation.',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.5 },
+      tier: 1 as const,
+    },
+    robotWageSensitivity: {
+      description: 'Wage elasticity for robot adoption. High wages incentivize automation.',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.3 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -843,9 +876,22 @@ export const demandModule: Module<
 
       // Robot/automation params
       if (p.robotBaseline2025 !== undefined) merged.robotBaseline2025 = p.robotBaseline2025;
-      if (p.robotGrowthRate !== undefined) merged.robotGrowthRate = p.robotGrowthRate;
-      if (p.robotCap !== undefined) merged.robotCap = p.robotCap;
+      if (p.robotBaseGrowth !== undefined) merged.robotBaseGrowth = p.robotBaseGrowth;
+      if (p.robotSaturation !== undefined) merged.robotSaturation = p.robotSaturation;
       if (p.energyPerRobotMWh !== undefined) merged.energyPerRobotMWh = p.energyPerRobotMWh;
+      if (p.robotEnergySensitivity !== undefined) merged.robotEnergySensitivity = p.robotEnergySensitivity;
+      if (p.robotWageSensitivity !== undefined) merged.robotWageSensitivity = p.robotWageSensitivity;
+      if (p.robotReferenceLCOE !== undefined) merged.robotReferenceLCOE = p.robotReferenceLCOE;
+      if (p.robotReferenceWage !== undefined) merged.robotReferenceWage = p.robotReferenceWage;
+
+      // Backward compat: map old param names
+      const pAny = p as Record<string, unknown>;
+      if (pAny.robotGrowthRate !== undefined && p.robotBaseGrowth === undefined) {
+        merged.robotBaseGrowth = pAny.robotGrowthRate as number;
+      }
+      if (pAny.robotCap !== undefined && p.robotSaturation === undefined) {
+        merged.robotSaturation = pAny.robotCap as number;
+      }
 
       return merged;
     }, partial);
@@ -891,6 +937,7 @@ export const demandModule: Module<
       previousEffectiveWorkers: { oecd: 0, china: 0, em: 0, row: 0 }, // Set on first step
       previousUsefulEnergyPerWorker: 0, // Set after first year
       usefulWorkGrowthRate: 0,          // No growth in first year
+      robotsPer1000: params.robotBaseline2025, // Initial robot adoption
     };
   },
 
@@ -1047,11 +1094,23 @@ export const demandModule: Module<
       globalNonElec += nonElecEnergy;
     }
 
-    // Robot/automation energy demand (additive to electricity)
-    const robotsPer1000 = Math.min(
-      params.robotBaseline2025 * Math.pow(1 + params.robotGrowthRate, yearIndex),
-      params.robotCap
+    // Endogenous robot adoption (logistic + energy/wage drivers)
+    const prevRobots = state.robotsPer1000 ?? params.robotBaseline2025;
+    const currentLCOE = inputs.laggedAvgLCOE ?? params.robotReferenceLCOE;
+    const gdpPerWorker = (inputs.gdp * 1e12) / inputs.working;
+
+    const energyFactor = Math.pow(
+      params.robotReferenceLCOE / Math.max(currentLCOE, 1),
+      params.robotEnergySensitivity
     );
+    const wageFactor = Math.pow(
+      gdpPerWorker / params.robotReferenceWage,
+      params.robotWageSensitivity
+    );
+
+    const effectiveRate = params.robotBaseGrowth * energyFactor * wageFactor;
+    const robotsPer1000 = prevRobots + effectiveRate * prevRobots * (1 - prevRobots / params.robotSaturation);
+
     const totalRobots = (robotsPer1000 / 1000) * inputs.working;
     const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
     globalElec += robotLoadTWh;
@@ -1211,6 +1270,7 @@ export const demandModule: Module<
         previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth
         previousUsefulEnergyPerWorker: usefulEnergyPerWorker, // For Ayres/Warr
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
+        robotsPer1000, // Persist for logistic adoption
       },
       outputs: {
         regional: regionalOutputs,

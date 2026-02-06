@@ -11,8 +11,8 @@
   },
 
   "demand": {
-    "robotGrowthRate": 0.18,
-    "robotCap": 800,
+    "robotBaseGrowth": 0.18,
+    "robotSaturation": 800,
     "energyPerRobotMWh": 12
   },
 

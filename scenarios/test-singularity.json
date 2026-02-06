@@ -8,8 +8,8 @@
     }
   },
   "demand": {
-    "robotGrowthRate": 0.25,
-    "robotCap": 2000
+    "robotBaseGrowth": 0.25,
+    "robotSaturation": 2000
   },
   "capital": {
     "automationGrowth": 0.15
