@@ -42,8 +42,6 @@ interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
   electrificationTarget: number;  // Physical ceiling (70%/95%/65%)
-  /** @deprecated Retained for backward-compatible scenario loading; not read by step() */
-  electrificationSpeed: number;
   // Cost-driven electrification parameters
   costSensitivity: number;        // Response to cost ratio (0.08/0.06/0.10)
   basePressure: number;           // Background pressure (0.015/0.02/0.008)
@@ -174,7 +172,6 @@ interface DemandState {
 // Inputs from demographics and production modules
 interface DemandInputs {
   // Per-region demographics
-  regionalPopulation: Record<Region, number>;
   regionalWorking: Record<Region, number>;
   regionalEffectiveWorkers: Record<Region, number>;
   regionalDependency: Record<Region, number>;
@@ -376,7 +373,6 @@ export const demandDefaults: DemandParams = {
       share: 0.45,                // 45% of final energy (IEA)
       electrification2025: 0.02,  // 2% (mostly rail)
       electrificationTarget: 0.70, // 70% ceiling (aviation 12%, long-haul shipping 10% can't)
-      electrificationSpeed: 0.06, // Legacy param (backward compat)
       costSensitivity: 0.08,      // Response to fuel/elec cost ratio
       basePressure: 0.015,        // Background electrification pressure
       efficiencyMultiplier: 3.5,  // EVs 3.5x more efficient than ICE
@@ -387,7 +383,6 @@ export const demandDefaults: DemandParams = {
       share: 0.30,                // 30% of final energy
       electrification2025: 0.35,  // 35% (heating, appliances)
       electrificationTarget: 0.95, // 95% ceiling (nearly all can electrify)
-      electrificationSpeed: 0.08, // Legacy param (backward compat)
       costSensitivity: 0.06,      // Less sensitive than transport
       basePressure: 0.02,         // Higher baseline (heat pump momentum)
       efficiencyMultiplier: 3.0,  // Heat pump COP ~3
@@ -398,7 +393,6 @@ export const demandDefaults: DemandParams = {
       share: 0.25,                // 25% of final energy
       electrification2025: 0.30,  // 30% (motors, EAFs)
       electrificationTarget: 0.65, // 65% ceiling (high-temp processes need H2)
-      electrificationSpeed: 0.05, // Legacy param (backward compat)
       costSensitivity: 0.10,      // Most cost-sensitive sector
       basePressure: 0.008,        // Slower baseline (heavy equipment)
       efficiencyMultiplier: 1.1,  // Motors ~10% more efficient
@@ -944,15 +938,6 @@ export const demandModule: Module<
       if (p.robotWageSensitivity !== undefined) merged.robotWageSensitivity = p.robotWageSensitivity;
       if (p.robotReferenceLCOE !== undefined) merged.robotReferenceLCOE = p.robotReferenceLCOE;
       if (p.robotReferenceWage !== undefined) merged.robotReferenceWage = p.robotReferenceWage;
-
-      // Backward compat: map old param names
-      const pAny = p as Record<string, unknown>;
-      if (pAny.robotGrowthRate !== undefined && p.robotBaseGrowth === undefined) {
-        merged.robotBaseGrowth = pAny.robotGrowthRate as number;
-      }
-      if (pAny.robotCap !== undefined && p.robotSaturation === undefined) {
-        merged.robotSaturation = pAny.robotCap as number;
-      }
 
       return merged;
     }, partial);

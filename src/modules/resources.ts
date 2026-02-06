@@ -323,9 +323,6 @@ export interface ResourcesState {
 // =============================================================================
 
 export interface ResourcesInputs {
-  /** Installed capacity by source (GW, GWh for battery) */
-  capacities: Record<EnergySource, number>;
-
   /** Capacity additions this year (GW, GWh for battery) */
   additions: Record<EnergySource, number>;
 
@@ -551,7 +548,6 @@ export const resourcesModule: Module<
   },
 
   inputs: [
-    'capacities',
     'additions',
     'population',
     'gdpPerCapita',
