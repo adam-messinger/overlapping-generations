@@ -55,10 +55,10 @@ function buildTransforms(mergedEnergyParams: any) {
   let capturedGdpPerCapita2025 = 0;
 
   return {
-    // Energy needs availableInvestment (from capital.investment)
+    // Energy needs availableInvestment (from capital.energyInvestment)
     availableInvestment: {
-      fn: (outputs: Record<string, any>) => outputs.investment ?? 30,
-      dependsOn: ['investment'],
+      fn: (outputs: Record<string, any>) => outputs.energyInvestment ?? outputs.investment ?? 30,
+      dependsOn: ['energyInvestment'],
     },
 
     // Energy needs stabilityFactor (from capital.stability)

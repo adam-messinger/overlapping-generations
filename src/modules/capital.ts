@@ -47,6 +47,10 @@ export interface CapitalParams {
   automationShareCap: number;     // Maximum automation share
   robotsPerCapitalUnit: number;   // Robots per $1000 automation capital per worker
 
+  // Investment split
+  baseEnergyInvestmentShare: number;    // Base fraction of investment to energy sector (0.15)
+  energyInvestmentSensitivity: number;  // Sensitivity to energy burden (1.0)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
@@ -73,6 +77,9 @@ interface CapitalInputs {
 
   // From energy/dispatch (optional)
   netEnergyFactor?: number;   // Net energy fraction (0-1), lagged
+
+  // From demand (optional, for investment split)
+  energyBurden?: number;      // Energy cost as fraction of GDP (0-1)
 }
 
 interface CapitalOutputs {
@@ -94,8 +101,13 @@ interface CapitalOutputs {
   kPerWorker: number;         // Capital per effective worker ($K/person)
   capitalOutputRatio: number; // K/Y ratio
 
-  // Growth rate (for Solow feedback to demand)
+  // Growth rate
   capitalGrowthRate: number;  // Annual growth rate of capital stock
+
+  // Investment split
+  energyInvestment: number;         // $ trillions to energy sector
+  generalInvestment: number;        // $ trillions to general economy
+  energyShareOfInvestment: number;  // Fraction going to energy
 }
 
 // =============================================================================
@@ -128,6 +140,10 @@ export const capitalDefaults: CapitalParams = {
   automationGrowth: 0.03,       // 3%/year growth in share
   automationShareCap: 0.20,     // Max 20% of capital
   robotsPerCapitalUnit: 8.6,    // Robots per $1000 automation K per worker
+
+  // Investment split
+  baseEnergyInvestmentShare: 0.15,   // 15% of investment goes to energy sector
+  energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
 
   // Initial conditions
   initialCapitalStock: 420,     // $420T (Penn World Table, K/Y ≈ 3.5)
@@ -223,6 +239,7 @@ export const capitalModule: Module<
     'gdp',
     'damages',
     'netEnergyFactor',
+    'energyBurden',
   ] as const,
 
   outputs: [
@@ -237,6 +254,9 @@ export const capitalModule: Module<
     'kPerWorker',
     'capitalOutputRatio',
     'capitalGrowthRate',
+    'energyInvestment',
+    'generalInvestment',
+    'energyShareOfInvestment',
   ] as const,
 
   validate(params: Partial<CapitalParams>) {
@@ -332,9 +352,19 @@ export const capitalModule: Module<
     const uncertainty = inputs.damages ?? 0;
     const stability = calculateStability(uncertainty, params.stabilityLambda);
 
-    // Calculate investment
+    // Calculate total investment
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
     const investment = inputs.gdp * savingsRate * stability * netEnergyFactor;
+
+    // Split investment between energy and general economy
+    // When energy is scarce/expensive → more investment flows to energy
+    const burden = inputs.energyBurden ?? 0.05;
+    const burdenSignal = burden / 0.08; // Normalized to threshold (1.0 = normal)
+    const energyShare = Math.min(0.30, Math.max(0.10,
+      params.baseEnergyInvestmentShare * (1 + params.energyInvestmentSensitivity * (burdenSignal - 1))
+    ));
+    const energyInvestment = investment * energyShare;
+    const generalInvestment = investment * (1 - energyShare);
 
     // Calculate interest rate
     const interestRate = calculateInterestRate(inputs.gdp, state.stock, params);
@@ -357,10 +387,10 @@ export const capitalModule: Module<
     // Capital-output ratio
     const capitalOutputRatio = state.stock / inputs.gdp;
 
-    // Update capital stock for next period: K_{t+1} = (1-δ)K_t + I_t
-    const newStock = (1 - params.depreciation) * state.stock + investment;
+    // Update capital stock: only general investment builds general capital
+    const newStock = (1 - params.depreciation) * state.stock + generalInvestment;
 
-    // Capital growth rate (for Solow feedback)
+    // Capital growth rate
     const capitalGrowthRate = yearIndex > 0 && state.stock > 0
       ? (newStock - state.stock) / state.stock
       : 0;
@@ -381,6 +411,9 @@ export const capitalModule: Module<
         kPerWorker,
         capitalOutputRatio,
         capitalGrowthRate,
+        energyInvestment,
+        generalInvestment,
+        energyShareOfInvestment: energyShare,
       },
     };
   },
