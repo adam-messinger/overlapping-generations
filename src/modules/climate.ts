@@ -85,7 +85,7 @@ export const climateDefaults: ClimateParams = {
   heatExchange: 0.73,
   forcingPerDoubling: 3.7,
   warmingRate: 0.02,
-  currentTemp: 1.2,
+  currentTemp: 1.45,
   damageCoeff: 0.00536,
   maxDamage: 0.50,
   regionalDamage: {

@@ -59,7 +59,7 @@ console.log('\n=== Climate Module Tests (Two-Layer Model) ===\n');
 test('init returns correct initial state', () => {
   const state = climateModule.init(climateDefaults);
   expect(state.cumulativeEmissions).toBe(2400);
-  expect(state.temperature).toBe(1.2);
+  expect(state.temperature).toBe(climateDefaults.currentTemp);
   // Deep temp should be derived from energy balance (< surface temp)
   expect(state.deepTemp).toBeGreaterThan(0);
   expect(state.deepTemp).toBeLessThan(state.temperature);
@@ -68,11 +68,12 @@ test('init returns correct initial state', () => {
 test('init deep temp consistent with energy balance', () => {
   const state = climateModule.init(climateDefaults);
   // Verify: C₁ × warmingRate ≈ F - λ·T₁ - γ·(T₁ - T₂)
+  const T1 = climateDefaults.currentTemp;
   const co2ppm = 280 + 2400 * 0.45 * 0.128;
   const forcing = 3.7 * Math.log2(co2ppm / 280);
   const lambda = 3.7 / 3.0;
   const lhs = 7.3 * 0.02;
-  const rhs = forcing - lambda * 1.2 - 0.73 * (1.2 - state.deepTemp);
+  const rhs = forcing - lambda * T1 - 0.73 * (T1 - state.deepTemp);
   expect(lhs).toBeCloseTo(rhs, 2);
 });
 
@@ -86,9 +87,10 @@ test('step with zero emissions keeps temperature stable initially', () => {
     0
   );
 
-  // Temperature should stay near 1.2°C (small drift from existing imbalance)
-  expect(outputs.temperature).toBeGreaterThan(1.15);
-  expect(outputs.temperature).toBeLessThan(1.35);
+  // Temperature should stay near currentTemp (small drift from existing imbalance)
+  const T0 = climateDefaults.currentTemp;
+  expect(outputs.temperature).toBeGreaterThan(T0 - 0.05);
+  expect(outputs.temperature).toBeLessThan(T0 + 0.15);
 });
 
 test('step with high emissions increases temperature', () => {
@@ -126,7 +128,7 @@ test('deep ocean warms slower than surface', () => {
   }
 
   // Surface should have warmed more than deep ocean from their starting points
-  const surfaceWarming = state.temperature - 1.2;
+  const surfaceWarming = state.temperature - climateDefaults.currentTemp;
   const deepWarming = state.deepTemp - climateModule.init(climateDefaults).deepTemp;
   expect(surfaceWarming).toBeGreaterThan(deepWarming);
 });
@@ -182,7 +184,7 @@ test('equilibrium temp and committed warming gap', () => {
 
   // The gap (equilibriumTemp - temperature) represents committed warming
   const committedWarming = outputs.equilibriumTemp - outputs.temperature;
-  expect(committedWarming).toBeGreaterThan(0.3); // Significant committed warming
+  expect(committedWarming).toBeGreaterThan(0.2); // Significant committed warming
 });
 
 test('radiative forcing output is positive', () => {

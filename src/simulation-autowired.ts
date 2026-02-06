@@ -383,7 +383,7 @@ function buildLags() {
     temperature: {
       source: 'temperature',
       delay: 1,
-      initial: 1.2,
+      initial: 1.45,
     },
 
     // Demand needs lagged average LCOE for cost-driven electrification
