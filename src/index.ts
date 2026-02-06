@@ -20,6 +20,7 @@ export { energyModule, energyDefaults } from './modules/energy.js';
 export { dispatchModule, dispatchDefaults } from './modules/dispatch.js';
 export { productionModule, productionDefaults } from './modules/production.js';
 export { resourcesModule, resourcesDefaults } from './modules/resources.js';
+export { cdrModule, cdrDefaults } from './modules/cdr.js';
 export { climateModule, climateDefaults } from './modules/climate.js';
 
 // Framework primitives

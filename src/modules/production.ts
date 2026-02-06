@@ -59,7 +59,7 @@ export const productionDefaults: ProductionParams = {
   alpha: 0.25,
   beta: 0.15,
   gamma: 0.55,
-  initialGDP: 120,            // $120T (2025 global GDP)
+  initialGDP: 158,            // $158T PPP (2025 global GDP, 2017 intl $)
   electricExergy: 0.95,       // Electricity is nearly pure useful work
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
   foodStressElasticity: 0.3,  // 30% GDP hit at full food stress
@@ -108,6 +108,8 @@ export interface ProductionInputs {
   energySystemOverhead: number;
   /** College share fraction (from demographics, current year) */
   collegeShare: number;
+  /** CDR energy consumption TWh (from cdr, lagged) */
+  cdrEnergy: number;
 }
 
 export interface ProductionOutputs {
@@ -176,6 +178,7 @@ export const productionModule: Module<
     'resourceEnergy',
     'energySystemOverhead',
     'collegeShare',
+    'cdrEnergy',
   ] as const,
 
   outputs: [
@@ -252,6 +255,7 @@ export const productionModule: Module<
       resourceEnergy,
       energySystemOverhead,
       collegeShare,
+      cdrEnergy,
     } = inputs;
 
     // Compute useful energy from lagged supply (exergy-weighted)
@@ -262,7 +266,8 @@ export const productionModule: Module<
       + nonElectricEnergy * params.thermalExergy;
     const OVERHEAD_EXERGY = 0.65; // Average exergy factor for energy system overhead (mix of electric/thermal)
     const systemOverhead = resourceEnergy * params.thermalExergy
-      + energySystemOverhead * OVERHEAD_EXERGY;
+      + energySystemOverhead * OVERHEAD_EXERGY
+      + cdrEnergy * params.electricExergy; // CDR is purely electric
     const productionUsefulEnergy = Math.max(0, grossUsefulEnergy - systemOverhead);
 
     // Year 0: capture initial values for normalization

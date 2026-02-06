@@ -31,6 +31,7 @@ import type { EnergyParams } from './modules/energy.js';
 import type { DispatchParams } from './modules/dispatch.js';
 import type { ResourcesParams } from './modules/resources.js';
 import type { ClimateParams } from './modules/climate.js';
+import type { CDRParams } from './modules/cdr.js';
 import type { Region, EnergySource } from './framework/types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
 
@@ -50,6 +51,7 @@ export interface SimulationParams {
   /** @deprecated expansion module dissolved into demand + production */
   expansion?: Record<string, unknown>;
   resources?: Partial<ResourcesParams>;
+  cdr?: Partial<CDRParams>;
   climate?: Partial<ClimateParams>;
 }
 
@@ -133,6 +135,13 @@ export interface YearResult {
   deepOceanTemp: number;
   radiativeForcing: number;
 
+  // Adaptation
+  regionalAdaptation: Record<Region, number>;
+
+  // Long-duration storage
+  longStorageCost: number;     // $/MWh (Wright's Law)
+  longStorageCapacity: number; // GWh global
+
   // Resources - Minerals
   copperDemand: number;
   lithiumDemand: number;
@@ -153,6 +162,14 @@ export interface YearResult {
   // Resources - Carbon
   forestNetFlux: number;
   cumulativeSequestration: number;
+
+  // CDR (Carbon Dioxide Removal)
+  cdrRemoval: number;       // Gt CO2/yr removed
+  cdrEnergyTWh: number;     // TWh consumed
+  cdrCostPerTon: number;    // $/ton
+  cdrCumulative: number;    // Gt total removed
+  cdrCapacity: number;      // Gt/yr capacity
+  cdrAnnualSpend: number;   // $T/yr
 
   // Production (biophysical)
   productionUsefulEnergy: number;
@@ -458,6 +475,21 @@ async function runCLI() {
   console.log(`Energy burden 2025: ${(result.results[idx2025].energyBurden * 100).toFixed(1)}% of GDP`);
   console.log(`Energy burden 2050: ${(result.results[idx2050].energyBurden * 100).toFixed(1)}% of GDP`);
   console.log(`Energy burden 2100: ${(result.results[idx2100].energyBurden * 100).toFixed(1)}% of GDP`);
+
+  // CDR
+  console.log('\n=== Carbon Dioxide Removal ===\n');
+  console.log(`CDR cost 2025: $${result.results[idx2025].cdrCostPerTon.toFixed(0)}/ton`);
+  console.log(`CDR cost 2050: $${result.results[idx2050].cdrCostPerTon.toFixed(0)}/ton`);
+  console.log(`CDR cost 2100: $${result.results[idx2100].cdrCostPerTon.toFixed(0)}/ton`);
+  console.log(`CDR capacity 2050: ${result.results[idx2050].cdrCapacity.toFixed(3)} Gt/yr`);
+  console.log(`CDR capacity 2100: ${result.results[idx2100].cdrCapacity.toFixed(3)} Gt/yr`);
+  console.log(`CDR removal 2050: ${result.results[idx2050].cdrRemoval.toFixed(3)} Gt/yr`);
+  console.log(`CDR removal 2100: ${result.results[idx2100].cdrRemoval.toFixed(3)} Gt/yr`);
+  console.log(`CDR energy 2050: ${result.results[idx2050].cdrEnergyTWh.toFixed(0)} TWh`);
+  console.log(`CDR energy 2100: ${result.results[idx2100].cdrEnergyTWh.toFixed(0)} TWh`);
+  console.log(`CDR cumulative 2100: ${result.results[idx2100].cdrCumulative.toFixed(1)} Gt`);
+  console.log(`CDR spend 2050: $${result.results[idx2050].cdrAnnualSpend.toFixed(2)}T/yr`);
+  console.log(`CDR spend 2100: $${result.results[idx2100].cdrAnnualSpend.toFixed(2)}T/yr`);
 
   // Find peak burden
   let peakBurden = 0;

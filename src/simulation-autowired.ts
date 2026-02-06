@@ -23,6 +23,7 @@ import { energyModule } from './modules/energy.js';
 import { dispatchModule } from './modules/dispatch.js';
 // expansion module dissolved into demand + production
 import { resourcesModule } from './modules/resources.js';
+import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './framework/types.js';
 import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
@@ -39,6 +40,7 @@ const ALL_MODULES = [
   energyModule,
   dispatchModule,
   resourcesModule,
+  cdrModule,
   climateModule,
 ];
 
@@ -89,7 +91,7 @@ function buildTransforms(mergedEnergyParams: any) {
     // Resources needs gdpPerCapita (derived)
     gdpPerCapita: {
       fn: (outputs: Record<string, any>) => {
-        const gdp = outputs.gdp ?? 120;
+        const gdp = outputs.gdp ?? 158;
         const pop = outputs.population ?? 8e9;
         return (gdp * 1e12) / pop;
       },
@@ -100,7 +102,7 @@ function buildTransforms(mergedEnergyParams: any) {
     gdpPerCapita2025: {
       fn: (outputs: Record<string, any>, _year: number, yearIndex: number) => {
         if (yearIndex === 0) {
-          const gdp = outputs.gdp ?? 120;
+          const gdp = outputs.gdp ?? 158;
           const pop = outputs.population ?? 8e9;
           capturedGdpPerCapita2025 = (gdp * 1e12) / pop;
         }
@@ -109,7 +111,7 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['gdp', 'population'],
     },
 
-    // Climate needs total emissions (electricity + non-electric + land use)
+    // Climate needs total emissions (electricity + non-electric + land use - CDR)
     emissions: {
       fn: (outputs: Record<string, any>) => {
         const elecEmissions = outputs.electricityEmissions ?? 10;
@@ -117,9 +119,10 @@ function buildTransforms(mergedEnergyParams: any) {
         // netFlux is nested inside carbon output from resources
         const carbon = outputs.carbon;
         const landUse = carbon?.netFlux ?? 0;
-        return elecEmissions + nonElecEmissions + landUse;
+        const cdrRemoval = outputs.cdrRemovalGtCO2 ?? 0;
+        return elecEmissions + nonElecEmissions + landUse - cdrRemoval;
       },
-      dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'carbon'],
+      dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'carbon', 'cdrRemovalGtCO2'],
     },
 
     // Dispatch needs carbonPrice (from energy params)
@@ -261,6 +264,12 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['regionalCapacities'],
     },
 
+    // Long-duration storage regional capacities (GWh) from energy module
+    longStorageRegional: {
+      fn: (outputs: Record<string, any>) => outputs.longStorageRegional ?? null,
+      dependsOn: ['longStorageRegional'],
+    },
+
     // Regional carbon prices from energy params
     regionalCarbonPrice: {
       fn: () => {
@@ -305,6 +314,23 @@ function buildTransforms(mergedEnergyParams: any) {
         return totalEmbodied + totalOperating;
       },
       dependsOn: [],  // No deps to avoid cycle
+    },
+
+    // Regional GDP per capita for climate adaptation
+    regionalGdpPerCapita: {
+      fn: (outputs: Record<string, any>) => {
+        const regional = outputs.regional; // demand regional outputs
+        const regionalPop = outputs.regionalPopulation;
+        if (!regional || !regionalPop) return undefined;
+        const result: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          const gdp = regional[r]?.gdp ?? 0;
+          const pop = regionalPop[r] ?? 1;
+          result[r] = (gdp * 1e12) / pop;
+        }
+        return result;
+      },
+      dependsOn: ['regional', 'regionalPopulation'],
     },
 
     // GDP-weighted average of regional damages (matches manual path's capital input)
@@ -378,7 +404,7 @@ function buildLags() {
     capitalStock: {
       source: 'stock',
       delay: 1,
-      initial: 420,
+      initial: 553,
     },
 
     // Production needs lagged total generation
@@ -412,6 +438,13 @@ function buildLags() {
     // Production needs lagged energy system overhead (embodied + operating)
     energySystemOverhead: {
       source: 'energySystemOverheadComputed',
+      delay: 1,
+      initial: 0,
+    },
+
+    // Production needs lagged CDR energy consumption (CDR competes for electricity)
+    cdrEnergy: {
+      source: 'cdrEnergyTWh',
       delay: 1,
       initial: 0,
     },
@@ -458,6 +491,7 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
+      cdr: params.cdr,
       climate: params.climate,
     },
     startYear: params.startYear ?? 2025,
@@ -558,6 +592,13 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       deepOceanTemp: o.deepOceanTemp ?? 0,
       radiativeForcing: o.radiativeForcing ?? 0,
 
+      // Adaptation
+      regionalAdaptation: o.regionalAdaptation ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
+
+      // Long-duration storage
+      longStorageCost: o.longStorageCost ?? 300,
+      longStorageCapacity: o.longStorageCapacity ?? 0,
+
       // Resources - Minerals
       copperDemand: o.minerals?.copper?.demand ?? 0,
       lithiumDemand: o.minerals?.lithium?.demand ?? 0,
@@ -578,6 +619,14 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       // Resources - Carbon
       forestNetFlux: o.carbon?.netFlux ?? 0,
       cumulativeSequestration: o.carbon?.cumulativeSequestration ?? 0,
+
+      // CDR (Carbon Dioxide Removal)
+      cdrRemoval: o.cdrRemovalGtCO2 ?? 0,
+      cdrEnergyTWh: o.cdrEnergyTWh ?? 0,
+      cdrCostPerTon: o.cdrCostPerTon ?? 400,
+      cdrCumulative: o.cdrCumulative ?? 0,
+      cdrCapacity: o.cdrCapacity ?? 0,
+      cdrAnnualSpend: o.cdrAnnualSpend ?? 0,
 
       // Robot/automation (from demand, expansion dissolved)
       robotLoadTWh: o.robotLoadTWh ?? 0,
