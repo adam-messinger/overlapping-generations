@@ -79,8 +79,8 @@ export const dispatchDefaults: DispatchParams = {
   capacityFactor: {
     solar: 0.20,
     wind: 0.30,
-    hydro: 0.42,
-    nuclear: 0.90,
+    hydro: 0.38,
+    nuclear: 0.83,
     gas: 0.50,
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)

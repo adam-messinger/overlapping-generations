@@ -38,6 +38,8 @@ export interface EnergySourceParams {
   name: string;
   cost0: number;           // $/MWh baseline (2025); battery is $/kWh
   alpha: number;           // Wright's Law exponent (0 = no learning)
+  softFloor: number;       // $/MWh irreducible non-learning costs (labor, land, permitting, O&M)
+  referenceCF: number;     // Base CF for LCOE calculation (0 = no CF adjustment)
   growthRate: number;      // Annual capacity growth rate (default, can be overridden regionally)
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
@@ -144,8 +146,8 @@ export interface EnergyParams {
 const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
   solar:   { oecd: 600, china: 600, india: 90,  latam: 40,  seasia: 35,  russia: 5,   mena: 30,  ssa: 8 },
   wind:    { oecd: 500, china: 400, india: 42,  latam: 22,  seasia: 5,   russia: 2,   mena: 12,  ssa: 5 },
-  gas:     { oecd: 800, china: 150, india: 30,  latam: 90,  seasia: 110, russia: 190, mena: 190, ssa: 30 },
-  coal:    { oecd: 300, china: 1200,india: 250, latam: 15,  seasia: 80,  russia: 40,  mena: 15,  ssa: 40 },
+  gas:     { oecd: 1000,china: 200, india: 70,  latam: 120, seasia: 130, russia: 220, mena: 220, ssa: 45 },
+  coal:    { oecd: 400, china: 1200,india: 270, latam: 20,  seasia: 100, russia: 45,  mena: 20,  ssa: 55 },
   nuclear: { oecd: 300, china: 60,  india: 8,   latam: 5,   seasia: 0,   russia: 12,  mena: 5,   ssa: 2 },
   hydro:   { oecd: 400, china: 400, india: 55,  latam: 200, seasia: 100, russia: 60,  mena: 50,  ssa: 40 },
   battery: { oecd: 100, china: 80,  india: 5,   latam: 2,   seasia: 3,   russia: 1,   mena: 2,   ssa: 2 },
@@ -188,16 +190,20 @@ export const energyDefaults: EnergyParams = {
   sources: {
     solar: {
       name: 'Solar PV',
-      cost0: 35,
-      alpha: 0.36,
+      cost0: 35,             // $/MWh total LCOE at reference CF (hardware $23 + soft $12)
+      alpha: 0.36,           // Wright's Law on hardware portion only
+      softFloor: 12,         // $/MWh irreducible: installation labor, land, permitting, O&M
+      referenceCF: 0.20,     // CF adjustment: worse sites → higher effective LCOE
       capacity2025: REGIONAL_CAPACITY_2025.solar,
       growthRate: 0.25,
       carbonIntensity: 0,
     },
     wind: {
       name: 'Wind',
-      cost0: 35,
+      cost0: 35,             // $/MWh total at reference CF (hardware $20 + soft $15)
       alpha: 0.23,
+      softFloor: 15,         // Higher than solar: offshore maintenance, complex installation
+      referenceCF: 0.30,     // CF adjustment for site quality degradation
       capacity2025: REGIONAL_CAPACITY_2025.wind,
       growthRate: 0.18,
       carbonIntensity: 0,
@@ -206,6 +212,8 @@ export const energyDefaults: EnergyParams = {
       name: 'Natural Gas',
       cost0: 45,
       alpha: 0,
+      softFloor: 0,
+      referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.gas,
       growthRate: 0.02,
       carbonIntensity: 400,
@@ -216,6 +224,8 @@ export const energyDefaults: EnergyParams = {
       name: 'Coal',
       cost0: 40,
       alpha: 0,
+      softFloor: 0,
+      referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.coal,
       growthRate: -0.02,
       carbonIntensity: 900,
@@ -226,6 +236,8 @@ export const energyDefaults: EnergyParams = {
       name: 'Nuclear',
       cost0: 90,
       alpha: 0,
+      softFloor: 0,
+      referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.nuclear,
       growthRate: 0.02,
       carbonIntensity: 0,
@@ -234,14 +246,18 @@ export const energyDefaults: EnergyParams = {
       name: 'Hydroelectric',
       cost0: 40,
       alpha: 0,
+      softFloor: 0,
+      referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.hydro,
       growthRate: 0.01,
       carbonIntensity: 0,
     },
     battery: {
       name: 'Battery Storage',
-      cost0: 140,           // $/kWh
+      cost0: 140,            // $/kWh total (hardware $120 + soft $20)
       alpha: 0.26,
+      softFloor: 20,         // $/kWh: BMS, pack assembly, installation
+      referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.battery,
       growthRate: 0.35,
       carbonIntensity: 0,
@@ -520,8 +536,8 @@ function getBaseRegionalCapacityFactor(
   switch (source) {
     case 'solar': return 0.20;
     case 'wind': return 0.30;
-    case 'nuclear': return 0.90;
-    case 'hydro': return 0.42;
+    case 'nuclear': return 0.83;
+    case 'hydro': return 0.38;
     default: return 0.50;
   }
 }
@@ -935,8 +951,10 @@ export const energyModule: Module<
       let lcoe: number;
       if (s.alpha > 0) {
         // Learning curve (solar, wind, battery) - GLOBAL cumulative
+        // Wright's Law applies only to hardware portion; soft costs are irreducible
         const ratio = prevCumulative / globalCumulative2025;
-        lcoe = s.cost0 * Math.pow(Math.max(1, ratio), -s.alpha);
+        const hardwareCost = s.cost0 - s.softFloor;
+        lcoe = hardwareCost * Math.pow(Math.max(1, ratio), -s.alpha) + s.softFloor;
         const eroi = params.eroi[source];
         netEnergyFraction[source] = eroi > 1 ? 1 - 1 / eroi : 0;
       } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
@@ -976,7 +994,7 @@ export const energyModule: Module<
       const regionDemand = regionalDemand[region];
       const regionInvestment = regionalInvestment[region];
 
-      // Regional effective LCOE (base LCOE + regional carbon cost for fossil)
+      // Regional effective LCOE (base LCOE + carbon cost + site quality adjustment)
       const regionalLCOE: Record<EnergySource, number> = {} as any;
       for (const source of ENERGY_SOURCES) {
         let lcoe = lcoes[source];
@@ -984,6 +1002,14 @@ export const energyModule: Module<
         if (source === 'gas' || source === 'coal') {
           const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
           lcoe += carbonCost;
+        }
+        // Adjust for site quality degradation: worse CF → higher effective LCOE
+        // A site with half the reference CF costs twice as much per MWh
+        const refCF = params.sources[source].referenceCF;
+        if (refCF > 0) {
+          const regionState = state.regional[region][source];
+          const effectiveCF = getRegionalCapacityFactor(params, region, source, regionState.installed);
+          lcoe *= refCF / effectiveCF;
         }
         regionalLCOE[source] = lcoe;
       }
@@ -1218,8 +1244,10 @@ export const energyModule: Module<
 
     const globalCumulativeBattery2025 = getGlobalCumulative2025(params, 'battery');
     const batteryRatio = state.global.battery.cumulative / globalCumulativeBattery2025;
-    const batteryCost = params.sources.battery.cost0 *
-      Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha);
+    const batteryHardware = params.sources.battery.cost0 - params.sources.battery.softFloor;
+    const batteryCost = batteryHardware *
+      Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha) +
+      params.sources.battery.softFloor;
 
     const cyclesPerYear = params.batteryCyclesPerYear;
     const batteryLCOEContribution = (batteryCost * 1000) / cyclesPerYear;

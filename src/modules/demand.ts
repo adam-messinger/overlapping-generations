@@ -1163,6 +1163,15 @@ export const demandModule: Module<
     globalElec += robotLoadTWh;
     globalTotalFinal += robotLoadTWh;
 
+    // Distribute robot electricity load to regions (proportional to working population)
+    for (const region of REGIONS) {
+      const working = inputs.regionalWorking[region];
+      const share = globalWorking > 0 ? working / globalWorking : 0;
+      const regionRobotLoad = robotLoadTWh * share;
+      regionalOutputs[region].electricityDemand += regionRobotLoad;
+      regionalOutputs[region].totalFinalEnergy += regionRobotLoad;
+    }
+
     // Calculate final energy per capita per day
     // TWh × 1e9 kWh/TWh / population / 365 days
     const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;

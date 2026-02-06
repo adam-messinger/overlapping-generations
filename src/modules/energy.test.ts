@@ -331,13 +331,11 @@ test('investment constraint calculated from CAPEX', () => {
   const inputs = createInputs(30000, 1, 1.0);  // Only $1T investment
   const result = energyModule.step(state, inputs, params, 2025, 0);
 
-  // With $1T investment × 15% clean share = $150B clean budget
-  // Solar LCOE is cheapest (~$35), so it gets funded first
-  // At $800M/GW CAPEX = 187.5 GW max solar additions
-  // Target growth would be 1500 GW × 25% = 375 GW
-  // So investment should constrain this significantly
+  // With $1T investment × 15% clean share = $150B clean budget spread across 8 regions
+  // Solar regional LCOE adjusted for site CF, so not all regions build aggressively
+  // At $800M/GW CAPEX, budget constrains additions well below demand-driven target
   expect(result.outputs.additions.solar).toBeLessThan(200);
-  expect(result.outputs.additions.solar).toBeGreaterThan(100); // Still substantial
+  expect(result.outputs.additions.solar).toBeGreaterThan(10); // Constrained but nonzero
 });
 
 test('CAPEX learning reduces constraint over time', () => {
