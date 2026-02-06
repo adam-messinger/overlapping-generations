@@ -455,6 +455,9 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       energyBurden: o.energyBurden,
       burdenDamage: o.burdenDamage,
 
+      // Useful work
+      usefulWorkGrowthRate: o.usefulWorkGrowthRate ?? 0,
+
       // Capital
       capitalStock: o.stock,
       investment: o.investment,
@@ -520,8 +523,7 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       robotsPer1000: o.robotsPer1000 ?? 0,
 
       // Production (biophysical)
-      productionGdp: o.gdp,  // Same as gdp now (production is authoritative)
-      usefulEnergyProduction: o.productionUsefulEnergy,
+      productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
 
       // Regional
       regionalPopulation: o.regionalPopulation,

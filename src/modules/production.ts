@@ -45,7 +45,7 @@ export const productionDefaults: ProductionParams = {
   alpha: 0.25,
   beta: 0.15,
   gamma: 0.55,
-  tfpGrowthRate: 0.003,       // 0.3%/year autonomous TFP
+  tfpGrowthRate: 0.004,       // 0.4%/year autonomous TFP
   initialGDP: 120,            // $120T (2025 global GDP)
   electricExergy: 0.95,       // Electricity is nearly pure useful work
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
@@ -137,7 +137,7 @@ export const productionModule: Module<
     tfpGrowthRate: {
       description: 'Autonomous TFP growth rate (institutional, organizational). Small because most growth comes from energy/capital/labor.',
       unit: 'fraction/year',
-      range: { min: 0.0, max: 0.01, default: 0.003 },
+      range: { min: 0.0, max: 0.01, default: 0.004 },
       tier: 1 as const,
     },
   },

@@ -13,7 +13,7 @@ overlapping-generations/
 │   │   ├── capital.ts
 │   │   ├── energy.ts
 │   │   ├── dispatch.ts
-│   │   ├── expansion.ts
+│   │   ├── production.ts
 │   │   ├── resources.ts
 │   │   └── climate.ts
 │   ├── framework/         # Module interface and types
@@ -63,21 +63,21 @@ interface Module<TParams, TState, TInputs, TOutputs> {
 ```
 demographics (no inputs)
      ↓
-   demand ← demographics, lagged damages, lagged energy burden
+production ← lagged capital, lagged energy, lagged damages, lagged food stress
+     ↓
+   demand ← production (GDP), demographics, lagged damages
      ↓
    capital ← demographics, demand, lagged damages
      ↓
    energy ← demand, capital
      ↓
-  expansion ← demand, energy, demographics, capital
-     ↓
-  dispatch ← expansion (adjusted demand), energy
+  dispatch ← demand, energy
      ↓
   resources ← energy, demographics, demand, climate (lagged)
      ↓
    climate ← dispatch, resources (land use carbon)
      ↓
-(damages + energy burden feed back to demand, capital for next year)
+(damages, energy burden, food stress feed back via lags to production for next year)
 ```
 
 ## Key Models
@@ -97,10 +97,11 @@ demographics (no inputs)
 - **3-cohort model**: Young (0-19), Working (20-64), Old (65+)
 - **Education**: College share affects effective workers
 
-### G/C Expansion (Entropy Economics)
-- Energy transitions are **additive**, not substitutive
-- Cheap energy unlocks new activities (cost expansion multiplier)
-- Robots are new "species" filling energy niches
+### Production (Ayres-Warr Biophysical)
+- **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
+- Useful energy is dominant growth driver (γ=0.55)
+- All inputs lagged to break circular dependencies
+- Resource energy (mining, farming) subtracted from productive supply
 
 ## Scenarios
 

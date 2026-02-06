@@ -1,15 +1,16 @@
 /**
  * Simulation Runner
  *
- * Wires all modules together and runs the full 2025-2100 simulation.
- * Handles module dependencies, state management, and result collection.
+ * Public API for running simulations. Delegates to the autowired path.
  *
  * Module dependency graph:
  *   demographics (no inputs)
  *        ↓
- *      demand ← demographics
+ *   production ← lagged capital, lagged energy, lagged damages, lagged food stress
  *        ↓
- *      capital ← demographics, demand
+ *      demand ← production (GDP), demographics, lagged damages
+ *        ↓
+ *      capital ← demographics, demand, lagged damages
  *        ↓
  *      energy ← demand, capital
  *        ↓
@@ -19,19 +20,18 @@
  *        ↓
  *      climate ← dispatch, resources (land use carbon)
  *        ↓
- *      (damages feed back to demand, capital for next year)
+ *      (damages, energy burden, food stress feed back via lags to production)
  */
 
-import { demographicsModule, DemographicsParams } from './modules/demographics.js';
-import { ProductionParams } from './modules/production.js';
-import { demandModule, DemandParams } from './modules/demand.js';
-import { capitalModule, CapitalParams } from './modules/capital.js';
-import { energyModule, EnergyParams } from './modules/energy.js';
-import { dispatchModule, DispatchParams } from './modules/dispatch.js';
-import { expansionModule, ExpansionParams } from './modules/expansion.js';
-import { resourcesModule, ResourcesParams } from './modules/resources.js';
-import { climateModule, ClimateParams } from './modules/climate.js';
-import { Region, REGIONS, EnergySource } from './framework/types.js';
+import type { DemographicsParams } from './modules/demographics.js';
+import type { ProductionParams } from './modules/production.js';
+import type { DemandParams } from './modules/demand.js';
+import type { CapitalParams } from './modules/capital.js';
+import type { EnergyParams } from './modules/energy.js';
+import type { DispatchParams } from './modules/dispatch.js';
+import type { ResourcesParams } from './modules/resources.js';
+import type { ClimateParams } from './modules/climate.js';
+import type { Region, EnergySource } from './framework/types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
 
 // =============================================================================
@@ -47,7 +47,8 @@ export interface SimulationParams {
   capital?: Partial<CapitalParams>;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
-  expansion?: Partial<ExpansionParams>;
+  /** @deprecated expansion module dissolved into demand + production */
+  expansion?: Record<string, unknown>;
   resources?: Partial<ResourcesParams>;
   climate?: Partial<ClimateParams>;
 }
@@ -89,6 +90,9 @@ export interface YearResult {
   totalEnergyCost: number;    // $ trillions
   energyBurden: number;       // Fraction of GDP
   burdenDamage: number;       // GDP damage fraction
+
+  // Useful work
+  usefulWorkGrowthRate: number;
 
   // Capital
   capitalStock: number;
@@ -149,14 +153,15 @@ export interface YearResult {
   cumulativeSequestration: number;
 
   // Production (biophysical)
-  productionGdp: number;
-  usefulEnergyProduction: number;
+  productionUsefulEnergy: number;
 
-  // G/C Expansion
+  // Automation (formerly expansion)
   robotLoadTWh: number;
-  expansionMultiplier: number;
-  adjustedDemand: number;
   robotsPer1000: number;
+  /** @deprecated always 1.0 — expansion module dissolved */
+  expansionMultiplier: number;
+  /** @deprecated same as electricityDemand — expansion module dissolved */
+  adjustedDemand: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
@@ -203,573 +208,7 @@ export interface SimulationMetrics {
 }
 
 // =============================================================================
-// SIMULATION CLASS
-// =============================================================================
-
-export class Simulation {
-  private params: SimulationParams;
-  private startYear: number;
-  private endYear: number;
-
-  // Module params
-  private demoParams: DemographicsParams;
-  private demandParams: DemandParams;
-  private capitalParams: CapitalParams;
-  private energyParams: EnergyParams;
-  private dispatchParams: DispatchParams;
-  private expansionParams: ExpansionParams;
-  private resourcesParams: ResourcesParams;
-  private climateParams: ClimateParams;
-
-  constructor(params: SimulationParams = {}) {
-    this.params = params;
-    this.startYear = params.startYear ?? 2025;
-    this.endYear = params.endYear ?? 2100;
-
-    // Merge params with defaults
-    this.demoParams = demographicsModule.mergeParams(params.demographics ?? {});
-    this.demandParams = demandModule.mergeParams(params.demand ?? {});
-    this.capitalParams = capitalModule.mergeParams(params.capital ?? {});
-    this.energyParams = energyModule.mergeParams(params.energy ?? {});
-    this.dispatchParams = dispatchModule.mergeParams(params.dispatch ?? {});
-    this.expansionParams = expansionModule.mergeParams(params.expansion ?? {});
-    this.resourcesParams = resourcesModule.mergeParams(params.resources ?? {});
-    this.climateParams = climateModule.mergeParams(params.climate ?? {});
-  }
-
-  /**
-   * Validate all module parameters
-   */
-  validate(): { valid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    const modules = [
-      { name: 'demographics', result: demographicsModule.validate(this.demoParams) },
-      { name: 'demand', result: demandModule.validate(this.demandParams) },
-      { name: 'capital', result: capitalModule.validate(this.capitalParams) },
-      { name: 'energy', result: energyModule.validate(this.energyParams) },
-      { name: 'dispatch', result: dispatchModule.validate(this.dispatchParams) },
-      { name: 'expansion', result: expansionModule.validate(this.expansionParams) },
-      { name: 'resources', result: resourcesModule.validate(this.resourcesParams) },
-      { name: 'climate', result: climateModule.validate(this.climateParams) },
-    ];
-
-    for (const { name, result } of modules) {
-      for (const e of result.errors) {
-        errors.push(`${name}: ${e}`);
-      }
-      for (const w of result.warnings) {
-        warnings.push(`${name}: ${w}`);
-      }
-    }
-
-    return { valid: errors.length === 0, errors, warnings };
-  }
-
-  /**
-   * Run the full simulation
-   */
-  run(): SimulationResult {
-    const years: number[] = [];
-    const results: YearResult[] = [];
-
-    // Initialize all module states
-    let demoState = demographicsModule.init(this.demoParams);
-    let demandState = demandModule.init(this.demandParams);
-    let capitalState = capitalModule.init(this.capitalParams);
-    let energyState = energyModule.init(this.energyParams);
-    let dispatchState = dispatchModule.init(this.dispatchParams);
-    let expansionState = expansionModule.init(this.expansionParams);
-    let resourcesState = resourcesModule.init(this.resourcesParams);
-    let climateState = climateModule.init(this.climateParams);
-
-    // Track lagged values for feedback loops
-    let laggedDamages: Record<Region, number> = { oecd: 0, china: 0, em: 0, row: 0 };
-    let laggedBurdenDamage = 0;
-    let laggedTemperature = 1.2; // Initial temperature for resources
-    let laggedAvgLCOE = 50; // Initial LCOE for cost-driven electrification ($/MWh)
-    let laggedNetEnergyFactor = 1; // Initial net energy factor for investment
-    let laggedCapitalGrowthRate = 0; // Initial capital growth rate for Solow feedback
-    let gdpPerCapita2025 = 0; // Will be set in first year
-
-    for (let year = this.startYear; year <= this.endYear; year++) {
-      const yearIndex = year - this.startYear;
-      years.push(year);
-
-      // =======================================================================
-      // Step 1: Demographics (no inputs)
-      // =======================================================================
-      const demoResult = demographicsModule.step(
-        demoState,
-        {},
-        this.demoParams,
-        year,
-        yearIndex
-      );
-      demoState = demoResult.state;
-      const demo = demoResult.outputs;
-
-      // =======================================================================
-      // Step 2: Demand (needs demographics, lagged damages)
-      // =======================================================================
-      const demandInputs = {
-        regionalPopulation: demo.regionalPopulation,
-        regionalWorking: demo.regionalWorking,
-        regionalEffectiveWorkers: demo.regionalEffectiveWorkers,
-        regionalDependency: demo.regionalDependency,
-        population: demo.population,
-        working: demo.working,
-        dependency: demo.dependency,
-        regionalDamages: laggedDamages,
-        energyBurdenDamage: laggedBurdenDamage,
-        laggedAvgLCOE, // For cost-driven electrification
-        carbonPrice: this.energyParams.carbonPrice, // Pass carbon price for fuel cost calc
-        capitalGrowthRate: laggedCapitalGrowthRate, // Solow capital contribution
-      };
-      const demandResult = demandModule.step(
-        demandState,
-        demandInputs,
-        this.demandParams,
-        year,
-        yearIndex
-      );
-      demandState = demandResult.state;
-      const demand = demandResult.outputs;
-
-      // =======================================================================
-      // Step 3: Capital (needs demographics, demand, lagged damages)
-      // =======================================================================
-      // Compute GDP-weighted average of regional damages
-      const regionalGdpValues: Record<Region, number> = {
-        oecd: demand.regional.oecd.gdp,
-        china: demand.regional.china.gdp,
-        em: demand.regional.em.gdp,
-        row: demand.regional.row.gdp,
-      };
-      const totalRegionalGdp = REGIONS.reduce((sum, r) => sum + regionalGdpValues[r], 0);
-      const globalDamage = totalRegionalGdp > 0
-        ? REGIONS.reduce((sum, r) => sum + laggedDamages[r] * regionalGdpValues[r], 0) / totalRegionalGdp
-        : 0;
-
-      const capitalInputs = {
-        regionalYoung: demo.regionalYoung,
-        regionalWorking: demo.regionalWorking,
-        regionalOld: demo.regionalOld,
-        regionalPopulation: demo.regionalPopulation,
-        effectiveWorkers: demo.effectiveWorkers,
-        gdp: demand.gdp,
-        damages: globalDamage,
-        netEnergyFactor: laggedNetEnergyFactor,
-      };
-      const capitalResult = capitalModule.step(
-        capitalState,
-        capitalInputs,
-        this.capitalParams,
-        year,
-        yearIndex
-      );
-      capitalState = capitalResult.state;
-      const capital = capitalResult.outputs;
-
-      // Update lagged capital growth rate for next year's Solow feedback
-      laggedCapitalGrowthRate = capital.capitalGrowthRate;
-
-      // =======================================================================
-      // Step 4: Energy (needs demand, capital)
-      // =======================================================================
-
-      // Compute regional electricity demand from demand module
-      const regionalElectricityDemand: Record<Region, number> = {
-        oecd: demand.regional.oecd.electricityDemand,
-        china: demand.regional.china.electricityDemand,
-        em: demand.regional.em.electricityDemand,
-        row: demand.regional.row.electricityDemand,
-      };
-
-      // Compute regional investment from capital's regional savings
-      const totalSavings = Object.values(capital.regionalSavings).reduce((a, b) => a + b, 0);
-      const regionalInvestment: Record<Region, number> = {} as Record<Region, number>;
-      for (const region of REGIONS) {
-        regionalInvestment[region] = totalSavings > 0
-          ? capital.investment * (capital.regionalSavings[region] / totalSavings)
-          : capital.investment / 4;
-      }
-
-      const energyInputs = {
-        electricityDemand: demand.electricityDemand,
-        regionalElectricityDemand,
-        availableInvestment: capital.investment,
-        regionalInvestment,
-        stabilityFactor: capital.stability,
-      };
-      const energyResult = energyModule.step(
-        energyState,
-        energyInputs,
-        this.energyParams,
-        year,
-        yearIndex
-      );
-      energyState = energyResult.state;
-      const energy = energyResult.outputs;
-
-      // =======================================================================
-      // Step 5: G/C Expansion (needs demand, energy, demographics, capital)
-      // =======================================================================
-      // Find cheapest LCOE (for cost expansion calculation)
-      const cheapestLCOE = Math.min(...Object.values(energy.lcoes));
-
-      const expansionInputs = {
-        baseDemand: demand.electricityDemand,
-        cheapestLCOE,
-        workingPopulation: demo.working,
-        investmentRate: capital.savingsRate, // Use savings as proxy for investment capacity
-      };
-      const expansionResult = expansionModule.step(
-        expansionState,
-        expansionInputs,
-        this.expansionParams,
-        year,
-        yearIndex
-      );
-      expansionState = expansionResult.state;
-      const expansion = expansionResult.outputs;
-
-      // =======================================================================
-      // Step 6: Dispatch (uses adjusted demand from expansion)
-      // =======================================================================
-
-      // Scale regional demand by expansion factor
-      const expansionFactor = demand.electricityDemand > 0
-        ? expansion.adjustedDemand / demand.electricityDemand
-        : 1.0;
-      const regionalAdjustedDemand: Record<Region, number> = {} as Record<Region, number>;
-      for (const region of REGIONS) {
-        regionalAdjustedDemand[region] = regionalElectricityDemand[region] * expansionFactor;
-      }
-
-      // Get regional carbon prices from energy params
-      const regionalCarbonPrice: Record<Region, number> = {} as Record<Region, number>;
-      for (const region of REGIONS) {
-        regionalCarbonPrice[region] = this.energyParams.regional[region].carbonPrice;
-      }
-
-      const dispatchInputs = {
-        electricityDemand: expansion.adjustedDemand, // Use expanded demand
-        regionalElectricityDemand: regionalAdjustedDemand,
-        capacities: energy.capacities,
-        regionalCapacities: energy.regionalCapacities,
-        lcoes: energy.lcoes,
-        solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
-        carbonPrice: this.energyParams.carbonPrice,
-        regionalCarbonPrice,
-      };
-      const dispatchResult = dispatchModule.step(
-        dispatchState,
-        dispatchInputs,
-        this.dispatchParams,
-        year,
-        yearIndex
-      );
-      dispatchState = dispatchResult.state;
-      const dispatch = dispatchResult.outputs;
-
-      // =======================================================================
-      // Update net energy factor (lagged to next year)
-      // =======================================================================
-      let grossElectricity = 0;
-      let netElectricity = 0;
-      for (const [source, gen] of Object.entries(dispatch.generation)) {
-        const generation = gen ?? 0;
-        if (generation <= 0) continue;
-        let energySource: EnergySource;
-        if (source === 'solarPlusBattery') {
-          energySource = 'solar';
-        } else {
-          energySource = source as EnergySource;
-        }
-        const fraction = energy.netEnergyFraction[energySource] ?? 1;
-        grossElectricity += generation;
-        netElectricity += generation * fraction;
-      }
-      const netEnergyFactor = grossElectricity > 0 ? netElectricity / grossElectricity : 1;
-      laggedNetEnergyFactor = Math.max(0, Math.min(1, netEnergyFactor));
-
-      // =======================================================================
-      // Step 7: Resources (needs energy, demographics, demand, lagged temperature)
-      // =======================================================================
-      // Calculate GDP per capita for land use calculations
-      const gdpPerCapita = (demand.gdp * 1e12) / demo.population;
-      if (yearIndex === 0) {
-        gdpPerCapita2025 = gdpPerCapita;
-      }
-
-      // Resources module now calculates grain demand internally via Bennett's Law
-      const resourcesInputs = {
-        capacities: energy.capacities,
-        additions: energy.additions,
-        population: demo.population,
-        gdpPerCapita,
-        gdpPerCapita2025,
-        temperature: laggedTemperature,
-      };
-      const resourcesResult = resourcesModule.step(
-        resourcesState,
-        resourcesInputs,
-        this.resourcesParams,
-        year,
-        yearIndex
-      );
-      resourcesState = resourcesResult.state;
-      const resources = resourcesResult.outputs;
-
-      // =======================================================================
-      // Step 8: Climate (needs emissions from dispatch + land use)
-      // =======================================================================
-      // Total emissions = electricity + non-electric (fuel-based) + land use change
-      const landUseEmissions = resources.carbon.netFlux; // Can be negative (sink)
-      const totalEmissions = dispatch.electricityEmissions + demand.nonElectricEmissions + landUseEmissions;
-
-      const climateInputs = {
-        emissions: totalEmissions,
-      };
-      const climateResult = climateModule.step(
-        climateState,
-        climateInputs,
-        this.climateParams,
-        year,
-        yearIndex
-      );
-      climateState = climateResult.state;
-      const climate = climateResult.outputs;
-
-      // =======================================================================
-      // Step 9: Energy Burden (from demand module)
-      // =======================================================================
-      // Use the demand module's burden calculation (uses proper params)
-      const totalEnergyCost = demand.totalEnergyCost;
-      const energyBurden = demand.energyBurden;
-      const burdenDamage = demand.burdenDamage;
-
-      // Compute generation-weighted LCOE for lagged feedback
-      let totalGeneration = 0;
-      let weightedLCOE = 0;
-      for (const source of Object.keys(dispatch.generation) as Array<keyof typeof dispatch.generation>) {
-        const gen = dispatch.generation[source];
-        totalGeneration += gen;
-        weightedLCOE += gen * (energy.lcoes[source as keyof typeof energy.lcoes] ?? 50);
-      }
-      weightedLCOE = totalGeneration > 0 ? weightedLCOE / totalGeneration : 50;
-
-      // =======================================================================
-      // Update lagged values for next year's feedback
-      // =======================================================================
-      laggedDamages = climate.regionalDamages;
-      laggedTemperature = climate.temperature;
-      laggedBurdenDamage = burdenDamage;
-      laggedAvgLCOE = totalGeneration > 0 ? weightedLCOE : laggedAvgLCOE; // For cost-driven elec
-
-      // =======================================================================
-      // Collect results
-      // =======================================================================
-      const regionalGdp: Record<Region, number> = {
-        oecd: demand.regional.oecd.gdp,
-        china: demand.regional.china.gdp,
-        em: demand.regional.em.gdp,
-        row: demand.regional.row.gdp,
-      };
-
-      results.push({
-        year,
-
-        // Demographics
-        population: demo.population,
-        working: demo.working,
-        dependency: demo.dependency,
-        effectiveWorkers: demo.effectiveWorkers,
-        collegeShare: demo.collegeShare,
-
-        // Demand
-        capitalElasticity: this.demandParams.capitalElasticity,
-        gdp: demand.gdp,
-        electricityDemand: demand.electricityDemand,
-        electrificationRate: demand.electrificationRate,
-        totalFinalEnergy: demand.totalFinalEnergy,
-        nonElectricEnergy: demand.nonElectricEnergy,
-        finalEnergyPerCapitaDay: demand.finalEnergyPerCapitaDay,
-
-        // Sectors
-        transportElectrification: demand.sectors.transport.electrificationRate,
-        buildingsElectrification: demand.sectors.buildings.electrificationRate,
-        industryElectrification: demand.sectors.industry.electrificationRate,
-
-        // Fuels
-        oilConsumption: demand.fuels.oil,
-        gasConsumption: demand.fuels.gas,
-        coalConsumption: demand.fuels.coal,
-        hydrogenConsumption: demand.fuels.hydrogen,
-
-        // Non-electric emissions
-        nonElectricEmissions: demand.nonElectricEmissions,
-
-        // Energy burden
-        totalEnergyCost,
-        energyBurden,
-        burdenDamage,
-
-        // Capital
-        capitalStock: capital.stock,
-        investment: capital.investment,
-        savingsRate: capital.savingsRate,
-        stability: capital.stability,
-        interestRate: capital.interestRate,
-        robotsDensity: capital.robotsDensity,
-        automationShare: capital.automationShare,
-        capitalOutputRatio: capital.capitalOutputRatio,
-        capitalGrowthRate: capital.capitalGrowthRate,
-
-        // Energy
-        lcoes: energy.lcoes,
-        capacities: energy.capacities,
-        solarLCOE: energy.lcoes.solar,
-        windLCOE: energy.lcoes.wind,
-        batteryCost: energy.batteryCost,
-        cheapestLCOE: energy.cheapestLCOE,
-        solarPlusBatteryLCOE: energy.solarPlusBatteryLCOE,
-
-        // Dispatch
-        generation: dispatch.generation,
-        gridIntensity: dispatch.gridIntensity,
-        totalGeneration: dispatch.totalGeneration,
-        shortfall: dispatch.shortfall,
-        electricityEmissions: dispatch.electricityEmissions,
-        fossilShare: dispatch.fossilShare,
-        curtailmentTWh: dispatch.curtailmentTWh,
-        curtailmentRate: dispatch.curtailmentRate,
-
-        // Climate
-        temperature: climate.temperature,
-        co2ppm: climate.co2ppm,
-        equilibriumTemp: climate.equilibriumTemp,
-        damages: climate.damages,
-        cumulativeEmissions: climate.cumulativeEmissions,
-
-        // Resources - Minerals
-        copperDemand: resources.minerals.copper.demand,
-        lithiumDemand: resources.minerals.lithium.demand,
-        copperCumulative: resources.minerals.copper.cumulative,
-        lithiumCumulative: resources.minerals.lithium.cumulative,
-
-        // Resources - Land
-        farmland: resources.land.farmland,
-        forest: resources.land.forest,
-        desert: resources.land.desert,
-        yieldDamageFactor: resources.land.yieldDamageFactor,
-
-        // Resources - Food (Bennett's Law)
-        proteinShare: resources.food.proteinShare,
-        grainEquivalent: resources.food.grainEquivalent,
-        foodStress: resources.foodStress,
-
-        // Resources - Carbon
-        forestNetFlux: resources.carbon.netFlux,
-        cumulativeSequestration: resources.carbon.cumulativeSequestration,
-
-        // Production (biophysical) — not computed in manual path
-        productionGdp: 0,
-        usefulEnergyProduction: 0,
-
-        // G/C Expansion
-        robotLoadTWh: expansion.robotLoadTWh,
-        expansionMultiplier: expansion.expansionMultiplier,
-        adjustedDemand: expansion.adjustedDemand,
-        robotsPer1000: expansion.robotsPer1000,
-
-        // Regional
-        regionalPopulation: demo.regionalPopulation,
-        regionalGdp,
-
-        // Regional Energy (v2)
-        regionalCapacities: energy.regionalCapacities,
-        regionalAdditions: energy.regionalAdditions,
-
-        // Regional Dispatch (v2)
-        regionalGeneration: dispatch.regionalGeneration,
-        regionalGridIntensity: dispatch.regionalGridIntensity,
-        regionalFossilShare: dispatch.regionalFossilShare,
-        regionalEmissions: dispatch.regionalEmissions,
-      });
-    }
-
-    // Calculate metrics
-    const metrics = this.calculateMetrics(results);
-
-    return { years, results, metrics };
-  }
-
-  /**
-   * Calculate summary metrics from results
-   */
-  private calculateMetrics(results: YearResult[]): SimulationMetrics {
-    // Population metrics
-    let peakPopulation = 0;
-    let peakPopulationYear = 2025;
-    for (const r of results) {
-      if (r.population > peakPopulation) {
-        peakPopulation = r.population;
-        peakPopulationYear = r.year;
-      }
-    }
-
-    // Emissions metrics
-    let peakEmissions = 0;
-    let peakEmissionsYear = 2025;
-    for (const r of results) {
-      const totalEmissions = r.electricityEmissions + r.nonElectricEmissions + r.forestNetFlux;
-      if (totalEmissions > peakEmissions) {
-        peakEmissions = totalEmissions;
-        peakEmissionsYear = r.year;
-      }
-    }
-
-    // Crossover years
-    let solarCrossoverYear: number | null = null;
-    let gridBelow100Year: number | null = null;
-    for (const r of results) {
-      if (solarCrossoverYear === null && r.solarLCOE < r.lcoes.gas) {
-        solarCrossoverYear = r.year;
-      }
-      if (gridBelow100Year === null && r.gridIntensity < 100) {
-        gridBelow100Year = r.year;
-      }
-    }
-
-    const idx2050 = results.findIndex(r => r.year === 2050);
-    const idx2100 = results.length - 1;
-
-    return {
-      peakPopulation,
-      peakPopulationYear,
-      population2100: results[idx2100].population,
-
-      warming2050: idx2050 >= 0 ? results[idx2050].temperature : 0,
-      warming2100: results[idx2100].temperature,
-      peakEmissions,
-      peakEmissionsYear,
-
-      solarCrossoverYear,
-      gridBelow100Year,
-      fossilShareFinal: results[idx2100].fossilShare,
-
-      gdp2050: idx2050 >= 0 ? results[idx2050].gdp : 0,
-      gdp2100: results[idx2100].gdp,
-      kY2050: idx2050 >= 0 ? results[idx2050].capitalStock / results[idx2050].gdp : 0,
-    };
-  }
-}
-
-// =============================================================================
-// CONVENIENCE FUNCTION
+// SIMULATION FUNCTIONS
 // =============================================================================
 
 /**
@@ -778,25 +217,6 @@ export class Simulation {
  */
 export function runSimulation(params: SimulationParams = {}): SimulationResult {
   return runAutowiredFull(params);
-}
-
-/**
- * Run a simulation using the manual (hand-wired) path.
- * Kept for regression testing and comparison.
- */
-export function runSimulationManual(params: SimulationParams = {}): SimulationResult {
-  const sim = new Simulation(params);
-  const validation = sim.validate();
-
-  if (!validation.valid) {
-    throw new Error(`Simulation validation failed:\n${validation.errors.join('\n')}`);
-  }
-
-  if (validation.warnings.length > 0) {
-    console.warn('Validation warnings:', validation.warnings);
-  }
-
-  return sim.run();
 }
 
 /**
@@ -982,19 +402,13 @@ async function runCLI() {
   console.log(`Grain demand 2050: ${result.results[idx2050].grainEquivalent.toFixed(0)} Mt`);
   console.log(`Grain demand 2100: ${result.results[idx2100].grainEquivalent.toFixed(0)} Mt`);
 
-  // G/C Expansion metrics
-  console.log('\n=== G/C Expansion ===\n');
+  // Automation metrics
+  console.log('\n=== Automation ===\n');
   console.log(`Robot load 2025: ${result.results[idx2025].robotLoadTWh.toFixed(0)} TWh`);
   console.log(`Robot load 2050: ${result.results[idx2050].robotLoadTWh.toFixed(0)} TWh`);
   console.log(`Robot load 2100: ${result.results[idx2100].robotLoadTWh.toFixed(0)} TWh`);
   console.log(`Robots/1000 workers 2025: ${result.results[idx2025].robotsPer1000.toFixed(1)}`);
   console.log(`Robots/1000 workers 2100: ${result.results[idx2100].robotsPer1000.toFixed(1)}`);
-  console.log(`Expansion multiplier 2025: ${result.results[idx2025].expansionMultiplier.toFixed(2)}x`);
-  console.log(`Expansion multiplier 2050: ${result.results[idx2050].expansionMultiplier.toFixed(2)}x`);
-  console.log(`Expansion multiplier 2100: ${result.results[idx2100].expansionMultiplier.toFixed(2)}x`);
-  console.log(`Base demand 2025: ${result.results[idx2025].electricityDemand.toFixed(0)} TWh`);
-  console.log(`Adjusted demand 2025: ${result.results[idx2025].adjustedDemand.toFixed(0)} TWh`);
-  console.log(`Adjusted demand 2100: ${result.results[idx2100].adjustedDemand.toFixed(0)} TWh`);
 
   // Sector electrification
   console.log('\n=== Sector Electrification ===\n');

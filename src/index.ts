@@ -5,7 +5,7 @@
  */
 
 // Simulation
-export { Simulation, runSimulation, runSimulationManual, runWithScenario } from './simulation.js';
+export { runSimulation, runWithScenario } from './simulation.js';
 export type { SimulationParams, SimulationResult, SimulationMetrics, YearResult } from './simulation.js';
 
 // Scenario loader
@@ -18,7 +18,7 @@ export { demandModule, demandDefaults } from './modules/demand.js';
 export { capitalModule, capitalDefaults } from './modules/capital.js';
 export { energyModule, energyDefaults } from './modules/energy.js';
 export { dispatchModule, dispatchDefaults } from './modules/dispatch.js';
-export { expansionModule, expansionDefaults } from './modules/expansion.js';
+export { productionModule, productionDefaults } from './modules/production.js';
 export { resourcesModule, resourcesDefaults } from './modules/resources.js';
 export { climateModule, climateDefaults } from './modules/climate.js';
 

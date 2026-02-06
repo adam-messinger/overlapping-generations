@@ -21,7 +21,7 @@ import { demandModule } from './modules/demand.js';
 import { demographicsModule } from './modules/demographics.js';
 import { capitalModule } from './modules/capital.js';
 import { dispatchModule } from './modules/dispatch.js';
-import { expansionModule } from './modules/expansion.js';
+import { productionModule } from './modules/production.js';
 import { resourcesModule } from './modules/resources.js';
 
 // =============================================================================
@@ -54,7 +54,7 @@ const ALL_MODULES = [
   demographicsModule,
   capitalModule,
   dispatchModule,
-  expansionModule,
+  productionModule,
   resourcesModule,
 ] as any[];
 
@@ -269,11 +269,21 @@ export function describeOutputs(): OutputSchema {
     forestNetFlux: { unit: 'Gt CO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },
     cumulativeSequestration: { unit: 'Gt CO2', description: 'Cumulative forest carbon sequestration', module: 'resources' },
 
-    // G/C Expansion
-    robotLoadTWh: { unit: 'TWh', description: 'Automation energy consumption', module: 'expansion' },
-    expansionMultiplier: { unit: 'multiplier', description: 'G/C cost expansion factor', module: 'expansion' },
-    adjustedDemand: { unit: 'TWh', description: 'Electricity demand after expansion', module: 'expansion' },
-    robotsPer1000: { unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'expansion' },
+    // Automation (formerly expansion module, now in demand)
+    robotLoadTWh: { unit: 'TWh', description: 'Automation energy consumption', module: 'demand' },
+    robotsPer1000: { unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'demand' },
+
+    // Production
+    productionUsefulEnergy: { unit: 'TWh', description: 'Exergy-weighted useful energy for production', module: 'production' },
+    capitalContribution: { unit: 'ratio', description: '(K/K₀)^α contribution to GDP', module: 'production' },
+    laborContribution: { unit: 'ratio', description: '(L/L₀)^β contribution to GDP', module: 'production' },
+    energyContribution: { unit: 'ratio', description: '(E/E₀)^γ contribution to GDP', module: 'production' },
+    tfpLevel: { unit: 'ratio', description: 'Total factor productivity level', module: 'production' },
+
+    // Resources - Energy
+    miningEnergyTWh: { unit: 'TWh', description: 'Energy consumed by mining operations', module: 'resources' },
+    farmingEnergyTWh: { unit: 'TWh', description: 'Energy consumed by farming operations', module: 'resources' },
+    totalResourceEnergy: { unit: 'TWh', description: 'Total energy for mining + farming', module: 'resources' },
 
     // Regional
     regionalPopulation: { unit: 'people', description: 'Population by region', module: 'demographics' },
