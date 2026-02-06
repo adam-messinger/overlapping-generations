@@ -81,6 +81,8 @@ export interface ProductionInputs {
   energyBurdenDamage: number;
   /** Food stress fraction 0-1 (from resources, lagged) */
   foodStress: number;
+  /** Resource energy consumption TWh (from resources, lagged) */
+  resourceEnergy: number;
 }
 
 export interface ProductionOutputs {
@@ -148,6 +150,7 @@ export const productionModule: Module<
     'damages',
     'energyBurdenDamage',
     'foodStress',
+    'resourceEnergy',
   ] as const,
 
   outputs: [
@@ -212,11 +215,14 @@ export const productionModule: Module<
       damages,
       energyBurdenDamage,
       foodStress,
+      resourceEnergy,
     } = inputs;
 
     // Compute useful energy from lagged supply (exergy-weighted)
-    const productionUsefulEnergy = totalGeneration * params.electricExergy
+    // Subtract energy used for mining and farming (not available for productive GDP)
+    const grossUsefulEnergy = totalGeneration * params.electricExergy
       + nonElectricEnergy * params.thermalExergy;
+    const productionUsefulEnergy = Math.max(0, grossUsefulEnergy - resourceEnergy * params.thermalExergy);
 
     // Year 0: capture initial values for normalization
     let initialCapital = state.initialCapital;

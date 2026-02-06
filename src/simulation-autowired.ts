@@ -361,6 +361,13 @@ function buildLags() {
       delay: 1,
       initial: 0,
     },
+
+    // Production needs lagged resource energy
+    resourceEnergy: {
+      source: 'totalResourceEnergy',
+      delay: 1,
+      initial: 0,
+    },
   };
 }
 

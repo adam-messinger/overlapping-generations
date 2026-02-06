@@ -90,6 +90,11 @@ export interface FoodParams {
   proteinCaloriesPerKg: number;   // kcal per kg protein (meat/dairy)
 }
 
+export interface MiningEnergyParams {
+  energyIntensity: Record<MineralKey, number>;  // GJ per ton
+  depletionExponent: number;                    // 0.3
+}
+
 export interface ResourcesParams {
   minerals: {
     copper: MineralParams;
@@ -97,7 +102,8 @@ export interface ResourcesParams {
     rareEarths: MineralParams;
     steel: MineralParams;
   };
-  land: LandParams;
+  mining: MiningEnergyParams;
+  land: LandParams & { energyPerHectare: number };
   food: FoodParams;
 }
 
@@ -144,7 +150,17 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingHalfway: 5000,
     },
   },
+  mining: {
+    energyIntensity: {
+      copper: 30,       // GJ per ton
+      lithium: 50,      // GJ per ton
+      rareEarths: 100,  // GJ per ton
+      steel: 5,         // GJ per ton
+    },
+    depletionExponent: 0.3,
+  },
   land: {
+    energyPerHectare: 3.0,   // GJ/ha (fertilizer ~1.5, machinery ~1.0, irrigation ~0.5)
     farmland2025: 4800,
     yieldGrowthRate: 0.01,
     yield2025: 4.0,
@@ -288,6 +304,9 @@ export interface ResourcesOutputs {
   carbon: CarbonOutput;
   food: FoodOutput;
   foodStress: number;  // 0-1, fraction of food demand that cannot be met
+  miningEnergyTWh: number;   // Energy for mining operations
+  farmingEnergyTWh: number;  // Energy for farming operations
+  totalResourceEnergy: number; // Sum of mining + farming energy (TWh)
 }
 
 // =============================================================================
@@ -461,6 +480,9 @@ export const resourcesModule: Module<
     'carbon',
     'food',
     'foodStress',
+    'miningEnergyTWh',
+    'farmingEnergyTWh',
+    'totalResourceEnergy',
   ] as const,
 
   validate(params: Partial<ResourcesParams>): ValidationResult {
@@ -507,6 +529,17 @@ export const resourcesModule: Module<
               ...p.minerals[key],
             };
           }
+        }
+      }
+
+      // Deep merge mining
+      if (p.mining) {
+        result.mining = { ...resourcesDefaults.mining };
+        if (p.mining.energyIntensity) {
+          result.mining.energyIntensity = { ...resourcesDefaults.mining.energyIntensity, ...p.mining.energyIntensity };
+        }
+        if (p.mining.depletionExponent !== undefined) {
+          result.mining.depletionExponent = p.mining.depletionExponent;
         }
       }
 
@@ -693,6 +726,25 @@ export const resourcesModule: Module<
     };
 
     // =========================================================================
+    // ENERGY COSTS FOR MINING AND FARMING
+    // =========================================================================
+    let miningEnergyTWh = 0;
+    for (const key of MINERAL_KEYS) {
+      const grossDemandMt = mineralOutputs[key].grossDemand;
+      const baseEnergyPerTon = params.mining.energyIntensity[key];
+      const reserveRatio = mineralOutputs[key].reserveRatio;
+      // Harder to mine as ores deplete
+      const depletionMultiplier = 1 / Math.pow(Math.max(0.01, 1 - reserveRatio), params.mining.depletionExponent);
+      const miningEnergyGJ = grossDemandMt * baseEnergyPerTon * depletionMultiplier * 1e6;
+      miningEnergyTWh += miningEnergyGJ / 3.6e6; // GJ → TWh (1 TWh = 3.6e6 GJ)
+    }
+
+    // Farming energy: fertilizer, machinery, irrigation
+    const farmingEnergyTWh = farmland * params.land.energyPerHectare * 1e6 / 3.6e6;
+
+    const totalResourceEnergy = miningEnergyTWh + farmingEnergyTWh;
+
+    // =========================================================================
     // UPDATE STATE
     // =========================================================================
     const newState: ResourcesState = {
@@ -715,6 +767,9 @@ export const resourcesModule: Module<
         carbon: carbonOutput,
         food: foodOutput,
         foodStress,
+        miningEnergyTWh,
+        farmingEnergyTWh,
+        totalResourceEnergy,
       },
     };
   },
