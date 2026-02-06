@@ -372,7 +372,7 @@ test('regional outputs provided for all regions', () => {
 
 test('module has correct metadata', () => {
   expect(demographicsModule.name).toBe('demographics');
-  expect(demographicsModule.inputs.length).toBe(0); // Root module
+  expect(demographicsModule.inputs.length).toBe(1); // temperature (lagged, for heat stress)
   expect(demographicsModule.outputs.length).toBeGreaterThan(0);
 });
 

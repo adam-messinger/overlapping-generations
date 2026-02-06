@@ -74,7 +74,17 @@ interface EnergyBurdenParams {
   persistent: number;             // Fraction of damage that persists (default 0.25)
 }
 
+/** Fossil end-use equipment stock parameters */
+interface FossilStockParams {
+  vehicleLifetime: number;     // ICE vehicle fleet lifetime (years)
+  heatingLifetime: number;     // Gas/oil furnace lifetime (years)
+  industrialLifetime: number;  // Fossil industrial equipment lifetime (years)
+}
+
 export interface DemandParams {
+  // Fossil end-use stock lifetimes (infrastructure lock-in)
+  fossilStock: FossilStockParams;
+
   // Regional economic parameters
   regions: Record<Region, RegionalEconomicParams>;
 
@@ -153,6 +163,9 @@ interface DemandState {
   previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;                 // Current robot adoption level
+  fossilVehicleFleet: number;            // TWh of annual fossil transport energy
+  fossilHeatingStock: number;            // TWh of annual fossil heating energy
+  fossilIndustrialStock: number;         // TWh of annual fossil industrial energy
 }
 
 // Inputs from demographics and production modules
@@ -257,6 +270,7 @@ interface DemandOutputs {
   // Robot/automation
   robotLoadTWh: number;       // Automation energy load (TWh)
   robotsPer1000: number;      // Robots per 1000 workers
+  fossilStockTWh: number;    // Total fossil end-use equipment stock (TWh)
 }
 
 // =============================================================================
@@ -275,6 +289,12 @@ interface DemandOutputs {
  * - ROW: ~12,000 TWh, $8T GDP → 1.53 MWh/$1000 total energy
  */
 export const demandDefaults: DemandParams = {
+  fossilStock: {
+    vehicleLifetime: 15,      // ICE vehicles ~15yr
+    heatingLifetime: 20,       // Gas/oil furnaces ~20yr
+    industrialLifetime: 25,    // Fossil industrial processes ~25yr
+  },
+
   regions: {
     oecd: {
       gdp2025: 58,              // $58T (World Bank)
@@ -750,6 +770,7 @@ export const demandModule: Module<
     'usefulWorkGrowthRate',
     'robotLoadTWh',
     'robotsPer1000',
+    'fossilStockTWh',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -866,6 +887,14 @@ export const demandModule: Module<
         };
       }
 
+      // Merge fossilStock params
+      if (p.fossilStock) {
+        merged.fossilStock = {
+          ...demandDefaults.fossilStock,
+          ...p.fossilStock,
+        };
+      }
+
       // Merge energyBurden params
       if (p.energyBurden) {
         merged.energyBurden = {
@@ -928,6 +957,17 @@ export const demandModule: Module<
       industry: params.sectors.industry.electrification2025,
     };
 
+    // Compute initial fossil stocks from 2025 sector energy
+    const totalEnergy2025 = REGIONS.reduce(
+      (sum, r) => sum + params.regions[r].gdp2025 * params.regions[r].energyIntensity * 1000, 0
+    );
+    const fossilVehicleFleet = totalEnergy2025 * params.sectors.transport.share
+      * (1 - params.sectors.transport.electrification2025);
+    const fossilHeatingStock = totalEnergy2025 * params.sectors.buildings.share
+      * (1 - params.sectors.buildings.electrification2025);
+    const fossilIndustrialStock = totalEnergy2025 * params.sectors.industry.share
+      * (1 - params.sectors.industry.electrification2025);
+
     return {
       regions,
       baselineDependency: 0, // Will be set on first step
@@ -938,6 +978,9 @@ export const demandModule: Module<
       previousUsefulEnergyPerWorker: 0, // Set after first year
       usefulWorkGrowthRate: 0,          // No growth in first year
       robotsPer1000: params.robotBaseline2025, // Initial robot adoption
+      fossilVehicleFleet,
+      fossilHeatingStock,
+      fossilIndustrialStock,
     };
   },
 
@@ -1163,6 +1206,56 @@ export const demandModule: Module<
       };
     }
 
+    // =========================================================================
+    // Fossil stock evolution (infrastructure lock-in)
+    // =========================================================================
+    // Installed fossil equipment retires naturally (1/lifetime per year).
+    // New equipment reflects current electrification rates.
+    // Stock provides floor on non-electric energy demand.
+    const sectorStockMapping = [
+      { sector: 'transport' as const, lifetime: params.fossilStock.vehicleLifetime,
+        prev: state.fossilVehicleFleet },
+      { sector: 'buildings' as const, lifetime: params.fossilStock.heatingLifetime,
+        prev: state.fossilHeatingStock },
+      { sector: 'industry' as const, lifetime: params.fossilStock.industrialLifetime,
+        prev: state.fossilIndustrialStock },
+    ];
+
+    let newFossilVehicleFleet = state.fossilVehicleFleet;
+    let newFossilHeatingStock = state.fossilHeatingStock;
+    let newFossilIndustrialStock = state.fossilIndustrialStock;
+    let lockInAdjustment = 0;
+
+    for (const { sector, lifetime, prev } of sectorStockMapping) {
+      const retired = prev / lifetime;
+      const sectorTotal = sectors[sector].total;
+      const sectorElecRate = sectors[sector].electrificationRate;
+
+      // New equipment enters at current tech split
+      const replacement = sectorTotal / lifetime;
+      const newFossil = replacement * (1 - sectorElecRate);
+      const newStock = Math.max(0, prev - retired + newFossil);
+
+      // Store updated stock
+      if (sector === 'transport') newFossilVehicleFleet = newStock;
+      else if (sector === 'buildings') newFossilHeatingStock = newStock;
+      else newFossilIndustrialStock = newStock;
+
+      // Apply floor: fossil stock creates minimum non-electric demand
+      if (newStock > sectors[sector].nonElectric) {
+        const extra = newStock - sectors[sector].nonElectric;
+        sectors[sector].nonElectric = newStock;
+        sectors[sector].total += extra;
+        lockInAdjustment += extra;
+      }
+    }
+
+    // Adjust global totals for lock-in floor
+    globalNonElec += lockInAdjustment;
+    globalTotalFinal += lockInAdjustment;
+
+    const fossilStockTWh = newFossilVehicleFleet + newFossilHeatingStock + newFossilIndustrialStock;
+
     // Useful energy = electrified energy * efficiency multiplier + non-electric energy
     let usefulEnergy = 0;
     for (const sectorKey of sectorKeys) {
@@ -1271,6 +1364,9 @@ export const demandModule: Module<
         previousUsefulEnergyPerWorker: usefulEnergyPerWorker, // For Ayres/Warr
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotsPer1000, // Persist for logistic adoption
+        fossilVehicleFleet: newFossilVehicleFleet,
+        fossilHeatingStock: newFossilHeatingStock,
+        fossilIndustrialStock: newFossilIndustrialStock,
       },
       outputs: {
         regional: regionalOutputs,
@@ -1294,6 +1390,7 @@ export const demandModule: Module<
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotLoadTWh,
         robotsPer1000,
+        fossilStockTWh,
       },
     };
   },

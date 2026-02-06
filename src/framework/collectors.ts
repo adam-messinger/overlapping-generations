@@ -267,8 +267,11 @@ export const standardCollectors: CollectorConfig = {
     // Climate
     { source: 'temperature' },
     { source: 'co2ppm' },
+    { source: 'equilibriumTemp' },
     { source: 'damages' },
     { source: 'cumulativeEmissions' },
+    { source: 'deepOceanTemp' },
+    { source: 'radiativeForcing' },
 
     // Resources - Minerals
     { source: 'minerals', as: 'copperDemand', path: 'copper.demand' },
@@ -290,6 +293,19 @@ export const standardCollectors: CollectorConfig = {
     // Resources - Carbon
     { source: 'carbon', as: 'forestNetFlux', path: 'netFlux' },
     { source: 'carbon', as: 'cumulativeSequestration', path: 'cumulativeSequestration' },
+
+    // Resources - Mineral constraint
+    { source: 'mineralConstraint' },
+
+    // Heat stress
+    { source: 'heatStressLoss' },
+
+    // Water stress
+    { source: 'waterStress' },
+    { source: 'waterYieldFactor' },
+
+    // Infrastructure lock-in
+    { source: 'fossilStockTWh' },
 
     // G/C Expansion
     { source: 'robotLoadTWh' },

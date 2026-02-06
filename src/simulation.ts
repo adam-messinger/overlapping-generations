@@ -130,6 +130,8 @@ export interface YearResult {
   equilibriumTemp: number;
   damages: number;
   cumulativeEmissions: number;
+  deepOceanTemp: number;
+  radiativeForcing: number;
 
   // Resources - Minerals
   copperDemand: number;
@@ -154,6 +156,20 @@ export interface YearResult {
 
   // Production (biophysical)
   productionUsefulEnergy: number;
+  energySystemOverhead: number;
+
+  // Mineral constraint (0-1, 1 = no constraint)
+  mineralConstraint: number;
+
+  // Heat stress (fractional labor loss per region, 0-1)
+  heatStressLoss: Record<Region, number>;
+
+  // Water stress
+  waterStress: Record<Region, number>;
+  waterYieldFactor: number;
+
+  // Infrastructure lock-in (fossil end-use equipment stock)
+  fossilStockTWh: number;
 
   // Automation (formerly expansion)
   robotLoadTWh: number;

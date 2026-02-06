@@ -48,12 +48,24 @@ export interface RegionEduParams {
   lifePenaltyNonCollege: number; // Penalty for non-college
 }
 
+/** Heat stress parameters per region (Zhao et al. 2021) */
+export interface HeatStressParams {
+  baselineWetBulb: number;      // Summer peak wet-bulb temperature (°C)
+  warmingAmplification: number; // Regional warming multiplier relative to global mean
+  outdoorFraction: number;      // Fraction of workers doing outdoor labor
+}
+
 export interface DemographicsParams {
   regions: Record<Region, RegionDemoParams>;
   education: Record<Region, RegionEduParams>;
   fertilityFloorMultiplier: number;
   migrationMultiplier: number;
   lifeExpectancyGrowth: number;
+
+  // Heat stress (Zhao et al. 2021): wet-bulb temperature reduces outdoor labor productivity
+  heatStress: Record<Region, HeatStressParams>;
+  heatStressThreshold: number;    // Wet-bulb °C where productivity loss begins (33°C)
+  heatStressScale: number;        // °C above threshold for full outdoor productivity loss (4°C)
 }
 
 export const demographicsDefaults: DemographicsParams = {
@@ -156,6 +168,16 @@ export const demographicsDefaults: DemographicsParams = {
   fertilityFloorMultiplier: 1.0,
   migrationMultiplier: 1.0,
   lifeExpectancyGrowth: 0.1,
+
+  // Heat stress: wet-bulb temperature → outdoor labor productivity loss
+  heatStress: {
+    oecd: { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.15 },
+    china: { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
+    em: { baselineWetBulb: 30, warmingAmplification: 1.1, outdoorFraction: 0.35 },
+    row: { baselineWetBulb: 31, warmingAmplification: 1.2, outdoorFraction: 0.45 },
+  },
+  heatStressThreshold: 33,   // Wet-bulb °C where outdoor productivity loss begins
+  heatStressScale: 4,        // °C above threshold for total outdoor productivity loss
 };
 
 // =============================================================================
@@ -190,9 +212,9 @@ export interface DemographicsState {
 // INPUTS / OUTPUTS
 // =============================================================================
 
-/** Demographics has no inputs - it's a root module */
 export interface DemographicsInputs {
-  // Empty - no dependencies
+  /** Global temperature above preindustrial (°C), lagged from climate */
+  temperature: number;
 }
 
 export interface DemographicsOutputs {
@@ -203,6 +225,9 @@ export interface DemographicsOutputs {
   dependency: number;
   effectiveWorkers: number;
   collegeShare: number;
+
+  // Heat stress
+  heatStressLoss: Record<Region, number>;  // Fractional labor loss per region (0-1)
 
   // Regional breakdown
   regionalPopulation: Record<Region, number>;
@@ -395,7 +420,9 @@ export const demographicsModule: Module<
     },
   },
 
-  inputs: [] as const, // No dependencies - root module
+  inputs: [
+    'temperature',  // Lagged from climate, for heat stress
+  ] as const,
 
   outputs: [
     'population',
@@ -404,6 +431,7 @@ export const demographicsModule: Module<
     'dependency',
     'effectiveWorkers',
     'collegeShare',
+    'heatStressLoss',
     'regionalPopulation',
     'regionalYoung',
     'regionalWorking',
@@ -466,6 +494,19 @@ export const demographicsModule: Module<
         }
       }
 
+      // Deep merge heat stress
+      if (p.heatStress) {
+        result.heatStress = { ...demographicsDefaults.heatStress };
+        for (const region of REGIONS) {
+          if (p.heatStress[region]) {
+            result.heatStress[region] = {
+              ...demographicsDefaults.heatStress[region],
+              ...p.heatStress[region],
+            };
+          }
+        }
+      }
+
       return result;
     }, partial);
   },
@@ -511,7 +552,9 @@ export const demographicsModule: Module<
     return { regions };
   },
 
-  step(state, _inputs, params, year, yearIndex) {
+  step(state, inputs, params, year, yearIndex) {
+    const temperature = inputs.temperature ?? 1.2;  // Fallback for year 0
+
     const newRegions: Record<Region, RegionState> = {} as Record<Region, RegionState>;
 
     // Aggregate outputs
@@ -528,6 +571,7 @@ export const demographicsModule: Module<
     const regionalDependency: Record<Region, number> = {} as Record<Region, number>;
     const regionalFertility: Record<Region, number> = {} as Record<Region, number>;
     const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
+    const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const regionState = state.regions[region];
@@ -577,7 +621,32 @@ export const demographicsModule: Module<
       );
       const collegeWorkers = newState.workingCollege;
       const nonCollegeWorkers = newState.workingNonCollege;
-      const regionEffective = nonCollegeWorkers + collegeWorkers * wagePremium;
+      let regionEffective = nonCollegeWorkers + collegeWorkers * wagePremium;
+
+      // =====================================================================
+      // HEAT STRESS ON LABOR (Zhao et al. 2021)
+      // Wet-bulb temperature reduces outdoor labor productivity. Linear ramp
+      // from zero at threshold to total loss at threshold + scale.
+      // At 35°C wet-bulb, outdoor work becomes lethal.
+      //
+      // Differentially applied: outdoor labor is overwhelmingly non-college
+      // (construction, agriculture, mining, transport). College workers are
+      // mostly indoor. outdoorFraction applies to non-college workers only.
+      // =====================================================================
+      const hs = params.heatStress[region];
+      const regionalWetBulb = hs.baselineWetBulb + hs.warmingAmplification * temperature;
+      const excess = Math.max(0, regionalWetBulb - params.heatStressThreshold);
+      const outdoorProductivityLoss = Math.min(1, excess / params.heatStressScale);
+      // Apply to non-college workers only (outdoor labor)
+      const nonCollegeHeatLoss = hs.outdoorFraction * outdoorProductivityLoss;
+      const adjustedNonCollege = nonCollegeWorkers * (1 - nonCollegeHeatLoss);
+      regionEffective = adjustedNonCollege + collegeWorkers * wagePremium;
+      // Report as fraction of total effective workers lost
+      const effectiveWithout = nonCollegeWorkers + collegeWorkers * wagePremium;
+      heatStressLoss[region] = effectiveWithout > 0
+        ? 1 - regionEffective / effectiveWithout
+        : 0;
+
       totalEffective += regionEffective;
       totalCollegeWorkers += collegeWorkers;
       regionalEffectiveWorkers[region] = regionEffective;
@@ -594,6 +663,7 @@ export const demographicsModule: Module<
         dependency: totalWorking > 0 ? totalOld / totalWorking : 0,
         effectiveWorkers: totalEffective,
         collegeShare: globalCollegeShare,
+        heatStressLoss,
         regionalPopulation,
         regionalYoung,
         regionalWorking,

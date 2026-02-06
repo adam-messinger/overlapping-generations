@@ -1,17 +1,30 @@
 /**
  * Climate Module
  *
- * Handles CO2 accumulation, temperature, and damage calculations.
- * Based on DICE-2023 with tipping point extensions.
+ * Two-layer energy balance model (Geoffroy et al. 2013) with DICE-style damages.
+ *
+ * Surface + mixed ocean layer exchanges heat with deep ocean layer.
+ * This captures both fast response (~4yr) and slow response (~200yr),
+ * producing committed warming that persists decades after emissions stop.
+ *
+ * Equations:
+ *   C₁ dT₁/dt = F(t) - λT₁ - γ(T₁ - T₂)   // surface + mixed ocean
+ *   C₂ dT₂/dt = γ(T₁ - T₂)                   // deep ocean
+ *
+ * References:
+ *   Geoffroy et al. (2013) J. Climate 26, 1841–1857
+ *   Gregory (2004) J. Climate 17, 3325–3341
  *
  * Inputs (from other modules):
  * - emissions: Total Gt CO2/year (from dispatch + demand modules)
  *
  * Outputs (to other modules):
- * - temperature: °C above preindustrial
+ * - temperature: °C above preindustrial (surface)
  * - co2ppm: Atmospheric CO2 concentration
  * - damages: Global damage fraction (0-0.30)
  * - regionalDamages: Per-region damage fractions
+ * - deepOceanTemp: Deep ocean temperature anomaly
+ * - radiativeForcing: Current radiative forcing (W/m²)
  */
 
 import { defineModule, Module } from '../framework/module.js';
@@ -32,9 +45,13 @@ export interface ClimateParams {
   airborneFraction: number;      // Fraction staying in atmosphere (0.45)
   ppmPerGt: number;              // ppm per Gt in atmosphere (0.128)
 
-  // Temperature dynamics
-  sensitivity: number;       // °C per CO2 doubling (2.0-4.5)
-  temperatureLag: number;        // Years for temp to equilibrate (10)
+  // Two-layer energy balance (Geoffroy et al. 2013)
+  sensitivity: number;           // Equilibrium climate sensitivity, °C per CO2 doubling (3.0)
+  upperHeatCapacity: number;     // C₁: surface + mixed ocean, W·yr·m⁻²·K⁻¹ (7.3)
+  deepHeatCapacity: number;      // C₂: deep ocean, W·yr·m⁻²·K⁻¹ (106)
+  heatExchange: number;          // γ: inter-layer heat exchange, W·m⁻²·K⁻¹ (0.73)
+  forcingPerDoubling: number;    // F₂ₓ: radiative forcing per CO2 doubling, W/m² (3.7)
+  warmingRate: number;           // Observed surface warming rate in 2025, °C/yr (0.02)
   currentTemp: number;           // °C above preindustrial in 2025 (1.2)
 
   // Damage function (DICE-2023)
@@ -56,7 +73,11 @@ export const climateDefaults: ClimateParams = {
   airborneFraction: 0.45,
   ppmPerGt: 0.128,
   sensitivity: 3.0,
-  temperatureLag: 10,
+  upperHeatCapacity: 7.3,
+  deepHeatCapacity: 106,
+  heatExchange: 0.73,
+  forcingPerDoubling: 3.7,
+  warmingRate: 0.02,
   currentTemp: 1.2,
   damageCoeff: 0.00236,
   maxDamage: 0.30,
@@ -77,7 +98,8 @@ export const climateDefaults: ClimateParams = {
 
 export interface ClimateState {
   cumulativeEmissions: number;  // Gt CO2 since preindustrial
-  temperature: number;          // °C above preindustrial
+  temperature: number;          // Surface temperature, °C above preindustrial (T₁)
+  deepTemp: number;             // Deep ocean temperature, °C above preindustrial (T₂)
 }
 
 // =============================================================================
@@ -90,11 +112,11 @@ export interface ClimateInputs {
 }
 
 export interface ClimateOutputs {
-  /** Current temperature (°C above preindustrial) */
+  /** Surface temperature (°C above preindustrial) */
   temperature: number;
   /** Atmospheric CO2 (ppm) */
   co2ppm: number;
-  /** Equilibrium temperature if emissions stopped */
+  /** Equilibrium temperature at current CO2 (°C) */
   equilibriumTemp: number;
   /** Global average damage (fraction of GDP, 0-0.30) */
   damages: number;
@@ -102,6 +124,10 @@ export interface ClimateOutputs {
   regionalDamages: Record<Region, number>;
   /** Cumulative emissions (Gt CO2) */
   cumulativeEmissions: number;
+  /** Deep ocean temperature anomaly (°C) */
+  deepOceanTemp: number;
+  /** Current radiative forcing (W/m²) */
+  radiativeForcing: number;
 }
 
 // =============================================================================
@@ -115,7 +141,7 @@ export const climateModule: Module<
   ClimateOutputs
 > = defineModule({
   name: 'climate',
-  description: 'CO2 accumulation, temperature, and DICE-style damages',
+  description: 'Two-layer energy balance (Geoffroy et al. 2013) with DICE-style damages',
 
   defaults: climateDefaults,
 
@@ -155,6 +181,8 @@ export const climateModule: Module<
     'damages',
     'regionalDamages',
     'cumulativeEmissions',
+    'deepOceanTemp',
+    'radiativeForcing',
   ] as const,
 
   connectorTypes: {
@@ -168,6 +196,8 @@ export const climateModule: Module<
       damages: 'number',
       regionalDamages: 'record',
       cumulativeEmissions: 'number',
+      deepOceanTemp: 'number',
+      radiativeForcing: 'number',
     },
   },
 
@@ -206,6 +236,20 @@ export const climateModule: Module<
       );
     }
 
+    // Two-layer params
+    if (p.upperHeatCapacity <= 0) {
+      errors.push('upperHeatCapacity must be positive');
+    }
+    if (p.deepHeatCapacity <= 0) {
+      errors.push('deepHeatCapacity must be positive');
+    }
+    if (p.heatExchange <= 0) {
+      errors.push('heatExchange must be positive');
+    }
+    if (p.forcingPerDoubling <= 0) {
+      errors.push('forcingPerDoubling must be positive');
+    }
+
     // Regional damage multipliers
     for (const region of REGIONS) {
       const mult = p.regionalDamage[region];
@@ -232,9 +276,29 @@ export const climateModule: Module<
   },
 
   init(params: ClimateParams): ClimateState {
+    // Compute initial CO2 and forcing for deep ocean temperature derivation
+    const atmosphericCO2 =
+      params.cumulativeCO2_2025 * params.airborneFraction * params.ppmPerGt;
+    const co2ppm = params.preindustrialCO2 + atmosphericCO2;
+    const forcing =
+      params.forcingPerDoubling *
+      Math.log2(co2ppm / params.preindustrialCO2);
+    const lambda = params.forcingPerDoubling / params.sensitivity;
+
+    // Solve for initial deep ocean temperature from energy balance:
+    // C₁ × warmingRate = F - λ·T₁ - γ·(T₁ - T₂)
+    // T₂ = [C₁ × warmingRate - F + (λ + γ) × T₁] / γ
+    const T1 = params.currentTemp;
+    const deepTemp =
+      (params.upperHeatCapacity * params.warmingRate -
+        forcing +
+        (lambda + params.heatExchange) * T1) /
+      params.heatExchange;
+
     return {
       cumulativeEmissions: params.cumulativeCO2_2025,
-      temperature: params.currentTemp,
+      temperature: T1,
+      deepTemp: Math.max(0, deepTemp),
     };
   },
 
@@ -247,16 +311,30 @@ export const climateModule: Module<
       newCumulative * params.airborneFraction * params.ppmPerGt;
     const co2ppm = params.preindustrialCO2 + atmosphericCO2;
 
-    // Equilibrium temperature from radiative forcing
-    // T = S × log₂(CO₂/280)
-    const equilibriumTemp =
-      params.sensitivity *
+    // Radiative forcing
+    const forcing =
+      params.forcingPerDoubling *
       Math.log2(co2ppm / params.preindustrialCO2);
 
-    // Temperature lags behind equilibrium (ocean thermal inertia)
-    const lagFactor = 1 / params.temperatureLag;
+    // Feedback parameter (λ = F₂ₓ / ECS)
+    const lambda = params.forcingPerDoubling / params.sensitivity;
+
+    // Two-layer energy balance (Geoffroy et al. 2013)
+    // Euler forward integration, Δt = 1 year
+    const surfaceHeating =
+      forcing -
+      lambda * state.temperature -
+      params.heatExchange * (state.temperature - state.deepTemp);
     const temperature =
-      state.temperature + (equilibriumTemp - state.temperature) * lagFactor;
+      state.temperature + surfaceHeating / params.upperHeatCapacity;
+
+    const deepHeating =
+      params.heatExchange * (state.temperature - state.deepTemp);
+    const deepTemp =
+      state.deepTemp + deepHeating / params.deepHeatCapacity;
+
+    // Equilibrium temperature (when T₁ = T₂ and all dT/dt = 0)
+    const equilibriumTemp = forcing / lambda;
 
     // Calculate damages
     const baseDamage = quadraticDamage(
@@ -274,17 +352,12 @@ export const climateModule: Module<
     const tippingMult =
       1 + (params.tippingMultiplier - 1) * tippingTransition;
 
-    // Cap needed: tippingMult can push baseDamage * tippingMult above maxDamage
-    // even though quadraticDamage already caps at maxDamage (baseDamage ≤ maxDamage),
-    // because tippingMult > 1 multiplies after the quadratic cap.
     const globalDamages = Math.min(
       baseDamage * tippingMult,
       params.maxDamage
     );
 
     // Regional damages
-    // Cap needed: regional multipliers (e.g., row=1.8) and tippingMult together
-    // can push regional damage well above maxDamage.
     const regionalDamages: Record<Region, number> = {} as Record<Region, number>;
     for (const region of REGIONS) {
       regionalDamages[region] = Math.min(
@@ -297,6 +370,7 @@ export const climateModule: Module<
       state: {
         cumulativeEmissions: newCumulative,
         temperature,
+        deepTemp,
       },
       outputs: {
         temperature,
@@ -305,6 +379,8 @@ export const climateModule: Module<
         damages: globalDamages,
         regionalDamages,
         cumulativeEmissions: newCumulative,
+        deepOceanTemp: deepTemp,
+        radiativeForcing: forcing,
       },
     };
   },

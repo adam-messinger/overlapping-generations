@@ -360,6 +360,9 @@ export interface EnergyInputs {
 
   /** Stability factor affecting investment (0-1) */
   stabilityFactor: number;
+
+  /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
+  mineralConstraint: number;
 }
 
 /** Regional capacity outputs */
@@ -574,6 +577,7 @@ export const energyModule: Module<
     'availableInvestment',
     'regionalInvestment',
     'stabilityFactor',
+    'mineralConstraint',
   ] as const,
 
   outputs: [
@@ -949,6 +953,15 @@ export const energyModule: Module<
       fundedAdditions.gas = desiredAdditions.gas ?? 0;
       // Coal already zeroed above (desired = 0), but not in cleanSources so set explicitly
       fundedAdditions.coal = desiredAdditions.coal ?? 0;
+
+      // Apply mineral supply constraint: scale down mineral-intensive additions
+      // Only affects sources that require minerals (solar, wind, battery, nuclear)
+      const mc = inputs.mineralConstraint ?? 1.0;
+      if (mc < 1.0) {
+        for (const source of ['solar', 'wind', 'battery', 'nuclear'] as EnergySource[]) {
+          fundedAdditions[source] *= mc;
+        }
+      }
 
       // Calculate retirements and update regional state
       for (const source of ENERGY_SOURCES) {

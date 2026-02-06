@@ -267,6 +267,40 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
+    // Net energy: embodied energy of new capacity + operating energy of infrastructure
+    // Subtracted from productive energy to account for energy system overhead
+    energySystemOverheadComputed: {
+      fn: (outputs: Record<string, any>) => {
+        const additions = outputs.additions;   // GW (GWh for battery) by source
+        const capacities = outputs.capacities; // GW (GWh for battery) by source
+        if (!additions || !capacities) return 0;
+
+        // Embodied energy (TWh per GW installed; TWh per GWh for battery)
+        const embodied: Record<string, number> = {
+          solar: 1.5, wind: 2.0, nuclear: 5.0,
+          gas: 0.8, coal: 1.0, hydro: 3.0, battery: 0.00015, // 0.15 TWh/GWh = 150 kWh/kWh
+        };
+
+        // Operating energy (TWh per GW per year; negligible for battery/solar)
+        const operating: Record<string, number> = {
+          solar: 0.02, wind: 0.05, nuclear: 0.15,
+          gas: 0.10, coal: 0.12, hydro: 0.01, battery: 0,
+        };
+
+        let totalEmbodied = 0;
+        let totalOperating = 0;
+        for (const source of Object.keys(additions)) {
+          const add = additions[source] ?? 0;
+          const cap = capacities[source] ?? 0;
+          totalEmbodied += add * (embodied[source] ?? 0);
+          totalOperating += cap * (operating[source] ?? 0);
+        }
+
+        return totalEmbodied + totalOperating;
+      },
+      dependsOn: [],  // No deps to avoid cycle
+    },
+
     // GDP-weighted average of regional damages (matches manual path's capital input)
     gdpWeightedDamages: {
       fn: (outputs: Record<string, any>) => {
@@ -367,6 +401,20 @@ function buildLags() {
       source: 'totalResourceEnergy',
       delay: 1,
       initial: 0,
+    },
+
+    // Production needs lagged energy system overhead (embodied + operating)
+    energySystemOverhead: {
+      source: 'energySystemOverheadComputed',
+      delay: 1,
+      initial: 0,
+    },
+
+    // Energy needs lagged mineral constraint (resources runs after energy in topo order)
+    mineralConstraint: {
+      source: 'mineralConstraint',
+      delay: 1,
+      initial: 1.0,  // No constraint in year 0
     },
   };
 }
@@ -494,6 +542,8 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       equilibriumTemp: o.equilibriumTemp,
       damages: o.damages,
       cumulativeEmissions: o.cumulativeEmissions,
+      deepOceanTemp: o.deepOceanTemp ?? 0,
+      radiativeForcing: o.radiativeForcing ?? 0,
 
       // Resources - Minerals
       copperDemand: o.minerals?.copper?.demand ?? 0,
@@ -524,6 +574,20 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
+      energySystemOverhead: o.energySystemOverheadComputed ?? 0,
+
+      // Mineral constraint
+      mineralConstraint: o.mineralConstraint ?? 1.0,
+
+      // Water stress
+      waterStress: o.waterStress ?? { oecd: 0, china: 0, em: 0, row: 0 },
+      waterYieldFactor: o.waterYieldFactor ?? 1,
+
+      // Infrastructure lock-in
+      fossilStockTWh: o.fossilStockTWh ?? 0,
+
+      // Heat stress
+      heatStressLoss: o.heatStressLoss ?? { oecd: 0, china: 0, em: 0, row: 0 },
 
       // Regional
       regionalPopulation: o.regionalPopulation,

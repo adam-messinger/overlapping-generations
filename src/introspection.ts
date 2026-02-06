@@ -241,12 +241,14 @@ export function describeOutputs(): OutputSchema {
     curtailmentTWh: { unit: 'TWh', description: 'VRE generation curtailed', module: 'dispatch' },
     curtailmentRate: { unit: 'fraction', description: 'Fraction of available VRE curtailed', module: 'dispatch' },
 
-    // Climate
-    temperature: { unit: '°C', description: 'Temperature above preindustrial', module: 'climate' },
+    // Climate (two-layer energy balance, Geoffroy et al. 2013)
+    temperature: { unit: '°C', description: 'Surface temperature above preindustrial (T₁)', module: 'climate' },
     co2ppm: { unit: 'ppm', description: 'Atmospheric CO2 concentration', module: 'climate' },
-    equilibriumTemp: { unit: '°C', description: 'Equilibrium temperature if emissions stopped', module: 'climate' },
+    equilibriumTemp: { unit: '°C', description: 'Equilibrium temperature at current CO2 (T₁=T₂ steady state)', module: 'climate' },
     damages: { unit: 'fraction', description: 'Global climate damage (fraction of GDP)', module: 'climate' },
     cumulativeEmissions: { unit: 'Gt CO2', description: 'Cumulative CO2 emissions since preindustrial', module: 'climate' },
+    deepOceanTemp: { unit: '°C', description: 'Deep ocean temperature anomaly (T₂, slow response ~200yr)', module: 'climate' },
+    radiativeForcing: { unit: 'W/m²', description: 'Radiative forcing from CO2 (F₂ₓ × log₂(CO₂/280))', module: 'climate' },
 
     // Resources - Minerals
     copperDemand: { unit: 'Mt/year', description: 'Annual copper demand (net of recycling)', module: 'resources' },
@@ -278,12 +280,15 @@ export function describeOutputs(): OutputSchema {
     capitalContribution: { unit: 'ratio', description: '(K/K₀)^α contribution to GDP', module: 'production' },
     laborContribution: { unit: 'ratio', description: '(L/L₀)^β contribution to GDP', module: 'production' },
     energyContribution: { unit: 'ratio', description: '(E/E₀)^γ contribution to GDP', module: 'production' },
-    tfpLevel: { unit: 'ratio', description: 'Total factor productivity level', module: 'production' },
+    efficiencyLevel: { unit: 'ratio', description: 'Combined efficiency multiplier (end-use + organizational, replaces TFP)', module: 'production' },
+    endUseEfficiency: { unit: 'ratio', description: 'End-use efficiency multiplier (Wright\'s Law on cumulative useful work)', module: 'production' },
+    eta: { unit: 'fraction', description: 'Current second-law efficiency η(t), 0.35→0.60 ceiling', module: 'production' },
 
     // Resources - Energy
     miningEnergyTWh: { unit: 'TWh', description: 'Energy consumed by mining operations', module: 'resources' },
     farmingEnergyTWh: { unit: 'TWh', description: 'Energy consumed by farming operations', module: 'resources' },
     totalResourceEnergy: { unit: 'TWh', description: 'Total energy for mining + farming', module: 'resources' },
+    energySystemOverhead: { unit: 'TWh', description: 'Embodied + operating energy of energy infrastructure (net energy overhead)', module: 'production' },
 
     // Regional
     regionalPopulation: { unit: 'people', description: 'Population by region', module: 'demographics' },

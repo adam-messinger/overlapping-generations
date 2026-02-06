@@ -17,7 +17,7 @@
  */
 
 import { defineModule, Module } from '../framework/module.js';
-import { EnergySource, ValidationResult } from '../framework/types.js';
+import { EnergySource, Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
@@ -35,6 +35,11 @@ export interface MineralParams {
   recyclingBase: number;     // Baseline recycling rate
   recyclingMax: number;      // Max recycling rate
   recyclingHalfway: number;  // Mt stock at halfway to max recycling
+
+  // Mining supply constraints
+  annualSupply2025: number;  // Mt/year current mining capacity
+  maxMiningGrowth: number;   // Max annual growth rate of mining capacity
+  maxMiningCapacity: number; // Mt/year ceiling (logistic saturation)
 }
 
 export interface LandParams {
@@ -95,6 +100,29 @@ export interface MiningEnergyParams {
   depletionExponent: number;                    // 0.3
 }
 
+/**
+ * Water stress model (IPCC AR6-calibrated parametric approach)
+ *
+ * At 4-region resolution, supply/demand accounting can't capture local stress
+ * (Sahel vs Congo, India vs Brazil). Instead, we model the fraction of
+ * each region's agriculture under water stress as a function of warming,
+ * calibrated to IPCC AR6 WG2 Chapter 4 findings:
+ *   - 2°C: ~2-5% additional yield loss from water
+ *   - 3°C: ~5-10%
+ *   - 4°C: ~10-20%
+ */
+export interface WaterRegionalParams {
+  vulnerability: number;    // Stress per °C above 1.2 (higher = more arid/exposed)
+  farmlandShare: number;    // Share of global farmland (for weighting yield impact)
+}
+
+export interface WaterParams {
+  regional: Record<Region, WaterRegionalParams>;
+  baseSeverity: number;       // Scale factor at moderate warming (1.0)
+  severityGrowth: number;     // Severity growth per °C above 2.0 (0.5)
+  yieldSensitivity: number;   // Yield loss per unit water stress (0.3)
+}
+
 export interface ResourcesParams {
   minerals: {
     copper: MineralParams;
@@ -105,6 +133,7 @@ export interface ResourcesParams {
   mining: MiningEnergyParams;
   land: LandParams & { energyPerHectare: number };
   food: FoodParams;
+  water: WaterParams;
 }
 
 export const resourcesDefaults: ResourcesParams = {
@@ -119,6 +148,9 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingBase: 0.15,
       recyclingMax: 0.50,
       recyclingHalfway: 500,
+      annualSupply2025: 22,       // Mt/year current mining capacity
+      maxMiningGrowth: 0.03,      // 3%/yr max growth
+      maxMiningCapacity: 60,      // Mt/yr logistic ceiling
     },
     lithium: {
       name: 'Lithium',
@@ -128,6 +160,9 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingBase: 0.05,
       recyclingMax: 0.30,
       recyclingHalfway: 20,
+      annualSupply2025: 0.13,     // Mt/year (fast-expanding)
+      maxMiningGrowth: 0.15,      // 15%/yr max growth (new mines opening fast)
+      maxMiningCapacity: 2.0,     // Mt/yr logistic ceiling
     },
     rareEarths: {
       name: 'Rare Earths',
@@ -137,6 +172,9 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingBase: 0.01,
       recyclingMax: 0.20,
       recyclingHalfway: 10,
+      annualSupply2025: 0.30,     // Mt/year
+      maxMiningGrowth: 0.05,      // 5%/yr
+      maxMiningCapacity: 1.5,     // Mt/yr logistic ceiling
     },
     steel: {
       name: 'Steel',
@@ -148,6 +186,9 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingBase: 0.35,
       recyclingMax: 0.70,
       recyclingHalfway: 5000,
+      annualSupply2025: 1900,     // Mt/year
+      maxMiningGrowth: 0.02,      // 2%/yr max growth
+      maxMiningCapacity: 3500,    // Mt/yr logistic ceiling
     },
   },
   mining: {
@@ -207,6 +248,30 @@ export const resourcesDefaults: ResourcesParams = {
     caloriesPerKgGrain: 3400,     // kcal per kg grain
     proteinCaloriesPerKg: 4000,   // kcal per kg protein (meat/dairy avg)
   },
+
+  water: {
+    regional: {
+      oecd: {
+        vulnerability: 0.03,    // Low — temperate, good infrastructure
+        farmlandShare: 0.25,    // 25% of global cropland
+      },
+      china: {
+        vulnerability: 0.06,    // Moderate — North China plains drying
+        farmlandShare: 0.15,    // 15% of global cropland
+      },
+      em: {
+        vulnerability: 0.10,    // Significant — India water table dropping
+        farmlandShare: 0.30,    // 30% of global cropland
+      },
+      row: {
+        vulnerability: 0.15,    // Severe — Sahel, Horn of Africa
+        farmlandShare: 0.30,    // 30% of global cropland
+      },
+    },
+    baseSeverity: 1.0,          // Scale factor at moderate warming
+    severityGrowth: 0.5,        // 50% more severe per °C above 2.0
+    yieldSensitivity: 0.3,      // 30% of water stress → yield loss
+  },
 };
 
 // =============================================================================
@@ -214,7 +279,8 @@ export const resourcesDefaults: ResourcesParams = {
 // =============================================================================
 
 export interface MineralState {
-  cumulative: number;  // Mt total extracted
+  cumulative: number;      // Mt total extracted
+  miningCapacity: number;  // Mt/year current mining capacity
 }
 
 export interface LandState {
@@ -304,9 +370,12 @@ export interface ResourcesOutputs {
   carbon: CarbonOutput;
   food: FoodOutput;
   foodStress: number;  // 0-1, fraction of food demand that cannot be met
+  mineralConstraint: number;  // 0-1, min supply ratio across minerals (1 = no constraint)
   miningEnergyTWh: number;   // Energy for mining operations
   farmingEnergyTWh: number;  // Energy for farming operations
   totalResourceEnergy: number; // Sum of mining + farming energy (TWh)
+  waterStress: Record<Region, number>;  // 0-1 per region
+  waterYieldFactor: number;   // 0-1 global yield multiplier from water
 }
 
 // =============================================================================
@@ -480,9 +549,12 @@ export const resourcesModule: Module<
     'carbon',
     'food',
     'foodStress',
+    'mineralConstraint',
     'miningEnergyTWh',
     'farmingEnergyTWh',
     'totalResourceEnergy',
+    'waterStress',
+    'waterYieldFactor',
   ] as const,
 
   validate(params: Partial<ResourcesParams>): ValidationResult {
@@ -548,6 +620,22 @@ export const resourcesModule: Module<
         result.land = { ...resourcesDefaults.land, ...p.land };
       }
 
+      // Deep merge water
+      if (p.water) {
+        result.water = { ...resourcesDefaults.water, ...p.water };
+        if (p.water.regional) {
+          result.water.regional = { ...resourcesDefaults.water.regional };
+          for (const region of REGIONS) {
+            if (p.water.regional[region]) {
+              result.water.regional[region] = {
+                ...resourcesDefaults.water.regional[region],
+                ...p.water.regional[region],
+              };
+            }
+          }
+        }
+      }
+
       return result;
     }, partial);
   },
@@ -555,10 +643,10 @@ export const resourcesModule: Module<
   init(params: ResourcesParams): ResourcesState {
     return {
       minerals: {
-        copper: { cumulative: 0 },
-        lithium: { cumulative: 0 },
-        rareEarths: { cumulative: 0 },
-        steel: { cumulative: 0 },
+        copper: { cumulative: 0, miningCapacity: params.minerals.copper.annualSupply2025 },
+        lithium: { cumulative: 0, miningCapacity: params.minerals.lithium.annualSupply2025 },
+        rareEarths: { cumulative: 0, miningCapacity: params.minerals.rareEarths.annualSupply2025 },
+        steel: { cumulative: 0, miningCapacity: params.minerals.steel.annualSupply2025 },
       },
       land: {
         farmland: params.land.farmland2025,
@@ -593,9 +681,13 @@ export const resourcesModule: Module<
     const mineralOutputs: Record<MineralKey, MineralOutput> = {} as any;
     const newMineralState: Record<MineralKey, MineralState> = {} as any;
 
+    // Track minimum supply ratio across all minerals
+    let mineralConstraint = 1.0;
+
     for (const key of MINERAL_KEYS) {
       const mineral = params.minerals[key];
       const prevCumulative = state.minerals[key].cumulative;
+      const prevMiningCapacity = state.minerals[key].miningCapacity;
 
       const result = calculateMineralDemand(
         mineral,
@@ -603,6 +695,19 @@ export const resourcesModule: Module<
         yearIndex,
         prevCumulative
       );
+
+      // Logistic mining capacity growth:
+      // capacity grows at maxMiningGrowth but slows as it approaches maxMiningCapacity
+      const utilizationFraction = prevMiningCapacity / mineral.maxMiningCapacity;
+      const effectiveGrowth = mineral.maxMiningGrowth * Math.max(0, 1 - utilizationFraction);
+      const newMiningCapacity = prevMiningCapacity * (1 + effectiveGrowth);
+
+      // Supply ratio: can supply meet gross demand (before recycling)?
+      // Net demand (after recycling) is what mining must actually provide
+      const supplyRatio = result.demand > 0
+        ? Math.min(1, newMiningCapacity / result.demand)
+        : 1.0;
+      mineralConstraint = Math.min(mineralConstraint, supplyRatio);
 
       const newCumulative = prevCumulative + result.demand;
 
@@ -615,7 +720,7 @@ export const resourcesModule: Module<
         reserveRatio: mineral.reserves ? newCumulative / mineral.reserves : 0,
       };
 
-      newMineralState[key] = { cumulative: newCumulative };
+      newMineralState[key] = { cumulative: newCumulative, miningCapacity: newMiningCapacity };
     }
 
     // =========================================================================
@@ -636,7 +741,28 @@ export const resourcesModule: Module<
       const cliffDelta = excessTemp - land.yieldCliffExcess;
       yieldDamageFactor = precliff * Math.exp(-land.yieldCliffSteepness * cliffDelta);
     }
-    const currentYield = techYield * yieldDamageFactor;
+    // =========================================================================
+    // WATER STRESS (IPCC AR6-calibrated parametric model)
+    // =========================================================================
+    // Regional water stress grows with warming × vulnerability.
+    // Severity increases above 2°C (evapotranspiration + precipitation shifts).
+    const { water } = params;
+    const warmingAboveBaseline = Math.max(0, temperature - 1.2);
+    const severityMultiplier = water.baseSeverity
+      + water.severityGrowth * Math.max(0, temperature - 2.0);
+
+    const waterStressOut = {} as Record<Region, number>;
+    let globalWaterStress = 0;
+
+    for (const r of REGIONS) {
+      const wr = water.regional[r];
+      waterStressOut[r] = Math.min(1, wr.vulnerability * warmingAboveBaseline * severityMultiplier);
+      globalWaterStress += waterStressOut[r] * wr.farmlandShare;
+    }
+
+    // Water yield factor compounds with temperature damage
+    const waterYieldFactor = Math.max(0, 1 - globalWaterStress * water.yieldSensitivity);
+    const currentYield = techYield * yieldDamageFactor * waterYieldFactor;
 
     // Farmland = grain demand / yield × non-food multiplier
     // grainDemand is in Mt, yield is t/ha → result in Mha
@@ -767,9 +893,12 @@ export const resourcesModule: Module<
         carbon: carbonOutput,
         food: foodOutput,
         foodStress,
+        mineralConstraint,
         miningEnergyTWh,
         farmingEnergyTWh,
         totalResourceEnergy,
+        waterStress: waterStressOut,
+        waterYieldFactor,
       },
     };
   },
