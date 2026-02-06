@@ -29,6 +29,10 @@ export interface Scenario {
     probability?: number;  // For probabilistic scenarios (e.g., Twin-Engine)
   };
 
+  /** Optional simulation range overrides */
+  startYear?: number;
+  endYear?: number;
+
   // Module parameters (all optional - only specify overrides)
   demographics?: SimulationParams['demographics'];
   demand?: SimulationParams['demand'];
@@ -78,6 +82,9 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
       console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
     }
   }
+
+  if (scenario.startYear !== undefined) params.startYear = scenario.startYear;
+  if (scenario.endYear !== undefined) params.endYear = scenario.endYear;
 
   if (scenario.demographics) params.demographics = scenario.demographics;
   if (scenario.demand) params.demand = scenario.demand;
