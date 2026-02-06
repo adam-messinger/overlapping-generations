@@ -31,6 +31,7 @@
 import { defineModule, Module } from '../framework/module.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { validatedMerge } from '../framework/validated-merge.js';
+import { distributeByGDP } from '../primitives/distribute.js';
 
 // =============================================================================
 // PARAMETERS
@@ -443,18 +444,6 @@ function dispatchRegion(
 // =============================================================================
 // HELPER: Distribute value by GDP share (fallback)
 // =============================================================================
-
-function distributeByGDP(total: number): Record<Region, number> {
-  const shares: Record<Region, number> = {
-    oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
-    seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
-  };
-  const result: Record<Region, number> = {} as any;
-  for (const region of REGIONS) {
-    result[region] = total * shares[region];
-  }
-  return result;
-}
 
 // =============================================================================
 // MODULE DEFINITION

@@ -13,6 +13,7 @@
 
 import { ComponentParams } from './framework/component-params.js';
 import { generateParameterSchema, GeneratedParameterInfo } from './framework/introspect.js';
+import { deepMerge } from './scenario.js';
 
 // Import all modules for auto-generated schema
 import { climateModule } from './modules/climate.js';
@@ -120,32 +121,9 @@ export function buildMultiParams(params: Record<string, number | boolean>): Reco
 
   for (const [name, value] of Object.entries(params)) {
     const single = buildParams(name, value);
-    result = deepMergeObjects(result, single);
+    result = deepMerge(result, single);
   }
 
-  return result;
-}
-
-function deepMergeObjects(
-  base: Record<string, unknown>,
-  override: Record<string, unknown>
-): Record<string, unknown> {
-  const result = { ...base };
-  for (const key of Object.keys(override)) {
-    const overrideVal = override[key];
-    const baseVal = result[key];
-    if (
-      typeof overrideVal === 'object' && overrideVal !== null && !Array.isArray(overrideVal) &&
-      typeof baseVal === 'object' && baseVal !== null && !Array.isArray(baseVal)
-    ) {
-      result[key] = deepMergeObjects(
-        baseVal as Record<string, unknown>,
-        overrideVal as Record<string, unknown>
-      );
-    } else {
-      result[key] = overrideVal;
-    }
-  }
   return result;
 }
 
