@@ -136,7 +136,7 @@ console.log('--- Initialization ---\n');
 
 test('init returns correct initial capital stock', () => {
   const state = capitalModule.init(capitalDefaults);
-  expect(state.stock).toBe(420);
+  expect(state.stock).toBe(553);
 });
 
 // --- Year 0 Outputs ---
@@ -145,8 +145,8 @@ console.log('\n--- Year 0 Outputs ---\n');
 
 test('step year 0 returns correct capital stock', () => {
   const { outputs } = runYears(1);
-  // Initial stock is $420T
-  expect(outputs.stock).toBeBetween(400, 450);
+  // Initial stock is $553T PPP (K/Y ≈ 3.5 at $158T GDP)
+  expect(outputs.stock).toBeBetween(540, 580);
 });
 
 test('step year 0 returns correct K/Y ratio', () => {

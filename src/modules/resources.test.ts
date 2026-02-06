@@ -387,7 +387,6 @@ test('module has correct name', () => {
 });
 
 test('module declares correct inputs', () => {
-  expect(resourcesModule.inputs.includes('capacities')).toBeTrue();
   expect(resourcesModule.inputs.includes('additions')).toBeTrue();
   expect(resourcesModule.inputs.includes('temperature')).toBeTrue();
 });

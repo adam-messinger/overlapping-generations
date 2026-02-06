@@ -118,28 +118,22 @@ test('init returns state with all regions', () => {
   }
 });
 
-test('init sets correct 2025 GDP', () => {
+test('init sets correct 2025 GDP shares', () => {
   const state = demandModule.init(demandDefaults);
-  const totalGdp =
-    state.regions.oecd.gdp +
-    state.regions.china.gdp +
-    state.regions.india.gdp +
-    state.regions.latam.gdp +
-    state.regions.seasia.gdp +
-    state.regions.russia.gdp +
-    state.regions.mena.gdp +
-    state.regions.ssa.gdp;
+  const totalShare = REGIONS.reduce((sum, r) => sum + state.regions[r].gdpShare, 0);
 
-  // oecd 56 + china 18 + india 13 + latam 8 + seasia 7 + russia 4 + mena 5 + ssa 7 = 118
-  expect(totalGdp).toBeCloseTo(118, 0);
+  // GDP shares should sum to 1.0
+  expect(totalShare).toBeCloseTo(1.0, 2);
+  // OECD should have largest share (~39% of $158T PPP)
+  expect(state.regions.oecd.gdpShare).toBeBetween(0.35, 0.45);
 });
 
 test('init sets correct energy intensity by region', () => {
   const state = demandModule.init(demandDefaults);
-  expect(state.regions.oecd.intensity).toBeCloseTo(0.70, 2);
-  expect(state.regions.china.intensity).toBeCloseTo(2.04, 2);
-  expect(state.regions.india.intensity).toBeCloseTo(0.80, 2);
-  expect(state.regions.russia.intensity).toBeCloseTo(1.80, 2);
+  expect(state.regions.oecd.intensity).toBeCloseTo(0.63, 2);
+  expect(state.regions.china.intensity).toBeCloseTo(1.11, 2);
+  expect(state.regions.india.intensity).toBeCloseTo(0.65, 2);
+  expect(state.regions.russia.intensity).toBeCloseTo(1.03, 2);
 });
 
 // --- Year 0 Outputs ---
