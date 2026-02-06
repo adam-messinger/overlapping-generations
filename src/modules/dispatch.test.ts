@@ -8,58 +8,7 @@
 import { dispatchModule, dispatchDefaults } from './dispatch.js';
 import { ENERGY_SOURCES, EnergySource } from '../framework/types.js';
 
-// Simple test framework
-let passed = 0;
-let failed = 0;
-
-function test(name: string, fn: () => void) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-    passed++;
-  } catch (e: any) {
-    console.error(`✗ ${name}`);
-    console.error(`  ${e.message}`);
-    failed++;
-  }
-}
-
-function expect(actual: any) {
-  return {
-    toBe(expected: any) {
-      if (actual !== expected) {
-        throw new Error(`Expected ${expected}, got ${actual}`);
-      }
-    },
-    toBeCloseTo(expected: number, precision: number = 2) {
-      const diff = Math.abs(actual - expected);
-      const threshold = Math.pow(10, -precision);
-      if (diff > threshold) {
-        throw new Error(`Expected ~${expected}, got ${actual} (diff: ${diff.toFixed(4)})`);
-      }
-    },
-    toBeGreaterThan(expected: number) {
-      if (actual <= expected) {
-        throw new Error(`Expected ${actual} > ${expected}`);
-      }
-    },
-    toBeLessThan(expected: number) {
-      if (actual >= expected) {
-        throw new Error(`Expected ${actual} < ${expected}`);
-      }
-    },
-    toBeBetween(min: number, max: number) {
-      if (actual < min || actual > max) {
-        throw new Error(`Expected ${actual} to be between ${min} and ${max}`);
-      }
-    },
-    toBeTrue() {
-      if (actual !== true) {
-        throw new Error(`Expected true, got ${actual}`);
-      }
-    },
-  };
-}
+import { test, expect, printSummary } from '../test-utils.js';
 
 // Helper to create typical 2025 inputs
 function createInputs(options: {
@@ -370,11 +319,4 @@ test('module declares correct outputs', () => {
 // SUMMARY
 // =============================================================================
 
-console.log('\n=== Summary ===\n');
-console.log(`Passed: ${passed}`);
-console.log(`Failed: ${failed}`);
-console.log(`Total:  ${passed + failed}`);
-
-if (failed > 0) {
-  process.exit(1);
-}
+printSummary();

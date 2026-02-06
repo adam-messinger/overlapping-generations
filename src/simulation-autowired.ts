@@ -48,6 +48,13 @@ const ALL_MODULES = [
 // BUILD TRANSFORMS AND LAGS
 // =============================================================================
 
+/** Assert a required output exists. Throws on broken wiring instead of masking with a fallback. */
+function requireOutput<T>(outputs: Record<string, any>, key: string, context: string): T {
+  const val = outputs[key];
+  if (val === undefined) throw new Error(`${context}: required output '${key}' not available`);
+  return val as T;
+}
+
 /**
  * Build transforms with proper parameter access.
  * Closure captures merged energy params for carbonPrice/regionalCarbonPrice.
@@ -59,11 +66,12 @@ function buildTransforms(mergedEnergyParams: any) {
   return {
     // Energy needs availableInvestment (from capital.energyInvestment)
     availableInvestment: {
-      fn: (outputs: Record<string, any>) => outputs.energyInvestment ?? outputs.investment ?? 30,
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'energyInvestment', 'availableInvestment'),
       dependsOn: ['energyInvestment'],
     },
 
     // Energy needs stabilityFactor (from capital.stability)
+    // Defaults to 1.0 before capital module runs
     stabilityFactor: {
       fn: (outputs: Record<string, any>) => outputs.stability ?? 1.0,
       dependsOn: ['stability'],
@@ -83,16 +91,15 @@ function buildTransforms(mergedEnergyParams: any) {
 
     // Dispatch and energy use electricity demand from demand module
     electricityDemand: {
-      fn: (outputs: Record<string, any>) =>
-        outputs.electricityDemand ?? 30000,
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'electricityDemand', 'electricityDemand'),
       dependsOn: ['electricityDemand'],
     },
 
     // Resources needs gdpPerCapita (derived)
     gdpPerCapita: {
       fn: (outputs: Record<string, any>) => {
-        const gdp = outputs.gdp ?? 158;
-        const pop = outputs.population ?? 8e9;
+        const gdp = requireOutput<number>(outputs, 'gdp', 'gdpPerCapita');
+        const pop = requireOutput<number>(outputs, 'population', 'gdpPerCapita');
         return (gdp * 1e12) / pop;
       },
       dependsOn: ['gdp', 'population'],
@@ -102,8 +109,8 @@ function buildTransforms(mergedEnergyParams: any) {
     gdpPerCapita2025: {
       fn: (outputs: Record<string, any>, _year: number, yearIndex: number) => {
         if (yearIndex === 0) {
-          const gdp = outputs.gdp ?? 158;
-          const pop = outputs.population ?? 8e9;
+          const gdp = requireOutput<number>(outputs, 'gdp', 'gdpPerCapita2025');
+          const pop = requireOutput<number>(outputs, 'population', 'gdpPerCapita2025');
           capturedGdpPerCapita2025 = (gdp * 1e12) / pop;
         }
         return capturedGdpPerCapita2025;
@@ -114,12 +121,12 @@ function buildTransforms(mergedEnergyParams: any) {
     // Climate needs total emissions (electricity + non-electric + land use - CDR)
     emissions: {
       fn: (outputs: Record<string, any>) => {
-        const elecEmissions = outputs.electricityEmissions ?? 10;
-        const nonElecEmissions = outputs.nonElectricEmissions ?? 25;
+        const elecEmissions = requireOutput<number>(outputs, 'electricityEmissions', 'emissions');
+        const nonElecEmissions = requireOutput<number>(outputs, 'nonElectricEmissions', 'emissions');
         // netFlux is nested inside carbon output from resources
         const carbon = outputs.carbon;
-        const landUse = carbon?.netFlux ?? 0;
-        const cdrRemoval = outputs.cdrRemovalGtCO2 ?? 0;
+        const landUse = carbon?.netFlux ?? 0;  // Legitimately zero when no land-use change
+        const cdrRemoval = outputs.cdrRemovalGtCO2 ?? 0;  // Zero before CDR activates
         return elecEmissions + nonElecEmissions + landUse - cdrRemoval;
       },
       dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'carbon', 'cdrRemovalGtCO2'],
@@ -132,6 +139,7 @@ function buildTransforms(mergedEnergyParams: any) {
     },
 
     // Dispatch needs solarPlusBatteryLCOE from energy
+    // Defaults to 30 $/MWh in year 0 before energy module runs
     solarPlusBatteryLCOE: {
       fn: (outputs: Record<string, any>) => outputs.solarPlusBatteryLCOE ?? 30,
       dependsOn: ['solarPlusBatteryLCOE'],
@@ -161,15 +169,14 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['population'],
     },
 
-    // Demand needs electricityGeneration (from dispatch.totalGeneration)
-    // No dependsOn to avoid cycle (demand→dispatch→demand)
+    // Cycle-breaker: reads current-year dispatch outputs that may not exist yet
+    // (demand→dispatch→demand cycle broken by omitting dependsOn)
     electricityGeneration: {
       fn: (outputs: Record<string, any>) => outputs.totalGeneration,
       dependsOn: [],
     },
 
-    // Demand needs weightedAverageLCOE (from generation-weighted lcoes)
-    // No dependsOn to avoid cycle
+    // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
     weightedAverageLCOE: {
       fn: (outputs: Record<string, any>) => {
         const generation = outputs.generation;
@@ -188,8 +195,7 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
-    // Compute net energy factor from generation + netEnergyFraction
-    // (same logic as simulation.ts lines 462-478)
+    // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
     netEnergyFactorComputed: {
       fn: (outputs: Record<string, any>) => {
         const generation = outputs.generation;
@@ -282,8 +288,8 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
-    // Net energy: embodied energy of new capacity + operating energy of infrastructure
-    // Subtracted from productive energy to account for energy system overhead
+    // Cycle-breaker: reads current-year energy outputs that may not exist yet
+    // Embodied energy of new capacity + operating energy of infrastructure
     energySystemOverheadComputed: {
       fn: (outputs: Record<string, any>) => {
         const additions = outputs.additions;   // GW (GWh for battery) by source
@@ -313,7 +319,7 @@ function buildTransforms(mergedEnergyParams: any) {
 
         return totalEmbodied + totalOperating;
       },
-      dependsOn: [],  // No deps to avoid cycle
+      dependsOn: [],
     },
 
     // Regional GDP per capita for climate adaptation
@@ -333,11 +339,11 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['regional', 'regionalPopulation'],
     },
 
-    // GDP-weighted average of regional damages (matches manual path's capital input)
+    // Cycle-breaker: reads current-year climate+demand outputs that may not exist yet
     gdpWeightedDamages: {
       fn: (outputs: Record<string, any>) => {
         const regionalDamages = outputs.regionalDamages;
-        const regional = outputs.regional; // demand regional outputs
+        const regional = outputs.regional;
         if (!regionalDamages || !regional) return outputs.damages ?? 0;
         let totalGdp = 0;
         let weightedSum = 0;
@@ -348,7 +354,7 @@ function buildTransforms(mergedEnergyParams: any) {
         }
         return totalGdp > 0 ? weightedSum / totalGdp : 0;
       },
-      dependsOn: [],  // No deps to avoid cycle - uses current outputs
+      dependsOn: [],
     },
   };
 }
@@ -506,7 +512,7 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
 /**
  * Convert autowire result to flat YearResult array (matches simulation.ts output).
  */
-export function toYearResults(result: AutowireResult, mergedDemandParams?: any): YearResult[] {
+export function toYearResults(result: AutowireResult): YearResult[] {
   const yearResults: YearResult[] = [];
 
   for (let i = 0; i < result.years.length; i++) {
@@ -523,7 +529,6 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       collegeShare: o.collegeShare,
 
       // Demand
-      capitalElasticity: mergedDemandParams?.capitalElasticity ?? 0.35,
       gdp: o.gdp,
       electricityDemand: o.electricityDemand,
       electrificationRate: o.electrificationRate,
@@ -630,8 +635,6 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
 
       // Robot/automation (from demand, expansion dissolved)
       robotLoadTWh: o.robotLoadTWh ?? 0,
-      expansionMultiplier: 1.0,  // expansion dissolved into production function
-      adjustedDemand: o.electricityDemand ?? 30000,  // no separate adjustment
       robotsPer1000: o.robotsPer1000 ?? 0,
 
       // Production (biophysical)
@@ -743,8 +746,7 @@ export function computeMetrics(results: YearResult[]): SimulationMetrics {
  */
 export function runAutowiredFull(params: SimulationParams = {}): SimulationResult {
   const autowireResult = runAutowiredSimulation(params);
-  const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
-  const results = toYearResults(autowireResult, mergedDemandParams);
+  const results = toYearResults(autowireResult);
   const metrics = computeMetrics(results);
   return { years: autowireResult.years, results, metrics };
 }

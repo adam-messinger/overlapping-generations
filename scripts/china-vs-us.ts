@@ -8,14 +8,12 @@
  * Scenario: China $80/t, OECD $15/t
  */
 import { runAutowiredSimulation, toYearResults } from '../src/simulation-autowired.js';
-import { demandModule } from '../src/modules/demand.js';
 import { getOutputsAtYear } from '../src/framework/autowire.js';
 import type { SimulationParams } from '../src/simulation.js';
 
 function run(label: string, overrides: SimulationParams) {
   const awResult = runAutowiredSimulation(overrides);
-  const mergedDemand = demandModule.mergeParams(overrides.demand ?? {});
-  const results = toYearResults(awResult, mergedDemand);
+  const results = toYearResults(awResult);
 
   console.log(`\n=== ${label} ===\n`);
   console.log(

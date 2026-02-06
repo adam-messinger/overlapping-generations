@@ -48,8 +48,6 @@ export interface SimulationParams {
   capital?: Partial<CapitalParams>;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
-  /** @deprecated expansion module dissolved into demand + production */
-  expansion?: Record<string, unknown>;
   resources?: Partial<ResourcesParams>;
   cdr?: Partial<CDRParams>;
   climate?: Partial<ClimateParams>;
@@ -66,7 +64,6 @@ export interface YearResult {
   collegeShare: number;
 
   // Demand
-  capitalElasticity: number;
   gdp: number;
   electricityDemand: number;
   electrificationRate: number;
@@ -191,10 +188,6 @@ export interface YearResult {
   // Automation (formerly expansion)
   robotLoadTWh: number;
   robotsPer1000: number;
-  /** @deprecated always 1.0 — expansion module dissolved */
-  expansionMultiplier: number;
-  /** @deprecated same as electricityDemand — expansion module dissolved */
-  adjustedDemand: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;

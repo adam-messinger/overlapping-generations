@@ -16,7 +16,7 @@
  * Where:
  * - residualTFP decays over time (catch-up growth fades)
  * - usefulWorkGrowth = growth in useful energy per worker (lagged 1 year)
- * - ε = usefulWorkElasticity (default 0.4) — Ayres/Warr finding
+ * - ε = useful work elasticity (now in production module)
  * - laborGrowth uses effective workers (education-weighted)
  * - demographicAdj penalizes high dependency ratios
  */
@@ -121,12 +121,6 @@ export interface DemandParams {
 
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
-
-  // Ayres/Warr useful work elasticity (legacy — now in production module)
-  usefulWorkElasticity: number;
-
-  // GDP growth Solow capital elasticity (legacy — now in production module)
-  capitalElasticity: number;
 
   // Baseline electrification trend
   baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
@@ -452,10 +446,6 @@ export const demandDefaults: DemandParams = {
   },
 
   efficiencyMultiplier: 1.0,    // Default: no adjustment
-
-  usefulWorkElasticity: 0.4,   // Legacy (now in production module)
-
-  capitalElasticity: 0.35,     // Legacy (now in production module)
   baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
 
   // Energy cost → GDP share feedback
@@ -821,13 +811,6 @@ export const demandModule: Module<
       }
     }
 
-    // Validate useful work elasticity
-    if (params.usefulWorkElasticity !== undefined) {
-      if (params.usefulWorkElasticity < 0 || params.usefulWorkElasticity > 1) {
-        errors.push('usefulWorkElasticity must be between 0 and 1');
-      }
-    }
-
     // Validate global params
     if (params.electrificationTarget !== undefined) {
       if (params.electrificationTarget < 0 || params.electrificationTarget > 1) {
@@ -889,12 +872,6 @@ export const demandModule: Module<
       if (p.electrificationTarget !== undefined) merged.electrificationTarget = p.electrificationTarget;
       if (p.demographicFactor !== undefined) merged.demographicFactor = p.demographicFactor;
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
-
-      // Useful work elasticity
-      if (p.usefulWorkElasticity !== undefined) merged.usefulWorkElasticity = p.usefulWorkElasticity;
-
-      // GDP growth params
-      if (p.capitalElasticity !== undefined) merged.capitalElasticity = p.capitalElasticity;
       if (p.baselineElecTrend !== undefined) merged.baselineElecTrend = p.baselineElecTrend;
 
       // Cost-driven electrification params

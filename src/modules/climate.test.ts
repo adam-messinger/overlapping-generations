@@ -6,49 +6,7 @@
  */
 
 import { climateModule, climateDefaults } from './climate.js';
-
-// Simple test framework (would use Jest/Vitest in real project)
-function test(name: string, fn: () => void) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-  } catch (e: any) {
-    console.error(`✗ ${name}`);
-    console.error(`  ${e.message}`);
-  }
-}
-
-function expect(actual: any) {
-  return {
-    toBe(expected: any) {
-      if (actual !== expected) {
-        throw new Error(`Expected ${expected}, got ${actual}`);
-      }
-    },
-    toBeCloseTo(expected: number, precision: number = 2) {
-      const diff = Math.abs(actual - expected);
-      const threshold = Math.pow(10, -precision);
-      if (diff > threshold) {
-        throw new Error(`Expected ~${expected}, got ${actual} (diff: ${diff})`);
-      }
-    },
-    toBeGreaterThan(expected: number) {
-      if (actual <= expected) {
-        throw new Error(`Expected ${actual} > ${expected}`);
-      }
-    },
-    toBeLessThan(expected: number) {
-      if (actual >= expected) {
-        throw new Error(`Expected ${actual} < ${expected}`);
-      }
-    },
-    toBeTrue() {
-      if (actual !== true) {
-        throw new Error(`Expected true, got ${actual}`);
-      }
-    },
-  };
-}
+import { test, expect, printSummary } from '../test-utils.js';
 
 // =============================================================================
 // TESTS
@@ -381,4 +339,4 @@ test('higher sensitivity produces more warming', () => {
   expect(highState.temperature).toBeGreaterThan(lowState.temperature);
 });
 
-console.log('\n=== All tests complete ===\n');
+printSummary();

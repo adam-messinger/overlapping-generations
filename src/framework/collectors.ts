@@ -307,10 +307,8 @@ export const standardCollectors: CollectorConfig = {
     // Infrastructure lock-in
     { source: 'fossilStockTWh' },
 
-    // G/C Expansion
+    // Automation
     { source: 'robotLoadTWh' },
-    { source: 'expansionMultiplier' },
-    { source: 'adjustedDemand' },
     { source: 'robotsPer1000' },
 
     // Regional

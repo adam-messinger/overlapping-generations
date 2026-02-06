@@ -12,77 +12,7 @@ import {
   AnyModule,
 } from './autowire.js';
 import { defineModule } from './module.js';
-
-// =============================================================================
-// TEST UTILITIES
-// =============================================================================
-
-let passed = 0;
-let failed = 0;
-const results: { name: string; passed: boolean; error?: string }[] = [];
-
-function test(name: string, fn: () => void) {
-  try {
-    fn();
-    passed++;
-    results.push({ name, passed: true });
-    console.log(`✓ ${name}`);
-  } catch (err) {
-    failed++;
-    const error = err instanceof Error ? err.message : String(err);
-    results.push({ name, passed: false, error });
-    console.log(`✗ ${name}`);
-    console.log(`  ${error}`);
-  }
-}
-
-function expect<T>(actual: T) {
-  return {
-    toBe(expected: T) {
-      if (actual !== expected) {
-        throw new Error(`Expected ${expected}, got ${actual}`);
-      }
-    },
-    toEqual(expected: T) {
-      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-      }
-    },
-    toBeGreaterThan(expected: number) {
-      if (typeof actual !== 'number' || actual <= expected) {
-        throw new Error(`Expected ${actual} > ${expected}`);
-      }
-    },
-    toBeTrue() {
-      if (actual !== true) {
-        throw new Error(`Expected true, got ${actual}`);
-      }
-    },
-    toBeFalse() {
-      if (actual !== false) {
-        throw new Error(`Expected false, got ${actual}`);
-      }
-    },
-    toThrow(message?: string) {
-      if (typeof actual !== 'function') {
-        throw new Error('Expected a function');
-      }
-      try {
-        (actual as () => void)();
-        throw new Error('Expected function to throw');
-      } catch (err) {
-        if (message && err instanceof Error && !err.message.includes(message)) {
-          throw new Error(`Expected error containing "${message}", got "${err.message}"`);
-        }
-      }
-    },
-    toHaveLength(expected: number) {
-      if (!Array.isArray(actual) || actual.length !== expected) {
-        throw new Error(`Expected length ${expected}, got ${Array.isArray(actual) ? actual.length : 'not an array'}`);
-      }
-    },
-  };
-}
+import { test, expect, printSummary } from '../test-utils.js';
 
 // =============================================================================
 // TEST MODULES
@@ -534,11 +464,4 @@ test('getTimeSeries returns specific output array', () => {
 // SUMMARY
 // =============================================================================
 
-console.log('\n=== Summary ===\n');
-console.log(`Passed: ${passed}`);
-console.log(`Failed: ${failed}`);
-console.log(`Total:  ${passed + failed}`);
-
-if (failed > 0) {
-  process.exit(1);
-}
+printSummary();

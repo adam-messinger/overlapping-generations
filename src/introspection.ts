@@ -163,7 +163,6 @@ export function describeOutputs(): OutputSchema {
     collegeShare: { unit: 'fraction', description: 'Share of workers with college degree', module: 'demographics' },
 
     // Demand
-    capitalElasticity: { unit: 'fraction', description: 'Capital elasticity parameter used in GDP growth', module: 'demand' },
     gdp: { unit: '$T', description: 'Global GDP in trillions', module: 'demand' },
     electricityDemand: { unit: 'TWh', description: 'Global electricity demand', module: 'demand' },
     electrificationRate: { unit: 'fraction', description: 'Electricity share of final energy', module: 'demand' },
