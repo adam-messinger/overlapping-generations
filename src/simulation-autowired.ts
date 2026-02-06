@@ -21,7 +21,7 @@ import { demandModule } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
 import { energyModule } from './modules/energy.js';
 import { dispatchModule } from './modules/dispatch.js';
-import { expansionModule } from './modules/expansion.js';
+// expansion module dissolved into demand + production
 import { resourcesModule } from './modules/resources.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './framework/types.js';
@@ -37,7 +37,6 @@ const ALL_MODULES = [
   demandModule,
   capitalModule,
   energyModule,
-  expansionModule,
   dispatchModule,
   resourcesModule,
   climateModule,
@@ -68,34 +67,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['stability'],
     },
 
-    // Expansion needs cheapest LCOE (derived from lcoes record)
-    cheapestLCOE: {
-      fn: (outputs: Record<string, any>) => {
-        const lcoes = outputs.lcoes;
-        if (!lcoes) return 50;
-        return Math.min(...Object.values(lcoes) as number[]);
-      },
-      dependsOn: ['lcoes'],
-    },
-
-    // Expansion uses baseDemand (same as electricityDemand)
-    baseDemand: {
-      fn: (outputs: Record<string, any>) => outputs.electricityDemand,
-      dependsOn: ['electricityDemand'],
-    },
-
-    // Expansion uses workingPopulation (same as working)
-    workingPopulation: {
-      fn: (outputs: Record<string, any>) => outputs.working,
-      dependsOn: ['working'],
-    },
-
-    // Expansion uses investmentRate (from savingsRate)
-    investmentRate: {
-      fn: (outputs: Record<string, any>) => outputs.savingsRate,
-      dependsOn: ['savingsRate'],
-    },
-
     // Capital uses effectiveWorkers from demographics
     effectiveWorkers: {
       fn: (outputs: Record<string, any>) => outputs.effectiveWorkers,
@@ -108,11 +79,10 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['gdp'],
     },
 
-    // Dispatch uses adjusted demand from expansion.
-    // Energy runs BEFORE expansion, so it gets base from demand (via fallback).
+    // Dispatch and energy use electricity demand from demand module
     electricityDemand: {
       fn: (outputs: Record<string, any>) =>
-        outputs.adjustedDemand ?? outputs.electricityDemand ?? 30000,
+        outputs.electricityDemand ?? 30000,
       dependsOn: ['electricityDemand'],
     },
 
@@ -239,32 +209,20 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],  // No deps to avoid cycle - uses current year's outputs
     },
 
-    // Regional electricity demand: raw from demand module, scaled by expansion factor
-    // when dispatch calls (adjustedDemand available), raw when energy calls (not yet)
+    // Regional electricity demand from demand module
     regionalElectricityDemand: {
       fn: (outputs: Record<string, any>) => {
         const regional = outputs.regional;
-        let rawRegional: Record<Region, number>;
         if (!regional) {
           const globalDemand = outputs.electricityDemand ?? 30000;
           const shares: Record<Region, number> = { oecd: 0.38, china: 0.31, em: 0.25, row: 0.06 };
-          rawRegional = {} as Record<Region, number>;
-          for (const r of REGIONS) rawRegional[r] = globalDemand * shares[r];
-        } else {
-          rawRegional = {} as Record<Region, number>;
-          for (const r of REGIONS) rawRegional[r] = regional[r]?.electricityDemand ?? 0;
-        }
-
-        // Apply expansion factor if available (dispatch runs after expansion)
-        const baseDemand = outputs.electricityDemand;
-        const adjustedDemand = outputs.adjustedDemand;
-        if (adjustedDemand && baseDemand && baseDemand > 0) {
-          const expansionFactor = adjustedDemand / baseDemand;
-          const result: Record<Region, number> = {} as Record<Region, number>;
-          for (const r of REGIONS) result[r] = rawRegional[r] * expansionFactor;
+          const result = {} as Record<Region, number>;
+          for (const r of REGIONS) result[r] = globalDemand * shares[r];
           return result;
         }
-        return rawRegional;
+        const result = {} as Record<Region, number>;
+        for (const r of REGIONS) result[r] = regional[r]?.electricityDemand ?? 0;
+        return result;
       },
       dependsOn: ['regional', 'electricityDemand'],
     },
@@ -431,7 +389,6 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
       capital: params.capital,
       energy: params.energy,
       dispatch: params.dispatch,
-      expansion: params.expansion,
       resources: params.resources,
       climate: params.climate,
     },
@@ -549,11 +506,11 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       forestNetFlux: o.carbon?.netFlux ?? 0,
       cumulativeSequestration: o.carbon?.cumulativeSequestration ?? 0,
 
-      // G/C Expansion
-      robotLoadTWh: o.robotLoadTWh,
-      expansionMultiplier: o.expansionMultiplier,
-      adjustedDemand: o.adjustedDemand,
-      robotsPer1000: o.robotsPer1000,
+      // Robot/automation (from demand, expansion dissolved)
+      robotLoadTWh: o.robotLoadTWh ?? 0,
+      expansionMultiplier: 1.0,  // expansion dissolved into production function
+      adjustedDemand: o.electricityDemand ?? 30000,  // no separate adjustment
+      robotsPer1000: o.robotsPer1000 ?? 0,
 
       // Production (biophysical)
       productionGdp: o.gdp,  // Same as gdp now (production is authoritative)

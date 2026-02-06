@@ -7,9 +7,8 @@
       "battery": { "alpha": 0.40, "growthRate": 0.40 }
     }
   },
-  "expansion": {
+  "demand": {
     "robotGrowthRate": 0.25,
-    "expansionCoefficient": 0.5,
     "robotCap": 2000
   },
   "capital": {

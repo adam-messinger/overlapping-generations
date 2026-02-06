@@ -20,11 +20,6 @@
     "sensitivity": 3.0
   },
 
-  "expansion": {
-    "robotGrowthRate": 0.10,
-    "expansionCoefficient": 0.20
-  },
-
   "resources": {
     "minerals": {
       "copper": { "learningRate": 0.018 },

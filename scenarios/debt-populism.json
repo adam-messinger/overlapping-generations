@@ -36,11 +36,6 @@
     }
   },
 
-  "expansion": {
-    "robotGrowthRate": 0.06,
-    "expansionCoefficient": 0.18
-  },
-
   "resources": {
     "minerals": {
       "copper": { "learningRate": 0.016 },

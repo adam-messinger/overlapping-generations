@@ -114,14 +114,20 @@ export interface DemandParams {
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
 
-  // Ayres/Warr useful work elasticity
-  usefulWorkElasticity: number;  // Share of GDP growth explained by useful work (default 0.4)
+  // Ayres/Warr useful work elasticity (legacy — now in production module)
+  usefulWorkElasticity: number;
 
-  // GDP growth Solow capital elasticity
-  capitalElasticity: number;     // Capital share in GDP growth (labor = 1 - this, default 0.35)
+  // GDP growth Solow capital elasticity (legacy — now in production module)
+  capitalElasticity: number;
 
   // Baseline electrification trend
   baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
+
+  // Robot/automation energy demand (from expansion module)
+  robotBaseline2025: number;     // Robots per 1000 workers in 2025
+  robotGrowthRate: number;       // Annual growth rate
+  robotCap: number;              // Max robots per 1000 workers
+  energyPerRobotMWh: number;    // MWh per robot-unit per year
 }
 
 interface RegionalState {
@@ -242,6 +248,10 @@ interface DemandOutputs {
 
   // Ayres/Warr useful work diagnostics
   usefulWorkGrowthRate: number; // Growth rate of useful energy per worker
+
+  // Robot/automation
+  robotLoadTWh: number;       // Automation energy load (TWh)
+  robotsPer1000: number;      // Robots per 1000 workers
 }
 
 // =============================================================================
@@ -393,10 +403,16 @@ export const demandDefaults: DemandParams = {
 
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 
-  usefulWorkElasticity: 0.4,   // Ayres/Warr: useful work contribution to GDP growth
+  usefulWorkElasticity: 0.4,   // Legacy (now in production module)
 
-  capitalElasticity: 0.35,     // Capital share in GDP growth (Solow)
+  capitalElasticity: 0.35,     // Legacy (now in production module)
   baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
+
+  // Robot/automation energy demand
+  robotBaseline2025: 1,        // 1 robot per 1000 workers in 2025
+  robotGrowthRate: 0.12,       // 12% annual growth
+  robotCap: 500,               // Max robots per 1000 workers
+  energyPerRobotMWh: 10,      // MWh per robot-unit per year
 };
 
 // =============================================================================
@@ -699,6 +715,8 @@ export const demandModule: Module<
     'energyBurden',
     'burdenDamage',
     'usefulWorkGrowthRate',
+    'robotLoadTWh',
+    'robotsPer1000',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -822,6 +840,12 @@ export const demandModule: Module<
           ...p.energyBurden,
         };
       }
+
+      // Robot/automation params
+      if (p.robotBaseline2025 !== undefined) merged.robotBaseline2025 = p.robotBaseline2025;
+      if (p.robotGrowthRate !== undefined) merged.robotGrowthRate = p.robotGrowthRate;
+      if (p.robotCap !== undefined) merged.robotCap = p.robotCap;
+      if (p.energyPerRobotMWh !== undefined) merged.energyPerRobotMWh = p.energyPerRobotMWh;
 
       return merged;
     }, partial);
@@ -1023,6 +1047,16 @@ export const demandModule: Module<
       globalNonElec += nonElecEnergy;
     }
 
+    // Robot/automation energy demand (additive to electricity)
+    const robotsPer1000 = Math.min(
+      params.robotBaseline2025 * Math.pow(1 + params.robotGrowthRate, yearIndex),
+      params.robotCap
+    );
+    const totalRobots = (robotsPer1000 / 1000) * inputs.working;
+    const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
+    globalElec += robotLoadTWh;
+    globalTotalFinal += robotLoadTWh;
+
     // Calculate final energy per capita per day
     // TWh × 1e9 kWh/TWh / population / 365 days
     const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
@@ -1198,6 +1232,8 @@ export const demandModule: Module<
         energyBurden,
         burdenDamage,
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
+        robotLoadTWh,
+        robotsPer1000,
       },
     };
   },

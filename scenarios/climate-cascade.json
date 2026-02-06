@@ -25,10 +25,5 @@
 
   "capital": {
     "stabilityLambda": 3.0
-  },
-
-  "expansion": {
-    "robotGrowthRate": 0.10,
-    "expansionCoefficient": 0.22
   }
 }
