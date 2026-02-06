@@ -29,10 +29,6 @@ export const MINERALS: Mineral[] = ['copper', 'lithium', 'rareEarths', 'steel'];
  */
 export type TimeSeries<T> = T[];
 
-/**
- * Regional time series - data for each region
- */
-export type RegionalTimeSeries<T> = Record<Region, TimeSeries<T>>;
 
 /**
  * Validation result
@@ -65,9 +61,3 @@ export interface ParamMeta {
   paramName?: string;
 }
 
-/**
- * Generic parameter schema - maps param names to metadata
- */
-export type ParamSchema<T> = {
-  [K in keyof T]: ParamMeta;
-};

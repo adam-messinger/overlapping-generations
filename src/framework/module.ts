@@ -127,23 +127,3 @@ export function defineModule<
 ): Module<TParams, TState, TInputs, TOutputs> {
   return definition;
 }
-
-/**
- * Type helper to extract inputs type from a module
- */
-export type ModuleInputs<M> = M extends Module<any, any, infer I, any> ? I : never;
-
-/**
- * Type helper to extract outputs type from a module
- */
-export type ModuleOutputs<M> = M extends Module<any, any, any, infer O> ? O : never;
-
-/**
- * Type helper to extract state type from a module
- */
-export type ModuleState<M> = M extends Module<any, infer S, any, any> ? S : never;
-
-/**
- * Type helper to extract params type from a module
- */
-export type ModuleParams<M> = M extends Module<infer P, any, any, any> ? P : never;
