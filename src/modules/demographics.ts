@@ -509,7 +509,7 @@ export const demographicsModule: Module<
           paramName: 'oecdFertilityFloor',
           description: 'Long-run fertility floor for OECD region. 2.1 = replacement level.',
           unit: 'children/woman',
-          range: { min: 1.0, max: 2.1, default: 1.4 },
+          range: { min: 1.0, max: 2.1, default: 1.3 },
           tier: 1 as const,
         },
       },

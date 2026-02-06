@@ -38,6 +38,7 @@ export interface Scenario {
   expansion?: SimulationParams['expansion'];
   resources?: SimulationParams['resources'];
   climate?: SimulationParams['climate'];
+  production?: SimulationParams['production'];
 }
 
 // =============================================================================
@@ -68,7 +69,7 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   const knownKeys = new Set([
     'name', 'description', 'meta',
     'demographics', 'demand', 'capital', 'energy',
-    'dispatch', 'expansion', 'resources', 'climate',
+    'dispatch', 'expansion', 'resources', 'climate', 'production',
     'startYear', 'endYear',
   ]);
 
@@ -86,6 +87,7 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   if (scenario.expansion) params.expansion = scenario.expansion;
   if (scenario.resources) params.resources = scenario.resources;
   if (scenario.climate) params.climate = scenario.climate;
+  if (scenario.production) params.production = scenario.production;
 
   return params;
 }

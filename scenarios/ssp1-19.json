@@ -44,6 +44,8 @@
   },
 
   "resources": {
-    "sequestrationRate": 0.03
+    "land": {
+      "sequestrationRate": 0.03
+    }
   }
 }

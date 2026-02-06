@@ -712,18 +712,6 @@ export const demandModule: Module<
         },
       },
     },
-    usefulWorkElasticity: {
-      description: 'Ayres/Warr useful work contribution to GDP growth. Higher = energy drives more growth, lower = more exogenous TFP.',
-      unit: 'fraction',
-      range: { min: 0.1, max: 0.7, default: 0.4 },
-      tier: 1 as const,
-    },
-    capitalElasticity: {
-      description: 'Capital elasticity in GDP growth (labor = 1 - this).',
-      unit: 'fraction',
-      range: { min: 0.2, max: 0.5, default: 0.35 },
-      tier: 1 as const,
-    },
     fuelMix: {
       priceSensitivity: {
         paramName: 'fuelPriceSensitivity',

@@ -652,6 +652,11 @@ export const resourcesModule: Module<
         }
       }
 
+      // Deep merge food
+      if (p.food) {
+        result.food = { ...resourcesDefaults.food, ...p.food };
+      }
+
       return result;
     }, partial);
   },
