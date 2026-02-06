@@ -23,6 +23,7 @@
  */
 
 import { demographicsModule, DemographicsParams } from './modules/demographics.js';
+import { ProductionParams } from './modules/production.js';
 import { demandModule, DemandParams } from './modules/demand.js';
 import { capitalModule, CapitalParams } from './modules/capital.js';
 import { energyModule, EnergyParams } from './modules/energy.js';
@@ -41,6 +42,7 @@ export interface SimulationParams {
   startYear?: number;
   endYear?: number;
   demographics?: Partial<DemographicsParams>;
+  production?: Partial<ProductionParams>;
   demand?: Partial<DemandParams>;
   capital?: Partial<CapitalParams>;
   energy?: Partial<EnergyParams>;
@@ -145,6 +147,10 @@ export interface YearResult {
   // Resources - Carbon
   forestNetFlux: number;
   cumulativeSequestration: number;
+
+  // Production (biophysical)
+  productionGdp: number;
+  usefulEnergyProduction: number;
 
   // G/C Expansion
   robotLoadTWh: number;
@@ -668,6 +674,10 @@ export class Simulation {
         // Resources - Carbon
         forestNetFlux: resources.carbon.netFlux,
         cumulativeSequestration: resources.carbon.cumulativeSequestration,
+
+        // Production (biophysical) — not computed in manual path
+        productionGdp: 0,
+        usefulEnergyProduction: 0,
 
         // G/C Expansion
         robotLoadTWh: expansion.robotLoadTWh,

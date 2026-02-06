@@ -16,6 +16,7 @@
 
 import { runAutowired, getOutputsAtYear, AutowireResult } from './framework/autowire.js';
 import { demographicsModule } from './modules/demographics.js';
+import { productionModule } from './modules/production.js';
 import { demandModule } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
 import { energyModule } from './modules/energy.js';
@@ -32,6 +33,7 @@ import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult 
 
 const ALL_MODULES = [
   demographicsModule,
+  productionModule,
   demandModule,
   capitalModule,
   energyModule,
@@ -380,6 +382,34 @@ function buildLags() {
       delay: 1,
       initial: 0,
     },
+
+    // Production needs lagged capital stock
+    capitalStock: {
+      source: 'stock',
+      delay: 1,
+      initial: 420,
+    },
+
+    // Production needs lagged total generation
+    totalGeneration: {
+      source: 'totalGeneration',
+      delay: 1,
+      initial: 30000,
+    },
+
+    // Production needs lagged non-electric energy
+    nonElectricEnergy: {
+      source: 'nonElectricEnergy',
+      delay: 1,
+      initial: 92000,
+    },
+
+    // Production needs lagged food stress
+    foodStress: {
+      source: 'foodStress',
+      delay: 1,
+      initial: 0,
+    },
   };
 }
 
@@ -403,6 +433,7 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
     lags,
     params: {
       demographics: params.demographics,
+      production: params.production,
       demand: params.demand,
       capital: params.capital,
       energy: params.energy,
@@ -530,6 +561,10 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       expansionMultiplier: o.expansionMultiplier,
       adjustedDemand: o.adjustedDemand,
       robotsPer1000: o.robotsPer1000,
+
+      // Production (parallel comparison)
+      productionGdp: o.productionGdp,
+      usefulEnergyProduction: o.productionUsefulEnergy,
 
       // Regional
       regionalPopulation: o.regionalPopulation,
