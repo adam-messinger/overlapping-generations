@@ -4,6 +4,10 @@
 
   "energy": {
     "carbonPrice": 0,
+    "coalPhaseoutYear": 2100,
+    "maxGrowthRate": {
+      "coal": 0.03
+    },
     "sources": {
       "solar": { "alpha": 0.25, "growthRate": 0.10 },
       "wind": { "alpha": 0.15, "growthRate": 0.05 },
@@ -41,7 +45,6 @@
 
   "climate": {
     "sensitivity": 3.0,
-    "tippingThreshold": 2.0,
     "tippingMultiplier": 1.8
   }
 }

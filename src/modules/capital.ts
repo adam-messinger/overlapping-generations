@@ -150,7 +150,7 @@ export const capitalDefaults: CapitalParams = {
   energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
 
   // Initial conditions
-  initialCapitalStock: 420,     // $420T (Penn World Table, K/Y ≈ 3.5)
+  initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
 };
 
 // =============================================================================

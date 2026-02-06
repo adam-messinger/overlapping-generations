@@ -3,7 +3,7 @@
   "description": "Worst case sensitivity and damages.",
   "climate": {
     "sensitivity": 6.0,
-    "damageCoeff": 0.005,
+    "damageCoeff": 0.010,
     "tippingThreshold": 1.5,
     "tippingMultiplier": 3.0
   },

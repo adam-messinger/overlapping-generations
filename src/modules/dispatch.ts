@@ -69,6 +69,9 @@ export interface DispatchParams {
   vreSolarFraction: number;          // Bare solar share of VRE capacity (default 0.5)
   vreTotalSolarFraction: number;     // Total solar (bare + battery) share (default 0.7)
   vreWindFraction: number;           // Wind share of VRE capacity (default 0.6)
+
+  /** Long-duration storage VRE bonus per effective hour */
+  longStorageBonusPerHour: number;   // Additional VRE share per long-storage hour (0.04)
 }
 
 export const dispatchDefaults: DispatchParams = {
@@ -128,6 +131,9 @@ export const dispatchDefaults: DispatchParams = {
   vreSolarFraction: 0.5,             // Bare solar share of VRE capacity
   vreTotalSolarFraction: 0.7,        // Total solar (bare + battery) share of VRE
   vreWindFraction: 0.6,              // Wind share of VRE capacity
+
+  // Long-duration storage
+  longStorageBonusPerHour: 0.04,     // Half of short-duration's 0.08
 };
 
 // =============================================================================
@@ -167,6 +173,9 @@ export interface DispatchInputs {
 
   /** Regional carbon prices ($/ton CO2) */
   regionalCarbonPrice?: Record<Region, number>;
+
+  /** Long-duration storage regional capacities (GWh) */
+  longStorageRegional?: Record<Region, number>;
 }
 
 /** Regional dispatch outputs */
@@ -249,7 +258,8 @@ function dispatchRegion(
   demandTWh: number,
   capacities: Record<EnergySource, number>,
   carbonPrice: number,
-  params: DispatchParams
+  params: DispatchParams,
+  longStorageGWh: number = 0
 ): RegionalDispatchOutputs {
   // Calculate marginal costs with regional carbon price
   const marginalCosts: Record<string, number> = {};
@@ -321,18 +331,23 @@ function dispatchRegion(
   let totalWindAllocated = 0;
   let totalVREAllocated = 0;
 
-  // VRE limits based on storage
+  // VRE limits based on two-tier storage (short-duration batteries + long-duration)
   const PEAK_TO_AVERAGE_RATIO = 2;
   const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * PEAK_TO_AVERAGE_RATIO;
-  const storageHours = batteryGWh / Math.max(1, peakDemandGW);
+  const shortStorageHours = batteryGWh / Math.max(1, peakDemandGW);
+  const longStorageHours = longStorageGWh / Math.max(1, peakDemandGW);
   const maxVREPenetration = Math.min(
     params.maxVRECeiling,
-    params.baseVRELimit + storageHours * params.storageBonusPerHour
+    params.baseVRELimit
+      + shortStorageHours * params.storageBonusPerHour
+      + longStorageHours * params.longStorageBonusPerHour
   );
   const maxBareSolarPen = Math.min(maxVREPenetration * params.vreSolarFraction, params.maxPenetration.solar);
   const maxTotalSolarPen = Math.min(maxVREPenetration * params.vreTotalSolarFraction, params.maxPenetration.solar + params.maxPenetration.battery);
   const maxWindPen = Math.min(maxVREPenetration * params.vreWindFraction, params.maxPenetration.wind);
-  const maxCombinedVRE = params.baseVRELimit + storageHours * params.storageBonusPerHour;
+  const maxCombinedVRE = params.baseVRELimit
+    + shortStorageHours * params.storageBonusPerHour
+    + longStorageHours * params.longStorageBonusPerHour;
 
   for (const source of sources) {
     if (remaining <= 0) break;
@@ -465,6 +480,7 @@ export const dispatchModule: Module<
     'solarPlusBatteryLCOE',
     'carbonPrice',
     'regionalCarbonPrice',
+    'longStorageRegional',
   ] as const,
 
   outputs: [
@@ -510,6 +526,7 @@ export const dispatchModule: Module<
       solarPlusBatteryLCOE: 'number',
       carbonPrice: 'number',
       regionalCarbonPrice: 'record',
+      longStorageRegional: 'record',
     },
     outputs: {
       generation: 'record',
@@ -594,12 +611,16 @@ export const dispatchModule: Module<
     const regionalEmissions: Record<Region, number> = {} as any;
     const regionalFossilShare: Record<Region, number> = {} as any;
 
+    const longStorageRegional = inputs.longStorageRegional ??
+      Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
+
     for (const region of REGIONS) {
       const regionResult = dispatchRegion(
         regionalDemand[region],
         regionalCapacities[region],
         regionalCarbonPrice[region],
-        params
+        params,
+        longStorageRegional[region]
       );
 
       regionalOutputs[region] = regionResult;

@@ -284,15 +284,12 @@ interface DemandOutputs {
 // =============================================================================
 
 /**
- * Default economic parameters
+ * Default economic parameters (PPP, 2017 international dollars)
  *
- * Energy intensity calibrated to match IEA 2025 data:
+ * Energy intensity calibrated to preserve physical energy flows (TWh):
  * - Global final energy: ~122,000 TWh (IEA World Energy Outlook)
  * - Global electricity: ~30,000 TWh → 25% electrification
- * - OECD: ~40,000 TWh, $58T GDP → 0.70 MWh/$1000 total energy
- * - China: ~37,000 TWh, $18T GDP → 2.04 MWh/$1000 total energy
- * - EM: ~33,000 TWh, $35T GDP → 0.93 MWh/$1000 total energy
- * - ROW: ~12,000 TWh, $8T GDP → 1.53 MWh/$1000 total energy
+ * - Total GDP PPP: ~$158T → each region's gdp × intensity × 1000 ≈ same TWh as before
  */
 export const demandDefaults: DemandParams = {
   fossilStock: {
@@ -303,59 +300,59 @@ export const demandDefaults: DemandParams = {
 
   regions: {
     oecd: {
-      gdp2025: 56,              // $56T (World Bank)
+      gdp2025: 62,              // $62T PPP (World Bank 2017 intl $)
       tfpGrowth: 0.008,         // Residual TFP after useful work extraction (Ayres/Warr)
       tfpDecay: 0.0,            // Mature economy - no convergence
-      energyIntensity: 0.70,    // MWh per $1000 GDP (IEA-calibrated)
+      energyIntensity: 0.63,    // MWh per $1000 GDP PPP (preserves ~39k TWh)
       intensityDecline: 0.003,  // 0.3%/year
     },
     china: {
-      gdp2025: 18,              // $18T (World Bank)
+      gdp2025: 33,              // $33T PPP
       tfpGrowth: 0.025,         // Residual TFP (catch-up component)
       tfpDecay: 0.015,          // Converging toward OECD
-      energyIntensity: 2.04,    // High - industrial economy
+      energyIntensity: 1.11,    // PPP-adjusted (preserves ~37k TWh)
       intensityDecline: 0.008,  // 0.8%/year
     },
     india: {
-      gdp2025: 13,              // $13T (India + South Asia)
+      gdp2025: 16,              // $16T PPP (India + South Asia)
       tfpGrowth: 0.025,         // Residual TFP (catch-up growth)
       tfpDecay: 0.012,          // Gradual convergence
-      energyIntensity: 0.80,    // Lower than China
+      energyIntensity: 0.65,    // PPP-adjusted (preserves ~10k TWh)
       intensityDecline: 0.006,  // 0.6%/year
     },
     latam: {
-      gdp2025: 8,               // $8T (Latin America)
+      gdp2025: 12,              // $12T PPP (Latin America)
       tfpGrowth: 0.012,         // Residual TFP
       tfpDecay: 0.005,          // Slow convergence
-      energyIntensity: 0.75,    // Moderate
+      energyIntensity: 0.50,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.004,  // 0.4%/year
     },
     seasia: {
-      gdp2025: 7,               // $7T (SE Asia + Pacific)
+      gdp2025: 12,              // $12T PPP (SE Asia + Pacific)
       tfpGrowth: 0.020,         // Residual TFP (manufacturing hubs)
       tfpDecay: 0.008,          // Gradual convergence
-      energyIntensity: 0.90,    // Manufacturing-heavy
+      energyIntensity: 0.53,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.005,  // 0.5%/year
     },
     russia: {
-      gdp2025: 4,               // $4T (Russia + CIS)
+      gdp2025: 7,               // $7T PPP (Russia + CIS)
       tfpGrowth: 0.005,         // Low residual TFP (aging, fossil-dependent)
       tfpDecay: 0.003,          // Very slow convergence
-      energyIntensity: 1.80,    // High - cold climate, heavy industry
+      energyIntensity: 1.03,    // PPP-adjusted (preserves ~7k TWh)
       intensityDecline: 0.004,  // 0.4%/year
     },
     mena: {
-      gdp2025: 5,               // $5T (MENA)
+      gdp2025: 9,               // $9T PPP (MENA)
       tfpGrowth: 0.010,         // Residual TFP (fossil exporters diversifying)
       tfpDecay: 0.005,          // Slow convergence
-      energyIntensity: 1.20,    // Moderate-high (subsidized energy)
+      energyIntensity: 0.67,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.004,  // 0.4%/year
     },
     ssa: {
-      gdp2025: 7,               // $7T (Sub-Saharan Africa)
+      gdp2025: 7,               // $7T PPP (Sub-Saharan Africa, unchanged)
       tfpGrowth: 0.020,         // Residual TFP (demographic dividend)
       tfpDecay: 0.010,          // Gradual convergence
-      energyIntensity: 1.50,    // Lower efficiency
+      energyIntensity: 1.50,    // Unchanged (already PPP-like)
       intensityDecline: 0.004,  // 0.4%/year
     },
   },
@@ -478,7 +475,7 @@ export const demandDefaults: DemandParams = {
   robotEnergySensitivity: 0.5,   // LCOE elasticity
   robotWageSensitivity: 0.3,     // Wage elasticity
   robotReferenceLCOE: 50,        // Reference LCOE $/MWh
-  robotReferenceWage: 34000,     // Reference GDP/worker $/yr
+  robotReferenceWage: 46000,     // Reference GDP/worker $/yr (PPP-adjusted)
 };
 
 // =============================================================================

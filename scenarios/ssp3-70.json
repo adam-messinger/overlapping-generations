@@ -9,6 +9,10 @@
       "wind": { "alpha": 0.18, "growthRate": 0.08 },
       "battery": { "alpha": 0.20, "growthRate": 0.10 },
       "coal": { "growthRate": 0.02 }
+    },
+    "coalPhaseoutYear": 2070,
+    "maxGrowthRate": {
+      "coal": 0.02
     }
   },
 
@@ -39,8 +43,6 @@
   },
 
   "climate": {
-    "sensitivity": 3.0,
-    "tippingThreshold": 2.0,
-    "tippingMultiplier": 1.5
+    "sensitivity": 3.0
   }
 }

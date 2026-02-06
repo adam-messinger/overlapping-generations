@@ -21,7 +21,7 @@
  * Outputs (to other modules):
  * - temperature: °C above preindustrial (surface)
  * - co2ppm: Atmospheric CO2 concentration
- * - damages: Global damage fraction (0-0.30)
+ * - damages: Global damage fraction (0-0.50)
  * - regionalDamages: Per-region damage fractions
  * - deepOceanTemp: Deep ocean temperature anomaly
  * - radiativeForcing: Current radiative forcing (W/m²)
@@ -62,9 +62,16 @@ export interface ClimateParams {
   regionalDamage: Record<Region, number>;
 
   // Tipping points
-  tippingThreshold: number;      // °C midpoint for tipping (2.5)
-  tippingMultiplier: number;     // Max damage multiplier (1.25)
+  tippingThreshold: number;      // °C midpoint for tipping (2.0)
+  tippingMultiplier: number;     // Max damage multiplier (1.5)
   tippingSteepness: number;      // S-curve steepness (4.0)
+
+  // Adaptation
+  adaptation: {
+    adaptationRate: number;      // Damage reduction per log2 of GDP/cap ratio (0.10)
+    referenceGDP: number;        // GDP/cap at which adaptation = 0 ($5000)
+    maxAdaptation: number;       // Maximum adaptation fraction (0.50)
+  };
 }
 
 export const climateDefaults: ClimateParams = {
@@ -79,8 +86,8 @@ export const climateDefaults: ClimateParams = {
   forcingPerDoubling: 3.7,
   warmingRate: 0.02,
   currentTemp: 1.2,
-  damageCoeff: 0.00236,
-  maxDamage: 0.30,
+  damageCoeff: 0.00536,
+  maxDamage: 0.50,
   regionalDamage: {
     oecd: 0.8,
     china: 1.0,
@@ -91,9 +98,14 @@ export const climateDefaults: ClimateParams = {
     mena: 1.5,       // Extreme heat and water stress
     ssa: 2.0,        // Most vulnerable
   },
-  tippingThreshold: 2.5,
-  tippingMultiplier: 1.25,
+  tippingThreshold: 2.0,
+  tippingMultiplier: 1.5,
   tippingSteepness: 4.0,
+  adaptation: {
+    adaptationRate: 0.10,      // ~33% reduction at $50K/cap (OECD)
+    referenceGDP: 5000,        // $5K/cap baseline (SSA gets ~0%)
+    maxAdaptation: 0.50,       // Cap at 50% damage reduction
+  },
 };
 
 // =============================================================================
@@ -113,6 +125,8 @@ export interface ClimateState {
 export interface ClimateInputs {
   /** Total emissions from all sources (Gt CO2/year) */
   emissions: number;
+  /** Regional GDP per capita ($) for adaptation calculation */
+  regionalGdpPerCapita?: Record<Region, number>;
 }
 
 export interface ClimateOutputs {
@@ -122,7 +136,7 @@ export interface ClimateOutputs {
   co2ppm: number;
   /** Equilibrium temperature at current CO2 (°C) */
   equilibriumTemp: number;
-  /** Global average damage (fraction of GDP, 0-0.30) */
+  /** Global average damage (fraction of GDP, 0-0.50) */
   damages: number;
   /** Per-region damages */
   regionalDamages: Record<Region, number>;
@@ -132,6 +146,8 @@ export interface ClimateOutputs {
   deepOceanTemp: number;
   /** Current radiative forcing (W/m²) */
   radiativeForcing: number;
+  /** Per-region adaptation fraction (0 = no adaptation, up to maxAdaptation) */
+  regionalAdaptation: Record<Region, number>;
 }
 
 // =============================================================================
@@ -158,26 +174,42 @@ export const climateModule: Module<
       tier: 1 as const,
     },
     damageCoeff: {
-      description: 'DICE-2023 quadratic damage coefficient. damage = coeff × T². 0.00236 gives ~1.7% GDP loss at 2.7°C.',
+      description: 'Quadratic damage coefficient (midpoint DICE/Howard-Sterner). damage = coeff × T². 0.00536 gives ~4.8% GDP loss at 3°C.',
       unit: 'per °C²',
-      range: { min: 0.001, max: 0.005, default: 0.00236 },
+      range: { min: 0.002, max: 0.015, default: 0.00536 },
       tier: 1 as const,
     },
     tippingThreshold: {
-      description: 'Temperature threshold for tipping point multiplier. Damages increase faster above this.',
+      description: 'Temperature threshold for tipping point multiplier. Damages increase faster above this (IPCC AR6: ~2°C).',
       unit: '°C',
-      range: { min: 1.5, max: 4.0, default: 2.5 },
+      range: { min: 1.5, max: 4.0, default: 2.0 },
       tier: 1 as const,
     },
     maxDamage: {
-      description: 'Cap on climate damages as fraction of GDP (30% = Great Depression level).',
+      description: 'Cap on climate damages as fraction of GDP. 50% allows SSA 2.0x multiplier headroom.',
       unit: 'fraction of GDP',
-      range: { min: 0.15, max: 0.50, default: 0.30 },
+      range: { min: 0.15, max: 0.70, default: 0.50 },
       tier: 1 as const,
+    },
+    adaptation: {
+      adaptationRate: {
+        paramName: 'adaptationRate',
+        description: 'Damage reduction per log2 of GDP/cap ratio. OECD at $50K gets ~33% reduction.',
+        unit: 'fraction per log2',
+        range: { min: 0, max: 0.20, default: 0.10 },
+        tier: 1 as const,
+      },
+      maxAdaptation: {
+        paramName: 'maxAdaptation',
+        description: 'Maximum climate damage adaptation fraction. Rich nations cap at this.',
+        unit: 'fraction',
+        range: { min: 0, max: 0.70, default: 0.50 },
+        tier: 1 as const,
+      },
     },
   },
 
-  inputs: ['emissions'] as const,
+  inputs: ['emissions', 'regionalGdpPerCapita'] as const,
   outputs: [
     'temperature',
     'co2ppm',
@@ -187,11 +219,13 @@ export const climateModule: Module<
     'cumulativeEmissions',
     'deepOceanTemp',
     'radiativeForcing',
+    'regionalAdaptation',
   ] as const,
 
   connectorTypes: {
     inputs: {
       emissions: 'number',
+      regionalGdpPerCapita: 'record',
     },
     outputs: {
       temperature: 'number',
@@ -202,6 +236,7 @@ export const climateModule: Module<
       cumulativeEmissions: 'number',
       deepOceanTemp: 'number',
       radiativeForcing: 'number',
+      regionalAdaptation: 'record',
     },
   },
 
@@ -227,9 +262,9 @@ export const climateModule: Module<
     if (p.damageCoeff < 0) {
       errors.push('damageCoeff cannot be negative');
     }
-    if (p.damageCoeff > 0.01) {
+    if (p.damageCoeff > 0.02) {
       warnings.push(
-        `damageCoeff ${p.damageCoeff} unusually high (DICE-2023 uses 0.00236)`
+        `damageCoeff ${p.damageCoeff} unusually high (default uses 0.00536)`
       );
     }
 
@@ -275,6 +310,10 @@ export const climateModule: Module<
       regionalDamage: {
         ...climateDefaults.regionalDamage,
         ...p.regionalDamage,
+      },
+      adaptation: {
+        ...climateDefaults.adaptation,
+        ...p.adaptation,
       },
     }), partial);
   },
@@ -361,14 +400,34 @@ export const climateModule: Module<
       params.maxDamage
     );
 
-    // Regional damages
+    // Regional adaptation and damages
     const regionalDamages: Record<Region, number> = {} as Record<Region, number>;
+    const regionalAdaptation: Record<Region, number> = {} as Record<Region, number>;
+    const { adaptation } = params;
+
     for (const region of REGIONS) {
+      // Compute adaptation: richer regions invest more in infrastructure
+      const gdpPerCap = inputs.regionalGdpPerCapita?.[region] ?? adaptation.referenceGDP;
+      const ratio = gdpPerCap / adaptation.referenceGDP;
+      const adaptEff = ratio > 1
+        ? Math.min(adaptation.maxAdaptation, adaptation.adaptationRate * Math.log2(ratio))
+        : 0;
+      regionalAdaptation[region] = adaptEff;
+
+      // Raw regional damage, then reduce by adaptation
+      const rawDamage = baseDamage * tippingMult * params.regionalDamage[region];
       regionalDamages[region] = Math.min(
-        baseDamage * tippingMult * params.regionalDamage[region],
+        rawDamage * (1 - adaptEff),
         params.maxDamage
       );
     }
+
+    // Global damages: GDP-weighted adaptation is handled downstream;
+    // here use unweighted average for backwards compat
+    const adaptedGlobalDamages = Math.min(
+      baseDamage * tippingMult,
+      params.maxDamage
+    );
 
     return {
       state: {
@@ -380,11 +439,12 @@ export const climateModule: Module<
         temperature,
         co2ppm,
         equilibriumTemp,
-        damages: globalDamages,
+        damages: adaptedGlobalDamages,
         regionalDamages,
         cumulativeEmissions: newCumulative,
         deepOceanTemp: deepTemp,
         radiativeForcing: forcing,
+        regionalAdaptation,
       },
     };
   },

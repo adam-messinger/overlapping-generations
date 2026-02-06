@@ -52,6 +52,7 @@ export interface RegionalEnergyParams {
   carbonPrice: number;                          // $/ton CO2
   maxGrowthRate?: Partial<Record<EnergySource, number>>;  // Policy constraints (overrides global)
   capacityFactor?: Partial<Record<EnergySource, number>>; // Resource quality (solar irradiance, etc.)
+  coalPhaseoutYear?: number;                    // Regional override for coal phaseout year
 }
 
 export interface EnergyParams {
@@ -108,6 +109,29 @@ export interface EnergyParams {
 
   /** Battery cycles per year for LCOE calculation */
   batteryCyclesPerYear: number;
+
+  /** Year after which no new coal capacity is built (default 2035) */
+  coalPhaseoutYear: number;
+
+  /** Long-duration storage (iron-air, compressed air, pumped hydro, etc.) */
+  longStorage: {
+    cost0: number;             // $/kWh initial cost (2025)
+    alpha: number;             // Wright's Law learning exponent
+    growthRate: number;        // Max annual capacity growth rate
+    duration: number;          // Hours of storage duration (100h)
+    efficiency: number;        // Round-trip efficiency (0.50)
+    lifetime: number;          // Years
+    capex: number;             // $M/GWh CAPEX
+    capacity2025: Record<Region, number>;  // GWh per region
+  };
+
+  /** Site quality degradation — capacity factor declines with cumulative deployment */
+  siteDepletion: {
+    solarDepletion: number;        // Max CF reduction fraction (0.30 = 30% at full potential)
+    windDepletion: number;         // Max CF reduction fraction
+    solarPotential: Record<Region, number>;  // GW of good-quality sites per region
+    windPotential: Record<Region, number>;   // GW of good-quality sites per region
+  };
 }
 
 /**
@@ -256,7 +280,7 @@ export const energyDefaults: EnergyParams = {
     nuclear: 0.05,
     hydro: 0.02,
     gas: 0.05,
-    coal: 0.0,
+    coal: 0.03,
   },
   lifetime: {
     solar: 30,
@@ -301,6 +325,38 @@ export const energyDefaults: EnergyParams = {
 
   // Battery LCOE cycles
   batteryCyclesPerYear: 365,
+
+  // Coal phaseout: no new coal after this year (default 2035)
+  coalPhaseoutYear: 2035,
+
+  // Long-duration storage (iron-air, CAES, etc.)
+  longStorage: {
+    cost0: 300,                // $/kWh (2025, ~2x battery)
+    alpha: 0.15,               // Slower learning than Li-ion
+    growthRate: 0.25,          // Max annual growth rate
+    duration: 100,             // 100 hours
+    efficiency: 0.50,          // 50% round-trip
+    lifetime: 25,              // Years
+    capex: 200,                // $M/GWh
+    capacity2025: {
+      oecd: 5, china: 3, india: 1, latam: 1,
+      seasia: 0.5, russia: 0.5, mena: 0.5, ssa: 0.5,
+    },
+  },
+
+  // Site quality degradation
+  siteDepletion: {
+    solarDepletion: 0.30,      // Best sites used first → 30% CF reduction at full potential
+    windDepletion: 0.30,       // Same for wind
+    solarPotential: {          // GW of good-quality solar sites per region
+      oecd: 3000, china: 2500, india: 1500, latam: 2000,
+      seasia: 1000, russia: 1000, mena: 2000, ssa: 2000,
+    },
+    windPotential: {           // GW of good-quality wind sites per region
+      oecd: 1200, china: 800, india: 400, latam: 600,
+      seasia: 300, russia: 800, mena: 200, ssa: 400,
+    },
+  },
 };
 
 // =============================================================================
@@ -326,6 +382,12 @@ export interface EnergyState {
 
   /** Global cumulative for learning curves */
   global: Record<EnergySource, GlobalLearningState>;
+
+  /** Long-duration storage regional capacity (GWh) */
+  longStorageRegional: Record<Region, number>;
+
+  /** Long-duration storage global cumulative (GWh, for learning) */
+  longStorageCumulative: number;
 }
 
 // =============================================================================
@@ -398,6 +460,21 @@ export interface EnergyOutputs {
 
   /** Regional detail for dispatch */
   energyRegional: Record<Region, RegionalEnergyOutputs>;
+
+  /** Effective solar capacity factor (capacity-weighted, after site depletion) */
+  effectiveSolarCF: number;
+
+  /** Effective wind capacity factor (capacity-weighted, after site depletion) */
+  effectiveWindCF: number;
+
+  /** Long-duration storage cost ($/kWh) */
+  longStorageCost: number;
+
+  /** Long-duration storage total capacity (GWh) */
+  longStorageCapacity: number;
+
+  /** Long-duration storage regional capacities (GWh) */
+  longStorageRegional: Record<Region, number>;
 }
 
 // =============================================================================
@@ -416,9 +493,20 @@ function getGlobalCumulative2025(params: EnergyParams, source: EnergySource): nu
 }
 
 /**
- * Get regional capacity factor (with regional override)
+ * Get global long storage cumulative capacity for learning curves
  */
-function getRegionalCapacityFactor(
+function getGlobalLongStorageCumulative2025(params: EnergyParams): number {
+  let total = 0;
+  for (const region of REGIONS) {
+    total += params.longStorage.capacity2025[region] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * Get base regional capacity factor (with regional override, before site depletion)
+ */
+function getBaseRegionalCapacityFactor(
   params: EnergyParams,
   region: Region,
   source: EnergySource
@@ -435,6 +523,36 @@ function getRegionalCapacityFactor(
     case 'hydro': return 0.42;
     default: return 0.50;
   }
+}
+
+/**
+ * Get effective regional capacity factor with site quality degradation.
+ * Best sites are used first; as cumulative deployment approaches regional potential,
+ * capacity factor declines.
+ *
+ * effectiveCF = baseCF × (1 - depletion × min(1, cumCapacity / regionalPotential))
+ */
+function getRegionalCapacityFactor(
+  params: EnergyParams,
+  region: Region,
+  source: EnergySource,
+  installedCapacity?: number
+): number {
+  const baseCF = getBaseRegionalCapacityFactor(params, region, source);
+
+  // Only apply site depletion to solar and wind
+  if (installedCapacity !== undefined && (source === 'solar' || source === 'wind')) {
+    const depletion = source === 'solar'
+      ? params.siteDepletion.solarDepletion
+      : params.siteDepletion.windDepletion;
+    const potential = source === 'solar'
+      ? params.siteDepletion.solarPotential[region]
+      : params.siteDepletion.windPotential[region];
+    const depletionFraction = Math.min(1, installedCapacity / potential);
+    return baseCF * (1 - depletion * depletionFraction);
+  }
+
+  return baseCF;
 }
 
 /**
@@ -518,6 +636,12 @@ export const energyModule: Module<
         },
       },
     },
+    coalPhaseoutYear: {
+      description: 'Year after which no new coal capacity is built. Existing plants retire at lifetime.',
+      unit: 'year',
+      range: { min: 2025, max: 2100, default: 2035 },
+      tier: 1 as const,
+    },
     regional: {
       oecd: {
         carbonPrice: {
@@ -581,6 +705,11 @@ export const energyModule: Module<
     'batteryCost',
     'cheapestLCOE',
     'energyRegional',
+    'effectiveSolarCF',
+    'effectiveWindCF',
+    'longStorageCost',
+    'longStorageCapacity',
+    'longStorageRegional',
   ] as const,
 
   validate(params: Partial<EnergyParams>): ValidationResult {
@@ -695,6 +824,24 @@ export const energyModule: Module<
       if (p.capacityCeiling) {
         result.capacityCeiling = { ...energyDefaults.capacityCeiling, ...p.capacityCeiling };
       }
+      if (p.coalPhaseoutYear !== undefined) {
+        result.coalPhaseoutYear = p.coalPhaseoutYear;
+      }
+      if (p.longStorage) {
+        result.longStorage = { ...energyDefaults.longStorage, ...p.longStorage };
+        if (p.longStorage.capacity2025) {
+          result.longStorage.capacity2025 = { ...energyDefaults.longStorage.capacity2025, ...p.longStorage.capacity2025 };
+        }
+      }
+      if (p.siteDepletion) {
+        result.siteDepletion = { ...energyDefaults.siteDepletion, ...p.siteDepletion };
+        if (p.siteDepletion.solarPotential) {
+          result.siteDepletion.solarPotential = { ...energyDefaults.siteDepletion.solarPotential, ...p.siteDepletion.solarPotential };
+        }
+        if (p.siteDepletion.windPotential) {
+          result.siteDepletion.windPotential = { ...energyDefaults.siteDepletion.windPotential, ...p.siteDepletion.windPotential };
+        }
+      }
 
       return result;
     }, partial);
@@ -725,7 +872,16 @@ export const energyModule: Module<
       };
     }
 
-    return { regional, global };
+    // Initialize long-duration storage
+    const longStorageRegional: Record<Region, number> = {} as any;
+    let longStorageCumulative = 0;
+    for (const region of REGIONS) {
+      const cap = params.longStorage.capacity2025[region] ?? 0;
+      longStorageRegional[region] = cap;
+      longStorageCumulative += cap;
+    }
+
+    return { regional, global, longStorageRegional, longStorageCumulative };
   },
 
   step(state, inputs, params, year, yearIndex) {
@@ -849,7 +1005,7 @@ export const energyModule: Module<
         const regionState = state.regional[region][source];
         const prevInstalled = regionState.installed;
 
-        const cf = getRegionalCapacityFactor(params, region, source);
+        const cf = getRegionalCapacityFactor(params, region, source, regionState.installed);
         const maxPen = params.capacityCeiling[source];
 
         // Max useful capacity based on regional demand ceiling
@@ -907,9 +1063,12 @@ export const energyModule: Module<
         let desired = Math.max(0, targetAddition);
         desired = Math.min(desired, growthCapped, ceilingRoom);
 
-        // No new coal: existing plants retire at lifetime but no new capacity built
+        // Coal phaseout: no new coal after phaseout year (regional override or global)
         if (source === 'coal') {
-          desired = 0;
+          const regionalPhaseout = regionParams.coalPhaseoutYear ?? params.coalPhaseoutYear;
+          if (year >= regionalPhaseout) {
+            desired = 0;
+          }
         }
 
         desiredAdditions[source] = desired;
@@ -938,7 +1097,6 @@ export const energyModule: Module<
       }
 
       fundedAdditions.gas = desiredAdditions.gas ?? 0;
-      // Coal already zeroed above (desired = 0), but not in cleanSources so set explicitly
       fundedAdditions.coal = desiredAdditions.coal ?? 0;
 
       // Apply mineral supply constraint: scale down mineral-intensive additions
@@ -993,6 +1151,39 @@ export const energyModule: Module<
     }
 
     // =========================================================================
+    // Compute capacity-weighted effective CFs and update dynamic EROI
+    // =========================================================================
+
+    let effectiveSolarCF = 0;
+    let effectiveWindCF = 0;
+    let totalSolarCap = 0;
+    let totalWindCap = 0;
+    const baseSolarCF = getBaseRegionalCapacityFactor(params, 'oecd', 'solar'); // global reference
+    const baseWindCF = getBaseRegionalCapacityFactor(params, 'oecd', 'wind');
+
+    for (const region of REGIONS) {
+      const solarCap = newRegional[region].solar.installed;
+      const windCap = newRegional[region].wind.installed;
+      const solarCF = getRegionalCapacityFactor(params, region, 'solar', solarCap);
+      const windCF = getRegionalCapacityFactor(params, region, 'wind', windCap);
+      effectiveSolarCF += solarCF * solarCap;
+      effectiveWindCF += windCF * windCap;
+      totalSolarCap += solarCap;
+      totalWindCap += windCap;
+    }
+    effectiveSolarCF = totalSolarCap > 0 ? effectiveSolarCF / totalSolarCap : baseSolarCF;
+    effectiveWindCF = totalWindCap > 0 ? effectiveWindCF / totalWindCap : baseWindCF;
+
+    // Update net energy fraction for solar/wind using dynamic EROI
+    // effectiveEROI = baseEROI × (avgEffectiveCF / baseCF)
+    const solarBaseEROI = params.eroi.solar;
+    const windBaseEROI = params.eroi.wind;
+    const dynamicSolarEROI = solarBaseEROI * (effectiveSolarCF / Math.max(0.01, baseSolarCF));
+    const dynamicWindEROI = windBaseEROI * (effectiveWindCF / Math.max(0.01, baseWindCF));
+    netEnergyFraction.solar = dynamicSolarEROI > 1 ? 1 - 1 / dynamicSolarEROI : 0;
+    netEnergyFraction.wind = dynamicWindEROI > 1 ? 1 - 1 / dynamicWindEROI : 0;
+
+    // =========================================================================
     // Update global learning state
     // =========================================================================
 
@@ -1034,6 +1225,47 @@ export const energyModule: Module<
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 
+    // =========================================================================
+    // Long-duration storage (parallel track, not an EnergySource)
+    // =========================================================================
+
+    const longStorageInit = getGlobalLongStorageCumulative2025(params);
+    const longStoragePrevCum = state.longStorageCumulative;
+    const longStorageRatio = longStoragePrevCum / Math.max(1, longStorageInit);
+    const longStorageCost = params.longStorage.cost0 *
+      Math.pow(Math.max(1, longStorageRatio), -params.longStorage.alpha);
+
+    // Size long storage to system needs: ramps when VRE > 50%
+    const totalVRECap = globalCapacities.solar + globalCapacities.wind;
+    const totalCap = ENERGY_SOURCES.reduce((s, src) => s + globalCapacities[src], 0) - globalCapacities.battery;
+    const vreShare = totalCap > 0 ? totalVRECap / totalCap : 0;
+    // Target fraction ramps 0 at VRE<50% to 0.3 at VRE>80%
+    const longStorageFraction = Math.max(0, Math.min(0.3, (vreShare - 0.5) / 0.3 * 0.3));
+
+    const newLongStorageRegional: Record<Region, number> = {} as any;
+    let longStorageTotal = 0;
+    let longStorageCumulativeNew = longStoragePrevCum;
+
+    for (const region of REGIONS) {
+      const prevCap = state.longStorageRegional[region] ?? 0;
+      const regionDemandTWh = regionalDemand[region];
+      const PEAK_TO_AVERAGE = 2;
+      const peakGW = (regionDemandTWh * 1000) / 8760 * PEAK_TO_AVERAGE;
+      const targetGWh = peakGW * longStorageFraction * params.longStorage.duration;
+      const gap = Math.max(0, targetGWh - prevCap);
+      const maxAdd = prevCap * params.longStorage.growthRate;
+      const addition = Math.min(gap * 0.2, maxAdd + 1); // +1 GWh min to bootstrap
+
+      // Investment constraint: use remaining clean budget if available
+      const additionCost = (addition * params.longStorage.capex) / 1000; // $B
+      const affordable = Math.min(addition, addition); // Simplified: no separate budget tracking
+
+      const newCap = prevCap + affordable;
+      newLongStorageRegional[region] = newCap;
+      longStorageTotal += newCap;
+      longStorageCumulativeNew += affordable;
+    }
+
     // Find cheapest LCOE ($/MWh)
     // Note: lcoes.battery is $/kWh (storage cost), not $/MWh like generation sources.
     // Skip battery here; its contribution is captured via solarPlusBatteryLCOE.
@@ -1049,7 +1281,12 @@ export const energyModule: Module<
     }
 
     return {
-      state: { regional: newRegional, global: newGlobal },
+      state: {
+        regional: newRegional,
+        global: newGlobal,
+        longStorageRegional: newLongStorageRegional,
+        longStorageCumulative: longStorageCumulativeNew,
+      },
       outputs: {
         lcoes,
         netEnergyFraction,
@@ -1064,6 +1301,11 @@ export const energyModule: Module<
         batteryCost,
         cheapestLCOE,
         energyRegional: regionalOutputs,
+        effectiveSolarCF,
+        effectiveWindCF,
+        longStorageCost,
+        longStorageCapacity: longStorageTotal,
+        longStorageRegional: newLongStorageRegional,
       },
     };
   },

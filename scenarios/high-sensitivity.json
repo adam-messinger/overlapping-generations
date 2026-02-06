@@ -12,7 +12,6 @@
 
   "climate": {
     "sensitivity": 4.5,
-    "damageCoeff": 0.003,
-    "tippingThreshold": 2.0
+    "damageCoeff": 0.007
   }
 }
