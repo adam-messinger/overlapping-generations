@@ -111,57 +111,52 @@ export interface EnergyParams {
 }
 
 /**
- * Regional 2025 Capacity Defaults (GW)
+ * Regional 2025 Capacity Defaults (GW; GWh for battery)
  *
- * Based on IEA World Energy Outlook 2024 and IRENA statistics:
- * - Solar: China 600 GW, OECD 600 GW (US 200, EU 250, other 150), EM 200, ROW 100
- * - Wind: OECD 500 GW (EU 220, US 160), China 400 GW, EM 80, ROW 20
- * - Gas: OECD 800 GW (US 500), China 150 GW, EM 600 GW (India, ME), ROW 250
- * - Coal: China 1200 GW (>50% global), OECD 300 GW (declining), EM 400, ROW 200
- * - Nuclear: OECD 300 GW (US 95, EU 100, Japan), China 60 GW, EM 30, ROW 10
- * - Hydro: OECD 400 GW, China 400 GW, EM 500 GW (Brazil), ROW 100
- * - Battery: OECD 100 GWh, China 80 GWh, EM 15 GWh, ROW 5 GWh
+ * Based on IEA World Energy Outlook 2024 and IRENA statistics.
+ * 8-region split from original 4-region (EM → india+latam+seasia, ROW → russia+mena+ssa).
  */
 const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
-  solar:   { oecd: 600,  china: 600,  em: 200, row: 100 },
-  wind:    { oecd: 500,  china: 400,  em: 80,  row: 20 },
-  gas:     { oecd: 800,  china: 150,  em: 600, row: 250 },
-  coal:    { oecd: 300,  china: 1200, em: 400, row: 200 },
-  nuclear: { oecd: 300,  china: 60,   em: 30,  row: 10 },
-  hydro:   { oecd: 400,  china: 400,  em: 500, row: 100 },
-  battery: { oecd: 100,  china: 80,   em: 15,  row: 5 },
+  solar:   { oecd: 600, china: 600, india: 90,  latam: 40,  seasia: 35,  russia: 5,   mena: 30,  ssa: 8 },
+  wind:    { oecd: 500, china: 400, india: 42,  latam: 22,  seasia: 5,   russia: 2,   mena: 12,  ssa: 5 },
+  gas:     { oecd: 800, china: 150, india: 30,  latam: 90,  seasia: 110, russia: 190, mena: 190, ssa: 30 },
+  coal:    { oecd: 300, china: 1200,india: 250, latam: 15,  seasia: 80,  russia: 40,  mena: 15,  ssa: 40 },
+  nuclear: { oecd: 300, china: 60,  india: 8,   latam: 5,   seasia: 0,   russia: 12,  mena: 5,   ssa: 2 },
+  hydro:   { oecd: 400, china: 400, india: 55,  latam: 200, seasia: 100, russia: 60,  mena: 50,  ssa: 40 },
+  battery: { oecd: 100, china: 80,  india: 5,   latam: 2,   seasia: 3,   russia: 1,   mena: 2,   ssa: 2 },
 };
 
 /**
  * Regional Carbon Price Defaults ($/ton CO2)
  *
- * Based on World Bank Carbon Pricing Dashboard 2024:
- * - OECD: EU ETS ~80, US implicit ~25 → blended ~50
- * - China: National ETS ~15 (nascent)
- * - EM: Limited pricing (India, Brazil) → ~10
- * - ROW: No effective carbon pricing → 0
+ * Based on World Bank Carbon Pricing Dashboard 2024.
  */
 const REGIONAL_CARBON_PRICES: Record<Region, number> = {
   oecd: 50,
   china: 15,
-  em: 10,
-  row: 0,
+  india: 5,
+  latam: 10,
+  seasia: 5,
+  russia: 0,
+  mena: 0,
+  ssa: 0,
 };
 
 /**
  * Regional Solar Capacity Factors
  *
- * Based on latitude and irradiance:
- * - ROW: Excellent solar (Africa, Middle East) → 0.22
- * - EM: Good solar (India, Brazil) → 0.20
- * - OECD: Higher latitudes → 0.18
- * - China: Variable (deserts to eastern coast) → 0.17
+ * Based on latitude and irradiance. MENA has world's best solar (0.24).
+ * Russia has poor solar (0.11).
  */
 const REGIONAL_SOLAR_CF: Record<Region, number> = {
   oecd: 0.18,
   china: 0.17,
-  em: 0.20,
-  row: 0.22,
+  india: 0.20,
+  latam: 0.21,
+  seasia: 0.18,
+  russia: 0.11,
+  mena: 0.24,
+  ssa: 0.22,
 };
 
 export const energyDefaults: EnergyParams = {
@@ -230,22 +225,14 @@ export const energyDefaults: EnergyParams = {
 
   // Regional policy parameters
   regional: {
-    oecd: {
-      carbonPrice: REGIONAL_CARBON_PRICES.oecd,
-      capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd },
-    },
-    china: {
-      carbonPrice: REGIONAL_CARBON_PRICES.china,
-      capacityFactor: { solar: REGIONAL_SOLAR_CF.china },
-    },
-    em: {
-      carbonPrice: REGIONAL_CARBON_PRICES.em,
-      capacityFactor: { solar: REGIONAL_SOLAR_CF.em },
-    },
-    row: {
-      carbonPrice: REGIONAL_CARBON_PRICES.row,
-      capacityFactor: { solar: REGIONAL_SOLAR_CF.row },
-    },
+    oecd:   { carbonPrice: REGIONAL_CARBON_PRICES.oecd,   capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd } },
+    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china } },
+    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india } },
+    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam } },
+    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia } },
+    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia } },
+    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena } },
+    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa } },
   },
 
   // Non-fossil EROI assumptions (used for net energy fraction)
@@ -550,19 +537,19 @@ export const energyModule: Module<
           tier: 1 as const,
         },
       },
-      em: {
+      india: {
         carbonPrice: {
-          paramName: 'emCarbonPrice',
-          description: 'Carbon price for Emerging Markets (India, Brazil, Indonesia, etc.).',
+          paramName: 'indiaCarbonPrice',
+          description: 'Carbon price for India + South Asia. Limited carbon pricing.',
           unit: '$/ton CO₂',
-          range: { min: 0, max: 300, default: 10 },
+          range: { min: 0, max: 300, default: 5 },
           tier: 1 as const,
         },
       },
-      row: {
+      ssa: {
         carbonPrice: {
-          paramName: 'rowCarbonPrice',
-          description: 'Carbon price for Rest of World (Africa, etc.). No effective pricing.',
+          paramName: 'ssaCarbonPrice',
+          description: 'Carbon price for Sub-Saharan Africa. No effective pricing.',
           unit: '$/ton CO₂',
           range: { min: 0, max: 300, default: 0 },
           tier: 1 as const,
@@ -1087,12 +1074,10 @@ export const energyModule: Module<
 // =============================================================================
 
 function distributeByGDP(total: number): Record<Region, number> {
-  // GDP shares (approximate 2025): OECD 49%, China 15%, EM 29%, ROW 7%
+  // GDP shares (approximate 2025): sum = $118T
   const shares: Record<Region, number> = {
-    oecd: 0.49,
-    china: 0.15,
-    em: 0.29,
-    row: 0.07,
+    oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
+    seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
   };
 
   const result: Record<Region, number> = {} as any;

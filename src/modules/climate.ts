@@ -84,8 +84,12 @@ export const climateDefaults: ClimateParams = {
   regionalDamage: {
     oecd: 0.8,
     china: 1.0,
-    em: 1.3,
-    row: 1.8,
+    india: 1.5,      // Extreme heat and water stress
+    latam: 1.0,
+    seasia: 1.3,
+    russia: 0.5,     // Warming reduces heating costs, opens agricultural land at moderate warming
+    mena: 1.5,       // Extreme heat and water stress
+    ssa: 2.0,        // Most vulnerable
   },
   tippingThreshold: 2.5,
   tippingMultiplier: 1.25,

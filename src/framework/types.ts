@@ -9,8 +9,8 @@ export type YearIndex = number;
 export type Year = number;
 
 /** Region identifiers */
-export type Region = 'oecd' | 'china' | 'em' | 'row';
-export const REGIONS: Region[] = ['oecd', 'china', 'em', 'row'];
+export type Region = 'oecd' | 'china' | 'india' | 'latam' | 'seasia' | 'russia' | 'mena' | 'ssa';
+export const REGIONS: Region[] = ['oecd', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa'];
 
 /** Energy source identifiers */
 export type EnergySource = 'solar' | 'wind' | 'gas' | 'coal' | 'nuclear' | 'hydro' | 'battery';

@@ -72,58 +72,106 @@ export const demographicsDefaults: DemographicsParams = {
   regions: {
     oecd: {
       name: 'OECD',
-      pop2025: 1.4e9,
-      fertility: 1.6,
-      fertilityFloor: 1.4,
-      fertilityDecay: 0.005,
-      lifeExpectancy: 82,
-      young: 0.18,
-      working: 0.59,
-      old: 0.23,
-      migrationRate: 0.003,
+      pop2025: 1.14e9,
+      fertility: 1.55,
+      fertilityFloor: 1.3,
+      fertilityDecay: 0.01,
+      lifeExpectancy: 81,
+      young: 0.20,
+      working: 0.58,
+      old: 0.22,
+      migrationRate: 0.004,
     },
     china: {
       name: 'China',
-      pop2025: 1.4e9,
-      fertility: 1.05,        // TFR 2023 (JFV)
-      fertilityFloor: 0.8,    // Lower floor (South Korea at 0.7)
-      fertilityDecay: 0.05,   // Fast convergence (JFV: steepest decline)
+      pop2025: 1.41e9,
+      fertility: 1.0,          // TFR 2023 (JFV: ultra-low, no recovery despite pro-natalist spending)
+      fertilityFloor: 0.8,     // South Korea at 0.7
+      fertilityDecay: 0.05,    // Fast convergence (JFV: steepest decline)
       lifeExpectancy: 78,
-      young: 0.16,
-      working: 0.68,
-      old: 0.16,
+      young: 0.17,
+      working: 0.66,
+      old: 0.17,
       migrationRate: 0.0,
     },
-    em: {
-      name: 'Emerging Markets',
-      pop2025: 3.5e9,
-      fertility: 2.3,         // Slightly higher starting TFR
+    india: {
+      name: 'India + South Asia',
+      pop2025: 1.97e9,
+      fertility: 2.1,          // India crossed below replacement 2020; Pakistan/Bangladesh still above
       fertilityFloor: 1.4,
-      fertilityDecay: 0.02,   // JFV: faster convergence than expected
-      lifeExpectancy: 72,
+      fertilityDecay: 0.03,
+      lifeExpectancy: 71,
+      young: 0.32,
+      working: 0.59,
+      old: 0.09,
+      migrationRate: -0.001,
+    },
+    latam: {
+      name: 'Latin America',
+      pop2025: 0.67e9,
+      fertility: 1.8,          // 76% of countries below replacement (ECLAC 2024)
+      fertilityFloor: 1.4,
+      fertilityDecay: 0.02,
+      lifeExpectancy: 76,
       young: 0.27,
       working: 0.63,
       old: 0.10,
+      migrationRate: -0.002,
+    },
+    seasia: {
+      name: 'SE Asia + Pacific',
+      pop2025: 0.70e9,
+      fertility: 2.1,
+      fertilityFloor: 1.4,
+      fertilityDecay: 0.025,
+      lifeExpectancy: 73,
+      young: 0.28,
+      working: 0.63,
+      old: 0.09,
+      migrationRate: -0.002,
+    },
+    russia: {
+      name: 'Russia + CIS',
+      pop2025: 0.29e9,
+      fertility: 1.6,          // Russia 1.5; Central Asian states (Uzbekistan 2.8, Tajikistan 3.6) pull up
+      fertilityFloor: 1.3,
+      fertilityDecay: 0.02,
+      lifeExpectancy: 73,
+      young: 0.22,
+      working: 0.62,
+      old: 0.16,
       migrationRate: -0.001,
     },
-    row: {
-      name: 'Rest of World',
-      pop2025: 2.0e9,           // Africa + others
-      fertility: 4.2,           // High starting TFR (Sub-Saharan Africa ~4.5)
-      fertilityFloor: 1.5,      // Lower floor (JFV: even Africa converging)
-      fertilityDecay: 0.028,    // Balance: high enough peak, declining by 2100
-      lifeExpectancy: 65,
-      young: 0.42,              // Very young population
-      working: 0.52,
-      old: 0.06,
+    mena: {
+      name: 'MENA',
+      pop2025: 0.60e9,
+      fertility: 2.5,          // Bifurcated: Turkey 1.5/Iran 1.45 vs Egypt 3.4/Iraq 3.5/Yemen 3.8
+      fertilityFloor: 1.5,
+      fertilityDecay: 0.025,
+      lifeExpectancy: 74,
+      young: 0.33,
+      working: 0.59,
+      old: 0.08,
+      migrationRate: 0.001,
+    },
+    ssa: {
+      name: 'Sub-Saharan Africa',
+      pop2025: 1.38e9,
+      fertility: 4.3,          // UN WPP 2024: TFR 4.34, JFV says "faster convergence than anticipated"
+      fertilityFloor: 1.8,
+      fertilityDecay: 0.02,
+      lifeExpectancy: 62,
+      young: 0.47,
+      working: 0.48,
+      old: 0.05,
       migrationRate: -0.001,
     },
   },
   education: {
     oecd: {
-      enrollmentRate2025: 0.55,
-      enrollmentTarget: 0.70,   // Higher target (UNESCO projections)
-      enrollmentGrowth: 0.012,  // Faster growth
+      enrollmentRate2025: 0.75,
+      enrollmentTarget: 0.80,
+      enrollmentGrowth: 0.010,
       collegeShare2025: 0.40,
       wagePremium2025: 1.5,
       premiumTarget: 1.4,
@@ -132,9 +180,9 @@ export const demographicsDefaults: DemographicsParams = {
       lifePenaltyNonCollege: 1,
     },
     china: {
-      enrollmentRate2025: 0.60,
-      enrollmentTarget: 0.75,   // Higher target (China pushing education)
-      enrollmentGrowth: 0.015,  // Faster growth
+      enrollmentRate2025: 0.61,
+      enrollmentTarget: 0.80,
+      enrollmentGrowth: 0.015,
       collegeShare2025: 0.22,
       wagePremium2025: 1.8,
       premiumTarget: 1.5,
@@ -142,24 +190,68 @@ export const demographicsDefaults: DemographicsParams = {
       lifeBonusCollege: 2,
       lifePenaltyNonCollege: 1,
     },
-    em: {
-      enrollmentRate2025: 0.35,
-      enrollmentTarget: 0.60,   // Higher target
-      enrollmentGrowth: 0.02,   // Faster growth (catching up)
-      collegeShare2025: 0.18,
+    india: {
+      enrollmentRate2025: 0.30,
+      enrollmentTarget: 0.55,
+      enrollmentGrowth: 0.025,
+      collegeShare2025: 0.15,
       wagePremium2025: 2.0,
       premiumTarget: 1.6,
       premiumDecay: 0.004,
       lifeBonusCollege: 2,
       lifePenaltyNonCollege: 1,
     },
-    row: {
-      enrollmentRate2025: 0.15,
-      enrollmentTarget: 0.45,   // Higher target
-      enrollmentGrowth: 0.025,  // Faster growth (catching up)
-      collegeShare2025: 0.08,
-      wagePremium2025: 2.2,
-      premiumTarget: 1.7,
+    latam: {
+      enrollmentRate2025: 0.55,
+      enrollmentTarget: 0.65,
+      enrollmentGrowth: 0.015,
+      collegeShare2025: 0.20,
+      wagePremium2025: 2.0,
+      premiumTarget: 1.6,
+      premiumDecay: 0.004,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 1,
+    },
+    seasia: {
+      enrollmentRate2025: 0.38,
+      enrollmentTarget: 0.60,
+      enrollmentGrowth: 0.020,
+      collegeShare2025: 0.15,
+      wagePremium2025: 1.8,
+      premiumTarget: 1.5,
+      premiumDecay: 0.004,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 1,
+    },
+    russia: {
+      enrollmentRate2025: 0.68,
+      enrollmentTarget: 0.75,
+      enrollmentGrowth: 0.010,
+      collegeShare2025: 0.35,
+      wagePremium2025: 1.4,
+      premiumTarget: 1.3,
+      premiumDecay: 0.003,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 2,  // High non-college male mortality (alcohol, occupational hazards)
+    },
+    mena: {
+      enrollmentRate2025: 0.40,
+      enrollmentTarget: 0.60,
+      enrollmentGrowth: 0.020,
+      collegeShare2025: 0.20,
+      wagePremium2025: 1.8,
+      premiumTarget: 1.5,
+      premiumDecay: 0.004,
+      lifeBonusCollege: 2,
+      lifePenaltyNonCollege: 1,
+    },
+    ssa: {
+      enrollmentRate2025: 0.09,
+      enrollmentTarget: 0.40,
+      enrollmentGrowth: 0.030,
+      collegeShare2025: 0.06,
+      wagePremium2025: 2.5,
+      premiumTarget: 1.8,
       premiumDecay: 0.003,
       lifeBonusCollege: 1,
       lifePenaltyNonCollege: 1,
@@ -171,10 +263,14 @@ export const demographicsDefaults: DemographicsParams = {
 
   // Heat stress: wet-bulb temperature → outdoor labor productivity loss
   heatStress: {
-    oecd: { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.15 },
-    china: { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
-    em: { baselineWetBulb: 30, warmingAmplification: 1.1, outdoorFraction: 0.35 },
-    row: { baselineWetBulb: 31, warmingAmplification: 1.2, outdoorFraction: 0.45 },
+    oecd:   { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.15 },
+    china:  { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
+    india:  { baselineWetBulb: 31, warmingAmplification: 1.2, outdoorFraction: 0.40 },
+    latam:  { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
+    seasia: { baselineWetBulb: 30, warmingAmplification: 1.1, outdoorFraction: 0.35 },
+    russia: { baselineWetBulb: 18, warmingAmplification: 0.6, outdoorFraction: 0.20 },
+    mena:   { baselineWetBulb: 30, warmingAmplification: 1.2, outdoorFraction: 0.30 },
+    ssa:    { baselineWetBulb: 31, warmingAmplification: 1.2, outdoorFraction: 0.45 },
   },
   heatStressThreshold: 33,   // Wet-bulb °C where outdoor productivity loss begins
   heatStressScale: 4,        // °C above threshold for total outdoor productivity loss

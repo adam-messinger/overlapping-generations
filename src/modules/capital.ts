@@ -126,10 +126,14 @@ export const capitalDefaults: CapitalParams = {
 
   // Regional premiums
   savingsPremium: {
-    oecd: 0.0,              // Baseline
+    oecd: 0.00,             // Baseline
     china: 0.15,            // +15% higher savings
-    em: -0.05,              // Lower savings
-    row: -0.08,             // Lowest savings
+    india: 0.02,            // Slightly above baseline
+    latam: -0.05,           // Lower savings
+    seasia: -0.02,          // Slightly below baseline
+    russia: -0.03,          // Below baseline
+    mena: 0.05,             // Oil wealth savings
+    ssa: -0.08,             // Lowest savings
   },
 
   // G/C uncertainty premium

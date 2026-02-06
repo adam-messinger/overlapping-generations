@@ -133,6 +133,9 @@ export interface DemandParams {
   // Baseline electrification trend
   baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
 
+  // Energy cost → GDP share feedback
+  energyCostSensitivity: number;  // GDP share boost per 1.0 fossil share advantage (default 0.3)
+
   // Robot/automation (endogenous logistic adoption)
   robotBaseline2025: number;      // Initial robots per 1000 workers
   robotBaseGrowth: number;        // Base logistic growth rate
@@ -195,6 +198,9 @@ interface DemandInputs {
 
   // For cost-driven electrification
   laggedAvgLCOE?: number;                // $/MWh from previous year
+
+  // For energy cost → GDP share feedback (from dispatch, lagged)
+  regionalFossilShare?: Record<Region, number>;
 }
 
 interface RegionalOutputs {
@@ -297,7 +303,7 @@ export const demandDefaults: DemandParams = {
 
   regions: {
     oecd: {
-      gdp2025: 58,              // $58T (World Bank)
+      gdp2025: 56,              // $56T (World Bank)
       tfpGrowth: 0.008,         // Residual TFP after useful work extraction (Ayres/Warr)
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.70,    // MWh per $1000 GDP (IEA-calibrated)
@@ -310,18 +316,46 @@ export const demandDefaults: DemandParams = {
       energyIntensity: 2.04,    // High - industrial economy
       intensityDecline: 0.008,  // 0.8%/year
     },
-    em: {
-      gdp2025: 35,              // $35T (India, Brazil, Indonesia, etc.)
-      tfpGrowth: 0.016,         // Residual TFP
-      tfpDecay: 0.008,          // Slow convergence
-      energyIntensity: 0.93,    // Mixed economies
+    india: {
+      gdp2025: 13,              // $13T (India + South Asia)
+      tfpGrowth: 0.025,         // Residual TFP (catch-up growth)
+      tfpDecay: 0.012,          // Gradual convergence
+      energyIntensity: 0.80,    // Lower than China
+      intensityDecline: 0.006,  // 0.6%/year
+    },
+    latam: {
+      gdp2025: 8,               // $8T (Latin America)
+      tfpGrowth: 0.012,         // Residual TFP
+      tfpDecay: 0.005,          // Slow convergence
+      energyIntensity: 0.75,    // Moderate
+      intensityDecline: 0.004,  // 0.4%/year
+    },
+    seasia: {
+      gdp2025: 7,               // $7T (SE Asia + Pacific)
+      tfpGrowth: 0.020,         // Residual TFP (manufacturing hubs)
+      tfpDecay: 0.008,          // Gradual convergence
+      energyIntensity: 0.90,    // Manufacturing-heavy
       intensityDecline: 0.005,  // 0.5%/year
     },
-    row: {
-      gdp2025: 8,               // $8T (Africa, etc.)
+    russia: {
+      gdp2025: 4,               // $4T (Russia + CIS)
+      tfpGrowth: 0.005,         // Low residual TFP (aging, fossil-dependent)
+      tfpDecay: 0.003,          // Very slow convergence
+      energyIntensity: 1.80,    // High - cold climate, heavy industry
+      intensityDecline: 0.004,  // 0.4%/year
+    },
+    mena: {
+      gdp2025: 5,               // $5T (MENA)
+      tfpGrowth: 0.010,         // Residual TFP (fossil exporters diversifying)
+      tfpDecay: 0.005,          // Slow convergence
+      energyIntensity: 1.20,    // Moderate-high (subsidized energy)
+      intensityDecline: 0.004,  // 0.4%/year
+    },
+    ssa: {
+      gdp2025: 7,               // $7T (Sub-Saharan Africa)
       tfpGrowth: 0.020,         // Residual TFP (demographic dividend)
       tfpDecay: 0.010,          // Gradual convergence
-      energyIntensity: 1.53,    // Lower efficiency
+      energyIntensity: 1.50,    // Lower efficiency
       intensityDecline: 0.004,  // 0.4%/year
     },
   },
@@ -432,6 +466,9 @@ export const demandDefaults: DemandParams = {
 
   capitalElasticity: 0.35,     // Legacy (now in production module)
   baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
+
+  // Energy cost → GDP share feedback
+  energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
 
   // Robot/automation (endogenous logistic adoption)
   robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025
@@ -706,6 +743,12 @@ export const demandModule: Module<
         tier: 1 as const,
       },
     },
+    energyCostSensitivity: {
+      description: 'GDP share boost per unit fossil share advantage. Regions with cleaner grids gain GDP share.',
+      unit: 'fraction',
+      range: { min: 0, max: 1.0, default: 0.3 },
+      tier: 1 as const,
+    },
     robotBaseGrowth: {
       description: 'Base logistic growth rate for robot adoption. Higher = faster S-curve.',
       unit: 'fraction/year',
@@ -746,6 +789,7 @@ export const demandModule: Module<
     'weightedAverageLCOE',
     'carbonPrice',
     'laggedAvgLCOE',
+    'regionalFossilShare',
   ] as const,
 
   outputs: [
@@ -903,6 +947,9 @@ export const demandModule: Module<
         };
       }
 
+      // Energy cost sensitivity
+      if (p.energyCostSensitivity !== undefined) merged.energyCostSensitivity = p.energyCostSensitivity;
+
       // Robot/automation params
       if (p.robotBaseline2025 !== undefined) merged.robotBaseline2025 = p.robotBaseline2025;
       if (p.robotBaseGrowth !== undefined) merged.robotBaseGrowth = p.robotBaseGrowth;
@@ -974,7 +1021,7 @@ export const demandModule: Module<
       electrificationRate: params.electrification2025, // Initial electrification
       fuelShares,
       sectorElectrification,
-      previousEffectiveWorkers: { oecd: 0, china: 0, em: 0, row: 0 }, // Set on first step
+      previousEffectiveWorkers: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>, // Set on first step
       previousUsefulEnergyPerWorker: 0, // Set after first year
       usefulWorkGrowthRate: 0,          // No growth in first year
       robotsPer1000: params.robotBaseline2025, // Initial robot adoption
@@ -1060,6 +1107,12 @@ export const demandModule: Module<
       avgTfp += tfp * state.regions[region].gdpShare;
     }
 
+    // GDP-weighted average fossil share (for energy cost feedback)
+    let avgFossilShareRegional = 0;
+    for (const region of REGIONS) {
+      avgFossilShareRegional += (inputs.regionalFossilShare?.[region] ?? 0.5) * state.regions[region].gdpShare;
+    }
+
     for (const region of REGIONS) {
       const regionParams = params.regions[region];
       const effective = inputs.regionalEffectiveWorkers[region];
@@ -1071,7 +1124,11 @@ export const demandModule: Module<
         : 0;
       const damageAdj = -(inputs.regionalDamages?.[region] ?? 0) * 0.5;
 
-      shareAdjustments[region] = (tfp - avgTfp) + laborAdj + damageAdj;
+      // Energy cost advantage: regions with lower fossil share have cheaper marginal energy
+      const fossilAdv = avgFossilShareRegional - (inputs.regionalFossilShare?.[region] ?? 0.5);
+      const energyCostAdj = params.energyCostSensitivity * fossilAdv;
+
+      shareAdjustments[region] = (tfp - avgTfp) + laborAdj + damageAdj + energyCostAdj;
     }
 
     // Update shares and normalize

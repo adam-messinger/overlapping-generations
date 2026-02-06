@@ -12,10 +12,22 @@
         "carbonPrice": 100,
         "maxGrowthRate": { "solar": 0.35, "wind": 0.30 }
       },
-      "em": {
+      "india": {
         "carbonPrice": 30
       },
-      "row": {
+      "latam": {
+        "carbonPrice": 15
+      },
+      "seasia": {
+        "carbonPrice": 20
+      },
+      "russia": {
+        "carbonPrice": 5
+      },
+      "mena": {
+        "carbonPrice": 5
+      },
+      "ssa": {
         "carbonPrice": 10
       }
     }

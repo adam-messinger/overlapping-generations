@@ -259,8 +259,8 @@ test('regional damages vary by multiplier', () => {
     20
   );
 
-  // ROW has 1.8x multiplier, OECD has 0.8x
-  expect(outputs.regionalDamages.row).toBeGreaterThan(outputs.regionalDamages.oecd);
+  // SSA has 2.0x multiplier, OECD has 0.8x
+  expect(outputs.regionalDamages.ssa).toBeGreaterThan(outputs.regionalDamages.oecd);
 });
 
 test('tipping point increases damages above threshold', () => {

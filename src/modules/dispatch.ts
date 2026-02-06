@@ -271,15 +271,13 @@ function dispatchRegion(
   // Solar+battery capacity limited by battery storage
   const batteryGWh = capacities.battery;
   const batteryGW = batteryGWh / params.batteryDuration;
-  const solarCapacityFirmable = batteryGW;
+  const pairedSolarGW = Math.min(capacities.solar * 0.5, batteryGW);
   maxGen['solarPlusBattery'] =
-    (Math.min(capacities.solar * 0.5, solarCapacityFirmable) *
-      params.capacityFactor.battery *
-      params.hoursPerYear) /
-    1000;
+    (pairedSolarGW * params.capacityFactor.battery * params.hoursPerYear) / 1000;
 
-  // Track pre-penalty available VRE for curtailment accounting
-  const totalAvailableVRE = maxGen.solar + maxGen.solarPlusBattery + maxGen.wind;
+  // For curtailment, count solar panels once (bare solar covers all panels;
+  // solarPlusBattery draws from the same panels via storage)
+  const totalAvailableVRE = maxGen.solar + maxGen.wind;
 
   // Save pre-curtailment VRE values for shortfall release
   const preCurtailmentSolar = maxGen.solar;
@@ -432,7 +430,10 @@ function dispatchRegion(
 // =============================================================================
 
 function distributeByGDP(total: number): Record<Region, number> {
-  const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+  const shares: Record<Region, number> = {
+    oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
+    seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
+  };
   const result: Record<Region, number> = {} as any;
   for (const region of REGIONS) {
     result[region] = total * shares[region];
@@ -583,9 +584,8 @@ export const dispatchModule: Module<
     // Get regional inputs (or distribute by GDP share)
     const regionalDemand = inputs.regionalElectricityDemand ?? distributeByGDP(electricityDemand);
     const regionalCapacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(capacities);
-    const regionalCarbonPrice = inputs.regionalCarbonPrice ?? {
-      oecd: carbonPrice, china: carbonPrice, em: carbonPrice, row: carbonPrice,
-    };
+    const regionalCarbonPrice = inputs.regionalCarbonPrice ??
+      Object.fromEntries(REGIONS.map(r => [r, carbonPrice])) as Record<Region, number>;
 
     // Process each region independently
     const regionalOutputs: Record<Region, RegionalDispatchOutputs> = {} as any;
@@ -687,7 +687,10 @@ export const dispatchModule: Module<
 function distributeCapacitiesByGDP(
   capacities: Record<EnergySource, number>
 ): Record<Region, Record<EnergySource, number>> {
-  const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+  const shares: Record<Region, number> = {
+    oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
+    seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
+  };
   const result: Record<Region, Record<EnergySource, number>> = {} as any;
 
   for (const region of REGIONS) {

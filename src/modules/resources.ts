@@ -253,19 +253,35 @@ export const resourcesDefaults: ResourcesParams = {
     regional: {
       oecd: {
         vulnerability: 0.03,    // Low — temperate, good infrastructure
-        farmlandShare: 0.25,    // 25% of global cropland
+        farmlandShare: 0.22,
       },
       china: {
         vulnerability: 0.06,    // Moderate — North China plains drying
-        farmlandShare: 0.15,    // 15% of global cropland
+        farmlandShare: 0.13,
       },
-      em: {
-        vulnerability: 0.10,    // Significant — India water table dropping
-        farmlandShare: 0.30,    // 30% of global cropland
+      india: {
+        vulnerability: 0.14,    // High — groundwater crisis, monsoon variability
+        farmlandShare: 0.18,
       },
-      row: {
-        vulnerability: 0.15,    // Severe — Sahel, Horn of Africa
-        farmlandShare: 0.30,    // 30% of global cropland
+      latam: {
+        vulnerability: 0.05,    // Moderate — Amazon basin, but some arid regions
+        farmlandShare: 0.12,
+      },
+      seasia: {
+        vulnerability: 0.07,    // Moderate — monsoon-dependent
+        farmlandShare: 0.10,
+      },
+      russia: {
+        vulnerability: 0.02,    // Low — abundant freshwater
+        farmlandShare: 0.10,
+      },
+      mena: {
+        vulnerability: 0.20,    // Highest — most water-scarce region globally
+        farmlandShare: 0.05,
+      },
+      ssa: {
+        vulnerability: 0.15,    // High — Sahel, Horn of Africa
+        farmlandShare: 0.10,
       },
     },
     baseSeverity: 1.0,          // Scale factor at moderate warming

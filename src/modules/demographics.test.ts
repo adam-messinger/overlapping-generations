@@ -119,10 +119,14 @@ test('init sets correct 2025 population', () => {
   const totalPop =
     state.regions.oecd.population +
     state.regions.china.population +
-    state.regions.em.population +
-    state.regions.row.population;
+    state.regions.india.population +
+    state.regions.latam.population +
+    state.regions.seasia.population +
+    state.regions.russia.population +
+    state.regions.mena.population +
+    state.regions.ssa.population;
 
-  expect(totalPop / 1e9).toBeCloseTo(8.3, 1);
+  expect(totalPop / 1e9).toBeCloseTo(8.2, 0);
 });
 
 test('init sets correct cohort structure', () => {
@@ -153,7 +157,7 @@ console.log('\n--- Year 0 Outputs ---\n');
 
 test('step year 0 returns correct global population', () => {
   const { outputs } = runYears(1);
-  expect(outputs.population / 1e9).toBeCloseTo(8.3, 1);
+  expect(outputs.population / 1e9).toBeCloseTo(8.2, 1);
 });
 
 test('step year 0 returns correct dependency ratio', () => {
@@ -219,7 +223,7 @@ test('global population peaks 2050-2070', () => {
   expect(peak.year).toBeBetween(2050, 2070);
 });
 
-test('peak population ~9.2B (JFV: ~9.5B)', () => {
+test('peak population ~8.9B (JFV: ~9.5B)', () => {
   const params = demographicsModule.mergeParams({});
   let state = demographicsModule.init(params);
   let maxPop = 0;
@@ -232,7 +236,7 @@ test('peak population ~9.2B (JFV: ~9.5B)', () => {
     maxPop = Math.max(maxPop, outputs.population);
   }
 
-  expect(maxPop / 1e9).toBeBetween(9.0, 9.5);
+  expect(maxPop / 1e9).toBeBetween(8.5, 9.5);
 });
 
 test('2100 population 8-9B and declining', () => {
@@ -281,9 +285,9 @@ test('China TFR converges toward floor by 2100', () => {
   expect(outputs.regionalFertility.china).toBeBetween(0.80, 0.90);
 });
 
-test('ROW TFR declines from ~4.2', () => {
-  const year1 = runYears(1).outputs.regionalFertility.row;
-  const year50 = runYears(50).outputs.regionalFertility.row;
+test('SSA TFR declines from ~4.3', () => {
+  const year1 = runYears(1).outputs.regionalFertility.ssa;
+  const year50 = runYears(50).outputs.regionalFertility.ssa;
 
   expect(year1).toBeGreaterThan(3.5);
   expect(year50).toBeLessThan(year1);

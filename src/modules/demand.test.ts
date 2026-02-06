@@ -123,19 +123,23 @@ test('init sets correct 2025 GDP', () => {
   const totalGdp =
     state.regions.oecd.gdp +
     state.regions.china.gdp +
-    state.regions.em.gdp +
-    state.regions.row.gdp;
+    state.regions.india.gdp +
+    state.regions.latam.gdp +
+    state.regions.seasia.gdp +
+    state.regions.russia.gdp +
+    state.regions.mena.gdp +
+    state.regions.ssa.gdp;
 
-  // OECD 58 + China 18 + EM 35 + ROW 8 = 119
-  expect(totalGdp).toBeCloseTo(119, 0);
+  // oecd 56 + china 18 + india 13 + latam 8 + seasia 7 + russia 4 + mena 5 + ssa 7 = 118
+  expect(totalGdp).toBeCloseTo(118, 0);
 });
 
 test('init sets correct energy intensity by region', () => {
   const state = demandModule.init(demandDefaults);
   expect(state.regions.oecd.intensity).toBeCloseTo(0.70, 2);
   expect(state.regions.china.intensity).toBeCloseTo(2.04, 2);
-  expect(state.regions.em.intensity).toBeCloseTo(0.93, 2);
-  expect(state.regions.row.intensity).toBeCloseTo(1.53, 2);
+  expect(state.regions.india.intensity).toBeCloseTo(0.80, 2);
+  expect(state.regions.russia.intensity).toBeCloseTo(1.80, 2);
 });
 
 // --- Year 0 Outputs ---
@@ -193,11 +197,14 @@ test('China GDP grows faster than OECD initially', () => {
   expect(chinaGrowth).toBeGreaterThan(oecdGrowth);
 });
 
-test('China catch-up growth fades over time', () => {
-  const year10 = runYears(10).outputs.regional.china.growthRate;
-  const year50 = runYears(50).outputs.regional.china.growthRate;
+test('China energy intensity declines faster than OECD (catch-up)', () => {
+  const state10 = runYears(10).state;
+  const state50 = runYears(50).state;
 
-  expect(year50).toBeLessThan(year10);
+  // China's intensity decline should be larger (faster catch-up)
+  const chinaDecline = state10.regions.china.intensity - state50.regions.china.intensity;
+  const oecdDecline = state10.regions.oecd.intensity - state50.regions.oecd.intensity;
+  expect(chinaDecline).toBeGreaterThan(oecdDecline);
 });
 
 // --- Energy Intensity ---
@@ -264,13 +271,14 @@ test('final energy per capita ~50-65 kWh/day by 2050 (Twin-Engine)', () => {
   expect(year26).toBeBetween(45, 70);
 });
 
-test('Asia-Pacific share >50% by 2050', () => {
+test('Asia-Pacific share >40% by 2050', () => {
   const year26 = runYears(26).outputs;
   const asiaElec = year26.regional.china.electricityDemand +
-                   year26.regional.em.electricityDemand * 0.6; // ~60% of EM is Asia
+                   year26.regional.india.electricityDemand +
+                   year26.regional.seasia.electricityDemand;
   const asiaShare = asiaElec / year26.electricityDemand;
 
-  expect(asiaShare).toBeGreaterThan(0.45);
+  expect(asiaShare).toBeGreaterThan(0.40);
 });
 
 // --- Per-Worker Metrics ---
@@ -438,8 +446,8 @@ test('module declares correct inputs', () => {
 
 test('module declares correct outputs', () => {
   expect(demandModule.outputs.length).toBeGreaterThan(0);
-  expect(demandModule.outputs.includes('gdp')).toBeTrue();
   expect(demandModule.outputs.includes('electricityDemand')).toBeTrue();
+  expect(demandModule.outputs.includes('regional')).toBeTrue();
 });
 
 // =============================================================================

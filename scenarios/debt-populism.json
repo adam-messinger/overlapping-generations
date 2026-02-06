@@ -31,8 +31,12 @@
     "savingsPremium": {
       "oecd": -0.05,
       "china": 0.10,
-      "em": -0.10,
-      "row": -0.12
+      "india": -0.05,
+      "latam": -0.10,
+      "seasia": -0.08,
+      "russia": -0.10,
+      "mena": -0.05,
+      "ssa": -0.12
     }
   },
 

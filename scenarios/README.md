@@ -109,7 +109,7 @@ const result = runSimulation(params);
   "sensitivity": 4.5,
   "damageCoeff": 0.003,
   "tippingThreshold": 2.0,
-  "regionalDamage": { "oecd": 0.8, "china": 1.0, "em": 1.8, "row": 2.0 }
+  "regionalDamage": { "oecd": 0.8, "china": 1.0, "india": 1.5, "latam": 1.0, "seasia": 1.3, "russia": 0.5, "mena": 1.5, "ssa": 2.0 }
 }
 ```
 

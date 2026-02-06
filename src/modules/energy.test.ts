@@ -114,26 +114,26 @@ test('init returns state with global learning state', () => {
 
 test('init sets correct 2025 solar capacity (sum of regional)', () => {
   const state = energyModule.init(energyDefaults);
-  // Sum across all regions: OECD 600 + China 600 + EM 200 + ROW 100 = 1500
+  // Sum across all regions: 600+600+90+40+35+5+30+8 = 1408
   let total = 0;
   for (const region of REGIONS) {
     total += state.regional[region].solar.installed;
   }
-  expect(total).toBe(1500);
+  expect(total).toBe(1408);
 });
 
 test('init sets correct regional solar capacities', () => {
   const state = energyModule.init(energyDefaults);
   expect(state.regional.oecd.solar.installed).toBe(600);
   expect(state.regional.china.solar.installed).toBe(600);
-  expect(state.regional.em.solar.installed).toBe(200);
-  expect(state.regional.row.solar.installed).toBe(100);
+  expect(state.regional.india.solar.installed).toBe(90);
+  expect(state.regional.ssa.solar.installed).toBe(8);
 });
 
 test('init sets cumulative equal to global initial capacity', () => {
   const state = energyModule.init(energyDefaults);
-  // Global cumulative = sum of regional = 1500 for solar
-  expect(state.global.solar.cumulative).toBe(1500);
+  // Global cumulative = sum of regional = 1408 for solar
+  expect(state.global.solar.cumulative).toBe(1408);
 });
 
 // --- Year 0 LCOE ---
@@ -301,8 +301,8 @@ test('regional capacities are tracked separately', () => {
   // Each region should have its own capacity values
   expect(outputs.regionalCapacities.oecd.solar).toBeGreaterThan(0);
   expect(outputs.regionalCapacities.china.solar).toBeGreaterThan(0);
-  expect(outputs.regionalCapacities.em.solar).toBeGreaterThan(0);
-  expect(outputs.regionalCapacities.row.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities.india.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities.ssa.solar).toBeGreaterThan(0);
 });
 
 test('global capacity equals sum of regional capacities', () => {

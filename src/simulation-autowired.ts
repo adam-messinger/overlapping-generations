@@ -215,7 +215,10 @@ function buildTransforms(mergedEnergyParams: any) {
         const regional = outputs.regional;
         if (!regional) {
           const globalDemand = outputs.electricityDemand ?? 30000;
-          const shares: Record<Region, number> = { oecd: 0.38, china: 0.31, em: 0.25, row: 0.06 };
+          const shares: Record<Region, number> = {
+            oecd: 0.34, china: 0.30, india: 0.10, latam: 0.06,
+            seasia: 0.06, russia: 0.05, mena: 0.05, ssa: 0.04,
+          };
           const result = {} as Record<Region, number>;
           for (const r of REGIONS) result[r] = globalDemand * shares[r];
           return result;
@@ -233,7 +236,10 @@ function buildTransforms(mergedEnergyParams: any) {
         const investment = outputs.investment ?? 30;
         const regionalSavings = outputs.regionalSavings;
         if (!regionalSavings) {
-          const shares: Record<Region, number> = { oecd: 0.49, china: 0.15, em: 0.29, row: 0.07 };
+          const shares: Record<Region, number> = {
+            oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
+            seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
+          };
           const result: Record<Region, number> = {} as any;
           for (const r of REGIONS) result[r] = investment * shares[r];
           return result;
@@ -330,7 +336,7 @@ function buildLags() {
     regionalDamages: {
       source: 'regionalDamages',
       delay: 1,
-      initial: { oecd: 0, china: 0, em: 0, row: 0 } as Record<Region, number>,
+      initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
     },
 
     // Demand needs lagged energy burden damage (from demand.burdenDamage, not climate.damages)
@@ -415,6 +421,13 @@ function buildLags() {
       source: 'mineralConstraint',
       delay: 1,
       initial: 1.0,  // No constraint in year 0
+    },
+
+    // Demand needs lagged regional fossil share (for energy cost → GDP share feedback)
+    regionalFossilShare: {
+      source: 'regionalFossilShare',
+      delay: 1,
+      initial: Object.fromEntries(REGIONS.map(r => [r, 0.5])) as Record<Region, number>,
     },
   };
 }
@@ -580,20 +593,20 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       mineralConstraint: o.mineralConstraint ?? 1.0,
 
       // Water stress
-      waterStress: o.waterStress ?? { oecd: 0, china: 0, em: 0, row: 0 },
+      waterStress: o.waterStress ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
       waterYieldFactor: o.waterYieldFactor ?? 1,
 
       // Infrastructure lock-in
       fossilStockTWh: o.fossilStockTWh ?? 0,
 
       // Heat stress
-      heatStressLoss: o.heatStressLoss ?? { oecd: 0, china: 0, em: 0, row: 0 },
+      heatStressLoss: o.heatStressLoss ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
 
       // Regional
       regionalPopulation: o.regionalPopulation,
       regionalGdp: (() => {
         const regional = o.regional;
-        if (!regional) return { oecd: 0, china: 0, em: 0, row: 0 };
+        if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
         const result: Record<Region, number> = {} as any;
         for (const r of REGIONS) result[r] = regional[r]?.gdp ?? 0;
         return result;
