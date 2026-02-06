@@ -102,7 +102,7 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['effectiveWorkers'],
     },
 
-    // Capital uses gdp from demand
+    // Capital and demand use gdp from production
     gdp: {
       fn: (outputs: Record<string, any>) => outputs.gdp,
       dependsOn: ['gdp'],
@@ -376,13 +376,6 @@ function buildLags() {
       initial: 1,
     },
 
-    // Demand needs lagged capital growth rate (breaks demand→capital cycle)
-    capitalGrowthRate: {
-      source: 'capitalGrowthRate',
-      delay: 1,
-      initial: 0,
-    },
-
     // Production needs lagged capital stock
     capitalStock: {
       source: 'stock',
@@ -562,8 +555,8 @@ export function toYearResults(result: AutowireResult, mergedDemandParams?: any):
       adjustedDemand: o.adjustedDemand,
       robotsPer1000: o.robotsPer1000,
 
-      // Production (parallel comparison)
-      productionGdp: o.productionGdp,
+      // Production (biophysical)
+      productionGdp: o.gdp,  // Same as gdp now (production is authoritative)
       usefulEnergyProduction: o.productionUsefulEnergy,
 
       // Regional

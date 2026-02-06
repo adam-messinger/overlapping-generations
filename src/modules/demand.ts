@@ -125,7 +125,7 @@ export interface DemandParams {
 }
 
 interface RegionalState {
-  gdp: number;        // Current GDP ($ trillions)
+  gdpShare: number;   // Fraction of global GDP (sums to 1)
   intensity: number;  // Current energy intensity (MWh/$1000)
 }
 
@@ -144,7 +144,7 @@ interface DemandState {
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
 }
 
-// Inputs from demographics module
+// Inputs from demographics and production modules
 interface DemandInputs {
   // Per-region demographics
   regionalPopulation: Record<Region, number>;
@@ -157,7 +157,10 @@ interface DemandInputs {
   working: number;
   dependency: number;
 
-  // Optional damage fractions for GDP feedback
+  // GDP from production module
+  gdp: number;
+
+  // Optional damage fractions (for regional share evolution)
   regionalDamages?: Record<Region, number>;
   energyBurdenDamage?: number;
 
@@ -168,9 +171,6 @@ interface DemandInputs {
 
   // For cost-driven electrification
   laggedAvgLCOE?: number;                // $/MWh from previous year
-
-  // For Solow capital contribution to GDP growth
-  capitalGrowthRate?: number;            // Annual capital stock growth rate
 }
 
 interface RegionalOutputs {
@@ -210,7 +210,6 @@ interface DemandOutputs {
   regional: Record<Region, RegionalOutputs>;
 
   // Global aggregates
-  gdp: number;                  // $ trillions (global)
   electricityDemand: number;    // TWh (global)
   electrificationRate: number;  // Fraction (0-1)
   totalFinalEnergy: number;     // TWh (global)
@@ -671,17 +670,16 @@ export const demandModule: Module<
     'population',
     'working',
     'dependency',
+    'gdp',
     'regionalDamages',
     'energyBurdenDamage',
     'electricityGeneration',
     'weightedAverageLCOE',
     'carbonPrice',
     'laggedAvgLCOE',
-    'capitalGrowthRate',
   ] as const,
 
   outputs: [
-    'gdp',
     'electricityDemand',
     'electrificationRate',
     'totalFinalEnergy',
@@ -832,10 +830,13 @@ export const demandModule: Module<
   init(params: DemandParams): DemandState {
     const regions = {} as Record<Region, RegionalState>;
 
+    // Calculate initial GDP shares from gdp2025 values
+    const totalGdp = REGIONS.reduce((sum, r) => sum + params.regions[r].gdp2025, 0);
+
     for (const region of REGIONS) {
       const r = params.regions[region];
       regions[region] = {
-        gdp: r.gdp2025,
+        gdpShare: r.gdp2025 / totalGdp,
         intensity: r.energyIntensity,
       };
     }
@@ -924,59 +925,62 @@ export const demandModule: Module<
       )
     );
 
-    // Process each region
+    // Global GDP comes from production module
+    const globalGdp = inputs.gdp;
+
+    // Evolve regional GDP shares based on differential productivity
     const newRegions = {} as Record<Region, RegionalState>;
     const regionalOutputs = {} as Record<Region, RegionalOutputs>;
 
-    let globalGdp = 0;
     let globalElec = 0;
     let globalWorking = 0;
     let globalTotalFinal = 0;
     let globalNonElec = 0;
 
+    // First pass: compute share adjustments
+    const shareAdjustments: Record<Region, number> = {} as Record<Region, number>;
+    let avgTfp = 0;
+    for (const region of REGIONS) {
+      const regionParams = params.regions[region];
+      const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
+      avgTfp += tfp * state.regions[region].gdpShare;
+    }
+
+    for (const region of REGIONS) {
+      const regionParams = params.regions[region];
+      const effective = inputs.regionalEffectiveWorkers[region];
+      const prevEffective = state.previousEffectiveWorkers[region];
+
+      const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
+      const laborAdj = (yearIndex > 0 && prevEffective > 0)
+        ? 0.1 * ((effective - prevEffective) / prevEffective)
+        : 0;
+      const damageAdj = -(inputs.regionalDamages?.[region] ?? 0) * 0.5;
+
+      shareAdjustments[region] = (tfp - avgTfp) + laborAdj + damageAdj;
+    }
+
+    // Update shares and normalize
+    const rawShares: Record<Region, number> = {} as Record<Region, number>;
+    let totalShares = 0;
+    for (const region of REGIONS) {
+      rawShares[region] = state.regions[region].gdpShare * (1 + shareAdjustments[region]);
+      rawShares[region] = Math.max(0.01, rawShares[region]); // Floor at 1%
+      totalShares += rawShares[region];
+    }
+
+    // Second pass: compute energy demand from regional GDP
     for (const region of REGIONS) {
       const regionParams = params.regions[region];
       const currentState = state.regions[region];
-
-      // Get demographics for this region
       const working = inputs.regionalWorking[region];
-      const effective = inputs.regionalEffectiveWorkers[region];
-      const dependency = inputs.regionalDependency[region];
 
-      // Calculate labor growth from effective workers (education-weighted)
-      const prevEffective = state.previousEffectiveWorkers[region];
-      const laborGrowth = (yearIndex > 0 && prevEffective > 0)
-        ? (effective - prevEffective) / prevEffective
-        : 0;
+      const normalizedShare = rawShares[region] / totalShares;
+      const newGdp = globalGdp * normalizedShare;
 
-      // Demographic adjustment (Fernández-Villaverde)
-      // Higher dependency = lower growth
-      const demographicAdj = params.demographicFactor * (baselineDependency - dependency);
-
-      // TFP with decay (catch-up growth fades)
-      const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
-
-      // Ayres/Warr: gY = residualTFP + ε·gU + α·gK + (1-α)·gL + demographic adjustment
-      // where gU = growth in useful energy per worker (lagged 1 year)
-      const capitalGrowth = inputs.capitalGrowthRate ?? 0;
-      const usefulWorkGrowth = state.usefulWorkGrowthRate;
-      const growthRate = tfp
-        + params.usefulWorkElasticity * usefulWorkGrowth
-        + params.capitalElasticity * capitalGrowth
-        + (1 - params.capitalElasticity) * laborGrowth
-        + demographicAdj;
-
-      // Update GDP
-      let newGdp = currentState.gdp;
-      if (yearIndex > 0) {
-        // Apply optional damage feedback
-        const damageFraction = inputs.regionalDamages?.[region] ?? 0;
-        const persistentDamage = damageFraction * params.energyBurden.persistent;
-        const burdenDamage = inputs.energyBurdenDamage ?? 0;
-        const persistentBurden = burdenDamage * params.energyBurden.persistent;
-
-        newGdp = currentState.gdp * (1 + growthRate) * (1 - persistentDamage) * (1 - persistentBurden);
-      }
+      // Compute growth rate for diagnostics
+      const prevGdp = currentState.gdpShare * (yearIndex > 0 ? globalGdp / (1 + 0.02) : globalGdp);
+      const growthRate = prevGdp > 0 ? (newGdp - prevGdp) / prevGdp : 0;
 
       // Update energy intensity
       let newIntensity = currentState.intensity;
@@ -991,12 +995,12 @@ export const demandModule: Module<
       const nonElecEnergy = totalEnergy - elecDemand;
 
       // Per working-age adult metrics
-      const gdpPerWorking = (newGdp * 1e12) / working;      // $ per person
-      const elecPerWorking = (elecDemand * 1e9) / working;  // kWh per person
+      const gdpPerWorking = (newGdp * 1e12) / working;
+      const elecPerWorking = (elecDemand * 1e9) / working;
 
       // Store new state
       newRegions[region] = {
-        gdp: newGdp,
+        gdpShare: normalizedShare,
         intensity: newIntensity,
       };
 
@@ -1013,7 +1017,6 @@ export const demandModule: Module<
       };
 
       // Accumulate globals
-      globalGdp += newGdp;
       globalElec += elecDemand;
       globalWorking += working;
       globalTotalFinal += totalEnergy;
@@ -1177,7 +1180,6 @@ export const demandModule: Module<
       },
       outputs: {
         regional: regionalOutputs,
-        gdp: globalGdp,
         electricityDemand: globalElec,
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,

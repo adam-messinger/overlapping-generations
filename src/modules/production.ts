@@ -85,7 +85,7 @@ export interface ProductionInputs {
 
 export interface ProductionOutputs {
   /** GDP from biophysical production function ($T) */
-  productionGdp: number;
+  gdp: number;
   /** Exergy-weighted useful energy (TWh) */
   productionUsefulEnergy: number;
   /** (K/K₀)^α */
@@ -151,7 +151,7 @@ export const productionModule: Module<
   ] as const,
 
   outputs: [
-    'productionGdp',
+    'gdp',
     'productionUsefulEnergy',
     'capitalContribution',
     'laborContribution',
@@ -248,7 +248,7 @@ export const productionModule: Module<
     const foodFactor = 1 - params.foodStressElasticity * Math.max(0, Math.min(1, foodStress));
 
     // GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × damage factors
-    const productionGdp = params.initialGDP
+    const gdp = params.initialGDP
       * capitalContribution
       * laborContribution
       * energyContribution
@@ -264,7 +264,7 @@ export const productionModule: Module<
         initialUsefulEnergy,
       },
       outputs: {
-        productionGdp,
+        gdp,
         productionUsefulEnergy,
         capitalContribution,
         laborContribution,
