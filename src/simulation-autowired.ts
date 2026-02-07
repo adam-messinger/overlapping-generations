@@ -324,6 +324,29 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
+    // Regional life expectancy for capital module retirement age adjustment
+    regionalLifeExpectancy: {
+      fn: (outputs: Record<string, any>) => outputs.regionalLifeExpectancy,
+      dependsOn: ['regionalLifeExpectancy'],
+    },
+
+    // Regional GDP for capital module intergenerational transfers
+    regionalGdp: {
+      fn: (outputs: Record<string, any>) => {
+        const regional = outputs.regional;
+        if (!regional) {
+          const gdp = outputs.gdp ?? 158;
+          const result: Record<Region, number> = {} as any;
+          for (const r of REGIONS) result[r] = gdp * GDP_SHARES[r];
+          return result;
+        }
+        const result: Record<Region, number> = {} as any;
+        for (const r of REGIONS) result[r] = regional[r]?.gdp ?? 0;
+        return result;
+      },
+      dependsOn: ['regional', 'gdp'],
+    },
+
     // Regional GDP per capita for climate adaptation
     regionalGdpPerCapita: {
       fn: (outputs: Record<string, any>) => {
@@ -570,6 +593,10 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       automationShare: o.automationShare,
       capitalOutputRatio: o.capitalOutputRatio,
       capitalGrowthRate: o.capitalGrowthRate,
+      retireeCost: o.retireeCost ?? 0,
+      childCost: o.childCost ?? 0,
+      transferBurden: o.transferBurden ?? 0,
+      workerConsumption: o.workerConsumption ?? 0,
 
       // Energy
       lcoes: o.lcoes,

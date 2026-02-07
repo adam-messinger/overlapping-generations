@@ -8,7 +8,8 @@
 import { capitalModule, capitalDefaults } from './capital.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { demandModule, demandDefaults } from './demand.js';
-import { REGIONS } from '../framework/types.js';
+import { REGIONS, Region } from '../framework/types.js';
+import { GDP_SHARES } from '../primitives/distribute.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
 
@@ -51,13 +52,19 @@ function getCapitalInputs(yearIndex: number) {
     demandOutputs = result.outputs;
   }
 
+  const gdp = baselineGdp(yearIndex);
+  const regionalGdp: Record<Region, number> = {} as any;
+  for (const r of REGIONS) regionalGdp[r] = gdp * GDP_SHARES[r];
+
   return {
     regionalYoung: demoOutputs.regionalYoung,
     regionalWorking: demoOutputs.regionalWorking,
     regionalOld: demoOutputs.regionalOld,
     regionalPopulation: demoOutputs.regionalPopulation,
     effectiveWorkers: demoOutputs.effectiveWorkers,
-    gdp: baselineGdp(yearIndex),
+    regionalLifeExpectancy: demoOutputs.regionalLifeExpectancy,
+    gdp,
+    regionalGdp,
     damages: 0, // No climate damages for basic tests
   };
 }
@@ -274,6 +281,143 @@ test('validation warns on extreme capital stock', () => {
   expect(result.warnings.length).toBeGreaterThan(0);
 });
 
+// --- Intergenerational Transfers ---
+
+console.log('\n--- Intergenerational Transfers ---\n');
+
+test('transfer burden is 10-30% in year 1', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.transferBurden).toBeBetween(0.10, 0.30);
+});
+
+test('GDP decomposition identity: I + retireeCost + childCost + workerConsumption ≈ GDP', () => {
+  const { outputs } = runYears(1);
+  const gdp = baselineGdp(0);
+  const sum = outputs.investment + outputs.retireeCost + outputs.childCost + outputs.workerConsumption;
+  expect(sum / gdp).toBeBetween(0.999, 1.001);
+});
+
+test('higher pension rate → lower investment', () => {
+  // Default run
+  const defaultParams = capitalModule.mergeParams({});
+  let defaultState = capitalModule.init(defaultParams);
+  const defaultInputs = getCapitalInputs(0);
+  const defaultResult = capitalModule.step(defaultState, defaultInputs, defaultParams, 2025, 0);
+
+  // High pension run — override all regional premiums to ensure higher pensions everywhere
+  const highPremium: Record<string, { pensionRate: number }> = {};
+  for (const r of REGIONS) highPremium[r] = { pensionRate: 0.45 };
+  const highParams = capitalModule.mergeParams({
+    transfers: { pensionRate: 0.45, healthcareRate: 0.05, educationRate: 0.04 },
+    transferPremium: highPremium as any,
+  });
+  let highState = capitalModule.init(highParams);
+  const highResult = capitalModule.step(highState, defaultInputs, highParams, 2025, 0);
+
+  expect(highResult.outputs.investment).toBeLessThan(defaultResult.outputs.investment);
+});
+
+test('worker consumption is positive', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.workerConsumption).toBeGreaterThan(0);
+});
+
+test('retiree cost is positive', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.retireeCost).toBeGreaterThan(0);
+});
+
+test('child cost is positive', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.childCost).toBeGreaterThan(0);
+});
+
+test('transfer burden rises over 75 years (aging population)', () => {
+  const year1 = runYears(1).outputs.transferBurden;
+  const year76 = runYears(76).outputs.transferBurden;
+  expect(year76).toBeGreaterThan(year1);
+});
+
+// --- Retirement Age Adjustment ---
+
+console.log('\n--- Retirement Age Adjustment ---\n');
+
+test('retirement age adjustment reduces transfer burden at year 50', () => {
+  // With adjustment (default retirementAgeResponse=0.67)
+  const withAdj = runYears(50).outputs.transferBurden;
+
+  // Without adjustment (retirementAgeResponse=0)
+  const noAdjParams = capitalModule.mergeParams({ retirementAgeResponse: 0 });
+  let noAdjState = capitalModule.init(noAdjParams);
+  let noAdjOutputs: any;
+  for (let i = 0; i < 50; i++) {
+    const inputs = getCapitalInputs(i);
+    const result = capitalModule.step(noAdjState, inputs, noAdjParams, 2025 + i, i);
+    noAdjState = result.state;
+    noAdjOutputs = result.outputs;
+  }
+  expect(withAdj).toBeLessThan(noAdjOutputs.transferBurden);
+});
+
+test('retirement age adjustment is zero in year 0 (no LE gains yet)', () => {
+  // In year 0, LE gain = 0, so retirement age = 65, no reclassification
+  const year0 = runYears(1).outputs;
+  // Run with retirementAgeResponse=0 for comparison
+  const noAdjParams = capitalModule.mergeParams({ retirementAgeResponse: 0 });
+  let noAdjState = capitalModule.init(noAdjParams);
+  const inputs = getCapitalInputs(0);
+  const noAdj = capitalModule.step(noAdjState, inputs, noAdjParams, 2025, 0);
+  // Should be very close (both see 0 LE gain in year 0)
+  expect(year0.transferBurden / noAdj.outputs.transferBurden).toBeBetween(0.99, 1.01);
+});
+
+// --- Wage Indexation ---
+
+console.log('\n--- Wage Indexation ---\n');
+
+test('lower wageIndexation reduces transfer burden growth', () => {
+  // wageIndexation=1 (full wage): burden grows fastest
+  const fullWageParams = capitalModule.mergeParams({ wageIndexation: 1.0 });
+  let fullWageState = capitalModule.init(fullWageParams);
+  let fullWageOutputs: any;
+  for (let i = 0; i < 50; i++) {
+    const inputs = getCapitalInputs(i);
+    const result = capitalModule.step(fullWageState, inputs, fullWageParams, 2025 + i, i);
+    fullWageState = result.state;
+    fullWageOutputs = result.outputs;
+  }
+
+  // wageIndexation=0.3 (mostly price-indexed): burden grows slower
+  const lowWageParams = capitalModule.mergeParams({ wageIndexation: 0.3 });
+  let lowWageState = capitalModule.init(lowWageParams);
+  let lowWageOutputs: any;
+  for (let i = 0; i < 50; i++) {
+    const inputs = getCapitalInputs(i);
+    const result = capitalModule.step(lowWageState, inputs, lowWageParams, 2025 + i, i);
+    lowWageState = result.state;
+    lowWageOutputs = result.outputs;
+  }
+
+  expect(lowWageOutputs.transferBurden).toBeLessThan(fullWageOutputs.transferBurden);
+});
+
+test('GDP identity still holds with retirement age + wage indexation', () => {
+  const { outputs } = runYears(25);
+  const gdp = baselineGdp(24);
+  const sum = outputs.investment + outputs.retireeCost + outputs.childCost + outputs.workerConsumption;
+  expect(sum / gdp).toBeBetween(0.999, 1.001);
+});
+
+test('validation catches invalid retirementAgeResponse', () => {
+  const result = capitalModule.validate({ retirementAgeResponse: 1.5 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches invalid wageIndexation', () => {
+  const result = capitalModule.validate({ wageIndexation: -0.1 });
+  expect(result.valid).toBe(false);
+});
+
 // --- Module Metadata ---
 
 console.log('\n--- Module Metadata ---\n');
@@ -293,6 +437,12 @@ test('module declares correct outputs', () => {
   expect(capitalModule.outputs.includes('stock')).toBeTrue();
   expect(capitalModule.outputs.includes('investment')).toBeTrue();
   expect(capitalModule.outputs.includes('interestRate')).toBeTrue();
+  expect(capitalModule.outputs.includes('retireeCost')).toBeTrue();
+  expect(capitalModule.outputs.includes('transferBurden')).toBeTrue();
+});
+
+test('module declares regionalGdp input', () => {
+  expect(capitalModule.inputs.includes('regionalGdp')).toBeTrue();
 });
 
 // =============================================================================

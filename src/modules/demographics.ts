@@ -333,6 +333,7 @@ export interface DemographicsOutputs {
   regionalEffectiveWorkers: Record<Region, number>;
   regionalDependency: Record<Region, number>;
   regionalFertility: Record<Region, number>;
+  regionalLifeExpectancy: Record<Region, number>;
 }
 
 // =============================================================================
@@ -535,6 +536,7 @@ export const demographicsModule: Module<
     'regionalEffectiveWorkers',
     'regionalDependency',
     'regionalFertility',
+    'regionalLifeExpectancy',
   ] as const,
 
   validate(params: Partial<DemographicsParams>): ValidationResult {
@@ -668,6 +670,7 @@ export const demographicsModule: Module<
     const regionalFertility: Record<Region, number> = {} as Record<Region, number>;
     const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
     const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
+    const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const regionState = state.regions[region];
@@ -691,6 +694,7 @@ export const demographicsModule: Module<
       }
 
       newRegions[region] = newState;
+      regionalLifeExpectancy[region] = newState.lifeExpectancy;
 
       // Calculate regional outputs
       const workingPop = newState.working;
@@ -767,6 +771,7 @@ export const demographicsModule: Module<
         regionalEffectiveWorkers,
         regionalDependency,
         regionalFertility,
+        regionalLifeExpectancy,
       },
     };
   },

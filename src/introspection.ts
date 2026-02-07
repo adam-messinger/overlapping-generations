@@ -200,6 +200,10 @@ export function describeOutputs(): OutputSchema {
     automationShare: { unit: 'fraction', description: 'Fraction of capital stock that is automation', module: 'capital' },
     capitalOutputRatio: { unit: 'ratio', description: 'Capital-to-output ratio (K/Y)', module: 'capital' },
     capitalGrowthRate: { unit: 'fraction/year', description: 'Annual capital stock growth rate', module: 'capital' },
+    retireeCost: { unit: '$T', description: 'Retiree transfers: pensions + healthcare (65+)', module: 'capital' },
+    childCost: { unit: '$T', description: 'Child transfers: education spending (0-19)', module: 'capital' },
+    transferBurden: { unit: 'fraction', description: 'Intergenerational transfer burden (retiree+child cost / GDP)', module: 'capital' },
+    workerConsumption: { unit: '$T', description: 'Worker consumption (GDP - investment - transfers)', module: 'capital' },
 
     // Energy
     lcoes: { unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
@@ -278,6 +282,7 @@ export function describeOutputs(): OutputSchema {
     energySystemOverhead: { unit: 'TWh', description: 'Embodied + operating energy of energy infrastructure (net energy overhead)', module: 'production' },
 
     // Regional
+    regionalLifeExpectancy: { unit: 'years', description: 'Life expectancy by region', module: 'demographics' },
     regionalPopulation: { unit: 'people', description: 'Population by region', module: 'demographics' },
     regionalGdp: { unit: '$T', description: 'GDP by region', module: 'demand' },
     regionalCapacities: { unit: 'GW', description: 'Energy capacity by region and source', module: 'energy' },

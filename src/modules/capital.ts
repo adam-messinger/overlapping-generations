@@ -7,7 +7,9 @@
  * Key equations:
  * - Savings rate: Demographic-weighted average of cohort savings rates
  * - Stability: Φ = 1 / (1 + λ × uncertainty²)
- * - Investment: I = GDP × savingsRate × stability
+ * - Transfers: RetireeCost + ChildCost (pensions, healthcare, education)
+ * - Investment: I = GDP × (1 - transferBurden) × savingsRate × stability
+ * - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_t
  * - Interest rate: r = α × Y/K - δ (marginal product of capital)
  *
@@ -25,6 +27,12 @@ import { validatedMerge } from '../framework/validated-merge.js';
 // TYPES
 // =============================================================================
 
+export interface TransferParams {
+  pensionRate: number;      // Per-retiree pension as fraction of GDP/worker
+  healthcareRate: number;   // Per-retiree healthcare as fraction of GDP/capita
+  educationRate: number;    // Per-child education as fraction of GDP/capita
+}
+
 export interface CapitalParams {
   // Production
   alpha: number;              // Capital share in Cobb-Douglas (~0.33)
@@ -33,10 +41,14 @@ export interface CapitalParams {
   // OLG lifecycle savings rates
   savingsYoung: number;       // Ages 0-19: dependents (0)
   savingsWorking: number;     // Ages 20-64: prime savers (~0.45)
-  savingsOld: number;         // Ages 65+: dissaving (~-0.05)
+  savingsOld: number;         // Ages 65+: dissaving (0, replaced by explicit transfers)
 
   // Regional savings premiums
   savingsPremium: Record<Region, number>;
+
+  // Intergenerational transfers
+  transfers: TransferParams;
+  transferPremium: Record<Region, Partial<TransferParams>>;
 
   // Galbraith/Chen uncertainty premium
   stabilityLambda: number;    // Sensitivity to uncertainty
@@ -51,12 +63,19 @@ export interface CapitalParams {
   baseEnergyInvestmentShare: number;    // Base fraction of investment to energy sector (0.15)
   energyInvestmentSensitivity: number;  // Sensitivity to energy burden (1.0)
 
+  // Retirement age adjustment
+  retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
+  wageIndexation: number;           // 0=price-indexed, 1=wage-indexed (0.7)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
 
 interface CapitalState {
   stock: number;              // Current capital stock ($ trillions)
+  referenceGdpPerWorker: Record<Region, number>;  // Year-0 GDP/worker per region
+  referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
+  referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
 }
 
 interface CapitalInputs {
@@ -71,6 +90,7 @@ interface CapitalInputs {
 
   // From demand
   gdp: number;                // Global GDP ($ trillions)
+  regionalGdp: Record<Region, number>;  // $T per region (from demand)
 
   // From climate (optional)
   damages?: number;           // Damage fraction (0-1) for stability
@@ -80,6 +100,9 @@ interface CapitalInputs {
 
   // From demand (optional, for investment split)
   energyBurden?: number;      // Energy cost as fraction of GDP (0-1)
+
+  // From demographics (for retirement age adjustment)
+  regionalLifeExpectancy?: Record<Region, number>;
 }
 
 interface CapitalOutputs {
@@ -108,6 +131,12 @@ interface CapitalOutputs {
   energyInvestment: number;         // $ trillions to energy sector
   generalInvestment: number;        // $ trillions to general economy
   energyShareOfInvestment: number;  // Fraction going to energy
+
+  // Intergenerational transfers
+  retireeCost: number;          // $ trillions (pensions + healthcare for 65+)
+  childCost: number;            // $ trillions (education for 0-19)
+  transferBurden: number;       // (retireeCost + childCost) / GDP, capped at 0.50
+  workerConsumption: number;    // $ trillions (GDP - investment - retireeCost - childCost)
 }
 
 // =============================================================================
@@ -122,7 +151,7 @@ export const capitalDefaults: CapitalParams = {
   // OLG lifecycle savings
   savingsYoung: 0.0,        // Dependents don't save
   savingsWorking: 0.45,     // Prime savers (calibrated to ~22% global rate)
-  savingsOld: -0.05,        // Dissaving in retirement
+  savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
   // Regional premiums
   savingsPremium: {
@@ -134,6 +163,25 @@ export const capitalDefaults: CapitalParams = {
     russia: -0.03,          // Below baseline
     mena: 0.05,             // Oil wealth savings
     ssa: -0.08,             // Lowest savings
+  },
+
+  // Intergenerational transfers (OECD/ILO/World Bank calibrated)
+  transfers: {
+    pensionRate: 0.20,      // Per-retiree pension as fraction of GDP/worker
+    healthcareRate: 0.05,   // Per-retiree healthcare as fraction of GDP/capita
+    educationRate: 0.04,    // Per-child education as fraction of GDP/capita
+  },
+
+  // Regional transfer premiums (override global defaults)
+  transferPremium: {
+    oecd:   { pensionRate: 0.35, healthcareRate: 0.10, educationRate: 0.05 },
+    china:  { pensionRate: 0.25, healthcareRate: 0.06 },
+    india:  { pensionRate: 0.10, healthcareRate: 0.03 },
+    latam:  { pensionRate: 0.20, healthcareRate: 0.05 },
+    seasia: { pensionRate: 0.12, healthcareRate: 0.03 },
+    russia: { pensionRate: 0.25, healthcareRate: 0.05 },
+    mena:   { pensionRate: 0.18, healthcareRate: 0.04 },
+    ssa:    { pensionRate: 0.05, healthcareRate: 0.02, educationRate: 0.03 },
   },
 
   // G/C uncertainty premium
@@ -148,6 +196,10 @@ export const capitalDefaults: CapitalParams = {
   // Investment split
   baseEnergyInvestmentShare: 0.15,   // 15% of investment goes to energy sector
   energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
+
+  // Retirement age adjustment
+  retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of LE gains → retirement age
+  wageIndexation: 0.7,          // 70% wage-indexed, 30% price-indexed
 
   // Initial conditions
   initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
@@ -232,6 +284,39 @@ export const capitalModule: Module<
       range: { min: 0.20, max: 0.60, default: 0.45 },
       tier: 1 as const,
     },
+    'transfers.pensionRate': {
+      paramName: 'pensionRate',
+      description: 'Per-retiree pension as fraction of GDP per worker. OECD ~0.35, SSA ~0.05.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.50, default: 0.20 },
+      tier: 1 as const,
+    },
+    'transfers.healthcareRate': {
+      paramName: 'healthcareRate',
+      description: 'Per-retiree healthcare as fraction of GDP per capita. OECD ~0.10, SSA ~0.02.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.20, default: 0.05 },
+      tier: 1 as const,
+    },
+    'transfers.educationRate': {
+      paramName: 'educationRate',
+      description: 'Per-child education as fraction of GDP per capita. Global ~0.04.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.15, default: 0.04 },
+      tier: 1 as const,
+    },
+    retirementAgeResponse: {
+      description: 'Fraction of life expectancy gains that raise retirement age. OECD recommendation: 0.67.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.67 },
+      tier: 1 as const,
+    },
+    wageIndexation: {
+      description: 'Degree of wage indexation for transfers. 0=price-indexed (frozen real), 1=fully wage-indexed.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.7 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -241,9 +326,11 @@ export const capitalModule: Module<
     'regionalPopulation',
     'effectiveWorkers',
     'gdp',
+    'regionalGdp',
     'damages',
     'netEnergyFactor',
     'energyBurden',
+    'regionalLifeExpectancy',
   ] as const,
 
   outputs: [
@@ -261,6 +348,10 @@ export const capitalModule: Module<
     'energyInvestment',
     'generalInvestment',
     'energyShareOfInvestment',
+    'retireeCost',
+    'childCost',
+    'transferBurden',
+    'workerConsumption',
   ] as const,
 
   validate(params: Partial<CapitalParams>) {
@@ -300,6 +391,31 @@ export const capitalModule: Module<
       }
     }
 
+    if (params.retirementAgeResponse !== undefined) {
+      if (params.retirementAgeResponse < 0 || params.retirementAgeResponse > 1) {
+        errors.push('retirementAgeResponse must be between 0 and 1');
+      }
+    }
+
+    if (params.wageIndexation !== undefined) {
+      if (params.wageIndexation < 0 || params.wageIndexation > 1) {
+        errors.push('wageIndexation must be between 0 and 1');
+      }
+    }
+
+    if (params.transfers !== undefined) {
+      const t = params.transfers;
+      if (t.pensionRate !== undefined && (t.pensionRate < 0 || t.pensionRate > 0.50)) {
+        errors.push('Pension rate must be between 0 and 0.50');
+      }
+      if (t.healthcareRate !== undefined && (t.healthcareRate < 0 || t.healthcareRate > 0.20)) {
+        errors.push('Healthcare rate must be between 0 and 0.20');
+      }
+      if (t.educationRate !== undefined && (t.educationRate < 0 || t.educationRate > 0.15)) {
+        errors.push('Education rate must be between 0 and 0.15');
+      }
+    }
+
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -312,6 +428,21 @@ export const capitalModule: Module<
         merged.savingsPremium = { ...capitalDefaults.savingsPremium, ...p.savingsPremium };
       }
 
+      // Deep merge transfers
+      if (p.transfers) {
+        merged.transfers = { ...capitalDefaults.transfers, ...p.transfers };
+      }
+
+      // Deep merge transferPremium (per-region)
+      if (p.transferPremium) {
+        merged.transferPremium = { ...capitalDefaults.transferPremium };
+        for (const r of REGIONS) {
+          if (p.transferPremium[r]) {
+            merged.transferPremium[r] = { ...capitalDefaults.transferPremium[r], ...p.transferPremium[r] };
+          }
+        }
+      }
+
       return merged;
     }, partial);
   },
@@ -319,6 +450,9 @@ export const capitalModule: Module<
   init(params: CapitalParams): CapitalState {
     return {
       stock: params.initialCapitalStock,
+      referenceGdpPerWorker: {} as Record<Region, number>,
+      referenceGdpPerCapita: {} as Record<Region, number>,
+      referenceLifeExpectancy: {} as Record<Region, number>,
     };
   },
 
@@ -356,9 +490,77 @@ export const capitalModule: Module<
     const uncertainty = inputs.damages ?? 0;
     const stability = calculateStability(uncertainty, params.stabilityLambda);
 
-    // Calculate total investment
+    // ==========================================================================
+    // Intergenerational transfers: pension + healthcare (old), education (young)
+    // With retirement age adjustment + wage indexation
+    // ==========================================================================
+    const MAX_TRANSFER_BURDEN = 0.50;
+    let retireeCost = 0;
+    let childCost = 0;
+
+    // Capture reference values on first step (year 0)
+    const refGdpPerWorker = { ...state.referenceGdpPerWorker };
+    const refGdpPerCapita = { ...state.referenceGdpPerCapita };
+    const refLE = { ...state.referenceLifeExpectancy };
+    if (yearIndex === 0) {
+      for (const r of REGIONS) {
+        const working = inputs.regionalWorking[r] ?? 0;
+        const pop = inputs.regionalPopulation[r] ?? 0;
+        const regionGdp = inputs.regionalGdp[r] ?? 0;
+        refGdpPerWorker[r] = working > 0 ? regionGdp / working : 0;
+        refGdpPerCapita[r] = pop > 0 ? regionGdp / pop : 0;
+        refLE[r] = inputs.regionalLifeExpectancy?.[r] ?? 75;
+      }
+    }
+
+    for (const r of REGIONS) {
+      const regionGdp = inputs.regionalGdp[r] ?? 0;
+      let old = inputs.regionalOld[r] ?? 0;
+      const young = inputs.regionalYoung[r] ?? 0;
+      let working = inputs.regionalWorking[r] ?? 0;
+      const pop = inputs.regionalPopulation[r] ?? 0;
+      const premium = params.transferPremium[r] ?? {};
+
+      const pensionRate = premium.pensionRate ?? params.transfers.pensionRate;
+      const healthcareRate = premium.healthcareRate ?? params.transfers.healthcareRate;
+      const educationRate = premium.educationRate ?? params.transfers.educationRate;
+
+      // --- Retirement age adjustment ---
+      // As LE rises, some 65+ are reclassified as "still working" (lower transfer recipients)
+      const currentLE = inputs.regionalLifeExpectancy?.[r] ?? 75;
+      const baseLE = refLE[r] ?? 75;
+      const leGain = Math.max(0, currentLE - baseLE);
+      const effectiveRetirementAge = 65 + params.retirementAgeResponse * leGain;
+      // Fraction of 65+ reclassified as working (capped at 0.5)
+      const remainingOldSpan = currentLE - 65;
+      const fractionStillWorking = remainingOldSpan > 0
+        ? Math.min(0.5, Math.max(0, (effectiveRetirementAge - 65) / remainingOldSpan))
+        : 0;
+      const adjustedOld = old * (1 - fractionStillWorking);
+      const adjustedWorking = working + old * fractionStillWorking;
+
+      // --- Wage indexation ---
+      // Blend current and reference GDP per worker/capita
+      const currentGdpPerWorker = adjustedWorking > 0 ? regionGdp / adjustedWorking : 0;
+      const currentGdpPerCapita = pop > 0 ? regionGdp / pop : 0;
+      const wi = params.wageIndexation;
+      const effectiveGdpPerWorker = wi * currentGdpPerWorker + (1 - wi) * (refGdpPerWorker[r] ?? currentGdpPerWorker);
+      const effectiveGdpPerCapita = wi * currentGdpPerCapita + (1 - wi) * (refGdpPerCapita[r] ?? currentGdpPerCapita);
+
+      // Use adjusted old population + blended GDP rates for transfer costs
+      retireeCost += adjustedOld * (pensionRate * effectiveGdpPerWorker + healthcareRate * effectiveGdpPerCapita);
+      childCost += young * educationRate * effectiveGdpPerCapita;
+    }
+
+    const transferBurden = Math.min(MAX_TRANSFER_BURDEN, inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0);
+
+    // Investment from GDP after transfers
+    const availableGdp = inputs.gdp * (1 - transferBurden);
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
-    const investment = inputs.gdp * savingsRate * stability * netEnergyFactor;
+    const investment = availableGdp * savingsRate * stability * netEnergyFactor;
+
+    // Worker consumption = residual
+    const workerConsumption = inputs.gdp - investment - retireeCost - childCost;
 
     // Split investment between energy and general economy
     // When energy is scarce/expensive → more investment flows to energy
@@ -402,6 +604,9 @@ export const capitalModule: Module<
     return {
       state: {
         stock: newStock,
+        referenceGdpPerWorker: refGdpPerWorker,
+        referenceGdpPerCapita: refGdpPerCapita,
+        referenceLifeExpectancy: refLE,
       },
       outputs: {
         stock: state.stock, // Output current stock (before update)
@@ -418,6 +623,10 @@ export const capitalModule: Module<
         energyInvestment,
         generalInvestment,
         energyShareOfInvestment: energyShare,
+        retireeCost,
+        childCost,
+        transferBurden,
+        workerConsumption,
       },
     };
   },

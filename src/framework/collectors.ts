@@ -248,6 +248,10 @@ export const standardCollectors: CollectorConfig = {
     { source: 'stability' },
     { source: 'interestRate' },
     { source: 'robotsDensity' },
+    { source: 'retireeCost' },
+    { source: 'childCost' },
+    { source: 'transferBurden' },
+    { source: 'workerConsumption' },
 
     // Energy
     { source: 'lcoes' },
@@ -393,6 +397,11 @@ export const standardCollectors: CollectorConfig = {
       as: 'gdp2100',
       source: 'gdp',
       aggregator: 'last',
+    },
+    {
+      as: 'peakTransferBurden',
+      source: 'transferBurden',
+      aggregator: { peak: true },
     },
     {
       as: 'kY2050',

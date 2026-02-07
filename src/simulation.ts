@@ -104,6 +104,12 @@ export interface YearResult {
   capitalOutputRatio: number;
   capitalGrowthRate: number;
 
+  // Intergenerational transfers
+  retireeCost: number;        // $ trillions (pensions + healthcare for 65+)
+  childCost: number;          // $ trillions (education for 0-19)
+  transferBurden: number;     // Fraction of GDP going to transfers
+  workerConsumption: number;  // $ trillions (GDP - investment - transfers)
+
   // Energy
   lcoes: Record<EnergySource, number>;
   capacities: Record<EnergySource, number>;
@@ -483,6 +489,21 @@ async function runCLI() {
   console.log(`CDR cumulative 2100: ${result.results[idx2100].cdrCumulative.toFixed(1)} Gt`);
   console.log(`CDR spend 2050: $${result.results[idx2050].cdrAnnualSpend.toFixed(2)}T/yr`);
   console.log(`CDR spend 2100: $${result.results[idx2100].cdrAnnualSpend.toFixed(2)}T/yr`);
+
+  // Intergenerational transfers
+  console.log('\n=== Intergenerational Transfers ===\n');
+  console.log(`Retiree cost 2025: $${result.results[idx2025].retireeCost.toFixed(1)}T`);
+  console.log(`Retiree cost 2050: $${result.results[idx2050].retireeCost.toFixed(1)}T`);
+  console.log(`Retiree cost 2100: $${result.results[idx2100].retireeCost.toFixed(1)}T`);
+  console.log(`Child cost 2025: $${result.results[idx2025].childCost.toFixed(1)}T`);
+  console.log(`Child cost 2050: $${result.results[idx2050].childCost.toFixed(1)}T`);
+  console.log(`Child cost 2100: $${result.results[idx2100].childCost.toFixed(1)}T`);
+  console.log(`Transfer burden 2025: ${(result.results[idx2025].transferBurden * 100).toFixed(1)}%`);
+  console.log(`Transfer burden 2050: ${(result.results[idx2050].transferBurden * 100).toFixed(1)}%`);
+  console.log(`Transfer burden 2100: ${(result.results[idx2100].transferBurden * 100).toFixed(1)}%`);
+  console.log(`Worker consumption 2025: $${result.results[idx2025].workerConsumption.toFixed(0)}T`);
+  console.log(`Worker consumption 2050: $${result.results[idx2050].workerConsumption.toFixed(0)}T`);
+  console.log(`Worker consumption 2100: $${result.results[idx2100].workerConsumption.toFixed(0)}T`);
 
   // Find peak burden
   let peakBurden = 0;
