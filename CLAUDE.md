@@ -7,7 +7,7 @@ A TypeScript simulation exploring energy transitions, demographics, and climate 
 ```
 overlapping-generations/
 ├── src/
-│   ├── modules/           # Simulation modules (pure functions)
+│   ├── modules/              # Simulation modules (pure functions)
 │   │   ├── demographics.ts
 │   │   ├── production.ts
 │   │   ├── demand.ts
@@ -17,21 +17,31 @@ overlapping-generations/
 │   │   ├── resources.ts
 │   │   ├── cdr.ts
 │   │   └── climate.ts
-│   ├── framework/         # Autowiring, collectors, types
-│   │   ├── autowire.ts    # Init/step/finalize with dependency resolution
-│   │   ├── collectors.ts  # Canonical output definitions + metadata
-│   │   ├── problem.ts     # Problem-solve separation (Julia SciML-inspired)
-│   │   └── ...
-│   ├── primitives/        # Math functions (learningCurve, compound, etc.)
-│   ├── simulation.ts      # Main runner
-│   ├── scenario.ts        # Scenario loader
-│   ├── introspection.ts   # Agent parameter discovery
-│   └── index.ts           # Public API
-├── scenarios/             # Scenario configurations
-├── scripts/               # Analysis scripts
-├── sources/               # Academic references
-└── baselines/             # Saved baseline runs
+│   ├── framework/            # Generic, domain-independent framework
+│   │   ├── index.ts          # Barrel export
+│   │   ├── autowire.ts       # Init/step/finalize with dependency resolution
+│   │   ├── collectors.ts     # Generic collector infrastructure
+│   │   ├── problem.ts        # Problem-solve separation (Julia SciML-inspired)
+│   │   ├── types.ts          # YearIndex, TimeSeries, ValidationResult, ParamMeta
+│   │   ├── module.ts         # Module interface + defineModule
+│   │   ├── introspect.ts     # Parameter schema generation
+│   │   ├── validated-merge.ts # validatedMerge wrapper
+│   │   └── component-params.ts # Dot-path get/set (Julia ComponentArrays-inspired)
+│   ├── primitives/           # Math functions (learningCurve, compound, etc.)
+│   ├── domain-types.ts       # Region, EnergySource, Fuel, Mineral types + arrays
+│   ├── standard-collectors.ts # standardCollectors + computeEnergySystemOverhead
+│   ├── simulation.ts         # Main runner + CLI
+│   ├── simulation-autowired.ts # Autowired runner, transforms, lags, YearResult mapping
+│   ├── scenario.ts           # Scenario loader
+│   ├── introspection.ts      # Agent parameter discovery
+│   └── index.ts              # Public API
+├── scenarios/                # Scenario configurations
+├── scripts/                  # Analysis scripts
+├── sources/                  # Academic references
+└── baselines/                # Saved baseline runs
 ```
+
+The `framework/` directory is fully domain-independent and reusable for other simulations. Domain-specific types live in `domain-types.ts` and domain-specific collectors in `standard-collectors.ts`.
 
 ## Quick Start
 
