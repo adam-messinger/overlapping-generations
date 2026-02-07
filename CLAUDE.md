@@ -9,14 +9,19 @@ overlapping-generations/
 ├── src/
 │   ├── modules/           # Simulation modules (pure functions)
 │   │   ├── demographics.ts
+│   │   ├── production.ts
 │   │   ├── demand.ts
 │   │   ├── capital.ts
 │   │   ├── energy.ts
 │   │   ├── dispatch.ts
-│   │   ├── production.ts
 │   │   ├── resources.ts
+│   │   ├── cdr.ts
 │   │   └── climate.ts
-│   ├── framework/         # Module interface and types
+│   ├── framework/         # Autowiring, collectors, types
+│   │   ├── autowire.ts    # Init/step/finalize with dependency resolution
+│   │   ├── collectors.ts  # Canonical output definitions + metadata
+│   │   ├── problem.ts     # Problem-solve separation (Julia SciML-inspired)
+│   │   └── ...
 │   ├── primitives/        # Math functions (learningCurve, compound, etc.)
 │   ├── simulation.ts      # Main runner
 │   ├── scenario.ts        # Scenario loader
@@ -65,9 +70,9 @@ demographics (no inputs)
      ↓
 production ← lagged capital, lagged energy, lagged damages, lagged food stress
      ↓
-   demand ← production (GDP), demographics, lagged damages
+   demand ← production (GDP), demographics, lagged damages, lagged LCOE
      ↓
-   capital ← demographics, demand, lagged damages
+   capital ← demographics, demand, lagged damages, regional life expectancy
      ↓
    energy ← demand, capital
      ↓
@@ -75,7 +80,9 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
      ↓
   resources ← energy, demographics, demand, climate (lagged)
      ↓
-   climate ← dispatch, resources (land use carbon)
+     cdr ← climate (temperature), production (GDP), dispatch (LCOE), energy
+     ↓
+   climate ← dispatch, resources (land use carbon), cdr (removal)
      ↓
 (damages, energy burden, food stress feed back via lags to production for next year)
 ```
@@ -103,6 +110,16 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 
+### CDR (Carbon Dioxide Removal)
+- Wright's Law capital cost learning + LCOE-driven energy cost
+- Deploys when NPV-adjusted social cost of carbon > CDR cost
+- Energy demand subtracted from productive useful energy
+
+### Capital & Intergenerational Transfers
+- GDP = WorkerConsumption + Investment + RetireeCost + ChildCost
+- Retirement age adjusts with life expectancy; wages partially indexed to productivity
+- Demographic savings response: life expectancy and dependency ratio affect savings
+
 ## Scenarios
 
 | Scenario | Description |
@@ -125,20 +142,25 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 
 ## Agent Introspection
 
-For LLM agents, `describeParameters()` returns structured metadata:
+For LLM agents, `describeParameters()` and `describeOutputs()` return structured metadata:
 
 ```typescript
-import { describeParameters, buildParams } from './src/index.js';
+import { describeParameters, describeOutputs, buildParams } from './src/index.js';
 
+// 53 Tier-1 parameters
 const schema = describeParameters();
 // schema.carbonPrice = { type, default, min, max, unit, description, path }
+
+// ~95 output fields (auto-generated from standardCollectors)
+const outputs = describeOutputs();
+// outputs.temperature = { unit: '°C', description: '...', module: 'climate' }
 
 // Build params from name + value
 const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-30 Tier-1 parameters available for scenario exploration.
+53 Tier-1 parameters available for scenario exploration.
 
 ## Programmatic Use
 
@@ -169,8 +191,14 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `electricityDemand` | TWh | Total electricity |
 | `gridIntensity` | kg CO₂/MWh | Grid carbon intensity |
 | `fossilShare` | fraction | Fossil in electricity mix |
+| `electrificationRate` | fraction | Share of energy electrified |
+| `transferBurden` | fraction | Pension + healthcare + education share of GDP |
+| `cdrRemoval` | Gt CO₂/yr | Carbon dioxide removal |
+| `energyBurden` | fraction | Energy cost share of GDP |
 | `robotsDensity` | per 1000 | Robots per 1000 workers |
 | `farmland` | Mha | Cropland area |
+
+~95 total output fields available via `describeOutputs()`.
 
 ## Academic Sources
 
