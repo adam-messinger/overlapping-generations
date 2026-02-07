@@ -88,7 +88,6 @@ export interface DemandParams {
   // Global demand parameters
   electrification2025: number;    // Current electricity share (IEA: 25%)
   electrificationTarget: number;  // 2050+ target (IEA Net Zero: 65%)
-  demographicFactor: number;      // Dependency ratio impact on growth
 
   // Cost-driven electrification parameters
   costSensitivity: number;               // Elec gain per cost halving (default 0.05)
@@ -145,7 +144,6 @@ interface RegionalState {
 
 interface DemandState {
   regions: Record<Region, RegionalState>;
-  baselineDependency: number;  // Year 0 dependency for adjustment
   electrificationRate: number; // Current electrification rate (cost-driven)
   fuelShares: Record<FuelType, number>; // Evolved fuel shares (for non-electric)
   sectorElectrification: {     // Sector-level electrification rates
@@ -349,7 +347,6 @@ export const demandDefaults: DemandParams = {
   // Global parameters
   electrification2025: 0.25,    // Current electricity share (IEA)
   electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
-  demographicFactor: 0.015,     // Dependency ratio impact on growth
 
   // Cost-driven electrification
   costSensitivity: 0.05,            // 5% electrification gain per cost halving
@@ -866,7 +863,6 @@ export const demandModule: Module<
       // Merge scalar params
       if (p.electrification2025 !== undefined) merged.electrification2025 = p.electrification2025;
       if (p.electrificationTarget !== undefined) merged.electrificationTarget = p.electrificationTarget;
-      if (p.demographicFactor !== undefined) merged.demographicFactor = p.demographicFactor;
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
       if (p.baselineElecTrend !== undefined) merged.baselineElecTrend = p.baselineElecTrend;
 
@@ -960,7 +956,6 @@ export const demandModule: Module<
 
     return {
       regions,
-      baselineDependency: 0, // Will be set on first step
       electrificationRate: params.electrification2025, // Initial electrification
       fuelShares,
       sectorElectrification,
@@ -982,12 +977,6 @@ export const demandModule: Module<
     yearIndex: number
   ): { state: DemandState; outputs: DemandOutputs } {
     const t = yearIndex;
-
-    // Set baseline dependency on first step
-    let baselineDependency = state.baselineDependency;
-    if (yearIndex === 0) {
-      baselineDependency = inputs.dependency;
-    }
 
     // Calculate global electrification rate (cost-driven)
     // Electricity becomes more attractive when cheaper than fuel
@@ -1365,7 +1354,6 @@ export const demandModule: Module<
     return {
       state: {
         regions: newRegions,
-        baselineDependency,
         electrificationRate, // Persist for next step (cost-driven)
         fuelShares: evolvedShares, // Persist evolved fuel shares
         sectorElectrification: newSectorElectrification, // Persist sector rates

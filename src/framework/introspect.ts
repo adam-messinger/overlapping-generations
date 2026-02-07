@@ -57,16 +57,23 @@ function walkParamMeta(
   defaults: any,
   moduleName: string,
   pathParts: string[],
-  result: Record<string, GeneratedParameterInfo>
+  result: Record<string, GeneratedParameterInfo>,
+  maxTier: 1 | 2 | 3
 ): void {
   for (const [key, value] of Object.entries(meta)) {
     const currentPath = [...pathParts, key];
 
     if (isParamMeta(value)) {
-      // This is a leaf ParamMeta node
+      // Filter by tier
+      if (value.tier > maxTier) continue;
+
       const fullPath = `${moduleName}.${currentPath.join('.')}`;
       const defaultValue = getNestedValue(defaults, currentPath);
       const schemaKey = value.paramName ?? key;
+
+      if (schemaKey in result) {
+        console.warn(`[introspect] Collision: param "${schemaKey}" from ${moduleName} overwrites existing entry at ${result[schemaKey].path}`);
+      }
 
       result[schemaKey] = {
         type: typeof defaultValue === 'boolean' ? 'boolean' : 'number',
@@ -79,26 +86,28 @@ function walkParamMeta(
       };
     } else if (typeof value === 'object' && value !== null) {
       // Nested object — recurse
-      walkParamMeta(value, defaults, moduleName, currentPath, result);
+      walkParamMeta(value, defaults, moduleName, currentPath, result, maxTier);
     }
   }
 }
 
 /**
  * Generate a parameter schema from modules with paramMeta declarations.
- * Only processes Tier 1 params (or all tiers if none specified).
+ * Filters to Tier 1 params by default; pass maxTier=2 or 3 for more.
  *
  * @param modules - Array of modules to extract paramMeta from
+ * @param maxTier - Maximum tier to include (default: 1)
  * @returns Record mapping friendly param names to GeneratedParameterInfo
  */
 export function generateParameterSchema(
-  modules: AnyModule[]
+  modules: AnyModule[],
+  maxTier: 1 | 2 | 3 = 1
 ): Record<string, GeneratedParameterInfo> {
   const result: Record<string, GeneratedParameterInfo> = {};
 
   for (const mod of modules) {
     if (!mod.paramMeta) continue;
-    walkParamMeta(mod.paramMeta, mod.defaults, mod.name, [], result);
+    walkParamMeta(mod.paramMeta, mod.defaults, mod.name, [], result, maxTier);
   }
 
   return result;

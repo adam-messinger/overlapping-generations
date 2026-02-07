@@ -127,24 +127,28 @@ export const cdrModule: Module<
 
   paramMeta: {
     cost0: {
+      paramName: 'cdrCost0',
       description: 'Initial capital cost of CDR per ton CO2. Current DAC is ~$400-600.',
       unit: '$/ton CO₂',
       range: { min: 100, max: 1000, default: 400 },
       tier: 1 as const,
     },
     alpha: {
+      paramName: 'cdrAlpha',
       description: "Wright's Law learning exponent for CDR capital cost. Lower than solar (0.36) due to process complexity.",
       unit: 'dimensionless',
       range: { min: 0.05, max: 0.30, default: 0.15 },
       tier: 1 as const,
     },
     energyPerTon: {
+      paramName: 'cdrEnergyPerTon',
       description: 'Electricity required per ton CO2 captured. Thermodynamic minimum ~250 kWh, real systems ~2000-3000.',
       unit: 'kWh/ton CO₂',
       range: { min: 1000, max: 5000, default: 2500 },
       tier: 1 as const,
     },
     budgetFraction: {
+      paramName: 'cdrBudgetFraction',
       description: 'Maximum fraction of GDP allocated to CDR spending.',
       unit: 'fraction',
       range: { min: 0.001, max: 0.02, default: 0.005 },

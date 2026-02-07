@@ -71,13 +71,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['energyInvestment'],
     },
 
-    // Energy needs stabilityFactor (from capital.stability)
-    // Defaults to 1.0 before capital module runs
-    stabilityFactor: {
-      fn: (outputs: Record<string, any>) => outputs.stability ?? 1.0,
-      dependsOn: ['stability'],
-    },
-
     // Capital uses effectiveWorkers from demographics
     effectiveWorkers: {
       fn: (outputs: Record<string, any>) => outputs.effectiveWorkers,
@@ -185,7 +178,8 @@ function buildTransforms(mergedEnergyParams: any) {
         if (!generation || !lcoes) return 50;
         let totalGen = 0;
         let weightedSum = 0;
-        for (const source of Object.keys(generation)) {
+        // Use ENERGY_SOURCES to skip solarPlusBattery (overlaps solar capacity)
+        for (const source of ENERGY_SOURCES) {
           const gen = generation[source] ?? 0;
           const lcoe = lcoes[source] ?? 50;
           totalGen += gen;

@@ -14,9 +14,8 @@ import { test, expect, printSummary } from '../test-utils.js';
 function createInputs(
   electricityDemand: number = 30000,
   availableInvestment: number = 25,
-  stabilityFactor: number = 1.0
 ) {
-  return { electricityDemand, availableInvestment, stabilityFactor };
+  return { electricityDemand, availableInvestment };
 }
 
 // Helper to run simulation for N years
@@ -26,7 +25,7 @@ function runYears(years: number, params?: Partial<typeof energyDefaults>) {
   let outputs: any;
 
   for (let i = 0; i < years; i++) {
-    const inputs = createInputs(30000 + i * 500, 25 + i * 0.5, 1.0);
+    const inputs = createInputs(30000 + i * 500, 25 + i * 0.5);
     const result = energyModule.step(state, inputs, energyParams, 2025 + i, i);
     state = result.state;
     outputs = result.outputs;
@@ -286,18 +285,18 @@ test('cheapest LCOE declines over time', () => {
 
 console.log('\n--- Stability Factor ---\n');
 
-test('lower stability reduces additions', () => {
+test('lower investment reduces additions (stability embedded in capital)', () => {
   const params = energyModule.mergeParams({});
   let stateHigh = energyModule.init(params);
   let stateLow = energyModule.init(params);
 
-  const inputsHigh = createInputs(30000, 25, 1.0);
-  const inputsLow = createInputs(30000, 25, 0.5);
+  const inputsHigh = createInputs(30000, 25);
+  const inputsLow = createInputs(30000, 12.5);  // Half investment (as if stability=0.5)
 
   const resultHigh = energyModule.step(stateHigh, inputsHigh, params, 2025, 0);
   const resultLow = energyModule.step(stateLow, inputsLow, params, 2025, 0);
 
-  // Lower stability should result in lower or equal additions
+  // Lower investment should result in lower additions
   const totalHigh = ENERGY_SOURCES.reduce((sum, s) => sum + resultHigh.outputs.additions[s], 0);
   const totalLow = ENERGY_SOURCES.reduce((sum, s) => sum + resultLow.outputs.additions[s], 0);
 

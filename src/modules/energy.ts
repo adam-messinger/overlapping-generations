@@ -424,9 +424,6 @@ export interface EnergyInputs {
   /** Regional investment ($T) - for regional allocation */
   regionalInvestment?: Record<Region, number>;
 
-  /** Stability factor affecting investment (0-1) */
-  stabilityFactor: number;
-
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
   mineralConstraint: number;
 }
@@ -704,7 +701,6 @@ export const energyModule: Module<
     'regionalElectricityDemand',
     'availableInvestment',
     'regionalInvestment',
-    'stabilityFactor',
     'mineralConstraint',
   ] as const,
 
@@ -902,7 +898,7 @@ export const energyModule: Module<
   },
 
   step(state, inputs, params, year, yearIndex) {
-    const { electricityDemand, availableInvestment, stabilityFactor } = inputs;
+    const { electricityDemand, availableInvestment } = inputs;
 
     // Distribute demand/investment to regions if not provided
     const regionalDemand = inputs.regionalElectricityDemand ?? distributeByGDP(electricityDemand);

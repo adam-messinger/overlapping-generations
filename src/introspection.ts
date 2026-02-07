@@ -24,6 +24,7 @@ import { capitalModule } from './modules/capital.js';
 import { dispatchModule } from './modules/dispatch.js';
 import { productionModule } from './modules/production.js';
 import { resourcesModule } from './modules/resources.js';
+import { cdrModule } from './modules/cdr.js';
 
 // =============================================================================
 // TYPES
@@ -57,6 +58,7 @@ const ALL_MODULES = [
   dispatchModule,
   productionModule,
   resourcesModule,
+  cdrModule,
 ] as any[];
 
 // =============================================================================
@@ -247,6 +249,14 @@ export function describeOutputs(): OutputSchema {
     // Resources - Carbon
     forestNetFlux: { unit: 'Gt CO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },
     cumulativeSequestration: { unit: 'Gt CO2', description: 'Cumulative forest carbon sequestration', module: 'resources' },
+
+    // CDR (Carbon Dioxide Removal)
+    cdrRemoval: { unit: 'Gt CO2/year', description: 'CDR removal rate', module: 'cdr' },
+    cdrEnergyTWh: { unit: 'TWh', description: 'Energy consumed by CDR', module: 'cdr' },
+    cdrCostPerTon: { unit: '$/ton CO2', description: 'CDR cost per ton', module: 'cdr' },
+    cdrCumulative: { unit: 'Gt CO2', description: 'Cumulative CDR removals', module: 'cdr' },
+    cdrCapacity: { unit: 'Gt CO2/year', description: 'CDR deployment capacity', module: 'cdr' },
+    cdrAnnualSpend: { unit: '$T/year', description: 'Annual CDR spending', module: 'cdr' },
 
     // Automation (formerly expansion module, now in demand)
     robotLoadTWh: { unit: 'TWh', description: 'Automation energy consumption', module: 'demand' },

@@ -511,11 +511,11 @@ export const dispatchModule: Module<
       regionalElectricityDemand: 'record',
       capacities: 'record',
       regionalCapacities: 'nested-record',
-      lcoes: 'record',
-      solarPlusBatteryLCOE: 'number',
       carbonPrice: 'number',
       regionalCarbonPrice: 'record',
       longStorageRegional: 'record',
+      effectiveSolarCF: 'number',
+      effectiveWindCF: 'number',
     },
     outputs: {
       generation: 'record',
