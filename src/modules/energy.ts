@@ -25,7 +25,8 @@
  */
 
 import { defineModule, Module } from '../framework/module.js';
-import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
+import { ValidationResult } from '../framework/types.js';
+import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 import { distributeByGDP } from '../primitives/distribute.js';

@@ -6,7 +6,7 @@
  */
 
 import { energyModule, energyDefaults } from './energy.js';
-import { ENERGY_SOURCES, EnergySource, REGIONS, Region } from '../framework/types.js';
+import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
 

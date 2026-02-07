@@ -8,7 +8,7 @@
 import { capitalModule, capitalDefaults } from './capital.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { demandModule, demandDefaults } from './demand.js';
-import { REGIONS, Region } from '../framework/types.js';
+import { Region, REGIONS } from '../domain-types.js';
 import { GDP_SHARES } from '../primitives/distribute.js';
 
 import { test, expect, printSummary } from '../test-utils.js';

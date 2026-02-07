@@ -5,7 +5,8 @@
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation } from './simulation-autowired.js';
 import { scenarioToParams } from './scenario.js';
-import { standardCollectors, resolveKey } from './framework/collectors.js';
+import { standardCollectors } from './standard-collectors.js';
+import { resolveKey } from './framework/collectors.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 

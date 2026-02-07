@@ -6,7 +6,7 @@
  */
 
 import { demographicsModule, demographicsDefaults } from './demographics.js';
-import { REGIONS } from '../framework/types.js';
+import { REGIONS } from '../domain-types.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
 

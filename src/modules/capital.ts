@@ -19,7 +19,7 @@
  * - Galbraith/Chen (2021): Uncertainty premium on investment
  */
 
-import { REGIONS, Region } from '../framework/types.js';
+import { Region, REGIONS } from '../domain-types.js';
 import { Module } from '../framework/module.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 

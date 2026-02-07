@@ -21,7 +21,7 @@
  * - demographicAdj penalizes high dependency ratios
  */
 
-import { REGIONS, Region } from '../framework/types.js';
+import { Region, REGIONS } from '../domain-types.js';
 import { Module } from '../framework/module.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 

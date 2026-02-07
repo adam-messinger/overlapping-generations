@@ -2,7 +2,7 @@
  * Distribution helpers for allocating global totals across regions.
  */
 
-import { Region, REGIONS } from '../framework/types.js';
+import { Region, REGIONS } from '../domain-types.js';
 
 /** Approximate 2025 GDP shares (sum = $118T) */
 export const GDP_SHARES: Record<Region, number> = {

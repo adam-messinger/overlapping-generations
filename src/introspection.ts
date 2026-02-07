@@ -13,7 +13,8 @@
 
 import { ComponentParams } from './framework/component-params.js';
 import { generateParameterSchema, GeneratedParameterInfo } from './framework/introspect.js';
-import { standardCollectors, resolveKey } from './framework/collectors.js';
+import { standardCollectors } from './standard-collectors.js';
+import { resolveKey } from './framework/collectors.js';
 import { deepMerge } from './scenario.js';
 
 // Import all modules for auto-generated schema

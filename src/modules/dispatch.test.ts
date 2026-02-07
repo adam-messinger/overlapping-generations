@@ -6,7 +6,7 @@
  */
 
 import { dispatchModule, dispatchDefaults } from './dispatch.js';
-import { ENERGY_SOURCES, EnergySource } from '../framework/types.js';
+import { EnergySource, ENERGY_SOURCES } from '../domain-types.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
 

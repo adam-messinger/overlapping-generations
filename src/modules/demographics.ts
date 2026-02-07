@@ -15,7 +15,8 @@
  */
 
 import { defineModule, Module } from '../framework/module.js';
-import { Region, REGIONS, ValidationResult } from '../framework/types.js';
+import { ValidationResult } from '../framework/types.js';
+import { Region, REGIONS } from '../domain-types.js';
 import { exponentialConvergence, logistic } from '../primitives/math.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 

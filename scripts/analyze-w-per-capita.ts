@@ -5,7 +5,7 @@
  */
 
 import { runSimulation, runWithScenario } from '../src/index.js';
-import { REGIONS, Region } from '../src/framework/types.js';
+import { Region, REGIONS } from '../src/domain-types.js';
 
 async function main() {
   console.log('Analyzing W per capita by region...\n');

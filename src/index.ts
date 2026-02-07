@@ -43,12 +43,18 @@ export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics
 export { defineSimulation, solve, init } from './framework/problem.js';
 export type { SimulationProblem, StepResult, Stepper } from './framework/problem.js';
 
-// Declarative data collectors
-export { collectResults, standardCollectors, resolveKey, computeEnergySystemOverhead } from './framework/collectors.js';
+// Declarative data collectors (generic framework)
+export { collectResults, resolveKey } from './framework/collectors.js';
 export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from './framework/collectors.js';
+
+// Standard collectors (domain-specific)
+export { standardCollectors, computeEnergySystemOverhead } from './standard-collectors.js';
 
 // Result helpers
 export { getAtYear, extractTimeSeries } from './helpers.js';
 
-// Types
-export type { Region, EnergySource, ValidationResult } from './framework/types.js';
+// Domain types
+export type { Region, EnergySource } from './domain-types.js';
+
+// Framework types
+export type { ValidationResult } from './framework/types.js';

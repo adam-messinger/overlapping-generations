@@ -32,7 +32,7 @@ import type { DispatchParams } from './modules/dispatch.js';
 import type { ResourcesParams } from './modules/resources.js';
 import type { ClimateParams } from './modules/climate.js';
 import type { CDRParams } from './modules/cdr.js';
-import type { Region, EnergySource } from './framework/types.js';
+import type { Region, EnergySource } from './domain-types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
 
 // =============================================================================

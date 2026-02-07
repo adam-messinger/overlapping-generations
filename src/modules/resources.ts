@@ -17,7 +17,8 @@
  */
 
 import { defineModule, Module } from '../framework/module.js';
-import { EnergySource, Region, REGIONS, ValidationResult } from '../framework/types.js';
+import { ValidationResult } from '../framework/types.js';
+import { EnergySource, Region, REGIONS } from '../domain-types.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================

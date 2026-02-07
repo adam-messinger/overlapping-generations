@@ -15,7 +15,7 @@
  */
 
 import { runAutowired, getOutputsAtYear, AutowireResult, requireOutput, optionalOutput } from './framework/autowire.js';
-import { computeEnergySystemOverhead } from './framework/collectors.js';
+import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule } from './modules/demand.js';
@@ -26,7 +26,7 @@ import { dispatchModule } from './modules/dispatch.js';
 import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
-import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './framework/types.js';
+import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './domain-types.js';
 import { GDP_SHARES } from './primitives/distribute.js';
 import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
 
