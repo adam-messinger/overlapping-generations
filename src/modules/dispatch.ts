@@ -18,7 +18,6 @@
  * - capacities: Installed capacity by source (GW) - GLOBAL (sum)
  * - regionalCapacities: Regional capacity breakdown
  * - regionalCarbonPrice: Regional carbon prices
- * - lcoes: Levelized cost by source ($/MWh) - GLOBAL
  *
  * Outputs (to other modules):
  * - generation: TWh by source - GLOBAL (sum)

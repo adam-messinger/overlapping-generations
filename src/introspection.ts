@@ -268,18 +268,27 @@ export function describeOutputs(): OutputSchema {
 
     // Production
     productionUsefulEnergy: { unit: 'TWh', description: 'Exergy-weighted useful energy for production', module: 'production' },
-    capitalContribution: { unit: 'ratio', description: '(K/K₀)^α contribution to GDP', module: 'production' },
-    laborContribution: { unit: 'ratio', description: '(L/L₀)^β contribution to GDP', module: 'production' },
-    energyContribution: { unit: 'ratio', description: '(E/E₀)^γ contribution to GDP', module: 'production' },
-    efficiencyLevel: { unit: 'ratio', description: 'Combined efficiency multiplier (end-use + organizational, replaces TFP)', module: 'production' },
-    endUseEfficiency: { unit: 'ratio', description: 'End-use efficiency multiplier (Wright\'s Law on cumulative useful work)', module: 'production' },
-    eta: { unit: 'fraction', description: 'Current second-law efficiency η(t), 0.35→0.60 ceiling', module: 'production' },
+    energySystemOverhead: { unit: 'TWh', description: 'Embodied + operating energy of energy infrastructure (net energy overhead)', module: 'energy' },
 
-    // Resources - Energy
-    miningEnergyTWh: { unit: 'TWh', description: 'Energy consumed by mining operations', module: 'resources' },
-    farmingEnergyTWh: { unit: 'TWh', description: 'Energy consumed by farming operations', module: 'resources' },
-    totalResourceEnergy: { unit: 'TWh', description: 'Total energy for mining + farming', module: 'resources' },
-    energySystemOverhead: { unit: 'TWh', description: 'Embodied + operating energy of energy infrastructure (net energy overhead)', module: 'production' },
+    // Adaptation
+    regionalAdaptation: { unit: 'fraction', description: 'Adaptation spending by region', module: 'climate' },
+
+    // Long-duration storage
+    longStorageCost: { unit: '$/MWh', description: 'Long-duration storage cost (Wright\'s Law)', module: 'energy' },
+    longStorageCapacity: { unit: 'GWh', description: 'Global long-duration storage capacity', module: 'energy' },
+
+    // Mineral constraint
+    mineralConstraint: { unit: '0-1 factor', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
+
+    // Heat stress
+    heatStressLoss: { unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'climate' },
+
+    // Water stress
+    waterStress: { unit: 'fraction', description: 'Water stress index by region', module: 'resources' },
+    waterYieldFactor: { unit: 'fraction', description: 'Crop yield loss factor from water stress', module: 'resources' },
+
+    // Infrastructure lock-in
+    fossilStockTWh: { unit: 'TWh', description: 'Total fossil end-use equipment stock (TWh annual energy)', module: 'demand' },
 
     // Regional
     regionalLifeExpectancy: { unit: 'years', description: 'Life expectancy by region', module: 'demographics' },

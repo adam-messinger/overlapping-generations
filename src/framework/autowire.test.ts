@@ -754,6 +754,21 @@ test('optionalOutput returns fallback when missing', () => {
 });
 
 // =============================================================================
+// TESTS: YEAR RESULT MAPPING
+// =============================================================================
+
+console.log('\n=== Year Result Mapping Tests ===\n');
+
+test('energySystemOverhead > 0 after year 1 in full simulation', async () => {
+  const { runAutowiredFull } = await import('../simulation-autowired.js');
+  const { results } = runAutowiredFull({ startYear: 2025, endYear: 2030 });
+
+  // Year 0 might be 0 (no prior additions), but subsequent years should have overhead
+  const year5 = results[results.length - 1];
+  expect(year5.energySystemOverhead).toBeGreaterThan(0);
+});
+
+// =============================================================================
 // TESTS: TRANSFORM READ TRACKING
 // =============================================================================
 

@@ -387,6 +387,45 @@ test('industry is most cost-sensitive sector', () => {
   expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.5); // At least half as responsive
 });
 
+// --- Energy Burden LCOE Sensitivity ---
+
+console.log('\n--- Energy Burden LCOE Sensitivity ---\n');
+
+test('energy burden differs between low and high laggedAvgLCOE', () => {
+  const demandParams = demandModule.mergeParams({});
+  const demoInputs = getDemographicsInputs(5);
+
+  // Run 5 years to get a meaningful state
+  let state = demandModule.init(demandParams);
+  for (let i = 0; i < 5; i++) {
+    const result = demandModule.step(state, {
+      ...getDemographicsInputs(i),
+      gdp: baselineGdp(i),
+      laggedAvgLCOE: 50,
+    }, demandParams, 2025 + i, i);
+    state = result.state;
+  }
+
+  // Low LCOE case
+  const lowResult = demandModule.step(state, {
+    ...demoInputs,
+    gdp: baselineGdp(5),
+    laggedAvgLCOE: 20,
+  }, demandParams, 2030, 5);
+
+  // High LCOE case
+  const highResult = demandModule.step(state, {
+    ...demoInputs,
+    gdp: baselineGdp(5),
+    laggedAvgLCOE: 150,
+  }, demandParams, 2030, 5);
+
+  // Energy burden should be higher with expensive electricity
+  expect(highResult.outputs.energyBurden).toBeGreaterThan(lowResult.outputs.energyBurden);
+  // Electricity cost should differ meaningfully
+  expect(highResult.outputs.electricityCost).toBeGreaterThan(lowResult.outputs.electricityCost * 2);
+});
+
 // --- Module Metadata ---
 
 console.log('\n--- Module Metadata ---\n');

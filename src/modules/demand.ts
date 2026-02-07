@@ -172,7 +172,6 @@ interface DemandInputs {
 
   // For energy burden calculation (from dispatch/energy)
   electricityGeneration?: number;        // TWh
-  weightedAverageLCOE?: number;          // $/MWh (generation-weighted)
   carbonPrice?: number;                  // $/tonne for fuel carbon cost
 
   // For cost-driven electrification
@@ -742,7 +741,6 @@ export const demandModule: Module<
     'gdp',
     'regionalDamages',
     'electricityGeneration',
-    'weightedAverageLCOE',
     'carbonPrice',
     'laggedAvgLCOE',
     'regionalFossilShare',
@@ -1300,7 +1298,7 @@ export const demandModule: Module<
     // Electricity cost: generation × weighted LCOE
     // TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
     const electricityGeneration = inputs.electricityGeneration ?? globalElec;
-    const avgLCOE = inputs.weightedAverageLCOE ?? 50; // Default assumption
+    const avgLCOE = inputs.laggedAvgLCOE ?? 50; // Lagged LCOE (cycle-breaker is always null)
     const electricityTotalCost = (electricityGeneration * avgLCOE) / 1e6;
 
     const totalEnergyCost = electricityTotalCost + fuelCost;

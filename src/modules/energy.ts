@@ -1281,14 +1281,10 @@ export const energyModule: Module<
       const maxAdd = prevCap * params.longStorage.growthRate;
       const addition = Math.min(gap * 0.2, maxAdd + 1); // +1 GWh min to bootstrap
 
-      // Investment constraint: use remaining clean budget if available
-      const additionCost = (addition * params.longStorage.capex) / 1000; // $B
-      const affordable = Math.min(addition, addition); // Simplified: no separate budget tracking
-
-      const newCap = prevCap + affordable;
+      const newCap = prevCap + addition;
       newLongStorageRegional[region] = newCap;
       longStorageTotal += newCap;
-      longStorageCumulativeNew += affordable;
+      longStorageCumulativeNew += addition;
     }
 
     // Find cheapest LCOE ($/MWh)

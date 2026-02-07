@@ -418,6 +418,9 @@ async function runCLI() {
   const idx2025 = 0;
   const idx2050 = result.results.findIndex(r => r.year === 2050);
   const idx2100 = result.results.length - 1;
+  const r2050 = idx2050 >= 0 ? result.results[idx2050] : null;
+  const fmt2050 = (fn: (r: YearResult) => string) => r2050 ? fn(r2050) : 'N/A';
+
   console.log('\n=== Resources ===\n');
   console.log(`Copper cumulative 2100: ${result.results[idx2100].copperCumulative.toFixed(0)} Mt`);
   console.log(`Lithium cumulative 2100: ${result.results[idx2100].lithiumCumulative.toFixed(1)} Mt`);
@@ -428,16 +431,16 @@ async function runCLI() {
 
   console.log('\n=== Food (Bennett\'s Law) ===\n');
   console.log(`Protein share 2025: ${(result.results[idx2025].proteinShare * 100).toFixed(1)}%`);
-  console.log(`Protein share 2050: ${(result.results[idx2050].proteinShare * 100).toFixed(1)}%`);
+  console.log(`Protein share 2050: ${fmt2050(r => (r.proteinShare * 100).toFixed(1) + '%')}`);
   console.log(`Protein share 2100: ${(result.results[idx2100].proteinShare * 100).toFixed(1)}%`);
   console.log(`Grain demand 2025: ${result.results[idx2025].grainEquivalent.toFixed(0)} Mt`);
-  console.log(`Grain demand 2050: ${result.results[idx2050].grainEquivalent.toFixed(0)} Mt`);
+  console.log(`Grain demand 2050: ${fmt2050(r => r.grainEquivalent.toFixed(0) + ' Mt')}`);
   console.log(`Grain demand 2100: ${result.results[idx2100].grainEquivalent.toFixed(0)} Mt`);
 
   // Automation metrics
   console.log('\n=== Automation ===\n');
   console.log(`Robot load 2025: ${result.results[idx2025].robotLoadTWh.toFixed(0)} TWh`);
-  console.log(`Robot load 2050: ${result.results[idx2050].robotLoadTWh.toFixed(0)} TWh`);
+  console.log(`Robot load 2050: ${fmt2050(r => r.robotLoadTWh.toFixed(0) + ' TWh')}`);
   console.log(`Robot load 2100: ${result.results[idx2100].robotLoadTWh.toFixed(0)} TWh`);
   console.log(`Robots/1000 workers 2025: ${result.results[idx2025].robotsPer1000.toFixed(1)}`);
   console.log(`Robots/1000 workers 2100: ${result.results[idx2100].robotsPer1000.toFixed(1)}`);
@@ -445,19 +448,19 @@ async function runCLI() {
   // Sector electrification
   console.log('\n=== Sector Electrification ===\n');
   console.log(`Transport 2025: ${(result.results[idx2025].transportElectrification * 100).toFixed(0)}%`);
-  console.log(`Transport 2050: ${(result.results[idx2050].transportElectrification * 100).toFixed(0)}%`);
+  console.log(`Transport 2050: ${fmt2050(r => (r.transportElectrification * 100).toFixed(0) + '%')}`);
   console.log(`Transport 2100: ${(result.results[idx2100].transportElectrification * 100).toFixed(0)}%`);
   console.log(`Buildings 2025: ${(result.results[idx2025].buildingsElectrification * 100).toFixed(0)}%`);
-  console.log(`Buildings 2050: ${(result.results[idx2050].buildingsElectrification * 100).toFixed(0)}%`);
+  console.log(`Buildings 2050: ${fmt2050(r => (r.buildingsElectrification * 100).toFixed(0) + '%')}`);
   console.log(`Buildings 2100: ${(result.results[idx2100].buildingsElectrification * 100).toFixed(0)}%`);
   console.log(`Industry 2025: ${(result.results[idx2025].industryElectrification * 100).toFixed(0)}%`);
-  console.log(`Industry 2050: ${(result.results[idx2050].industryElectrification * 100).toFixed(0)}%`);
+  console.log(`Industry 2050: ${fmt2050(r => (r.industryElectrification * 100).toFixed(0) + '%')}`);
   console.log(`Industry 2100: ${(result.results[idx2100].industryElectrification * 100).toFixed(0)}%`);
 
   // Fuel mix
   console.log('\n=== Fuel Mix (non-electric TWh) ===\n');
   console.log(`Non-electric 2025: ${result.results[idx2025].nonElectricEnergy.toFixed(0)} TWh`);
-  console.log(`Non-electric 2050: ${result.results[idx2050].nonElectricEnergy.toFixed(0)} TWh`);
+  console.log(`Non-electric 2050: ${fmt2050(r => r.nonElectricEnergy.toFixed(0) + ' TWh')}`);
   console.log(`Non-electric 2100: ${result.results[idx2100].nonElectricEnergy.toFixed(0)} TWh`);
   console.log(`Oil 2025: ${result.results[idx2025].oilConsumption.toFixed(0)} TWh`);
   console.log(`Oil 2100: ${result.results[idx2100].oilConsumption.toFixed(0)} TWh`);
@@ -469,40 +472,40 @@ async function runCLI() {
   // Energy burden
   console.log('\n=== Energy Burden ===\n');
   console.log(`Energy cost 2025: $${result.results[idx2025].totalEnergyCost.toFixed(1)}T`);
-  console.log(`Energy cost 2050: $${result.results[idx2050].totalEnergyCost.toFixed(1)}T`);
+  console.log(`Energy cost 2050: ${fmt2050(r => '$' + r.totalEnergyCost.toFixed(1) + 'T')}`);
   console.log(`Energy cost 2100: $${result.results[idx2100].totalEnergyCost.toFixed(1)}T`);
   console.log(`Energy burden 2025: ${(result.results[idx2025].energyBurden * 100).toFixed(1)}% of GDP`);
-  console.log(`Energy burden 2050: ${(result.results[idx2050].energyBurden * 100).toFixed(1)}% of GDP`);
+  console.log(`Energy burden 2050: ${fmt2050(r => (r.energyBurden * 100).toFixed(1) + '% of GDP')}`);
   console.log(`Energy burden 2100: ${(result.results[idx2100].energyBurden * 100).toFixed(1)}% of GDP`);
 
   // CDR
   console.log('\n=== Carbon Dioxide Removal ===\n');
   console.log(`CDR cost 2025: $${result.results[idx2025].cdrCostPerTon.toFixed(0)}/ton`);
-  console.log(`CDR cost 2050: $${result.results[idx2050].cdrCostPerTon.toFixed(0)}/ton`);
+  console.log(`CDR cost 2050: ${fmt2050(r => '$' + r.cdrCostPerTon.toFixed(0) + '/ton')}`);
   console.log(`CDR cost 2100: $${result.results[idx2100].cdrCostPerTon.toFixed(0)}/ton`);
-  console.log(`CDR capacity 2050: ${result.results[idx2050].cdrCapacity.toFixed(3)} Gt/yr`);
+  console.log(`CDR capacity 2050: ${fmt2050(r => r.cdrCapacity.toFixed(3) + ' Gt/yr')}`);
   console.log(`CDR capacity 2100: ${result.results[idx2100].cdrCapacity.toFixed(3)} Gt/yr`);
-  console.log(`CDR removal 2050: ${result.results[idx2050].cdrRemoval.toFixed(3)} Gt/yr`);
+  console.log(`CDR removal 2050: ${fmt2050(r => r.cdrRemoval.toFixed(3) + ' Gt/yr')}`);
   console.log(`CDR removal 2100: ${result.results[idx2100].cdrRemoval.toFixed(3)} Gt/yr`);
-  console.log(`CDR energy 2050: ${result.results[idx2050].cdrEnergyTWh.toFixed(0)} TWh`);
+  console.log(`CDR energy 2050: ${fmt2050(r => r.cdrEnergyTWh.toFixed(0) + ' TWh')}`);
   console.log(`CDR energy 2100: ${result.results[idx2100].cdrEnergyTWh.toFixed(0)} TWh`);
   console.log(`CDR cumulative 2100: ${result.results[idx2100].cdrCumulative.toFixed(1)} Gt`);
-  console.log(`CDR spend 2050: $${result.results[idx2050].cdrAnnualSpend.toFixed(2)}T/yr`);
+  console.log(`CDR spend 2050: ${fmt2050(r => '$' + r.cdrAnnualSpend.toFixed(2) + 'T/yr')}`);
   console.log(`CDR spend 2100: $${result.results[idx2100].cdrAnnualSpend.toFixed(2)}T/yr`);
 
   // Intergenerational transfers
   console.log('\n=== Intergenerational Transfers ===\n');
   console.log(`Retiree cost 2025: $${result.results[idx2025].retireeCost.toFixed(1)}T`);
-  console.log(`Retiree cost 2050: $${result.results[idx2050].retireeCost.toFixed(1)}T`);
+  console.log(`Retiree cost 2050: ${fmt2050(r => '$' + r.retireeCost.toFixed(1) + 'T')}`);
   console.log(`Retiree cost 2100: $${result.results[idx2100].retireeCost.toFixed(1)}T`);
   console.log(`Child cost 2025: $${result.results[idx2025].childCost.toFixed(1)}T`);
-  console.log(`Child cost 2050: $${result.results[idx2050].childCost.toFixed(1)}T`);
+  console.log(`Child cost 2050: ${fmt2050(r => '$' + r.childCost.toFixed(1) + 'T')}`);
   console.log(`Child cost 2100: $${result.results[idx2100].childCost.toFixed(1)}T`);
   console.log(`Transfer burden 2025: ${(result.results[idx2025].transferBurden * 100).toFixed(1)}%`);
-  console.log(`Transfer burden 2050: ${(result.results[idx2050].transferBurden * 100).toFixed(1)}%`);
+  console.log(`Transfer burden 2050: ${fmt2050(r => (r.transferBurden * 100).toFixed(1) + '%')}`);
   console.log(`Transfer burden 2100: ${(result.results[idx2100].transferBurden * 100).toFixed(1)}%`);
   console.log(`Worker consumption 2025: $${result.results[idx2025].workerConsumption.toFixed(0)}T`);
-  console.log(`Worker consumption 2050: $${result.results[idx2050].workerConsumption.toFixed(0)}T`);
+  console.log(`Worker consumption 2050: ${fmt2050(r => '$' + r.workerConsumption.toFixed(0) + 'T')}`);
   console.log(`Worker consumption 2100: $${result.results[idx2100].workerConsumption.toFixed(0)}T`);
 
   // Find peak burden

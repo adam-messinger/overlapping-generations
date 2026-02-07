@@ -124,22 +124,10 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
-    // Dispatch needs solarPlusBatteryLCOE from energy (energy runs before dispatch)
-    solarPlusBatteryLCOE: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'solarPlusBatteryLCOE', 'solarPlusBatteryLCOE'),
-      dependsOn: ['solarPlusBatteryLCOE'],
-    },
-
     // Dispatch needs capacities from energy
     capacities: {
       fn: (outputs: Record<string, any>) => outputs.capacities,
       dependsOn: ['capacities'],
-    },
-
-    // Dispatch needs lcoes from energy
-    lcoes: {
-      fn: (outputs: Record<string, any>) => outputs.lcoes,
-      dependsOn: ['lcoes'],
     },
 
     // Resources needs additions from energy
@@ -181,13 +169,20 @@ function buildTransforms(mergedEnergyParams: any) {
         if (!generation || !lcoes) return 50;
         let totalGen = 0;
         let weightedSum = 0;
-        // Use ENERGY_SOURCES to skip solarPlusBattery (overlaps solar capacity)
+        // ENERGY_SOURCES covers the 7 primary sources (solar, wind, nuclear, etc.)
         for (const source of ENERGY_SOURCES) {
           const gen = generation[source] ?? 0;
           const lcoe = lcoes[source] ?? 50;
           totalGen += gen;
           weightedSum += gen * lcoe;
         }
+        // Include solarPlusBattery separately — its generation represents the
+        // battery-backed portion of solar, with a higher LCOE than bare solar.
+        // Without this, the average is biased low when storage is a large share.
+        const spbGen = generation['solarPlusBattery'] ?? 0;
+        const spbLcoe = outputs.solarPlusBatteryLCOE ?? 50;
+        totalGen += spbGen;
+        weightedSum += spbGen * spbLcoe;
         return totalGen > 0 ? weightedSum / totalGen : 50;
       },
       dependsOn: [],
@@ -645,7 +640,29 @@ export function toYearResults(result: AutowireResult): YearResult[] {
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
-      energySystemOverhead: o.energySystemOverheadComputed ?? 0,
+      // Compute inline from energy module outputs (the transform output
+      // energySystemOverheadComputed is not in currentOutputs — it's only
+      // available via the lag mechanism). Duplicates constants from
+      // energySystemOverheadComputed transform above.
+      energySystemOverhead: (() => {
+        const additions = o.additions as Record<string, number> | undefined;
+        const capacities = o.capacities as Record<string, number> | undefined;
+        if (!additions || !capacities) return 0;
+        const embodied: Record<string, number> = {
+          solar: 1.5, wind: 2.0, nuclear: 5.0,
+          gas: 0.8, coal: 1.0, hydro: 3.0, battery: 0.00015,
+        };
+        const operating: Record<string, number> = {
+          solar: 0.02, wind: 0.05, nuclear: 0.15,
+          gas: 0.10, coal: 0.12, hydro: 0.01, battery: 0,
+        };
+        let total = 0;
+        for (const source of Object.keys(additions)) {
+          total += (additions[source] ?? 0) * (embodied[source] ?? 0);
+          total += (capacities[source] ?? 0) * (operating[source] ?? 0);
+        }
+        return total;
+      })(),
 
       // Mineral constraint
       mineralConstraint: o.mineralConstraint ?? 1.0,
