@@ -9,6 +9,10 @@ import {
   runAutowired,
   getOutputsAtYear,
   getTimeSeries,
+  validateWiring,
+  requireOutput,
+  yearZeroFallback,
+  optionalOutput,
   AnyModule,
 } from './autowire.js';
 import { defineModule } from './module.js';
@@ -458,6 +462,402 @@ test('getTimeSeries returns specific output array', () => {
   expect(values[0]).toBe(100);
   expect(values[1]).toBe(102);
   expect(values[2]).toBe(104);
+});
+
+// =============================================================================
+// TESTS: WIRING VALIDATION
+// =============================================================================
+
+console.log('\n=== Wiring Validation Tests ===\n');
+
+test('validateWiring catches typo in transform dependsOn', () => {
+  const registry = buildOutputRegistry([rootModule]);
+  const transforms = {
+    derived: {
+      fn: (outputs: Record<string, any>) => outputs.value * 2,
+      dependsOn: ['valeu'],  // Typo!
+    },
+  };
+
+  expect(() => validateWiring([rootModule], registry, transforms, {}))
+    .toThrow("depends on 'valeu' which doesn't exist");
+});
+
+test('validateWiring catches missing lag source', () => {
+  const registry = buildOutputRegistry([rootModule]);
+  const lags = {
+    laggedFoo: { source: 'nonexistent', delay: 1, initial: 0 },
+  };
+
+  expect(() => validateWiring([rootModule], registry, {}, lags))
+    .toThrow("reads source 'nonexistent' which doesn't exist");
+});
+
+test('validateWiring passes for correct wiring', () => {
+  const registry = buildOutputRegistry([rootModule, dependentModule]);
+  const transforms = {
+    summed: {
+      fn: (outputs: Record<string, any>) => outputs.value + outputs.doubled,
+      dependsOn: ['value', 'doubled'],
+    },
+  };
+  const lags = {
+    laggedResult: { source: 'result', delay: 1, initial: 0 },
+  };
+
+  // Should not throw
+  validateWiring([rootModule, dependentModule], registry, transforms, lags);
+});
+
+test('runAutowired throws on bad dependsOn (integration)', () => {
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Has a transform with a typo',
+    defaults: {},
+    inputs: ['derived'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.derived } }),
+  });
+
+  expect(() => runAutowired({
+    modules: [rootModule, consumer],
+    transforms: {
+      derived: {
+        fn: (outputs: Record<string, any>) => outputs.value,
+        dependsOn: ['valeu'],  // Typo — should be caught at init
+      },
+    },
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("depends on 'valeu' which doesn't exist");
+});
+
+test('validateWiring allows transform dependsOn referencing other transforms', () => {
+  const registry = buildOutputRegistry([rootModule]);
+  const transforms = {
+    derived1: {
+      fn: () => 42,
+      dependsOn: ['value'],
+    },
+    derived2: {
+      fn: () => 84,
+      dependsOn: ['derived1'],  // References another transform
+    },
+  };
+
+  // Should not throw
+  validateWiring([rootModule], registry, transforms, {});
+});
+
+// =============================================================================
+// TESTS: OUTPUT COMPLETENESS + NaN GUARD
+// =============================================================================
+
+console.log('\n=== Output Completeness Tests ===\n');
+
+test('throws when module step omits a declared output', () => {
+  const incomplete = defineModule({
+    name: 'incomplete',
+    description: 'Omits an output',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['present', 'missing'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { present: 42 } as any,  // 'missing' not returned
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [incomplete],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("declares output 'missing' but step() didn't return it");
+});
+
+test('throws when module step returns NaN output', () => {
+  const nanModule = defineModule({
+    name: 'nanProducer',
+    description: 'Produces NaN',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['bad'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { bad: NaN },
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [nanModule],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("output 'bad' is NaN at year 2025");
+});
+
+test('throws when module step returns Infinity output', () => {
+  const infModule = defineModule({
+    name: 'infProducer',
+    description: 'Produces Infinity',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['bad'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { bad: Infinity },
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [infModule],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("output 'bad' is Infinity at year 2025");
+});
+
+test('throws when nested record output contains NaN', () => {
+  const nestedNan = defineModule({
+    name: 'nestedNanProducer',
+    description: 'Produces nested NaN',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['regional'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { regional: { oecd: 42, china: NaN } },
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [nestedNan],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("output 'regional.china' is NaN at year 2025");
+});
+
+test('throws when module step returns -Infinity output', () => {
+  const negInfModule = defineModule({
+    name: 'negInfProducer',
+    description: 'Produces -Infinity',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['bad'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { bad: -Infinity },
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [negInfModule],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("output 'bad' is -Infinity at year 2025");
+});
+
+test('throws when deeply nested output (2 levels) contains NaN', () => {
+  const deepNan = defineModule({
+    name: 'deepNanProducer',
+    description: 'Produces NaN two levels deep (e.g., minerals.copper.demand)',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['minerals'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { minerals: { copper: { demand: 42, cumulative: NaN } } },
+    }),
+  });
+
+  expect(() => runAutowired({
+    modules: [deepNan],
+    startYear: 2025,
+    endYear: 2025,
+  })).toThrow("output 'minerals.copper.cumulative' is NaN at year 2025");
+});
+
+test('allows null and non-numeric outputs', () => {
+  const mixed = defineModule({
+    name: 'mixed',
+    description: 'Mixed output types',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['num', 'str', 'nul', 'obj'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { num: 42, str: 'hello', nul: null, obj: { a: 1, b: 2 } },
+    }),
+  });
+
+  // Should not throw
+  const result = runAutowired({
+    modules: [mixed],
+    startYear: 2025,
+    endYear: 2025,
+  });
+  expect(result.outputs.mixed.num[0]).toBe(42);
+});
+
+// =============================================================================
+// TESTS: TRANSFORM HELPERS
+// =============================================================================
+
+console.log('\n=== Transform Helper Tests ===\n');
+
+test('yearZeroFallback returns value when present', () => {
+  const outputs = { foo: 42 };
+  expect(yearZeroFallback(outputs, 'foo', 0, 5, 'test')).toBe(42);
+});
+
+test('yearZeroFallback returns initial on year 0 when missing', () => {
+  const outputs = {};
+  expect(yearZeroFallback(outputs, 'foo', 99, 0, 'test')).toBe(99);
+});
+
+test('yearZeroFallback throws after year 0 when missing', () => {
+  const outputs = {};
+  expect(() => yearZeroFallback(outputs, 'foo', 99, 1, 'test'))
+    .toThrow("'foo' missing at year index 1");
+});
+
+test('optionalOutput returns value when present', () => {
+  const outputs = { bar: 42 };
+  expect(optionalOutput(outputs, 'bar', 0)).toBe(42);
+});
+
+test('optionalOutput returns fallback when missing', () => {
+  const outputs = {};
+  expect(optionalOutput(outputs, 'bar', 99)).toBe(99);
+});
+
+// =============================================================================
+// TESTS: TRANSFORM READ TRACKING
+// =============================================================================
+
+console.log('\n=== Transform Read Tracking Tests ===\n');
+
+test('trackReads detects undeclared reads (via console.warn)', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces values',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['a', 'b'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { a: 10, b: 20 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Uses transform',
+    defaults: {},
+    inputs: ['derived'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.derived } }),
+  });
+
+  // Transform reads 'a' AND 'b' but only declares 'a'
+  const warnings: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (msg: string) => { warnings.push(msg); };
+
+  try {
+    runAutowired({
+      modules: [producer, consumer],
+      transforms: {
+        derived: {
+          fn: (outputs: Record<string, any>) => outputs.a + outputs.b,
+          dependsOn: ['a'],  // Missing 'b'!
+        },
+      },
+      startYear: 2025,
+      endYear: 2025,
+      trackReads: true,
+    });
+
+    const undeclaredWarnings = warnings.filter(w => w.includes("reads 'b'"));
+    expect(undeclaredWarnings.length > 0).toBeTrue();
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
+test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces values',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['a'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { a: 10 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Uses cycle-breaker transform',
+    defaults: {},
+    inputs: ['cycled'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.cycled ?? 0 } }),
+  });
+
+  const warnings: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (msg: string) => { warnings.push(msg); };
+
+  try {
+    runAutowired({
+      modules: [producer, consumer],
+      transforms: {
+        cycled: {
+          fn: (outputs: Record<string, any>) => outputs.a ?? 0,
+          dependsOn: [],  // Cycle-breaker
+        },
+      },
+      startYear: 2025,
+      endYear: 2025,
+      trackReads: true,
+    });
+
+    const trackWarnings = warnings.filter(w => w.includes('reads'));
+    expect(trackWarnings.length).toBe(0);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 // =============================================================================

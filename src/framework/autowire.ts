@@ -95,6 +95,9 @@ export interface AutowireConfig {
 
   /** End year (default: 2100) */
   endYear?: number;
+
+  /** Enable dev-mode transform read tracking via Proxy (default: false) */
+  trackReads?: boolean;
 }
 
 /**
@@ -299,6 +302,147 @@ export function validateConnectorTypes(
 }
 
 // =============================================================================
+// WIRING VALIDATION
+// =============================================================================
+
+/**
+ * Validate all wiring at composition time.
+ * Catches typos in dependsOn, missing lag sources, and orphaned outputs.
+ */
+export function validateWiring(
+  modules: AnyModule[],
+  outputRegistry: Map<string, string>,
+  transforms: Record<string, TransformEntry>,
+  lags: Record<string, LagConfig>
+): void {
+  const errors: string[] = [];
+
+  // All available output names (module outputs + transform names)
+  const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(transforms)]);
+
+  // Check transform dependsOn items exist
+  for (const [name, entry] of Object.entries(transforms)) {
+    const config = normalizeTransform(entry);
+    for (const dep of config.dependsOn) {
+      if (!allOutputs.has(dep)) {
+        errors.push(`Transform '${name}' depends on '${dep}' which doesn't exist`);
+      }
+    }
+  }
+
+  // Check lag sources exist
+  for (const [name, lag] of Object.entries(lags)) {
+    if (!allOutputs.has(lag.source)) {
+      errors.push(`Lag '${name}' reads source '${lag.source}' which doesn't exist`);
+    }
+  }
+
+  if (errors.length > 0) throw new Error(`Wiring errors:\n${errors.join('\n')}`);
+}
+
+// =============================================================================
+// OUTPUT GUARDS
+// =============================================================================
+
+/**
+ * Recursively check a value for NaN/Infinity up to a depth limit.
+ * Covers Record<Region, number>, Record<Mineral, {demand, cumulative}>, etc.
+ */
+function checkNumeric(val: unknown, path: string, mod: string, year: number, depth = 0): void {
+  if (typeof val === 'number' && (Number.isNaN(val) || !Number.isFinite(val))) {
+    throw new Error(`Module '${mod}' output '${path}' is ${val} at year ${year}`);
+  }
+  if (depth < 3 && typeof val === 'object' && val !== null && !Array.isArray(val)) {
+    for (const [k, v] of Object.entries(val)) {
+      checkNumeric(v, `${path}.${k}`, mod, year, depth + 1);
+    }
+  }
+}
+
+/**
+ * Verify output completeness and check for NaN/Infinity after each module step.
+ */
+function validateOutputs(
+  mod: AnyModule,
+  outputs: Record<string, any>,
+  year: number
+): void {
+  for (const output of mod.outputs) {
+    const key = output as string;
+    const val = outputs[key];
+    if (val === undefined) {
+      throw new Error(
+        `Module '${mod.name}' declares output '${key}' but step() didn't return it`
+      );
+    }
+    checkNumeric(val, key, mod.name, year);
+  }
+}
+
+// =============================================================================
+// TRANSFORM HELPERS
+// =============================================================================
+
+/**
+ * Fail-fast: output MUST exist. Throws on broken wiring instead of masking with a fallback.
+ * Use for normal (non-cycle-breaker) transforms where the dependency is declared.
+ */
+export function requireOutput<T>(outputs: Record<string, any>, key: string, context: string): T {
+  const val = outputs[key];
+  if (val === undefined) throw new Error(`${context}: required output '${key}' not available`);
+  return val as T;
+}
+
+/**
+ * Year-0 fallback: OK to use default on year 0 before upstream modules run, throws after.
+ * Use for cycle-breaker transforms where the value legitimately doesn't exist on the first step.
+ */
+export function yearZeroFallback<T>(
+  outputs: Record<string, any>,
+  key: string,
+  initial: T,
+  yearIndex: number,
+  context: string
+): T {
+  const val = outputs[key];
+  if (val !== undefined) return val as T;
+  if (yearIndex === 0) return initial;
+  throw new Error(`${context}: '${key}' missing at year index ${yearIndex} (only year 0 fallback allowed)`);
+}
+
+/**
+ * Intentional optional: output may legitimately not exist (e.g., pre-activation CDR).
+ * The fallback value is always used when the output is absent — this is not a bug.
+ */
+export function optionalOutput<T>(
+  outputs: Record<string, any>,
+  key: string,
+  fallback: T
+): T {
+  const val = outputs[key];
+  return val !== undefined ? val as T : fallback;
+}
+
+// =============================================================================
+// TRANSFORM READ TRACKING
+// =============================================================================
+
+/**
+ * Create a Proxy that records which keys are read from outputs.
+ * Used in dev mode to detect undeclared transform dependencies.
+ */
+function trackingProxy(outputs: Record<string, any>): { proxy: Record<string, any>; reads: Set<string> } {
+  const reads = new Set<string>();
+  const proxy = new Proxy(outputs, {
+    get(target, prop) {
+      if (typeof prop === 'string') reads.add(prop);
+      return target[prop as string];
+    },
+  });
+  return { proxy, reads };
+}
+
+// =============================================================================
 // AUTO-WIRED SIMULATION
 // =============================================================================
 
@@ -328,6 +472,7 @@ export interface AutowireState {
   startYear: number;
   endYear: number;
   currentYear: number;
+  trackReads: boolean;
 }
 
 /**
@@ -342,6 +487,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     params = {},
     startYear = 2025,
     endYear = 2100,
+    trackReads = false,
   } = config;
 
   // Build registry and graph
@@ -352,6 +498,9 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   for (const warning of connectorWarnings) {
     console.warn(`[autowire] ${warning}`);
   }
+
+  // Validate wiring: catch typos, missing sources, orphaned outputs
+  validateWiring(modules, outputRegistry, transforms, lags);
 
   const graph = buildDependencyGraph(modules, outputRegistry, transforms, lags);
   const sortedModules = topologicalSort(graph);
@@ -402,6 +551,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     startYear,
     endYear,
     currentYear: startYear,
+    trackReads,
   };
 }
 
@@ -431,7 +581,18 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
 
       if (state.transforms[inputName]) {
         const config = normalizeTransform(state.transforms[inputName]);
-        inputs[inputName] = config.fn(state.currentOutputs, year, yearIndex);
+        if (state.trackReads && config.dependsOn.length > 0) {
+          // Dev-mode: track which outputs the transform actually reads
+          const { proxy, reads } = trackingProxy(state.currentOutputs);
+          inputs[inputName] = config.fn(proxy, year, yearIndex);
+          for (const read of reads) {
+            if (!config.dependsOn.includes(read)) {
+              console.warn(`[autowire] Transform '${inputName}' reads '${read}' but doesn't declare it in dependsOn`);
+            }
+          }
+        } else {
+          inputs[inputName] = config.fn(state.currentOutputs, year, yearIndex);
+        }
         continue;
       }
 
@@ -454,6 +615,9 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
     const modState = state.stateMap.get(mod.name)!;
     const modParams = state.paramsMap.get(mod.name)!;
     const result = mod.step(modState, inputs, modParams, year, yearIndex);
+
+    // Verify completeness + NaN guard
+    validateOutputs(mod, result.outputs as Record<string, any>, year);
 
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);

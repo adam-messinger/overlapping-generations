@@ -14,7 +14,7 @@
  * - YearResult mapping from autowire outputs
  */
 
-import { runAutowired, getOutputsAtYear, AutowireResult } from './framework/autowire.js';
+import { runAutowired, getOutputsAtYear, AutowireResult, requireOutput, optionalOutput } from './framework/autowire.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule } from './modules/demand.js';
@@ -48,13 +48,6 @@ const ALL_MODULES = [
 // =============================================================================
 // BUILD TRANSFORMS AND LAGS
 // =============================================================================
-
-/** Assert a required output exists. Throws on broken wiring instead of masking with a fallback. */
-function requireOutput<T>(outputs: Record<string, any>, key: string, context: string): T {
-  const val = outputs[key];
-  if (val === undefined) throw new Error(`${context}: required output '${key}' not available`);
-  return val as T;
-}
 
 /**
  * Build transforms with proper parameter access.
@@ -117,10 +110,9 @@ function buildTransforms(mergedEnergyParams: any) {
       fn: (outputs: Record<string, any>) => {
         const elecEmissions = requireOutput<number>(outputs, 'electricityEmissions', 'emissions');
         const nonElecEmissions = requireOutput<number>(outputs, 'nonElectricEmissions', 'emissions');
-        // netFlux is nested inside carbon output from resources
-        const carbon = outputs.carbon;
-        const landUse = carbon?.netFlux ?? 0;  // Legitimately zero when no land-use change
-        const cdrRemoval = outputs.cdrRemovalGtCO2 ?? 0;  // Zero before CDR activates
+        const carbon = requireOutput<Record<string, any>>(outputs, 'carbon', 'emissions');
+        const landUse = carbon.netFlux ?? 0;  // Legitimately zero when no land-use change
+        const cdrRemoval = optionalOutput(outputs, 'cdrRemovalGtCO2', 0);  // Zero before CDR activates
         return elecEmissions + nonElecEmissions + landUse - cdrRemoval;
       },
       dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'carbon', 'cdrRemovalGtCO2'],
@@ -132,10 +124,9 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
-    // Dispatch needs solarPlusBatteryLCOE from energy
-    // Defaults to 30 $/MWh in year 0 before energy module runs
+    // Dispatch needs solarPlusBatteryLCOE from energy (energy runs before dispatch)
     solarPlusBatteryLCOE: {
-      fn: (outputs: Record<string, any>) => outputs.solarPlusBatteryLCOE ?? 30,
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'solarPlusBatteryLCOE', 'solarPlusBatteryLCOE'),
       dependsOn: ['solarPlusBatteryLCOE'],
     },
 
@@ -153,13 +144,16 @@ function buildTransforms(mergedEnergyParams: any) {
 
     // Resources needs additions from energy
     additions: {
-      fn: (outputs: Record<string, any>) => outputs.additions ?? {},
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'additions', 'additions'),
       dependsOn: ['additions'],
     },
 
     // Resources needs transport electrification for EV battery mineral demand
     transportElectrification: {
-      fn: (outputs: Record<string, any>) => outputs.sectors?.transport?.electrificationRate ?? 0,
+      fn: (outputs: Record<string, any>) => {
+        const sectors = requireOutput<Record<string, any>>(outputs, 'sectors', 'transportElectrification');
+        return sectors.transport?.electrificationRate ?? 0;
+      },
       dependsOn: ['sectors'],
     },
 
@@ -171,16 +165,19 @@ function buildTransforms(mergedEnergyParams: any) {
 
     // Cycle-breaker: reads current-year dispatch outputs that may not exist yet
     // (demand→dispatch→demand cycle broken by omitting dependsOn)
+    // Uses optionalOutput because dispatch hasn't run yet when demand needs this
     electricityGeneration: {
-      fn: (outputs: Record<string, any>) => outputs.totalGeneration,
+      fn: (outputs: Record<string, any>) =>
+        optionalOutput(outputs, 'totalGeneration', undefined),
       dependsOn: [],
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
+    // Uses optionalOutput because dispatch/energy haven't run yet when this is evaluated
     weightedAverageLCOE: {
       fn: (outputs: Record<string, any>) => {
-        const generation = outputs.generation;
-        const lcoes = outputs.lcoes;
+        const generation = optionalOutput<Record<string, number> | null>(outputs, 'generation', null);
+        const lcoes = optionalOutput<Record<string, number> | null>(outputs, 'lcoes', null);
         if (!generation || !lcoes) return 50;
         let totalGen = 0;
         let weightedSum = 0;
@@ -197,10 +194,11 @@ function buildTransforms(mergedEnergyParams: any) {
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
+    // Uses optionalOutput because dispatch/energy haven't run yet when this is evaluated
     netEnergyFactorComputed: {
       fn: (outputs: Record<string, any>) => {
-        const generation = outputs.generation;
-        const netEnergyFraction = outputs.netEnergyFraction;
+        const generation = optionalOutput<Record<string, number> | null>(outputs, 'generation', null);
+        const netEnergyFraction = optionalOutput<Record<string, number> | null>(outputs, 'netEnergyFraction', null);
         if (!generation || !netEnergyFraction) return 1;
         let grossElectricity = 0;
         let netElectricity = 0;
@@ -222,34 +220,19 @@ function buildTransforms(mergedEnergyParams: any) {
     // Regional electricity demand from demand module
     regionalElectricityDemand: {
       fn: (outputs: Record<string, any>) => {
-        const regional = outputs.regional;
-        if (!regional) {
-          const globalDemand = outputs.electricityDemand ?? 30000;
-          const shares: Record<Region, number> = {
-            oecd: 0.34, china: 0.30, india: 0.10, latam: 0.06,
-            seasia: 0.06, russia: 0.05, mena: 0.05, ssa: 0.04,
-          };
-          const result = {} as Record<Region, number>;
-          for (const r of REGIONS) result[r] = globalDemand * shares[r];
-          return result;
-        }
+        const regional = requireOutput<Record<string, any>>(outputs, 'regional', 'regionalElectricityDemand');
         const result = {} as Record<Region, number>;
         for (const r of REGIONS) result[r] = regional[r]?.electricityDemand ?? 0;
         return result;
       },
-      dependsOn: ['regional', 'electricityDemand'],
+      dependsOn: ['regional'],
     },
 
     // Regional investment from capital (weighted by savings rate × GDP share)
     regionalInvestment: {
       fn: (outputs: Record<string, any>) => {
-        const investment = outputs.investment ?? 30;
-        const regionalSavings = outputs.regionalSavings;
-        if (!regionalSavings) {
-          const result: Record<Region, number> = {} as any;
-          for (const r of REGIONS) result[r] = investment * GDP_SHARES[r];
-          return result;
-        }
+        const investment = requireOutput<number>(outputs, 'investment', 'regionalInvestment');
+        const regionalSavings = requireOutput<Record<Region, number>>(outputs, 'regionalSavings', 'regionalInvestment');
         // Weight by savings rate × GDP share (proxy for savings amount)
         let totalWeight = 0;
         const weights: Record<Region, number> = {} as any;
@@ -268,13 +251,13 @@ function buildTransforms(mergedEnergyParams: any) {
 
     // Regional capacities from energy module
     regionalCapacities: {
-      fn: (outputs: Record<string, any>) => outputs.regionalCapacities ?? null,
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'regionalCapacities', 'regionalCapacities'),
       dependsOn: ['regionalCapacities'],
     },
 
     // Long-duration storage regional capacities (GWh) from energy module
     longStorageRegional: {
-      fn: (outputs: Record<string, any>) => outputs.longStorageRegional ?? null,
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'longStorageRegional', 'longStorageRegional'),
       dependsOn: ['longStorageRegional'],
     },
 
@@ -291,11 +274,11 @@ function buildTransforms(mergedEnergyParams: any) {
     },
 
     // Cycle-breaker: reads current-year energy outputs that may not exist yet
-    // Embodied energy of new capacity + operating energy of infrastructure
+    // Uses optionalOutput because energy hasn't run yet when production needs this
     energySystemOverheadComputed: {
       fn: (outputs: Record<string, any>) => {
-        const additions = outputs.additions;   // GW (GWh for battery) by source
-        const capacities = outputs.capacities; // GW (GWh for battery) by source
+        const additions = optionalOutput<Record<string, number> | null>(outputs, 'additions', null);
+        const capacities = optionalOutput<Record<string, number> | null>(outputs, 'capacities', null);
         if (!additions || !capacities) return 0;
 
         // Embodied energy (TWh per GW installed; TWh per GWh for battery)
@@ -333,26 +316,19 @@ function buildTransforms(mergedEnergyParams: any) {
     // Regional GDP for capital module intergenerational transfers
     regionalGdp: {
       fn: (outputs: Record<string, any>) => {
-        const regional = outputs.regional;
-        if (!regional) {
-          const gdp = outputs.gdp ?? 158;
-          const result: Record<Region, number> = {} as any;
-          for (const r of REGIONS) result[r] = gdp * GDP_SHARES[r];
-          return result;
-        }
+        const regional = requireOutput<Record<string, any>>(outputs, 'regional', 'regionalGdp');
         const result: Record<Region, number> = {} as any;
         for (const r of REGIONS) result[r] = regional[r]?.gdp ?? 0;
         return result;
       },
-      dependsOn: ['regional', 'gdp'],
+      dependsOn: ['regional'],
     },
 
     // Regional GDP per capita for climate adaptation
     regionalGdpPerCapita: {
       fn: (outputs: Record<string, any>) => {
-        const regional = outputs.regional; // demand regional outputs
-        const regionalPop = outputs.regionalPopulation;
-        if (!regional || !regionalPop) return undefined;
+        const regional = requireOutput<Record<string, any>>(outputs, 'regional', 'regionalGdpPerCapita');
+        const regionalPop = requireOutput<Record<Region, number>>(outputs, 'regionalPopulation', 'regionalGdpPerCapita');
         const result: Record<Region, number> = {} as any;
         for (const r of REGIONS) {
           const gdp = regional[r]?.gdp ?? 0;
@@ -365,11 +341,12 @@ function buildTransforms(mergedEnergyParams: any) {
     },
 
     // Cycle-breaker: reads current-year climate+demand outputs that may not exist yet
+    // Uses optionalOutput because climate/demand outputs aren't available for this transform
     gdpWeightedDamages: {
       fn: (outputs: Record<string, any>) => {
-        const regionalDamages = outputs.regionalDamages;
-        const regional = outputs.regional;
-        if (!regionalDamages || !regional) return outputs.damages ?? 0;
+        const regionalDamages = optionalOutput<Record<Region, number> | null>(outputs, 'regionalDamages', null);
+        const regional = optionalOutput<Record<string, any> | null>(outputs, 'regional', null);
+        if (!regionalDamages || !regional) return 0;
         let totalGdp = 0;
         let weightedSum = 0;
         for (const r of REGIONS) {
