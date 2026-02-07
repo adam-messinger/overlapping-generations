@@ -123,6 +123,17 @@ export interface WaterParams {
   yieldSensitivity: number;   // Yield loss per unit water stress (0.3)
 }
 
+export interface EVBatteryParams {
+  /** Global light vehicle fleet 2025 (millions) */
+  vehicleFleet2025: number;
+  /** Fleet growth per unit GDP/capita growth */
+  fleetGDPElasticity: number;
+  /** Average EV battery capacity (kWh) */
+  avgBatteryKWh: number;
+  /** Average vehicle lifetime (years) */
+  vehicleLifetime: number;
+}
+
 export interface ResourcesParams {
   minerals: {
     copper: MineralParams;
@@ -130,6 +141,7 @@ export interface ResourcesParams {
     rareEarths: MineralParams;
     steel: MineralParams;
   };
+  evBattery: EVBatteryParams;
   mining: MiningEnergyParams;
   land: LandParams & { energyPerHectare: number };
   food: FoodParams;
@@ -154,15 +166,15 @@ export const resourcesDefaults: ResourcesParams = {
     },
     lithium: {
       name: 'Lithium',
-      perGWh_battery: 600,
-      learningRate: 0.03,
-      reserves: 22,
+      perGWh_battery: 110000,     // kg Li per GWh (~0.11 kg/kWh, blended NMC/LFP; IRENA 2023)
+      learningRate: 0.03,         // Intensity decline from NMC→LFP shift + efficiency
+      reserves: 28,               // Mt lithium metal (USGS 2024)
       recyclingBase: 0.05,
       recyclingMax: 0.30,
       recyclingHalfway: 20,
-      annualSupply2025: 0.13,     // Mt/year (fast-expanding)
+      annualSupply2025: 0.18,     // Mt/year lithium metal (USGS 2024: 180kt)
       maxMiningGrowth: 0.15,      // 15%/yr max growth (new mines opening fast)
-      maxMiningCapacity: 2.0,     // Mt/yr logistic ceiling
+      maxMiningCapacity: 3.0,     // Mt/yr logistic ceiling (brine + hard rock + clay)
     },
     rareEarths: {
       name: 'Rare Earths',
@@ -190,6 +202,12 @@ export const resourcesDefaults: ResourcesParams = {
       maxMiningGrowth: 0.02,      // 2%/yr max growth
       maxMiningCapacity: 3500,    // Mt/yr logistic ceiling
     },
+  },
+  evBattery: {
+    vehicleFleet2025: 1400,     // million vehicles globally
+    fleetGDPElasticity: 0.3,    // 10% richer → 3% more vehicles
+    avgBatteryKWh: 60,          // kWh per EV (trending down with efficiency)
+    vehicleLifetime: 15,        // years average
   },
   mining: {
     energyIntensity: {
@@ -316,6 +334,7 @@ export interface ResourcesState {
   land: LandState;
   decayPool: number;           // Gt CO2 deferred emissions
   cumulativeSequestration: number; // Gt CO2 total sequestered
+  prevEVFleetMillions: number; // Previous year's EV fleet size (millions)
 }
 
 // =============================================================================
@@ -337,6 +356,9 @@ export interface ResourcesInputs {
 
   /** Global temperature (°C above preindustrial) */
   temperature: number;
+
+  /** Transport electrification fraction (0-1), from demand module */
+  transportElectrification: number;
 }
 
 export interface MineralOutput {
@@ -553,6 +575,7 @@ export const resourcesModule: Module<
     'gdpPerCapita',
     'gdpPerCapita2025',
     'temperature',
+    'transportElectrification',
   ] as const,
 
   outputs: [
@@ -648,6 +671,11 @@ export const resourcesModule: Module<
         }
       }
 
+      // Deep merge evBattery
+      if (p.evBattery) {
+        result.evBattery = { ...resourcesDefaults.evBattery, ...p.evBattery };
+      }
+
       // Deep merge food
       if (p.food) {
         result.food = { ...resourcesDefaults.food, ...p.food };
@@ -658,6 +686,8 @@ export const resourcesModule: Module<
   },
 
   init(params: ResourcesParams): ResourcesState {
+    // ~40M EVs on the road in 2025 (IEA GEVO 2024)
+    const initialEVFleet = 40;
     return {
       minerals: {
         copper: { cumulative: 0, miningCapacity: params.minerals.copper.annualSupply2025 },
@@ -673,6 +703,7 @@ export const resourcesModule: Module<
       },
       decayPool: 0,
       cumulativeSequestration: 0,
+      prevEVFleetMillions: initialEVFleet,
     };
   },
 
@@ -683,14 +714,33 @@ export const resourcesModule: Module<
       gdpPerCapita,
       gdpPerCapita2025,
       temperature,
+      transportElectrification,
     } = inputs;
-    const { land, food } = params;
+    const { land, food, evBattery } = params;
 
     // =========================================================================
     // FOOD (Bennett's Law)
     // =========================================================================
     const foodOutput = calculateFoodDemand(population, gdpPerCapita, yearIndex, food);
     const grainDemand = foodOutput.grainEquivalent;
+
+    // =========================================================================
+    // EV BATTERY DEMAND (lithium + copper from transport electrification)
+    // =========================================================================
+    // Vehicle fleet grows with GDP per capita
+    const gdpGrowthRatio = gdpPerCapita2025 > 0 ? gdpPerCapita / gdpPerCapita2025 : 1;
+    const vehicleFleetMillions = evBattery.vehicleFleet2025
+      * Math.pow(gdpGrowthRatio, evBattery.fleetGDPElasticity);
+
+    const evFleetMillions = vehicleFleetMillions * (transportElectrification ?? 0);
+
+    // Annual new EV batteries = fleet growth + replacement of retiring EVs
+    const fleetGrowth = Math.max(0, evFleetMillions - state.prevEVFleetMillions);
+    const replacements = evFleetMillions / evBattery.vehicleLifetime;
+    const newEVBatteriesMillions = fleetGrowth + replacements;
+
+    // Convert to GWh: millions of vehicles × kWh/vehicle / 1e6 kWh per GWh
+    const evBatteryGWh = newEVBatteriesMillions * evBattery.avgBatteryKWh / 1e3;
 
     // =========================================================================
     // MINERALS
@@ -706,9 +756,15 @@ export const resourcesModule: Module<
       const prevCumulative = state.minerals[key].cumulative;
       const prevMiningCapacity = state.minerals[key].miningCapacity;
 
+      // Grid battery + EV battery additions for minerals with perGWh_battery
+      const additionsWithEV = { ...additions };
+      if (mineral.perGWh_battery) {
+        additionsWithEV.battery = (additions.battery ?? 0) + evBatteryGWh;
+      }
+
       const result = calculateMineralDemand(
         mineral,
-        additions,
+        additionsWithEV,
         yearIndex,
         prevCumulative
       );
@@ -900,6 +956,7 @@ export const resourcesModule: Module<
       },
       decayPool: newDecayPool,
       cumulativeSequestration: newCumulativeSequestration,
+      prevEVFleetMillions: evFleetMillions,
     };
 
     return {

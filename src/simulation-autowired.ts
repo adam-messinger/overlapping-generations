@@ -157,6 +157,12 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['additions'],
     },
 
+    // Resources needs transport electrification for EV battery mineral demand
+    transportElectrification: {
+      fn: (outputs: Record<string, any>) => outputs.sectors?.transport?.electrificationRate ?? 0,
+      dependsOn: ['sectors'],
+    },
+
     // Resources needs population from demographics
     population: {
       fn: (outputs: Record<string, any>) => outputs.population,
