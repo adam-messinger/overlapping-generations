@@ -67,6 +67,10 @@ export interface CapitalParams {
   retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
   wageIndexation: number;           // 0=price-indexed, 1=wage-indexed (0.7)
 
+  // Demographic savings response
+  savingsLifeExpSensitivity: number;     // LE elasticity on savings (0.5)
+  savingsDependencySensitivity: number;  // Dependency ratio elasticity on savings (0.3)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
@@ -76,6 +80,7 @@ interface CapitalState {
   referenceGdpPerWorker: Record<Region, number>;  // Year-0 GDP/worker per region
   referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
   referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
+  referenceDependency: Record<Region, number>;     // Year-0 dependency ratio per region
 }
 
 interface CapitalInputs {
@@ -201,6 +206,10 @@ export const capitalDefaults: CapitalParams = {
   retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of LE gains → retirement age
   wageIndexation: 0.7,          // 70% wage-indexed, 30% price-indexed
 
+  // Demographic savings response (Bloom et al. 2003, Kinugasa & Mason 2007)
+  savingsLifeExpSensitivity: 0.5,     // LE elasticity: longer life → save more
+  savingsDependencySensitivity: 0.3,  // Dependency elasticity: more dependents → save less
+
   // Initial conditions
   initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
 };
@@ -210,7 +219,11 @@ export const capitalDefaults: CapitalParams = {
 // =============================================================================
 
 /**
- * Calculate demographic-weighted savings rate
+ * Calculate demographic-weighted savings rate with LE and dependency adjustments.
+ *
+ * Life expectancy effect: longer life → save more for retirement (lifecycle motive).
+ * Dependency effect: more dependents → less capacity to save.
+ * Combined factor clamped to [0.5, 1.5] to prevent unreasonable extremes.
  */
 function calculateSavingsRate(
   young: number,
@@ -218,11 +231,35 @@ function calculateSavingsRate(
   old: number,
   population: number,
   premium: number,
-  params: CapitalParams
+  params: CapitalParams,
+  currentLE?: number,
+  referenceLE?: number,
+  currentDependency?: number,
+  referenceDependency?: number,
 ): number {
+  let effectiveWorking = params.savingsWorking;
+
+  // Apply LE and dependency adjustments if reference values are available
+  if (currentLE !== undefined && referenceLE !== undefined &&
+      currentDependency !== undefined && referenceDependency !== undefined) {
+    // Life expectancy effect: longer life → save more (log for diminishing returns)
+    const leFactor = 1 + params.savingsLifeExpSensitivity *
+      Math.log(currentLE / Math.max(referenceLE, 40));
+
+    // Dependency effect: more dependents → save less (linear, symmetric)
+    const depChange = referenceDependency > 0
+      ? (currentDependency - referenceDependency) / referenceDependency
+      : 0;
+    const depFactor = 1 - params.savingsDependencySensitivity * depChange;
+
+    // Clamp combined factor to [0.5, 1.5]
+    effectiveWorking = params.savingsWorking *
+      Math.max(0.5, Math.min(1.5, leFactor * depFactor));
+  }
+
   const baseRate = (
     young * params.savingsYoung +
-    working * params.savingsWorking +
+    working * effectiveWorking +
     old * params.savingsOld
   ) / population;
 
@@ -317,6 +354,18 @@ export const capitalModule: Module<
       range: { min: 0, max: 1, default: 0.7 },
       tier: 1 as const,
     },
+    savingsLifeExpSensitivity: {
+      description: 'Life expectancy elasticity on savings. Longer life → save more for retirement (lifecycle motive).',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.5 },
+      tier: 1 as const,
+    },
+    savingsDependencySensitivity: {
+      description: 'Dependency ratio elasticity on savings. More dependents → less capacity to save.',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.3 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -403,6 +452,18 @@ export const capitalModule: Module<
       }
     }
 
+    if (params.savingsLifeExpSensitivity !== undefined) {
+      if (params.savingsLifeExpSensitivity < 0 || params.savingsLifeExpSensitivity > 1) {
+        errors.push('savingsLifeExpSensitivity must be between 0 and 1');
+      }
+    }
+
+    if (params.savingsDependencySensitivity !== undefined) {
+      if (params.savingsDependencySensitivity < 0 || params.savingsDependencySensitivity > 1) {
+        errors.push('savingsDependencySensitivity must be between 0 and 1');
+      }
+    }
+
     if (params.transfers !== undefined) {
       const t = params.transfers;
       if (t.pensionRate !== undefined && (t.pensionRate < 0 || t.pensionRate > 0.50)) {
@@ -453,6 +514,7 @@ export const capitalModule: Module<
       referenceGdpPerWorker: {} as Record<Region, number>,
       referenceGdpPerCapita: {} as Record<Region, number>,
       referenceLifeExpectancy: {} as Record<Region, number>,
+      referenceDependency: {} as Record<Region, number>,
     };
   },
 
@@ -465,7 +527,7 @@ export const capitalModule: Module<
   ): { state: CapitalState; outputs: CapitalOutputs } {
     const t = yearIndex;
 
-    // Calculate regional and global savings rates
+    // Calculate regional and global savings rates (with LE/dependency adjustments)
     const regionalSavings = {} as Record<Region, number>;
     let totalPop = 0;
     let weightedSavings = 0;
@@ -477,7 +539,16 @@ export const capitalModule: Module<
       const pop = inputs.regionalPopulation[region];
       const premium = params.savingsPremium[region];
 
-      const rate = calculateSavingsRate(young, working, old, pop, premium, params);
+      // Current LE and dependency for this region
+      const currentLE = inputs.regionalLifeExpectancy?.[region];
+      const referenceLE = state.referenceLifeExpectancy[region];
+      const currentDependency = working > 0 ? (young + old) / working : 0;
+      const referenceDep = state.referenceDependency[region];
+
+      const rate = calculateSavingsRate(
+        young, working, old, pop, premium, params,
+        currentLE, referenceLE, currentDependency, referenceDep,
+      );
       regionalSavings[region] = rate;
 
       totalPop += pop;
@@ -502,14 +573,18 @@ export const capitalModule: Module<
     const refGdpPerWorker = { ...state.referenceGdpPerWorker };
     const refGdpPerCapita = { ...state.referenceGdpPerCapita };
     const refLE = { ...state.referenceLifeExpectancy };
+    const refDependency = { ...state.referenceDependency };
     if (yearIndex === 0) {
       for (const r of REGIONS) {
         const working = inputs.regionalWorking[r] ?? 0;
         const pop = inputs.regionalPopulation[r] ?? 0;
         const regionGdp = inputs.regionalGdp[r] ?? 0;
+        const young = inputs.regionalYoung[r] ?? 0;
+        const old = inputs.regionalOld[r] ?? 0;
         refGdpPerWorker[r] = working > 0 ? regionGdp / working : 0;
         refGdpPerCapita[r] = pop > 0 ? regionGdp / pop : 0;
         refLE[r] = inputs.regionalLifeExpectancy?.[r] ?? 75;
+        refDependency[r] = working > 0 ? (young + old) / working : 0;
       }
     }
 
@@ -607,6 +682,7 @@ export const capitalModule: Module<
         referenceGdpPerWorker: refGdpPerWorker,
         referenceGdpPerCapita: refGdpPerCapita,
         referenceLifeExpectancy: refLE,
+        referenceDependency: refDependency,
       },
       outputs: {
         stock: state.stock, // Output current stock (before update)

@@ -41,7 +41,9 @@ interface RegionalEconomicParams {
 interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
-  electrificationTarget: number;  // Physical ceiling (70%/95%/65%)
+  // Cost escalation replaces hard ceilings
+  costEscalationThreshold: number; // Rate above which costs escalate (0.60/0.85/0.55)
+  costEscalationRate: number;      // Quadratic escalation strength (2.0/1.5/2.5)
   // Cost-driven electrification parameters
   costSensitivity: number;        // Response to cost ratio (0.08/0.06/0.10)
   basePressure: number;           // Background pressure (0.015/0.02/0.008)
@@ -87,12 +89,6 @@ export interface DemandParams {
 
   // Global demand parameters
   electrification2025: number;    // Current electricity share (IEA: 25%)
-  electrificationTarget: number;  // 2050+ target (IEA Net Zero: 65%)
-
-  // Cost-driven electrification parameters
-  costSensitivity: number;               // Elec gain per cost halving (default 0.05)
-  maxAnnualElecChange: number;           // Infrastructure constraint (default 0.02)
-  physicalElecCeiling: number;           // Physical max (~90%, some can't electrify)
 
   // Sector-level parameters
   sectors: {
@@ -120,9 +116,6 @@ export interface DemandParams {
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
 
-  // Baseline electrification trend
-  baselineElecTrend: number;     // Annual baseline electrification momentum (default 0.005)
-
   // Energy cost → GDP share feedback
   energyCostSensitivity: number;  // GDP share boost per 1.0 fossil share advantage (default 0.3)
 
@@ -144,7 +137,6 @@ interface RegionalState {
 
 interface DemandState {
   regions: Record<Region, RegionalState>;
-  electrificationRate: number; // Current electrification rate (cost-driven)
   fuelShares: Record<FuelType, number>; // Evolved fuel shares (for non-electric)
   sectorElectrification: {     // Sector-level electrification rates
     transport: number;
@@ -346,12 +338,6 @@ export const demandDefaults: DemandParams = {
 
   // Global parameters
   electrification2025: 0.25,    // Current electricity share (IEA)
-  electrificationTarget: 0.65,  // 2050+ target (IEA Net Zero)
-
-  // Cost-driven electrification
-  costSensitivity: 0.05,            // 5% electrification gain per cost halving
-  maxAnnualElecChange: 0.02,        // Infrastructure constraint: 2%/year max
-  physicalElecCeiling: 0.90,        // ~90% max (aviation, shipping, high-temp heat)
 
   // Sector-level parameters (IEA-calibrated)
   // Transport: EVs growing fast, aviation/shipping slow
@@ -359,34 +345,37 @@ export const demandDefaults: DemandParams = {
   // Industry: Electric arc furnaces, hydrogen steel
   sectors: {
     transport: {
-      share: 0.45,                // 45% of final energy (IEA)
-      electrification2025: 0.02,  // 2% (mostly rail)
-      electrificationTarget: 0.70, // 70% ceiling (aviation 12%, long-haul shipping 10% can't)
-      costSensitivity: 0.08,      // Response to fuel/elec cost ratio
-      basePressure: 0.015,        // Background electrification pressure
-      efficiencyMultiplier: 3.5,  // EVs 3.5x more efficient than ICE
-      maxAnnualChange: 0.04,      // 4%/year max (infrastructure)
-      primaryFuel: 'oil',         // Competes with oil (gasoline/diesel)
+      share: 0.45,                    // 45% of final energy (IEA)
+      electrification2025: 0.02,      // 2% (mostly rail)
+      costEscalationThreshold: 0.60,  // EVs easy up to 60%, then aviation/shipping get hard
+      costEscalationRate: 3.0,        // Quadratic cost escalation strength (aviation/shipping very hard)
+      costSensitivity: 0.08,          // Response to fuel/elec cost ratio
+      basePressure: 0.015,            // Background electrification pressure
+      efficiencyMultiplier: 3.5,      // EVs 3.5x more efficient than ICE
+      maxAnnualChange: 0.04,          // 4%/year max (infrastructure)
+      primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
     },
     buildings: {
-      share: 0.30,                // 30% of final energy
-      electrification2025: 0.35,  // 35% (heating, appliances)
-      electrificationTarget: 0.95, // 95% ceiling (nearly all can electrify)
-      costSensitivity: 0.06,      // Less sensitive than transport
-      basePressure: 0.02,         // Higher baseline (heat pump momentum)
-      efficiencyMultiplier: 3.0,  // Heat pump COP ~3
-      maxAnnualChange: 0.03,      // 3%/year max
-      primaryFuel: 'gas',         // Competes with gas (heating)
+      share: 0.30,                    // 30% of final energy
+      electrification2025: 0.35,      // 35% (heating, appliances)
+      costEscalationThreshold: 0.85,  // Heat pumps easy to 85%, then edge cases
+      costEscalationRate: 1.5,        // Lighter escalation (most things can electrify)
+      costSensitivity: 0.06,          // Less sensitive than transport
+      basePressure: 0.02,             // Higher baseline (heat pump momentum)
+      efficiencyMultiplier: 3.0,      // Heat pump COP ~3
+      maxAnnualChange: 0.03,          // 3%/year max
+      primaryFuel: 'gas',             // Competes with gas (heating)
     },
     industry: {
-      share: 0.25,                // 25% of final energy
-      electrification2025: 0.30,  // 30% (motors, EAFs)
-      electrificationTarget: 0.65, // 65% ceiling (high-temp processes need H2)
-      costSensitivity: 0.10,      // Most cost-sensitive sector
-      basePressure: 0.008,        // Slower baseline (heavy equipment)
-      efficiencyMultiplier: 1.1,  // Motors ~10% more efficient
-      maxAnnualChange: 0.025,     // 2.5%/year max (long-lived equipment)
-      primaryFuel: 'gas',         // Competes with gas (process heat)
+      share: 0.25,                    // 25% of final energy
+      electrification2025: 0.30,      // 30% (motors, EAFs)
+      costEscalationThreshold: 0.55,  // EAFs/motors easy to 55%, high-temp very hard
+      costEscalationRate: 3.5,        // Strongest escalation (cement, glass, steel)
+      costSensitivity: 0.10,          // Most cost-sensitive sector
+      basePressure: 0.008,            // Slower baseline (heavy equipment)
+      efficiencyMultiplier: 1.1,      // Motors ~10% more efficient
+      maxAnnualChange: 0.025,         // 2.5%/year max (long-lived equipment)
+      primaryFuel: 'gas',             // Competes with gas (process heat)
     },
   },
 
@@ -440,7 +429,6 @@ export const demandDefaults: DemandParams = {
   },
 
   efficiencyMultiplier: 1.0,    // Default: no adjustment
-  baselineElecTrend: 0.005,   // 0.5%/year baseline electrification momentum
 
   // Energy cost → GDP share feedback
   energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
@@ -551,9 +539,14 @@ function calculateLogitFuelShares(
   return blendedShares;
 }
 
+/** Hard physical ceiling on electrification (mathematical bound, not normative target) */
+const PHYSICAL_ELEC_CEILING = 0.98;
+
 /**
- * Calculate cost-driven sector electrification rate.
- * Electrification accelerates when electricity is cheaper than fuel (adjusted for efficiency).
+ * Calculate cost-driven sector electrification rate with cost escalation.
+ * Below the threshold, electrification proceeds at normal cost.
+ * Above, costs rise quadratically — representing hard-to-electrify applications.
+ * No hard wall: rates can exceed threshold if economics are favorable enough.
  *
  * @param prevRate Previous year's electrification rate
  * @param electricityPrice Electricity price ($/MWh)
@@ -588,7 +581,15 @@ function calculateSectorElectrification(
 
   // Adjust cost ratio for infrastructure (lower infra → higher effective elec cost)
   const infraPenalty = 1 + 0.3 * (1 - infraScore); // 30% penalty at zero infra
-  const adjustedElecCost = effectiveElecCost * infraPenalty;
+  let adjustedElecCost = effectiveElecCost * infraPenalty;
+
+  // Cost escalation above threshold: quadratic increase in effective electricity cost
+  // Represents genuinely hard-to-electrify applications (long-haul aviation, high-temp cement)
+  const threshold = sectorParams.costEscalationThreshold;
+  if (prevRate > threshold) {
+    const overshoot = (prevRate - threshold) / (1 - threshold);
+    adjustedElecCost *= 1 + sectorParams.costEscalationRate * overshoot * overshoot;
+  }
 
   // Cost ratio: fuel cost / adjusted electricity cost
   // When ratio > 1, electricity is cheaper → pressure to electrify
@@ -599,21 +600,20 @@ function calculateSectorElectrification(
   const costPressure = sectorParams.costSensitivity * Math.log(Math.max(1, costRatio));
   const totalPressure = sectorParams.basePressure + costPressure;
 
-  // Apply pressure to gap-to-ceiling
-  const ceiling = sectorParams.electrificationTarget;
-  const gapToCeiling = ceiling - prevRate;
+  // Apply pressure to gap-to-ceiling (physical ceiling, not normative)
+  const gapToCeiling = PHYSICAL_ELEC_CEILING - prevRate;
   const desiredChange = totalPressure * gapToCeiling;
 
-  // Clamp annual change
+  // Clamp annual change (infrastructure takes time to build)
   const clampedChange = Math.max(
     -sectorParams.maxAnnualChange,
     Math.min(sectorParams.maxAnnualChange, desiredChange)
   );
 
-  // New rate with floor at starting value and ceiling at target
+  // New rate with floor at starting value and physical ceiling
   const newRate = Math.max(
     sectorParams.electrification2025,
-    Math.min(ceiling, prevRate + clampedChange)
+    Math.min(PHYSICAL_ELEC_CEILING, prevRate + clampedChange)
   );
 
   return newRate;
@@ -634,19 +634,13 @@ export const demandModule: Module<
   defaults: demandDefaults,
 
   paramMeta: {
-    electrificationTarget: {
-      description: 'Long-run electrification target. 0.65 means 65% of final energy as electricity by late century.',
-      unit: 'fraction',
-      range: { min: 0.50, max: 0.95, default: 0.65 },
-      tier: 1 as const,
-    },
     sectors: {
       transport: {
-        electrificationTarget: {
-          paramName: 'transportElecTarget',
-          description: 'Transport sector electrification ceiling (70% - aviation/shipping limits).',
+        costEscalationThreshold: {
+          paramName: 'transportEscalationThreshold',
+          description: 'Transport electrification threshold above which costs escalate quadratically. EVs easy to here, then aviation/shipping get hard.',
           unit: 'fraction',
-          range: { min: 0.50, max: 0.85, default: 0.70 },
+          range: { min: 0.40, max: 0.80, default: 0.60 },
           tier: 1 as const,
         },
         costSensitivity: {
@@ -658,11 +652,11 @@ export const demandModule: Module<
         },
       },
       buildings: {
-        electrificationTarget: {
-          paramName: 'buildingsElecTarget',
-          description: 'Buildings sector electrification ceiling (95% - nearly all can electrify).',
+        costEscalationThreshold: {
+          paramName: 'buildingsEscalationThreshold',
+          description: 'Buildings electrification threshold above which costs escalate. Heat pumps easy to 85%, then edge cases.',
           unit: 'fraction',
-          range: { min: 0.60, max: 0.98, default: 0.95 },
+          range: { min: 0.60, max: 0.95, default: 0.85 },
           tier: 1 as const,
         },
         costSensitivity: {
@@ -674,11 +668,11 @@ export const demandModule: Module<
         },
       },
       industry: {
-        electrificationTarget: {
-          paramName: 'industryElecTarget',
-          description: 'Industry sector electrification ceiling (65% - high-temp needs H2).',
+        costEscalationThreshold: {
+          paramName: 'industryEscalationThreshold',
+          description: 'Industry electrification threshold above which costs escalate. EAFs/motors easy to 55%, high-temp very hard.',
           unit: 'fraction',
-          range: { min: 0.40, max: 0.85, default: 0.65 },
+          range: { min: 0.35, max: 0.75, default: 0.55 },
           tier: 1 as const,
         },
         costSensitivity: {
@@ -804,13 +798,21 @@ export const demandModule: Module<
       }
     }
 
-    // Validate global params
-    if (params.electrificationTarget !== undefined) {
-      if (params.electrificationTarget < 0 || params.electrificationTarget > 1) {
-        errors.push('Electrification target must be between 0 and 1');
-      }
-      if (params.electrificationTarget > 0.90) {
-        warnings.push('Electrification target >90% may be unrealistic (aviation, shipping)');
+    // Validate sector cost escalation params
+    if (params.sectors) {
+      for (const sector of ['transport', 'buildings', 'industry'] as const) {
+        const s = params.sectors[sector];
+        if (!s) continue;
+        if (s.costEscalationThreshold !== undefined) {
+          if (s.costEscalationThreshold < 0 || s.costEscalationThreshold > 0.98) {
+            errors.push(`${sector}: costEscalationThreshold must be between 0 and 0.98`);
+          }
+        }
+        if (s.costEscalationRate !== undefined) {
+          if (s.costEscalationRate < 0) {
+            errors.push(`${sector}: costEscalationRate must be non-negative`);
+          }
+        }
       }
     }
 
@@ -862,14 +864,7 @@ export const demandModule: Module<
 
       // Merge scalar params
       if (p.electrification2025 !== undefined) merged.electrification2025 = p.electrification2025;
-      if (p.electrificationTarget !== undefined) merged.electrificationTarget = p.electrificationTarget;
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
-      if (p.baselineElecTrend !== undefined) merged.baselineElecTrend = p.baselineElecTrend;
-
-      // Cost-driven electrification params
-      if (p.costSensitivity !== undefined) merged.costSensitivity = p.costSensitivity;
-      if (p.maxAnnualElecChange !== undefined) merged.maxAnnualElecChange = p.maxAnnualElecChange;
-      if (p.physicalElecCeiling !== undefined) merged.physicalElecCeiling = p.physicalElecCeiling;
 
       // Merge fuelMix params
       if (p.fuelMix) {
@@ -956,7 +951,6 @@ export const demandModule: Module<
 
     return {
       regions,
-      electrificationRate: params.electrification2025, // Initial electrification
       fuelShares,
       sectorElectrification,
       previousEffectiveWorkers: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>, // Set on first step
@@ -978,45 +972,41 @@ export const demandModule: Module<
   ): { state: DemandState; outputs: DemandOutputs } {
     const t = yearIndex;
 
-    // Calculate global electrification rate (cost-driven)
-    // Electricity becomes more attractive when cheaper than fuel
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
-    const avgFuelCost = calculateWeightedFuelCost(params.fuels, state.fuelShares, carbonPrice);
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
 
-    // Cost ratio drives electrification pressure
-    // When electricity is cheaper than fuel (ratio > 1), electrification accelerates
-    const costRatio = avgFuelCost / electricityPrice;
+    // =========================================================================
+    // Sector electrification (cost-driven with cost escalation above threshold)
+    // Compute before regional energy demand so global rate is available
+    // =========================================================================
+    const sectorKeys = ['transport', 'buildings', 'industry'] as const;
+    const newSectorElectrification = { ...state.sectorElectrification };
 
-    // Baseline trend: natural electrification from existing infrastructure/policy momentum
-    // ~0.5%/year baseline + additional cost-driven pressure
-    const baselineTrend = params.baselineElecTrend;
+    for (const sectorKey of sectorKeys) {
+      const sectorParams = params.sectors[sectorKey];
+      const prevSectorRate = state.sectorElectrification[sectorKey];
 
-    // Additional cost pressure from favorable economics
-    // costSensitivity = 0.05 means 5% boost per cost halving (beyond baseline)
-    const costBonus = Math.log(Math.max(1, costRatio)) * params.costSensitivity;
+      // Get primary fuel price for this sector
+      const primaryFuel = sectorParams.primaryFuel;
+      const fuelPrice = params.fuels[primaryFuel].price;
+      const fuelCarbonIntensity = params.fuels[primaryFuel].carbonIntensity;
 
-    // Total pressure = baseline + cost bonus
-    const totalPressure = baselineTrend + costBonus;
+      newSectorElectrification[sectorKey] = calculateSectorElectrification(
+        prevSectorRate,
+        electricityPrice,
+        fuelPrice,
+        carbonPrice,
+        fuelCarbonIntensity,
+        sectorParams,
+        yearIndex
+      );
+    }
 
-    // Get previous rate from state
-    const prevRate = state.electrificationRate;
-
-    // Apply pressure with infrastructure constraint
-    const targetRate = Math.min(
-      params.physicalElecCeiling,
-      prevRate + totalPressure
-    );
-
-    // Limit annual change (infrastructure takes time to build)
-    const maxChange = params.maxAnnualElecChange;
-    const electrificationRate = Math.max(
-      params.electrification2025, // Floor at starting rate
-      Math.min(
-        params.physicalElecCeiling,
-        prevRate + Math.max(-maxChange, Math.min(maxChange, targetRate - prevRate))
-      )
-    );
+    // Derive global electrification rate as energy-weighted average of sector rates
+    const electrificationRate =
+      newSectorElectrification.transport * params.sectors.transport.share +
+      newSectorElectrification.buildings * params.sectors.buildings.share +
+      newSectorElectrification.industry * params.sectors.industry.share;
 
     // Global GDP comes from production module
     const globalGdp = inputs.gdp;
@@ -1162,34 +1152,13 @@ export const demandModule: Module<
     const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
     // =========================================================================
-    // Sector-level breakdown with cost-driven electrification
+    // Sector-level breakdown (rates already computed above)
     // =========================================================================
-    const sectorKeys = ['transport', 'buildings', 'industry'] as const;
     const sectors = {} as Record<typeof sectorKeys[number], SectorOutput>;
-    const newSectorElectrification = { ...state.sectorElectrification };
 
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
-      const prevSectorRate = state.sectorElectrification[sectorKey];
-
-      // Get primary fuel price for this sector
-      const primaryFuel = sectorParams.primaryFuel;
-      const fuelPrice = params.fuels[primaryFuel].price;
-      const fuelCarbonIntensity = params.fuels[primaryFuel].carbonIntensity;
-
-      // Calculate cost-driven electrification rate
-      const sectorElecRate = calculateSectorElectrification(
-        prevSectorRate,
-        electricityPrice,
-        fuelPrice,
-        carbonPrice,
-        fuelCarbonIntensity,
-        sectorParams,
-        yearIndex
-      );
-
-      // Update sector electrification state
-      newSectorElectrification[sectorKey] = sectorElecRate;
+      const sectorElecRate = newSectorElectrification[sectorKey];
 
       // Sector total energy
       const sectorTotal = globalTotalFinal * sectorParams.share;
@@ -1354,7 +1323,6 @@ export const demandModule: Module<
     return {
       state: {
         regions: newRegions,
-        electrificationRate, // Persist for next step (cost-driven)
         fuelShares: evolvedShares, // Persist evolved fuel shares
         sectorElectrification: newSectorElectrification, // Persist sector rates
         previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth

@@ -14,12 +14,11 @@
   },
 
   "demand": {
-    "electrificationTarget": 0.80,
     "efficiencyMultiplier": 1.3,
     "sectors": {
-      "transport": { "electrificationTarget": 0.85 },
-      "buildings": { "electrificationTarget": 0.95 },
-      "industry": { "electrificationTarget": 0.70 }
+      "transport": { "costEscalationThreshold": 0.75, "costEscalationRate": 1.5 },
+      "buildings": { "costEscalationThreshold": 0.90, "costEscalationRate": 1.0 },
+      "industry": { "costEscalationThreshold": 0.65, "costEscalationRate": 2.0 }
     }
   },
 

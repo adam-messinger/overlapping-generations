@@ -111,8 +111,9 @@ test('step year 0 returns correct electricity demand', () => {
 
 test('step year 0 returns correct electrification rate', () => {
   const { outputs } = runYears(1);
-  // ~25% in 2025
-  expect(outputs.electrificationRate).toBeCloseTo(0.25, 1);
+  // Derived from sector-weighted average: 0.02*0.45 + 0.35*0.30 + 0.30*0.25 ≈ 0.189
+  // After first step with basePressure, should be near starting value
+  expect(outputs.electrificationRate).toBeBetween(0.15, 0.30);
 });
 
 test('step year 0 returns correct total final energy', () => {
@@ -190,10 +191,11 @@ test('electrification rate increases over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-test('electrification rate approaches target by 2100', () => {
+test('electrification rate reaches reasonable level by 2100', () => {
   const year76 = runYears(76).outputs.electrificationRate;
-  // Target is 65%, should be close by 2100
-  expect(year76).toBeBetween(0.60, 0.70);
+  // Sector-derived rate should reach 50-90% by 2100 depending on cost dynamics
+  // Can exceed old ceilings when economics are favorable (cost escalation, not hard walls)
+  expect(year76).toBeBetween(0.45, 0.92);
 });
 
 test('electricity share of total energy increases', () => {
@@ -269,19 +271,24 @@ test('validation catches negative GDP', () => {
   expect(result.valid).toBe(false);
 });
 
-test('validation catches invalid electrification target', () => {
+test('validation catches invalid cost escalation threshold', () => {
   const result = demandModule.validate({
-    electrificationTarget: 1.5, // >100%
+    sectors: {
+      ...demandDefaults.sectors,
+      transport: { ...demandDefaults.sectors.transport, costEscalationThreshold: 1.5 },
+    },
   });
   expect(result.valid).toBe(false);
 });
 
-test('validation warns on very high electrification target', () => {
+test('validation catches negative cost escalation rate', () => {
   const result = demandModule.validate({
-    electrificationTarget: 0.95,
+    sectors: {
+      ...demandDefaults.sectors,
+      industry: { ...demandDefaults.sectors.industry, costEscalationRate: -1 },
+    },
   });
-  expect(result.valid).toBeTrue();
-  expect(result.warnings.length).toBeGreaterThan(0);
+  expect(result.valid).toBe(false);
 });
 
 // --- Endogenous Fuel Mix ---
@@ -339,15 +346,13 @@ test('zero carbon price drifts slowly from baseline', () => {
 
 console.log('\n--- Cost-Driven Sector Electrification ---\n');
 
-test('sector electrification rates never exceed physical ceilings', () => {
+test('sector electrification rates stay below physical ceiling (0.98)', () => {
   const year76 = runYearsWithParams(76, {}, {});
 
-  // Transport ceiling is 70%
-  expect(year76.outputs.sectors.transport.electrificationRate).toBeLessThan(0.71);
-  // Buildings ceiling is 95%
-  expect(year76.outputs.sectors.buildings.electrificationRate).toBeLessThan(0.96);
-  // Industry ceiling is 65%
-  expect(year76.outputs.sectors.industry.electrificationRate).toBeLessThan(0.66);
+  // All sectors should stay below the 0.98 physical ceiling
+  expect(year76.outputs.sectors.transport.electrificationRate).toBeLessThan(0.98);
+  expect(year76.outputs.sectors.buildings.electrificationRate).toBeLessThan(0.98);
+  expect(year76.outputs.sectors.industry.electrificationRate).toBeLessThan(0.98);
 });
 
 test('high carbon price accelerates transport electrification', () => {

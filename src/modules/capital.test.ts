@@ -418,6 +418,77 @@ test('validation catches invalid wageIndexation', () => {
   expect(result.valid).toBe(false);
 });
 
+// --- Demographic Savings Response ---
+
+console.log('\n--- Demographic Savings Response ---\n');
+
+test('higher savingsLifeExpSensitivity → higher savings at year 50 (LE grows)', () => {
+  // Default sensitivity (0.5)
+  const defaultResult = runYears(50).outputs.savingsRate;
+
+  // Zero sensitivity (no LE effect)
+  const zeroParams = capitalModule.mergeParams({ savingsLifeExpSensitivity: 0 });
+  let zeroState = capitalModule.init(zeroParams);
+  let zeroOutputs: any;
+  for (let i = 0; i < 50; i++) {
+    const inputs = getCapitalInputs(i);
+    const result = capitalModule.step(zeroState, inputs, zeroParams, 2025 + i, i);
+    zeroState = result.state;
+    zeroOutputs = result.outputs;
+  }
+
+  // With LE growing over 50 years, positive sensitivity should produce higher savings
+  expect(defaultResult).toBeGreaterThan(zeroOutputs.savingsRate);
+});
+
+test('higher savingsDependencySensitivity reduces savings when dependency rises', () => {
+  // Default sensitivity (0.3)
+  const defaultResult = runYears(50).outputs.savingsRate;
+
+  // High sensitivity (0.8)
+  const highParams = capitalModule.mergeParams({ savingsDependencySensitivity: 0.8 });
+  let highState = capitalModule.init(highParams);
+  let highOutputs: any;
+  for (let i = 0; i < 50; i++) {
+    const inputs = getCapitalInputs(i);
+    const result = capitalModule.step(highState, inputs, highParams, 2025 + i, i);
+    highState = result.state;
+    highOutputs = result.outputs;
+  }
+
+  // Higher dependency sensitivity should reduce savings as population ages
+  expect(highOutputs.savingsRate).toBeLessThan(defaultResult);
+});
+
+test('demographic savings response has no effect in year 0 (no reference yet)', () => {
+  // Year 0 with default params
+  const defaultResult = runYears(1).outputs.savingsRate;
+
+  // Year 0 with zero sensitivities
+  const zeroParams = capitalModule.mergeParams({
+    savingsLifeExpSensitivity: 0,
+    savingsDependencySensitivity: 0,
+  });
+  let zeroState = capitalModule.init(zeroParams);
+  const inputs = getCapitalInputs(0);
+  const zeroResult = capitalModule.step(zeroState, inputs, zeroParams, 2025, 0);
+
+  // In year 0, reference values are being captured and current = reference
+  // so leFactor = 1 + 0.5 * ln(1) = 1, depFactor = 1 - 0.3 * 0 = 1
+  // Should be same as zero sensitivity
+  expect(defaultResult / zeroResult.outputs.savingsRate).toBeBetween(0.99, 1.01);
+});
+
+test('validation catches invalid savingsLifeExpSensitivity', () => {
+  const result = capitalModule.validate({ savingsLifeExpSensitivity: 1.5 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches invalid savingsDependencySensitivity', () => {
+  const result = capitalModule.validate({ savingsDependencySensitivity: -0.1 });
+  expect(result.valid).toBe(false);
+});
+
 // --- Module Metadata ---
 
 console.log('\n--- Module Metadata ---\n');

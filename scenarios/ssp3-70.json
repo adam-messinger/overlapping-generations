@@ -17,7 +17,6 @@
   },
 
   "demand": {
-    "electrificationTarget": 0.50,
     "efficiencyMultiplier": 0.8,
     "fuelMix": {
       "priceSensitivity": 0.02,
@@ -25,17 +24,20 @@
     },
     "sectors": {
       "transport": {
-        "electrificationTarget": 0.50,
+        "costEscalationThreshold": 0.40,
+        "costEscalationRate": 3.0,
         "costSensitivity": 0.04,
         "basePressure": 0.008
       },
       "buildings": {
-        "electrificationTarget": 0.70,
+        "costEscalationThreshold": 0.60,
+        "costEscalationRate": 2.0,
         "costSensitivity": 0.03,
         "basePressure": 0.010
       },
       "industry": {
-        "electrificationTarget": 0.45,
+        "costEscalationThreshold": 0.35,
+        "costEscalationRate": 3.0,
         "costSensitivity": 0.05,
         "basePressure": 0.004
       }
