@@ -44,7 +44,7 @@ export { defineSimulation, solve, init } from './framework/problem.js';
 export type { SimulationProblem, StepResult, Stepper } from './framework/problem.js';
 
 // Declarative data collectors
-export { collectResults, standardCollectors } from './framework/collectors.js';
+export { collectResults, standardCollectors, resolveKey, computeEnergySystemOverhead } from './framework/collectors.js';
 export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from './framework/collectors.js';
 
 // Result helpers

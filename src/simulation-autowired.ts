@@ -15,6 +15,7 @@
  */
 
 import { runAutowired, getOutputsAtYear, AutowireResult, requireOutput, optionalOutput } from './framework/autowire.js';
+import { computeEnergySystemOverhead } from './framework/collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule } from './modules/demand.js';
@@ -271,34 +272,10 @@ function buildTransforms(mergedEnergyParams: any) {
     // Cycle-breaker: reads current-year energy outputs that may not exist yet
     // Uses optionalOutput because energy hasn't run yet when production needs this
     energySystemOverheadComputed: {
-      fn: (outputs: Record<string, any>) => {
-        const additions = optionalOutput<Record<string, number> | null>(outputs, 'additions', null);
-        const capacities = optionalOutput<Record<string, number> | null>(outputs, 'capacities', null);
-        if (!additions || !capacities) return 0;
-
-        // Embodied energy (TWh per GW installed; TWh per GWh for battery)
-        const embodied: Record<string, number> = {
-          solar: 1.5, wind: 2.0, nuclear: 5.0,
-          gas: 0.8, coal: 1.0, hydro: 3.0, battery: 0.00015, // 0.15 TWh/GWh = 150 kWh/kWh
-        };
-
-        // Operating energy (TWh per GW per year; negligible for battery/solar)
-        const operating: Record<string, number> = {
-          solar: 0.02, wind: 0.05, nuclear: 0.15,
-          gas: 0.10, coal: 0.12, hydro: 0.01, battery: 0,
-        };
-
-        let totalEmbodied = 0;
-        let totalOperating = 0;
-        for (const source of Object.keys(additions)) {
-          const add = additions[source] ?? 0;
-          const cap = capacities[source] ?? 0;
-          totalEmbodied += add * (embodied[source] ?? 0);
-          totalOperating += cap * (operating[source] ?? 0);
-        }
-
-        return totalEmbodied + totalOperating;
-      },
+      fn: (outputs: Record<string, any>) => computeEnergySystemOverhead(
+        optionalOutput<Record<string, number> | null>(outputs, 'additions', null),
+        optionalOutput<Record<string, number> | null>(outputs, 'capacities', null),
+      ),
       dependsOn: [],
     },
 
@@ -475,7 +452,10 @@ function buildLags() {
 /**
  * Run autowired simulation with full SimulationParams support.
  */
-export function runAutowiredSimulation(params: SimulationParams = {}): AutowireResult {
+export function runAutowiredSimulation(
+  params: SimulationParams = {},
+  options?: { trackReads?: boolean }
+): AutowireResult {
   // Merge energy params to read carbon prices
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
 
@@ -499,6 +479,7 @@ export function runAutowiredSimulation(params: SimulationParams = {}): AutowireR
     },
     startYear: params.startYear ?? 2025,
     endYear: params.endYear ?? 2100,
+    trackReads: options?.trackReads,
   });
 }
 
@@ -640,29 +621,9 @@ export function toYearResults(result: AutowireResult): YearResult[] {
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
-      // Compute inline from energy module outputs (the transform output
-      // energySystemOverheadComputed is not in currentOutputs — it's only
-      // available via the lag mechanism). Duplicates constants from
-      // energySystemOverheadComputed transform above.
-      energySystemOverhead: (() => {
-        const additions = o.additions as Record<string, number> | undefined;
-        const capacities = o.capacities as Record<string, number> | undefined;
-        if (!additions || !capacities) return 0;
-        const embodied: Record<string, number> = {
-          solar: 1.5, wind: 2.0, nuclear: 5.0,
-          gas: 0.8, coal: 1.0, hydro: 3.0, battery: 0.00015,
-        };
-        const operating: Record<string, number> = {
-          solar: 0.02, wind: 0.05, nuclear: 0.15,
-          gas: 0.10, coal: 0.12, hydro: 0.01, battery: 0,
-        };
-        let total = 0;
-        for (const source of Object.keys(additions)) {
-          total += (additions[source] ?? 0) * (embodied[source] ?? 0);
-          total += (capacities[source] ?? 0) * (operating[source] ?? 0);
-        }
-        return total;
-      })(),
+      // Compute from energy module outputs (the transform output
+      // energySystemOverheadComputed is only available via the lag mechanism)
+      energySystemOverhead: computeEnergySystemOverhead(o.additions, o.capacities),
 
       // Mineral constraint
       mineralConstraint: o.mineralConstraint ?? 1.0,

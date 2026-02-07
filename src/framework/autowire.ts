@@ -337,6 +337,35 @@ export function validateWiring(
     }
   }
 
+  // Cycle-breaker lint: if a transform has dependsOn: [] AND is used as a lag
+  // source (proving it carries feedback data), no module should consume it
+  // directly — use a lag instead. Transforms with dependsOn: [] that are NOT
+  // lag sources are parameter injections (e.g., carbonPrice) and are fine.
+  const noDepsTransforms = new Set<string>();
+  for (const [name, entry] of Object.entries(transforms)) {
+    const config = normalizeTransform(entry);
+    if (config.dependsOn.length === 0) noDepsTransforms.add(name);
+  }
+  // A cycle-breaker is a dependsOn:[] transform that's also a lag source
+  const lagSources = new Set(Object.values(lags).map(l => l.source));
+  const cycleBreakers = new Set(
+    [...noDepsTransforms].filter(name => lagSources.has(name))
+  );
+  for (const mod of modules) {
+    for (const input of mod.inputs) {
+      const inputName = input as string;
+      // Skip inputs resolved by lags (that's the correct pattern)
+      if (lags[inputName]) continue;
+      // Check if input is resolved by a cycle-breaker transform
+      if (cycleBreakers.has(inputName)) {
+        errors.push(
+          `Module '${mod.name}' directly consumes cycle-breaker transform '${inputName}'. ` +
+          `Use a lag instead to get real values.`
+        );
+      }
+    }
+  }
+
   if (errors.length > 0) throw new Error(`Wiring errors:\n${errors.join('\n')}`);
 }
 

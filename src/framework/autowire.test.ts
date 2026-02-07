@@ -876,6 +876,151 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
 });
 
 // =============================================================================
+// CYCLE-BREAKER LINT
+// =============================================================================
+
+test('validateWiring errors when module directly consumes a cycle-breaker transform', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces values',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['a'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { a: 10 } }),
+  });
+
+  // Consumer declares 'cycled' as a direct input — but 'cycled' is a cycle-breaker
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Directly consumes cycle-breaker',
+    defaults: {},
+    inputs: ['cycled'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.cycled ?? 0 } }),
+  });
+
+  // A second consumer that uses the lag properly (this proves 'cycled' is a lag source)
+  const properConsumer = defineModule({
+    name: 'properConsumer',
+    description: 'Consumes via lag',
+    defaults: {},
+    inputs: ['laggedCycled'] as const,
+    outputs: ['out2'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out2: inputs.laggedCycled ?? 0 } }),
+  });
+
+  expect(() => {
+    runAutowired({
+      modules: [producer, consumer, properConsumer],
+      transforms: {
+        cycled: {
+          fn: (outputs: Record<string, any>) => outputs.a ?? 0,
+          dependsOn: [],  // Cycle-breaker
+        },
+      },
+      lags: {
+        laggedCycled: { source: 'cycled', delay: 1, initial: 0 },
+      },
+      startYear: 2025,
+      endYear: 2025,
+    });
+  }).toThrow('directly consumes cycle-breaker');
+});
+
+test('validateWiring allows cycle-breaker when consumed via lag only', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces values',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['a'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { a: 10 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Consumes via lag',
+    defaults: {},
+    inputs: ['laggedCycled'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.laggedCycled ?? 0 } }),
+  });
+
+  // Should NOT throw — consumer uses a lag, not direct consumption
+  runAutowired({
+    modules: [producer, consumer],
+    transforms: {
+      cycled: {
+        fn: (outputs: Record<string, any>) => outputs.a ?? 0,
+        dependsOn: [],  // Cycle-breaker (also a lag source)
+      },
+    },
+    lags: {
+      laggedCycled: { source: 'cycled', delay: 1, initial: 0 },
+    },
+    startYear: 2025,
+    endYear: 2025,
+  });
+  // If we get here, no error was thrown — pass
+});
+
+test('validateWiring allows dependsOn:[] transform that is not a lag source (parameter injection)', () => {
+  const producer = defineModule({
+    name: 'producer',
+    description: 'Produces values',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['a'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { a: 10 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'consumer',
+    description: 'Consumes parameter injection',
+    defaults: {},
+    inputs: ['constant'] as const,
+    outputs: ['out'] as const,
+    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.constant ?? 0 } }),
+  });
+
+  // Should NOT throw — 'constant' has dependsOn:[] but is NOT a lag source,
+  // so it's a parameter injection, not a cycle-breaker
+  runAutowired({
+    modules: [producer, consumer],
+    transforms: {
+      constant: {
+        fn: () => 42,
+        dependsOn: [],  // No deps, but not a lag source — OK
+      },
+    },
+    startYear: 2025,
+    endYear: 2025,
+  });
+  // If we get here, no error was thrown — pass
+});
+
+// =============================================================================
 // SUMMARY
 // =============================================================================
 
