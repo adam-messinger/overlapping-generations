@@ -31,7 +31,7 @@
 import { defineModule, Module } from '../framework/module.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS, ValidationResult } from '../framework/types.js';
 import { validatedMerge } from '../framework/validated-merge.js';
-import { distributeByGDP } from '../primitives/distribute.js';
+import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 
 // =============================================================================
 // PARAMETERS
@@ -163,12 +163,6 @@ export interface DispatchInputs {
   /** Regional capacity breakdown */
   regionalCapacities?: Record<Region, Record<EnergySource, number>>;
 
-  /** Levelized cost by source ($/MWh) - GLOBAL */
-  lcoes: Record<EnergySource, number>;
-
-  /** Combined solar+battery LCOE ($/MWh) - GLOBAL */
-  solarPlusBatteryLCOE: number;
-
   /** Carbon price ($/ton CO2) - GLOBAL fallback */
   carbonPrice: number;
 
@@ -177,6 +171,12 @@ export interface DispatchInputs {
 
   /** Long-duration storage regional capacities (GWh) */
   longStorageRegional?: Record<Region, number>;
+
+  /** Effective solar capacity factor (site-depletion adjusted) */
+  effectiveSolarCF?: number;
+
+  /** Effective wind capacity factor (site-depletion adjusted) */
+  effectiveWindCF?: number;
 }
 
 /** Regional dispatch outputs */
@@ -465,11 +465,11 @@ export const dispatchModule: Module<
     'regionalElectricityDemand',
     'capacities',
     'regionalCapacities',
-    'lcoes',
-    'solarPlusBatteryLCOE',
     'carbonPrice',
     'regionalCarbonPrice',
     'longStorageRegional',
+    'effectiveSolarCF',
+    'effectiveWindCF',
   ] as const,
 
   outputs: [
@@ -603,12 +603,24 @@ export const dispatchModule: Module<
     const longStorageRegional = inputs.longStorageRegional ??
       Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
 
+    // Use site-depletion-adjusted CFs from energy module when available
+    const effectiveParams = (inputs.effectiveSolarCF != null || inputs.effectiveWindCF != null)
+      ? {
+          ...params,
+          capacityFactor: {
+            ...params.capacityFactor,
+            ...(inputs.effectiveSolarCF != null && { solar: inputs.effectiveSolarCF }),
+            ...(inputs.effectiveWindCF != null && { wind: inputs.effectiveWindCF }),
+          },
+        }
+      : params;
+
     for (const region of REGIONS) {
       const regionResult = dispatchRegion(
         regionalDemand[region],
         regionalCapacities[region],
         regionalCarbonPrice[region],
-        params,
+        effectiveParams,
         longStorageRegional[region]
       );
 
@@ -697,16 +709,12 @@ export const dispatchModule: Module<
 function distributeCapacitiesByGDP(
   capacities: Record<EnergySource, number>
 ): Record<Region, Record<EnergySource, number>> {
-  const shares: Record<Region, number> = {
-    oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
-    seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
-  };
   const result: Record<Region, Record<EnergySource, number>> = {} as any;
 
   for (const region of REGIONS) {
     result[region] = {} as any;
     for (const source of ENERGY_SOURCES) {
-      result[region][source] = capacities[source] * shares[region];
+      result[region][source] = capacities[source] * GDP_SHARES[region];
     }
   }
 

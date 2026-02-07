@@ -1022,7 +1022,7 @@ export const energyModule: Module<
         params.cleanEnergyShareGrowth * Math.min(1, yearIndex / 25);
 
       // Regional clean energy budget ($B)
-      const cleanBudget = regionInvestment * cleanShare * stabilityFactor * 1000;
+      const cleanBudget = regionInvestment * cleanShare * 1000;
 
       // Calculate desired additions for this region
       const desiredAdditions: Record<EnergySource, number> = {} as any;
@@ -1266,7 +1266,7 @@ export const energyModule: Module<
 
     // Size long storage to system needs: ramps when VRE > 50%
     const totalVRECap = globalCapacities.solar + globalCapacities.wind;
-    const totalCap = ENERGY_SOURCES.reduce((s, src) => s + globalCapacities[src], 0) - globalCapacities.battery;
+    const totalCap = ENERGY_SOURCES.reduce((s, src) => src === 'battery' ? s : s + globalCapacities[src], 0);
     const vreShare = totalCap > 0 ? totalVRECap / totalCap : 0;
     // Target fraction ramps 0 at VRE<50% to 0.3 at VRE>80%
     const longStorageFraction = Math.max(0, Math.min(0.3, (vreShare - 0.5) / 0.3 * 0.3));

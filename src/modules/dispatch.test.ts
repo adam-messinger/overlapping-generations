@@ -306,7 +306,9 @@ test('module has correct name', () => {
 test('module declares correct inputs', () => {
   expect(dispatchModule.inputs.includes('electricityDemand')).toBeTrue();
   expect(dispatchModule.inputs.includes('capacities')).toBeTrue();
-  expect(dispatchModule.inputs.includes('lcoes')).toBeTrue();
+  expect(dispatchModule.inputs.includes('carbonPrice')).toBeTrue();
+  expect(dispatchModule.inputs.includes('effectiveSolarCF')).toBeTrue();
+  expect(dispatchModule.inputs.includes('effectiveWindCF')).toBeTrue();
 });
 
 test('module declares correct outputs', () => {

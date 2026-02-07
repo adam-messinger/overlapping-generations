@@ -69,7 +69,6 @@ interface EnergyBurdenParams {
   elasticity: number;             // GDP damage per % excess burden (default 1.5)
   maxDamage: number;              // Maximum GDP damage (fraction, default 0.30)
   maxBurden: number;              // Historical max burden (fraction, default 0.14)
-  persistent: number;             // Fraction of damage that persists (default 0.25)
 }
 
 /** Fossil end-use equipment stock parameters */
@@ -180,7 +179,6 @@ interface DemandInputs {
 
   // Optional damage fractions (for regional share evolution)
   regionalDamages?: Record<Region, number>;
-  energyBurdenDamage?: number;
 
   // For energy burden calculation (from dispatch/energy)
   electricityGeneration?: number;        // TWh
@@ -436,7 +434,6 @@ export const demandDefaults: DemandParams = {
     elasticity: 1.5,             // GDP damage per % excess burden
     maxDamage: 0.30,             // Max 30% GDP reduction
     maxBurden: 0.14,             // 1970s crisis peak
-    persistent: 0.25,            // 25% of damage persists
   },
 
   // Fuel mix evolution parameters
@@ -753,7 +750,6 @@ export const demandModule: Module<
     'dependency',
     'gdp',
     'regionalDamages',
-    'energyBurdenDamage',
     'electricityGeneration',
     'weightedAverageLCOE',
     'carbonPrice',

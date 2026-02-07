@@ -6,7 +6,7 @@
  *
  * Fixes over initial version:
  * - netEnergyFactor computed from generation + netEnergyFraction (lagged)
- * - energyBurdenDamage sourced from demand.burdenDamage (not climate.damages)
+ * - energyBurdenDamage sourced from demand.burdenDamage (consumed by production only)
  * - capitalGrowthRate lagged to break demand→capital cycle
  * - gdpPerCapita2025 captured from year 0 via closure
  * - carbonPrice + regionalCarbonPrice read from full params
@@ -26,6 +26,7 @@ import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './framework/types.js';
+import { GDP_SHARES } from './primitives/distribute.js';
 import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
 
 // =============================================================================
@@ -239,25 +240,26 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['regional', 'electricityDemand'],
     },
 
-    // Regional investment from capital
+    // Regional investment from capital (weighted by savings rate × GDP share)
     regionalInvestment: {
       fn: (outputs: Record<string, any>) => {
         const investment = outputs.investment ?? 30;
         const regionalSavings = outputs.regionalSavings;
         if (!regionalSavings) {
-          const shares: Record<Region, number> = {
-            oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
-            seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
-          };
           const result: Record<Region, number> = {} as any;
-          for (const r of REGIONS) result[r] = investment * shares[r];
+          for (const r of REGIONS) result[r] = investment * GDP_SHARES[r];
           return result;
         }
-        let totalSavings = 0;
-        for (const r of REGIONS) totalSavings += regionalSavings[r] ?? 0;
+        // Weight by savings rate × GDP share (proxy for savings amount)
+        let totalWeight = 0;
+        const weights: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          weights[r] = (regionalSavings[r] ?? 0) * GDP_SHARES[r];
+          totalWeight += weights[r];
+        }
         const result: Record<Region, number> = {} as any;
         for (const r of REGIONS) {
-          result[r] = totalSavings > 0 ? investment * ((regionalSavings[r] ?? 0) / totalSavings) : investment / 4;
+          result[r] = totalWeight > 0 ? investment * (weights[r] / totalWeight) : investment / REGIONS.length;
         }
         return result;
       },
@@ -371,7 +373,7 @@ function buildLags() {
       initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
     },
 
-    // Demand needs lagged energy burden damage (from demand.burdenDamage, not climate.damages)
+    // Production needs lagged energy burden damage (from demand.burdenDamage)
     energyBurdenDamage: {
       source: 'burdenDamage',
       delay: 1,
