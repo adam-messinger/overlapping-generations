@@ -2,8 +2,6 @@
   "name": "Debt-Accident Populism",
   "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition.",
 
-  "_limitations": "Model lacks explicit debt/GDP tracking. Uses stability mechanism as proxy for investment suppression from policy uncertainty.",
-
   "energy": {
     "carbonPrice": 10,
     "sources": {
@@ -32,6 +30,8 @@
   "capital": {
     "stabilityLambda": 4.0,
     "savingsWorking": 0.35,
+    "publicDeficitRate": 0.06,
+    "fiscalReactionCoeff": 0.01,
     "savingsPremium": {
       "oecd": -0.05,
       "china": 0.10,

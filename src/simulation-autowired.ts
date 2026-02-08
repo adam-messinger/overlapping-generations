@@ -597,6 +597,12 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       childCost: o.childCost ?? 0,
       transferBurden: o.transferBurden ?? 0,
       workerConsumption: o.workerConsumption ?? 0,
+      publicDebtGDP: o.publicDebtGDP ?? 0,
+      privateDebtGDP: o.privateDebtGDP ?? 0,
+      totalDebtGDP: o.totalDebtGDP ?? 0,
+      publicDebtService: o.publicDebtService ?? 0,
+      creditImpulse: o.creditImpulse ?? 0,
+      debtRiskPremium: o.debtRiskPremium ?? 0,
 
       // Energy
       lcoes: o.lcoes,

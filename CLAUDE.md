@@ -129,8 +129,12 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 - Endogenous discount rate: social rate = fraction of market interest rate
 - Energy demand subtracted from productive useful energy
 
-### Capital & Intergenerational Transfers
-- GDP = WorkerConsumption + Investment + RetireeCost + ChildCost
+### Capital, Debt & Intergenerational Transfers
+- GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
+- **Debt/credit channel**: Investment = max(0, grossSavings + creditImpulse)
+- Public debt: primary deficit accumulates (interest paid from tax revenue, not capitalized)
+- Private debt: credit impulse dampened by r-g spread and leverage ratio
+- **Risk premium**: high total debt/GDP → higher interest rate → self-limiting
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity
 - Demographic savings response: life expectancy and dependency ratio affect savings
 
@@ -161,11 +165,11 @@ For LLM agents, `describeParameters()` and `describeOutputs()` return structured
 ```typescript
 import { describeParameters, describeOutputs, buildParams } from './src/index.js';
 
-// 46 Tier-1 parameters
+// 49 Tier-1 parameters
 const schema = describeParameters();
 // schema.carbonPrice = { type, default, min, max, unit, description, path }
 
-// ~99 output fields (auto-generated from standardCollectors)
+// ~105 output fields (auto-generated from standardCollectors)
 const outputs = describeOutputs();
 // outputs.temperature = { unit: '°C', description: '...', module: 'climate' }
 
@@ -174,7 +178,7 @@ const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-46 Tier-1 parameters available for scenario exploration.
+49 Tier-1 parameters available for scenario exploration.
 
 ## Programmatic Use
 
@@ -212,8 +216,11 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `effectiveWACC` | fraction | Weighted avg cost of capital for energy |
 | `robotsDensity` | per 1000 | Robots per 1000 workers |
 | `farmland` | Mha | Cropland area |
+| `totalDebtGDP` | ratio | Total debt to GDP |
+| `creditImpulse` | $T | Net new private credit |
+| `debtRiskPremium` | fraction | Interest rate premium from debt |
 
-~95 total output fields available via `describeOutputs()`.
+~105 total output fields available via `describeOutputs()`.
 
 ## Academic Sources
 

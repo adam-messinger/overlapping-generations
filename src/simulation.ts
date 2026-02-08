@@ -108,7 +108,15 @@ export interface YearResult {
   retireeCost: number;        // $ trillions (pensions + healthcare for 65+)
   childCost: number;          // $ trillions (education for 0-19)
   transferBurden: number;     // Fraction of GDP going to transfers
-  workerConsumption: number;  // $ trillions (GDP - investment - transfers)
+  workerConsumption: number;  // $ trillions (GDP - investment - transfers - publicDebtService)
+
+  // Debt/credit
+  publicDebtGDP: number;       // ratio (public debt / GDP)
+  privateDebtGDP: number;      // ratio (private debt / GDP)
+  totalDebtGDP: number;        // ratio (total debt / GDP)
+  publicDebtService: number;   // $T (interest on public debt)
+  creditImpulse: number;       // $T (net new private credit)
+  debtRiskPremium: number;     // fraction added to interest rate
 
   // Energy
   lcoes: Record<EnergySource, number>;
@@ -526,6 +534,23 @@ async function runCLI() {
   console.log(`Worker consumption 2025: $${result.results[idx2025].workerConsumption.toFixed(0)}T`);
   console.log(`Worker consumption 2050: ${fmt2050(r => '$' + r.workerConsumption.toFixed(0) + 'T')}`);
   console.log(`Worker consumption 2100: $${result.results[idx2100].workerConsumption.toFixed(0)}T`);
+
+  // Debt/credit
+  console.log('\n=== Debt/Credit ===\n');
+  console.log(`Public debt/GDP 2025: ${(result.results[idx2025].publicDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Public debt/GDP 2050: ${fmt2050(r => (r.publicDebtGDP * 100).toFixed(0) + '%')}`);
+  console.log(`Public debt/GDP 2100: ${(result.results[idx2100].publicDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Private debt/GDP 2025: ${(result.results[idx2025].privateDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Private debt/GDP 2050: ${fmt2050(r => (r.privateDebtGDP * 100).toFixed(0) + '%')}`);
+  console.log(`Private debt/GDP 2100: ${(result.results[idx2100].privateDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Total debt/GDP 2025: ${(result.results[idx2025].totalDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Total debt/GDP 2100: ${(result.results[idx2100].totalDebtGDP * 100).toFixed(0)}%`);
+  console.log(`Debt service 2025: $${result.results[idx2025].publicDebtService.toFixed(1)}T`);
+  console.log(`Debt service 2100: $${result.results[idx2100].publicDebtService.toFixed(1)}T`);
+  console.log(`Credit impulse 2025: $${result.results[idx2025].creditImpulse.toFixed(1)}T`);
+  console.log(`Credit impulse 2100: $${result.results[idx2100].creditImpulse.toFixed(1)}T`);
+  console.log(`Risk premium 2025: ${(result.results[idx2025].debtRiskPremium * 100).toFixed(1)}pp`);
+  console.log(`Risk premium 2100: ${(result.results[idx2100].debtRiskPremium * 100).toFixed(1)}pp`);
 
   // Find peak burden
   let peakBurden = 0;

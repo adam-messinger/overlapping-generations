@@ -105,7 +105,13 @@ export const standardCollectors: CollectorConfig = {
     { source: 'retireeCost', unit: '$T', description: 'Retiree transfers: pensions + healthcare (65+)', module: 'capital' },
     { source: 'childCost', unit: '$T', description: 'Child transfers: education spending (0-19)', module: 'capital' },
     { source: 'transferBurden', unit: 'fraction', description: 'Intergenerational transfer burden (retiree+child cost / GDP)', module: 'capital' },
-    { source: 'workerConsumption', unit: '$T', description: 'Worker consumption (GDP - investment - transfers)', module: 'capital' },
+    { source: 'workerConsumption', unit: '$T', description: 'Worker consumption (GDP - investment - transfers - debt service)', module: 'capital' },
+    { source: 'publicDebtGDP', unit: 'ratio', description: 'Public debt to GDP ratio', module: 'capital' },
+    { source: 'privateDebtGDP', unit: 'ratio', description: 'Private debt to GDP ratio', module: 'capital' },
+    { source: 'totalDebtGDP', unit: 'ratio', description: 'Total debt to GDP ratio', module: 'capital' },
+    { source: 'publicDebtService', unit: '$T', description: 'Interest payments on public debt', module: 'capital' },
+    { source: 'creditImpulse', unit: '$T', description: 'Net new private credit flow', module: 'capital' },
+    { source: 'debtRiskPremium', unit: 'fraction', description: 'Interest rate premium from debt levels', module: 'capital' },
 
     // Energy
     { source: 'lcoes', unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },

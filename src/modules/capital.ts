@@ -8,10 +8,12 @@
  * - Savings rate: Demographic-weighted average of cohort savings rates
  * - Stability: Φ = 1 / (1 + λ × uncertainty²)
  * - Transfers: RetireeCost + ChildCost (pensions, healthcare, education)
- * - Investment: I = GDP × (1 - transferBurden) × savingsRate × stability
- * - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost
- * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_t
- * - Interest rate: r = α × Y/K - δ (marginal product of capital)
+ * - Interest rate: r = α × Y/K - δ + debtRiskPremium
+ * - Investment: I = max(0, grossSavings + creditImpulse)
+ * - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
+ * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
+ * - Public debt: ΔD = primaryDeficit + debtService - fiscalConsolidation
+ * - Private debt: ΔD = creditImpulse - amortization
  *
  * Sources:
  * - Penn World Table: K/Y ratio ~3.5, global capital stock ~$420T
@@ -69,6 +71,25 @@ export interface CapitalParams {
   savingsLifeExpSensitivity: number;     // LE elasticity on savings (0.5)
   savingsDependencySensitivity: number;  // Dependency ratio elasticity on savings (0.3)
 
+  // --- Public debt ---
+  initialPublicDebtGDP: number;        // 0.90 (90% of GDP in 2025)
+  publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
+  fiscalReactionCoeff: number;         // 0.03 (tightening per pp of debt/GDP above threshold)
+  fiscalReactionThreshold: number;     // 0.60 (Maastricht-style trigger)
+  fiscalReactionMax: number;           // 0.04 (max primary surplus / GDP — saturation)
+
+  // --- Private debt ---
+  initialPrivateDebtGDP: number;       // 1.60 (160% of GDP in 2025)
+  baseCreditGrowth: number;            // 0.04 (new credit / GDP per year)
+  creditSensitivity: number;           // 1.0 (elasticity to r-g spread)
+  leverageDamping: number;             // 1.5 (dampening above threshold)
+  leverageThreshold: number;           // 1.50 (private debt/GDP where damping starts)
+  privateAmortization: number;         // 0.05 (fraction of stock repaid per year ≈ 20yr avg maturity)
+
+  // --- Risk premium ---
+  debtRiskLambda: number;              // 0.03 (3bp per pp of excess total debt/GDP)
+  debtRiskThreshold: number;           // 2.00 (total debt/GDP where premium starts)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
@@ -79,6 +100,9 @@ interface CapitalState {
   referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
   referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
   referenceDependency: Record<Region, number>;     // Year-0 dependency ratio per region
+  publicDebt: number;         // $ trillions
+  privateDebt: number;        // $ trillions
+  previousGdp: number;        // $ trillions (for GDP growth rate)
 }
 
 interface CapitalInputs {
@@ -139,7 +163,15 @@ interface CapitalOutputs {
   retireeCost: number;          // $ trillions (pensions + healthcare for 65+)
   childCost: number;            // $ trillions (education for 0-19)
   transferBurden: number;       // (retireeCost + childCost) / GDP, capped at 0.50
-  workerConsumption: number;    // $ trillions (GDP - investment - retireeCost - childCost)
+  workerConsumption: number;    // $ trillions (GDP - investment - retireeCost - childCost - publicDebtService)
+
+  // Debt/credit
+  publicDebtGDP: number;       // ratio
+  privateDebtGDP: number;      // ratio
+  totalDebtGDP: number;        // ratio
+  publicDebtService: number;   // $T (interest on public debt)
+  creditImpulse: number;       // $T (net new private credit)
+  debtRiskPremium: number;     // fraction added to interest rate
 }
 
 // =============================================================================
@@ -205,6 +237,25 @@ export const capitalDefaults: CapitalParams = {
   // Demographic savings response (Bloom et al. 2003, Kinugasa & Mason 2007)
   savingsLifeExpSensitivity: 0.5,     // LE elasticity: longer life → save more
   savingsDependencySensitivity: 0.3,  // Dependency elasticity: more dependents → save less
+
+  // --- Public debt (IMF Global Debt Database, 2025) ---
+  initialPublicDebtGDP: 0.90,         // 90% of GDP
+  publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
+  fiscalReactionCoeff: 0.03,          // Tightening per pp of debt/GDP above threshold
+  fiscalReactionThreshold: 0.60,      // Maastricht-style trigger
+  fiscalReactionMax: 0.04,            // Max primary surplus / GDP (saturation)
+
+  // --- Private debt (BIS, ~160% of GDP globally in 2025) ---
+  initialPrivateDebtGDP: 1.60,        // 160% of GDP
+  baseCreditGrowth: 0.04,             // 4% new credit / GDP per year
+  creditSensitivity: 1.0,             // Elasticity to r-g spread
+  leverageDamping: 1.5,               // Dampening above threshold
+  leverageThreshold: 1.50,            // Private debt/GDP where damping starts
+  privateAmortization: 0.05,          // ~20yr avg maturity
+
+  // --- Risk premium ---
+  debtRiskLambda: 0.03,               // 3bp per pp of excess total debt/GDP
+  debtRiskThreshold: 2.00,            // Total debt/GDP where premium starts
 
   // Initial conditions
   initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
@@ -348,6 +399,24 @@ export const capitalModule: Module<
       range: { min: 0, max: 1.0, default: 0.3 },
       tier: 1 as const,
     },
+    baseCreditGrowth: {
+      description: 'New private credit as fraction of GDP per year. Higher → faster capital accumulation but more leverage risk.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.10, default: 0.04 },
+      tier: 1 as const,
+    },
+    publicDeficitRate: {
+      description: 'Structural primary deficit as fraction of GDP. Higher → more public debt accumulation.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.10, default: 0.03 },
+      tier: 1 as const,
+    },
+    debtRiskLambda: {
+      description: 'Interest rate premium per percentage point of excess total debt/GDP above threshold. Self-limiting: high debt → expensive borrowing.',
+      unit: 'fraction/pp',
+      range: { min: 0, max: 0.10, default: 0.03 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -383,6 +452,12 @@ export const capitalModule: Module<
     'childCost',
     'transferBurden',
     'workerConsumption',
+    'publicDebtGDP',
+    'privateDebtGDP',
+    'totalDebtGDP',
+    'publicDebtService',
+    'creditImpulse',
+    'debtRiskPremium',
   ] as const,
 
   validate(params: Partial<CapitalParams>) {
@@ -453,6 +528,28 @@ export const capitalModule: Module<
       }
     }
 
+    // Debt params validation
+    if (params.baseCreditGrowth !== undefined) {
+      if (params.baseCreditGrowth < 0 || params.baseCreditGrowth > 0.15) {
+        errors.push('baseCreditGrowth must be between 0 and 0.15');
+      }
+    }
+    if (params.publicDeficitRate !== undefined) {
+      if (params.publicDeficitRate < 0 || params.publicDeficitRate > 0.15) {
+        errors.push('publicDeficitRate must be between 0 and 0.15');
+      }
+    }
+    if (params.debtRiskLambda !== undefined) {
+      if (params.debtRiskLambda < 0 || params.debtRiskLambda > 0.20) {
+        errors.push('debtRiskLambda must be between 0 and 0.20');
+      }
+    }
+    if (params.privateAmortization !== undefined) {
+      if (params.privateAmortization < 0.01 || params.privateAmortization > 0.20) {
+        errors.push('privateAmortization must be between 0.01 and 0.20');
+      }
+    }
+
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -491,6 +588,9 @@ export const capitalModule: Module<
       referenceGdpPerCapita: {} as Record<Region, number>,
       referenceLifeExpectancy: {} as Record<Region, number>,
       referenceDependency: {} as Record<Region, number>,
+      publicDebt: 0,   // Initialized from GDP at yearIndex === 0
+      privateDebt: 0,   // Initialized from GDP at yearIndex === 0
+      previousGdp: 0,   // Initialized from inputs at yearIndex === 0
     };
   },
 
@@ -605,13 +705,67 @@ export const capitalModule: Module<
 
     const transferBurden = Math.min(MAX_TRANSFER_BURDEN, inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0);
 
-    // Investment from GDP after transfers
-    const availableGdp = inputs.gdp * (1 - transferBurden);
-    const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
-    const investment = availableGdp * savingsRate * stability * netEnergyFactor;
+    // ==========================================================================
+    // Debt/credit channel
+    // ==========================================================================
 
-    // Worker consumption = residual
-    const workerConsumption = inputs.gdp - investment - retireeCost - childCost;
+    // Initialize debt stocks at yearIndex === 0
+    let publicDebt = state.publicDebt;
+    let privateDebt = state.privateDebt;
+    let previousGdp = state.previousGdp;
+    if (yearIndex === 0) {
+      publicDebt = params.initialPublicDebtGDP * inputs.gdp;
+      privateDebt = params.initialPrivateDebtGDP * inputs.gdp;
+      previousGdp = inputs.gdp;
+    }
+
+    // Debt ratios (use beginning-of-period stocks)
+    const publicDebtGDP = inputs.gdp > 0 ? publicDebt / inputs.gdp : 0;
+    const privateDebtGDP = inputs.gdp > 0 ? privateDebt / inputs.gdp : 0;
+    const totalDebtGDP = publicDebtGDP + privateDebtGDP;
+
+    // Risk premium: high debt → expensive borrowing (self-limiting)
+    const excessDebt = Math.max(0, totalDebtGDP - params.debtRiskThreshold);
+    const debtRiskPremium = params.debtRiskLambda * excessDebt;
+
+    // Interest rate = marginal product of capital + debt risk premium
+    const baseInterestRate = calculateInterestRate(inputs.gdp, state.stock, params);
+    const interestRate = baseInterestRate + debtRiskPremium;
+
+    // --- Public debt dynamics ---
+    // Debt service: interest on outstanding public debt (paid from GDP, not capitalized)
+    const publicDebtService = interestRate * publicDebt;
+    // Fiscal consolidation: primary surplus when debt/GDP exceeds threshold
+    const fiscalConsolidation = Math.min(
+      params.fiscalReactionMax * inputs.gdp,
+      Math.max(0, params.fiscalReactionCoeff * (publicDebtGDP - params.fiscalReactionThreshold) * inputs.gdp),
+    );
+    // Primary deficit only (not interest) drives new debt accumulation.
+    // Interest is serviced from tax revenue (already captured as GDP burden).
+    // Debt/GDP dynamics: d' = d × r/(1+g) + primaryDeficit/GDP
+    const primaryDeficit = params.publicDeficitRate * inputs.gdp - fiscalConsolidation;
+
+    // --- Private debt / credit channel ---
+    const gdpGrowth = previousGdp > 0 ? (inputs.gdp - previousGdp) / previousGdp : 0;
+    const spreadFactor = Math.max(0.2, 1 - params.creditSensitivity * Math.max(0, interestRate - gdpGrowth));
+    const leverageFactor = Math.max(0.1, 1 - params.leverageDamping * Math.max(0, privateDebtGDP - params.leverageThreshold));
+    const creditImpulse = params.baseCreditGrowth * inputs.gdp * spreadFactor * leverageFactor;
+    const amortization = privateDebt * params.privateAmortization;
+
+    // --- Investment: gross savings + credit impulse ---
+    // Public debt service is a burden on GDP (like transfers)
+    const totalBurden = Math.min(0.50, transferBurden + (inputs.gdp > 0 ? publicDebtService / inputs.gdp : 0));
+    const availableGdp = inputs.gdp * (1 - totalBurden);
+    const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
+    const grossSavings = availableGdp * savingsRate * stability * netEnergyFactor;
+    const investment = Math.max(0, grossSavings + creditImpulse);
+
+    // Worker consumption = residual (20% floor prevents negative)
+    const MIN_WORKER_CONSUMPTION_SHARE = 0.20;
+    const workerConsumption = Math.max(
+      MIN_WORKER_CONSUMPTION_SHARE * inputs.gdp,
+      inputs.gdp - investment - retireeCost - childCost - publicDebtService,
+    );
 
     // Split investment between energy and general economy
     // When energy is scarce/expensive → more investment flows to energy
@@ -622,9 +776,6 @@ export const capitalModule: Module<
     ));
     const energyInvestment = investment * energyShare;
     const generalInvestment = investment * (1 - energyShare);
-
-    // Calculate interest rate
-    const interestRate = calculateInterestRate(inputs.gdp, state.stock, params);
 
     // Calculate automation share (grows but is capped)
     const rawShare = params.automationShare2025 * Math.pow(1 + params.automationGrowth, t);
@@ -652,6 +803,11 @@ export const capitalModule: Module<
       ? (newStock - state.stock) / state.stock
       : 0;
 
+    // Update debt stocks
+    // Public: only primary deficit accumulates (interest paid from tax revenue, not new borrowing)
+    const newPublicDebt = Math.max(0, publicDebt + primaryDeficit);
+    const newPrivateDebt = Math.max(0, privateDebt + creditImpulse - amortization);
+
     return {
       state: {
         stock: newStock,
@@ -659,6 +815,9 @@ export const capitalModule: Module<
         referenceGdpPerCapita: refGdpPerCapita,
         referenceLifeExpectancy: refLE,
         referenceDependency: refDependency,
+        publicDebt: newPublicDebt,
+        privateDebt: newPrivateDebt,
+        previousGdp: inputs.gdp,
       },
       outputs: {
         stock: state.stock, // Output current stock (before update)
@@ -679,6 +838,12 @@ export const capitalModule: Module<
         childCost,
         transferBurden,
         workerConsumption,
+        publicDebtGDP,
+        privateDebtGDP,
+        totalDebtGDP,
+        publicDebtService,
+        creditImpulse,
+        debtRiskPremium,
       },
     };
   },
