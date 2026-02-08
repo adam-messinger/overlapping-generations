@@ -56,7 +56,6 @@ export interface RegionalEnergyParams {
   carbonPrice: number;                          // $/ton CO2
   maxGrowthRate?: Partial<Record<EnergySource, number>>;  // Policy constraints (overrides global)
   capacityFactor?: Partial<Record<EnergySource, number>>; // Resource quality (solar irradiance, etc.)
-  coalPhaseoutYear?: number;                    // Regional override for coal phaseout year
 }
 
 export interface EnergyParams {
@@ -113,9 +112,6 @@ export interface EnergyParams {
 
   /** Battery cycles per year for LCOE calculation */
   batteryCyclesPerYear: number;
-
-  /** Year after which no new coal capacity is built (default 2035) */
-  coalPhaseoutYear: number;
 
   /** How strongly curtailment dampens VRE additions (default 2.0).
    *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
@@ -363,9 +359,6 @@ export const energyDefaults: EnergyParams = {
 
   // Battery LCOE cycles
   batteryCyclesPerYear: 365,
-
-  // Coal phaseout: no new coal after this year (default 2035)
-  coalPhaseoutYear: 2035,
 
   // Curtailment feedback: dampen VRE additions when curtailment is high
   curtailmentPenalty: 2.0,         // At 30% curtailment: additions × 0.4; at 50%: × 0.1 (floor)
@@ -698,12 +691,6 @@ export const energyModule: Module<
         },
       },
     },
-    coalPhaseoutYear: {
-      description: 'Year after which no new coal capacity is built. Existing plants retire at lifetime.',
-      unit: 'year',
-      range: { min: 2025, max: 2100, default: 2035 },
-      tier: 1 as const,
-    },
     curtailmentPenalty: {
       description: 'How strongly curtailment dampens VRE additions. At 30% curtailment and penalty=2: additions reduced 60%.',
       unit: 'dimensionless',
@@ -759,15 +746,6 @@ export const energyModule: Module<
           description: 'Carbon price for India + South Asia. Limited carbon pricing.',
           unit: '$/ton CO₂',
           range: { min: 0, max: 300, default: 5 },
-          tier: 1 as const,
-        },
-      },
-      ssa: {
-        carbonPrice: {
-          paramName: 'ssaCarbonPrice',
-          description: 'Carbon price for Sub-Saharan Africa. No effective pricing.',
-          unit: '$/ton CO₂',
-          range: { min: 0, max: 300, default: 0 },
           tier: 1 as const,
         },
       },
@@ -938,9 +916,6 @@ export const energyModule: Module<
       }
       if (p.capitalIntensity) {
         result.capitalIntensity = { ...energyDefaults.capitalIntensity, ...p.capitalIntensity };
-      }
-      if (p.coalPhaseoutYear !== undefined) {
-        result.coalPhaseoutYear = p.coalPhaseoutYear;
       }
       if (p.longStorage) {
         result.longStorage = { ...energyDefaults.longStorage, ...p.longStorage };
@@ -1223,14 +1198,6 @@ export const energyModule: Module<
 
         let desired = Math.max(0, targetAddition);
         desired = Math.min(desired, growthCapped, ceilingRoom);
-
-        // Coal phaseout: no new coal after phaseout year (regional override or global)
-        if (source === 'coal') {
-          const regionalPhaseout = regionParams.coalPhaseoutYear ?? params.coalPhaseoutYear;
-          if (year >= regionalPhaseout) {
-            desired = 0;
-          }
-        }
 
         desiredAdditions[source] = desired;
       }

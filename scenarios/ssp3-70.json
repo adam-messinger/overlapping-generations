@@ -10,7 +10,6 @@
       "battery": { "alpha": 0.20, "growthRate": 0.10 },
       "coal": { "growthRate": 0.02 }
     },
-    "coalPhaseoutYear": 2070,
     "maxGrowthRate": {
       "coal": 0.02
     }

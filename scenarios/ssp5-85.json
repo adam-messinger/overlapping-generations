@@ -4,7 +4,6 @@
 
   "energy": {
     "carbonPrice": 0,
-    "coalPhaseoutYear": 2100,
     "maxGrowthRate": {
       "coal": 0.03
     },

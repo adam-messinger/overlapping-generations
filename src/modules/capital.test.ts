@@ -308,7 +308,7 @@ test('higher pension rate → lower investment', () => {
   const highPremium: Record<string, { pensionRate: number }> = {};
   for (const r of REGIONS) highPremium[r] = { pensionRate: 0.45 };
   const highParams = capitalModule.mergeParams({
-    transfers: { pensionRate: 0.45, healthcareRate: 0.05, educationRate: 0.04 },
+    transfers: { educationRate: 0.04 },
     transferPremium: highPremium as any,
   });
   let highState = capitalModule.init(highParams);

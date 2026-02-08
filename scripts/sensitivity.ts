@@ -27,16 +27,16 @@ const runs: RunSpec[] = [
   { label: 'sensitivity=4.5', overrides: { climate: { sensitivity: 4.5 } } },
   { label: 'sensitivity=6.0', overrides: { climate: { sensitivity: 6.0 } } },
   {
-    label: 'transportTarget=0.8',
-    overrides: { demand: { sectors: { transport: { electrificationTarget: 0.8 } } } },
+    label: 'transportThreshold=0.8',
+    overrides: { demand: { sectors: { transport: { costEscalationThreshold: 0.8 } } } },
   },
   {
-    label: 'buildingsTarget=0.99',
-    overrides: { demand: { sectors: { buildings: { electrificationTarget: 0.99 } } } },
+    label: 'buildingsThreshold=0.95',
+    overrides: { demand: { sectors: { buildings: { costEscalationThreshold: 0.95 } } } },
   },
   {
-    label: 'industryTarget=0.8',
-    overrides: { demand: { sectors: { industry: { electrificationTarget: 0.8 } } } },
+    label: 'industryThreshold=0.8',
+    overrides: { demand: { sectors: { industry: { costEscalationThreshold: 0.8 } } } },
   },
 ];
 

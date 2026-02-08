@@ -28,8 +28,6 @@ import { validatedMerge } from '../framework/validated-merge.js';
 // =============================================================================
 
 export interface TransferParams {
-  pensionRate: number;      // Per-retiree pension as fraction of GDP/worker
-  healthcareRate: number;   // Per-retiree healthcare as fraction of GDP/capita
   educationRate: number;    // Per-child education as fraction of GDP/capita
 }
 
@@ -172,8 +170,6 @@ export const capitalDefaults: CapitalParams = {
 
   // Intergenerational transfers (OECD/ILO/World Bank calibrated)
   transfers: {
-    pensionRate: 0.20,      // Per-retiree pension as fraction of GDP/worker
-    healthcareRate: 0.05,   // Per-retiree healthcare as fraction of GDP/capita
     educationRate: 0.04,    // Per-child education as fraction of GDP/capita
   },
 
@@ -321,20 +317,6 @@ export const capitalModule: Module<
       range: { min: 0.20, max: 0.60, default: 0.45 },
       tier: 1 as const,
     },
-    'transfers.pensionRate': {
-      paramName: 'pensionRate',
-      description: 'Per-retiree pension as fraction of GDP per worker. OECD ~0.35, SSA ~0.05.',
-      unit: 'fraction',
-      range: { min: 0, max: 0.50, default: 0.20 },
-      tier: 1 as const,
-    },
-    'transfers.healthcareRate': {
-      paramName: 'healthcareRate',
-      description: 'Per-retiree healthcare as fraction of GDP per capita. OECD ~0.10, SSA ~0.02.',
-      unit: 'fraction',
-      range: { min: 0, max: 0.20, default: 0.05 },
-      tier: 1 as const,
-    },
     'transfers.educationRate': {
       paramName: 'educationRate',
       description: 'Per-child education as fraction of GDP per capita. Global ~0.04.',
@@ -466,12 +448,6 @@ export const capitalModule: Module<
 
     if (params.transfers !== undefined) {
       const t = params.transfers;
-      if (t.pensionRate !== undefined && (t.pensionRate < 0 || t.pensionRate > 0.50)) {
-        errors.push('Pension rate must be between 0 and 0.50');
-      }
-      if (t.healthcareRate !== undefined && (t.healthcareRate < 0 || t.healthcareRate > 0.20)) {
-        errors.push('Healthcare rate must be between 0 and 0.20');
-      }
       if (t.educationRate !== undefined && (t.educationRate < 0 || t.educationRate > 0.15)) {
         errors.push('Education rate must be between 0 and 0.15');
       }
@@ -596,8 +572,8 @@ export const capitalModule: Module<
       const pop = inputs.regionalPopulation[r] ?? 0;
       const premium = params.transferPremium[r] ?? {};
 
-      const pensionRate = premium.pensionRate ?? params.transfers.pensionRate;
-      const healthcareRate = premium.healthcareRate ?? params.transfers.healthcareRate;
+      const pensionRate = premium.pensionRate!;      // All 8 regions define this in transferPremium
+      const healthcareRate = premium.healthcareRate!; // All 8 regions define this in transferPremium
       const educationRate = premium.educationRate ?? params.transfers.educationRate;
 
       // --- Retirement age adjustment ---

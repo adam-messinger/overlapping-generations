@@ -68,9 +68,6 @@ export interface LandParams {
   deforestationEmissionFactor: number; // Fraction released immediately
   decayRate: number;              // Annual decay rate for deferred pool
 
-  // Hard land budget
-  minForestArea: number;          // Mha ecological minimum (default 2000)
-
   // Climate-yield damage
   yieldDamageThreshold: number;   // °C where damage begins
   yieldDamageCoeff: number;       // Quadratic damage coefficient
@@ -243,8 +240,6 @@ export const resourcesDefaults: ResourcesParams = {
     sequestrationRate: 7.5,
     deforestationEmissionFactor: 0.5,
     decayRate: 0.05,
-
-    minForestArea: 2000,          // Mha ecological minimum forest
 
     yieldDamageThreshold: 2.0,
     yieldDamageCoeff: 0.15,
@@ -521,6 +516,9 @@ function calculateFoodDemand(
 // MODULE DEFINITION
 // =============================================================================
 
+/** Ecological minimum forest area (Mha). Floor never reached in practice. */
+const MIN_FOREST_AREA_MHA = 2000;
+
 type MineralKey = 'copper' | 'lithium' | 'rareEarths' | 'steel';
 const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 'steel'];
 
@@ -541,12 +539,6 @@ export const resourcesModule: Module<
         description: 'Annual agricultural yield improvement from technology.',
         unit: 'fraction/year',
         range: { min: 0.005, max: 0.02, default: 0.01 },
-        tier: 1 as const,
-      },
-      minForestArea: {
-        description: 'Minimum ecologically viable forest area. Farmland cannot expand beyond totalLandArea - urban - minForestArea.',
-        unit: 'Mha',
-        range: { min: 1000, max: 3000, default: 2000 },
         tier: 1 as const,
       },
       yieldDamageThreshold: {
@@ -848,7 +840,7 @@ export const resourcesModule: Module<
     const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
 
     // Hard land budget constraint: farmland cannot exceed available land
-    const availableLand = land.totalLandArea - urban - land.minForestArea;
+    const availableLand = land.totalLandArea - urban - MIN_FOREST_AREA_MHA;
     const farmland = Math.min(uncappedFarmland, availableLand);
     const foodStress = uncappedFarmland > 0
       ? Math.max(0, 1 - farmland / uncappedFarmland)

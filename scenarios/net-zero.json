@@ -9,8 +9,7 @@
       "wind": { "alpha": 0.28, "growthRate": 0.22 },
       "battery": { "alpha": 0.30 },
       "nuclear": { "growthRate": 0.04 }
-    },
-    "coalPhaseoutYear": 2025
+    }
   },
 
   "demand": {
