@@ -44,8 +44,11 @@ export interface CDRParams {
   /** Max fraction of GDP for CDR spending */
   budgetFraction: number;
 
-  /** Discount rate for NPV of permanent damage reduction */
+  /** Discount rate for NPV of permanent damage reduction (fallback when no interest rate) */
   discountRate: number;
+
+  /** Social discount factor: effective discount = max(0.01, interestRate × socialDiscountFactor) */
+  socialDiscountFactor: number;
 
   /** Damage coefficient (mirrors climate module) */
   damageCoeff: number;
@@ -65,7 +68,8 @@ export const cdrDefaults: CDRParams = {
   maxDeployRate: 15,      // 15 Gt/yr hard cap (physical/geological limits)
   budgetFraction: 0.005,  // 0.5% of GDP max spend
 
-  discountRate: 0.03,     // 3% social discount rate
+  discountRate: 0.03,     // 3% social discount rate (fallback)
+  socialDiscountFactor: 0.5, // Social rate = 50% of market rate
 
   damageCoeff: 0.00536,   // DICE-2023 quadratic damage coefficient
   tcre: 0.00045,          // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt)
@@ -93,6 +97,8 @@ export interface CDRInputs {
   gdp: number;
   /** Generation-weighted average LCOE $/MWh (lagged from dispatch) */
   laggedAvgLCOE: number;
+  /** Lagged real interest rate (from capital previous year) for endogenous discount rate */
+  laggedInterestRate: number;
 }
 
 export interface CDROutputs {
@@ -154,12 +160,20 @@ export const cdrModule: Module<
       range: { min: 0.001, max: 0.02, default: 0.005 },
       tier: 1 as const,
     },
+    socialDiscountFactor: {
+      paramName: 'cdrSocialDiscountFactor',
+      description: 'Social discount rate as fraction of market interest rate. Lower = more CDR (values future damages more).',
+      unit: 'fraction',
+      range: { min: 0.2, max: 1.0, default: 0.5 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
     'temperature',
     'gdp',
     'laggedAvgLCOE',
+    'laggedInterestRate',
   ] as const,
 
   outputs: [
@@ -195,6 +209,10 @@ export const cdrModule: Module<
     }
     if (params.discountRate !== undefined && params.discountRate <= 0) {
       errors.push('discountRate must be positive');
+    }
+    if (params.socialDiscountFactor !== undefined &&
+        (params.socialDiscountFactor <= 0 || params.socialDiscountFactor > 1)) {
+      errors.push('socialDiscountFactor must be between 0 (exclusive) and 1');
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -236,9 +254,13 @@ export const cdrModule: Module<
     //        = 2 × damageCoeff × T × TCRE × GDP($) / discountRate
     // =========================================================================
 
+    // Endogenous discount rate: social rate = fraction of market rate
+    const laggedR = inputs.laggedInterestRate ?? 0.05;
+    const effectiveDiscount = Math.max(0.01, laggedR * params.socialDiscountFactor);
+
     const gdpDollars = gdp * 1e12; // Convert $T to $
     const effectiveSCC = 2 * params.damageCoeff * Math.max(0, temperature)
-      * params.tcre * gdpDollars / params.discountRate;
+      * params.tcre * gdpDollars / effectiveDiscount;
     // effectiveSCC is in $ per ton CO2
 
     // =========================================================================

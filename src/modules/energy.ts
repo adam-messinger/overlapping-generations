@@ -117,6 +117,26 @@ export interface EnergyParams {
   /** Year after which no new coal capacity is built (default 2035) */
   coalPhaseoutYear: number;
 
+  /** How strongly curtailment dampens VRE additions (default 2.0).
+   *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
+  curtailmentPenalty: number;
+
+  /** How strongly curtailment boosts battery target (default 2.0).
+   *  storagePressure = 1 + curtailmentStorageBoost × laggedCurtailmentRate */
+  curtailmentStorageBoost: number;
+
+  /** Risk premium over interest rate for energy project WACC */
+  riskPremium: number;
+
+  /** Base WACC used for LCOE calibration (no adjustment when effective WACC equals this) */
+  baseWACC: number;
+
+  /** Floor on effective WACC */
+  minWACC: number;
+
+  /** Fraction of LCOE that is capital cost, by source */
+  capitalIntensity: Record<EnergySource, number>;
+
   /** Long-duration storage (iron-air, compressed air, pumped hydro, etc.) */
   longStorage: {
     cost0: number;             // $/kWh initial cost (2025)
@@ -347,6 +367,24 @@ export const energyDefaults: EnergyParams = {
   // Coal phaseout: no new coal after this year (default 2035)
   coalPhaseoutYear: 2035,
 
+  // Curtailment feedback: dampen VRE additions when curtailment is high
+  curtailmentPenalty: 2.0,         // At 30% curtailment: additions × 0.4; at 50%: × 0.1 (floor)
+  curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
+
+  // WACC: financing cost channel for LCOE
+  riskPremium: 0.02,               // 2% over risk-free (interest) rate
+  baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
+  minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
+  capitalIntensity: {              // Fraction of LCOE that is capital cost
+    solar: 0.85,
+    wind: 0.80,
+    nuclear: 0.90,
+    hydro: 0.85,
+    gas: 0.15,
+    coal: 0.25,
+    battery: 0.80,
+  },
+
   // Long-duration storage (iron-air, CAES, etc.)
   longStorage: {
     cost0: 300,                // $/kWh (2025, ~2x battery)
@@ -427,6 +465,12 @@ export interface EnergyInputs {
 
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
   mineralConstraint: number;
+
+  /** Lagged curtailment rate 0-1 (from dispatch previous year). 0 = no curtailment. */
+  laggedCurtailmentRate: number;
+
+  /** Lagged real interest rate (from capital previous year) for WACC calculation */
+  laggedInterestRate: number;
 }
 
 /** Regional capacity outputs */
@@ -490,6 +534,9 @@ export interface EnergyOutputs {
 
   /** Long-duration storage regional capacities (GWh) */
   longStorageRegional: Record<Region, number>;
+
+  /** Effective WACC used for LCOE adjustment this year */
+  effectiveWACC: number;
 }
 
 // =============================================================================
@@ -657,6 +704,36 @@ export const energyModule: Module<
       range: { min: 2025, max: 2100, default: 2035 },
       tier: 1 as const,
     },
+    curtailmentPenalty: {
+      description: 'How strongly curtailment dampens VRE additions. At 30% curtailment and penalty=2: additions reduced 60%.',
+      unit: 'dimensionless',
+      range: { min: 0, max: 5, default: 2.0 },
+      tier: 1 as const,
+    },
+    curtailmentStorageBoost: {
+      description: 'How strongly curtailment boosts battery storage target. At 30% curtailment and boost=2: target 60% higher.',
+      unit: 'dimensionless',
+      range: { min: 0, max: 5, default: 2.0 },
+      tier: 1 as const,
+    },
+    riskPremium: {
+      description: 'Risk premium over interest rate for energy project WACC. Higher values penalize capital-intensive sources.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.10, default: 0.02 },
+      tier: 1 as const,
+    },
+    baseWACC: {
+      description: 'Baseline WACC at which LCOEs are calibrated. No LCOE adjustment when effective WACC equals this.',
+      unit: 'fraction',
+      range: { min: 0.03, max: 0.15, default: 0.07 },
+      tier: 1 as const,
+    },
+    minWACC: {
+      description: 'Floor on effective WACC. Prevents unrealistically cheap financing.',
+      unit: 'fraction',
+      range: { min: 0.01, max: 0.10, default: 0.03 },
+      tier: 1 as const,
+    },
     regional: {
       oecd: {
         carbonPrice: {
@@ -703,6 +780,8 @@ export const energyModule: Module<
     'availableInvestment',
     'regionalInvestment',
     'mineralConstraint',
+    'laggedCurtailmentRate',
+    'laggedInterestRate',
   ] as const,
 
   outputs: [
@@ -724,6 +803,7 @@ export const energyModule: Module<
     'longStorageCost',
     'longStorageCapacity',
     'longStorageRegional',
+    'effectiveWACC',
   ] as const,
 
   validate(params: Partial<EnergyParams>): ValidationResult {
@@ -768,6 +848,24 @@ export const energyModule: Module<
       if (eroi !== undefined && eroi <= 1) {
         errors.push(`eroi.${source} must be > 1`);
       }
+    }
+
+    // Curtailment feedback
+    if (p.curtailmentPenalty !== undefined && p.curtailmentPenalty < 0) {
+      errors.push('curtailmentPenalty cannot be negative');
+    }
+    if (p.curtailmentStorageBoost !== undefined && p.curtailmentStorageBoost < 0) {
+      errors.push('curtailmentStorageBoost cannot be negative');
+    }
+    // WACC
+    if (p.riskPremium !== undefined && p.riskPremium < 0) {
+      errors.push('riskPremium cannot be negative');
+    }
+    if (p.baseWACC !== undefined && p.baseWACC <= 0) {
+      errors.push('baseWACC must be positive');
+    }
+    if (p.minWACC !== undefined && p.minWACC < 0) {
+      errors.push('minWACC cannot be negative');
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -837,6 +935,9 @@ export const energyModule: Module<
       }
       if (p.capacityCeiling) {
         result.capacityCeiling = { ...energyDefaults.capacityCeiling, ...p.capacityCeiling };
+      }
+      if (p.capitalIntensity) {
+        result.capitalIntensity = { ...energyDefaults.capitalIntensity, ...p.capitalIntensity };
       }
       if (p.coalPhaseoutYear !== undefined) {
         result.coalPhaseoutYear = p.coalPhaseoutYear;
@@ -972,6 +1073,33 @@ export const energyModule: Module<
     }
 
     // =========================================================================
+    // WACC adjustment: financing cost affects capital-intensive sources more
+    // =========================================================================
+
+    const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
+    const effectiveWACC = Math.max(params.minWACC, laggedInterestRate + params.riskPremium);
+
+    // Capital recovery factor: CRF(r) = r / (1 - (1+r)^(-n)) for 25-year project life
+    const PROJECT_LIFE = 25;
+    const crf = (r: number) => {
+      if (r < 0.001) return 1 / PROJECT_LIFE; // Limit as r→0
+      return r / (1 - Math.pow(1 + r, -PROJECT_LIFE));
+    };
+    const crfEffective = crf(effectiveWACC);
+    const crfBase = crf(params.baseWACC);
+
+    // Adjust LCOE for each source based on capital intensity and WACC deviation.
+    // Apply adjustment only to the capital portion to respect soft floor bounds.
+    const crfRatio = crfEffective / crfBase;
+    for (const source of ENERGY_SOURCES) {
+      const ci = params.capitalIntensity[source] ?? 0;
+      const baseLCOE = lcoes[source];
+      const capitalPortion = baseLCOE * ci;
+      const nonCapitalPortion = baseLCOE * (1 - ci);
+      lcoes[source] = capitalPortion * crfRatio + nonCapitalPortion;
+    }
+
+    // =========================================================================
     // Process each region independently
     // =========================================================================
 
@@ -1054,6 +1182,12 @@ export const energyModule: Module<
 
           if (isCompetitive && demandGapGW > 0) {
             targetAddition = demandGapGW * params.demandFillRate;
+            // Curtailment feedback: dampen VRE additions when curtailment is high
+            if (source === 'solar' || source === 'wind') {
+              const curtRate = inputs.laggedCurtailmentRate ?? 0;
+              const curtailmentDamping = Math.max(0.1, 1 - params.curtailmentPenalty * curtRate);
+              targetAddition *= curtailmentDamping;
+            }
           } else {
             const MIN_CAPACITY_GROWTH = 0.01;
             targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
@@ -1062,7 +1196,10 @@ export const energyModule: Module<
           const solarGW = state.regional[region].solar.installed;
           const solarAdditions = desiredAdditions.solar ?? 0;
           const futureSolarGW = solarGW + solarAdditions;
-          const targetBatteryGWh = futureSolarGW * params.batteryDuration;
+          // Curtailment feedback: boost battery target when curtailment is high
+          const curtRate = inputs.laggedCurtailmentRate ?? 0;
+          const storagePressure = 1 + params.curtailmentStorageBoost * curtRate;
+          const targetBatteryGWh = futureSolarGW * params.batteryDuration * storagePressure;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
 
           const REGIONAL_BATTERY_MARKUP = 1.5;
@@ -1099,8 +1236,31 @@ export const energyModule: Module<
       }
 
       // Apply investment constraint (LCOE priority)
+      // System LCOE: blend solar with solarPlusBattery based on VRE penetration.
+      // At high VRE share, marginal solar needs storage — use blended cost for ranking.
+      let prevVREGen = 0;
+      let prevTotalGen = 0;
+      for (const source of ENERGY_SOURCES) {
+        if (source === 'battery') continue;
+        const regionState = state.regional[region][source];
+        const prevCap = regionState.installed;
+        const sourceCF = getRegionalCapacityFactor(params, region, source, prevCap);
+        const gen = (prevCap * sourceCF * 8760) / 1000;
+        prevTotalGen += gen;
+        if (source === 'solar' || source === 'wind') prevVREGen += gen;
+      }
+      const regionVREShare = prevTotalGen > 0 ? prevVREGen / prevTotalGen : 0;
+
+      // Effective solar LCOE for investment ranking: blends bare solar with solar+battery
+      const REGIONAL_BATTERY_MARKUP_FOR_RANK = 1.5;
+      const regionalSolarPlusBatteryLCOE = regionalLCOE.solar * REGIONAL_BATTERY_MARKUP_FOR_RANK;
+      const effectiveSolarLCOE = (1 - regionVREShare) * regionalLCOE.solar + regionVREShare * regionalSolarPlusBatteryLCOE;
+
+      const rankingLCOE: Record<EnergySource, number> = { ...regionalLCOE };
+      rankingLCOE.solar = effectiveSolarLCOE;
+
       const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
-      cleanSources.sort((a, b) => regionalLCOE[a] - regionalLCOE[b]);
+      cleanSources.sort((a, b) => rankingLCOE[a] - rankingLCOE[b]);
 
       let remainingBudget = cleanBudget;
       const fundedAdditions: Record<EnergySource, number> = {} as any;
@@ -1328,6 +1488,7 @@ export const energyModule: Module<
         longStorageCost,
         longStorageCapacity: longStorageTotal,
         longStorageRegional: newLongStorageRegional,
+        effectiveWACC,
       },
     };
   },

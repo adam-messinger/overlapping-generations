@@ -103,6 +103,9 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 - **Solar/Wind**: Wright's Law learning curves (α=0.36 solar, α=0.23 wind)
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
+- **WACC**: Interest rate → WACC → LCOE channel (capital-intensive sources penalized when rates high)
+- **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment
+- **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 
 ### Climate
 - **DICE-2023**: Quadratic damage function with regional multipliers
@@ -123,6 +126,7 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 ### CDR (Carbon Dioxide Removal)
 - Wright's Law capital cost learning + LCOE-driven energy cost
 - Deploys when NPV-adjusted social cost of carbon > CDR cost
+- Endogenous discount rate: social rate = fraction of market interest rate
 - Energy demand subtracted from productive useful energy
 
 ### Capital & Intergenerational Transfers
@@ -157,11 +161,11 @@ For LLM agents, `describeParameters()` and `describeOutputs()` return structured
 ```typescript
 import { describeParameters, describeOutputs, buildParams } from './src/index.js';
 
-// 53 Tier-1 parameters
+// 59 Tier-1 parameters
 const schema = describeParameters();
 // schema.carbonPrice = { type, default, min, max, unit, description, path }
 
-// ~95 output fields (auto-generated from standardCollectors)
+// ~99 output fields (auto-generated from standardCollectors)
 const outputs = describeOutputs();
 // outputs.temperature = { unit: '°C', description: '...', module: 'climate' }
 
@@ -170,7 +174,7 @@ const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-53 Tier-1 parameters available for scenario exploration.
+59 Tier-1 parameters available for scenario exploration.
 
 ## Programmatic Use
 
@@ -205,6 +209,7 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `transferBurden` | fraction | Pension + healthcare + education share of GDP |
 | `cdrRemoval` | Gt CO₂/yr | Carbon dioxide removal |
 | `energyBurden` | fraction | Energy cost share of GDP |
+| `effectiveWACC` | fraction | Weighted avg cost of capital for energy |
 | `robotsDensity` | per 1000 | Robots per 1000 workers |
 | `farmland` | Mha | Cropland area |
 

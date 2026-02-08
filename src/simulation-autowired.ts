@@ -436,6 +436,20 @@ function buildLags() {
       initial: 1.0,  // No constraint in year 0
     },
 
+    // Energy needs lagged curtailment rate (dispatch runs after energy)
+    laggedCurtailmentRate: {
+      source: 'curtailmentRate',
+      delay: 1,
+      initial: 0,  // No curtailment in year 0
+    },
+
+    // Energy + CDR need lagged interest rate (capital runs before energy)
+    laggedInterestRate: {
+      source: 'interestRate',
+      delay: 1,
+      initial: 0.05,  // ~5% initial real rate
+    },
+
     // Demand needs lagged regional fossil share (for energy cost → GDP share feedback)
     regionalFossilShare: {
       source: 'regionalFossilShare',
@@ -569,6 +583,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       fossilShare: o.fossilShare,
       curtailmentTWh: o.curtailmentTWh,
       curtailmentRate: o.curtailmentRate,
+      effectiveWACC: o.effectiveWACC ?? 0.07,
 
       // Climate
       temperature: o.temperature,

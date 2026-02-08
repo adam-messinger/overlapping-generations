@@ -129,6 +129,9 @@ export interface YearResult {
   curtailmentTWh: number;
   curtailmentRate: number;
 
+  // WACC
+  effectiveWACC: number;
+
   // Climate
   temperature: number;
   co2ppm: number;

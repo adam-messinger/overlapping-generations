@@ -117,6 +117,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'solarPlusBatteryLCOE', unit: '$/MWh', description: 'Solar + battery combined LCOE', module: 'energy' },
     { source: 'longStorageCost', unit: '$/MWh', description: 'Long-duration storage cost (Wright\'s Law)', module: 'energy' },
     { source: 'longStorageCapacity', unit: 'GWh', description: 'Global long-duration storage capacity', module: 'energy' },
+    { source: 'effectiveWACC', unit: 'fraction', description: 'Weighted average cost of capital for energy projects', module: 'energy' },
 
     // Dispatch
     { source: 'generation', unit: 'TWh', description: 'Electricity generation by source', module: 'dispatch' },

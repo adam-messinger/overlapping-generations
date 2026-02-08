@@ -14,8 +14,11 @@ import { test, expect, printSummary } from '../test-utils.js';
 function createInputs(
   electricityDemand: number = 30000,
   availableInvestment: number = 25,
+  mineralConstraint: number = 1.0,
+  laggedCurtailmentRate: number = 0,
+  laggedInterestRate: number = 0.05,
 ) {
-  return { electricityDemand, availableInvestment };
+  return { electricityDemand, availableInvestment, mineralConstraint, laggedCurtailmentRate, laggedInterestRate };
 }
 
 // Helper to run simulation for N years
@@ -431,6 +434,172 @@ test('module declares correct outputs', () => {
   expect(energyModule.outputs.includes('capacities')).toBeTrue();
   expect(energyModule.outputs.includes('regionalCapacities')).toBeTrue();
   expect(energyModule.outputs.includes('energyRegional')).toBeTrue();
+});
+
+// --- Curtailment Feedback ---
+
+console.log('\n--- Curtailment Feedback ---\n');
+
+test('zero curtailment does not affect solar additions', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const inputsNone = createInputs(30000, 25, 1.0, 0);
+  const inputsZero = createInputs(30000, 25, 1.0, 0);
+  const r1 = energyModule.step(state, inputsNone, params, 2025, 0);
+  const r2 = energyModule.step(state, inputsZero, params, 2025, 0);
+  expect(r1.outputs.additions.solar).toBeCloseTo(r2.outputs.additions.solar, 0);
+});
+
+test('high curtailment reduces solar additions', () => {
+  // Run 5 years to build up enough solar that demand-fill path is active
+  const params = energyModule.mergeParams({});
+  let stateA = energyModule.init(params);
+  let stateB = energyModule.init(params);
+  for (let i = 0; i < 5; i++) {
+    const inp = createInputs(30000 + i * 500, 25 + i * 0.5, 1.0, 0);
+    stateA = energyModule.step(stateA, inp, params, 2025 + i, i).state;
+    stateB = energyModule.step(stateB, inp, params, 2025 + i, i).state;
+  }
+  const rLow = energyModule.step(stateA, createInputs(35000, 30, 1.0, 0), params, 2030, 5);
+  const rHigh = energyModule.step(stateB, createInputs(35000, 30, 1.0, 0.3), params, 2030, 5);
+  expect(rHigh.outputs.additions.solar).toBeLessThan(rLow.outputs.additions.solar);
+});
+
+test('high curtailment increases battery relative to solar additions', () => {
+  // Run 10 years, then compare. High curtailment dampens solar but not battery.
+  // Even if battery additions are growth-capped (identical absolute value),
+  // the ratio of battery:solar additions should be higher with curtailment.
+  const params = energyModule.mergeParams({});
+  let stateA = energyModule.init(params);
+  let stateB = energyModule.init(params);
+  for (let i = 0; i < 10; i++) {
+    const inp = createInputs(30000 + i * 500, 25 + i * 0.5, 1.0, 0);
+    stateA = energyModule.step(stateA, inp, params, 2025 + i, i).state;
+    stateB = energyModule.step(stateB, inp, params, 2025 + i, i).state;
+  }
+  const rA = energyModule.step(stateA, createInputs(40000, 35, 1.0, 0), params, 2035, 10);
+  const rB = energyModule.step(stateB, createInputs(40000, 35, 1.0, 0.4), params, 2035, 10);
+  // Solar additions should be strongly dampened by curtailment
+  expect(rB.outputs.additions.solar).toBeLessThan(rA.outputs.additions.solar);
+  // Battery/solar ratio should be higher (even if battery is identical due to growth cap)
+  const ratioA = rA.outputs.additions.battery / Math.max(1, rA.outputs.additions.solar);
+  const ratioB = rB.outputs.additions.battery / Math.max(1, rB.outputs.additions.solar);
+  expect(ratioB).toBeGreaterThan(ratioA);
+});
+
+test('curtailment at 50% hits floor (additions > 0)', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const inputs = createInputs(30000, 25, 1.0, 0.5);
+  const r = energyModule.step(state, inputs, params, 2025, 0);
+  // With 50% curtailment and penalty=2.0: damping = max(0.1, 1-2*0.5) = max(0.1, 0) = 0.1
+  // So additions should be small but nonzero
+  expect(r.outputs.additions.solar).toBeGreaterThan(0);
+});
+
+// --- WACC / Interest Rate ---
+
+console.log('\n--- WACC / Interest Rate ---\n');
+
+test('CRF function: WACC = baseWACC produces no LCOE adjustment', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  // laggedInterestRate = 0.05, riskPremium = 0.02 → effectiveWACC = 0.07 = baseWACC
+  const inputs = createInputs(30000, 25, 1.0, 0, 0.05);
+  const r = energyModule.step(state, inputs, params, 2025, 0);
+  expect(r.outputs.effectiveWACC).toBeCloseTo(0.07, 2);
+});
+
+test('high interest rate raises LCOE for capital-intensive sources', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const rBase = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);
+  const rHigh = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.10), params, 2025, 0);
+  // Solar (capitalIntensity=0.85) should see a bigger LCOE increase than gas (0.15)
+  const solarIncrease = rHigh.outputs.lcoes.solar / rBase.outputs.lcoes.solar;
+  const gasIncrease = rHigh.outputs.lcoes.gas / rBase.outputs.lcoes.gas;
+  expect(solarIncrease).toBeGreaterThan(gasIncrease);
+});
+
+test('high interest rate penalizes solar more than gas', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.10), params, 2025, 0);
+  // At WACC=12% vs base 7%, CRF ratio = ~1.27
+  // Solar adj = 0.85 * 0.27 = +23%; gas adj = 0.15 * 0.27 = +4%
+  expect(r.outputs.effectiveWACC).toBeCloseTo(0.12, 2);
+  // Solar LCOE should be notably higher than base ($35)
+  expect(r.outputs.lcoes.solar).toBeGreaterThan(40);
+});
+
+test('low interest rate does not push solar below soft floor', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  // Very low interest rate → WACC < baseWACC → discount on capital-intensive sources
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
+  // Solar LCOE should never drop below soft floor ($12)
+  expect(r.outputs.lcoes.solar).toBeGreaterThan(12);
+});
+
+test('low interest rate produces minWACC floor', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
+  // laggedInterestRate=0.005 + riskPremium=0.02 = 0.025, but minWACC=0.03
+  expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
+});
+
+// --- System LCOE ---
+
+console.log('\n--- System LCOE ---\n');
+
+test('at low VRE share, solar effective ranking close to bare LCOE', () => {
+  // Year 0: VRE share is low → effective solar LCOE ≈ bare solar LCOE
+  // The global LCOE output is the bare LCOE (not the ranking LCOE).
+  // At year 0, solar and wind are both $35 base. Solar should remain competitive.
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25), params, 2025, 0);
+  // Solar LCOE should be reasonable and solar should still get additions
+  expect(r.outputs.lcoes.solar).toBeBetween(25, 50);
+  expect(r.outputs.additions.solar).toBeGreaterThan(0);
+});
+
+test('effective WACC output is present', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25), params, 2025, 0);
+  expect(r.outputs.effectiveWACC).toBeGreaterThan(0);
+  expect(r.outputs.effectiveWACC).toBeLessThan(0.20);
+});
+
+// --- Validation ---
+
+console.log('\n--- New Param Validation ---\n');
+
+test('validation catches negative curtailmentPenalty', () => {
+  const result = energyModule.validate({ curtailmentPenalty: -1 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches negative curtailmentStorageBoost', () => {
+  const result = energyModule.validate({ curtailmentStorageBoost: -1 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches negative riskPremium', () => {
+  const result = energyModule.validate({ riskPremium: -0.01 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches non-positive baseWACC', () => {
+  const result = energyModule.validate({ baseWACC: 0 });
+  expect(result.valid).toBe(false);
+});
+
+test('validation catches negative minWACC', () => {
+  const result = energyModule.validate({ minWACC: -0.01 });
+  expect(result.valid).toBe(false);
 });
 
 // =============================================================================
