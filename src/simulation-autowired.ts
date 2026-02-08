@@ -334,9 +334,42 @@ function buildTransforms(mergedEnergyParams: any) {
 }
 
 /**
- * Build lag configurations.
+ * Default capacity factors for totalGeneration and regionalFossilShare derivation.
  */
-function buildLags() {
+const DEFAULT_CAPACITY_FACTORS: Record<EnergySource, number> = {
+  solar: 0.20, wind: 0.30, gas: 0.50, coal: 0.50,
+  nuclear: 0.83, hydro: 0.38, battery: 0,
+};
+
+const FOSSIL_SOURCES: EnergySource[] = ['gas', 'coal'];
+
+/**
+ * Build lag configurations, deriving initial values from params where possible.
+ */
+function buildLags(params: SimulationParams) {
+  const mergedClimate = climateModule.mergeParams(params.climate ?? {});
+  const mergedCapital = capitalModule.mergeParams(params.capital ?? {});
+  const mergedEnergy = energyModule.mergeParams(params.energy ?? {});
+
+  // Derive totalGeneration from capacity2025 × CF × 8760 / 1000
+  let totalGen = 0;
+  const regionalFossilShareInit: Record<string, number> = {};
+  for (const region of REGIONS) {
+    let regionTotal = 0;
+    let regionFossil = 0;
+    const regionalCFs = mergedEnergy.regional[region].capacityFactor ?? {};
+    for (const source of ENERGY_SOURCES) {
+      if (source === 'battery') continue;
+      const cap = mergedEnergy.sources[source].capacity2025[region] ?? 0;
+      const cf = regionalCFs[source] ?? DEFAULT_CAPACITY_FACTORS[source];
+      const gen = (cap * cf * 8760) / 1000;
+      regionTotal += gen;
+      if (FOSSIL_SOURCES.includes(source)) regionFossil += gen;
+    }
+    totalGen += regionTotal;
+    regionalFossilShareInit[region] = regionTotal > 0 ? regionFossil / regionTotal : 0.5;
+  }
+
   return {
     // Demand needs lagged climate damages
     regionalDamages: {
@@ -363,14 +396,14 @@ function buildLags() {
     temperature: {
       source: 'temperature',
       delay: 1,
-      initial: 1.45,
+      initial: mergedClimate.currentTemp,
     },
 
     // Demand needs lagged average LCOE for cost-driven electrification
     laggedAvgLCOE: {
       source: 'weightedAverageLCOE',
       delay: 1,
-      initial: 50,
+      initial: 50,  // No direct param source; 50 $/MWh is reasonable default
     },
 
     // Capital needs lagged net energy factor (from computed transform)
@@ -384,21 +417,21 @@ function buildLags() {
     capitalStock: {
       source: 'stock',
       delay: 1,
-      initial: 553,
+      initial: mergedCapital.initialCapitalStock,
     },
 
     // Production needs lagged total generation
     totalGeneration: {
       source: 'totalGeneration',
       delay: 1,
-      initial: 30000,
+      initial: totalGen,
     },
 
     // Production needs lagged non-electric energy
     nonElectricEnergy: {
       source: 'nonElectricEnergy',
       delay: 1,
-      initial: 92000,
+      initial: 92000,  // ~92,000 TWh in 2025 (IEA); no direct param source
     },
 
     // Production needs lagged food stress
@@ -454,7 +487,7 @@ function buildLags() {
     regionalFossilShare: {
       source: 'regionalFossilShare',
       delay: 1,
-      initial: Object.fromEntries(REGIONS.map(r => [r, 0.5])) as Record<Region, number>,
+      initial: regionalFossilShareInit as Record<Region, number>,
     },
   };
 }
@@ -474,7 +507,7 @@ export function runAutowiredSimulation(
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
 
   const transforms = buildTransforms(mergedEnergyParams);
-  const lags = buildLags();
+  const lags = buildLags(params);
 
   return runAutowired({
     modules: ALL_MODULES,
@@ -754,6 +787,19 @@ export function runAutowiredFull(params: SimulationParams = {}): SimulationResul
 // CLI
 // =============================================================================
 
+function makeSampleYears(startYear: number, endYear: number): number[] {
+  const years = [startYear];
+  const span = endYear - startYear;
+  if (span <= 25) {
+    for (let y = startYear + 5; y <= endYear; y += 5) years.push(y);
+  } else {
+    years.push(startYear + 5, startYear + 15, startYear + 25);
+    years.push(startYear + Math.round(span * 2 / 3));
+    years.push(endYear);
+  }
+  return years.filter(y => y <= endYear);
+}
+
 if (process.argv[1]?.endsWith('simulation-autowired.ts') ||
     process.argv[1]?.endsWith('simulation-autowired.js')) {
 
@@ -763,7 +809,9 @@ if (process.argv[1]?.endsWith('simulation-autowired.ts') ||
     const simResult = runAutowiredFull();
     const { results, metrics } = simResult;
 
-    const sampleYears = [2025, 2030, 2040, 2050, 2075, 2100];
+    const startYear = results[0].year;
+    const endYear = results[results.length - 1].year;
+    const sampleYears = makeSampleYears(startYear, endYear);
 
     console.log('Year  Pop(B)  GDP($T)  Elec(TWh)  Temp(°C)  Grid(kg/MWh)  Solar$/MWh');
     console.log('----  ------  -------  ---------  --------  ------------  ----------');

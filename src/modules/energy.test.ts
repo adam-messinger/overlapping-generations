@@ -175,9 +175,10 @@ test('wind capacity grows over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-test('coal capacity does not grow (no new additions)', () => {
-  const year1 = runYears(1).outputs.additions.coal;
-  expect(year1).toBe(0);
+test('coal additions much smaller than solar', () => {
+  const { outputs } = runYears(5);
+  // Coal may get small demand-gap additions but solar dominates on LCOE
+  expect(outputs.additions.solar).toBeGreaterThan(outputs.additions.coal * 10);
 });
 
 test('cumulative capacity only increases', () => {

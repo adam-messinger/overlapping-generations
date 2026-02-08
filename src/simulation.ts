@@ -282,6 +282,20 @@ export async function runWithScenario(
 // CLI RUNNER
 // =============================================================================
 
+function makeSampleYears(startYear: number, endYear: number): number[] {
+  const years = [startYear];
+  const span = endYear - startYear;
+  if (span <= 25) {
+    for (let y = startYear + 5; y <= endYear; y += 5) years.push(y);
+  } else {
+    // First few closely spaced, then wider
+    years.push(startYear + 5, startYear + 15, startYear + 25);
+    years.push(startYear + Math.round(span * 2 / 3));
+    years.push(endYear);
+  }
+  return years.filter(y => y <= endYear);
+}
+
 async function runCLI() {
   const args = process.argv.slice(2);
 
@@ -386,7 +400,9 @@ async function runCLI() {
   const result = runSimulation(params);
 
   // Print sample years
-  const sampleYears = [2025, 2030, 2040, 2050, 2075, 2100];
+  const startYear = result.results[0].year;
+  const endYear = result.results[result.results.length - 1].year;
+  const sampleYears = makeSampleYears(startYear, endYear);
 
   console.log('Year  Pop(B)  GDP($T)  Elec(TWh)  Temp(°C)  Grid(kg/MWh)  Solar$/MWh');
   console.log('----  ------  -------  ---------  --------  ------------  ----------');

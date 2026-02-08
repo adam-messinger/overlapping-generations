@@ -63,6 +63,9 @@ export interface DemographicsParams {
   migrationMultiplier: number;
   lifeExpectancyGrowth: number;
 
+  // Optional exogenous population trajectory: scales all cohorts to match target total
+  exogenousPopulation?: { year: number; total: number }[];
+
   // Heat stress (Zhao et al. 2021): wet-bulb temperature reduces outdoor labor productivity
   heatStress: Record<Region, HeatStressParams>;
   heatStressThreshold: number;    // Wet-bulb °C where productivity loss begins (33°C)
@@ -489,6 +492,26 @@ function ageCohorts(
   };
 }
 
+/**
+ * Linearly interpolate exogenous population for a given year.
+ * Clamps to first/last value outside data range.
+ */
+function interpolateExogenousPop(
+  year: number,
+  data: { year: number; total: number }[]
+): number {
+  if (data.length === 0) return 0;
+  if (year <= data[0].year) return data[0].total;
+  if (year >= data[data.length - 1].year) return data[data.length - 1].total;
+  for (let i = 0; i < data.length - 1; i++) {
+    if (year >= data[i].year && year <= data[i + 1].year) {
+      const t = (year - data[i].year) / (data[i + 1].year - data[i].year);
+      return data[i].total + t * (data[i + 1].total - data[i].total);
+    }
+  }
+  return data[data.length - 1].total;
+}
+
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
@@ -751,6 +774,35 @@ export const demographicsModule: Module<
       totalEffective += regionEffective;
       totalCollegeWorkers += collegeWorkers;
       regionalEffectiveWorkers[region] = regionEffective;
+    }
+
+    // Exogenous population scaling: preserve age structure, scale to target total
+    if (params.exogenousPopulation && params.exogenousPopulation.length > 0) {
+      const target = interpolateExogenousPop(year, params.exogenousPopulation);
+      if (totalPop > 0) {
+        const scale = target / totalPop;
+        for (const region of REGIONS) {
+          const rs = newRegions[region];
+          rs.population *= scale;
+          rs.young *= scale;
+          rs.working *= scale;
+          rs.old *= scale;
+          rs.workingCollege *= scale;
+          rs.workingNonCollege *= scale;
+          rs.oldCollege *= scale;
+          rs.oldNonCollege *= scale;
+          regionalPopulation[region] *= scale;
+          regionalYoung[region] *= scale;
+          regionalWorking[region] *= scale;
+          regionalOld[region] *= scale;
+          regionalEffectiveWorkers[region] *= scale;
+        }
+        totalPop *= scale;
+        totalWorking *= scale;
+        totalOld *= scale;
+        totalEffective *= scale;
+        totalCollegeWorkers *= scale;
+      }
     }
 
     const globalCollegeShare = totalWorking > 0 ? totalCollegeWorkers / totalWorking : 0;

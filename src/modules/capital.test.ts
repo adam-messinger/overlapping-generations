@@ -275,8 +275,14 @@ test('validation catches invalid depreciation', () => {
   expect(result.valid).toBe(false);
 });
 
+test('validation accepts small capital stock within range', () => {
+  const result = capitalModule.validate({ initialCapitalStock: 5 });
+  expect(result.valid).toBeTrue();
+  expect(result.warnings.length).toBe(0);
+});
+
 test('validation warns on extreme capital stock', () => {
-  const result = capitalModule.validate({ initialCapitalStock: 50 });
+  const result = capitalModule.validate({ initialCapitalStock: 0.5 });
   expect(result.valid).toBeTrue();
   expect(result.warnings.length).toBeGreaterThan(0);
 });

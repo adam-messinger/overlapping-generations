@@ -408,8 +408,8 @@ export const capitalModule: Module<
     }
 
     if (params.initialCapitalStock !== undefined) {
-      if (params.initialCapitalStock < 100 || params.initialCapitalStock > 1000) {
-        warnings.push('Initial capital stock outside typical range ($100T-$1000T)');
+      if (params.initialCapitalStock < 1 || params.initialCapitalStock > 1000) {
+        warnings.push('Initial capital stock outside typical range ($1T-$1000T)');
       }
     }
 

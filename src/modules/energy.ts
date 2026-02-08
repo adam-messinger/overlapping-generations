@@ -1092,8 +1092,12 @@ export const energyModule: Module<
         regionalLCOE[source] = lcoe;
       }
 
-      // Find cheapest fossil LCOE for this region
+      // Find cheapest LCOE from each side for bilateral competitiveness
       const cheapestFossilLCOE = Math.min(regionalLCOE.gas, regionalLCOE.coal);
+      const cheapestCleanLCOE = Math.min(
+        regionalLCOE.solar, regionalLCOE.wind,
+        regionalLCOE.nuclear, regionalLCOE.hydro
+      );
 
       // Clean energy share grows over time (e.g., 15% → 30% over 25 years)
       const cleanShare = params.cleanEnergyShare2025 +
@@ -1125,27 +1129,9 @@ export const energyModule: Module<
 
         // Calculate target addition
         let targetAddition: number;
+        const MIN_CAPACITY_GROWTH = 0.01;
 
-        if (source === 'solar' || source === 'wind' || source === 'nuclear' || source === 'hydro') {
-          const currentGenTWh = (prevInstalled * cf * 8760) / 1000;
-          const demandGapTWh = Math.max(0, maxUsefulGen - currentGenTWh);
-          const demandGapGW = (demandGapTWh * 1000) / (cf * 8760);
-
-          const isCompetitive = regionalLCOE[source] <= cheapestFossilLCOE * params.competitiveThreshold;
-
-          if (isCompetitive && demandGapGW > 0) {
-            targetAddition = demandGapGW * params.demandFillRate;
-            // Curtailment feedback: dampen VRE additions when curtailment is high
-            if (source === 'solar' || source === 'wind') {
-              const curtRate = inputs.laggedCurtailmentRate ?? 0;
-              const curtailmentDamping = Math.max(0.1, 1 - params.curtailmentPenalty * curtRate);
-              targetAddition *= curtailmentDamping;
-            }
-          } else {
-            const MIN_CAPACITY_GROWTH = 0.01;
-            targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
-          }
-        } else if (source === 'battery') {
+        if (source === 'battery') {
           const solarGW = state.regional[region].solar.installed;
           const solarAdditions = desiredAdditions.solar ?? 0;
           const futureSolarGW = solarGW + solarAdditions;
@@ -1162,11 +1148,32 @@ export const energyModule: Module<
           if (isCompetitive && batteryGap > 0) {
             targetAddition = batteryGap * params.demandFillRate;
           } else {
-            const MIN_CAPACITY_GROWTH = 0.01;
             targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
           }
         } else {
-          targetAddition = prevInstalled * s.growthRate;
+          // Unified demand-gap targeting for all non-battery sources
+          const currentGenTWh = (prevInstalled * cf * 8760) / 1000;
+          const demandGapTWh = Math.max(0, maxUsefulGen - currentGenTWh);
+          const demandGapGW = (demandGapTWh * 1000) / (cf * 8760);
+
+          // Bilateral competitiveness: compare against cheapest from the other side
+          const isFossil = source === 'gas' || source === 'coal';
+          const otherSideLCOE = isFossil ? cheapestCleanLCOE : cheapestFossilLCOE;
+          const isCompetitive = regionalLCOE[source] <= otherSideLCOE * params.competitiveThreshold;
+
+          if (isCompetitive && demandGapGW > 0) {
+            targetAddition = demandGapGW * params.demandFillRate;
+            // Curtailment feedback: dampen VRE additions when curtailment is high
+            if (source === 'solar' || source === 'wind') {
+              const curtRate = inputs.laggedCurtailmentRate ?? 0;
+              const curtailmentDamping = Math.max(0.1, 1 - params.curtailmentPenalty * curtRate);
+              targetAddition *= curtailmentDamping;
+            }
+          } else {
+            // Clean sources: small baseline growth (R&D, pilots)
+            // Fossil sources: no new builds when uncompetitive
+            targetAddition = isFossil ? 0 : prevInstalled * MIN_CAPACITY_GROWTH;
+          }
         }
 
         // Regional growth cap

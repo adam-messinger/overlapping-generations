@@ -325,6 +325,64 @@ test('module has correct metadata', () => {
 });
 
 // =============================================================================
+// EXOGENOUS POPULATION
+// =============================================================================
+
+console.log('\n--- Exogenous Population ---\n');
+
+function runYearsWithParams(years: number, partial: Partial<import('./demographics.js').DemographicsParams>) {
+  const params = demographicsModule.mergeParams(partial);
+  let state = demographicsModule.init(params);
+  let outputs: any;
+  for (let i = 0; i < years; i++) {
+    const result = demographicsModule.step(state, {}, params, 2025 + i, i);
+    state = result.state;
+    outputs = result.outputs;
+  }
+  return { state, outputs };
+}
+
+test('absent exogenousPopulation has no effect', () => {
+  const baseline = runYears(25);
+  const withUndefined = runYearsWithParams(25, {});
+  expect(withUndefined.outputs.population).toBe(baseline.outputs.population);
+});
+
+test('exact data point year hits target', () => {
+  const target = 5e9;
+  const { outputs } = runYearsWithParams(1, {
+    exogenousPopulation: [{ year: 2025, total: target }],
+  });
+  expect(Math.abs(outputs.population - target)).toBeLessThan(1e6);
+});
+
+test('interpolation between data points', () => {
+  const { outputs } = runYearsWithParams(6, {
+    exogenousPopulation: [
+      { year: 2025, total: 8e9 },
+      { year: 2035, total: 10e9 },
+    ],
+  });
+  // year=2030 (yearIndex=5) should be halfway between 8B and 10B = 9B
+  expect(Math.abs(outputs.population - 9e9)).toBeLessThan(1e8);
+});
+
+test('age structure preserved after scaling', () => {
+  // Run without exogenous to get baseline ratios
+  const baseline = runYears(10);
+  const baseYoungShare = baseline.outputs.regionalYoung.oecd / baseline.outputs.regionalPopulation.oecd;
+
+  // Run with exogenous population (doubled)
+  const scaled = runYearsWithParams(10, {
+    exogenousPopulation: [{ year: 2025, total: 16e9 }, { year: 2050, total: 20e9 }],
+  });
+  const scaledYoungShare = scaled.outputs.regionalYoung.oecd / scaled.outputs.regionalPopulation.oecd;
+
+  // Ratios should be the same (scaling is uniform)
+  expect(Math.abs(scaledYoungShare - baseYoungShare)).toBeLessThan(0.01);
+});
+
+// =============================================================================
 // SUMMARY
 // =============================================================================
 
