@@ -31,6 +31,7 @@ import { learningCurve, depletion } from '../primitives/math.js';
 import { validatedMerge } from '../framework/validated-merge.js';
 import { distributeByGDP } from '../primitives/distribute.js';
 
+
 // =============================================================================
 // PARAMETERS
 // =============================================================================
@@ -657,13 +658,6 @@ export const energyModule: Module<
           range: { min: 0.1, max: 0.5, default: 0.36 },
           tier: 1 as const,
         },
-        growthRate: {
-          paramName: 'solarGrowthRate',
-          description: 'Base annual growth rate for solar capacity (25% = doubling every ~3 years).',
-          unit: 'fraction/year',
-          range: { min: 0.05, max: 0.40, default: 0.25 },
-          tier: 1 as const,
-        },
       },
       wind: {
         alpha: {
@@ -671,13 +665,6 @@ export const energyModule: Module<
           description: "Wright's Law learning exponent for wind. Lower than solar due to mature technology.",
           unit: 'dimensionless',
           range: { min: 0.1, max: 0.4, default: 0.23 },
-          tier: 1 as const,
-        },
-        growthRate: {
-          paramName: 'windGrowthRate',
-          description: 'Base annual growth rate for wind capacity.',
-          unit: 'fraction/year',
-          range: { min: 0.05, max: 0.30, default: 0.18 },
           tier: 1 as const,
         },
       },
@@ -693,12 +680,6 @@ export const energyModule: Module<
     },
     curtailmentPenalty: {
       description: 'How strongly curtailment dampens VRE additions. At 30% curtailment and penalty=2: additions reduced 60%.',
-      unit: 'dimensionless',
-      range: { min: 0, max: 5, default: 2.0 },
-      tier: 1 as const,
-    },
-    curtailmentStorageBoost: {
-      description: 'How strongly curtailment boosts battery storage target. At 30% curtailment and boost=2: target 60% higher.',
       unit: 'dimensionless',
       range: { min: 0, max: 5, default: 2.0 },
       tier: 1 as const,
@@ -831,9 +812,6 @@ export const energyModule: Module<
     // Curtailment feedback
     if (p.curtailmentPenalty !== undefined && p.curtailmentPenalty < 0) {
       errors.push('curtailmentPenalty cannot be negative');
-    }
-    if (p.curtailmentStorageBoost !== undefined && p.curtailmentStorageBoost < 0) {
-      errors.push('curtailmentStorageBoost cannot be negative');
     }
     // WACC
     if (p.riskPremium !== undefined && p.riskPremium < 0) {

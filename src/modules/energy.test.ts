@@ -582,11 +582,6 @@ test('validation catches negative curtailmentPenalty', () => {
   expect(result.valid).toBe(false);
 });
 
-test('validation catches negative curtailmentStorageBoost', () => {
-  const result = energyModule.validate({ curtailmentStorageBoost: -1 });
-  expect(result.valid).toBe(false);
-});
-
 test('validation catches negative riskPremium', () => {
   const result = energyModule.validate({ riskPremium: -0.01 });
   expect(result.valid).toBe(false);

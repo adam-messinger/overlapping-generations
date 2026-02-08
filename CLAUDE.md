@@ -161,7 +161,7 @@ For LLM agents, `describeParameters()` and `describeOutputs()` return structured
 ```typescript
 import { describeParameters, describeOutputs, buildParams } from './src/index.js';
 
-// 53 Tier-1 parameters
+// 46 Tier-1 parameters
 const schema = describeParameters();
 // schema.carbonPrice = { type, default, min, max, unit, description, path }
 
@@ -174,7 +174,7 @@ const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-53 Tier-1 parameters available for scenario exploration.
+46 Tier-1 parameters available for scenario exploration.
 
 ## Programmatic Use
 

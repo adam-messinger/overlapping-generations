@@ -186,12 +186,6 @@ export const climateModule: Module<
       range: { min: 1.5, max: 4.0, default: 2.0 },
       tier: 1 as const,
     },
-    maxDamage: {
-      description: 'Cap on climate damages as fraction of GDP. 50% allows SSA 2.0x multiplier headroom.',
-      unit: 'fraction of GDP',
-      range: { min: 0.15, max: 0.70, default: 0.50 },
-      tier: 1 as const,
-    },
     adaptation: {
       adaptationRate: {
         paramName: 'adaptationRate',

@@ -1,8 +1,8 @@
 /**
- * Parameter Sweep: One-at-a-Time Sensitivity Analysis
+ * Parameter Sweep: Full Cross Scenarios × Parameters Sensitivity Analysis
  *
- * Systematically varies each Tier-1 parameter and ranks by impact on key outcomes.
- * Also compares scenario spread on the same metrics.
+ * Perturbs every Tier-1 parameter within every scenario (default + 16 files),
+ * then reports sensitivity rankings across the full matrix.
  *
  * Usage:
  *   npx tsx scripts/parameter-sweep.ts
@@ -17,6 +17,7 @@ import {
   loadScenario,
   scenarioToParams,
 } from '../src/index.js';
+import { deepMerge } from '../src/scenario.js';
 import type { SimulationResult, YearResult } from '../src/index.js';
 
 // =============================================================================
@@ -37,6 +38,12 @@ interface SweepResult {
   lowResult: number;
   highResult: number;
   sensitivity: number; // |high - low| / |baseline| (or absolute if baseline ≈ 0)
+}
+
+interface ScenarioSweep {
+  scenarioName: string;
+  baselineMetrics: Record<string, number>;
+  paramResults: Record<string, SweepResult[]>; // metric name → per-param results
 }
 
 // =============================================================================
@@ -62,7 +69,6 @@ const METRICS: MetricDef[] = [
 
 function computeSensitivity(baseline: number, low: number, high: number): number {
   const delta = Math.abs(high - low);
-  // If baseline is near zero, use absolute delta
   if (Math.abs(baseline) < 1e-6) return delta;
   return delta / Math.abs(baseline);
 }
@@ -84,179 +90,268 @@ function formatValue(v: number, unit: string): string {
   return v.toFixed(3);
 }
 
+function geoMean(values: number[]): number {
+  const eps = 1e-6;
+  const logSum = values.reduce((sum, s) => sum + Math.log(s + eps), 0);
+  return Math.max(0, Math.exp(logSum / values.length) - eps);
+}
+
 // =============================================================================
-// MAIN SWEEP
+// PARAM PERTURBATION VALUES (shared across all scenarios)
 // =============================================================================
 
-async function main() {
-  const t0 = Date.now();
-  const schema = describeParameters();
-  const paramNames = Object.keys(schema);
-  console.log(`Found ${paramNames.length} Tier-1 parameters\n`);
+interface ParamPerturbation {
+  name: string;
+  lowValue: number | boolean;
+  highValue: number | boolean;
+}
 
-  // ---- BASELINE ----
-  console.log('Running baseline...');
-  const baseline = runSimulation();
-  const baselineMetrics: Record<string, number> = {};
-  for (const m of METRICS) {
-    baselineMetrics[m.name] = m.extract(baseline);
-  }
+function computePerturbations(schema: Record<string, any>): ParamPerturbation[] {
+  const perturbations: ParamPerturbation[] = [];
 
-  console.log('Baseline values:');
-  for (const m of METRICS) {
-    console.log(`  ${pad(m.name, 22)} ${formatValue(baselineMetrics[m.name], m.unit)}`);
-  }
-  console.log('');
-
-  // ---- PARAMETER SWEEP ----
-  // For each param: run at 10th and 90th percentile of range
-  const allResults: Record<string, SweepResult[]> = {};
-  for (const m of METRICS) {
-    allResults[m.name] = [];
-  }
-
-  let runCount = 0;
-  const skipped: string[] = [];
-
-  for (const name of paramNames) {
+  for (const name of Object.keys(schema)) {
     const info = schema[name];
 
-    let lowValue: number | boolean;
-    let highValue: number | boolean;
-
     if (info.type === 'boolean') {
-      lowValue = false;
-      highValue = true;
+      perturbations.push({ name, lowValue: false, highValue: true });
     } else {
-      if (info.min === undefined || info.max === undefined) {
-        skipped.push(name);
-        continue;
-      }
-      // 10th and 90th percentile of range
-      lowValue = info.min + 0.1 * (info.max - info.min);
-      highValue = info.min + 0.9 * (info.max - info.min);
-
-      // Skip if low == high (zero-width range)
-      if (Math.abs((highValue as number) - (lowValue as number)) < 1e-12) {
-        skipped.push(name);
-        continue;
-      }
+      if (info.min === undefined || info.max === undefined) continue;
+      const low = info.min + 0.1 * (info.max - info.min);
+      const high = info.min + 0.9 * (info.max - info.min);
+      if (Math.abs(high - low) < 1e-12) continue;
+      perturbations.push({ name, lowValue: low, highValue: high });
     }
+  }
 
-    // Build params and run
+  return perturbations;
+}
+
+// =============================================================================
+// SWEEP ONE SCENARIO
+// =============================================================================
+
+function sweepScenario(
+  scenarioName: string,
+  scenarioParams: Record<string, unknown>,
+  perturbations: ParamPerturbation[],
+): { sweep: ScenarioSweep; runCount: number; skipped: string[] } {
+  // Run scenario baseline
+  const baselineResult = runSimulation(scenarioParams as any);
+  const baselineMetrics: Record<string, number> = {};
+  for (const m of METRICS) {
+    baselineMetrics[m.name] = m.extract(baselineResult);
+  }
+
+  const paramResults: Record<string, SweepResult[]> = {};
+  for (const m of METRICS) {
+    paramResults[m.name] = [];
+  }
+
+  let runCount = 1; // baseline
+  const skipped: string[] = [];
+
+  for (const p of perturbations) {
     let lowResult: SimulationResult;
     let highResult: SimulationResult;
+
     try {
-      const lowParams = buildMultiParams({ [name]: lowValue });
-      lowResult = runSimulation(lowParams as any);
+      const lowOverride = buildMultiParams({ [p.name]: p.lowValue });
+      const merged = deepMerge(scenarioParams, lowOverride);
+      lowResult = runSimulation(merged as any);
       runCount++;
-    } catch (e) {
-      console.warn(`  SKIP ${name} (low=${lowValue}): ${(e as Error).message}`);
-      skipped.push(name);
+    } catch {
+      skipped.push(p.name);
       continue;
     }
 
     try {
-      const highParams = buildMultiParams({ [name]: highValue });
-      highResult = runSimulation(highParams as any);
+      const highOverride = buildMultiParams({ [p.name]: p.highValue });
+      const merged = deepMerge(scenarioParams, highOverride);
+      highResult = runSimulation(merged as any);
       runCount++;
-    } catch (e) {
-      console.warn(`  SKIP ${name} (high=${highValue}): ${(e as Error).message}`);
-      skipped.push(name);
+    } catch {
+      skipped.push(p.name);
       continue;
     }
 
-    // Extract metrics
     for (const m of METRICS) {
       const bv = baselineMetrics[m.name];
       const lv = m.extract(lowResult);
       const hv = m.extract(highResult);
-      allResults[m.name].push({
-        param: name,
-        lowValue,
-        highValue,
+      paramResults[m.name].push({
+        param: p.name,
+        lowValue: p.lowValue,
+        highValue: p.highValue,
         baseline: bv,
         lowResult: lv,
         highResult: hv,
         sensitivity: computeSensitivity(bv, lv, hv),
       });
     }
-
-    // Progress
-    const paramIdx = paramNames.indexOf(name) + 1;
-    if (paramIdx % 10 === 0) {
-      console.log(`  ${paramIdx}/${paramNames.length} params done...`);
-    }
   }
 
-  console.log(`\nCompleted ${runCount} simulation runs (${skipped.length} params skipped)`);
-  if (skipped.length > 0) {
-    console.log(`Skipped: ${skipped.join(', ')}`);
+  return {
+    sweep: { scenarioName, baselineMetrics, paramResults },
+    runCount,
+    skipped,
+  };
+}
+
+// =============================================================================
+// MAIN
+// =============================================================================
+
+async function main() {
+  const t0 = Date.now();
+  const schema = describeParameters();
+  const perturbations = computePerturbations(schema);
+  console.log(`Found ${Object.keys(schema).length} Tier-1 parameters, ${perturbations.length} perturbable\n`);
+
+  // ---- BUILD SCENARIO LIST ----
+  const scenarioFiles = (await listScenarios()).filter(s => !s.startsWith('test-'));
+  const scenarioEntries: { name: string; params: Record<string, unknown> }[] = [
+    { name: '(default)', params: {} },
+  ];
+
+  for (const scenName of scenarioFiles) {
+    const scenPath = getScenarioPath(scenName);
+    const scenario = await loadScenario(scenPath);
+    scenarioEntries.push({ name: scenName, params: scenarioToParams(scenario) as Record<string, unknown> });
   }
 
-  // ---- PER-METRIC RANKINGS ----
-  const TOP_N = 15;
+  console.log(`Scenarios: ${scenarioEntries.length} (default + ${scenarioFiles.length} files)`);
+  console.log(`Total runs: ~${scenarioEntries.length} baselines + ${scenarioEntries.length} × ${perturbations.length} × 2 param runs = ~${scenarioEntries.length + scenarioEntries.length * perturbations.length * 2}\n`);
 
-  console.log('\n' + '='.repeat(80));
-  console.log('PARAMETER SENSITIVITY RANKINGS');
-  console.log('='.repeat(80));
+  // ---- SWEEP ALL SCENARIOS ----
+  const sweeps: ScenarioSweep[] = [];
+  let totalRuns = 0;
 
+  for (const entry of scenarioEntries) {
+    const st = Date.now();
+    const { sweep, runCount, skipped } = sweepScenario(entry.name, entry.params, perturbations);
+    sweeps.push(sweep);
+    totalRuns += runCount;
+    const elapsed = ((Date.now() - st) / 1000).toFixed(1);
+    const skipMsg = skipped.length > 0 ? ` (${skipped.length} skipped)` : '';
+    console.log(`  ${pad(entry.name, 24)} ${runCount} runs in ${elapsed}s${skipMsg}`);
+  }
+
+  // ==========================================================================
+  // SECTION 1: SCENARIO BASELINES
+  // ==========================================================================
+  console.log('\n' + '='.repeat(100));
+  console.log('SECTION 1: SCENARIO BASELINES');
+  console.log('='.repeat(100));
+
+  const scenMetricHeaders = METRICS.map(m => rpad(m.name.replace('2100', '').slice(0, 10), 12));
+  console.log(`\n${pad('Scenario', 24)}  ${scenMetricHeaders.join('  ')}`);
+  console.log(`${'-'.repeat(24)}  ${scenMetricHeaders.map(() => '-'.repeat(12)).join('  ')}`);
+
+  for (const sweep of sweeps) {
+    const cells = METRICS.map(m => rpad(formatValue(sweep.baselineMetrics[m.name], m.unit), 12));
+    console.log(`${pad(sweep.scenarioName, 24)}  ${cells.join('  ')}`);
+  }
+
+  // Spread row
+  console.log(`\n${pad('--- SPREAD ---', 24)}`);
   for (const m of METRICS) {
-    const results = allResults[m.name];
-    results.sort((a, b) => b.sensitivity - a.sensitivity);
+    const values = sweeps.map(s => s.baselineMetrics[m.name]);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const spread = maxV - minV;
+    const defaultBaseline = sweeps[0].baselineMetrics[m.name];
+    const relSpread = Math.abs(defaultBaseline) > 1e-6 ? spread / Math.abs(defaultBaseline) : spread;
+    console.log(
+      `  ${pad(m.name, 22)} range: ${formatValue(minV, m.unit)} → ${formatValue(maxV, m.unit)}` +
+      `  spread: ${relSpread.toFixed(3)} (${formatValue(spread, m.unit)})`
+    );
+  }
 
-    console.log(`\n=== ${m.name.toUpperCase()} (baseline: ${formatValue(baselineMetrics[m.name], m.unit)}) ===`);
-    console.log(`${rpad('Rank', 4)}  ${pad('Parameter', 28)}  ${pad('Low → High', 28)}  ${rpad('Sensitivity', 11)}`);
-    console.log(`${'-'.repeat(4)}  ${'-'.repeat(28)}  ${'-'.repeat(28)}  ${'-'.repeat(11)}`);
+  // ==========================================================================
+  // SECTION 2: PER-SCENARIO TOP-10
+  // ==========================================================================
+  console.log('\n' + '='.repeat(100));
+  console.log('SECTION 2: PER-SCENARIO TOP-10 (by geo-mean importance)');
+  console.log('='.repeat(100));
 
-    const top = results.slice(0, TOP_N);
+  for (const sweep of sweeps) {
+    // Compute overall importance per param for this scenario
+    const paramSet = new Set<string>();
+    for (const m of METRICS) {
+      for (const r of sweep.paramResults[m.name]) {
+        paramSet.add(r.param);
+      }
+    }
+
+    const scores: { param: string; gm: number }[] = [];
+    for (const param of paramSet) {
+      const sensitivities = METRICS.map(m => {
+        const entry = sweep.paramResults[m.name].find(r => r.param === param);
+        return entry ? entry.sensitivity : 0;
+      });
+      scores.push({ param, gm: geoMean(sensitivities) });
+    }
+    scores.sort((a, b) => b.gm - a.gm);
+
+    console.log(`\n--- ${sweep.scenarioName} ---`);
+    const top = scores.slice(0, 10);
     for (let i = 0; i < top.length; i++) {
-      const r = top[i];
-      const arrow = `${formatValue(r.lowResult, m.unit)} → ${formatValue(r.highResult, m.unit)}`;
+      const s = top[i];
+      // Show per-metric sensitivities inline
+      const perMetric = METRICS.map(m => {
+        const entry = sweep.paramResults[m.name].find(r => r.param === s.param);
+        return (entry ? entry.sensitivity : 0).toFixed(3);
+      });
       console.log(
-        `${rpad(String(i + 1), 4)}  ${pad(r.param, 28)}  ${pad(arrow, 28)}  ${rpad(r.sensitivity.toFixed(3), 11)}`
+        `  ${rpad(String(i + 1), 2)}. ${pad(s.param, 28)} gm=${s.gm.toFixed(4)}  [${perMetric.join(' ')}]`
       );
     }
   }
 
-  // ---- OVERALL IMPORTANCE (geometric mean across metrics) ----
-  console.log('\n' + '='.repeat(80));
-  console.log('OVERALL IMPORTANCE (geometric mean of sensitivities across all metrics)');
-  console.log('='.repeat(80));
+  // ==========================================================================
+  // SECTION 3: CROSS-SCENARIO MAX SENSITIVITY
+  // ==========================================================================
+  console.log('\n' + '='.repeat(100));
+  console.log('SECTION 3: CROSS-SCENARIO MAX SENSITIVITY (worst-case importance)');
+  console.log('='.repeat(100));
 
-  // Collect all params that appeared in at least one metric
-  const paramSet = new Set<string>();
-  for (const m of METRICS) {
-    for (const r of allResults[m.name]) {
-      paramSet.add(r.param);
+  // For each param, take MAX sensitivity across all scenarios for each metric
+  const allParams = new Set<string>();
+  for (const sweep of sweeps) {
+    for (const m of METRICS) {
+      for (const r of sweep.paramResults[m.name]) {
+        allParams.add(r.param);
+      }
     }
   }
 
-  const overallScores: { param: string; geoMean: number; perMetric: Record<string, number> }[] = [];
+  const maxSensScores: { param: string; gm: number; perMetric: Record<string, number>; worstScenario: Record<string, string> }[] = [];
 
-  for (const param of paramSet) {
-    const sensitivities: number[] = [];
+  for (const param of allParams) {
     const perMetric: Record<string, number> = {};
+    const worstScenario: Record<string, string> = {};
 
     for (const m of METRICS) {
-      const entry = allResults[m.name].find(r => r.param === param);
-      const s = entry ? entry.sensitivity : 0;
-      sensitivities.push(s);
-      perMetric[m.name] = s;
+      let maxSens = 0;
+      let worstScen = '';
+      for (const sweep of sweeps) {
+        const entry = sweep.paramResults[m.name].find(r => r.param === param);
+        if (entry && entry.sensitivity > maxSens) {
+          maxSens = entry.sensitivity;
+          worstScen = sweep.scenarioName;
+        }
+      }
+      perMetric[m.name] = maxSens;
+      worstScenario[m.name] = worstScen;
     }
 
-    // Geometric mean (add small epsilon to avoid zero-product)
-    const eps = 1e-6;
-    const logSum = sensitivities.reduce((sum, s) => sum + Math.log(s + eps), 0);
-    const geoMean = Math.exp(logSum / sensitivities.length) - eps;
-
-    overallScores.push({ param, geoMean: Math.max(0, geoMean), perMetric });
+    const gm = geoMean(Object.values(perMetric));
+    maxSensScores.push({ param, gm, perMetric, worstScenario });
   }
 
-  overallScores.sort((a, b) => b.geoMean - a.geoMean);
+  maxSensScores.sort((a, b) => b.gm - a.gm);
 
-  // Header
-  const metricHeaders = METRICS.map(m => rpad(m.name.replace('2100', '').replace('2100', '').slice(0, 8), 8));
+  const metricHeaders = METRICS.map(m => rpad(m.name.replace('2100', '').slice(0, 8), 8));
   console.log(
     `\n${rpad('Rank', 4)}  ${pad('Parameter', 28)}  ${rpad('Overall', 8)}  ${metricHeaders.join('  ')}`
   );
@@ -264,114 +359,111 @@ async function main() {
     `${'-'.repeat(4)}  ${'-'.repeat(28)}  ${'-'.repeat(8)}  ${metricHeaders.map(() => '-'.repeat(8)).join('  ')}`
   );
 
-  for (let i = 0; i < overallScores.length; i++) {
-    const s = overallScores[i];
+  for (let i = 0; i < maxSensScores.length; i++) {
+    const s = maxSensScores[i];
     const cells = METRICS.map(m => rpad(s.perMetric[m.name].toFixed(3), 8));
     console.log(
-      `${rpad(String(i + 1), 4)}  ${pad(s.param, 28)}  ${rpad(s.geoMean.toFixed(4), 8)}  ${cells.join('  ')}`
+      `${rpad(String(i + 1), 4)}  ${pad(s.param, 28)}  ${rpad(s.gm.toFixed(4), 8)}  ${cells.join('  ')}`
     );
   }
 
-  // ---- SCENARIO COMPARISON ----
-  console.log('\n' + '='.repeat(80));
-  console.log('SCENARIO COMPARISON (same 8 metrics)');
-  console.log('='.repeat(80));
+  // ==========================================================================
+  // SECTION 4: CONDITIONALLY IMPORTANT PARAMS
+  // ==========================================================================
+  console.log('\n' + '='.repeat(100));
+  console.log('SECTION 4: CONDITIONALLY IMPORTANT PARAMS');
+  console.log('(max sensitivity > 0.01 in some scenario, but < 0.001 in default baseline)');
+  console.log('='.repeat(100));
 
-  const scenarios = await listScenarios();
-  // Filter out test scenarios
-  const realScenarios = scenarios.filter(s => !s.startsWith('test-'));
+  const defaultSweep = sweeps[0]; // (default)
 
-  // Header
-  const scenMetricHeaders = METRICS.map(m => rpad(m.name.replace('2100', '').slice(0, 10), 12));
-  console.log(
-    `\n${pad('Scenario', 24)}  ${scenMetricHeaders.join('  ')}`
-  );
-  console.log(
-    `${'-'.repeat(24)}  ${scenMetricHeaders.map(() => '-'.repeat(12)).join('  ')}`
-  );
+  const conditionalParams: { param: string; defaultGm: number; maxGm: number; bestScenario: string }[] = [];
 
-  // Baseline row
-  {
-    const cells = METRICS.map(m => rpad(formatValue(baselineMetrics[m.name], m.unit), 12));
-    console.log(`${pad('baseline (default)', 24)}  ${cells.join('  ')}`);
-  }
+  for (const param of allParams) {
+    // Default sensitivity: geo-mean across metrics
+    const defaultSens = METRICS.map(m => {
+      const entry = defaultSweep.paramResults[m.name].find(r => r.param === param);
+      return entry ? entry.sensitivity : 0;
+    });
+    const defaultGm = geoMean(defaultSens);
 
-  const scenarioResults: { name: string; metrics: Record<string, number> }[] = [];
+    // Max sensitivity across all scenarios (per-metric max, then geo-mean)
+    const maxEntry = maxSensScores.find(s => s.param === param);
+    const maxGm = maxEntry ? maxEntry.gm : 0;
 
-  for (const scenName of realScenarios) {
-    try {
-      const scenPath = getScenarioPath(scenName);
-      const scenario = await loadScenario(scenPath);
-      const params = scenarioToParams(scenario);
-      const result = runSimulation(params as any);
-
-      const metricVals: Record<string, number> = {};
-      for (const m of METRICS) {
-        metricVals[m.name] = m.extract(result);
+    // Find which scenario gives highest geo-mean
+    let bestScenario = '(default)';
+    let bestScenGm = 0;
+    for (const sweep of sweeps) {
+      const sens = METRICS.map(m => {
+        const entry = sweep.paramResults[m.name].find(r => r.param === param);
+        return entry ? entry.sensitivity : 0;
+      });
+      const gm = geoMean(sens);
+      if (gm > bestScenGm) {
+        bestScenGm = gm;
+        bestScenario = sweep.scenarioName;
       }
-      scenarioResults.push({ name: scenName, metrics: metricVals });
+    }
 
-      const cells = METRICS.map(m => rpad(formatValue(metricVals[m.name], m.unit), 12));
-      console.log(`${pad(scenName, 24)}  ${cells.join('  ')}`);
-    } catch (e) {
-      console.log(`${pad(scenName, 24)}  ERROR: ${(e as Error).message}`);
+    if (maxGm > 0.01 && defaultGm < 0.001) {
+      conditionalParams.push({ param, defaultGm, maxGm, bestScenario });
     }
   }
 
-  // Compute scenario spread (max - min for each metric)
-  console.log(`\n${pad('--- SPREAD ---', 24)}`);
-  const allScenMetrics = [
-    { name: 'baseline', metrics: baselineMetrics },
-    ...scenarioResults,
-  ];
+  conditionalParams.sort((a, b) => b.maxGm - a.maxGm);
 
-  for (const m of METRICS) {
-    const values = allScenMetrics.map(s => s.metrics[m.name]);
-    const minV = Math.min(...values);
-    const maxV = Math.max(...values);
-    const spread = maxV - minV;
-    const relSpread = Math.abs(baselineMetrics[m.name]) > 1e-6
-      ? spread / Math.abs(baselineMetrics[m.name])
-      : spread;
-
+  if (conditionalParams.length === 0) {
+    console.log('\n  (none found)');
+  } else {
     console.log(
-      `  ${pad(m.name, 22)} range: ${formatValue(minV, m.unit)} → ${formatValue(maxV, m.unit)}` +
-      `  spread: ${relSpread.toFixed(3)} (${formatValue(spread, m.unit)})`
+      `\n${pad('Parameter', 28)}  ${rpad('Default gm', 10)}  ${rpad('Max gm', 10)}  Best Scenario`
     );
+    console.log(
+      `${'-'.repeat(28)}  ${'-'.repeat(10)}  ${'-'.repeat(10)}  ${'-'.repeat(24)}`
+    );
+    for (const c of conditionalParams) {
+      console.log(
+        `${pad(c.param, 28)}  ${rpad(c.defaultGm.toFixed(6), 10)}  ${rpad(c.maxGm.toFixed(4), 10)}  ${c.bestScenario}`
+      );
+    }
   }
 
-  // ---- PARAM SWEEP vs SCENARIO SPREAD ----
-  console.log('\n' + '='.repeat(80));
-  console.log('PARAMETER SWEEP vs SCENARIO SPREAD');
-  console.log('Which matters more: parameter uncertainty or scenario choice?');
-  console.log('='.repeat(80));
+  // ==========================================================================
+  // SECTION 5: DEAD PARAMS
+  // ==========================================================================
+  console.log('\n' + '='.repeat(100));
+  console.log('SECTION 5: DEAD PARAMS (max sensitivity < 0.001 across ALL scenarios)');
+  console.log('Candidates for hardcoding or removal.');
+  console.log('='.repeat(100));
 
-  for (const m of METRICS) {
-    const results = allResults[m.name];
-    if (results.length === 0) continue;
+  const deadParams: { param: string; maxSens: number }[] = [];
 
-    // Max single-parameter swing
-    const topParam = results.reduce((best, r) =>
-      Math.abs(r.highResult - r.lowResult) > Math.abs(best.highResult - best.lowResult) ? r : best
-    );
-    const paramSwing = Math.abs(topParam.highResult - topParam.lowResult);
-
-    // Scenario spread
-    const scenValues = allScenMetrics.map(s => s.metrics[m.name]);
-    const scenSpread = Math.max(...scenValues) - Math.min(...scenValues);
-
-    const ratio = scenSpread > 1e-9 ? paramSwing / scenSpread : Infinity;
-
-    console.log(
-      `\n  ${pad(m.name, 22)}` +
-      `\n    Top param: ${pad(topParam.param, 24)} swing: ${formatValue(paramSwing, m.unit)}` +
-      `\n    Scenario spread:${' '.repeat(20)} ${formatValue(scenSpread, m.unit)}` +
-      `\n    Ratio (param/scenario): ${ratio.toFixed(2)}x`
-    );
+  for (const score of maxSensScores) {
+    const maxMetricSens = Math.max(...Object.values(score.perMetric));
+    if (maxMetricSens < 0.001) {
+      deadParams.push({ param: score.param, maxSens: maxMetricSens });
+    }
   }
 
+  deadParams.sort((a, b) => a.maxSens - b.maxSens);
+
+  if (deadParams.length === 0) {
+    console.log('\n  (none — all params have sensitivity >= 0.001 in at least one scenario)');
+  } else {
+    console.log(`\n  ${deadParams.length} dead params:`);
+    for (const d of deadParams) {
+      console.log(`    ${pad(d.param, 28)}  max sensitivity: ${d.maxSens.toFixed(6)}`);
+    }
+  }
+
+  // ==========================================================================
+  // SUMMARY
+  // ==========================================================================
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nTotal time: ${elapsed}s (${1 + runCount + realScenarios.length} runs)`);
+  console.log('\n' + '='.repeat(100));
+  console.log(`Total: ${totalRuns} runs across ${sweeps.length} scenarios in ${elapsed}s`);
+  console.log('='.repeat(100));
 }
 
 main().catch(err => {

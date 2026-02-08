@@ -47,6 +47,9 @@ export interface CDRParams {
   /** Discount rate for NPV of permanent damage reduction (fallback when no interest rate) */
   discountRate: number;
 
+  /** Fraction of market interest rate used for social discount (CDR NPV) */
+  socialDiscountFactor: number;
+
   /** Damage coefficient (mirrors climate module) */
   damageCoeff: number;
   /** Transient climate response to cumulative emissions, C per Gt CO2 */
@@ -66,6 +69,7 @@ export const cdrDefaults: CDRParams = {
   budgetFraction: 0.005,  // 0.5% of GDP max spend
 
   discountRate: 0.03,     // 3% social discount rate (fallback)
+  socialDiscountFactor: 0.5, // Social rate = 50% of market rate
 
   damageCoeff: 0.00536,   // DICE-2023 quadratic damage coefficient
   tcre: 0.00045,          // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt)
@@ -240,8 +244,7 @@ export const cdrModule: Module<
 
     // Endogenous discount rate: social rate = fraction of market rate
     const laggedR = inputs.laggedInterestRate ?? 0.05;
-    const SOCIAL_DISCOUNT_FACTOR = 0.5;
-    const effectiveDiscount = Math.max(0.01, laggedR * SOCIAL_DISCOUNT_FACTOR);
+    const effectiveDiscount = Math.max(0.01, laggedR * params.socialDiscountFactor);
 
     const gdpDollars = gdp * 1e12; // Convert $T to $
     const effectiveSCC = 2 * params.damageCoeff * Math.max(0, temperature)

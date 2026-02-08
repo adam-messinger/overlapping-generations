@@ -57,6 +57,7 @@ export interface LandParams {
   forestLossRate: number;         // Annual loss baseline
   reforestationRate: number;      // Fraction of abandoned farmland → forest
 
+  minForestArea: number;          // Mha ecological minimum forest area
   totalLandArea: number;          // Mha total ice-free land
   desert2025: number;             // Mha desert/barren
   desertificationRate: number;    // Baseline annual expansion
@@ -231,6 +232,7 @@ export const resourcesDefaults: ResourcesParams = {
     forestLossRate: 0.002,
     reforestationRate: 0.5,
 
+    minForestArea: 2000,
     totalLandArea: 13000,
     desert2025: 4150,
     desertificationRate: 0.001,
@@ -516,9 +518,6 @@ function calculateFoodDemand(
 // MODULE DEFINITION
 // =============================================================================
 
-/** Ecological minimum forest area (Mha). Floor never reached in practice. */
-const MIN_FOREST_AREA_MHA = 2000;
-
 type MineralKey = 'copper' | 'lithium' | 'rareEarths' | 'steel';
 const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 'steel'];
 
@@ -539,24 +538,6 @@ export const resourcesModule: Module<
         description: 'Annual agricultural yield improvement from technology.',
         unit: 'fraction/year',
         range: { min: 0.005, max: 0.02, default: 0.01 },
-        tier: 1 as const,
-      },
-      yieldDamageThreshold: {
-        description: 'Temperature above which crop yields decline (Schlenker/Roberts).',
-        unit: '°C',
-        range: { min: 1.5, max: 3.0, default: 2.0 },
-        tier: 1 as const,
-      },
-      yieldCliffExcess: {
-        description: 'Excess temperature above damage threshold where yield cliff begins (Schlenker/Roberts).',
-        unit: '°C above threshold',
-        range: { min: 0.5, max: 3.0, default: 1.0 },
-        tier: 1 as const,
-      },
-      yieldCliffSteepness: {
-        description: 'Exponential decay rate for yield collapse beyond cliff threshold.',
-        unit: 'per °C',
-        range: { min: 0.5, max: 3.0, default: 1.5 },
         tier: 1 as const,
       },
     },
@@ -608,10 +589,6 @@ export const resourcesModule: Module<
     if (p.land.yield2025 <= 0) {
       errors.push('land.yield2025 must be positive');
     }
-    if (p.land.yieldDamageThreshold < 0) {
-      errors.push('land.yieldDamageThreshold must be non-negative');
-    }
-
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -840,7 +817,7 @@ export const resourcesModule: Module<
     const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
 
     // Hard land budget constraint: farmland cannot exceed available land
-    const availableLand = land.totalLandArea - urban - MIN_FOREST_AREA_MHA;
+    const availableLand = land.totalLandArea - urban - land.minForestArea;
     const farmland = Math.min(uncappedFarmland, availableLand);
     const foodStress = uncappedFarmland > 0
       ? Math.max(0, 1 - farmland / uncappedFarmland)
