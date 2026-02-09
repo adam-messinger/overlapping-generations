@@ -97,6 +97,48 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 (damages, energy burden, food stress feed back via lags to production for next year)
 ```
 
+## Development Conventions
+
+No CI or linting exists — these conventions are the only enforcement mechanism.
+
+### Module Change Checklist
+
+After changing a module's params, inputs, or outputs:
+
+1. Grep for old param names in: defaults, `paramMeta`, scenario files, `mergeParams`
+2. Verify introspection: `npx tsx src/introspection.ts` produces valid output
+3. Run all scenarios (`--scenario=baseline/net-zero/high-sensitivity/climate-cascade`) — no warnings about unrecognized keys
+4. Run `npm test`
+
+Do this before committing. Most fix-up commits in project history would have been caught by steps 1-2.
+
+### Calibration & Sources
+
+- Every calibrated numeric default needs an inline source comment: value, source, year
+  - Example: `alpha: 0.36, // Wright's Law solar learning rate, Rubin (2019)`
+- Two independent sources for values that drive major outputs (learning rates, damage coefficients, elasticities)
+- Observable params (population, carbon price) update with new data; structural params (elasticities, damage exponents) update rarely and require justification
+
+### Commit Scope
+
+- One feedback mechanism per commit (new lag + new params + new tests = own commit)
+- Don't bundle: scenario tuning + module calibration + new scripts
+- Calibration-only commits cite sources in the commit message
+- OK to bundle: thematically related param improvements across a single module
+
+### Parameter Lifecycle
+
+- **Adding**: interface + defaults + `paramMeta` + validation rule + test
+- **Demoting from Tier-1**: remove from `paramMeta` only; keep in interface/defaults and read from `params`
+- Never hardcode a demoted param as a constant — programmatic overrides via `runSimulation({...})` must still work
+
+### Architecture Boundaries
+
+- `src/framework/` must not import from `src/modules/` or `src/domain-types.ts`
+- Shared test infrastructure: `src/test-utils.ts`
+- Shared math/utility functions: `src/primitives/`
+- When a new approach replaces an old one, remove the old code in the same or next commit
+
 ## Key Models
 
 ### Energy
@@ -165,11 +207,10 @@ For LLM agents, `describeParameters()` and `describeOutputs()` return structured
 ```typescript
 import { describeParameters, describeOutputs, buildParams } from './src/index.js';
 
-// 49 Tier-1 parameters
 const schema = describeParameters();
 // schema.carbonPrice = { type, default, min, max, unit, description, path }
 
-// ~105 output fields (auto-generated from standardCollectors)
+// Output fields (auto-generated from standardCollectors)
 const outputs = describeOutputs();
 // outputs.temperature = { unit: '°C', description: '...', module: 'climate' }
 
@@ -178,7 +219,7 @@ const params = buildParams('carbonPrice', 150);
 // Returns: { energy: { carbonPrice: 150 } }
 ```
 
-49 Tier-1 parameters available for scenario exploration.
+Run `describeParameters()` for the current Tier-1 parameter list.
 
 ## Programmatic Use
 
@@ -220,7 +261,7 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |
 
-~105 total output fields available via `describeOutputs()`.
+Full output list available via `describeOutputs()`.
 
 ## Academic Sources
 
@@ -230,3 +271,5 @@ See `sources/` for detailed references:
 - **Schlenker/Roberts**: Climate-yield relationships
 - **DICE-2023**: Climate damage functions
 - **Fernández-Villaverde**: Demographic projections
+- **Reinhart/Sbrancia**: Financial repression, debt erosion via negative real rates
+- **Ayres/Warr**: Useful energy as production factor (biophysical economics)
