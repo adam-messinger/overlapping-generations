@@ -149,6 +149,9 @@ export interface YearResult {
   deepOceanTemp: number;
   radiativeForcing: number;
 
+  // Ocean acidification
+  oceanPH: number;
+
   // Adaptation
   regionalAdaptation: Record<Region, number>;
 

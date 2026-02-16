@@ -633,6 +633,9 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       deepOceanTemp: o.deepOceanTemp ?? 0,
       radiativeForcing: o.radiativeForcing ?? 0,
 
+      // Ocean acidification
+      oceanPH: o.oceanPH ?? 8.18,
+
       // Adaptation
       regionalAdaptation: o.regionalAdaptation ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
 

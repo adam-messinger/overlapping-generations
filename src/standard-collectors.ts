@@ -145,6 +145,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'radiativeForcing', unit: 'W/m²', description: 'Radiative forcing from CO2', module: 'climate' },
     { source: 'regionalAdaptation', unit: 'fraction', description: 'Adaptation spending by region', module: 'climate' },
     { source: 'heatStressLoss', unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'climate' },
+    { source: 'oceanPH', unit: 'pH', description: 'Ocean surface pH (CO₂-driven acidification)', module: 'climate' },
 
     // Resources - Minerals
     { source: 'minerals', as: 'copperDemand', path: 'copper.demand', unit: 'Mt/year', description: 'Annual copper demand (net of recycling)', module: 'resources' },
