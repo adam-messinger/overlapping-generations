@@ -81,6 +81,9 @@ const METRICS: MetricSpec[] = [
   { key: 'energyBurdenPeak',        label: 'Peak Burden',         unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.015 } },
 ];
 
+const METRIC_FORMAT = new Map(METRICS.map(m => [m.key, m.format] as const));
+const METRIC_UNIT = new Map(METRICS.map(m => [m.key, m.unit] as const));
+
 interface MetricDiff {
   scenario: string;
   metric: keyof ScenarioMetrics;
@@ -179,16 +182,13 @@ function printHuman(result: ComparisonResult): void {
     byScenario.get(d.scenario)!.push(d);
   }
 
-  const metricFormat = new Map(METRICS.map(m => [m.key, m.format] as const));
-  const metricUnit = new Map(METRICS.map(m => [m.key, m.unit] as const));
-
   for (const [scenario, diffs] of byScenario) {
     console.log(`\n--- ${scenario} ---\n`);
     console.log('Metric                   Before        After         Change          Tolerance');
     console.log('----------------------   -----------   -----------   -------------   ---------');
     for (const d of diffs) {
-      const fmt = metricFormat.get(d.metric)!;
-      const unit = metricUnit.get(d.metric)!;
+      const fmt = METRIC_FORMAT.get(d.metric)!;
+      const unit = METRIC_UNIT.get(d.metric)!;
       const prefix = d.warning ? '⚠ ' : '  ';
       const changeStr = d.toleranceKind === 'absolute'
         ? `${d.delta >= 0 ? '+' : ''}${d.delta.toFixed(4)}`

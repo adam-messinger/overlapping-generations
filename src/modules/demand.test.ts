@@ -296,7 +296,11 @@ test('validation catches negative cost escalation rate', () => {
 console.log('\n--- Endogenous Fuel Mix ---\n');
 
 // Helper to run with custom params and inputs
-function runYearsWithParams(years: number, paramOverrides: Partial<typeof demandDefaults>, inputOverrides?: { carbonPrice?: number }) {
+function runYearsWithParams(
+  years: number,
+  paramOverrides: Partial<typeof demandDefaults>,
+  inputOverrides?: { carbonPrice?: number; laggedAvgLCOE?: number }
+) {
   const demandParams = demandModule.mergeParams(paramOverrides);
   let demandState = demandModule.init(demandParams);
   let outputs: any;
@@ -306,6 +310,7 @@ function runYearsWithParams(years: number, paramOverrides: Partial<typeof demand
       ...getDemographicsInputs(i),
       gdp: baselineGdp(i),
       carbonPrice: inputOverrides?.carbonPrice ?? 35,
+      ...(inputOverrides?.laggedAvgLCOE !== undefined && { laggedAvgLCOE: inputOverrides.laggedAvgLCOE }),
     };
     const result = demandModule.step(demandState, inputs, demandParams, 2025 + i, i);
     demandState = result.state;
@@ -408,41 +413,16 @@ test('datacenter load saturates below cap by 2100', () => {
 });
 
 test('datacenter load responds to LCOE (cheap power → more compute)', () => {
-  // Helper: run with fixed LCOE
-  function runWithLCOE(lcoe: number) {
-    const p = demandModule.mergeParams({});
-    let s = demandModule.init(p);
-    let o: any;
-    for (let i = 0; i < 25; i++) {
-      const r = demandModule.step(
-        s,
-        { ...getDemographicsInputs(i), gdp: baselineGdp(i), laggedAvgLCOE: lcoe },
-        p,
-        2025 + i,
-        i
-      );
-      s = r.state;
-      o = r.outputs;
-    }
-    return o;
-  }
-  const cheap = runWithLCOE(20).dataCenterLoadTWh;
-  const expensive = runWithLCOE(150).dataCenterLoadTWh;
+  const cheap = runYearsWithParams(25, {}, { laggedAvgLCOE: 20 }).outputs.dataCenterLoadTWh;
+  const expensive = runYearsWithParams(25, {}, { laggedAvgLCOE: 150 }).outputs.dataCenterLoadTWh;
   expect(cheap).toBeGreaterThan(expensive);
 });
 
 test('datacenter load is included in global electricity demand', () => {
-  const p = demandModule.mergeParams({ dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 });
-  const s = demandModule.init(p);
-  const baselineElec = (() => {
-    const p0 = demandModule.mergeParams({ dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 });
-    const s0 = demandModule.init(p0);
-    const r0 = demandModule.step(s0, { ...getDemographicsInputs(0), gdp: baselineGdp(0) }, p0, 2025, 0);
-    return r0.outputs.electricityDemand;
-  })();
-  const r = demandModule.step(s, { ...getDemographicsInputs(0), gdp: baselineGdp(0) }, p, 2025, 0);
+  const withDc = runYearsWithParams(1, { dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 }, {});
+  const withoutDc = runYearsWithParams(1, { dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 }, {});
   // With 1000 TWh datacenter baseline, total elec should be ~1000 TWh higher
-  expect(r.outputs.electricityDemand - baselineElec).toBeBetween(900, 1100);
+  expect(withDc.outputs.electricityDemand - withoutDc.outputs.electricityDemand).toBeBetween(900, 1100);
 });
 
 test('datacenter regional shares sum to global total', () => {

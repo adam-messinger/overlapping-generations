@@ -1172,7 +1172,7 @@ export const demandModule: Module<
     }
 
     // Endogenous robot adoption (logistic + energy/wage drivers)
-    const prevRobots = state.robotsPer1000 ?? params.robotBaseline2025;
+    const prevRobots = state.robotsPer1000;
     const currentLCOE = inputs.laggedAvgLCOE ?? params.robotReferenceLCOE;
     const gdpPerWorker = (inputs.gdp * 1e12) / inputs.working;
 
@@ -1203,7 +1203,7 @@ export const demandModule: Module<
     }
 
     // Endogenous datacenter/AI compute adoption (logistic + LCOE/GDP-per-capita drivers)
-    const prevDataCenter = state.dataCenterLoadTWh ?? params.dataCenterBaseline2025;
+    const prevDataCenter = state.dataCenterLoadTWh;
     const gdpPerCapita = (inputs.gdp * 1e12) / inputs.population;
 
     const dcEnergyFactor = Math.pow(

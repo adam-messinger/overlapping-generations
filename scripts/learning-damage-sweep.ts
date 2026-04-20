@@ -32,12 +32,17 @@ import * as fs from 'fs';
 // GRID DEFINITION
 // =============================================================================
 
-const SOLAR_ALPHAS = [0.25, 0.30, 0.36, 0.40, 0.45];
-const WIND_ALPHAS  = [0.15, 0.20, 0.23, 0.27, 0.30];
-const DAMAGE_COEFS = [0.003, 0.004, 0.00536, 0.007, 0.009];
+type Axis = 'solar' | 'wind' | 'damage';
+
+const GRID: Record<Axis, number[]> = {
+  solar:  [0.25, 0.30, 0.36, 0.40, 0.45],
+  wind:   [0.15, 0.20, 0.23, 0.27, 0.30],
+  damage: [0.003, 0.004, 0.00536, 0.007, 0.009],
+};
+const AXES: readonly Axis[] = ['solar', 'wind', 'damage'];
 
 // Indices of the central (calibrated-default) value in each axis.
-const CENTRAL = { solar: 2, wind: 2, damage: 2 } as const;
+const CENTRAL: Record<Axis, number> = { solar: 2, wind: 2, damage: 2 };
 
 const SCENARIOS = ['baseline', 'net-zero', 'high-sensitivity', 'climate-cascade'];
 
@@ -60,108 +65,86 @@ const METRICS: MetricDef[] = [
 // CORE SWEEP
 // =============================================================================
 
-interface CellResult {
-  solarIdx: number;
-  windIdx: number;
-  damageIdx: number;
-  metrics: Record<string, number>;
-}
+type CellMetrics = Record<string, number>;
 
 interface ScenarioSweep {
   scenarioName: string;
-  cells: CellResult[];
-  centralMetrics: Record<string, number>;
+  // Flat array indexed by cellIndex(solarIdx, windIdx, damageIdx)
+  cells: CellMetrics[];
+  centralMetrics: CellMetrics;
+}
+
+const N_WIND = GRID.wind.length;
+const N_DAMAGE = GRID.damage.length;
+
+function cellIndex(si: number, wi: number, di: number): number {
+  return si * N_WIND * N_DAMAGE + wi * N_DAMAGE + di;
 }
 
 async function sweepScenario(scenarioName: string): Promise<ScenarioSweep> {
   const scenario = await loadScenario(getScenarioPath(scenarioName));
   const baseParams = scenarioToParams(scenario);
 
-  const cells: CellResult[] = [];
+  const cells: CellMetrics[] = new Array(GRID.solar.length * N_WIND * N_DAMAGE);
 
-  for (let si = 0; si < SOLAR_ALPHAS.length; si++) {
-    for (let wi = 0; wi < WIND_ALPHAS.length; wi++) {
-      for (let di = 0; di < DAMAGE_COEFS.length; di++) {
+  for (let si = 0; si < GRID.solar.length; si++) {
+    for (let wi = 0; wi < N_WIND; wi++) {
+      for (let di = 0; di < N_DAMAGE; di++) {
         const override = buildMultiParams({
-          solarAlpha: SOLAR_ALPHAS[si],
-          windAlpha: WIND_ALPHAS[wi],
-          damageCoeff: DAMAGE_COEFS[di],
+          solarAlpha: GRID.solar[si],
+          windAlpha: GRID.wind[wi],
+          damageCoeff: GRID.damage[di],
         });
         const merged = deepMerge(baseParams, override);
         const result = runSimulation(merged as any);
 
-        const metrics: Record<string, number> = {};
+        const metrics: CellMetrics = {};
         for (const m of METRICS) metrics[m.name] = m.extract(result);
-        cells.push({ solarIdx: si, windIdx: wi, damageIdx: di, metrics });
+        cells[cellIndex(si, wi, di)] = metrics;
       }
     }
   }
 
-  const central = cells.find(
-    c => c.solarIdx === CENTRAL.solar && c.windIdx === CENTRAL.wind && c.damageIdx === CENTRAL.damage
-  )!;
-
-  return { scenarioName, cells, centralMetrics: central.metrics };
+  const centralMetrics = cells[cellIndex(CENTRAL.solar, CENTRAL.wind, CENTRAL.damage)];
+  return { scenarioName, cells, centralMetrics };
 }
 
 // =============================================================================
 // ANALYSIS
 // =============================================================================
 
-interface Elasticity {
-  metric: string;
-  axis: 'solar' | 'wind' | 'damage';
-  value: number;    // % change in metric per % change in param, evaluated at central ± 1 step
-  lowMetric: number;
-  highMetric: number;
-  lowParam: number;
-  highParam: number;
+/**
+ * Elasticity (centered finite difference): (ΔM/M) / (ΔP/P) using the grid
+ * points one step above and below central, holding the other two axes central.
+ */
+function computeElasticity(sweep: ScenarioSweep, axis: Axis, metric: string): number {
+  const lowIdx = { ...CENTRAL };
+  const highIdx = { ...CENTRAL };
+  lowIdx[axis] = CENTRAL[axis] - 1;
+  highIdx[axis] = CENTRAL[axis] + 1;
+
+  const lowM = sweep.cells[cellIndex(lowIdx.solar, lowIdx.wind, lowIdx.damage)][metric];
+  const highM = sweep.cells[cellIndex(highIdx.solar, highIdx.wind, highIdx.damage)][metric];
+  const centralM = sweep.centralMetrics[metric];
+  const centralP = GRID[axis][CENTRAL[axis]];
+  const dP = GRID[axis][highIdx[axis]] - GRID[axis][lowIdx[axis]];
+
+  if (centralM === 0 || centralP === 0) return 0;
+  return ((highM - lowM) / centralM) / (dP / centralP);
 }
 
 /**
- * Elasticity at the central point: finite-difference using the adjacent low/high
- * grid points along one axis (holding the other two at central).
+ * Pre-compute elasticities for a sweep so render functions don't redo work.
+ * Keyed by `${metric}|${axis}`.
  */
-function computeElasticity(
-  sweep: ScenarioSweep,
-  axis: 'solar' | 'wind' | 'damage',
-  metric: string
-): Elasticity {
-  const c = CENTRAL;
-  const lowIdx = { solar: c.solar, wind: c.wind, damage: c.damage };
-  const highIdx = { ...lowIdx };
-  lowIdx[axis] = c[axis] - 1;
-  highIdx[axis] = c[axis] + 1;
-
-  const lowCell = sweep.cells.find(x =>
-    x.solarIdx === lowIdx.solar && x.windIdx === lowIdx.wind && x.damageIdx === lowIdx.damage
-  )!;
-  const highCell = sweep.cells.find(x =>
-    x.solarIdx === highIdx.solar && x.windIdx === highIdx.wind && x.damageIdx === highIdx.damage
-  )!;
-
-  const axisValues = axis === 'solar' ? SOLAR_ALPHAS : axis === 'wind' ? WIND_ALPHAS : DAMAGE_COEFS;
-  const lowParam = axisValues[lowIdx[axis]];
-  const highParam = axisValues[highIdx[axis]];
-
-  const lowM = lowCell.metrics[metric];
-  const highM = highCell.metrics[metric];
-  const centralM = sweep.centralMetrics[metric];
-  const centralP = axisValues[c[axis]];
-
-  // Arc elasticity: (dM/M) / (dP/P) with midpoint as reference
-  const dM = highM - lowM;
-  const dP = highParam - lowParam;
-  const elasticity = centralM !== 0 && centralP !== 0
-    ? (dM / centralM) / (dP / centralP)
-    : 0;
-
-  return {
-    metric, axis,
-    value: elasticity,
-    lowMetric: lowM, highMetric: highM,
-    lowParam, highParam,
-  };
+function elasticityMap(sweep: ScenarioSweep): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const m of METRICS) {
+    for (const axis of AXES) {
+      map.set(`${m.name}|${axis}`, computeElasticity(sweep, axis, m.name));
+    }
+  }
+  return map;
 }
 
 // =============================================================================
@@ -176,7 +159,7 @@ function fmtMetric(v: number, unit: string): string {
   return v.toFixed(3);
 }
 
-function renderElasticityTable(sweep: ScenarioSweep): string {
+function renderElasticityTable(sweep: ScenarioSweep, elasticities: Map<string, number>): string {
   const lines: string[] = [];
   lines.push(`### ${sweep.scenarioName}\n`);
   lines.push('Central-point values:');
@@ -188,10 +171,8 @@ function renderElasticityTable(sweep: ScenarioSweep): string {
   lines.push('| Metric | Solar α elasticity | Wind α elasticity | Damage ω elasticity |');
   lines.push('|---|---:|---:|---:|');
   for (const m of METRICS) {
-    const e_s = computeElasticity(sweep, 'solar', m.name).value;
-    const e_w = computeElasticity(sweep, 'wind', m.name).value;
-    const e_d = computeElasticity(sweep, 'damage', m.name).value;
-    lines.push(`| ${m.name} | ${e_s.toFixed(3)} | ${e_w.toFixed(3)} | ${e_d.toFixed(3)} |`);
+    const e = (axis: Axis) => elasticities.get(`${m.name}|${axis}`)!.toFixed(3);
+    lines.push(`| ${m.name} | ${e('solar')} | ${e('wind')} | ${e('damage')} |`);
   }
   lines.push('');
   return lines.join('\n');
@@ -208,28 +189,15 @@ function renderTornado(sweep: ScenarioSweep): string {
   for (const m of METRICS) {
     lines.push(`${m.name} (central = ${fmtMetric(sweep.centralMetrics[m.name], m.unit)})`);
 
-    const axisDeltas: Array<{ axis: string; delta: number; low: number; high: number }> = [];
-    for (const axis of ['solar', 'wind', 'damage'] as const) {
-      const axisVals = axis === 'solar' ? SOLAR_ALPHAS : axis === 'wind' ? WIND_ALPHAS : DAMAGE_COEFS;
-      const idxLow = 0;
-      const idxHigh = axisVals.length - 1;
-      const lowIdx = { solar: CENTRAL.solar, wind: CENTRAL.wind, damage: CENTRAL.damage };
-      const highIdx = { ...lowIdx };
-      lowIdx[axis] = idxLow;
-      highIdx[axis] = idxHigh;
-      const lowCell = sweep.cells.find(x =>
-        x.solarIdx === lowIdx.solar && x.windIdx === lowIdx.wind && x.damageIdx === lowIdx.damage
-      )!;
-      const highCell = sweep.cells.find(x =>
-        x.solarIdx === highIdx.solar && x.windIdx === highIdx.wind && x.damageIdx === highIdx.damage
-      )!;
-      axisDeltas.push({
-        axis,
-        delta: highCell.metrics[m.name] - lowCell.metrics[m.name],
-        low: lowCell.metrics[m.name],
-        high: highCell.metrics[m.name],
-      });
-    }
+    const axisDeltas = AXES.map(axis => {
+      const lowIdx = { ...CENTRAL };
+      const highIdx = { ...CENTRAL };
+      lowIdx[axis] = 0;
+      highIdx[axis] = GRID[axis].length - 1;
+      const lowM = sweep.cells[cellIndex(lowIdx.solar, lowIdx.wind, lowIdx.damage)][m.name];
+      const highM = sweep.cells[cellIndex(highIdx.solar, highIdx.wind, highIdx.damage)][m.name];
+      return { axis, delta: highM - lowM };
+    });
 
     const maxAbs = Math.max(...axisDeltas.map(d => Math.abs(d.delta)));
     for (const d of axisDeltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))) {
@@ -245,16 +213,16 @@ function renderTornado(sweep: ScenarioSweep): string {
   return lines.join('\n');
 }
 
-function renderInteractionNotes(sweeps: ScenarioSweep[]): string {
+function renderInteractionNotes(sweeps: ScenarioSweep[], allElasticities: Map<string, number>[]): string {
   const lines: string[] = [];
   lines.push('## Cross-scenario interactions\n');
   lines.push('Elasticities that shift substantially between scenarios indicate non-linearity worth reporting.\n');
 
   for (const m of METRICS) {
-    for (const axis of ['solar', 'wind', 'damage'] as const) {
-      const values = sweeps.map(s => ({
+    for (const axis of AXES) {
+      const values = sweeps.map((s, i) => ({
         scenario: s.scenarioName,
-        elasticity: computeElasticity(s, axis, m.name).value,
+        elasticity: allElasticities[i].get(`${m.name}|${axis}`)!,
       }));
       const absVals = values.map(v => Math.abs(v.elasticity));
       const maxAbs = Math.max(...absVals);
@@ -273,27 +241,28 @@ function renderInteractionNotes(sweeps: ScenarioSweep[]): string {
 function renderReport(sweeps: ScenarioSweep[]): string {
   const now = new Date().toISOString();
   const lines: string[] = [];
+  const elasticities = sweeps.map(elasticityMap);
 
   lines.push('# Learning × Damage Sensitivity Sweep\n');
   lines.push(`_Generated ${now}_\n`);
   lines.push('## Grid\n');
-  lines.push(`- **Solar Wright's Law exponent**: ${SOLAR_ALPHAS.join(', ')} (central ${SOLAR_ALPHAS[CENTRAL.solar]})`);
-  lines.push(`- **Wind Wright's Law exponent**: ${WIND_ALPHAS.join(', ')} (central ${WIND_ALPHAS[CENTRAL.wind]})`);
-  lines.push(`- **Damage coefficient ω**: ${DAMAGE_COEFS.join(', ')} (central ${DAMAGE_COEFS[CENTRAL.damage]})`);
+  lines.push(`- **Solar Wright's Law exponent**: ${GRID.solar.join(', ')} (central ${GRID.solar[CENTRAL.solar]})`);
+  lines.push(`- **Wind Wright's Law exponent**: ${GRID.wind.join(', ')} (central ${GRID.wind[CENTRAL.wind]})`);
+  lines.push(`- **Damage coefficient ω**: ${GRID.damage.join(', ')} (central ${GRID.damage[CENTRAL.damage]})`);
   lines.push(`- **Scenarios**: ${SCENARIOS.join(', ')}`);
-  lines.push(`- **Runs**: ${SOLAR_ALPHAS.length * WIND_ALPHAS.length * DAMAGE_COEFS.length * SCENARIOS.length}`);
+  lines.push(`- **Runs**: ${GRID.solar.length * GRID.wind.length * GRID.damage.length * SCENARIOS.length}`);
   lines.push('');
 
   lines.push('## Elasticities (evaluated at central ± 1 grid step)\n');
   lines.push('Elasticity = (ΔM / M) / (ΔP / P), finite-differenced around the central point. ');
   lines.push('Positive ⇒ metric rises with parameter. Magnitude > ~0.5 indicates strong sensitivity.\n');
 
-  for (const s of sweeps) lines.push(renderElasticityTable(s));
+  for (let i = 0; i < sweeps.length; i++) lines.push(renderElasticityTable(sweeps[i], elasticities[i]));
 
   lines.push('## Tornado plots (full-range deltas)\n');
   for (const s of sweeps) lines.push(renderTornado(s));
 
-  lines.push(renderInteractionNotes(sweeps));
+  lines.push(renderInteractionNotes(sweeps, elasticities));
 
   lines.push('## Caveats\n');
   lines.push('- Solar and wind learning rates are correlated in reality (shared supply chain, financing, interconnect queues). The `(high-solar, low-wind)` corner is lightly populated empirically — read corner cells with skepticism.');
@@ -318,7 +287,8 @@ async function main(): Promise<void> {
   }
 
   console.log('=== Learning × Damage Sweep ===\n');
-  console.log(`Grid: ${SOLAR_ALPHAS.length}×${WIND_ALPHAS.length}×${DAMAGE_COEFS.length} × ${SCENARIOS.length} scenarios = ${SOLAR_ALPHAS.length * WIND_ALPHAS.length * DAMAGE_COEFS.length * SCENARIOS.length} runs\n`);
+  const cellsPerScenario = GRID.solar.length * GRID.wind.length * GRID.damage.length;
+  console.log(`Grid: ${GRID.solar.length}×${GRID.wind.length}×${GRID.damage.length} × ${SCENARIOS.length} scenarios = ${cellsPerScenario * SCENARIOS.length} runs\n`);
 
   const startTime = Date.now();
   const sweeps: ScenarioSweep[] = [];
@@ -337,7 +307,7 @@ async function main(): Promise<void> {
   // Spot-check output to stdout
   console.log('--- Quick summary ---\n');
   for (const s of sweeps) {
-    console.log(`${s.scenarioName}: warming2100 elasticities — solar=${computeElasticity(s, 'solar', 'warming2100').value.toFixed(3)}, wind=${computeElasticity(s, 'wind', 'warming2100').value.toFixed(3)}, damage=${computeElasticity(s, 'damage', 'warming2100').value.toFixed(3)}`);
+    console.log(`${s.scenarioName}: warming2100 elasticities — solar=${computeElasticity(s, 'solar', 'warming2100').toFixed(3)}, wind=${computeElasticity(s, 'wind', 'warming2100').toFixed(3)}, damage=${computeElasticity(s, 'damage', 'warming2100').toFixed(3)}`);
   }
 }
 

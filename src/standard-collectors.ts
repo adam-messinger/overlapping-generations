@@ -112,6 +112,8 @@ export const standardCollectors: CollectorConfig = {
     { source: 'publicDebtService', unit: '$T', description: 'Interest payments on public debt', module: 'capital' },
     { source: 'creditImpulse', unit: '$T', description: 'Net new private credit flow', module: 'capital' },
     { source: 'debtRiskPremium', unit: 'fraction', description: 'Interest rate premium from debt levels', module: 'capital' },
+    { source: 'garrettJ', unit: 'ratio', description: 'Garrett dissipation ratio (δK/I); J→1 = stagflation precondition', module: 'capital' },
+    { source: 'effectiveDepreciation', unit: 'fraction', description: 'Effective depreciation rate (base + climate damage effect)', module: 'capital' },
 
     // Energy
     { source: 'lcoes', unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
