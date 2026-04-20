@@ -387,6 +387,71 @@ test('industry is most cost-sensitive sector', () => {
   expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.5); // At least half as responsive
 });
 
+// --- Datacenter / AI Compute ---
+
+console.log('\n--- Datacenter / AI Compute ---\n');
+
+test('datacenter load initializes near 500 TWh in 2025', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.dataCenterLoadTWh).toBeBetween(400, 700);
+});
+
+test('datacenter load grows over time', () => {
+  const year1 = runYears(1).outputs.dataCenterLoadTWh;
+  const year25 = runYears(25).outputs.dataCenterLoadTWh;
+  expect(year25).toBeGreaterThan(year1 * 2);
+});
+
+test('datacenter load saturates below cap by 2100', () => {
+  const year76 = runYears(76).outputs.dataCenterLoadTWh;
+  expect(year76).toBeLessThan(demandDefaults.dataCenterSaturation);
+});
+
+test('datacenter load responds to LCOE (cheap power → more compute)', () => {
+  // Helper: run with fixed LCOE
+  function runWithLCOE(lcoe: number) {
+    const p = demandModule.mergeParams({});
+    let s = demandModule.init(p);
+    let o: any;
+    for (let i = 0; i < 25; i++) {
+      const r = demandModule.step(
+        s,
+        { ...getDemographicsInputs(i), gdp: baselineGdp(i), laggedAvgLCOE: lcoe },
+        p,
+        2025 + i,
+        i
+      );
+      s = r.state;
+      o = r.outputs;
+    }
+    return o;
+  }
+  const cheap = runWithLCOE(20).dataCenterLoadTWh;
+  const expensive = runWithLCOE(150).dataCenterLoadTWh;
+  expect(cheap).toBeGreaterThan(expensive);
+});
+
+test('datacenter load is included in global electricity demand', () => {
+  const p = demandModule.mergeParams({ dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 });
+  const s = demandModule.init(p);
+  const baselineElec = (() => {
+    const p0 = demandModule.mergeParams({ dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 });
+    const s0 = demandModule.init(p0);
+    const r0 = demandModule.step(s0, { ...getDemographicsInputs(0), gdp: baselineGdp(0) }, p0, 2025, 0);
+    return r0.outputs.electricityDemand;
+  })();
+  const r = demandModule.step(s, { ...getDemographicsInputs(0), gdp: baselineGdp(0) }, p, 2025, 0);
+  // With 1000 TWh datacenter baseline, total elec should be ~1000 TWh higher
+  expect(r.outputs.electricityDemand - baselineElec).toBeBetween(900, 1100);
+});
+
+test('datacenter regional shares sum to global total', () => {
+  const { outputs } = runYears(10);
+  const regionalSum = REGIONS.reduce((sum, r) => sum + outputs.regional[r].electricityDemand, 0);
+  // Regional electricity demand includes both base sector demand and distributed DC+robot load
+  expect(regionalSum).toBeCloseTo(outputs.electricityDemand, 1);
+});
+
 // --- Energy Burden LCOE Sensitivity ---
 
 console.log('\n--- Energy Burden LCOE Sensitivity ---\n');

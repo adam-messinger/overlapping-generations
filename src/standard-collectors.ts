@@ -202,6 +202,9 @@ export const standardCollectors: CollectorConfig = {
     { source: 'robotLoadTWh', unit: 'TWh', description: 'Automation energy consumption', module: 'demand' },
     { source: 'robotsPer1000', unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'demand' },
 
+    // Datacenter / AI compute
+    { source: 'dataCenterLoadTWh', unit: 'TWh', description: 'Datacenter/AI electricity load', module: 'demand' },
+
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },
     {

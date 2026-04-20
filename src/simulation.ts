@@ -117,6 +117,8 @@ export interface YearResult {
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
   debtRiskPremium: number;     // fraction added to interest rate
+  garrettJ: number;            // Dissipation ratio (δK/I); J→1 = stagflation precondition
+  effectiveDepreciation: number; // Effective depreciation rate (base + climate damage effect)
 
   // Energy
   lcoes: Record<EnergySource, number>;
@@ -208,6 +210,9 @@ export interface YearResult {
   // Automation (formerly expansion)
   robotLoadTWh: number;
   robotsPer1000: number;
+
+  // Datacenter / AI compute
+  dataCenterLoadTWh: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
@@ -474,6 +479,12 @@ async function runCLI() {
   console.log(`Robot load 2100: ${result.results[idx2100].robotLoadTWh.toFixed(0)} TWh`);
   console.log(`Robots/1000 workers 2025: ${result.results[idx2025].robotsPer1000.toFixed(1)}`);
   console.log(`Robots/1000 workers 2100: ${result.results[idx2100].robotsPer1000.toFixed(1)}`);
+
+  // Datacenter / AI compute
+  console.log('\n=== Datacenter / AI Compute ===\n');
+  console.log(`Datacenter load 2025: ${result.results[idx2025].dataCenterLoadTWh.toFixed(0)} TWh`);
+  console.log(`Datacenter load 2050: ${fmt2050(r => r.dataCenterLoadTWh.toFixed(0) + ' TWh')}`);
+  console.log(`Datacenter load 2100: ${result.results[idx2100].dataCenterLoadTWh.toFixed(0)} TWh`);
 
   // Sector electrification
   console.log('\n=== Sector Electrification ===\n');
