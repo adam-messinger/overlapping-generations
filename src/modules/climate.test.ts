@@ -324,6 +324,80 @@ test('CO2 ppm calculation matches calibration', () => {
   expect(outputs.co2ppm).toBeCloseTo(418, 0); // Within 1 ppm
 });
 
+// =============================================================================
+// OCEAN pH TESTS
+// =============================================================================
+
+test('ocean pH at ~418 ppm matches NOAA observations (~8.06)', () => {
+  const state = climateModule.init(climateDefaults);
+  const { outputs } = climateModule.step(
+    state,
+    { emissions: 0 },
+    climateDefaults,
+    2025,
+    0
+  );
+
+  // At ~418 ppm: pH = 8.18 - 0.32 × log2(418/280) ≈ 8.06
+  expect(outputs.oceanPH).toBeCloseTo(8.06, 1);
+});
+
+test('ocean pH decreases with higher CO2', () => {
+  let state = climateModule.init(climateDefaults);
+
+  const { outputs: early } = climateModule.step(
+    state,
+    { emissions: 0 },
+    climateDefaults,
+    2025,
+    0
+  );
+
+  // Run 30 years with high emissions to build up CO2
+  for (let i = 0; i < 30; i++) {
+    const result = climateModule.step(
+      state,
+      { emissions: 50 },
+      climateDefaults,
+      2025 + i,
+      i
+    );
+    state = result.state;
+  }
+
+  const { outputs: later } = climateModule.step(
+    state,
+    { emissions: 50 },
+    climateDefaults,
+    2055,
+    30
+  );
+
+  expect(later.oceanPH).toBeLessThan(early.oceanPH);
+});
+
+test('ocean pH at 560 ppm (2×CO2) ≈ 7.86', () => {
+  // At 2×CO2 (560 ppm): pH = 8.18 - 0.32 × log2(560/280) = 8.18 - 0.32 = 7.86
+  // Construct state with cumulative emissions that give ~560 ppm
+  // 560 = 280 + cumulative × 0.45 × 0.128 → cumulative = 280 / (0.45 × 0.128) ≈ 4861
+  const doubleCO2State = {
+    cumulativeEmissions: 4861,
+    temperature: 2.0,
+    deepTemp: 1.0,
+  };
+
+  const { outputs } = climateModule.step(
+    doubleCO2State,
+    { emissions: 0 },
+    climateDefaults,
+    2060,
+    35
+  );
+
+  expect(outputs.co2ppm).toBeCloseTo(560, 0);
+  expect(outputs.oceanPH).toBeCloseTo(7.86, 1);
+});
+
 test('higher sensitivity produces more warming', () => {
   const lowSensParams = { ...climateDefaults, sensitivity: 2.0 };
   const highSensParams = { ...climateDefaults, sensitivity: 4.5 };

@@ -73,6 +73,10 @@ export interface ClimateParams {
     referenceGDP: number;        // GDP/cap at which adaptation = 0 ($5000)
     maxAdaptation: number;       // Maximum adaptation fraction (0.50)
   };
+
+  // Ocean acidification (Caldeira & Wickett 2003, Jacobson 2005)
+  preindustrialPH: number;       // Surface ocean pH at 280 ppm (8.18)
+  phSensitivity: number;         // pH drop per CO2 doubling (0.32)
 }
 
 export const climateDefaults: ClimateParams = {
@@ -107,6 +111,8 @@ export const climateDefaults: ClimateParams = {
     referenceGDP: 5000,        // $5K/cap baseline (SSA gets ~0%)
     maxAdaptation: 0.50,       // Cap at 50% damage reduction
   },
+  preindustrialPH: 8.18,        // Jacobson (2005), surface ocean at 280 ppm
+  phSensitivity: 0.32,          // Caldeira & Wickett (2003), pH drop per CO2 doubling
 };
 
 // =============================================================================
@@ -149,6 +155,8 @@ export interface ClimateOutputs {
   radiativeForcing: number;
   /** Per-region adaptation fraction (0 = no adaptation, up to maxAdaptation) */
   regionalAdaptation: Record<Region, number>;
+  /** Ocean surface pH (CO₂-driven acidification) */
+  oceanPH: number;
 }
 
 // =============================================================================
@@ -215,6 +223,7 @@ export const climateModule: Module<
     'deepOceanTemp',
     'radiativeForcing',
     'regionalAdaptation',
+    'oceanPH',
   ] as const,
 
   connectorTypes: {
@@ -232,6 +241,7 @@ export const climateModule: Module<
       deepOceanTemp: 'number',
       radiativeForcing: 'number',
       regionalAdaptation: 'record',
+      oceanPH: 'number',
     },
   },
 
@@ -295,6 +305,18 @@ export const climateModule: Module<
       }
     }
 
+    // Ocean pH params
+    if (p.preindustrialPH < 7.5 || p.preindustrialPH > 8.5) {
+      warnings.push(
+        `preindustrialPH ${p.preindustrialPH} outside typical range [7.5, 8.5]`
+      );
+    }
+    if (p.phSensitivity < 0.1 || p.phSensitivity > 0.6) {
+      warnings.push(
+        `phSensitivity ${p.phSensitivity} outside typical range [0.1, 0.6]`
+      );
+    }
+
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -348,6 +370,10 @@ export const climateModule: Module<
     const atmosphericCO2 =
       newCumulative * params.airborneFraction * params.ppmPerGt;
     const co2ppm = params.preindustrialCO2 + atmosphericCO2;
+
+    // Ocean surface pH (Caldeira & Wickett 2003)
+    const oceanPH = params.preindustrialPH -
+      params.phSensitivity * Math.log2(co2ppm / params.preindustrialCO2);
 
     // Radiative forcing
     const forcing =
@@ -440,6 +466,7 @@ export const climateModule: Module<
         deepOceanTemp: deepTemp,
         radiativeForcing: forcing,
         regionalAdaptation,
+        oceanPH,
       },
     };
   },

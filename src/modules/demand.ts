@@ -128,6 +128,15 @@ export interface DemandParams {
   robotWageSensitivity: number;   // Wage elasticity (high wages → more robots)
   robotReferenceLCOE: number;     // Reference LCOE $/MWh
   robotReferenceWage: number;     // Reference GDP/worker $/yr
+
+  // Datacenter/AI compute (endogenous logistic adoption, distributed by regional GDP)
+  dataCenterBaseline2025: number;      // Initial datacenter electricity load (TWh)
+  dataCenterBaseGrowth: number;        // Base logistic growth rate
+  dataCenterSaturation: number;        // Carrying capacity (TWh), grid/chip-supply ceiling
+  dataCenterEnergySensitivity: number; // LCOE elasticity (cheap energy → more compute)
+  dataCenterGDPSensitivity: number;    // GDP-per-capita elasticity (wealth → more compute)
+  dataCenterReferenceLCOE: number;     // Reference LCOE $/MWh
+  dataCenterReferenceGDPpc: number;    // Reference GDP per capita ($ PPP)
 }
 
 interface RegionalState {
@@ -147,6 +156,7 @@ interface DemandState {
   previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;                 // Current robot adoption level
+  dataCenterLoadTWh: number;             // Current datacenter electricity load (TWh)
   fossilVehicleFleet: number;            // TWh of annual fossil transport energy
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
   fossilIndustrialStock: number;         // TWh of annual fossil industrial energy
@@ -255,6 +265,9 @@ interface DemandOutputs {
   robotLoadTWh: number;       // Automation energy load (TWh)
   robotsPer1000: number;      // Robots per 1000 workers
   fossilStockTWh: number;    // Total fossil end-use equipment stock (TWh)
+
+  // Datacenter/AI compute
+  dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
 }
 
 // =============================================================================
@@ -441,6 +454,15 @@ export const demandDefaults: DemandParams = {
   robotWageSensitivity: 0.3,     // Wage elasticity
   robotReferenceLCOE: 50,        // Reference LCOE $/MWh
   robotReferenceWage: 46000,     // Reference GDP/worker $/yr (PPP-adjusted)
+
+  // Datacenter/AI compute (endogenous, distributed by regional GDP)
+  dataCenterBaseline2025: 500,        // TWh, IEA/EPRI 2024: datacenters ~1.5% of global elec (~460 TWh); AI inference boost → ~500
+  dataCenterBaseGrowth: 0.12,         // Logistic rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
+  dataCenterSaturation: 6000,         // TWh ceiling; physical grid interconnect + chip-supply + cooling-water constraints
+  dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
+  dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
+  dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
+  dataCenterReferenceGDPpc: 15000,    // $ PPP per capita (global average ~2025)
 };
 
 // =============================================================================
@@ -729,6 +751,30 @@ export const demandModule: Module<
       range: { min: 0, max: 1.0, default: 0.3 },
       tier: 1 as const,
     },
+    dataCenterBaseGrowth: {
+      description: 'Base logistic growth rate for datacenter load. Calibrated to hyperscale buildout pace.',
+      unit: 'fraction/year',
+      range: { min: 0.04, max: 0.25, default: 0.12 },
+      tier: 1 as const,
+    },
+    dataCenterSaturation: {
+      description: 'Datacenter electricity carrying capacity (TWh). Physical grid/chip/cooling constraint.',
+      unit: 'TWh',
+      range: { min: 2000, max: 15000, default: 6000 },
+      tier: 1 as const,
+    },
+    dataCenterEnergySensitivity: {
+      description: 'LCOE elasticity for datacenter adoption. Cheap power accelerates AI/cloud buildout.',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.4 },
+      tier: 1 as const,
+    },
+    dataCenterGDPSensitivity: {
+      description: 'GDP-per-capita elasticity for datacenter demand. Rising wealth → more compute consumption.',
+      unit: 'elasticity',
+      range: { min: 0, max: 1.0, default: 0.6 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -769,6 +815,7 @@ export const demandModule: Module<
     'robotLoadTWh',
     'robotsPer1000',
     'fossilStockTWh',
+    'dataCenterLoadTWh',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -901,6 +948,15 @@ export const demandModule: Module<
       if (p.robotReferenceLCOE !== undefined) merged.robotReferenceLCOE = p.robotReferenceLCOE;
       if (p.robotReferenceWage !== undefined) merged.robotReferenceWage = p.robotReferenceWage;
 
+      // Datacenter/AI compute params
+      if (p.dataCenterBaseline2025 !== undefined) merged.dataCenterBaseline2025 = p.dataCenterBaseline2025;
+      if (p.dataCenterBaseGrowth !== undefined) merged.dataCenterBaseGrowth = p.dataCenterBaseGrowth;
+      if (p.dataCenterSaturation !== undefined) merged.dataCenterSaturation = p.dataCenterSaturation;
+      if (p.dataCenterEnergySensitivity !== undefined) merged.dataCenterEnergySensitivity = p.dataCenterEnergySensitivity;
+      if (p.dataCenterGDPSensitivity !== undefined) merged.dataCenterGDPSensitivity = p.dataCenterGDPSensitivity;
+      if (p.dataCenterReferenceLCOE !== undefined) merged.dataCenterReferenceLCOE = p.dataCenterReferenceLCOE;
+      if (p.dataCenterReferenceGDPpc !== undefined) merged.dataCenterReferenceGDPpc = p.dataCenterReferenceGDPpc;
+
       return merged;
     }, partial);
   },
@@ -955,6 +1011,7 @@ export const demandModule: Module<
       previousUsefulEnergyPerWorker: 0, // Set after first year
       usefulWorkGrowthRate: 0,          // No growth in first year
       robotsPer1000: params.robotBaseline2025, // Initial robot adoption
+      dataCenterLoadTWh: params.dataCenterBaseline2025, // Initial datacenter load
       fossilVehicleFleet,
       fossilHeatingStock,
       fossilIndustrialStock,
@@ -1115,7 +1172,7 @@ export const demandModule: Module<
     }
 
     // Endogenous robot adoption (logistic + energy/wage drivers)
-    const prevRobots = state.robotsPer1000 ?? params.robotBaseline2025;
+    const prevRobots = state.robotsPer1000;
     const currentLCOE = inputs.laggedAvgLCOE ?? params.robotReferenceLCOE;
     const gdpPerWorker = (inputs.gdp * 1e12) / inputs.working;
 
@@ -1143,6 +1200,35 @@ export const demandModule: Module<
       const regionRobotLoad = robotLoadTWh * share;
       regionalOutputs[region].electricityDemand += regionRobotLoad;
       regionalOutputs[region].totalFinalEnergy += regionRobotLoad;
+    }
+
+    // Endogenous datacenter/AI compute adoption (logistic + LCOE/GDP-per-capita drivers)
+    const prevDataCenter = state.dataCenterLoadTWh;
+    const gdpPerCapita = (inputs.gdp * 1e12) / inputs.population;
+
+    const dcEnergyFactor = Math.pow(
+      params.dataCenterReferenceLCOE / Math.max(currentLCOE, 1),
+      params.dataCenterEnergySensitivity
+    );
+    const dcGDPFactor = Math.pow(
+      gdpPerCapita / params.dataCenterReferenceGDPpc,
+      params.dataCenterGDPSensitivity
+    );
+
+    const dcEffectiveRate = params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor;
+    const dataCenterLoadTWh = prevDataCenter +
+      dcEffectiveRate * prevDataCenter * (1 - prevDataCenter / params.dataCenterSaturation);
+
+    globalElec += dataCenterLoadTWh;
+    globalTotalFinal += dataCenterLoadTWh;
+
+    // Distribute datacenter load to regions proportional to regional GDP share
+    // (datacenters concentrate with investment, not working-age population)
+    for (const region of REGIONS) {
+      const gdpShare = newRegions[region].gdpShare;
+      const regionDcLoad = dataCenterLoadTWh * gdpShare;
+      regionalOutputs[region].electricityDemand += regionDcLoad;
+      regionalOutputs[region].totalFinalEnergy += regionDcLoad;
     }
 
     // Calculate final energy per capita per day
@@ -1327,6 +1413,7 @@ export const demandModule: Module<
         previousUsefulEnergyPerWorker: usefulEnergyPerWorker, // For Ayres/Warr
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotsPer1000, // Persist for logistic adoption
+        dataCenterLoadTWh, // Persist for datacenter logistic adoption
         fossilVehicleFleet: newFossilVehicleFleet,
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
@@ -1354,6 +1441,7 @@ export const demandModule: Module<
         robotLoadTWh,
         robotsPer1000,
         fossilStockTWh,
+        dataCenterLoadTWh,
       },
     };
   },

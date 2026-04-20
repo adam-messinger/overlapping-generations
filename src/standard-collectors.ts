@@ -112,6 +112,8 @@ export const standardCollectors: CollectorConfig = {
     { source: 'publicDebtService', unit: '$T', description: 'Interest payments on public debt', module: 'capital' },
     { source: 'creditImpulse', unit: '$T', description: 'Net new private credit flow', module: 'capital' },
     { source: 'debtRiskPremium', unit: 'fraction', description: 'Interest rate premium from debt levels', module: 'capital' },
+    { source: 'garrettJ', unit: 'ratio', description: 'Garrett dissipation ratio (δK/I); J→1 = stagflation precondition', module: 'capital' },
+    { source: 'effectiveDepreciation', unit: 'fraction', description: 'Effective depreciation rate (base + climate damage effect)', module: 'capital' },
 
     // Energy
     { source: 'lcoes', unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
@@ -145,6 +147,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'radiativeForcing', unit: 'W/m²', description: 'Radiative forcing from CO2', module: 'climate' },
     { source: 'regionalAdaptation', unit: 'fraction', description: 'Adaptation spending by region', module: 'climate' },
     { source: 'heatStressLoss', unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'climate' },
+    { source: 'oceanPH', unit: 'pH', description: 'Ocean surface pH (CO₂-driven acidification)', module: 'climate' },
 
     // Resources - Minerals
     { source: 'minerals', as: 'copperDemand', path: 'copper.demand', unit: 'Mt/year', description: 'Annual copper demand (net of recycling)', module: 'resources' },
@@ -200,6 +203,9 @@ export const standardCollectors: CollectorConfig = {
     // Automation
     { source: 'robotLoadTWh', unit: 'TWh', description: 'Automation energy consumption', module: 'demand' },
     { source: 'robotsPer1000', unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'demand' },
+
+    // Datacenter / AI compute
+    { source: 'dataCenterLoadTWh', unit: 'TWh', description: 'Datacenter/AI electricity load', module: 'demand' },
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },

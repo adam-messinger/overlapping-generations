@@ -603,6 +603,8 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       publicDebtService: o.publicDebtService ?? 0,
       creditImpulse: o.creditImpulse ?? 0,
       debtRiskPremium: o.debtRiskPremium ?? 0,
+      garrettJ: o.garrettJ ?? 1,
+      effectiveDepreciation: o.effectiveDepreciation ?? 0.05,
 
       // Energy
       lcoes: o.lcoes,
@@ -632,6 +634,9 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       cumulativeEmissions: o.cumulativeEmissions,
       deepOceanTemp: o.deepOceanTemp ?? 0,
       radiativeForcing: o.radiativeForcing ?? 0,
+
+      // Ocean acidification
+      oceanPH: o.oceanPH ?? 8.18,
 
       // Adaptation
       regionalAdaptation: o.regionalAdaptation ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
@@ -672,6 +677,9 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       // Robot/automation (from demand, expansion dissolved)
       robotLoadTWh: o.robotLoadTWh ?? 0,
       robotsPer1000: o.robotsPer1000 ?? 0,
+
+      // Datacenter / AI compute (from demand)
+      dataCenterLoadTWh: o.dataCenterLoadTWh ?? 0,
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,

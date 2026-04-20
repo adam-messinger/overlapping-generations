@@ -11,14 +11,16 @@ import { runWithScenario, runSimulation } from '../src/simulation.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Scenarios to run
+// Canonical scenarios for regression testing.
+// Covers: current policies, aggressive transition, high climate sensitivity,
+// cascade-risk feedback, and two IPCC SSP pathways spanning the envelope.
 const SCENARIOS = [
   'baseline',
   'net-zero',
   'high-sensitivity',
-  'tech-stagnation',
-  'automation-boom',
   'climate-cascade',
+  'ssp1-26',
+  'ssp5-85',
 ];
 
 // Key metrics to capture

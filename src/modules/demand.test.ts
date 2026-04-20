@@ -296,7 +296,11 @@ test('validation catches negative cost escalation rate', () => {
 console.log('\n--- Endogenous Fuel Mix ---\n');
 
 // Helper to run with custom params and inputs
-function runYearsWithParams(years: number, paramOverrides: Partial<typeof demandDefaults>, inputOverrides?: { carbonPrice?: number }) {
+function runYearsWithParams(
+  years: number,
+  paramOverrides: Partial<typeof demandDefaults>,
+  inputOverrides?: { carbonPrice?: number; laggedAvgLCOE?: number }
+) {
   const demandParams = demandModule.mergeParams(paramOverrides);
   let demandState = demandModule.init(demandParams);
   let outputs: any;
@@ -306,6 +310,7 @@ function runYearsWithParams(years: number, paramOverrides: Partial<typeof demand
       ...getDemographicsInputs(i),
       gdp: baselineGdp(i),
       carbonPrice: inputOverrides?.carbonPrice ?? 35,
+      ...(inputOverrides?.laggedAvgLCOE !== undefined && { laggedAvgLCOE: inputOverrides.laggedAvgLCOE }),
     };
     const result = demandModule.step(demandState, inputs, demandParams, 2025 + i, i);
     demandState = result.state;
@@ -385,6 +390,46 @@ test('industry is most cost-sensitive sector', () => {
 
   // Industry should have higher relative sensitivity (costSensitivity: 0.10 vs 0.08)
   expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.5); // At least half as responsive
+});
+
+// --- Datacenter / AI Compute ---
+
+console.log('\n--- Datacenter / AI Compute ---\n');
+
+test('datacenter load initializes near 500 TWh in 2025', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.dataCenterLoadTWh).toBeBetween(400, 700);
+});
+
+test('datacenter load grows over time', () => {
+  const year1 = runYears(1).outputs.dataCenterLoadTWh;
+  const year25 = runYears(25).outputs.dataCenterLoadTWh;
+  expect(year25).toBeGreaterThan(year1 * 2);
+});
+
+test('datacenter load saturates below cap by 2100', () => {
+  const year76 = runYears(76).outputs.dataCenterLoadTWh;
+  expect(year76).toBeLessThan(demandDefaults.dataCenterSaturation);
+});
+
+test('datacenter load responds to LCOE (cheap power → more compute)', () => {
+  const cheap = runYearsWithParams(25, {}, { laggedAvgLCOE: 20 }).outputs.dataCenterLoadTWh;
+  const expensive = runYearsWithParams(25, {}, { laggedAvgLCOE: 150 }).outputs.dataCenterLoadTWh;
+  expect(cheap).toBeGreaterThan(expensive);
+});
+
+test('datacenter load is included in global electricity demand', () => {
+  const withDc = runYearsWithParams(1, { dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 }, {});
+  const withoutDc = runYearsWithParams(1, { dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 }, {});
+  // With 1000 TWh datacenter baseline, total elec should be ~1000 TWh higher
+  expect(withDc.outputs.electricityDemand - withoutDc.outputs.electricityDemand).toBeBetween(900, 1100);
+});
+
+test('datacenter regional shares sum to global total', () => {
+  const { outputs } = runYears(10);
+  const regionalSum = REGIONS.reduce((sum, r) => sum + outputs.regional[r].electricityDemand, 0);
+  // Regional electricity demand includes both base sector demand and distributed DC+robot load
+  expect(regionalSum).toBeCloseTo(outputs.electricityDemand, 1);
 });
 
 // --- Energy Burden LCOE Sensitivity ---

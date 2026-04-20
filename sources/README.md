@@ -68,6 +68,21 @@ This folder contains reference materials for the simulation's demographics and c
 | Damage at 3°C (ROW) | ~3.8% GDP | DICE-2023 × 1.8 |
 | Max damage cap | 30% GDP | Weitzman bounded |
 
+### 7. Ocean Acidification
+- **Caldeira & Wickett (2003)** "Anthropogenic carbon and ocean pH" — Nature 425, 365
+  - URL: https://www.nature.com/articles/425365a
+  - pH drop ~0.3–0.4 units per CO₂ doubling; our calibration: 0.32
+- **Jacobson (2005)** preindustrial ocean surface pH = 8.18
+- **NOAA PMEL**: Current observations ~8.06 at ~418 ppm
+  - URL: https://www.pmel.noaa.gov/co2/story/Ocean+Acidification
+- See also: `Caldeira-Wickett-Ocean-Acidification.md`
+
+| Metric | Target | Source |
+|--------|--------|--------|
+| pH at 280 ppm | 8.18 | Jacobson (2005) |
+| pH at ~418 ppm (2025) | ~8.06 | NOAA observations |
+| pH at 560 ppm (2×CO₂) | 7.86 | Caldeira & Wickett (2003) |
+
 ## Validation Scenarios
 
 1. **Business as Usual** (carbon $0): Emissions plateau ~2040, 3-4°C by 2100
