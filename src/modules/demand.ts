@@ -87,9 +87,6 @@ export interface DemandParams {
   // Regional economic parameters
   regions: Record<Region, RegionalEconomicParams>;
 
-  // Global demand parameters
-  electrification2025: number;    // Current electricity share (IEA: 25%)
-
   // Sector-level parameters
   sectors: {
     transport: SectorParams;
@@ -347,9 +344,6 @@ export const demandDefaults: DemandParams = {
       intensityDecline: 0.004,  // 0.4%/year
     },
   },
-
-  // Global parameters
-  electrification2025: 0.25,    // Current electricity share (IEA)
 
   // Sector-level parameters (IEA-calibrated)
   // Transport: EVs growing fast, aviation/shipping slow
@@ -908,7 +902,6 @@ export const demandModule: Module<
       }
 
       // Merge scalar params
-      if (p.electrification2025 !== undefined) merged.electrification2025 = p.electrification2025;
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
 
       // Merge fuelMix params
@@ -1171,6 +1164,11 @@ export const demandModule: Module<
       globalNonElec += nonElecEnergy;
     }
 
+    // Sector breakdown base: robot/datacenter loads added below are 100%
+    // electric and must not be split by sector electrification rates
+    // (doing so reclassified most of them as phantom non-electric energy)
+    const sectorEnergyBase = globalTotalFinal;
+
     // Endogenous robot adoption (logistic + energy/wage drivers)
     const prevRobots = state.robotsPer1000;
     const currentLCOE = inputs.laggedAvgLCOE ?? params.robotReferenceLCOE;
@@ -1244,8 +1242,8 @@ export const demandModule: Module<
       const sectorParams = params.sectors[sectorKey];
       const sectorElecRate = newSectorElectrification[sectorKey];
 
-      // Sector total energy
-      const sectorTotal = globalTotalFinal * sectorParams.share;
+      // Sector total energy (excludes robot/DC loads — pure electric add-ons)
+      const sectorTotal = sectorEnergyBase * sectorParams.share;
       const sectorElectric = sectorTotal * sectorElecRate;
       const sectorNonElectric = sectorTotal - sectorElectric;
 
@@ -1315,6 +1313,9 @@ export const demandModule: Module<
       usefulEnergy += sectorOutput.electric * sectorParams.efficiencyMultiplier;
       usefulEnergy += sectorOutput.nonElectric;
     }
+    // Robot/DC loads are direct electricity end-uses with no fuel
+    // counterfactual, so they count at 1x (no efficiency multiplier)
+    usefulEnergy += robotLoadTWh + dataCenterLoadTWh;
     const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
 
     // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP

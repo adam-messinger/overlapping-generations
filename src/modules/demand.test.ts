@@ -432,6 +432,35 @@ test('datacenter regional shares sum to global total', () => {
   expect(regionalSum).toBeCloseTo(outputs.electricityDemand, 1);
 });
 
+// --- Sector Conservation ---
+
+console.log('\n--- Sector Conservation ---\n');
+
+test('sector non-electric energy sums to nonElectricEnergy output', () => {
+  // Robot/DC loads are 100% electric; if they leak into the sector split
+  // they show up as phantom non-electric energy and break this identity
+  for (const years of [1, 10, 40]) {
+    const { outputs } = runYears(years);
+    const sectorNonElec = outputs.sectors.transport.nonElectric +
+      outputs.sectors.buildings.nonElectric +
+      outputs.sectors.industry.nonElectric;
+    const tolerance = Math.max(1, outputs.nonElectricEnergy * 1e-6);
+    expect(Math.abs(sectorNonElec - outputs.nonElectricEnergy)).toBeLessThan(tolerance);
+  }
+});
+
+test('sector totals plus robot/DC loads sum to totalFinalEnergy', () => {
+  for (const years of [1, 10, 40]) {
+    const { outputs } = runYears(years);
+    const sectorTotal = outputs.sectors.transport.total +
+      outputs.sectors.buildings.total +
+      outputs.sectors.industry.total;
+    const reconstructed = sectorTotal + outputs.robotLoadTWh + outputs.dataCenterLoadTWh;
+    const tolerance = Math.max(1, outputs.totalFinalEnergy * 1e-6);
+    expect(Math.abs(reconstructed - outputs.totalFinalEnergy)).toBeLessThan(tolerance);
+  }
+});
+
 // --- Energy Burden LCOE Sensitivity ---
 
 console.log('\n--- Energy Burden LCOE Sensitivity ---\n');
