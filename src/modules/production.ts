@@ -47,7 +47,7 @@ export interface ProductionParams {
   // End-use efficiency (Wright's Law on cumulative useful work)
   endUseEfficiency0: number;        // η₀: initial second-law efficiency (0.35)
   endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
-  endUseLearningExponent: number;   // λ: Wright's Law exponent (0.30)
+  endUseLearningExponent: number;   // λ: Wright's Law exponent (0.25)
   cumulativeWorkHistory: number;    // Years of prior useful work experience (30)
 
   // Organizational efficiency (education-driven)
@@ -264,7 +264,9 @@ export const productionModule: Module<
     //   - energySystemOverhead: embodied energy of new capacity + operating energy
     const grossUsefulEnergy = totalGeneration * params.electricExergy
       + nonElectricEnergy * params.thermalExergy;
-    const OVERHEAD_EXERGY = 0.65; // Average exergy factor for energy system overhead (mix of electric/thermal)
+    // Assumption: overhead is roughly half electric (0.95) / half thermal
+    // (0.35) exergy, giving ~0.65 — no direct source
+    const OVERHEAD_EXERGY = 0.65;
     const systemOverhead = resourceEnergy * params.thermalExergy
       + energySystemOverhead * OVERHEAD_EXERGY
       + cdrEnergy * params.electricExergy; // CDR is purely electric

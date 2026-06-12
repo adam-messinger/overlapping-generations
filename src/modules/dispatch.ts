@@ -76,6 +76,9 @@ export interface DispatchParams {
 }
 
 export const dispatchDefaults: DispatchParams = {
+  // Global fleet-average capacity factors, Ember/IEA electricity data
+  // 2023-24 (solar ~14-20% by region, wind ~25-35%, nuclear ~80%+, hydro
+  // ~38%; gas/coal reflect utilization, not availability)
   capacityFactor: {
     solar: 0.20,
     wind: 0.30,
@@ -85,6 +88,8 @@ export const dispatchDefaults: DispatchParams = {
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)
   },
+  // Penetration ceilings: modeling assumptions consistent with grid
+  // integration studies (e.g., NREL LA100/Seams) — not sourced point values
   maxPenetration: {
     solar: 0.40,     // Bare solar limited by intermittency
     wind: 0.35,
@@ -94,6 +99,8 @@ export const dispatchDefaults: DispatchParams = {
     coal: 1.0,
     battery: 0.80,   // Solar+battery can reach 80%
   },
+  // Combustion intensity kg CO2/MWh: gas CCGT ~350-450, coal ~800-1000
+  // (IPCC AR5 Annex III combustion values; lifecycle excluded)
   carbonIntensity: {
     solar: 0,
     wind: 0,
@@ -103,9 +110,10 @@ export const dispatchDefaults: DispatchParams = {
     coal: 900,
     battery: 0,
   },
-  // Marginal cost = fuel + variable O&M (no capital)
-  // Nuclear: low marginal (~$12) despite high LCOE (~$90)
-  // Gas/coal: fuel cost + carbon price applied dynamically
+  // Marginal cost = fuel + variable O&M (no capital), $/MWh.
+  // Nuclear ~$12: NEI/EIA fuel + variable O&M; gas $35 ≈ $4/MMBtu at ~7
+  // heat rate + VOM; coal $25 ≈ $2/MMBtu at ~10 heat rate + VOM (2024 US
+  // reference prices; carbon cost applied dynamically)
   marginalCost: {
     solar: 0,
     wind: 0,
