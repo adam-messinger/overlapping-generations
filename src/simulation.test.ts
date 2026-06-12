@@ -4,6 +4,15 @@
 
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation } from './simulation-autowired.js';
+import { demographicsModule } from './modules/demographics.js';
+import { productionModule } from './modules/production.js';
+import { demandModule } from './modules/demand.js';
+import { capitalModule } from './modules/capital.js';
+import { energyModule } from './modules/energy.js';
+import { dispatchModule } from './modules/dispatch.js';
+import { resourcesModule } from './modules/resources.js';
+import { cdrModule } from './modules/cdr.js';
+import { climateModule } from './modules/climate.js';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { resolveKey } from './framework/collectors.js';
@@ -78,6 +87,29 @@ test('describeOutputs keys match standardCollectors keys', () => {
   if (extraInOutputs.length > 0) {
     throw new Error(
       `describeOutputs fields not in standardCollectors: ${extraInOutputs.join(', ')}`
+    );
+  }
+});
+
+// Cross-check: every collector source is a real module output.
+// Catches phantom outputs: collector entries whose source no module computes
+// would silently collect undefined (and YearResult would report a constant).
+test('standardCollectors sources exist in module outputs', () => {
+  const moduleOutputs = new Set<string>(
+    [
+      demographicsModule, productionModule, demandModule, capitalModule,
+      energyModule, dispatchModule, resourcesModule, cdrModule, climateModule,
+    ].flatMap(m => m.outputs as readonly string[])
+  );
+
+  const phantoms = standardCollectors.timeseries
+    .filter(d => !d.transform) // transform entries compute their own value
+    .map(d => d.source)
+    .filter(source => !moduleOutputs.has(source));
+
+  if (phantoms.length > 0) {
+    throw new Error(
+      `standardCollectors sources not produced by any module: ${[...new Set(phantoms)].join(', ')}`
     );
   }
 });

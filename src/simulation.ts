@@ -117,8 +117,6 @@ export interface YearResult {
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
   debtRiskPremium: number;     // fraction added to interest rate
-  garrettJ: number;            // Dissipation ratio (δK/I); J→1 = stagflation precondition
-  effectiveDepreciation: number; // Effective depreciation rate (base + climate damage effect)
 
   // Energy
   lcoes: Record<EnergySource, number>;

@@ -603,8 +603,6 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       publicDebtService: o.publicDebtService ?? 0,
       creditImpulse: o.creditImpulse ?? 0,
       debtRiskPremium: o.debtRiskPremium ?? 0,
-      garrettJ: o.garrettJ ?? 1,
-      effectiveDepreciation: o.effectiveDepreciation ?? 0.05,
 
       // Energy
       lcoes: o.lcoes,
