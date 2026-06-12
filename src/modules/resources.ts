@@ -235,7 +235,7 @@ export const resourcesDefaults: ResourcesParams = {
 
     minForestArea: 2000,     // Mha protected floor (assumption)
     totalLandArea: 13000,    // Mha global land excl. Antarctica (FAO: ~13 Gha)
-    desert2025: 4150,        // Mha residual: total - farmland - forest - urban (matches FAO barren/other)
+    desert2025: 3870,        // Mha residual: total - farmland - forest - computed 2025 urban (~330 Mha at pop 8.2e9); FAO barren/other order of magnitude
     desertificationRate: 0.001,      // Assumption (UNCCD reports degradation, not desert area growth)
     desertificationClimateCoeff: 0.002, // Assumption
 
@@ -859,7 +859,15 @@ export const resourcesModule: Module<
     const prevLandReleased = Math.max(0, land.farmland2025 - state.land.farmland);
     const newlyReleased = Math.max(0, landReleased - prevLandReleased);
     const reforestation = newlyReleased * land.reforestationRate;
-    const forest = forestAfterLoss + reforestation;
+    // When the farmland cap binds, farmland expands into forest above the
+    // protected floor — clip forest so the residual desert never falls below
+    // desert2025 + desertExpansion (the area the cap declared unavailable).
+    // The ceiling equals minForestArea exactly when the cap binds, and
+    // exceeds it otherwise; the resulting forestChange feeds deforestation
+    // emissions (farmland expansion = forest clearing).
+    const forestCeiling = land.totalLandArea - farmland - urban
+      - (land.desert2025 + desertExpansion);
+    const forest = Math.min(forestAfterLoss + reforestation, forestCeiling);
 
     // Desert/barren is the pure residual, so the land identity holds:
     // farmland + urban + forest + desert === totalLandArea

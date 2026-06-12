@@ -208,13 +208,15 @@ test('land identity holds exactly: farmland + urban + forest + desert = total', 
 });
 
 test('desertification at high temperature reduces available farmland', () => {
-  // Force a farmland-cap-binding regime (huge grain demand) so the cap is
-  // what determines farmland, then check warming tightens it via desert
-  const demandHeavy = { population: 14e9, gdpPerCapita: 60000 };
-  const cool = runYears(40, { ...demandHeavy, temperature: 1.0 }).outputs;
-  const hot = runYears(40, { ...demandHeavy, temperature: 4.0 }).outputs;
+  // Force a farmland-cap-binding regime for BOTH runs (extreme grain
+  // demand) so the cap is what determines farmland, then check warming
+  // tightens it via climate-driven desert expansion
+  const demandExtreme = { population: 20e9, gdpPerCapita: 80000 };
+  const cool = runYears(40, { ...demandExtreme, temperature: 1.0 }).outputs;
+  const hot = runYears(40, { ...demandExtreme, temperature: 4.0 }).outputs;
+  expect(cool.foodStress).toBeGreaterThan(0); // cap binds in both runs
   expect(hot.land.farmland).toBeLessThan(cool.land.farmland + 1e-6);
-  expect(hot.foodStress >= cool.foodStress).toBeTrue();
+  expect(hot.foodStress).toBeGreaterThan(cool.foodStress);
 });
 
 // --- Forest Carbon ---

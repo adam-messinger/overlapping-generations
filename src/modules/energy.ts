@@ -1056,11 +1056,11 @@ export const energyModule: Module<
     const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
     const effectiveWACC = Math.max(params.minWACC, laggedInterestRate + params.riskPremium);
 
-    // Capital recovery factor: CRF(r) = r / (1 - (1+r)^(-n)) for 25-year project life
-    const PROJECT_LIFE = 25;
-    const crf = (r: number) => {
-      if (r < 0.001) return 1 / PROJECT_LIFE; // Limit as r→0
-      return r / (1 - Math.pow(1 + r, -PROJECT_LIFE));
+    // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
+    const PROJECT_LIFE = 25; // years, generic generation asset
+    const crf = (r: number, n: number = PROJECT_LIFE) => {
+      if (r < 0.001) return 1 / n; // Limit as r→0
+      return r / (1 - Math.pow(1 + r, -n));
     };
     const crfEffective = crf(effectiveWACC);
     const crfBase = crf(params.baseWACC);
@@ -1385,10 +1385,14 @@ export const energyModule: Module<
       Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha) +
       params.sources.battery.softFloor;
 
-    // LCOS: amortize battery capex ($/kWh × 1000 = $/MWh of capacity) over
-    // lifetime throughput (cycles/yr × service years), not a single year
-    const lifetimeCycles = params.batteryCyclesPerYear * params.batteryLifetimeYears;
-    const batteryLCOEContribution = (batteryCost * 1000) / lifetimeCycles;
+    // LCOS: annualize battery capex ($/kWh × 1000 = $/MWh of capacity) with
+    // the capital recovery factor over the battery's life, then spread over
+    // annual cycles. Uses the same effective WACC as every other source's
+    // capital cost, so storage responds to interest rates consistently
+    // (~$42/MWh at 7% WACC vs ~$26 straight-line).
+    const batteryLCOEContribution =
+      (batteryCost * 1000 * crf(effectiveWACC, params.batteryLifetimeYears))
+      / params.batteryCyclesPerYear;
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 
