@@ -320,6 +320,7 @@ export interface LandState {
   urban: number;       // Mha
   forest: number;      // Mha
   desert: number;      // Mha
+  desertExpansion: number; // Mha cumulative climate-driven desertification
 }
 
 export interface ResourcesState {
@@ -670,6 +671,7 @@ export const resourcesModule: Module<
         urban: params.land.urban2025,
         forest: params.land.forestArea2025,
         desert: params.land.desert2025,
+        desertExpansion: 0,
       },
       decayPool: 0,
       cumulativeSequestration: 0,
@@ -816,8 +818,20 @@ export const resourcesModule: Module<
     const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
     const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
 
-    // Hard land budget constraint: farmland cannot exceed available land
-    const availableLand = land.totalLandArea - urban - land.minForestArea;
+    // Climate-driven desertification accumulates path-dependently in state
+    // (the previous form recomputed the whole expansion retroactively with
+    // the current year's climate factor and then double-counted it on top
+    // of the residual desert area)
+    const climateExcess = Math.max(0, temperature - 1.5);
+    const desertificationFactor = 1 + land.desertificationClimateCoeff * climateExcess;
+    const desertExpansion = state.land.desertExpansion +
+      (yearIndex > 0 ? land.desert2025 * land.desertificationRate * desertificationFactor : 0);
+
+    // Hard land budget constraint: farmland cannot exceed available land.
+    // Desert area (initial + climate-driven expansion) is unavailable, so
+    // desertification tightens the cap and can trigger foodStress.
+    const availableLand = land.totalLandArea - urban - land.minForestArea
+      - (land.desert2025 + desertExpansion);
     const farmland = Math.min(uncappedFarmland, availableLand);
     const foodStress = uncappedFarmland > 0
       ? Math.max(0, 1 - farmland / uncappedFarmland)
@@ -838,14 +852,9 @@ export const resourcesModule: Module<
     const reforestation = newlyReleased * land.reforestationRate;
     const forest = forestAfterLoss + reforestation;
 
-    // Desert/barren
-    const climateExcess = Math.max(0, temperature - 1.5);
-    const desertificationFactor = 1 + land.desertificationClimateCoeff * climateExcess;
-    const baseDesert = land.totalLandArea - farmland - urban - forest;
-    const climateDrivenExpansion = yearIndex > 0
-      ? land.desert2025 * land.desertificationRate * desertificationFactor * yearIndex
-      : 0;
-    const desert = Math.max(0, baseDesert + climateDrivenExpansion);
+    // Desert/barren is the pure residual, so the land identity holds:
+    // farmland + urban + forest + desert === totalLandArea
+    const desert = Math.max(0, land.totalLandArea - farmland - urban - forest);
 
     // Forest change
     const forestChange = forest - state.land.forest;
@@ -923,6 +932,7 @@ export const resourcesModule: Module<
         urban,
         forest,
         desert,
+        desertExpansion,
       },
       decayPool: newDecayPool,
       cumulativeSequestration: newCumulativeSequestration,

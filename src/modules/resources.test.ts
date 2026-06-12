@@ -206,12 +206,23 @@ test('forest change calculated correctly', () => {
   expect(typeof outputs.land.forestChange).toBe('number');
 });
 
-test('desert is residual from land budget', () => {
-  const { outputs } = runYears(1);
-  const total = outputs.land.farmland + outputs.land.urban +
-                outputs.land.forest + outputs.land.desert;
-  // Should be close to total land area
-  expect(total).toBeBetween(12000, 14000);
+test('land identity holds exactly: farmland + urban + forest + desert = total', () => {
+  for (const years of [1, 10, 40]) {
+    const { outputs } = runYears(years);
+    const total = outputs.land.farmland + outputs.land.urban +
+                  outputs.land.forest + outputs.land.desert;
+    expect(total).toBeCloseTo(resourcesDefaults.land.totalLandArea, 6);
+  }
+});
+
+test('desertification at high temperature reduces available farmland', () => {
+  // Force a farmland-cap-binding regime (huge grain demand) so the cap is
+  // what determines farmland, then check warming tightens it via desert
+  const demandHeavy = { population: 14e9, gdpPerCapita: 60000 };
+  const cool = runYears(40, { ...demandHeavy, temperature: 1.0 }).outputs;
+  const hot = runYears(40, { ...demandHeavy, temperature: 4.0 }).outputs;
+  expect(hot.land.farmland).toBeLessThan(cool.land.farmland + 1e-6);
+  expect(hot.foodStress >= cool.foodStress).toBeTrue();
 });
 
 // --- Forest Carbon ---
