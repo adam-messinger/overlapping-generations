@@ -395,7 +395,8 @@ function ageCohorts(
   tfr: number,
   eduParams: RegionEduParams,
   yearIndex: number,
-  lifeExpectancyGrowth: number
+  lifeExpectancyGrowth: number,
+  effectiveMigrationRate: number
 ): RegionState {
   const pop = state.population;
   const youngShare = state.young / pop;
@@ -460,8 +461,9 @@ function ageCohorts(
   let newWorking = newWorkingCollege + newWorkingNonCollege;
   let newOld = newOldCollege + newOldNonCollege;
 
-  // Apply migration (primarily to working-age, 70% college for migrants)
-  const migration = pop * state._migrationRate;
+  // Apply migration (primarily to working-age, 70% college for migrants).
+  // Rate is pre-scaled by the caller so global net migration sums to zero.
+  const migration = pop * effectiveMigrationRate;
   const migrationCollege = migration * 0.8 * 0.70;
   const migrationNonCollege = migration * 0.8 * 0.30;
 
@@ -696,6 +698,18 @@ export const demographicsModule: Module<
     const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
     const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
 
+    // Migration conservation: scale receiving-region inflows so global net
+    // migration is exactly zero (a closed world). Rates express desired
+    // flows; emigration supply (negative-rate regions) sets the budget.
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    for (const region of REGIONS) {
+      const flow = state.regions[region].population * state.regions[region]._migrationRate;
+      if (flow > 0) totalInflow += flow;
+      else totalOutflow += -flow;
+    }
+    const inflowScale = totalInflow > 0 ? totalOutflow / totalInflow : 0;
+
     for (const region of REGIONS) {
       const regionState = state.regions[region];
       const eduParams = params.education[region];
@@ -714,7 +728,15 @@ export const demographicsModule: Module<
       if (yearIndex === 0) {
         newState = regionState;
       } else {
-        newState = ageCohorts(regionState, tfr, eduParams, yearIndex, params.lifeExpectancyGrowth);
+        // Inflows scale to match the emigration budget; if there are no
+        // receiving regions, outflows are zeroed too (net must be zero)
+        const effectiveMigrationRate = regionState._migrationRate > 0
+          ? regionState._migrationRate * inflowScale
+          : (totalInflow > 0 ? regionState._migrationRate : 0);
+        newState = ageCohorts(
+          regionState, tfr, eduParams, yearIndex,
+          params.lifeExpectancyGrowth, effectiveMigrationRate
+        );
       }
 
       newRegions[region] = newState;

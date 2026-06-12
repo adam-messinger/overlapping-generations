@@ -383,6 +383,43 @@ test('age structure preserved after scaling', () => {
 });
 
 // =============================================================================
+// MIGRATION CONSERVATION
+// =============================================================================
+
+console.log('\n--- Migration Conservation ---\n');
+
+test('migration is pure redistribution: world population unchanged (1 step)', () => {
+  // From identical initial state, the first aged year must produce exactly
+  // the same world population with and without migration — net migration
+  // sums to zero in a closed world (receiving inflows are scaled to the
+  // emigration budget).
+  const withMigration = runYears(2).outputs;
+  const withoutMigration = runYearsWithParams(2, { migrationMultiplier: 0 }).outputs;
+  const relDiff = Math.abs(withMigration.population - withoutMigration.population)
+    / withoutMigration.population;
+  expect(relDiff).toBeLessThan(1e-9);
+});
+
+test('migration composition effects stay small over 30 years', () => {
+  // Multi-year totals can drift slightly because redistribution shifts
+  // people between regions with different fertility/mortality — but pure
+  // redistribution must not create or destroy population at scale.
+  const withMigration = runYears(30).outputs;
+  const withoutMigration = runYearsWithParams(30, { migrationMultiplier: 0 }).outputs;
+  const relDiff = Math.abs(withMigration.population - withoutMigration.population)
+    / withoutMigration.population;
+  expect(relDiff).toBeLessThan(0.005);
+});
+
+test('migration moves population between regions', () => {
+  const withMigration = runYears(20).outputs;
+  const withoutMigration = runYearsWithParams(20, { migrationMultiplier: 0 }).outputs;
+  // OECD is the main receiving region — migration must raise its population
+  expect(withMigration.regionalPopulation.oecd)
+    .toBeGreaterThan(withoutMigration.regionalPopulation.oecd);
+});
+
+// =============================================================================
 // SUMMARY
 // =============================================================================
 
