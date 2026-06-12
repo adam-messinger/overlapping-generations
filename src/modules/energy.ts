@@ -114,6 +114,9 @@ export interface EnergyParams {
   /** Battery cycles per year for LCOE calculation */
   batteryCyclesPerYear: number;
 
+  /** Battery service life in years; capex amortizes over lifetime cycles */
+  batteryLifetimeYears: number;
+
   /** How strongly curtailment dampens VRE additions (default 2.0).
    *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
   curtailmentPenalty: number;
@@ -360,6 +363,7 @@ export const energyDefaults: EnergyParams = {
 
   // Battery LCOE cycles
   batteryCyclesPerYear: 365,
+  batteryLifetimeYears: 15,  // Grid LFP calendar life ~15yr / ~5000 cycles, NREL Storage Futures (2023)
 
   // Curtailment feedback: dampen VRE additions when curtailment is high
   curtailmentPenalty: 2.0,         // At 30% curtailment: additions × 0.4; at 50%: × 0.1 (floor)
@@ -812,6 +816,13 @@ export const energyModule: Module<
     // Curtailment feedback
     if (p.curtailmentPenalty !== undefined && p.curtailmentPenalty < 0) {
       errors.push('curtailmentPenalty cannot be negative');
+    }
+    // Battery LCOS
+    if (p.batteryCyclesPerYear !== undefined && p.batteryCyclesPerYear <= 0) {
+      errors.push('batteryCyclesPerYear must be positive');
+    }
+    if (p.batteryLifetimeYears !== undefined && p.batteryLifetimeYears <= 0) {
+      errors.push('batteryLifetimeYears must be positive');
     }
     // WACC
     if (p.riskPremium !== undefined && p.riskPremium < 0) {
@@ -1358,8 +1369,10 @@ export const energyModule: Module<
       Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha) +
       params.sources.battery.softFloor;
 
-    const cyclesPerYear = params.batteryCyclesPerYear;
-    const batteryLCOEContribution = (batteryCost * 1000) / cyclesPerYear;
+    // LCOS: amortize battery capex ($/kWh × 1000 = $/MWh of capacity) over
+    // lifetime throughput (cycles/yr × service years), not a single year
+    const lifetimeCycles = params.batteryCyclesPerYear * params.batteryLifetimeYears;
+    const batteryLCOEContribution = (batteryCost * 1000) / lifetimeCycles;
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 

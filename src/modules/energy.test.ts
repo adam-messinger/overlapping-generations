@@ -159,6 +159,14 @@ test('solar+battery LCOE declines over time', () => {
   expect(year25).toBeLessThan(year1);
 });
 
+test('solar+battery LCOE has sane 2025 magnitude (LCOS amortization)', () => {
+  // Solar (~$41 after efficiency) + battery capex amortized over lifetime
+  // cycles (~$26) ≈ $67/MWh; Lazard puts solar+4h storage at ~$50-100/MWh.
+  // Guards against charging full battery capex to a single year (~$425/MWh).
+  const year1 = runYears(1).outputs.solarPlusBatteryLCOE;
+  expect(year1).toBeBetween(40, 120);
+});
+
 // --- Capacity Growth ---
 
 console.log('\n--- Capacity Growth ---\n');
