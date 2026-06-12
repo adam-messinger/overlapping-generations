@@ -1,10 +1,13 @@
 # Scenarios
 
-Scenario files configure the simulation with different parameter sets representing alternative futures.
+Scenario files configure the simulation with different parameter sets
+representing alternative futures.
 
 ## Format
 
-Scenarios are JSON files with the following structure:
+Scenarios are JSON files. Top-level keys are `name`, `description`, optional
+`meta` / `startYear` / `endYear`, and one key per module whose parameters you
+want to override:
 
 ```json
 {
@@ -17,42 +20,44 @@ Scenarios are JSON files with the following structure:
     "probability": 0.08
   },
 
-  "energy": { ... },
+  "demographics": { ... },
   "demand": { ... },
   "capital": { ... },
-  "expansion": { ... },
-  "climate": { ... },
+  "energy": { ... },
+  "dispatch": { ... },
   "resources": { ... },
-  "demographics": { ... },
-  "dispatch": { ... }
+  "cdr": { ... },
+  "climate": { ... }
 }
 ```
 
-Only include modules/parameters you want to override. Unspecified values use defaults.
+Only include modules/parameters you want to override; unspecified values use
+defaults. Unrecognized keys produce a loader warning. For the authoritative
+parameter list (names, units, ranges, defaults), run:
 
-## Available Scenarios
+```bash
+npx tsx src/introspection.ts
+npx tsx src/introspection.ts --param=carbonPrice
+```
 
-| Scenario | Description |
-|----------|-------------|
-| `baseline` | Current policies trajectory (STEPS-aligned) |
-| `net-zero` | IEA Net Zero 2050 pathway |
-| `high-sensitivity` | Climate sensitivity at IPCC high-end (4.5°C) |
-| `tech-stagnation` | Pessimistic learning rates |
-| `climate-cascade` | Tail risk: high sensitivity + early tipping |
-| `automation-boom` | Accelerated AI/robotics adoption |
+## Available scenarios
+
+See the scenario table in [CLAUDE.md](../CLAUDE.md) for the full list with
+descriptions, or:
+
+```bash
+npx tsx src/simulation.ts --list
+```
 
 ## Usage
 
 ### CLI
 
 ```bash
-# List scenarios
-npx tsx src/simulation.ts --list
-
-# Run with scenario
+# Run with a named scenario
 npx tsx src/simulation.ts --scenario=net-zero
 
-# Run with scenario file path
+# Run with a scenario file path
 npx tsx src/simulation.ts --scenario=scenarios/custom.json
 ```
 
@@ -72,63 +77,23 @@ params.energy = { ...params.energy, carbonPrice: 200 };
 const result = runSimulation(params);
 ```
 
-## Module Parameters
-
-### energy
+## Example overrides
 
 ```json
 {
-  "carbonPrice": 150,
-  "sources": {
-    "solar": { "alpha": 0.40, "growthRate": 0.30, "cost0": 35 },
-    "wind": { "alpha": 0.28 },
-    "battery": { "alpha": 0.30 },
-    "nuclear": { "growthRate": 0.04 }
+  "energy": {
+    "carbonPrice": 150,
+    "sources": { "solar": { "alpha": 0.40 }, "wind": { "alpha": 0.28 } }
   },
-  "maxGrowthRate": { "solar": 0.30 }
-}
-```
-
-### demand
-
-```json
-{
-  "electrificationTarget": 0.80,
-  "efficiencyMultiplier": 1.3,
-  "sectors": {
-    "transport": { "electrificationTarget": 0.85 },
-    "buildings": { "electrificationTarget": 0.95 }
+  "climate": {
+    "sensitivity": 4.5,
+    "tippingThreshold": 2.0
+  },
+  "demand": {
+    "dataCenterBaseGrowth": 0.25
   }
 }
 ```
 
-### climate
-
-```json
-{
-  "sensitivity": 4.5,
-  "damageCoeff": 0.003,
-  "tippingThreshold": 2.0,
-  "regionalDamage": { "oecd": 0.8, "china": 1.0, "india": 1.5, "latam": 1.0, "seasia": 1.3, "russia": 0.5, "mena": 1.5, "ssa": 2.0 }
-}
-```
-
-### expansion
-
-```json
-{
-  "robotGrowthRate": 0.15,
-  "robotCap": 800,
-  "energyPerRobotMWh": 12,
-  "expansionCoefficient": 0.30
-}
-```
-
-### capital
-
-```json
-{
-  "stabilityLambda": 3.0,
-  "automationGrowth": 0.12
-}
-```
+Existing scenario files in this directory are the best reference for which
+keys are commonly tuned together.
