@@ -95,22 +95,31 @@ test('describeOutputs keys match standardCollectors keys', () => {
 // Catches phantom outputs: collector entries whose source no module computes
 // would silently collect undefined (and YearResult would report a constant).
 test('standardCollectors sources exist in module outputs', () => {
-  const moduleOutputs = new Set<string>(
-    [
-      demographicsModule, productionModule, demandModule, capitalModule,
-      energyModule, dispatchModule, resourcesModule, cdrModule, climateModule,
-    ].flatMap(m => m.outputs as readonly string[])
-  );
+  const modules = [
+    demographicsModule, productionModule, demandModule, capitalModule,
+    energyModule, dispatchModule, resourcesModule, cdrModule, climateModule,
+  ];
+  // Output name -> owning module (collision-free by autowire's registry)
+  const outputOwner = new Map<string, string>();
+  for (const m of modules) {
+    for (const output of m.outputs as readonly string[]) {
+      outputOwner.set(output, m.name);
+    }
+  }
 
-  const phantoms = standardCollectors.timeseries
-    .filter(d => !d.transform) // transform entries compute their own value
-    .map(d => d.source)
-    .filter(source => !moduleOutputs.has(source));
+  const problems: string[] = [];
+  for (const def of standardCollectors.timeseries) {
+    if (def.transform) continue; // transform entries compute their own value
+    const owner = outputOwner.get(def.source);
+    if (!owner) {
+      problems.push(`'${def.source}' is not produced by any module`);
+    } else if (def.module && def.module !== owner) {
+      problems.push(`'${def.source}' attributed to '${def.module}' but produced by '${owner}'`);
+    }
+  }
 
-  if (phantoms.length > 0) {
-    throw new Error(
-      `standardCollectors sources not produced by any module: ${[...new Set(phantoms)].join(', ')}`
-    );
+  if (problems.length > 0) {
+    throw new Error(`standardCollectors drift:\n${problems.join('\n')}`);
   }
 });
 

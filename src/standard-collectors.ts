@@ -65,7 +65,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'collegeShare', unit: 'fraction', description: 'Share of workers with college degree', module: 'demographics' },
 
     // Demand
-    { source: 'gdp', unit: '$T', description: 'Global GDP in trillions', module: 'demand' },
+    { source: 'gdp', unit: '$T', description: 'Global GDP in trillions', module: 'production' },
     { source: 'electricityDemand', unit: 'TWh', description: 'Global electricity demand', module: 'demand' },
     { source: 'electrificationRate', unit: 'fraction', description: 'Electricity share of final energy', module: 'demand' },
     { source: 'totalFinalEnergy', unit: 'TWh', description: 'Total final energy consumption', module: 'demand' },
@@ -144,7 +144,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'deepOceanTemp', unit: '°C', description: 'Deep ocean temperature anomaly (T₂)', module: 'climate' },
     { source: 'radiativeForcing', unit: 'W/m²', description: 'Radiative forcing from CO2', module: 'climate' },
     { source: 'regionalAdaptation', unit: 'fraction', description: 'Adaptation spending by region', module: 'climate' },
-    { source: 'heatStressLoss', unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'climate' },
+    { source: 'heatStressLoss', unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'demographics' },
     { source: 'oceanPH', unit: 'pH', description: 'Ocean surface pH (CO₂-driven acidification)', module: 'climate' },
 
     // Resources - Minerals
