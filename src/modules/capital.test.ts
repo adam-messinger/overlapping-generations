@@ -26,7 +26,7 @@ function getCapitalInputs(yearIndex: number) {
   let demoOutputs: any;
 
   for (let i = 0; i <= yearIndex; i++) {
-    const result = demographicsModule.step(demoState, {}, demoParams, 2025 + i, i);
+    const result = demographicsModule.step(demoState, { temperature: 1.2 }, demoParams, 2025 + i, i);
     demoState = result.state;
     demoOutputs = result.outputs;
   }

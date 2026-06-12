@@ -31,6 +31,10 @@ import { validatedMerge } from '../framework/validated-merge.js';
 
 export interface TransferParams {
   educationRate: number;    // Per-child education as fraction of GDP/capita
+  // Pension/healthcare have no global default: every region defines them in
+  // transferPremium (step() relies on that via non-null assertions)
+  pensionRate?: number;     // Per-retiree pension as fraction of GDP/capita
+  healthcareRate?: number;  // Per-retiree healthcare as fraction of GDP/capita
 }
 
 export interface CapitalParams {

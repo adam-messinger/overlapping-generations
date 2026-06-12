@@ -456,7 +456,7 @@ export const dispatchModule: Module<
   DispatchState,
   DispatchInputs,
   DispatchOutputs
-> = defineModule({
+> = defineModule<DispatchParams, DispatchState, DispatchInputs, DispatchOutputs>({
   name: 'dispatch',
   description: 'Regional merit order dispatch with penetration limits',
 

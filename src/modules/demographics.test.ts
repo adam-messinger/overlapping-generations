@@ -17,7 +17,7 @@ function runYears(years: number) {
   let outputs: any;
 
   for (let i = 0; i < years; i++) {
-    const result = demographicsModule.step(state, {}, params, 2025 + i, i);
+    const result = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i);
     state = result.state;
     outputs = result.outputs;
   }
@@ -157,7 +157,7 @@ test('global population peaks 2050-2070', () => {
 
   for (let year = 2025; year <= 2100; year++) {
     const { state: newState, outputs } = demographicsModule.step(
-      state, {}, params, year, year - 2025
+      state, { temperature: 1.2 }, params, year, year - 2025
     );
     state = newState;
     popByYear[year] = outputs.population;
@@ -174,7 +174,7 @@ test('peak population ~8.9B (JFV: ~9.5B)', () => {
 
   for (let year = 2025; year <= 2100; year++) {
     const { state: newState, outputs } = demographicsModule.step(
-      state, {}, params, year, year - 2025
+      state, { temperature: 1.2 }, params, year, year - 2025
     );
     state = newState;
     maxPop = Math.max(maxPop, outputs.population);
@@ -335,7 +335,7 @@ function runYearsWithParams(years: number, partial: Partial<import('./demographi
   let state = demographicsModule.init(params);
   let outputs: any;
   for (let i = 0; i < years; i++) {
-    const result = demographicsModule.step(state, {}, params, 2025 + i, i);
+    const result = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i);
     state = result.state;
     outputs = result.outputs;
   }

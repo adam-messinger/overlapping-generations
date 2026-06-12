@@ -19,15 +19,6 @@ function createInputs(options: {
   temperature?: number;
 } = {}) {
   return {
-    capacities: {
-      solar: 2000,
-      wind: 1200,
-      hydro: 1400,
-      nuclear: 400,
-      gas: 1800,
-      coal: 2000,
-      battery: 600,
-    },
     additions: {
       solar: options.solarAdditions ?? 100,
       wind: options.windAdditions ?? 50,
@@ -41,6 +32,7 @@ function createInputs(options: {
     gdpPerCapita: options.gdpPerCapita ?? 14000,
     gdpPerCapita2025: 14000,
     temperature: options.temperature ?? 1.3,
+    transportElectrification: 0.05,
     // grainDemand is now calculated internally via Bennett's Law
   };
 }
