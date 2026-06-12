@@ -41,7 +41,7 @@ export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics
 
 // Problem-solve separation (Julia SciML-inspired)
 export { defineSimulation, solve, init } from './framework/problem.js';
-export type { SimulationProblem, StepResult, Stepper } from './framework/problem.js';
+export type { SimulationProblem, StepperResult, Stepper } from './framework/problem.js';
 
 // Declarative data collectors (generic framework)
 export { collectResults, resolveKey } from './framework/collectors.js';

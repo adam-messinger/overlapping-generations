@@ -307,7 +307,8 @@ export function validateConnectorTypes(
 
 /**
  * Validate all wiring at composition time.
- * Catches typos in dependsOn, missing lag sources, and orphaned outputs.
+ * Catches typos in dependsOn, missing lag sources, transform chaining,
+ * and modules that directly consume cycle-breaker transforms.
  */
 export function validateWiring(
   modules: AnyModule[],
@@ -320,12 +321,24 @@ export function validateWiring(
   // All available output names (module outputs + transform names)
   const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(transforms)]);
 
-  // Check transform dependsOn items exist
+  // Check transform dependsOn items exist and are module outputs.
+  // Transform→transform dependencies are rejected: the engine creates no
+  // ordering edge for them (buildDependencyGraph resolves deps through the
+  // output registry only) and transform values are never written to
+  // currentOutputs, so a chained transform would silently read undefined.
   for (const [name, entry] of Object.entries(transforms)) {
     const config = normalizeTransform(entry);
     for (const dep of config.dependsOn) {
       if (!allOutputs.has(dep)) {
         errors.push(`Transform '${name}' depends on '${dep}' which doesn't exist`);
+      } else if (transforms[dep] !== undefined && !outputRegistry.has(dep)) {
+        // A dep that is both a transform name and a module output resolves
+        // to the module output (transforms read module outputs only), so
+        // only pure transform names are chaining errors.
+        errors.push(
+          `Transform '${name}' depends on transform '${dep}'. ` +
+          `Transform chaining is not supported — depend on module outputs instead.`
+        );
       }
     }
   }

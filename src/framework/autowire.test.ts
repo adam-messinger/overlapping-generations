@@ -535,7 +535,7 @@ test('runAutowired throws on bad dependsOn (integration)', () => {
   })).toThrow("depends on 'valeu' which doesn't exist");
 });
 
-test('validateWiring allows transform dependsOn referencing other transforms', () => {
+test('validateWiring rejects transform dependsOn referencing other transforms', () => {
   const registry = buildOutputRegistry([rootModule]);
   const transforms = {
     derived1: {
@@ -544,12 +544,14 @@ test('validateWiring allows transform dependsOn referencing other transforms', (
     },
     derived2: {
       fn: () => 84,
-      dependsOn: ['derived1'],  // References another transform
+      dependsOn: ['derived1'],  // References another transform — no ordering
+      // edge is created and transform values are never in currentOutputs,
+      // so this would silently read undefined at runtime.
     },
   };
 
-  // Should not throw
-  validateWiring([rootModule], registry, transforms, {});
+  expect(() => validateWiring([rootModule], registry, transforms, {}))
+    .toThrow("Transform 'derived2' depends on transform 'derived1'");
 });
 
 // =============================================================================
