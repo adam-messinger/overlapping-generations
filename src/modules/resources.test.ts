@@ -19,15 +19,6 @@ function createInputs(options: {
   temperature?: number;
 } = {}) {
   return {
-    capacities: {
-      solar: 2000,
-      wind: 1200,
-      hydro: 1400,
-      nuclear: 400,
-      gas: 1800,
-      coal: 2000,
-      battery: 600,
-    },
     additions: {
       solar: options.solarAdditions ?? 100,
       wind: options.windAdditions ?? 50,
@@ -41,6 +32,7 @@ function createInputs(options: {
     gdpPerCapita: options.gdpPerCapita ?? 14000,
     gdpPerCapita2025: 14000,
     temperature: options.temperature ?? 1.3,
+    transportElectrification: 0.05,
     // grainDemand is now calculated internally via Bennett's Law
   };
 }
@@ -206,12 +198,25 @@ test('forest change calculated correctly', () => {
   expect(typeof outputs.land.forestChange).toBe('number');
 });
 
-test('desert is residual from land budget', () => {
-  const { outputs } = runYears(1);
-  const total = outputs.land.farmland + outputs.land.urban +
-                outputs.land.forest + outputs.land.desert;
-  // Should be close to total land area
-  expect(total).toBeBetween(12000, 14000);
+test('land identity holds exactly: farmland + urban + forest + desert = total', () => {
+  for (const years of [1, 10, 40]) {
+    const { outputs } = runYears(years);
+    const total = outputs.land.farmland + outputs.land.urban +
+                  outputs.land.forest + outputs.land.desert;
+    expect(total).toBeCloseTo(resourcesDefaults.land.totalLandArea, 6);
+  }
+});
+
+test('desertification at high temperature reduces available farmland', () => {
+  // Force a farmland-cap-binding regime for BOTH runs (extreme grain
+  // demand) so the cap is what determines farmland, then check warming
+  // tightens it via climate-driven desert expansion
+  const demandExtreme = { population: 20e9, gdpPerCapita: 80000 };
+  const cool = runYears(40, { ...demandExtreme, temperature: 1.0 }).outputs;
+  const hot = runYears(40, { ...demandExtreme, temperature: 4.0 }).outputs;
+  expect(cool.foodStress).toBeGreaterThan(0); // cap binds in both runs
+  expect(hot.land.farmland).toBeLessThan(cool.land.farmland + 1e-6);
+  expect(hot.foodStress).toBeGreaterThan(cool.foodStress);
 });
 
 // --- Forest Carbon ---

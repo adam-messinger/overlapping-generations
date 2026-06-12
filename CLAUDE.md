@@ -99,7 +99,7 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
 
 ## Development Conventions
 
-No CI or linting exists — these conventions are the only enforcement mechanism.
+CI (.github/workflows/test.yml) runs `npm test` (typecheck + unit/integration suites) and `npm run regression` (scenario metrics vs blessed baseline) on PRs. Conventions below are not otherwise enforced.
 
 ### Module Change Checklist
 
@@ -256,7 +256,7 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `energyBurden` | fraction | Energy cost share of GDP |
 | `effectiveWACC` | fraction | Weighted avg cost of capital for energy |
 | `robotsDensity` | per 1000 | Robots per 1000 workers |
-| `farmland` | Mha | Cropland area |
+| `farmland` | Mha | Agricultural land (cropland + pasture) |
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |

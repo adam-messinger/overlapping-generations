@@ -71,7 +71,7 @@ export const cdrDefaults: CDRParams = {
   discountRate: 0.03,     // 3% social discount rate (fallback)
   socialDiscountFactor: 0.5, // Social rate = 50% of market rate
 
-  damageCoeff: 0.00536,   // DICE-2023 quadratic damage coefficient
+  damageCoeff: 0.00536,   // Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate module default
   tcre: 0.00045,          // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt)
 };
 
@@ -97,8 +97,9 @@ export interface CDRInputs {
   gdp: number;
   /** Generation-weighted average LCOE $/MWh (lagged from dispatch) */
   laggedAvgLCOE: number;
-  /** Lagged real interest rate (from capital previous year) for endogenous discount rate */
-  laggedInterestRate: number;
+  /** Lagged real interest rate (from capital previous year) for endogenous
+   *  discount rate. Optional: when unwired, params.discountRate is used. */
+  laggedInterestRate?: number;
 }
 
 export interface CDROutputs {
@@ -242,14 +243,20 @@ export const cdrModule: Module<
     //        = 2 × damageCoeff × T × TCRE × GDP($) / discountRate
     // =========================================================================
 
-    // Endogenous discount rate: social rate = fraction of market rate
-    const laggedR = inputs.laggedInterestRate ?? 0.05;
-    const effectiveDiscount = Math.max(0.01, laggedR * params.socialDiscountFactor);
+    // Endogenous discount rate: social rate = fraction of market rate,
+    // falling back to params.discountRate when no interest rate is wired
+    // (!= null catches both undefined and null — optionalOutput-style
+    // wiring passes null for missing values)
+    const laggedR = inputs.laggedInterestRate;
+    const effectiveDiscount = laggedR != null
+      ? Math.max(0.01, laggedR * params.socialDiscountFactor)
+      : params.discountRate;
 
     const gdpDollars = gdp * 1e12; // Convert $T to $
+    // tcre is °C per Gt CO2, so the damage derivative is $ per Gt; divide by
+    // 1e9 tons/Gt to express the SCC in $ per ton (comparable to cdrCostPerTon)
     const effectiveSCC = 2 * params.damageCoeff * Math.max(0, temperature)
-      * params.tcre * gdpDollars / effectiveDiscount;
-    // effectiveSCC is in $ per ton CO2
+      * params.tcre * gdpDollars / effectiveDiscount / 1e9;
 
     // =========================================================================
     // 3. Deployment decision: deploy when SCC > CDR cost
@@ -293,8 +300,8 @@ export const cdrModule: Module<
     // =========================================================================
 
     const removal = newCapacity; // Gt/yr
-    // 1 Gt = 1e9 tons, 1 TWh = 1e9 kWh → kWh/ton × (1e9 ton/Gt) / (1e9 kWh/TWh) = kWh/ton
-    const TWH_PER_GT = params.energyPerTon; // 2500 TWh per Gt CO2
+    // kWh/ton × 1e9 ton/Gt = 1e9 kWh/Gt = 1 TWh/Gt, so kWh/ton ≡ TWh/Gt numerically
+    const TWH_PER_GT = params.energyPerTon; // 2500 kWh/ton = 2500 TWh per Gt CO2
     const cdrEnergyTWh = removal * TWH_PER_GT;
     const cdrCumulative = state.cumulativeDeployed + removal;
     const cdrAnnualSpend = (removal * 1e9 * cdrCostPerTon) / 1e12; // $T/yr

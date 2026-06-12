@@ -31,6 +31,10 @@ import { validatedMerge } from '../framework/validated-merge.js';
 
 export interface TransferParams {
   educationRate: number;    // Per-child education as fraction of GDP/capita
+  // Pension/healthcare have no global default: every region defines them in
+  // transferPremium (step() relies on that via non-null assertions)
+  pensionRate?: number;     // Per-retiree pension as fraction of GDP/capita
+  healthcareRate?: number;  // Per-retiree healthcare as fraction of GDP/capita
 }
 
 export interface CapitalParams {
@@ -180,15 +184,16 @@ interface CapitalOutputs {
 
 export const capitalDefaults: CapitalParams = {
   // Production
-  alpha: 0.33,              // Capital share (Cobb-Douglas)
-  depreciation: 0.05,       // Annual depreciation rate
+  alpha: 0.33,              // Capital share ~1/3: Gollin (2002), Penn World Table labor-share complement
+  depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
 
   // OLG lifecycle savings
   savingsYoung: 0.0,        // Dependents don't save
   savingsWorking: 0.45,     // Prime savers (calibrated to ~22% global rate)
   savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
-  // Regional premiums
+  // Regional premiums: calibrated to gross national savings differentials
+  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%)
   savingsPremium: {
     oecd: 0.00,             // Baseline
     china: 0.15,            // +15% higher savings
@@ -205,7 +210,10 @@ export const capitalDefaults: CapitalParams = {
     educationRate: 0.04,    // Per-child education as fraction of GDP/capita
   },
 
-  // Regional transfer premiums (override global defaults)
+  // Regional transfer premiums (per-recipient rates as fractions of
+  // GDP/capita), calibrated so aggregate spending reproduces OECD Pensions
+  // at a Glance 2023 (public pensions ~7-9% GDP in OECD, <2% in SSA) and
+  // WHO/World Bank health expenditure shares
   transferPremium: {
     oecd:   { pensionRate: 0.35, healthcareRate: 0.10, educationRate: 0.05 },
     china:  { pensionRate: 0.25, healthcareRate: 0.06 },
@@ -220,11 +228,13 @@ export const capitalDefaults: CapitalParams = {
   // G/C uncertainty premium
   stabilityLambda: 2.0,     // At 30% uncertainty: 15% investment suppression
 
-  // Automation
+  // Automation: share trajectory is a modeling assumption; robot density
+  // calibrated to IFR World Robotics 2024 (~4M industrial robots in
+  // operation, ~162 per 10k manufacturing workers globally)
   automationShare2025: 0.02,    // 2% of capital is robots/automation
   automationGrowth: 0.03,       // 3%/year growth in share
   automationShareCap: 0.20,     // Max 20% of capital
-  robotsPerCapitalUnit: 8.6,    // Robots per $1000 automation K per worker
+  robotsPerCapitalUnit: 8.6,    // Robots per $1000 automation K per worker (calibrated to IFR 2024 stock)
 
   // Investment split
   baseEnergyInvestmentShare: 0.15,   // 15% of investment goes to energy sector
@@ -672,8 +682,11 @@ export const capitalModule: Module<
       const pop = inputs.regionalPopulation[r] ?? 0;
       const premium = params.transferPremium[r] ?? {};
 
-      const pensionRate = premium.pensionRate!;      // All 8 regions define this in transferPremium
-      const healthcareRate = premium.healthcareRate!; // All 8 regions define this in transferPremium
+      // All 8 regions define these in transferPremium defaults (mergeParams
+      // deep-merges per region); ?? 0 keeps a malformed direct override from
+      // turning retireeCost into NaN
+      const pensionRate = premium.pensionRate ?? 0;
+      const healthcareRate = premium.healthcareRate ?? 0;
       const educationRate = premium.educationRate ?? params.transfers.educationRate;
 
       // --- Retirement age adjustment ---
@@ -770,6 +783,9 @@ export const capitalModule: Module<
     // Split investment between energy and general economy
     // When energy is scarce/expensive → more investment flows to energy
     const burden = inputs.energyBurden ?? 0.05;
+    // 8% of GDP: stress threshold above the historical norm of ~4-6%
+    // (global energy expenditure share; ~8-13% reached only in the
+    // 1979-81 and 2022 price shocks) — calibration anchor, not sourced data
     const burdenSignal = burden / 0.08; // Normalized to threshold (1.0 = normal)
     const energyShare = Math.min(0.30, Math.max(0.10,
       params.baseEnergyInvestmentShare * (1 + params.energyInvestmentSensitivity * (burdenSignal - 1))

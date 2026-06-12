@@ -41,9 +41,11 @@ export interface SimulationProblem {
 }
 
 /**
- * Step result returned on each year advance
+ * Step result returned on each year advance.
+ * Named StepperResult to avoid colliding with the generic per-module
+ * StepResult<TState, TOutputs> in module.ts (both are barrel-exported).
  */
-export interface StepResult {
+export interface StepperResult {
   year: number;
   outputs: Record<string, any>;
   done: boolean;
@@ -54,7 +56,7 @@ export interface StepResult {
  */
 export interface Stepper {
   /** Advance one year. Returns year outputs. */
-  step(): StepResult;
+  step(): StepperResult;
   /** Current year (next year to be stepped) */
   year(): number;
   /** Whether the simulation has finished */
@@ -98,7 +100,7 @@ export function init(problem: SimulationProblem): Stepper {
   const state: AutowireState = initAutowired(problem.config);
 
   return {
-    step(): StepResult {
+    step(): StepperResult {
       return stepAutowired(state);
     },
 

@@ -14,7 +14,7 @@
  * - YearResult mapping from autowire outputs
  */
 
-import { runAutowired, getOutputsAtYear, AutowireResult, requireOutput, optionalOutput } from './framework/autowire.js';
+import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutput, optionalOutput } from './framework/autowire.js';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
@@ -34,7 +34,7 @@ import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult 
 // MODULES
 // =============================================================================
 
-const ALL_MODULES = [
+export const ALL_MODULES: AnyModule[] = [
   demographicsModule,
   productionModule,
   demandModule,
@@ -150,15 +150,6 @@ function buildTransforms(mergedEnergyParams: any) {
     population: {
       fn: (outputs: Record<string, any>) => outputs.population,
       dependsOn: ['population'],
-    },
-
-    // Cycle-breaker: reads current-year dispatch outputs that may not exist yet
-    // (demand→dispatch→demand cycle broken by omitting dependsOn)
-    // Uses optionalOutput because dispatch hasn't run yet when demand needs this
-    electricityGeneration: {
-      fn: (outputs: Record<string, any>) =>
-        optionalOutput(outputs, 'totalGeneration', undefined),
-      dependsOn: [],
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
@@ -420,7 +411,9 @@ function buildLags(params: SimulationParams) {
       initial: mergedCapital.initialCapitalStock,
     },
 
-    // Production needs lagged total generation
+    // Production and demand both read lagged total generation through this
+    // lag (demand prices electricity on last year's served generation —
+    // dispatch runs after demand, so the current-year value can't exist yet)
     totalGeneration: {
       source: 'totalGeneration',
       delay: 1,
@@ -603,8 +596,6 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       publicDebtService: o.publicDebtService ?? 0,
       creditImpulse: o.creditImpulse ?? 0,
       debtRiskPremium: o.debtRiskPremium ?? 0,
-      garrettJ: o.garrettJ ?? 1,
-      effectiveDepreciation: o.effectiveDepreciation ?? 0.05,
 
       // Energy
       lcoes: o.lcoes,

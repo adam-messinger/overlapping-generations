@@ -73,6 +73,14 @@ export interface DemographicsParams {
 }
 
 export const demographicsDefaults: DemographicsParams = {
+  // Regional table: pop2025, fertility, life expectancy, and cohort shares
+  // from UN World Population Prospects 2024 (medium variant, regions
+  // aggregated to this model's 8 groups); fertility floors/decay follow
+  // Fernández-Villaverde's low-fertility convergence argument (see
+  // docs/REFERENCES.md). migrationRate is the net annual rate as a fraction
+  // of regional population, calibrated to UN WPP 2015-2023 net migration
+  // averages (OECD ~+4-5M/yr); inflows are rescaled at runtime so global
+  // net migration is zero.
   regions: {
     oecd: {
       name: 'OECD',
@@ -171,6 +179,13 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.001,
     },
   },
+  // Education block: enrollment rates/targets anchored to UNESCO UIS
+  // tertiary gross enrollment (2022: OECD ~75%, China ~60%, SSA ~10%);
+  // college wage premia to Psacharopoulos & Patrinos (2018) returns-to-
+  // education ranges; life-expectancy bonuses/penalties are stylized
+  // (US college/non-college gap ~8yr, Case & Deaton 2021 — halved here
+  // as a global compromise). Trajectory params (targets, growth, decay)
+  // are modeling assumptions.
   education: {
     oecd: {
       enrollmentRate2025: 0.75,
@@ -375,8 +390,11 @@ function projectWagePremium(
 function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number): number {
   // Women 15-49 are roughly split between young (15-19) and working (20-49) cohorts
   // Approximate: 0.25 of young + 0.65 of working are women 15-49
+  // (stylized cohort-overlap fractions, not sourced data)
   const womenOfChildbearingAge = youngShare * 0.25 + workingShare * 0.65;
-  // Divide by 2 (only women) and by 32 (average childbearing span)
+  // Divide by 2 (only women) and by 32: effective childbearing span used
+  // here is ~32 years, slightly under the nominal 15-49 window (35 years)
+  // to account for low fertility at the window edges
   return (tfr * womenOfChildbearingAge * 0.5) / 32;
 }
 
@@ -395,7 +413,8 @@ function ageCohorts(
   tfr: number,
   eduParams: RegionEduParams,
   yearIndex: number,
-  lifeExpectancyGrowth: number
+  lifeExpectancyGrowth: number,
+  effectiveMigrationRate: number
 ): RegionState {
   const pop = state.population;
   const youngShare = state.young / pop;
@@ -460,8 +479,9 @@ function ageCohorts(
   let newWorking = newWorkingCollege + newWorkingNonCollege;
   let newOld = newOldCollege + newOldNonCollege;
 
-  // Apply migration (primarily to working-age, 70% college for migrants)
-  const migration = pop * state._migrationRate;
+  // Apply migration (primarily to working-age, 70% college for migrants).
+  // Rate is pre-scaled by the caller so global net migration sums to zero.
+  const migration = pop * effectiveMigrationRate;
   const migrationCollege = migration * 0.8 * 0.70;
   const migrationNonCollege = migration * 0.8 * 0.30;
 
@@ -696,6 +716,20 @@ export const demographicsModule: Module<
     const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
     const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
 
+    // Migration conservation: scale receiving-region inflows so global net
+    // migration is exactly zero (a closed world). Emigration supply
+    // (negative-rate regions) sets the budget, so positive migrationRates
+    // act as *relative shares* of that budget, not absolute inflow rates —
+    // halving a sole receiver's rate does not halve its inflow.
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    for (const region of REGIONS) {
+      const flow = state.regions[region].population * state.regions[region]._migrationRate;
+      if (flow > 0) totalInflow += flow;
+      else totalOutflow += -flow;
+    }
+    const inflowScale = totalInflow > 0 ? totalOutflow / totalInflow : 0;
+
     for (const region of REGIONS) {
       const regionState = state.regions[region];
       const eduParams = params.education[region];
@@ -714,7 +748,17 @@ export const demographicsModule: Module<
       if (yearIndex === 0) {
         newState = regionState;
       } else {
-        newState = ageCohorts(regionState, tfr, eduParams, yearIndex, params.lifeExpectancyGrowth);
+        // Inflows scale to match the emigration budget; with no receiving
+        // regions, outflows are zeroed too (net must be zero)
+        const effectiveMigrationRate = totalInflow === 0
+          ? 0
+          : (regionState._migrationRate > 0
+            ? regionState._migrationRate * inflowScale
+            : regionState._migrationRate);
+        newState = ageCohorts(
+          regionState, tfr, eduParams, yearIndex,
+          params.lifeExpectancyGrowth, effectiveMigrationRate
+        );
       }
 
       newRegions[region] = newState;

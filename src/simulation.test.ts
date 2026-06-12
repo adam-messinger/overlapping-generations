@@ -3,7 +3,8 @@
  */
 
 import { runSimulation } from './simulation.js';
-import { runAutowiredFull, runAutowiredSimulation } from './simulation-autowired.js';
+import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
+import { buildOutputRegistry } from './framework/autowire.js';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { resolveKey } from './framework/collectors.js';
@@ -79,6 +80,29 @@ test('describeOutputs keys match standardCollectors keys', () => {
     throw new Error(
       `describeOutputs fields not in standardCollectors: ${extraInOutputs.join(', ')}`
     );
+  }
+});
+
+// Cross-check: every collector source is a real module output.
+// Catches phantom outputs: collector entries whose source no module computes
+// would silently collect undefined (and YearResult would report a constant).
+test('standardCollectors sources exist in module outputs', () => {
+  // Output name -> owning module, from the real wiring's module list
+  const outputOwner = buildOutputRegistry(ALL_MODULES);
+
+  const problems: string[] = [];
+  for (const def of standardCollectors.timeseries) {
+    if (def.transform) continue; // transform entries compute their own value
+    const owner = outputOwner.get(def.source);
+    if (!owner) {
+      problems.push(`'${def.source}' is not produced by any module`);
+    } else if (def.module && def.module !== owner) {
+      problems.push(`'${def.source}' attributed to '${def.module}' but produced by '${owner}'`);
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`standardCollectors drift:\n${problems.join('\n')}`);
   }
 });
 

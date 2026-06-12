@@ -102,6 +102,30 @@ test('generation values are non-negative', () => {
   }
 });
 
+test('shortfall release cannot exceed physical solar panel output', () => {
+  // High VRE + deep shortfall exercises the emergency-release path.
+  // Bare solar and solarPlusBattery draw from the same panels: their combined
+  // dispatch must never exceed pre-curtailment panel potential (the old
+  // release credited curtailed solar AND curtailed solar+battery — same
+  // panels twice — creating energy from nothing exactly in this regime).
+  const params = dispatchModule.mergeParams({});
+  const { outputs } = runDispatch({
+    demand: 100000,
+    solarCap: 20000,
+    batteryCap: 40000,
+    windCap: 500,
+    nuclearCap: 0,
+    gasCap: 0,
+    coalCap: 0,
+  });
+  const solarPotential =
+    (20000 * params.capacityFactor.solar * params.hoursPerYear) / 1000;
+  const solarDerived = outputs.generation.solar + outputs.generation.solarPlusBattery;
+  expect(solarDerived).toBeLessThan(solarPotential * 1.0001);
+  expect(outputs.shortfall).toBeGreaterThan(0); // release path was exercised
+  expect(outputs.curtailmentTWh >= 0).toBeTrue();
+});
+
 // --- Merit Order ---
 
 console.log('\n--- Merit Order ---\n');

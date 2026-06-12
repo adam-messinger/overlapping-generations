@@ -168,7 +168,7 @@ export const climateModule: Module<
   ClimateState,
   ClimateInputs,
   ClimateOutputs
-> = defineModule({
+> = defineModule<ClimateParams, ClimateState, ClimateInputs, ClimateOutputs>({
   name: 'climate',
   description: 'Two-layer energy balance (Geoffroy et al. 2013) with DICE-style damages',
 

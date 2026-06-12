@@ -80,13 +80,19 @@ export function expect<T>(actual: T) {
       if (typeof actual !== 'function') {
         throw new Error('Expected a function');
       }
+      let thrown: unknown;
+      let didThrow = false;
       try {
         (actual as () => void)();
-        throw new Error('Expected function to throw');
       } catch (err) {
-        if (message && err instanceof Error && !err.message.includes(message)) {
-          throw new Error(`Expected error containing "${message}", got "${err.message}"`);
-        }
+        didThrow = true;
+        thrown = err;
+      }
+      if (!didThrow) {
+        throw new Error('Expected function to throw');
+      }
+      if (message && thrown instanceof Error && !thrown.message.includes(message)) {
+        throw new Error(`Expected error containing "${message}", got "${thrown.message}"`);
       }
     },
     toHaveLength(expected: number) {

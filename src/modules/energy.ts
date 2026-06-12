@@ -114,6 +114,9 @@ export interface EnergyParams {
   /** Battery cycles per year for LCOE calculation */
   batteryCyclesPerYear: number;
 
+  /** Battery service life in years; capex amortizes over lifetime cycles */
+  batteryLifetimeYears: number;
+
   /** How strongly curtailment dampens VRE additions (default 2.0).
    *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
   curtailmentPenalty: number;
@@ -208,8 +211,8 @@ export const energyDefaults: EnergyParams = {
   sources: {
     solar: {
       name: 'Solar PV',
-      cost0: 35,             // $/MWh total LCOE at reference CF (hardware $23 + soft $12)
-      alpha: 0.36,           // Wright's Law on hardware portion only
+      cost0: 35,             // $/MWh unsubsidized utility PV, Lazard LCOE+ 2024 low end; hardware $23 + soft $12
+      alpha: 0.36,           // 22% learning/doubling; Way et al. 2022, OWID 1976-2019 (~20%) — see sources/energy-learning-rates.md
       softFloor: 12,         // $/MWh irreducible: installation labor, land, permitting, O&M
       referenceCF: 0.20,     // CF adjustment: worse sites → higher effective LCOE
       capacity2025: REGIONAL_CAPACITY_2025.solar,
@@ -218,8 +221,8 @@ export const energyDefaults: EnergyParams = {
     },
     wind: {
       name: 'Wind',
-      cost0: 35,             // $/MWh total at reference CF (hardware $20 + soft $15)
-      alpha: 0.23,
+      cost0: 35,             // $/MWh unsubsidized onshore, Lazard LCOE+ 2024 low-mid; hardware $20 + soft $15
+      alpha: 0.23,           // ~15% learning/doubling; lit. range 10-19% — see sources/energy-learning-rates.md
       softFloor: 15,         // Higher than solar: offshore maintenance, complex installation
       referenceCF: 0.30,     // CF adjustment for site quality degradation
       capacity2025: REGIONAL_CAPACITY_2025.wind,
@@ -272,8 +275,8 @@ export const energyDefaults: EnergyParams = {
     },
     battery: {
       name: 'Battery Storage',
-      cost0: 140,            // $/kWh total (hardware $120 + soft $20)
-      alpha: 0.26,
+      cost0: 140,            // $/kWh pack, BNEF battery price survey 2023 ($139/kWh); hardware $120 + soft $20
+      alpha: 0.26,           // ~17% learning/doubling; Ziegler & Trancik 2021 find ~24% at cell level, pack lower
       softFloor: 20,         // $/kWh: BMS, pack assembly, installation
       referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.battery,
@@ -294,7 +297,9 @@ export const energyDefaults: EnergyParams = {
     ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa } },
   },
 
-  // Non-fossil EROI assumptions (used for net energy fraction)
+  // EROI assumptions (used for net energy fraction). Contested literature:
+  // ranges span Weißbach et al. (2013, buffered vs unbuffered) to
+  // Murphy & Hall (2010); values below sit mid-range, see docs/REFERENCES.md
   eroi: {
     solar: 20,
     wind: 25,
@@ -308,6 +313,9 @@ export const energyDefaults: EnergyParams = {
   // Global fallback carbon price (DEPRECATED - use regional)
   carbonPrice: 35,
 
+  // Max annual capacity growth: modeling assumptions bracketing recent
+  // history (solar grew ~25-40%/yr 2015-2024, IRENA; nuclear/hydro
+  // supply-chain limited)
   maxGrowthRate: {
     solar: 0.30,
     wind: 0.20,
@@ -317,6 +325,8 @@ export const energyDefaults: EnergyParams = {
     gas: 0.05,
     coal: 0.03,
   },
+  // Asset lives in years: NREL ATB 2024 / IEA WEO assumptions (nuclear with
+  // license extension; hydro civil works)
   lifetime: {
     solar: 30,
     wind: 25,
@@ -328,6 +338,9 @@ export const energyDefaults: EnergyParams = {
   },
   batteryEfficiency: 0.85,
   batteryDuration: 4, // hours (for GWh → GW conversion)
+  // Overnight capital cost $/kW ($/kWh for battery): IRENA Renewable Power
+  // Generation Costs 2023 global-weighted averages (solar ~$760/kW, onshore
+  // wind ~$1160/kW); nuclear is an OECD/recent-builds compromise
   capex: {
     solar: 800,
     wind: 1200,
@@ -347,7 +360,8 @@ export const energyDefaults: EnergyParams = {
   demandFillRate: 0.30,           // Fill 30% of demand gap per year
   competitiveThreshold: 1.20,     // Build if LCOE within 20% of fossil
 
-  // Capacity planning ceilings (how much to build, not how much to generate)
+  // Capacity planning ceilings (how much to build, not how much to
+  // generate): modeling assumptions, not sourced data
   capacityCeiling: {
     solar: 0.8,
     wind: 0.35,
@@ -360,6 +374,7 @@ export const energyDefaults: EnergyParams = {
 
   // Battery LCOE cycles
   batteryCyclesPerYear: 365,
+  batteryLifetimeYears: 15,  // Grid LFP calendar life ~15yr / ~5000 cycles, NREL Storage Futures (2023)
 
   // Curtailment feedback: dampen VRE additions when curtailment is high
   curtailmentPenalty: 2.0,         // At 30% curtailment: additions × 0.4; at 50%: × 0.1 (floor)
@@ -379,7 +394,8 @@ export const energyDefaults: EnergyParams = {
     battery: 0.80,
   },
 
-  // Long-duration storage (iron-air, CAES, etc.)
+  // Long-duration storage (iron-air, CAES, etc.): modeling assumptions —
+  // pre-commercial technology, costs anchored loosely to ~2x Li-ion
   longStorage: {
     cost0: 300,                // $/kWh (2025, ~2x battery)
     alpha: 0.15,               // Slower learning than Li-ion
@@ -394,7 +410,8 @@ export const energyDefaults: EnergyParams = {
     },
   },
 
-  // Site quality degradation
+  // Site quality degradation: modeling assumptions (best-sites-first;
+  // regional potentials are order-of-magnitude, not resource assessments)
   siteDepletion: {
     solarDepletion: 0.30,      // Best sites used first → 30% CF reduction at full potential
     windDepletion: 0.30,       // Same for wind
@@ -813,6 +830,13 @@ export const energyModule: Module<
     if (p.curtailmentPenalty !== undefined && p.curtailmentPenalty < 0) {
       errors.push('curtailmentPenalty cannot be negative');
     }
+    // Battery LCOS
+    if (p.batteryCyclesPerYear !== undefined && p.batteryCyclesPerYear <= 0) {
+      errors.push('batteryCyclesPerYear must be positive');
+    }
+    if (p.batteryLifetimeYears !== undefined && p.batteryLifetimeYears <= 0) {
+      errors.push('batteryLifetimeYears must be positive');
+    }
     // WACC
     if (p.riskPremium !== undefined && p.riskPremium < 0) {
       errors.push('riskPremium cannot be negative');
@@ -1032,11 +1056,11 @@ export const energyModule: Module<
     const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
     const effectiveWACC = Math.max(params.minWACC, laggedInterestRate + params.riskPremium);
 
-    // Capital recovery factor: CRF(r) = r / (1 - (1+r)^(-n)) for 25-year project life
-    const PROJECT_LIFE = 25;
-    const crf = (r: number) => {
-      if (r < 0.001) return 1 / PROJECT_LIFE; // Limit as r→0
-      return r / (1 - Math.pow(1 + r, -PROJECT_LIFE));
+    // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
+    const PROJECT_LIFE = 25; // years, generic generation asset
+    const crf = (r: number, n: number = PROJECT_LIFE) => {
+      if (r < 0.001) return 1 / n; // Limit as r→0
+      return r / (1 - Math.pow(1 + r, -n));
     };
     const crfEffective = crf(effectiveWACC);
     const crfBase = crf(params.baseWACC);
@@ -1141,6 +1165,9 @@ export const energyModule: Module<
           const targetBatteryGWh = futureSolarGW * params.batteryDuration * storagePressure;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
 
+          // Assumption: storage-firmed solar costs ~1.5x bare solar in
+          // regional investment decisions (coarser than the global LCOS
+          // calculation; kept simple deliberately)
           const REGIONAL_BATTERY_MARKUP = 1.5;
           const solarPlusBatteryLCOE = regionalLCOE.solar * REGIONAL_BATTERY_MARKUP;
           const isCompetitive = solarPlusBatteryLCOE <= cheapestFossilLCOE * params.competitiveThreshold;
@@ -1358,8 +1385,14 @@ export const energyModule: Module<
       Math.pow(Math.max(1, batteryRatio), -params.sources.battery.alpha) +
       params.sources.battery.softFloor;
 
-    const cyclesPerYear = params.batteryCyclesPerYear;
-    const batteryLCOEContribution = (batteryCost * 1000) / cyclesPerYear;
+    // LCOS: annualize battery capex ($/kWh × 1000 = $/MWh of capacity) with
+    // the capital recovery factor over the battery's life, then spread over
+    // annual cycles. Uses the same effective WACC as every other source's
+    // capital cost, so storage responds to interest rates consistently
+    // (~$42/MWh at 7% WACC vs ~$26 straight-line).
+    const batteryLCOEContribution =
+      (batteryCost * 1000 * crf(effectiveWACC, params.batteryLifetimeYears))
+      / params.batteryCyclesPerYear;
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 

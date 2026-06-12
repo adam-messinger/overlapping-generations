@@ -76,6 +76,9 @@ export interface DispatchParams {
 }
 
 export const dispatchDefaults: DispatchParams = {
+  // Global fleet-average capacity factors, Ember/IEA electricity data
+  // 2023-24 (solar ~14-20% by region, wind ~25-35%, nuclear ~80%+, hydro
+  // ~38%; gas/coal reflect utilization, not availability)
   capacityFactor: {
     solar: 0.20,
     wind: 0.30,
@@ -85,6 +88,8 @@ export const dispatchDefaults: DispatchParams = {
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)
   },
+  // Penetration ceilings: modeling assumptions consistent with grid
+  // integration studies (e.g., NREL LA100/Seams) — not sourced point values
   maxPenetration: {
     solar: 0.40,     // Bare solar limited by intermittency
     wind: 0.35,
@@ -94,6 +99,8 @@ export const dispatchDefaults: DispatchParams = {
     coal: 1.0,
     battery: 0.80,   // Solar+battery can reach 80%
   },
+  // Combustion intensity kg CO2/MWh: gas CCGT ~350-450, coal ~800-1000
+  // (IPCC AR5 Annex III combustion values; lifecycle excluded)
   carbonIntensity: {
     solar: 0,
     wind: 0,
@@ -103,9 +110,10 @@ export const dispatchDefaults: DispatchParams = {
     coal: 900,
     battery: 0,
   },
-  // Marginal cost = fuel + variable O&M (no capital)
-  // Nuclear: low marginal (~$12) despite high LCOE (~$90)
-  // Gas/coal: fuel cost + carbon price applied dynamically
+  // Marginal cost = fuel + variable O&M (no capital), $/MWh.
+  // Nuclear ~$12: NEI/EIA fuel + variable O&M; gas $35 ≈ $4/MMBtu at ~7
+  // heat rate + VOM; coal $25 ≈ $2/MMBtu at ~10 heat rate + VOM (2024 US
+  // reference prices; carbon cost applied dynamically)
   marginalCost: {
     solar: 0,
     wind: 0,
@@ -292,7 +300,6 @@ function dispatchRegion(
 
   // Save pre-curtailment VRE values for shortfall release
   const preCurtailmentSolar = maxGen.solar;
-  const preCurtailmentSolarBattery = maxGen.solarPlusBattery;
   const preCurtailmentWind = maxGen.wind;
 
   // Soft curtailment: reduce effective VRE as share increases beyond onset
@@ -394,19 +401,24 @@ function dispatchRegion(
     }
   }
 
-  // Release curtailed VRE to fill any shortfall before tracking curtailment
+  // Emergency release: dispatch otherwise-curtailed VRE to fill shortfall.
+  // Intentionally bypasses penetration limits (last-resort dispatch) but is
+  // capped by physical panel/turbine output: solarPlusBattery draws from the
+  // same panels as bare solar, so releasable solar energy is the panel
+  // potential minus everything solar-derived already dispatched. Released
+  // solar is credited to bare solar: curtailed energy dispatched directly
+  // does not pass through storage (this slightly under-weights storage LCOS
+  // in weighted-average pricing during shortfall years — accepted).
   if (remaining > 0) {
-    const curtailedSolar = preCurtailmentSolar - maxGen.solar;
-    const curtailedSolarBattery = preCurtailmentSolarBattery - maxGen.solarPlusBattery;
-    const curtailedWind = preCurtailmentWind - maxGen.wind;
-    const totalCurtailed = curtailedSolar + curtailedSolarBattery + curtailedWind;
+    const releasableSolar = Math.max(
+      0, preCurtailmentSolar - generation.solar - generation.solarPlusBattery);
+    const releasableWind = Math.max(0, preCurtailmentWind - generation.wind);
+    const totalReleasable = releasableSolar + releasableWind;
 
-    if (totalCurtailed > 0) {
-      const release = Math.min(remaining, totalCurtailed);
-      // Pro-rata release across VRE sources
-      generation.solar += release * (curtailedSolar / totalCurtailed);
-      generation.solarPlusBattery += release * (curtailedSolarBattery / totalCurtailed);
-      generation.wind += release * (curtailedWind / totalCurtailed);
+    if (totalReleasable > 0) {
+      const release = Math.min(remaining, totalReleasable);
+      generation.solar += release * (releasableSolar / totalReleasable);
+      generation.wind += release * (releasableWind / totalReleasable);
       remaining -= release;
     }
   }
@@ -454,7 +466,7 @@ export const dispatchModule: Module<
   DispatchState,
   DispatchInputs,
   DispatchOutputs
-> = defineModule({
+> = defineModule<DispatchParams, DispatchState, DispatchInputs, DispatchOutputs>({
   name: 'dispatch',
   description: 'Regional merit order dispatch with penetration limits',
 

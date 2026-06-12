@@ -7,9 +7,10 @@
  * Forest carbon creates feedback to climate module.
  *
  * Inputs (from other modules):
- * - capacities, additions: From energy module
+ * - additions: From energy module
  * - population, gdpPerCapita: From demographics/demand
- * - temperature: From climate module
+ * - temperature: From climate module (lagged)
+ * - transportElectrification: From demand (EV battery demand)
  *
  * Outputs (to other modules):
  * - netFlux: Gt CO2/year from land use change (to climate)
@@ -151,17 +152,17 @@ export const resourcesDefaults: ResourcesParams = {
   minerals: {
     copper: {
       name: 'Copper',
-      perMW_solar: 2800,
-      perMW_wind: 3500,
-      perGWh_battery: 800,
-      learningRate: 0.02,
-      reserves: 880,
+      perMW_solar: 2800,          // kg/MW utility PV, IEA Critical Minerals 2021 (~2.8 t/MW); see docs/
+      perMW_wind: 3500,           // kg/MW onshore, IEA 2021 (~2.9 t/MW onshore, ~8 t/MW offshore — blended)
+      perGWh_battery: 800,        // kg/GWh pack + connections, IEA 2021 order of magnitude
+      learningRate: 0.02,         // Intensity decline assumption
+      reserves: 880,              // Mt, USGS Mineral Commodity Summaries 2023 (~890 Mt)
       recyclingBase: 0.15,
       recyclingMax: 0.50,
       recyclingHalfway: 500,
-      annualSupply2025: 22,       // Mt/year current mining capacity
-      maxMiningGrowth: 0.03,      // 3%/yr max growth
-      maxMiningCapacity: 60,      // Mt/yr logistic ceiling
+      annualSupply2025: 22,       // Mt/year mine production, USGS 2024 (~22 Mt)
+      maxMiningGrowth: 0.03,      // 3%/yr max growth (assumption)
+      maxMiningCapacity: 60,      // Mt/yr logistic ceiling (assumption)
     },
     lithium: {
       name: 'Lithium',
@@ -177,9 +178,9 @@ export const resourcesDefaults: ResourcesParams = {
     },
     rareEarths: {
       name: 'Rare Earths',
-      perMW_wind: 200,
+      perMW_wind: 200,            // kg NdPr-equivalent/MW direct-drive, IEA 2021 order of magnitude
       learningRate: 0.01,
-      reserves: 130,
+      reserves: 130,              // Mt REO, USGS 2024 (~110-130 Mt range)
       recyclingBase: 0.01,
       recyclingMax: 0.20,
       recyclingHalfway: 10,
@@ -189,17 +190,17 @@ export const resourcesDefaults: ResourcesParams = {
     },
     steel: {
       name: 'Steel',
-      perMW_solar: 35000,
-      perMW_wind: 120000,
-      perMW_nuclear: 60000,
+      perMW_solar: 35000,         // kg/MW incl. mounting/trackers (lit. range 30-70 t/MW)
+      perMW_wind: 120000,         // kg/MW incl. tower/foundation (lit. range 100-180 t/MW)
+      perMW_nuclear: 60000,       // kg/MW (lit. ~40-80 t/MW)
       learningRate: 0.01,
-      reserves: null, // Effectively unlimited
+      reserves: null, // Effectively unlimited (iron ore is not scarce)
       recyclingBase: 0.35,
       recyclingMax: 0.70,
       recyclingHalfway: 5000,
-      annualSupply2025: 1900,     // Mt/year
-      maxMiningGrowth: 0.02,      // 2%/yr max growth
-      maxMiningCapacity: 3500,    // Mt/yr logistic ceiling
+      annualSupply2025: 1900,     // Mt/year crude steel, worldsteel 2023 (~1.89 Gt)
+      maxMiningGrowth: 0.02,      // 2%/yr max growth (assumption)
+      maxMiningCapacity: 3500,    // Mt/yr logistic ceiling (assumption)
     },
   },
   evBattery: {
@@ -219,30 +220,32 @@ export const resourcesDefaults: ResourcesParams = {
   },
   land: {
     energyPerHectare: 3.0,   // GJ/ha (fertilizer ~1.5, machinery ~1.0, irrigation ~0.5)
-    farmland2025: 4800,
-    yieldGrowthRate: 0.01,
-    yield2025: 4.0,
-    nonFoodMultiplier: 4.9,
+    farmland2025: 4800,      // Mha total agricultural land incl. pasture (FAOSTAT 2021 ~4.8 Gha; cropland alone is ~1.6 Gha)
+    yieldGrowthRate: 0.01,   // ~1%/yr technological yield growth (FAO long-run cereal trend)
+    yield2025: 4.0,          // t/ha world average cereal yield (FAOSTAT 2022: ~4.1)
+    nonFoodMultiplier: 4.9,  // Total agricultural land per unit of grain-equivalent cropland (calibrated to farmland2025)
 
-    urbanPerCapita: 0.04,
-    urban2025: 50,
-    urbanWealthElasticity: 0.3,
+    urbanPerCapita: 0.04,    // ha/person built-up land (lit. range 0.02-0.06)
+    urban2025: 50,           // Mha (unused in step; kept for state init)
+    urbanWealthElasticity: 0.3, // Modeling assumption
 
-    forestArea2025: 4000,
-    forestLossRate: 0.002,
-    reforestationRate: 0.5,
+    forestArea2025: 4000,    // Mha (FAO Global Forest Resources Assessment 2020: 4,060 Mha)
+    forestLossRate: 0.002,   // ~0.2%/yr gross loss (FAO FRA 2020: ~10 Mha/yr on 4 Gha)
+    reforestationRate: 0.5,  // Fraction of released farmland that reforests (assumption)
 
-    minForestArea: 2000,
-    totalLandArea: 13000,
-    desert2025: 4150,
-    desertificationRate: 0.001,
-    desertificationClimateCoeff: 0.002,
+    minForestArea: 2000,     // Mha protected floor (assumption)
+    totalLandArea: 13000,    // Mha global land excl. Antarctica (FAO: ~13 Gha)
+    desert2025: 3870,        // Mha residual: total - farmland - forest - computed 2025 urban (~330 Mha at pop 8.2e9); FAO barren/other order of magnitude
+    desertificationRate: 0.001,      // Assumption (UNCCD reports degradation, not desert area growth)
+    desertificationClimateCoeff: 0.002, // Assumption
 
-    forestCarbonDensity: 150,
-    sequestrationRate: 7.5,
-    deforestationEmissionFactor: 0.5,
+    forestCarbonDensity: 150,  // t CO2/ha released on loss (IPCC default biomass ranges 100-300 by biome)
+    sequestrationRate: 7.5,    // t CO2/ha/yr young forest (IPCC AR6 WGIII afforestation range ~4-10)
+    deforestationEmissionFactor: 0.5, // Fraction emitted immediately vs decay pool (assumption)
     decayRate: 0.05,
 
+    // Schlenker & Roberts (2009) nonlinear yield-temperature response —
+    // see sources/Schlenker-Roberts-Crop-Yields.md
     yieldDamageThreshold: 2.0,
     yieldDamageCoeff: 0.15,
 
@@ -265,6 +268,10 @@ export const resourcesDefaults: ResourcesParams = {
     proteinCaloriesPerKg: 4000,   // kcal per kg protein (meat/dairy avg)
   },
 
+  // Water stress: vulnerabilities are stylized rankings consistent with
+  // IPCC AR6 WGII regional water-scarcity assessments and Schewe et al.
+  // (2014, docs/schewe-2014.pdf); per-degree severities are calibration,
+  // not sourced point values
   water: {
     regional: {
       oecd: {
@@ -320,6 +327,7 @@ export interface LandState {
   urban: number;       // Mha
   forest: number;      // Mha
   desert: number;      // Mha
+  desertExpansion: number; // Mha cumulative climate-driven desertification
 }
 
 export interface ResourcesState {
@@ -670,6 +678,7 @@ export const resourcesModule: Module<
         urban: params.land.urban2025,
         forest: params.land.forestArea2025,
         desert: params.land.desert2025,
+        desertExpansion: 0,
       },
       decayPool: 0,
       cumulativeSequestration: 0,
@@ -816,14 +825,28 @@ export const resourcesModule: Module<
     const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
     const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
 
-    // Hard land budget constraint: farmland cannot exceed available land
-    const availableLand = land.totalLandArea - urban - land.minForestArea;
+    // Climate-driven desertification accumulates path-dependently in state
+    // (the previous form recomputed the whole expansion retroactively with
+    // the current year's climate factor and then double-counted it on top
+    // of the residual desert area)
+    const climateExcess = Math.max(0, temperature - 1.5);
+    const desertificationFactor = 1 + land.desertificationClimateCoeff * climateExcess;
+    const desertExpansion = state.land.desertExpansion +
+      (yearIndex > 0 ? land.desert2025 * land.desertificationRate * desertificationFactor : 0);
+
+    // Hard land budget constraint: farmland cannot exceed available land.
+    // Desert area (initial + climate-driven expansion) is unavailable, so
+    // desertification tightens the cap and can trigger foodStress.
+    const availableLand = land.totalLandArea - urban - land.minForestArea
+      - (land.desert2025 + desertExpansion);
     const farmland = Math.min(uncappedFarmland, availableLand);
     const foodStress = uncappedFarmland > 0
       ? Math.max(0, 1 - farmland / uncappedFarmland)
       : 0;
 
-    // Forest dynamics
+    // Forest dynamics. Assumption: when farmland is shrinking (land
+    // released), background forest loss halves; when expanding, loss scales
+    // up with agricultural pressure
     const landReleased = Math.max(0, land.farmland2025 - farmland);
     const agPressure = Math.max(0, farmland - land.farmland2025) / land.farmland2025;
     const lossMultiplier = landReleased > 0 ? 0.5 : (1 + agPressure);
@@ -836,16 +859,19 @@ export const resourcesModule: Module<
     const prevLandReleased = Math.max(0, land.farmland2025 - state.land.farmland);
     const newlyReleased = Math.max(0, landReleased - prevLandReleased);
     const reforestation = newlyReleased * land.reforestationRate;
-    const forest = forestAfterLoss + reforestation;
+    // When the farmland cap binds, farmland expands into forest above the
+    // protected floor — clip forest so the residual desert never falls below
+    // desert2025 + desertExpansion (the area the cap declared unavailable).
+    // The ceiling equals minForestArea exactly when the cap binds, and
+    // exceeds it otherwise; the resulting forestChange feeds deforestation
+    // emissions (farmland expansion = forest clearing).
+    const forestCeiling = land.totalLandArea - farmland - urban
+      - (land.desert2025 + desertExpansion);
+    const forest = Math.min(forestAfterLoss + reforestation, forestCeiling);
 
-    // Desert/barren
-    const climateExcess = Math.max(0, temperature - 1.5);
-    const desertificationFactor = 1 + land.desertificationClimateCoeff * climateExcess;
-    const baseDesert = land.totalLandArea - farmland - urban - forest;
-    const climateDrivenExpansion = yearIndex > 0
-      ? land.desert2025 * land.desertificationRate * desertificationFactor * yearIndex
-      : 0;
-    const desert = Math.max(0, baseDesert + climateDrivenExpansion);
+    // Desert/barren is the pure residual, so the land identity holds:
+    // farmland + urban + forest + desert === totalLandArea
+    const desert = Math.max(0, land.totalLandArea - farmland - urban - forest);
 
     // Forest change
     const forestChange = forest - state.land.forest;
@@ -923,6 +949,7 @@ export const resourcesModule: Module<
         urban,
         forest,
         desert,
+        desertExpansion,
       },
       decayPool: newDecayPool,
       cumulativeSequestration: newCumulativeSequestration,
