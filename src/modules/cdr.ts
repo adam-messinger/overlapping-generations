@@ -97,8 +97,9 @@ export interface CDRInputs {
   gdp: number;
   /** Generation-weighted average LCOE $/MWh (lagged from dispatch) */
   laggedAvgLCOE: number;
-  /** Lagged real interest rate (from capital previous year) for endogenous discount rate */
-  laggedInterestRate: number;
+  /** Lagged real interest rate (from capital previous year) for endogenous
+   *  discount rate. Optional: when unwired, params.discountRate is used. */
+  laggedInterestRate?: number;
 }
 
 export interface CDROutputs {
@@ -244,8 +245,10 @@ export const cdrModule: Module<
 
     // Endogenous discount rate: social rate = fraction of market rate,
     // falling back to params.discountRate when no interest rate is wired
+    // (!= null catches both undefined and null — optionalOutput-style
+    // wiring passes null for missing values)
     const laggedR = inputs.laggedInterestRate;
-    const effectiveDiscount = laggedR !== undefined
+    const effectiveDiscount = laggedR != null
       ? Math.max(0.01, laggedR * params.socialDiscountFactor)
       : params.discountRate;
 

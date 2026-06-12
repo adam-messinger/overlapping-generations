@@ -406,7 +406,9 @@ function dispatchRegion(
   // capped by physical panel/turbine output: solarPlusBattery draws from the
   // same panels as bare solar, so releasable solar energy is the panel
   // potential minus everything solar-derived already dispatched. Released
-  // solar is credited to bare solar (battery-mediated dispatch is at max).
+  // solar is credited to bare solar: curtailed energy dispatched directly
+  // does not pass through storage (this slightly under-weights storage LCOS
+  // in weighted-average pricing during shortfall years — accepted).
   if (remaining > 0) {
     const releasableSolar = Math.max(
       0, preCurtailmentSolar - generation.solar - generation.solarPlusBattery);

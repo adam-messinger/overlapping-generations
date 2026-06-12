@@ -121,15 +121,8 @@ test('discountRate param is the fallback when interest rate is unwired', () => {
   // discountRate=0.001 inflates the SCC ~30x vs the wired case → forces deployment
   // at conditions where the wired case stays shut.
   const params = { ...cdrDefaults, discountRate: 0.001 };
-  const inputs = { temperature: 1.45, gdp: 110, laggedAvgLCOE: 50 } as CDRInputs;
-  let state = cdrModule.init(params);
-  let outputs;
-  for (let i = 0; i < 3; i++) {
-    const result = cdrModule.step(state, inputs, params, 2025 + i, i);
-    state = result.state;
-    outputs = result.outputs;
-  }
-  expect(outputs!.cdrRemovalGtCO2).toBeGreaterThan(0);
+  const { outputs } = runYears(3, { laggedInterestRate: undefined }, params);
+  expect(outputs.cdrRemovalGtCO2).toBeGreaterThan(0);
 });
 
 test('removal capped by maxDeployRate', () => {

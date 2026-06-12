@@ -7,9 +7,10 @@
  * Forest carbon creates feedback to climate module.
  *
  * Inputs (from other modules):
- * - capacities, additions: From energy module
+ * - additions: From energy module
  * - population, gdpPerCapita: From demographics/demand
- * - temperature: From climate module
+ * - temperature: From climate module (lagged)
+ * - transportElectrification: From demand (EV battery demand)
  *
  * Outputs (to other modules):
  * - netFlux: Gt CO2/year from land use change (to climate)

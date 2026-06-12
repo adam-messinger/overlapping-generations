@@ -3,16 +3,8 @@
  */
 
 import { runSimulation } from './simulation.js';
-import { runAutowiredFull, runAutowiredSimulation } from './simulation-autowired.js';
-import { demographicsModule } from './modules/demographics.js';
-import { productionModule } from './modules/production.js';
-import { demandModule } from './modules/demand.js';
-import { capitalModule } from './modules/capital.js';
-import { energyModule } from './modules/energy.js';
-import { dispatchModule } from './modules/dispatch.js';
-import { resourcesModule } from './modules/resources.js';
-import { cdrModule } from './modules/cdr.js';
-import { climateModule } from './modules/climate.js';
+import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
+import { buildOutputRegistry } from './framework/autowire.js';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { resolveKey } from './framework/collectors.js';
@@ -95,17 +87,8 @@ test('describeOutputs keys match standardCollectors keys', () => {
 // Catches phantom outputs: collector entries whose source no module computes
 // would silently collect undefined (and YearResult would report a constant).
 test('standardCollectors sources exist in module outputs', () => {
-  const modules = [
-    demographicsModule, productionModule, demandModule, capitalModule,
-    energyModule, dispatchModule, resourcesModule, cdrModule, climateModule,
-  ];
-  // Output name -> owning module (collision-free by autowire's registry)
-  const outputOwner = new Map<string, string>();
-  for (const m of modules) {
-    for (const output of m.outputs as readonly string[]) {
-      outputOwner.set(output, m.name);
-    }
-  }
+  // Output name -> owning module, from the real wiring's module list
+  const outputOwner = buildOutputRegistry(ALL_MODULES);
 
   const problems: string[] = [];
   for (const def of standardCollectors.timeseries) {

@@ -177,8 +177,9 @@ interface DemandInputs {
   // Optional damage fractions (for regional share evolution)
   regionalDamages?: Record<Region, number>;
 
-  // For energy burden calculation (from dispatch/energy)
-  electricityGeneration?: number;        // TWh
+  // For energy burden calculation: last year's served generation
+  // (delay-1 lag on dispatch.totalGeneration, shared with production)
+  totalGeneration?: number;              // TWh
   carbonPrice?: number;                  // $/tonne for fuel carbon cost
 
   // For cost-driven electrification
@@ -780,7 +781,7 @@ export const demandModule: Module<
     'dependency',
     'gdp',
     'regionalDamages',
-    'electricityGeneration',
+    'totalGeneration',
     'carbonPrice',
     'laggedAvgLCOE',
     'regionalFossilShare',
@@ -1384,9 +1385,11 @@ export const demandModule: Module<
     // =========================================================================
     // Electricity cost: generation × weighted LCOE
     // TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
-    // electricityGeneration is last year's totalGeneration (delay-1 lag;
-    // dispatch runs after demand). Falls back to demand when unwired.
-    const electricityGeneration = inputs.electricityGeneration ?? globalElec;
+    // Priced on last year's *served* generation (delay-1 lag; dispatch runs
+    // after demand). Deliberate: cost reflects billed energy — unserved
+    // demand carries no cost here; scarcity itself is dispatch's shortfall.
+    // Falls back to demand when unwired (standalone module use).
+    const electricityGeneration = inputs.totalGeneration ?? globalElec;
     const avgLCOE = inputs.laggedAvgLCOE ?? 50; // Lagged weighted-average LCOE
     const electricityTotalCost = (electricityGeneration * avgLCOE) / 1e6;
 

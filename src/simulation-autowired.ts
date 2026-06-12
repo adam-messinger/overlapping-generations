@@ -14,7 +14,7 @@
  * - YearResult mapping from autowire outputs
  */
 
-import { runAutowired, getOutputsAtYear, AutowireResult, requireOutput, optionalOutput } from './framework/autowire.js';
+import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutput, optionalOutput } from './framework/autowire.js';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
@@ -34,7 +34,7 @@ import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult 
 // MODULES
 // =============================================================================
 
-const ALL_MODULES = [
+export const ALL_MODULES: AnyModule[] = [
   demographicsModule,
   productionModule,
   demandModule,
@@ -411,17 +411,10 @@ function buildLags(params: SimulationParams) {
       initial: mergedCapital.initialCapitalStock,
     },
 
-    // Production needs lagged total generation
+    // Production and demand both read lagged total generation through this
+    // lag (demand prices electricity on last year's served generation —
+    // dispatch runs after demand, so the current-year value can't exist yet)
     totalGeneration: {
-      source: 'totalGeneration',
-      delay: 1,
-      initial: totalGen,
-    },
-
-    // Demand prices electricity on lagged generation (dispatch runs after
-    // demand, so current-year generation can't exist yet; the old transform
-    // read it anyway and silently got undefined every year)
-    electricityGeneration: {
       source: 'totalGeneration',
       delay: 1,
       initial: totalGen,

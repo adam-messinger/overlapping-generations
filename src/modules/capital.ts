@@ -682,8 +682,11 @@ export const capitalModule: Module<
       const pop = inputs.regionalPopulation[r] ?? 0;
       const premium = params.transferPremium[r] ?? {};
 
-      const pensionRate = premium.pensionRate!;      // All 8 regions define this in transferPremium
-      const healthcareRate = premium.healthcareRate!; // All 8 regions define this in transferPremium
+      // All 8 regions define these in transferPremium defaults (mergeParams
+      // deep-merges per region); ?? 0 keeps a malformed direct override from
+      // turning retireeCost into NaN
+      const pensionRate = premium.pensionRate ?? 0;
+      const healthcareRate = premium.healthcareRate ?? 0;
       const educationRate = premium.educationRate ?? params.transfers.educationRate;
 
       // --- Retirement age adjustment ---

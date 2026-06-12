@@ -318,20 +318,27 @@ export function validateWiring(
 ): void {
   const errors: string[] = [];
 
+  // Ignore transform keys whose value is undefined (e.g. built via a
+  // conditional spread) — otherwise they'd count as available outputs while
+  // never producing a value, and crash normalizeTransform below
+  const definedTransforms = Object.fromEntries(
+    Object.entries(transforms).filter(([, entry]) => entry !== undefined)
+  );
+
   // All available output names (module outputs + transform names)
-  const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(transforms)]);
+  const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(definedTransforms)]);
 
   // Check transform dependsOn items exist and are module outputs.
   // Transform→transform dependencies are rejected: the engine creates no
   // ordering edge for them (buildDependencyGraph resolves deps through the
   // output registry only) and transform values are never written to
   // currentOutputs, so a chained transform would silently read undefined.
-  for (const [name, entry] of Object.entries(transforms)) {
+  for (const [name, entry] of Object.entries(definedTransforms)) {
     const config = normalizeTransform(entry);
     for (const dep of config.dependsOn) {
       if (!allOutputs.has(dep)) {
         errors.push(`Transform '${name}' depends on '${dep}' which doesn't exist`);
-      } else if (transforms[dep] !== undefined && !outputRegistry.has(dep)) {
+      } else if (definedTransforms[dep] !== undefined && !outputRegistry.has(dep)) {
         // A dep that is both a transform name and a module output resolves
         // to the module output (transforms read module outputs only), so
         // only pure transform names are chaining errors.
@@ -355,7 +362,7 @@ export function validateWiring(
   // directly — use a lag instead. Transforms with dependsOn: [] that are NOT
   // lag sources are parameter injections (e.g., carbonPrice) and are fine.
   const noDepsTransforms = new Set<string>();
-  for (const [name, entry] of Object.entries(transforms)) {
+  for (const [name, entry] of Object.entries(definedTransforms)) {
     const config = normalizeTransform(entry);
     if (config.dependsOn.length === 0) noDepsTransforms.add(name);
   }

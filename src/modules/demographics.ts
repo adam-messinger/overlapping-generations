@@ -717,8 +717,10 @@ export const demographicsModule: Module<
     const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
 
     // Migration conservation: scale receiving-region inflows so global net
-    // migration is exactly zero (a closed world). Rates express desired
-    // flows; emigration supply (negative-rate regions) sets the budget.
+    // migration is exactly zero (a closed world). Emigration supply
+    // (negative-rate regions) sets the budget, so positive migrationRates
+    // act as *relative shares* of that budget, not absolute inflow rates —
+    // halving a sole receiver's rate does not halve its inflow.
     let totalInflow = 0;
     let totalOutflow = 0;
     for (const region of REGIONS) {
@@ -746,11 +748,13 @@ export const demographicsModule: Module<
       if (yearIndex === 0) {
         newState = regionState;
       } else {
-        // Inflows scale to match the emigration budget; if there are no
-        // receiving regions, outflows are zeroed too (net must be zero)
-        const effectiveMigrationRate = regionState._migrationRate > 0
-          ? regionState._migrationRate * inflowScale
-          : (totalInflow > 0 ? regionState._migrationRate : 0);
+        // Inflows scale to match the emigration budget; with no receiving
+        // regions, outflows are zeroed too (net must be zero)
+        const effectiveMigrationRate = totalInflow === 0
+          ? 0
+          : (regionState._migrationRate > 0
+            ? regionState._migrationRate * inflowScale
+            : regionState._migrationRate);
         newState = ageCohorts(
           regionState, tfr, eduParams, yearIndex,
           params.lifeExpectancyGrowth, effectiveMigrationRate
