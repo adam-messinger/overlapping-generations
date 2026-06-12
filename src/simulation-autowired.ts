@@ -152,15 +152,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['population'],
     },
 
-    // Cycle-breaker: reads current-year dispatch outputs that may not exist yet
-    // (demand→dispatch→demand cycle broken by omitting dependsOn)
-    // Uses optionalOutput because dispatch hasn't run yet when demand needs this
-    electricityGeneration: {
-      fn: (outputs: Record<string, any>) =>
-        optionalOutput(outputs, 'totalGeneration', undefined),
-      dependsOn: [],
-    },
-
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
     // Uses optionalOutput because dispatch/energy haven't run yet when this is evaluated
     weightedAverageLCOE: {
@@ -422,6 +413,15 @@ function buildLags(params: SimulationParams) {
 
     // Production needs lagged total generation
     totalGeneration: {
+      source: 'totalGeneration',
+      delay: 1,
+      initial: totalGen,
+    },
+
+    // Demand prices electricity on lagged generation (dispatch runs after
+    // demand, so current-year generation can't exist yet; the old transform
+    // read it anyway and silently got undefined every year)
+    electricityGeneration: {
       source: 'totalGeneration',
       delay: 1,
       initial: totalGen,

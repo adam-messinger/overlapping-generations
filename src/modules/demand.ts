@@ -1383,8 +1383,10 @@ export const demandModule: Module<
     // =========================================================================
     // Electricity cost: generation × weighted LCOE
     // TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
+    // electricityGeneration is last year's totalGeneration (delay-1 lag;
+    // dispatch runs after demand). Falls back to demand when unwired.
     const electricityGeneration = inputs.electricityGeneration ?? globalElec;
-    const avgLCOE = inputs.laggedAvgLCOE ?? 50; // Lagged LCOE (cycle-breaker is always null)
+    const avgLCOE = inputs.laggedAvgLCOE ?? 50; // Lagged weighted-average LCOE
     const electricityTotalCost = (electricityGeneration * avgLCOE) / 1e6;
 
     const totalEnergyCost = electricityTotalCost + fuelCost;
