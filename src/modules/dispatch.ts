@@ -292,7 +292,6 @@ function dispatchRegion(
 
   // Save pre-curtailment VRE values for shortfall release
   const preCurtailmentSolar = maxGen.solar;
-  const preCurtailmentSolarBattery = maxGen.solarPlusBattery;
   const preCurtailmentWind = maxGen.wind;
 
   // Soft curtailment: reduce effective VRE as share increases beyond onset
@@ -394,19 +393,22 @@ function dispatchRegion(
     }
   }
 
-  // Release curtailed VRE to fill any shortfall before tracking curtailment
+  // Emergency release: dispatch otherwise-curtailed VRE to fill shortfall.
+  // Intentionally bypasses penetration limits (last-resort dispatch) but is
+  // capped by physical panel/turbine output: solarPlusBattery draws from the
+  // same panels as bare solar, so releasable solar energy is the panel
+  // potential minus everything solar-derived already dispatched. Released
+  // solar is credited to bare solar (battery-mediated dispatch is at max).
   if (remaining > 0) {
-    const curtailedSolar = preCurtailmentSolar - maxGen.solar;
-    const curtailedSolarBattery = preCurtailmentSolarBattery - maxGen.solarPlusBattery;
-    const curtailedWind = preCurtailmentWind - maxGen.wind;
-    const totalCurtailed = curtailedSolar + curtailedSolarBattery + curtailedWind;
+    const releasableSolar = Math.max(
+      0, preCurtailmentSolar - generation.solar - generation.solarPlusBattery);
+    const releasableWind = Math.max(0, preCurtailmentWind - generation.wind);
+    const totalReleasable = releasableSolar + releasableWind;
 
-    if (totalCurtailed > 0) {
-      const release = Math.min(remaining, totalCurtailed);
-      // Pro-rata release across VRE sources
-      generation.solar += release * (curtailedSolar / totalCurtailed);
-      generation.solarPlusBattery += release * (curtailedSolarBattery / totalCurtailed);
-      generation.wind += release * (curtailedWind / totalCurtailed);
+    if (totalReleasable > 0) {
+      const release = Math.min(remaining, totalReleasable);
+      generation.solar += release * (releasableSolar / totalReleasable);
+      generation.wind += release * (releasableWind / totalReleasable);
       remaining -= release;
     }
   }
