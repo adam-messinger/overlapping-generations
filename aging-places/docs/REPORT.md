@@ -75,11 +75,11 @@ outlook − z(current price/income).
 
 | Test-set metric | Value |
 |---|---|
-| ROC-AUC (all / ≥10k) | 0.806 / 0.840 |
-| Recall at operating point (all / ≥10k) | 0.916 / 0.970 |
-| Precision (base rate 25%) | 0.336 / 0.377 |
-| Calibration | monotone; top decile 76%, bottom 5% |
-| Mechanism hindcast Spearman (≥10k) | 0.385 |
+| ROC-AUC (all / ≥10k) | 0.801 / 0.837 |
+| Recall at operating point (all / ≥10k) | 0.922 / 0.985 |
+| Precision (base rate 25%) | 0.337 / 0.379 |
+| Calibration | monotone; top decile 75%, bottom 4% |
+| Mechanism hindcast Spearman (≥10k) | 0.317 (0.385 before removing the credit-bubble channel; see BACKTEST.md) |
 
 ## 6. Top 100 (headline: top 50, pop ≥ 10k; full CSV in outputs/)
 
@@ -98,8 +98,8 @@ ranks in the top 9% of all ≥10k places.
 **E. Metro-spillover value corridors**: East Palo Alto, North Fair Oaks, East Riverdale MD,
 McNair VA, Round Lake Beach IL.
 
-Top-10 by outlook: Maywood CA, Kiryas Joel NY, Cudahy CA, Bell Gardens CA, East Rancho
-Dominguez CA, Florence-Graham CA, Monsey NY, Lennox CA, Walnut Park CA, Sunny Isles Beach FL.
+Top-10 by outlook: Nantucket MA, Key Biscayne FL, Kiryas Joel NY, Maywood CA, Hoboken NJ,
+Alum Rock CA, Lennox CA, Waipahu HI, Langley Park MD, Monsey NY.
 
 ## 7. Bottom 100 (headline: bottom 50; full CSV in outputs/)
 
@@ -154,8 +154,9 @@ the places whose age pyramids look like a growing country's.
 ### Confidence and caveats
 
 Forty-year municipal forecasts are hypotheses with error bars. The model is validated at rank
-correlation ≈ 0.4 and AUC 0.7-0.84 over one 25-year replication — strong for this problem
-class, far from determinism. Known blind spots: climate/flood risk (Florida amenity winners),
+correlation ≈ 0.3-0.4 and AUC 0.67-0.84 over one 25-year replication — strong for this problem
+class, far from determinism. Rows flagged `lowConfidence` (population < 2,500 or no observed
+Zillow market) rest on covariate extrapolation, not price history. Known blind spots: climate/flood risk (Florida amenity winners),
 immigration policy dependence (gateway winners), oil/industry shocks (Williston), and
 endogenous institutional decline (a university closure is not predicted, it is assumed away).
 See STRESS_TEST.md for the judgment calls we left standing and why.

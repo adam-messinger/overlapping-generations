@@ -32,6 +32,12 @@ export interface MarketParams {
   headship: Record<Cohort, number>;
   /** Second-home demand: wealth elasticity. */
   secondHomeWealthElast: number;
+  /** Price-to-income error correction (yr^-1): prices above the local-income
+   * fundamental revert unless supported by external wealth (prestige) or
+   * metro access. Caldera & Johansson (OECD 2013) estimate 2-5%/yr. */
+  ptiReversion: number;
+  /** Long-run US median price-to-income anchor (JCHS/Shiller ~3.5-4). */
+  ptiAnchor: number;
   /** TFR passed through for local births (kept equal to nation.tfr). */
   tfr: number;
   /** Children accompanying each net working-age migrant. */
@@ -43,6 +49,12 @@ export interface MarketState {
   units: Float64Array;
   logPrice: Float64Array; // log price level ($)
   elasticity: Float64Array;
+  /** Akiya gate on second-home wealth growth: remote AND low-income places
+   * don't capture growing elderly wealth (Wakayama vs Niseko). */
+  wealthGate: Float64Array;
+  /** External support for above-fundamental prices (prestige, metro access);
+   * 1 = fully supported (no error correction), 0 = local incomes must carry. */
+  extSupport: Float64Array;
 }
 
 export interface MarketInputs {
@@ -77,6 +89,8 @@ const DEFAULTS: MarketParams = {
   abandonMax: 0.006,       // ~0.6%/yr stock decay in deep-surplus markets (akiya/Stadtumbau analog)
   headship: { a0_19: 0.0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63 }, // Census HH headship 2023
   secondHomeWealthElast: 1.0,
+  ptiReversion: 0.025,
+  ptiAnchor: 3.6,
   tfr: 1.62,
   childrenPerMover: 0.30,  // ACS: children per 25-44 cross-county migrant household
 };
@@ -121,15 +135,27 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     const units = Float64Array.from(s.units0);
     const logPrice = new Float64Array(n);
     for (let i = 0; i < n; i++) logPrice[i] = Math.log(Math.max(1e4, s.price0[i]));
-    // Supply elasticity: falls with density and scarcity (Saiz 2010 logic)
+    // Supply elasticity: falls with density and prestige-scarcity (Saiz 2010
+    // logic). Poverty-driven value/income does not imply constrained supply.
     const elasticity = new Float64Array(n);
     const zd = s.z.logDensity;
-    const zv = s.z.valueToIncome;
+    const zv = s.z.prestigeVTI;
+    const wealthGate = new Float64Array(n);
+    const extSupport = new Float64Array(n);
+    const za = s.z.logPopAccess60;
+    const zi = s.z.logIncome;
+    const zc = s.z.collegeShare;
+    const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
     for (let i = 0; i < n; i++) {
       elasticity[i] = Math.min(2.0, Math.max(0.05,
         params.elastBase - params.elastDensitySlope * (0.6 * zd[i] + 0.4 * zv[i])));
+      wealthGate[i] = 1 - 0.7 * clamp01(-za[i] - 0.5) * clamp01(-zi[i]);
+      // External support: prestige wealth, metro access, or a university —
+      // student towns' median incomes are compositionally depressed, but
+      // their prices are carried by external (tuition/parental) money.
+      extSupport[i] = clamp01(0.5 * Math.max(0, zv[i]) + 0.5 * Math.max(0, za[i]) + 0.5 * Math.max(0, zc[i]));
     }
-    return { cohorts, units, logPrice, elasticity };
+    return { cohorts, units, logPrice, elasticity, wealthGate, extSupport };
   },
 
   step(state, inputs, params, _year, _yearIndex) {
@@ -170,7 +196,7 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
       // Demand: households + second homes + ~4% frictional vacancy target
       let households = 0;
       for (const k of COHORTS) households += params.headship[k] * next[k][i];
-      const secondHomes = s.seasonalShare[i] * s.units0[i] * wealth;
+      const secondHomes = s.seasonalShare[i] * s.units0[i] * (1 + (wealth - 1) * state.wealthGate[i]);
       const demandUnits = (households + secondHomes) / 0.96;
       const gap = Math.log(Math.max(1, demandUnits) / Math.max(1, state.units[i]));
       const gapC = Math.max(-1.5, Math.min(1.5, gap));
@@ -180,8 +206,12 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
       const abandon = gapC < -0.15 ? params.abandonMax * Math.min(1, (-gapC - 0.15) / 0.6) : 0;
       state.units[i] = state.units[i] * (1 + build - abandon);
 
-      // Price: responds to gap net of the supply that will relieve it
-      state.logPrice[i] += params.drift + params.kappaPrice * 0.5 * gapC - 0.5 * build;
+      // Price: responds to gap net of the supply that will relieve it,
+      // with income-anchored error correction where external support is weak
+      const overFundamental = Math.max(0,
+        state.logPrice[i] - Math.log(params.ptiAnchor * Math.max(20000, s.income0[i])));
+      state.logPrice[i] += params.drift + params.kappaPrice * 0.5 * gapC - 0.5 * build
+        - params.ptiReversion * overFundamental * (1 - state.extSupport[i]);
 
       const pop =
         next.a0_19[i] + next.a20_24[i] + next.a25_44[i] + next.a45_64[i] + next.a65up[i];

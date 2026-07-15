@@ -138,8 +138,22 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
     const regen = combine(s, [['repRatio', 0.6], ['share45_64', -0.4]]);
     const gateway = combine(s, [['foreignShare', 1.0]]);
     const dominance = combine(s, [['domShare', 1.0]]);
-    const amenity = combine(s, [['seasonalShare', 0.6], ['artsEmpShare', 0.25], ['valueToIncome', 0.15]]);
-    const scarcity = combine(s, [['valueToIncome', 0.5], ['logDensity', 0.3], ['newBuildShare', -0.2]]);
+    // Prestige-gated scarcity (see data.ts): poverty-driven value/income
+    // ratios no longer read as Como/Carmel capital.
+    const amenity = combine(s, [['seasonalShare', 0.6], ['artsEmpShare', 0.25], ['prestigeVTI', 0.15]]);
+    const scarcity = combine(s, [['prestigeVTI', 0.5], ['logDensity', 0.3], ['newBuildShare', -0.2]]);
+    // Akiya gate (Wakayama lesson): amenity stores value only with access,
+    // prestige, or institutions. Remote AND low-income places lose up to
+    // half their amenity pull; Niseko/Jackson-type remote-prestige is exempt.
+    const zInc = s.z.logIncome;
+    const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
+    for (let i = 0; i < s.n; i++) {
+      if (amenity[i] > 0) {
+        const remote = clamp01(-access[i] - 0.5);
+        const poor = clamp01(-zInc[i]);
+        amenity[i] *= 1 - 0.5 * remote * poor;
+      }
+    }
     const distress = combine(s, [['distressVacancy', 1.0]]);
     const health = combine(s, [['healthEmpShare', 1.0]]);
     // Dynamic feedback normalization anchors

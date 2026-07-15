@@ -38,6 +38,9 @@ interface PlaceOut {
   tags: string[];
   positives: string[];
   negatives: string[];
+  /** Thin market: tiny population or no observed Zillow price — scores rest
+   * on covariate extrapolation, not market history (the Covelo case). */
+  lowConfidence: boolean;
 }
 
 const PILLAR_LABELS: Record<string, string> = {
@@ -133,7 +136,7 @@ function main(): void {
     if (z('armedShare') > 1.5) tags.push('Military Anchor');
     if ((p.engines ?? 0) > 0.8 && z('logPopAccess60') < 0 && r.pop >= 10000) tags.push('Regional Service Center');
     if (z('seasonalShare') > 1.0) tags.push('Amenity Destination');
-    if (z('seasonalShare') > 0.5 && z('valueToIncome') > 1.5) tags.push('Prestige Destination');
+    if (z('seasonalShare') > 0.5 && (pillarByGeoid.get(r.geoid)?.scarcity ?? 0) > 1.5) tags.push('Prestige Destination');
     if (z('share65') > 1.5 && z('seasonalShare') > 0.3) tags.push('Retirement Market');
     if (z('logPopAccess60') > 1.0 && r.pop < 50000 && outlook[i] > 0) tags.push('Metro Spillover Market');
     if (z('share45_64') > 1.0 && z('repRatio') < -0.3) tags.push('Aging Trap');
@@ -151,6 +154,7 @@ function main(): void {
       zhvi2025: r.raw.zhvi2025, medianValue: r.raw.medianValue,
       pillars: Object.fromEntries(Object.entries(p).map(([k, v]) => [k, +Number(v).toFixed(2)])),
       tags, positives, negatives,
+      lowConfidence: r.pop < 2500 || r.raw.zhvi2025 === null,
     };
   });
 
@@ -159,7 +163,7 @@ function main(): void {
     'geoid', 'name', 'state', 'pop', 'outlook', 'simGrowth', 'fittedProb', 'fittedGrowth',
     'valuationGap', 'zhvi2025', 'medianValue',
     'engines', 'human', 'access', 'regen', 'gateway', 'amenity', 'scarcity', 'distress',
-    'tags', 'positives', 'negatives',
+    'tags', 'positives', 'negatives', 'lowConfidence',
   ];
   const toRow = (o: PlaceOut): (string | number | null)[] => [
     o.geoid, o.name, o.state, o.pop, o.outlook, o.simGrowth, o.fittedProb, o.fittedGrowth,
@@ -168,6 +172,7 @@ function main(): void {
     o.pillars.regen ?? null, o.pillars.gateway ?? null, o.pillars.amenity ?? null,
     o.pillars.scarcity ?? null, o.pillars.distress ?? null,
     o.tags.join('; '), o.positives.join('; '), o.negatives.join('; '),
+    o.lowConfidence ? 1 : 0,
   ];
   writeCsv(path.join(OUT_DIR, 'forecast-all.csv.gz'), header, out.map(toRow));
 
@@ -204,6 +209,7 @@ function main(): void {
     ['Washington city', 'DC'], ['Ithaca city', 'NY'], ['State College borough', 'PA'],
     ['Carmel-by-the-Sea city', 'CA'], ['Jackson town', 'WY'], ['Bozeman city', 'MT'],
     ['Durham CDP', 'NH'], ['Port Townsend city', 'WA'], ['The Villages CDP', 'FL'],
+    ['Covelo CDP', 'CA'], ['Bolinas CDP', 'CA'], ['Nantucket CDP', 'MA'], ['Beardstown city', 'IL'],
   ];
   for (const [nm, st] of majors) {
     const hit = out.find((o) => o.name === nm && o.state === st);

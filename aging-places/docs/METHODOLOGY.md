@@ -50,7 +50,9 @@ label in `scripts/fetch-census.ts`.
 - **Amenity capital**: seasonal/recreational vacant unit share (revealed second-home demand —
   the single strongest amenity proxy available at place level); arts/recreation/accommodation
   employment share.
-- **Scarcity capital**: median value ÷ median income; density; low recent construction share.
+- **Scarcity capital**: *prestige-gated* value/income (V/I × min(2, income/median) — raw V/I
+  conflates prestige with poverty-unaffordability; see STRESS_TEST.md iteration 3); density;
+  low recent construction share.
 - **Supply/distress**: units built in the last decade ÷ stock; non-seasonal vacancy.
 - **Gateway**: foreign-born share.
 - Income, population, price levels (logs).
@@ -72,11 +74,14 @@ Four modules autowired by the framework (lags break the attraction↔market cycl
 - **migration** — gravity-logit allocation of the pools: destination share ∝ mass × exp(β·A),
   β=0.5 working / 0.3 retiree; departures proportional to stock, so internal flows sum to zero.
 - **market** — local cohort aging + arrivals; household demand via headship rates (Census 2023);
-  second-home demand = seasonal stock × elderly wealth index; supply elasticity declining in
-  density/scarcity (Saiz 2010 logic), slow abandonment (0.6%/yr max) in deep-surplus markets
+  second-home demand = seasonal stock × elderly wealth index, wealth *growth* gated away from
+  remote-and-poor places (the akiya rule); supply elasticity declining in density/prestige-
+  scarcity (Saiz 2010 logic), slow abandonment (0.6%/yr max) in deep-surplus markets
   (akiya/Stadtumbau channel); price responds to the demand/stock gap net of supply response,
-  with kappa calibrated (0.28) so the hindcast's cross-sectional growth dispersion matches
-  ZHVI's (0.23 vs 0.26); real drift 1.2%/yr (Shiller long-run).
+  plus an income-anchored **price-to-income error correction** (2.5%/yr toward 3.6× income,
+  Caldera & Johansson OECD 2013) damped by external support (prestige, metro access, or
+  university presence); kappa calibrated (0.28) so the hindcast's cross-sectional growth
+  dispersion matches ZHVI's (0.23 vs 0.26); real drift 1.2%/yr (Shiller long-run).
 
 The hindcast (scripts/hindcast.ts) initializes with year-2000 data and 2000s national dynamics
 (TFR 2.0, NIM ~1M) and runs 25 years; correlations vs realized growth are in BACKTEST.md.

@@ -90,6 +90,22 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     const acc = get(r, 'popAccess120');
     return pop !== null && acc !== null && acc > 0 ? Math.min(1, pop / acc) : null;
   }));
+  // Prestige-scarcity: value/income gated by income relative to the epoch
+  // median. Raw value/income conflates prestige (Nantucket: 12x at $110k
+  // income) with poverty-unaffordability (Covelo: 9x at $36k income); only
+  // the former is the Como/Carmel scarcity capital of THEORY.md.
+  const incomes = body.map((r) => get(r, 'medianHHInc')).filter((v): v is number => v !== null).sort((a, b) => a - b);
+  const medianInc = incomes[Math.floor(incomes.length / 2)] || 60000;
+  statics.z.prestigeVTI = zscore(body.map((r) => {
+    const vti = get(r, 'valueToIncome');
+    const inc = get(r, 'medianHHInc');
+    if (vti === null || inc === null) return null;
+    return Math.min(30, vti) * Math.min(2, inc / medianInc);
+  }));
+  statics.z.logIncome = zscore(body.map((r) => {
+    const inc = get(r, 'medianHHInc');
+    return inc !== null && inc > 0 ? Math.log(inc) : null;
+  }));
 
   const zhviCol = header.includes('zhvi2000') ? 'zhvi2000' : 'zhvi2025';
   const outcome: (number | null)[] = [];

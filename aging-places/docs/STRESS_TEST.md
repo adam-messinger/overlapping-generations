@@ -30,6 +30,35 @@ destinations are treated appropriately. Three iterations were run.
 5. **Undervalued list contaminated by "merely cheap"** places with near-zero outlook. Fixed:
    undervalued requires outlook ≥ +0.5.
 
+## Iteration 3 findings — the Covelo case (tiny-town test)
+
+6. **Covelo, CA (pop 1,495, Round Valley) ranked top-2% nationally** — a remote, poor
+   reservation-area town scored like a prestige amenity market. Root causes, each fixed
+   system-wide:
+   - **Poverty-unaffordability read as prestige-scarcity.** Covelo's value/income is 9.0
+     (national median 2.8) — but at $35.7k income, versus Nantucket's 12.4 at $110k. Fix: all
+     scarcity/prestige channels (amenity pillar, scarcity pillar, supply-elasticity input, the
+     fitted model's feature, and the Prestige Destination tag) now use **income-gated
+     prestige-V/I** = V/I × min(2, income/median). Backtest cost: ≈0.004 AUC.
+   - **Missing akiya gates.** THEORY.md's own rule — amenity without access, prestige, or
+     institutions rots (Wakayama) — was not enforced. Fix: remote AND low-income places lose up
+     to half their amenity pull and up to 70% of second-home wealth-growth capture.
+   - **Heads counted as purchasing power.** Local household formation drove price regardless of
+     income. Fix: income-anchored **price-to-income error correction** (2.5%/yr toward a 3.6×
+     income fundamental; Caldera & Johansson, OECD 2013), damped by external support = prestige
+     + metro access + university presence (student towns' median incomes are compositionally
+     depressed; their prices are carried by external tuition/parental money — without the
+     university term, State College fell from rank ~1,000 to ~3,200, which is how the term was
+     caught).
+   - **No data-confidence signal.** Covelo has no observed ZHVI in 2000 — thin markets rest on
+     covariate extrapolation. Fix: `lowConfidence` flag (pop < 2,500 or no current ZHVI) on
+     every output row.
+   Result: Covelo's mechanism score flips negative (sim −0.16), outlook falls from +1.38
+   (rank ~455 of 24.5k) to +0.74, and the residual is transparently attributed to the fitted
+   historical channel plus its (unpriced-market) low-confidence flag. Hindcast Spearman ≥10k
+   moves 0.385 → 0.317 — the deliberate cost of removing the credit-bubble channel (see
+   BACKTEST.md).
+
 ## Final sanity table (rank among 4,184 places ≥10k)
 
 | Place | Rank | Verdict |

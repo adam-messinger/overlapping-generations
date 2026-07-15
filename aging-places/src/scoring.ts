@@ -43,7 +43,19 @@ export const MODEL_FEATURES: { name: string; from: (r: Record<string, number | n
   { name: 'distressVacancy', from: (r) => r.distressVacancy },
   { name: 'newBuildShare', from: (r) => r.newBuildShare },
   { name: 'foreignShare', from: (r) => r.foreignShare },
-  { name: 'valueToIncome', from: (r) => clip(r.valueToIncome, 0, 20) },
+  // Prestige-gated value/income: raw V/I conflates prestige scarcity
+  // (Nantucket 12x at $110k income) with poverty-unaffordability (9x at
+  // $36k). Income anchor $60k is a fixed constant; cross-sectional
+  // z-scoring per epoch makes the level immaterial, only ordering matters.
+  {
+    name: 'prestigeVTI',
+    from: (r) => {
+      const vti = clip(r.valueToIncome, 0, 30);
+      const inc = r.medianHHInc;
+      if (vti === null || inc === null || inc <= 0) return null;
+      return vti * Math.min(2, inc / 60000);
+    },
+  },
   { name: 'logIncome', from: (r) => logOrNull(r.medianHHInc) },
   { name: 'logDensity', from: (r) => log1pOrNull(r.density) },
   { name: 'logPop', from: (r) => logOrNull(r.pop) },
