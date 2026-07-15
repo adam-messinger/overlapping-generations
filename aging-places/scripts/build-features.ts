@@ -236,6 +236,10 @@ function main(): void {
       pop > 0 ? +(((g('a20_24') ?? 0) + (g('a25_34') ?? 0)) / pop).toFixed(4) : null, // youngShare
       pop > 0 ? +(a65 / pop).toFixed(4) : null,                            // share65
       pop > 0 ? +(((g('a45_64') ?? 0)) / pop).toFixed(4) : null,           // share45_64
+      pop > 0 ? +((g('a0_19') ?? 0) / pop).toFixed(4) : null,              // share0_19
+      pop > 0 ? +((g('a20_24') ?? 0) / pop).toFixed(4) : null,             // share20_24
+      pop > 0 ? +(a25_44 / pop).toFixed(4) : null,                         // share25_44
+      units,                                                               // housing units
       civEmp > 0 ? +((g('eduEmp') ?? 0) / civEmp).toFixed(4) : null,       // eduEmpShare
       civEmp > 0 ? +((g('healthEmp') ?? 0) / civEmp).toFixed(4) : null,    // healthEmpShare
       civEmp > 0 ? +((g('pubAdminEmp') ?? 0) / civEmp).toFixed(4) : null,  // pubAdminShare
@@ -262,7 +266,7 @@ function main(): void {
   }
   const HEADER_2000 = [
     'geoid', 'name', 'state', 'county', 'lat', 'lon', 'pop',
-    'repRatio', 'youngShare', 'share65', 'share45_64',
+    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44', 'units',
     'eduEmpShare', 'healthEmpShare', 'pubAdminShare', 'artsEmpShare', 'profInfoFireShare', 'armedShare',
     'bachShare', 'gradShare', 'collegeShare',
     'seasonalShare', 'distressVacancy', 'newBuildShare', 'foreignShare',
@@ -306,6 +310,10 @@ function main(): void {
       +(pct('pct20_24') + pct('pct25_34')).toFixed(4),
       +share65.toFixed(4),
       +(pct('pct45_54') + pct('pct55_59') + pct('pct60_64')).toFixed(4),
+      +(pct('pctUnder5') + pct('pct5_9') + pct('pct10_14') + pct('pct15_19')).toFixed(4), // share0_19
+      +pct('pct20_24').toFixed(4),                                          // share20_24
+      +share25_44.toFixed(4),                                               // share25_44
+      units,
       civEmp > 0 ? +(eduEmp / civEmp).toFixed(4) : null,
       civEmp > 0 ? +(healthEmp / civEmp).toFixed(4) : null,
       +(pct('pctPubAdmin')).toFixed(4),
@@ -333,7 +341,7 @@ function main(): void {
   }
   const HEADER_2023 = [
     'geoid', 'name', 'state', 'county', 'lat', 'lon', 'pop',
-    'repRatio', 'youngShare', 'share65', 'share45_64',
+    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44', 'units',
     'eduEmpShare', 'healthEmpShare', 'pubAdminShare', 'artsEmpShare', 'profInfoFireShare', 'armedShare',
     'bachShare', 'gradShare', 'collegeShare',
     'seasonalShare', 'distressVacancy', 'newBuildShare', 'foreignShare',

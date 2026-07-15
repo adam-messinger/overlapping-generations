@@ -1,0 +1,185 @@
+/**
+ * Attraction module: converts each municipality's four-capitals endowment
+ * (THEORY.md) plus dynamic feedback (affordability, vitality) into segment
+ * attraction scores for working-age and retiree movers.
+ *
+ * Pillar composites are fixed linear combinations of z-scored features
+ * (weights justified in docs/METHODOLOGY.md from the Japan/Italy evidence);
+ * the pillar-level weights are tunable params.
+ */
+import { defineModule } from '../../../src/framework/index.js';
+import type { ValidationResult } from '../../../src/framework/index.js';
+import { PlaceStatics } from '../domain-types.js';
+
+export interface AttractionParams {
+  statics: PlaceStatics | null;
+  /** Working-age pillar weights. */
+  wEngines: number;
+  wHuman: number;
+  wAccess: number;
+  wRegen: number;
+  wGateway: number;
+  wVitality: number;   // dynamic: current young share (z)
+  wAfford: number;     // dynamic penalty: z of lagged price/income
+  wDistress: number;   // penalty: distress vacancy z
+  /** Hinterland-consolidation bonus: institutions in low-access regions
+   * capture their shrinking hinterland (Fukuoka/Sapporo/Mayo pattern). */
+  wHub: number;
+  /** Retiree pillar weights. */
+  rAmenity: number;
+  rHealth: number;
+  rScarcity: number;
+  rAccess: number;
+  rAfford: number;
+}
+
+export interface AttractionState {
+  /** Precomputed static pillar composites. */
+  engines: Float64Array;
+  human: Float64Array;
+  access: Float64Array;
+  dominance: Float64Array;
+  regen: Float64Array;
+  gateway: Float64Array;
+  amenity: Float64Array;
+  scarcity: Float64Array;
+  distress: Float64Array;
+  health: Float64Array;
+  /** Stats for z-scoring the dynamic price/income feedback. */
+  pti0Mean: number;
+  pti0Sd: number;
+  ysMean: number;
+  ysSd: number;
+}
+
+export interface AttractionInputs {
+  laggedPriceToIncome: Float64Array;
+  laggedYoungShare: Float64Array;
+}
+
+export interface AttractionOutputs {
+  attractionWorking: Float64Array;
+  attractionRetiree: Float64Array;
+}
+
+const DEFAULTS: AttractionParams = {
+  statics: null,
+  // Working-age weights: engines & human capital dominate (Fukuoka, Bologna,
+  // Leipzig pattern); access is the spillover channel (Ciudad Real/Karuizawa);
+  // regeneration = momentum of prior young presence; gateway = immigration.
+  wEngines: 0.30,
+  wHuman: 0.25,
+  wAccess: 0.20,
+  wRegen: 0.15,
+  wGateway: 0.10,
+  wVitality: 0.15,
+  wAfford: 0.25,
+  wDistress: 0.15,
+  wHub: 0.10,
+  // Retiree weights: amenity dominates (Costa del Sol, Naples FL), healthcare
+  // access second (empty-nester recentralization), prestige scarcity third.
+  rAmenity: 0.45,
+  rHealth: 0.25,
+  rScarcity: 0.15,
+  rAccess: 0.15,
+  rAfford: 0.10,
+};
+
+function combine(statics: PlaceStatics, spec: [string, number][]): Float64Array {
+  const n = statics.n;
+  const out = new Float64Array(n);
+  for (const [feat, w] of spec) {
+    const col = statics.z[feat];
+    if (!col) throw new Error(`attraction: missing z feature '${feat}'`);
+    for (let i = 0; i < n; i++) out[i] += w * col[i];
+  }
+  return out;
+}
+
+function meanSd(v: Float64Array): { mean: number; sd: number } {
+  let s = 0;
+  for (let i = 0; i < v.length; i++) s += v[i];
+  const mean = s / v.length;
+  let ss = 0;
+  for (let i = 0; i < v.length; i++) ss += (v[i] - mean) ** 2;
+  return { mean, sd: Math.sqrt(ss / Math.max(1, v.length - 1)) || 1 };
+}
+
+export const attractionModule = defineModule<AttractionParams, AttractionState, AttractionInputs, AttractionOutputs>({
+  name: 'attraction',
+  description: 'Four-capitals attraction scores per municipality',
+  defaults: DEFAULTS,
+  inputs: ['laggedPriceToIncome', 'laggedYoungShare'],
+  outputs: ['attractionWorking', 'attractionRetiree'],
+
+  validate(params): ValidationResult {
+    const errors: string[] = [];
+    for (const k of ['wEngines', 'wHuman', 'wAccess', 'wRegen', 'wGateway'] as const) {
+      const v = params[k];
+      if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
+    }
+    return { valid: errors.length === 0, errors, warnings: [] };
+  },
+
+  mergeParams(partial): AttractionParams {
+    return { ...DEFAULTS, ...partial };
+  },
+
+  init(params): AttractionState {
+    const s = params.statics;
+    if (!s) throw new Error('attraction: statics dataset must be provided via params');
+    // Pillar composites (internal weights fixed; see METHODOLOGY.md):
+    const engines = combine(s, [
+      ['eduEmpShare', 0.25], ['healthEmpShare', 0.20], ['pubAdminShare', 0.15],
+      ['armedShare', 0.10], ['collegeShare', 0.15], ['logUni15', 0.10], ['logUni60', 0.05],
+    ]);
+    const human = combine(s, [['bachShare', 0.4], ['gradShare', 0.3], ['profInfoFireShare', 0.3]]);
+    const access = combine(s, [['logPopAccess60', 0.6], ['logPopAccess120', 0.4]]);
+    const regen = combine(s, [['repRatio', 0.6], ['share45_64', -0.4]]);
+    const gateway = combine(s, [['foreignShare', 1.0]]);
+    const dominance = combine(s, [['domShare', 1.0]]);
+    const amenity = combine(s, [['seasonalShare', 0.6], ['artsEmpShare', 0.25], ['valueToIncome', 0.15]]);
+    const scarcity = combine(s, [['valueToIncome', 0.5], ['logDensity', 0.3], ['newBuildShare', -0.2]]);
+    const distress = combine(s, [['distressVacancy', 1.0]]);
+    const health = combine(s, [['healthEmpShare', 1.0]]);
+    // Dynamic feedback normalization anchors
+    const pti = new Float64Array(s.n);
+    for (let i = 0; i < s.n; i++) pti[i] = s.income0[i] > 0 ? s.price0[i] / s.income0[i] : 4;
+    const { mean: pti0Mean, sd: pti0Sd } = meanSd(pti);
+    const ys = new Float64Array(s.n);
+    for (let i = 0; i < s.n; i++) {
+      const tot = s.pop0[i] || 1;
+      ys[i] = (s.cohorts0.a20_24[i] + s.cohorts0.a25_44[i]) / tot;
+    }
+    const { mean: ysMean, sd: ysSd } = meanSd(ys);
+    return { engines, human, access, dominance, regen, gateway, amenity, scarcity, distress, health, pti0Mean, pti0Sd, ysMean, ysSd };
+  },
+
+  step(state, inputs, params, _year, _yearIndex) {
+    const n = state.engines.length;
+    const aW = new Float64Array(n);
+    const aR = new Float64Array(n);
+    const { laggedPriceToIncome: pti, laggedYoungShare: ys } = inputs;
+    for (let i = 0; i < n; i++) {
+      const zPti = Math.max(-3, Math.min(6, (pti[i] - state.pti0Mean) / state.pti0Sd));
+      const zYs = Math.max(-4, Math.min(4, (ys[i] - state.ysMean) / state.ysSd));
+      aW[i] =
+        params.wEngines * state.engines[i] +
+        params.wHuman * state.human[i] +
+        params.wAccess * state.access[i] +
+        params.wRegen * state.regen[i] +
+        params.wGateway * state.gateway[i] +
+        params.wVitality * zYs -
+        params.wAfford * zPti -
+        params.wDistress * state.distress[i] +
+        params.wHub * Math.max(0, state.engines[i]) * Math.max(0, state.dominance[i]);
+      aR[i] =
+        params.rAmenity * state.amenity[i] +
+        params.rHealth * state.health[i] +
+        params.rScarcity * state.scarcity[i] +
+        params.rAccess * state.access[i] -
+        params.rAfford * zPti;
+    }
+    return { state, outputs: { attractionWorking: aW, attractionRetiree: aR } };
+  },
+});
