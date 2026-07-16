@@ -138,10 +138,11 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
     const regen = combine(s, [['repRatio', 0.6], ['share45_64', -0.4]]);
     const gateway = combine(s, [['foreignShare', 1.0]]);
     const dominance = combine(s, [['domShare', 1.0]]);
-    // Prestige-gated scarcity (see data.ts): poverty-driven value/income
-    // ratios no longer read as Como/Carmel capital.
-    const amenity = combine(s, [['seasonalShare', 0.6], ['artsEmpShare', 0.25], ['prestigeVTI', 0.15]]);
-    const scarcity = combine(s, [['prestigeVTI', 0.5], ['logDensity', 0.3], ['newBuildShare', -0.2]]);
+    // Structural amenity/scarcity deliberately excludes current prices. This
+    // keeps fundamentals separate from starting valuation and avoids treating
+    // an already-expensive place as intrinsically more attractive.
+    const amenity = combine(s, [['seasonalShare', 0.7], ['artsEmpShare', 0.3]]);
+    const scarcity = combine(s, [['logDensity', 0.6], ['newBuildShare', -0.4]]);
     // Akiya gate (Wakayama lesson): amenity stores value only with access,
     // prestige, or institutions. Remote AND low-income places lose up to
     // half their amenity pull; Niseko/Jackson-type remote-prestige is exempt.

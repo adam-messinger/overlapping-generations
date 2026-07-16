@@ -18,8 +18,23 @@ export interface PlaceStatics {
   z: Record<string, Float64Array>;
   /** Raw columns needed in levels. */
   pop0: Float64Array;
+  /** Housing stock used by the simulation. Missing/zero observations receive
+   * a conservative synthetic stock so the numerical model remains finite. */
   units0: Float64Array;
+  /** Reported housing stock before any numerical fallback. */
+  observedUnits0: Float64Array;
+  /** Reported occupied housing units (equivalently, households). */
+  occupiedUnits0: Float64Array;
   seasonalShare: Float64Array;
+  /** Population living in group quarters and its share of total population. */
+  groupQuarters0: Float64Array;
+  groupQuartersShare: Float64Array;
+  /** Per-place multiplier that makes modeled headship reproduce observed
+   * occupied units in the start year. This prevents group-quarters residents
+   * from becoming phantom housing demand. */
+  headshipScale: Float64Array;
+  /** Whether the observed place is suitable for a housing-market ranking. */
+  housingMarketEligible: Uint8Array;
   /** Initial cohort counts. */
   cohorts0: Record<Cohort, Float64Array>;
   /** Initial price level ($, ZHVI or median value fallback). */
@@ -30,10 +45,12 @@ export interface PlaceStatics {
 
 export interface NationOutputs {
   natCohorts: Record<Cohort, number>;
-  /** Working-age (20-44) relocation pool this year (persons). */
-  workingMoverPool: number;
-  /** Retiree (65+) relocation pool this year (persons). */
-  retireeMoverPool: number;
+  /** TFR used for this transition. */
+  currentTfr: number;
+  /** National net international migration by age cohort. Municipal places
+   * receive their modeled-universe share through the migration module. */
+  netImmigrationByCohort: Record<Cohort, number>;
+  netImmigration: number;
   /** Index of aggregate 65+ wealth (1.0 at start year). */
   elderlyWealthIndex: number;
   /** National births this year. */

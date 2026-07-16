@@ -10,6 +10,8 @@
  * inline so future re-runs can re-verify.
  *
  * Usage: npx tsx aging-places/scripts/fetch-census.ts [--year=2000|2023] [--states=06,41]
+ * Partial state runs write a `.partial-STATE-...` artifact and never replace
+ * the canonical national extract.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -97,6 +99,12 @@ const TABLES_2023: TableSpec[] = [
       aggHHInc: 'B19025_001E',    // Aggregate household income ($)
     },
   },
+  {
+    id: 'ACSDT5Y2023.B26001',
+    cols: {
+      groupQuarters: 'B26001_001E', // Total group-quarters population
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -110,6 +118,9 @@ for (let i = 1; i <= 49; i++) P012_COLS[`P012${String(i).padStart(3, '0')}`] = `
 // year-2000 socioeconomic features come from SF3 detailed tables instead.
 const TABLES_2000: TableSpec[] = [
   { id: 'DECENNIALSF12000.P012', cols: P012_COLS }, // SEX BY AGE, 49 cells
+  { id: 'DECENNIALSF12000.P015', cols: { households: 'P015001' } },
+  { id: 'DECENNIALSF12000.P016', cols: { householdPopulation: 'P016001' } },
+  { id: 'DECENNIALSF12000.P037', cols: { groupQuarters: 'P037001' } },
   {
     id: 'DECENNIALSF12000.H005',
     cols: {
@@ -201,6 +212,8 @@ async function buildYear(year: '2000' | '2023', states: string[]): Promise<void>
   const records = new Map<string, Record<string, number | string | null>>();
 
   // Pre-warm the cache with limited concurrency, then extract sequentially.
+  // Promise rejection is intentional: never write a silently partial national
+  // file when a state/table fetch fails.
   const jobs = states.flatMap((st) => tables.map((t) => ({ st, t })));
   const POOL = 4;
   let jobIdx = 0;
@@ -208,24 +221,14 @@ async function buildYear(year: '2000' | '2023', states: string[]): Promise<void>
     Array.from({ length: POOL }, async () => {
       while (jobIdx < jobs.length) {
         const { st, t } = jobs[jobIdx++];
-        try {
-          await fetchTable(t.id, st);
-        } catch {
-          /* logged during extraction pass */
-        }
+        await fetchTable(t.id, st);
       }
     })
   );
 
   for (const st of states) {
     for (const t of tables) {
-      let header: string[], rows: string[][];
-      try {
-        ({ header, rows } = await fetchTable(t.id, st));
-      } catch (e) {
-        console.error(`FAILED ${t.id} state ${st}: ${(e as Error).message}`);
-        continue;
-      }
+      const { header, rows } = await fetchTable(t.id, st);
       const geoIdx = header.indexOf('GEO_ID');
       const nameIdx = header.indexOf('NAME');
       const colIdx: Record<string, number[]> = {};
@@ -275,18 +278,36 @@ async function buildYear(year: '2000' | '2023', states: string[]): Promise<void>
   }
 
   const recs = Array.from(records.values());
+  if (recs.length === 0) throw new Error(`${year}: no place records fetched`);
+  for (const st of states) {
+    const prefix = st;
+    if (!recs.some((r) => String(r.geoid).startsWith(prefix))) {
+      throw new Error(`${year}: state ${st} produced no place records`);
+    }
+  }
   const cols = new Set<string>(['geoid', 'name']);
   for (const r of recs) for (const k of Object.keys(r)) cols.add(k);
   const header = Array.from(cols);
   const rows = recs.map((r) => header.map((h) => (r[h] === undefined ? null : (r[h] as string | number | null))));
-  writeCsv(path.join(DATA_DIR, year === '2000' ? 'census2000.csv.gz' : 'acs2023.csv.gz'), header, rows);
+  const isNational = states.length === STATE_FIPS.length &&
+    STATE_FIPS.every((state) => states.includes(state));
+  const base = year === '2000' ? 'census2000' : 'acs2023';
+  const suffix = isNational ? '' : `.partial-${[...states].sort().join('-')}`;
+  writeCsv(path.join(DATA_DIR, `${base}${suffix}.csv.gz`), header, rows);
 }
 
 async function main(): Promise<void> {
   ensureDirs();
   const yearArg = process.argv.find((a) => a.startsWith('--year='))?.split('=')[1];
   const statesArg = process.argv.find((a) => a.startsWith('--states='))?.split('=')[1];
-  const states = statesArg ? statesArg.split(',') : STATE_FIPS;
+  if (yearArg && yearArg !== '2000' && yearArg !== '2023') {
+    throw new Error(`invalid --year=${yearArg}; expected 2000 or 2023`);
+  }
+  const states = statesArg ? [...new Set(statesArg.split(',').filter(Boolean))] : STATE_FIPS;
+  const invalidStates = states.filter((state) => !STATE_FIPS.includes(state));
+  if (states.length === 0 || invalidStates.length > 0) {
+    throw new Error(`invalid --states list: ${invalidStates.join(',') || '(empty)'}`);
+  }
   if (!yearArg || yearArg === '2023') await buildYear('2023', states);
   if (!yearArg || yearArg === '2000') await buildYear('2000', states);
 }

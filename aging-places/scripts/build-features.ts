@@ -19,6 +19,11 @@ function loadCsv(file: string): { header: string[]; rows: string[][] } {
   return { header: rows[0], rows: rows.slice(1).filter((r) => r.length > 1) };
 }
 
+function dataFileExists(file: string): boolean {
+  const full = path.join(DATA_DIR, file);
+  return fs.existsSync(full) || fs.existsSync(full + '.gz');
+}
+
 function indexer(header: string[]): (name: string) => number {
   return (name: string) => {
     const i = header.indexOf(name);
@@ -32,6 +37,11 @@ const f = (v: string | undefined): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : 1;
+}
 
 interface Place {
   geoid: string;
@@ -154,16 +164,42 @@ function main(): void {
   const idx2023 = indexer(c2023.header);
   const rows2000 = new Map(c2000.rows.map((r) => [r[idx2000('geoid')], r]));
   const rows2023 = new Map(c2023.rows.map((r) => [r[idx2023('geoid')], r]));
+  const epochMedianIncome = (rows: Map<string, string[]>, idx: (name: string) => number): number =>
+    median([...rows.entries()]
+      .filter(([geoid, row]) => places.has(geoid) && (f(row[idx('pop')]) ?? 0) >= 100)
+      .map(([, row]) => f(row[idx('medianHHInc')]))
+      .filter((value): value is number => value !== null && value > 0));
+  const medianIncome2000 = epochMedianIncome(rows2000, idx2000);
+  const medianIncome2023 = epochMedianIncome(rows2023, idx2023);
 
-  // --- universities grid (structural; used for both epochs) ---
-  const uni = loadCsv('universities.csv');
-  const ui = indexer(uni.header);
-  const uniGrid = new Grid(1);
-  for (const r of uni.rows) {
-    const lat = f(r[ui('lat')]), lon = f(r[ui('lon')]), en = f(r[ui('enrollment')]);
-    if (lat === null || lon === null || en === null) continue;
-    uniGrid.add(lat, lon, [en]);
-  }
+  // --- universities grids ---
+  // Never use 2023 institutions in a year-2000 hindcast. A historical file is
+  // optional; in its absence the two university proximity features are zero
+  // and therefore cannot leak future institutional geography into validation.
+  const universityGrid = (candidates: string[], legacyCap = false): Grid => {
+    const file = candidates.find(dataFileExists);
+    const grid = new Grid(1);
+    if (!file) return grid;
+    const uni = loadCsv(file);
+    const ui = indexer(uni.header);
+    const enrollmentColumn = uni.header.includes('spatialEnrollment') ? 'spatialEnrollment'
+      : uni.header.includes('campusEnrollment') ? 'campusEnrollment' : 'enrollment';
+    for (const r of uni.rows) {
+      const lat = f(r[ui('lat')]), lon = f(r[ui('lon')]), rawEnrollment = f(r[ui(enrollmentColumn)]);
+      if (lat === null || lon === null || rawEnrollment === null) continue;
+      // The legacy artifact predates distance-education cleaning. Until it is
+      // rebuilt, cap an institution's HQ count so a national online program
+      // cannot be assigned wholesale to one municipality.
+      const enrollment = legacyCap ? Math.min(50000, rawEnrollment) : rawEnrollment;
+      grid.add(lat, lon, [enrollment]);
+    }
+    return grid;
+  };
+  const uniGrid2000 = universityGrid(['universities2000.csv']);
+  const hasClean2023 = dataFileExists('universities2023.csv');
+  const uniGrid2023 = universityGrid(
+    hasClean2023 ? ['universities2023.csv'] : ['universities.csv'], !hasClean2023
+  );
 
   // --- Zillow ---
   const z = loadCsv('zhvi.csv');
@@ -213,6 +249,10 @@ function main(): void {
     const p = places.get(geoid);
     if (!p) continue;
     const g = (c: string): number | null => f(r[idx2000(c)]);
+    const go = (c: string): number | null => {
+      const i = c2000.header.indexOf(c);
+      return i === -1 ? null : f(r[i]);
+    };
     const pop = g('pop') ?? 0;
     if (pop < 100) continue;
     const units = g('units') ?? 0;
@@ -222,7 +262,7 @@ function main(): void {
     const seasonal = g('seasonalUnits') ?? 0;
     const vacant = g('vacant') ?? 0;
     const [acc60, acc90, acc120] = grid2000.sumsWithin(p.lat, p.lon, RADII_KM);
-    const [uni15, uni60] = uniGrid.sumsWithin(p.lat, p.lon, [15, 60]);
+    const [uni15, uni60] = uniGrid2000.sumsWithin(p.lat, p.lon, [15, 60]);
     const zrow = zhviFor(p);
     const v2000 = zrow ? f(zrow[zi('v2000')]) : null;
     const v2012 = zrow ? f(zrow[zi('v2012')]) : null;
@@ -240,6 +280,8 @@ function main(): void {
       pop > 0 ? +((g('a20_24') ?? 0) / pop).toFixed(4) : null,             // share20_24
       pop > 0 ? +(a25_44 / pop).toFixed(4) : null,                         // share25_44
       units,                                                               // housing units
+      go('households') ?? Math.max(0, units - vacant),                     // occupied units / households
+      go('groupQuarters'),                                                 // population in group quarters
       civEmp > 0 ? +((g('eduEmp') ?? 0) / civEmp).toFixed(4) : null,       // eduEmpShare
       civEmp > 0 ? +((g('healthEmp') ?? 0) / civEmp).toFixed(4) : null,    // healthEmpShare
       civEmp > 0 ? +((g('pubAdminEmp') ?? 0) / civEmp).toFixed(4) : null,  // pubAdminShare
@@ -255,6 +297,8 @@ function main(): void {
       pop > 0 ? +((g('foreignBorn') ?? 0) / pop).toFixed(4) : null,        // foreignShare
       medVal, medInc, g('perCapInc'),
       medVal !== null && medInc !== null && medInc > 0 ? +(medVal / medInc).toFixed(2) : null, // valueToIncome
+      medVal !== null && medInc !== null && medInc > 0
+        ? +((medVal / medInc) * Math.min(2, medInc / medianIncome2000)).toFixed(3) : null, // prestigeVTI
       p.alandSqmi > 0 ? Math.round(pop / p.alandSqmi) : null,              // density
       Math.round(acc60[0]), Math.round(acc90[0]), Math.round(acc120[0]),   // popAccess
       Math.round(acc60[1]), Math.round(acc120[1]),                         // incomeAccess $M
@@ -266,11 +310,12 @@ function main(): void {
   }
   const HEADER_2000 = [
     'geoid', 'name', 'state', 'county', 'lat', 'lon', 'pop',
-    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44', 'units',
+    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44',
+    'units', 'occupied', 'groupQuarters',
     'eduEmpShare', 'healthEmpShare', 'pubAdminShare', 'artsEmpShare', 'profInfoFireShare', 'armedShare',
     'bachShare', 'gradShare', 'collegeShare',
     'seasonalShare', 'distressVacancy', 'newBuildShare', 'foreignShare',
-    'medianValue', 'medianHHInc', 'perCapInc', 'valueToIncome', 'density',
+    'medianValue', 'medianHHInc', 'perCapInc', 'valueToIncome', 'prestigeVTI', 'density',
     'popAccess60', 'popAccess90', 'popAccess120', 'incAccess60', 'incAccess120',
     'uniEnroll15', 'uniEnroll60',
     'zhvi2000', 'zhvi2012', 'zhvi2025', 'logGrowth00_25', 'logGrowth12_25',
@@ -285,6 +330,10 @@ function main(): void {
     const p = places.get(geoid);
     if (!p) continue;
     const g = (c: string): number | null => f(r[idx2023(c)]);
+    const go = (c: string): number | null => {
+      const i = c2023.header.indexOf(c);
+      return i === -1 ? null : f(r[i]);
+    };
     const pop = g('pop') ?? 0;
     if (pop < 100) continue;
     const units = g('units') ?? 0;
@@ -297,7 +346,7 @@ function main(): void {
     const seasonal = g('seasonalUnits') ?? 0;
     const vacant = g('vacant') ?? 0;
     const [acc60, acc90, acc120] = grid2023.sumsWithin(p.lat, p.lon, RADII_KM);
-    const [uni15, uni60] = uniGrid.sumsWithin(p.lat, p.lon, [15, 60]);
+    const [uni15, uni60] = uniGrid2023.sumsWithin(p.lat, p.lon, [15, 60]);
     const zrow = zhviFor(p);
     const v2015 = zrow ? f(zrow[zi('v2015')]) : null;
     const v2025 = zrow ? f(zrow[zi('v2025')]) : null;
@@ -314,6 +363,8 @@ function main(): void {
       +pct('pct20_24').toFixed(4),                                          // share20_24
       +share25_44.toFixed(4),                                               // share25_44
       units,
+      go('occupied') ?? go('households'),
+      go('groupQuarters'),
       civEmp > 0 ? +(eduEmp / civEmp).toFixed(4) : null,
       civEmp > 0 ? +(healthEmp / civEmp).toFixed(4) : null,
       +(pct('pctPubAdmin')).toFixed(4),
@@ -330,6 +381,8 @@ function main(): void {
       medVal, medInc,
       g('households') !== null && (g('households') ?? 0) > 0 ? Math.round((g('aggHHInc') ?? 0) / (g('households') ?? 1)) : null, // meanHHInc via aggregate
       medVal !== null && medInc !== null && medInc > 0 ? +(medVal / medInc).toFixed(2) : null,
+      medVal !== null && medInc !== null && medInc > 0
+        ? +((medVal / medInc) * Math.min(2, medInc / medianIncome2023)).toFixed(3) : null,
       p.alandSqmi > 0 ? Math.round(pop / p.alandSqmi) : null,
       Math.round(acc60[0]), Math.round(acc90[0]), Math.round(acc120[0]),
       Math.round(acc60[1]), Math.round(acc120[1]),
@@ -341,11 +394,12 @@ function main(): void {
   }
   const HEADER_2023 = [
     'geoid', 'name', 'state', 'county', 'lat', 'lon', 'pop',
-    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44', 'units',
+    'repRatio', 'youngShare', 'share65', 'share45_64', 'share0_19', 'share20_24', 'share25_44',
+    'units', 'occupied', 'groupQuarters',
     'eduEmpShare', 'healthEmpShare', 'pubAdminShare', 'artsEmpShare', 'profInfoFireShare', 'armedShare',
     'bachShare', 'gradShare', 'collegeShare',
     'seasonalShare', 'distressVacancy', 'newBuildShare', 'foreignShare',
-    'medianValue', 'medianHHInc', 'meanHHInc', 'valueToIncome', 'density',
+    'medianValue', 'medianHHInc', 'meanHHInc', 'valueToIncome', 'prestigeVTI', 'density',
     'popAccess60', 'popAccess90', 'popAccess120', 'incAccess60', 'incAccess120',
     'uniEnroll15', 'uniEnroll60',
     'medianAge',

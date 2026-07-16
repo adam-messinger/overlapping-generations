@@ -1,17 +1,10 @@
 /**
- * Forward forecast 2025-2065 for every US municipality:
- *  1. statistical score — the backtest-validated logit/linear model applied
- *     to 2023 features (ranking preserved under cross-sectional z-scoring);
- *  2. mechanism score — the OLG municipal simulation run 40 years forward;
- *  3. outlook = blend of both (z-averaged);
- *  4. valuation gap = outlook vs current price-to-income percentile;
- *  5. explainability: pillar drivers + typology tags per place.
+ * Forward municipal ranking and mechanism scenario, 2025-2065.
  *
- * Outputs (outputs/):
- *   forecast-all.csv.gz, top100.csv, bottom100.csv, undervalued.csv,
- *   overvalued.csv
- *
- * Usage: npx tsx aging-places/scripts/forecast.ts
+ * The headline ranking is the state-grouped-validated logistic winner model.
+ * The mechanism simulation is reported separately because adding it to the
+ * classifier did not improve mean held-out-state AUC. Structural valuation is
+ * also separate and excludes current prices from its fundamental score.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -23,200 +16,240 @@ import {
 import { runAgingSim } from '../src/simulation.js';
 import { attractionModule } from '../src/modules/attraction.js';
 
-function zVec(v: number[]): number[] {
-  const ok = v.filter((x) => Number.isFinite(x));
-  const m = ok.reduce((s, x) => s + x, 0) / ok.length;
-  const sd = Math.sqrt(ok.reduce((s, x) => s + (x - m) ** 2, 0) / (ok.length - 1)) || 1;
-  return v.map((x) => (Number.isFinite(x) ? (x - m) / sd : 0));
+function zVec(values: number[]): number[] {
+  const present = values.filter(Number.isFinite);
+  const mean = present.reduce((sum, value) => sum + value, 0) / Math.max(1, present.length);
+  const sd = Math.sqrt(present.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+    Math.max(1, present.length - 1)) || 1;
+  return values.map((value) => Number.isFinite(value) ? (value - mean) / sd : 0);
+}
+
+export interface ConfidenceInputs {
+  pop: number;
+  hasZhvi: boolean;
+  hasIncome: boolean;
+  observedUnits: number;
+  groupQuartersShare: number;
+  missingFeatureCount: number;
+  extremeFeatureCount: number;
+  modelDisagreement: number;
+}
+
+export function classifyConfidence(input: ConfidenceInputs): {
+  confidence: 'high' | 'medium' | 'low'; reasons: string[];
+} {
+  const hard: string[] = [];
+  const cautions: string[] = [];
+  if (input.pop < 2500) hard.push('population below 2,500');
+  if (!input.hasZhvi) hard.push('no observed Zillow price');
+  if (!input.hasIncome) hard.push('missing household income');
+  if (input.observedUnits <= 0) hard.push('zero reported housing units');
+  if (input.groupQuartersShare >= 0.5) hard.push('majority group-quarters population');
+  else if (input.groupQuartersShare >= 0.25) cautions.push('high group-quarters population');
+  if (input.missingFeatureCount > 5) hard.push('many missing predictors');
+  else if (input.missingFeatureCount > 2) cautions.push('several missing predictors');
+  if (input.extremeFeatureCount > 2) cautions.push('outside historical predictor support');
+  if (input.modelDisagreement > 3) hard.push('large statistical/mechanism disagreement');
+  else if (input.modelDisagreement > 2) cautions.push('statistical/mechanism disagreement');
+  if (hard.length > 0) return { confidence: 'low', reasons: [...hard, ...cautions] };
+  if (cautions.length > 0) return { confidence: 'medium', reasons: cautions };
+  return { confidence: 'high', reasons: [] };
 }
 
 interface PlaceOut {
-  geoid: string; name: string; state: string; pop: number;
-  outlook: number; simGrowth: number; fittedProb: number; fittedGrowth: number;
-  valuationGap: number | null; zhvi2025: number | null; medianValue: number | null;
+  geoid: string;
+  name: string;
+  state: string;
+  pop: number;
+  /** Standardized headline score; ranking-equivalent to historicalWinnerIndex. */
+  outlook: number;
+  /** A 0--1 logistic ranking index, not a calibrated forward probability. */
+  historicalWinnerIndex: number;
+  mechanismScore: number;
+  mechanismRealLogGrowth: number;
+  historicalRelativeGrowth: number;
+  structuralScore: number;
+  valuationGap: number | null;
+  modelDisagreement: number;
+  zhvi2025: number | null;
+  medianValue: number | null;
+  housingMarketEligible: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  confidenceReasons: string[];
   pillars: Record<string, number>;
   tags: string[];
   positives: string[];
   negatives: string[];
-  /** Thin market: tiny population or no observed Zillow price — scores rest
-   * on covariate extrapolation, not market history (the Covelo case). */
-  lowConfidence: boolean;
 }
 
 const PILLAR_LABELS: Record<string, string> = {
-  engines: 'institutional engines (edu/med/gov/military/university)',
-  human: 'human capital (degrees, professional employment)',
-  access: 'market access (population within 60-120min)',
-  regen: 'demographic regeneration (25-44 vs 65+)',
+  engines: 'institutional engines',
+  human: 'human capital',
+  access: 'market access',
+  regen: 'demographic regeneration',
   gateway: 'immigrant gateway',
-  amenity: 'amenity capital (seasonal homes, arts, prestige)',
-  scarcity: 'scarcity capital (price/income, density, slow building)',
+  amenity: 'amenity capital',
+  scarcity: 'structural housing scarcity',
   distress: 'distress vacancy',
+  health: 'healthcare capacity',
 };
 
-function main(): void {
+export function main(): void {
   ensureDirs();
-
-  // ---- 1. statistical model on 2023 features ----
   const model: ModelSpec = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'model.json'), 'utf8'));
-  const rows23 = loadFeatureRows('features2023.csv').filter((r) => r.pop >= 250);
-  const Xraw = buildMatrix(rows23);
-  const stats23 = columnStats(Xraw);
-  const Z = standardize(Xraw, stats23.means, stats23.sds);
-  const fittedProb = predictLogit(Z, model.logitW);
-  const fittedGrowth = predictLinear(Z, model.linW);
-
-  // ---- 2. mechanism simulation 2025-2065 ----
-  const sim = runAgingSim({ epoch: '2023', years: 40, minPop: 250 });
-  const simByGeoid = new Map<string, number>();
-  for (let i = 0; i < sim.data.statics.n; i++) {
-    simByGeoid.set(sim.data.statics.geoid[i], sim.simLogGrowth[i]);
+  if (model.preprocessing !== 'epoch_zscore') {
+    throw new Error(`unsupported model preprocessing: ${String(model.preprocessing)}`);
   }
+  const rows = loadFeatureRows('features2023.csv').filter((row) => row.pop >= 250);
+  const rawMatrix = buildMatrix(rows);
+  // Explicitly epoch-relative: nominal 2023 levels are not standardized with
+  // year-2000 dollars. The model artifact records this preprocessing contract.
+  const currentStats = columnStats(rawMatrix);
+  const zMatrix = standardize(rawMatrix, currentStats.means, currentStats.sds);
+  const historicalWinnerIndex = predictLogit(zMatrix, model.logitW);
+  const relativeGrowth = predictLinear(zMatrix, model.linW);
+  const outlook = zVec(historicalWinnerIndex);
 
-  // ---- pillars via the attraction module's own composites ----
-  const att = attractionModule.init(attractionModule.mergeParams({ statics: sim.data.statics }));
+  const sim = runAgingSim({ epoch: '2023', years: 40, minPop: 250 });
+  const simIndex = new Map(sim.data.statics.geoid.map((geoid, i) => [geoid, i]));
+  const mechanismGrowth = rows.map((row) => {
+    const index = simIndex.get(row.geoid);
+    return index === undefined ? NaN : sim.simRealLogGrowth[index];
+  });
+  const mechanismScore = zVec(mechanismGrowth);
+
+  const attraction = attractionModule.init(attractionModule.mergeParams({ statics: sim.data.statics }));
   const pillarByGeoid = new Map<string, Record<string, number>>();
   for (let i = 0; i < sim.data.statics.n; i++) {
     pillarByGeoid.set(sim.data.statics.geoid[i], {
-      engines: att.engines[i], human: att.human[i], access: att.access[i],
-      regen: att.regen[i], gateway: att.gateway[i], amenity: att.amenity[i],
-      scarcity: att.scarcity[i], distress: att.distress[i],
+      engines: attraction.engines[i], human: attraction.human[i], access: attraction.access[i],
+      regen: attraction.regen[i], gateway: attraction.gateway[i], amenity: attraction.amenity[i],
+      scarcity: attraction.scarcity[i], distress: attraction.distress[i], health: attraction.health[i],
     });
   }
-
-  // ---- 3+4. combine, valuation gap ----
-  const simArr = rows23.map((r) => simByGeoid.get(r.geoid) ?? NaN);
-  const zSim = zVec(simArr);
-  const zFit = zVec(fittedGrowth);
-  // Mechanism-dominant blend: the fitted model captures the historical
-  // %-growth channel (which favored cheap-base convergence 2000-25); the
-  // simulation captures forward aging dynamics — the construct this study
-  // is about. See docs/STRESS_TEST.md ("the Boston test") for the rationale.
-  // Winsorize each component at ±3 s.d. so one model's tail can't dominate.
-  const w3 = (x: number): number => Math.max(-3, Math.min(3, x));
-  const outlook = rows23.map((_, i) => 0.7 * w3(zSim[i]) + 0.3 * w3(zFit[i]));
-  // Valuation: current price-to-income (ZHVI preferred, median value fallback)
-  const pti = rows23.map((r) => {
-    const price = r.raw.zhvi2025 ?? r.raw.medianValue;
-    const inc = r.raw.medianHHInc;
-    return price !== null && inc !== null && inc > 0 ? Math.log(price / inc) : NaN;
+  const structuralRaw = rows.map((row) => {
+    const p = pillarByGeoid.get(row.geoid) ?? {};
+    return 0.25 * (p.engines ?? 0) + 0.20 * (p.human ?? 0) + 0.20 * (p.access ?? 0) +
+      0.10 * (p.regen ?? 0) + 0.10 * (p.gateway ?? 0) + 0.08 * (p.amenity ?? 0) +
+      0.05 * (p.scarcity ?? 0) + 0.07 * (p.health ?? 0) - 0.10 * (p.distress ?? 0);
   });
-  const zPti = zVec(pti);
-  const valuationGap = rows23.map((_, i) => (Number.isFinite(pti[i]) ? outlook[i] - zPti[i] : null));
+  const structuralScore = zVec(structuralRaw);
+  const logPriceToIncome = rows.map((row) => {
+    const price = row.raw.zhvi2025 ?? row.raw.medianValue;
+    const income = row.raw.medianHHInc;
+    return price !== null && income !== null && income > 0 ? Math.log(price / income) : NaN;
+  });
+  const valuationZ = zVec(logPriceToIncome);
 
-  // ---- 5. explainability ----
-  const out: PlaceOut[] = rows23.map((r, i) => {
-    const p = pillarByGeoid.get(r.geoid) ?? {};
-    const contribs: [string, number][] = [
-      ['engines', 0.30 * (p.engines ?? 0)],
-      ['human', 0.25 * (p.human ?? 0)],
-      ['access', 0.20 * (p.access ?? 0)],
-      ['regen', 0.15 * (p.regen ?? 0)],
-      ['gateway', 0.10 * (p.gateway ?? 0)],
-      ['amenity', 0.45 * (p.amenity ?? 0)],
-      ['scarcity', 0.15 * (p.scarcity ?? 0)],
-      ['distress', -0.15 * (p.distress ?? 0)],
+  const out: PlaceOut[] = rows.map((row, i) => {
+    const p = pillarByGeoid.get(row.geoid) ?? {};
+    const contributions: [string, number][] = [
+      ['engines', 0.25 * (p.engines ?? 0)], ['human', 0.20 * (p.human ?? 0)],
+      ['access', 0.20 * (p.access ?? 0)], ['regen', 0.10 * (p.regen ?? 0)],
+      ['gateway', 0.10 * (p.gateway ?? 0)], ['amenity', 0.08 * (p.amenity ?? 0)],
+      ['scarcity', 0.05 * (p.scarcity ?? 0)], ['health', 0.07 * (p.health ?? 0)],
+      ['distress', -0.10 * (p.distress ?? 0)],
     ];
-    const sorted = [...contribs].sort((a, b) => b[1] - a[1]);
-    const positives = sorted.filter(([, v]) => v > 0.12).slice(0, 3).map(([k]) => PILLAR_LABELS[k]);
-    const negatives = sorted.filter(([, v]) => v < -0.12).slice(-3).map(([k]) => PILLAR_LABELS[k]);
-
-    const z = (name: string): number => {
-      const j = MODEL_FEATURES.findIndex((f) => f.name === name);
-      return j >= 0 ? Z[i][j] : 0;
+    const positives = [...contributions].sort((a, b) => b[1] - a[1])
+      .filter(([, value]) => value > 0.10).slice(0, 3).map(([key]) => PILLAR_LABELS[key]);
+    const negatives = [...contributions].sort((a, b) => a[1] - b[1])
+      .filter(([, value]) => value < -0.10).slice(0, 3).map(([key]) => PILLAR_LABELS[key]);
+    const featureZ = (name: string): number => {
+      const index = MODEL_FEATURES.findIndex((feature) => feature.name === name);
+      return index >= 0 ? zMatrix[i][index] : 0;
     };
     const tags: string[] = [];
-    // Knowledge Center = actual college town: resident students are a large
-    // share of the place, not merely a university somewhere in the metro.
-    const uni15 = r.raw.uniEnroll15 ?? 0;
-    const collegeShare = r.raw.collegeShare ?? 0;
-    if (collegeShare > 0.15 || (uni15 / Math.max(1, r.pop) > 0.5 && collegeShare > 0.08)) tags.push('Knowledge Center');
-    if (z('healthEmpShare') > 1.5 && r.pop >= 20000) tags.push('Medical Hub');
-    if (z('pubAdminShare') > 1.5) tags.push('Government Hub');
-    if (z('armedShare') > 1.5) tags.push('Military Anchor');
-    if ((p.engines ?? 0) > 0.8 && z('logPopAccess60') < 0 && r.pop >= 10000) tags.push('Regional Service Center');
-    if (z('seasonalShare') > 1.0) tags.push('Amenity Destination');
-    if (z('seasonalShare') > 0.5 && (pillarByGeoid.get(r.geoid)?.scarcity ?? 0) > 1.5) tags.push('Prestige Destination');
-    if (z('share65') > 1.5 && z('seasonalShare') > 0.3) tags.push('Retirement Market');
-    if (z('logPopAccess60') > 1.0 && r.pop < 50000 && outlook[i] > 0) tags.push('Metro Spillover Market');
-    if (z('share45_64') > 1.0 && z('repRatio') < -0.3) tags.push('Aging Trap');
-    if ((p.engines ?? 0) < -0.8 && z('logPopAccess60') < -0.5) tags.push('Institutional Loser');
-    if (z('repRatio') < -1.0 && z('share65') > 1.0 && outlook[i] < 0) tags.push('Demographic Loser');
-    if (z('newBuildShare') > 1.5 && outlook[i] < 0) tags.push('Housing Overbuild');
+    if ((row.raw.collegeShare ?? 0) > 0.15) tags.push('Knowledge Center');
+    if (featureZ('healthEmpShare') > 1.5 && row.pop >= 20000) tags.push('Medical Hub');
+    if (featureZ('pubAdminShare') > 1.5) tags.push('Government Hub');
+    if (featureZ('armedShare') > 1.5) tags.push('Military Anchor');
+    if ((p.engines ?? 0) > 0.8 && featureZ('logPopAccess60') < 0 && row.pop >= 10000) tags.push('Regional Service Center');
+    if (featureZ('seasonalShare') > 1) tags.push('Amenity Destination');
+    if (featureZ('share45_64') > 1 && featureZ('repRatio') < -0.3) tags.push('Aging Trap');
+    if ((p.engines ?? 0) < -0.8 && featureZ('logPopAccess60') < -0.5) tags.push('Institutional Risk');
 
+    const simI = simIndex.get(row.geoid);
+    const observedUnits = simI === undefined ? 0 : sim.data.statics.observedUnits0[simI];
+    const groupQuartersShare = simI === undefined ? 0 : sim.data.statics.groupQuartersShare[simI];
+    const housingMarketEligible = simI !== undefined && sim.data.statics.housingMarketEligible[simI] === 1;
+    const missingFeatureCount = rawMatrix[i].filter((value) => value === null).length;
+    const extremeFeatureCount = zMatrix[i].filter((value) => Math.abs(value) > 4).length;
+    const disagreement = Math.abs(outlook[i] - mechanismScore[i]);
+    const confidence = classifyConfidence({
+      pop: row.pop,
+      hasZhvi: row.raw.zhvi2025 !== null,
+      hasIncome: row.raw.medianHHInc !== null,
+      observedUnits,
+      groupQuartersShare,
+      missingFeatureCount,
+      extremeFeatureCount,
+      modelDisagreement: disagreement,
+    });
     return {
-      geoid: r.geoid, name: r.name, state: r.state, pop: r.pop,
+      geoid: row.geoid, name: row.name, state: row.state, pop: row.pop,
       outlook: +outlook[i].toFixed(3),
-      simGrowth: +(simArr[i] ?? 0).toFixed(3),
-      fittedProb: +fittedProb[i].toFixed(3),
-      fittedGrowth: +fittedGrowth[i].toFixed(3),
-      valuationGap: valuationGap[i] === null ? null : +valuationGap[i]!.toFixed(3),
-      zhvi2025: r.raw.zhvi2025, medianValue: r.raw.medianValue,
-      pillars: Object.fromEntries(Object.entries(p).map(([k, v]) => [k, +Number(v).toFixed(2)])),
+      historicalWinnerIndex: +historicalWinnerIndex[i].toFixed(4),
+      mechanismScore: +mechanismScore[i].toFixed(3),
+      mechanismRealLogGrowth: +mechanismGrowth[i].toFixed(3),
+      historicalRelativeGrowth: +relativeGrowth[i].toFixed(3),
+      structuralScore: +structuralScore[i].toFixed(3),
+      valuationGap: Number.isFinite(logPriceToIncome[i])
+        ? +(structuralScore[i] - valuationZ[i]).toFixed(3) : null,
+      modelDisagreement: +disagreement.toFixed(3),
+      zhvi2025: row.raw.zhvi2025,
+      medianValue: row.raw.medianValue,
+      housingMarketEligible,
+      confidence: confidence.confidence,
+      confidenceReasons: confidence.reasons,
+      pillars: Object.fromEntries(Object.entries(p).map(([key, value]) => [key, +value.toFixed(2)])),
       tags, positives, negatives,
-      lowConfidence: r.pop < 2500 || r.raw.zhvi2025 === null,
     };
   });
 
-  // ---- write outputs ----
   const header = [
-    'geoid', 'name', 'state', 'pop', 'outlook', 'simGrowth', 'fittedProb', 'fittedGrowth',
-    'valuationGap', 'zhvi2025', 'medianValue',
-    'engines', 'human', 'access', 'regen', 'gateway', 'amenity', 'scarcity', 'distress',
-    'tags', 'positives', 'negatives', 'lowConfidence',
+    'geoid', 'name', 'state', 'pop', 'outlook', 'historicalWinnerIndex',
+    'mechanismScore', 'mechanismRealLogGrowth', 'historicalRelativeGrowth',
+    'structuralScore', 'valuationGap', 'modelDisagreement', 'zhvi2025', 'medianValue',
+    'housingMarketEligible', 'confidence', 'confidenceReasons',
+    'engines', 'human', 'access', 'regen', 'gateway', 'amenity', 'scarcity', 'health', 'distress',
+    'tags', 'positives', 'negatives',
   ];
-  const toRow = (o: PlaceOut): (string | number | null)[] => [
-    o.geoid, o.name, o.state, o.pop, o.outlook, o.simGrowth, o.fittedProb, o.fittedGrowth,
-    o.valuationGap, o.zhvi2025, o.medianValue,
-    o.pillars.engines ?? null, o.pillars.human ?? null, o.pillars.access ?? null,
-    o.pillars.regen ?? null, o.pillars.gateway ?? null, o.pillars.amenity ?? null,
-    o.pillars.scarcity ?? null, o.pillars.distress ?? null,
-    o.tags.join('; '), o.positives.join('; '), o.negatives.join('; '),
-    o.lowConfidence ? 1 : 0,
+  const toRow = (place: PlaceOut): (string | number | null)[] => [
+    place.geoid, place.name, place.state, place.pop, place.outlook, place.historicalWinnerIndex,
+    place.mechanismScore, place.mechanismRealLogGrowth, place.historicalRelativeGrowth,
+    place.structuralScore, place.valuationGap, place.modelDisagreement,
+    place.zhvi2025, place.medianValue, Number(place.housingMarketEligible), place.confidence,
+    place.confidenceReasons.join('; '),
+    place.pillars.engines ?? null, place.pillars.human ?? null, place.pillars.access ?? null,
+    place.pillars.regen ?? null, place.pillars.gateway ?? null, place.pillars.amenity ?? null,
+    place.pillars.scarcity ?? null, place.pillars.health ?? null, place.pillars.distress ?? null,
+    place.tags.join('; '), place.positives.join('; '), place.negatives.join('; '),
   ];
   writeCsv(path.join(OUT_DIR, 'forecast-all.csv.gz'), header, out.map(toRow));
 
-  const eligible = out.filter((o) => o.pop >= 10000);
-  const byOutlook = [...eligible].sort((a, b) => b.outlook - a.outlook);
-  writeCsv(path.join(OUT_DIR, 'top100.csv'), header, byOutlook.slice(0, 100).map(toRow));
-  writeCsv(path.join(OUT_DIR, 'bottom100.csv'), header, byOutlook.slice(-100).reverse().map(toRow));
-
-  const valued = out.filter((o) => o.pop >= 5000 && o.valuationGap !== null && o.zhvi2025 !== null);
-  const byGap = [...valued].sort((a, b) => (b.valuationGap ?? 0) - (a.valuationGap ?? 0));
-  // Undervalued = genuinely strong outlook AND cheap relative to it — not
-  // merely cheap (outlook >= 0.5 filters the "just poor and cheap" tail).
+  const eligible = out.filter((place) =>
+    place.pop >= 10000 && place.housingMarketEligible && place.zhvi2025 !== null && place.confidence !== 'low'
+  );
+  const ranked = [...eligible].sort((a, b) => b.outlook - a.outlook);
+  writeCsv(path.join(OUT_DIR, 'top100.csv'), header, ranked.slice(0, 100).map(toRow));
+  writeCsv(path.join(OUT_DIR, 'bottom100.csv'), header, ranked.slice(-100).reverse().map(toRow));
+  const valued = eligible.filter((place) => place.valuationGap !== null);
+  const byValue = [...valued].sort((a, b) => (b.valuationGap ?? 0) - (a.valuationGap ?? 0));
   writeCsv(path.join(OUT_DIR, 'undervalued.csv'), header,
-    byGap.filter((o) => o.outlook >= 0.5).slice(0, 100).map(toRow));
+    byValue.filter((place) => place.structuralScore >= 0.5).slice(0, 100).map(toRow));
   writeCsv(path.join(OUT_DIR, 'overvalued.csv'), header,
-    byGap.filter((o) => o.outlook < 0).reverse().slice(0, 100).map(toRow));
+    byValue.filter((place) => place.structuralScore < 0).reverse().slice(0, 100).map(toRow));
 
-  // Console preview for stress-testing
-  console.log('=== TOP 25 (pop>=10k) ===');
-  for (const o of byOutlook.slice(0, 25)) {
-    console.log(`${o.outlook.toFixed(2).padStart(6)} ${o.name}, ${o.state} (pop ${o.pop}) [${o.tags.join('|')}]`);
-  }
-  console.log('=== BOTTOM 25 ===');
-  for (const o of byOutlook.slice(-25).reverse()) {
-    console.log(`${o.outlook.toFixed(2).padStart(6)} ${o.name}, ${o.state} (pop ${o.pop}) [${o.tags.join('|')}]`);
-  }
-  console.log('=== sanity: major cities ===');
-  const majors: [string, string][] = [
-    ['Boston city', 'MA'], ['New York city', 'NY'], ['San Francisco city', 'CA'],
-    ['Chicago city', 'IL'], ['Detroit city', 'MI'], ['Ann Arbor city', 'MI'],
-    ['Rochester city', 'MN'], ['Palo Alto city', 'CA'], ['Naples city', 'FL'],
-    ['Youngstown city', 'OH'], ['Madison city', 'WI'], ['Boulder city', 'CO'],
-    ['Chapel Hill town', 'NC'], ['Austin city', 'TX'], ['Seattle city', 'WA'],
-    ['Washington city', 'DC'], ['Ithaca city', 'NY'], ['State College borough', 'PA'],
-    ['Carmel-by-the-Sea city', 'CA'], ['Jackson town', 'WY'], ['Bozeman city', 'MT'],
-    ['Durham CDP', 'NH'], ['Port Townsend city', 'WA'], ['The Villages CDP', 'FL'],
-    ['Covelo CDP', 'CA'], ['Bolinas CDP', 'CA'], ['Nantucket CDP', 'MA'], ['Beardstown city', 'IL'],
-  ];
-  for (const [nm, st] of majors) {
-    const hit = out.find((o) => o.name === nm && o.state === st);
-    if (!hit) { console.log(`${nm}, ${st}: NOT FOUND`); continue; }
-    const rank = byOutlook.findIndex((o) => o.geoid === hit.geoid);
-    console.log(`${hit.name}, ${hit.state}: outlook=${hit.outlook} rank=${rank >= 0 ? rank + 1 : 'sub-10k'}/${byOutlook.length} sim=${hit.simGrowth} fit=${hit.fittedGrowth} [${hit.tags.join('|')}]`);
-  }
+  console.log(`headline eligible universe: ${ranked.length}`);
+  console.log('=== TOP 20: validated historical winner score ===');
+  ranked.slice(0, 20).forEach((place, i) => console.log(
+    `${String(i + 1).padStart(2)} ${place.outlook.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
+  ));
+  console.log('=== BOTTOM 20 ===');
+  ranked.slice(-20).reverse().forEach((place, i) => console.log(
+    `${String(ranked.length - i).padStart(4)} ${place.outlook.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
+  ));
 }
 
-main();
+const isMain = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));
+if (isMain) main();

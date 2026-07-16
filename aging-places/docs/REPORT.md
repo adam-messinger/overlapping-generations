@@ -1,162 +1,132 @@
-# Aging, Demographics, and Long-Term Real-Estate Value in the United States
+# US municipal aging and housing: corrected results
 
-**Final report — research program deliverables.** Companion documents: theory
-(`THEORY.md`), international evidence (`LESSONS_JAPAN.md`, `LESSONS_ITALY.md`), model design
-(`METHODOLOGY.md`), validation (`BACKTEST.md`), iteration log (`STRESS_TEST.md`). Full ranked
-universe: `outputs/forecast-all.csv.gz` (~24,500 municipalities); lists: `outputs/*.csv`.
+## Executive result
 
----
+The project now produces an honest historical-structure ranking plus a separate aging scenario.
+After correcting spatial validation, household accounting, migration conservation, group-quarters
+treatment, and historical institution data, the strongest headline result is a mean held-out-state
+ROC-AUC of **0.667**. The mechanism simulation's raw national hindcast is near chance
+(AUC **0.522**, Spearman **−0.005**) and is no longer blended into the headline.
 
-## 1. The theory in one page
+That changes the interpretation substantially. The output can support research, scenario comparison,
+and locality triage. It does not support statements such as “this place has a 97% chance of winning,”
+nor does it estimate a 2065 home price.
 
-Aging does not shrink housing demand uniformly — it **changes its composition and concentrates
-it**. Broad-based household formation (which spreads growth across every suburb) gives way to
-three spiky flows: the migration of the scarce young, the spending of the old's accumulated
-wealth, and external demand (immigrants, second-home capital, tourists). The observed result in
-every aged country is **tripolarization**: a small rising tier, a sagging middle, and a long
-tail sliding toward zero value.
+## What is ranked
 
-Four capitals decide a municipality's tier, multiplicatively:
+The headline `outlook` is the standardized output of a logistic model trained to distinguish the
+top quartile of 2000–2025 nominal Zillow ZHVI growth from year-2000 place features. The adjacent
+`historicalWinnerIndex` is a 0–1 ranking index, not a calibrated probability. Applying the model to
+2023 data assumes that relative feature positions have portable meaning in a new era. The predictor
+set includes an income-gated current value/income measure, so this headline is not a price-free
+fundamentals score; that is why valuation is reported separately.
 
-1. **Institutional concentration** — universities, medical centers, government, military,
-   regional service monopolies: machines that *import people on a schedule*. What matters is
-   the annual flow they import, not their mere presence (Rome and Valladolid fell with
-   institutions intact; Fukuoka and Bologna compounded).
-2. **Amenity concentration** — but only when paired with scarcity, prestige, or access. Amenity
-   alone rots (Japan's vacant-home belt is warm and coastal).
-3. **Demographic regeneration** — the master variable: the capacity to re-attract 25-44s
-   continuously. A place can regenerate while shrinking (Leipzig, Toyama center) and can grow
-   while failing to regenerate (every Sun City).
-4. **Wealth concentration** — aging shifts purchasing power to the old, who spend it on medical
-   proximity, central convenience, and second homes; places positioned to receive elderly
-   wealth appreciate with zero population growth (the Venice inversion).
+Two other outputs answer different questions:
 
-Two laws govern the interactions: **supply sets the amplitude, demand sets the sign** (elastic
-supply moderates winners and deepens losers — Tokyo vs Daegu); **access is a threshold
-multiplier** (≤ ~1h to a booming core converts periphery into spillover; beyond it,
-infrastructure alone saves nothing — Spain's AVE ghost stations, Daegu's KTX).
+- `mechanismScore` is relative real-price growth in one 2025–2065 cohort/housing scenario; and
+- `valuationGap` compares price-free structural fundamentals with current log price/income.
 
-## 2-3. Lessons from Japan and Italy (full docs in repo)
+The top/bottom files cover 3,460 places with population at least 10,000, observed current ZHVI,
+ordinary housing-market data, and no hard confidence warning. The full file contains 24,525 places.
 
-Japan: national record land-price gains coexist with 9M vacant homes; winners were the youth-
-importing hubs (Tokyo core, Fukuoka +9%/yr land), global amenity assets (Niseko, Karuizawa,
-Kyoto), and policy-concentrated centers (Toyama LRT corridors); losers were the 1970s
-single-cohort commuter towns (Tama New Town), the engine-less rural belt, and industrial
-monotowns (Yubari). Korea compressed the same story into 20 years (Seoul doubling while Daegu
-fell 112 straight weeks amid oversupply).
+## Validation in one table
 
-Italy is the no-immigration control: national real prices fell 24% (2011-24) while Milan rose
-49% — a one-winner country. Spain (foreign-born 1.4%→20%) and Germany (polycentric, migration
-waves) aged just as fast and boomed, with winners in capitals, university towns (Bologna +37%
-student rents; Leipzig condos +250%), and international amenity coasts (Málaga >20% above its
-2007 peak); losers in the emptied interior (España vaciada, Mezzogiorno €1 houses, Chemnitz).
-Government seats alone did not hold value (Rome −13%); place-based revival policy measurably
-failed (Bank of Italy on SNAI: zero effect).
+| Held-out-state score | Mean AUC | Fold range |
+|---|---:|---:|
+| Headline logistic index | **0.667** | 0.625–0.708 |
+| Foreign-born-share baseline | 0.629 | 0.557–0.700 |
+| Historical logistic/ridge composite | 0.641 | 0.573–0.701 |
+| Mechanism scenario | 0.548 | 0.424–0.650 |
+| 70% logistic + 30% mechanism | 0.663 | 0.563–0.746 |
 
-## 4. Methodology (full doc in repo)
+A random-place state-rate diagnostic reaches 0.842, showing why the earlier random split was too
+optimistic. See [BACKTEST.md](BACKTEST.md) for fold detail and the corrected hindcast.
 
-Every US place (n≈24,500) is scored by two independently validated models built from Census
-2000/ACS 2023 microstructure, Zillow ZHVI, IPEDS, and spatial market-access computation:
+## Current top 20
 
-- a **statistical model** fit on year-2000 features → realized 2000-2025 ZHVI growth
-  (test ROC-AUC 0.81; 0.84 for places ≥10k; recall 0.92 at the high-recall operating point;
-  top-decile calibration 76% winner rate);
-- a **mechanism simulation** — an overlapping-generations municipal model on this repo's
-  simulation framework (national cohort projection → four-capitals attraction → gravity-logit
-  migration of young/retiree pools → local housing demand/supply/price with elasticity and
-  abandonment dynamics). Its attraction weights come from the international evidence, not US
-  fitting; hindcasting 2000→2025 recovers Spearman 0.39 / AUC 0.70 (places ≥10k) against
-  realized growth — the core validation that the aging-geography mechanisms transfer.
+These are the current headline rankings, not mechanism-model winners and not investment advice.
 
-Outlook = 0.7·z(simulated 2025-2065 growth) + 0.3·z(fitted expected growth). Valuation gap =
-outlook − z(current price/income).
+| Rank | Locality | State | Outlook | Historical index | Confidence |
+|---:|---|:---:|---:|---:|:---:|
+| 1 | Sunny Isles Beach city | FL | 3.63 | 0.986 | medium |
+| 2 | Key Biscayne village | FL | 3.62 | 0.984 | medium |
+| 3 | Miami Beach city | FL | 3.54 | 0.967 | medium |
+| 4 | Langley Park CDP | MD | 3.52 | 0.963 | high |
+| 5 | Nantucket CDP | MA | 3.50 | 0.960 | medium |
+| 6 | Temple City city | CA | 3.48 | 0.956 | medium |
+| 7 | Aventura city | FL | 3.44 | 0.948 | medium |
+| 8 | Maywood city | CA | 3.42 | 0.944 | medium |
+| 9 | Palm Springs village | FL | 3.42 | 0.943 | medium |
+| 10 | East Riverdale CDP | MD | 3.40 | 0.939 | medium |
+| 11 | Huntington Park city | CA | 3.38 | 0.935 | medium |
+| 12 | Union City city | NJ | 3.37 | 0.933 | high |
+| 13 | Union City city | CA | 3.35 | 0.929 | medium |
+| 14 | Coronado city | CA | 3.35 | 0.929 | medium |
+| 15 | Sunnyvale city | CA | 3.35 | 0.928 | medium |
+| 16 | Walnut city | CA | 3.32 | 0.924 | medium |
+| 17 | Adelphi CDP | MD | 3.32 | 0.923 | medium |
+| 18 | The Hammocks CDP | FL | 3.31 | 0.921 | medium |
+| 19 | Garden Grove city | CA | 3.30 | 0.920 | medium |
+| 20 | Foster City city | CA | 3.30 | 0.919 | medium |
 
-## 5. Backtest results (full doc in repo)
+The concentration in Florida, California, New Jersey, and Maryland is itself a warning: the fitted
+index strongly reflects the gateway/scarcity/coastal pattern of the 2000–2025 outcome window. State
+grouping reduces direct leakage, but it cannot prove the same regime will dominate 2025–2065.
 
-| Test-set metric | Value |
-|---|---|
-| ROC-AUC (all / ≥10k) | 0.801 / 0.837 |
-| Recall at operating point (all / ≥10k) | 0.922 / 0.985 |
-| Precision (base rate 25%) | 0.337 / 0.379 |
-| Calibration | monotone; top decile 75%, bottom 4% |
-| Mechanism hindcast Spearman (≥10k) | 0.317 (0.385 before removing the credit-bubble channel; see BACKTEST.md) |
+## Current bottom 20
 
-## 6. Top 100 (headline: top 50, pop ≥ 10k; full CSV in outputs/)
+| Bottom rank | Locality | State | Outlook | Historical index | Confidence |
+|---:|---|:---:|---:|---:|:---:|
+| 1 | University Heights city | OH | −1.09 | 0.034 | medium |
+| 2 | Victoria city | MN | −1.09 | 0.035 | high |
+| 3 | Rogers city | MN | −1.09 | 0.036 | high |
+| 4 | Ferndale city | MI | −1.08 | 0.036 | medium |
+| 5 | Berkley city | MI | −1.08 | 0.038 | medium |
+| 6 | East Grand Rapids city | MI | −1.07 | 0.039 | high |
+| 7 | Hudson city | OH | −1.07 | 0.040 | high |
+| 8 | Deerfield village | IL | −1.06 | 0.041 | high |
+| 9 | Whitestown town | IN | −1.06 | 0.042 | high |
+| 10 | Heath city | TX | −1.05 | 0.042 | high |
+| 11 | Royal Oak city | MI | −1.04 | 0.045 | high |
+| 12 | Lake Forest city | IL | −1.03 | 0.046 | high |
+| 13 | River Falls city | WI | −1.03 | 0.047 | high |
+| 14 | Campton Hills village | IL | −1.03 | 0.048 | high |
+| 15 | Orono CDP | ME | −1.03 | 0.048 | medium |
+| 16 | Allouez village | WI | −1.02 | 0.049 | high |
+| 17 | Lake Elmo city | MN | −1.02 | 0.049 | high |
+| 18 | Greensburg city | PA | −1.02 | 0.049 | high |
+| 19 | Kearney city | MO | −1.02 | 0.049 | high |
+| 20 | Zionsville town | IN | −1.02 | 0.049 | high |
 
-The winners fall into five archetypes rather than one list-topping type:
+Many are affluent Midwest suburbs, not obvious demographic-collapse cases. The correct reading is
+that their current feature profiles resemble the low end of the fitted historical top-quartile
+classifier. Calling them literal “losers” would overinterpret the model. This is why mechanism,
+structural fundamentals, confidence reasons, and local facts should be examined alongside outlook.
 
-**A. Gateway-scarcity metro cores & inner suburbs** (the Kawaguchi/Madrid channel): Maywood,
-Cudahy, Bell Gardens, Huntington Park, East LA, El Monte (LA core belt); Passaic, West New
-York, Fairview NJ; Langley Park MD; Waipahu HI; Hoboken.
-**B. Fertility enclaves** (extreme demographic regeneration): Kiryas Joel NY (#2), Monsey NY,
-Lakewood NJ — the strongest replacement ratios in America.
-**C. Prestige-amenity scarcity** (the Como/Karuizawa channel): Nantucket, Sunny Isles Beach,
-Key Biscayne, Ocean City NJ, South Lake Tahoe, Lake Arrowhead, Big Bear, Panama City Beach,
-Aventura, Hallandale Beach.
-**D. Knowledge capitals**: Cambridge MA (#30), Stanford CDP, Berkeley-adjacent CDPs; Boston
-ranks in the top 9% of all ≥10k places.
-**E. Metro-spillover value corridors**: East Palo Alto, North Fair Oaks, East Riverdale MD,
-McNair VA, Round Lake Beach IL.
+## What changed in the city model
 
-Top-10 by outlook: Nantucket MA, Key Biscayne FL, Kiryas Joel NY, Maywood CA, Hoboken NJ,
-Alum Rock CA, Lennox CA, Waipahu HI, Langley Park MD, Monsey NY.
+- Internal migration is now a closed redistribution of modeled local cohort stocks. The former
+  implementation could inject a full national mover pool into a partial place universe.
+- International immigration is explicit, cohort-specific, coverage-scaled, and added once.
+- Household demand is anchored to observed occupied units. Group-quarters residents no longer
+  generate an artificial housing shortage at initialization.
+- Retiree departures are based on retiree stock; housing units only affect destination capacity.
+- Historical IPEDS replaces 2023 institution data in the hindcast. Exclusively online current
+  enrollment is removed and system/HQ spatial outliers are constrained.
+- Current price is removed from structural attraction and supply-constraint scores. Valuation is
+  calculated separately.
+- Validation holds out whole states and performs every preprocessing step inside training folds.
+- Output confidence now records missing markets, small populations, group quarters, extrapolation,
+  and statistical/mechanism disagreement.
 
-## 7. Bottom 100 (headline: bottom 50; full CSV in outputs/)
+## Appropriate use
 
-Three archetypes, exactly as the theory predicts:
+Good uses include comparing scenarios, finding places whose historical and mechanism channels
+disagree, auditing data quality, and generating hypotheses for local research. Bad uses include
+interpreting the index as a probability, treating the mechanism path as validated, or making a
+purchase decision without climate, insurance, zoning, employment, tax, institutional, and local
+market analysis.
 
-**A. Single-cohort retirement tracts — the American Tama New Towns**: On Top of the World FL
-(#1 worst), The Villages FL, Sun City / Sun City West / Sun Lakes / Saddlebrooke AZ, Sun City
-Center FL, Holiday City-Berkeley NJ, Laguna Woods CA, Hot Springs Village AR, Green Valley AZ.
-Currently booming; demographically they age in lockstep with no replacement engine — the
-model's strongest anti-momentum call.
-**B. Engine-less industrial legacy**: Johnstown PA, East Cleveland OH, East St. Louis IL,
-Gary IN, Wheeling WV, Anniston AL, New Kensington PA, Selma AL, Cumberland MD.
-**C. Remote small cities with weak institutions/oversupply**: Williston ND (boomtown
-overbuild), Borger TX, Elk City OK, Mason City IA, Mitchell SD, Rutland VT.
-
-## 8. Most undervalued (fundamentals strong, priced cheap)
-
-- **Immigrant-anchored regeneration towns nobody prices**: Beardstown IL, Schuyler NE,
-  Liberal KS — meatpacking-economy towns with the youngest age structures in rural America.
-- **Inner-ring spillover of expensive metros**: Langley Park MD, Lauderdale Lakes FL, Harper
-  Woods & Lincoln Park MI, Sharon Hill PA, Posen & Sauk Village IL, Elsmere DE, Woodlawn VA.
-- **Hoboken NJ** — the one famous name the gap metric still calls cheap relative to its
-  regeneration + access fundamentals.
-- Rio Grande Valley towns (Alamo, Raymondville TX): young, growing, near-zero prices.
-
-## 9. Most overvalued (price assumes what demographics won't deliver)
-
-- **Priced-for-perfection prestige with aging-trap structure**: Beverly Hills, Newport Beach,
-  Montecito, Laguna Beach, Santa Monica, Los Altos Hills, Woodside, Saratoga, Larkspur,
-  Paradise Valley AZ, Key West.
-- **Retirement markets at retirement-boom prices**: The Villages, all Sun Cities, Sequim WA,
-  Port Townsend WA, Skidaway Island GA, St. James NC — the market prices the current inflow;
-  the model prices the 2040s exit wave.
-- Interpretation: the prestige group likely keeps its top-tier *level* (scarcity floor) but
-  offers poor forward *returns*; the retirement group faces genuine Tama-New-Town risk.
-
-## 10. What makes places win or lose as America ages
-
-**Win conditions** (≥2 required): an institution that imports people annually at scale relative
-to town size; sustained 25-44 replacement (organically or via immigration/fertility); scarce,
-prestigious amenity connected to wealth; ≤1h access to a winner metro; supply constraint in the
-presence of demand.
-**Lose conditions**: one cohort housed all at once (the single-cohort trap — retirement tracts
-and 1970s exurbs are the same object 30 years apart); institutions that stop importing;
-remoteness without regional monopoly; elastic overbuilding into decelerating demand; distress
-vacancy as the visible symptom.
-**The two biggest American mispricings implied by the international record**: (1) the market
-extrapolates retirement-migration momentum into the exact structures that aged worst in Japan;
-(2) it underprices institutional regeneration in cheap inner suburbs and immigrant towns —
-the places whose age pyramids look like a growing country's.
-
-### Confidence and caveats
-
-Forty-year municipal forecasts are hypotheses with error bars. The model is validated at rank
-correlation ≈ 0.3-0.4 and AUC 0.67-0.84 over one 25-year replication — strong for this problem
-class, far from determinism. Rows flagged `lowConfidence` (population < 2,500 or no observed
-Zillow market) rest on covariate extrapolation, not price history. Known blind spots: climate/flood risk (Florida amenity winners),
-immigration policy dependence (gateway winners), oil/industry shocks (Williston), and
-endogenous institutional decline (a university closure is not predicted, it is assumed away).
-See STRESS_TEST.md for the judgment calls we left standing and why.
+The most important new result is not a city name. It is that the original confident municipal
+forecast did not survive stricter accounting and spatial validation. The remaining signal is real
+enough to study and modest enough to handle cautiously.

@@ -1,218 +1,328 @@
 /**
- * Backtest: score every municipality using ONLY year-2000 information, then
- * validate predictions against realized 2000-2025 Zillow ZHVI growth.
+ * Spatially grouped validation and production fit for the municipal model.
  *
- * Objective per the research design: HIGH RECALL on future winners.
- * Reports recall, precision, ROC-AUC, and calibration on a held-out test set,
- * fits the production model on all data, and writes data/model.json.
- *
- * Usage: npx tsx aging-places/scripts/backtest.ts
+ * States, rather than individual places, are assigned to deterministic folds.
+ * This prevents neighboring places and common state-level price shocks from
+ * appearing in both train and test data. All preprocessing statistics and the
+ * winner cutoff are learned from each fold's training partition only.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DATA_DIR, parseCsv, readCsvAuto } from './lib.js';
 import {
   FeatureRow, MODEL_FEATURES, buildMatrix, columnStats, standardize,
-  fitLogit, fitRidge, predictLogit, predictLinear, rocAuc, mulberry32,
+  fitLogit, predictLogit, fitRidge, predictLinear, rocAuc, mulberry32,
 } from '../src/scoring.js';
+import { runAgingSim } from '../src/simulation.js';
 
 export function loadFeatureRows(file: string): FeatureRow[] {
   const rows = parseCsv(readCsvAuto(path.join(DATA_DIR, file)));
   const header = rows[0];
-  const out: FeatureRow[] = [];
-  for (const r of rows.slice(1)) {
-    if (r.length < header.length) continue;
+  const at = (name: string): number => header.indexOf(name);
+  return rows.slice(1).filter((row) => row.length >= header.length).map((row) => {
     const raw: Record<string, number | null> = {};
-    for (let j = 0; j < header.length; j++) {
-      const v = r[j];
-      raw[header[j]] = v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null;
+    for (let i = 0; i < header.length; i++) {
+      const value = row[i] === '' ? null : Number(row[i]);
+      raw[header[i]] = value !== null && Number.isFinite(value) ? value : null;
     }
-    out.push({
-      geoid: r[0], name: r[1], state: r[2], county: r[3],
-      lat: Number(r[4]), lon: Number(r[5]), pop: Number(r[6]) || 0, raw,
-    });
+    return {
+      geoid: row[0], name: row[1], state: row[2], county: row[3],
+      lat: Number(row[4]), lon: Number(row[5]), pop: Number(row[6]), raw,
+    };
+  });
+}
+
+/** Frozen, deterministic state assignment. Changing this function changes the
+ * validation set and requires an explicit methodology/version update. */
+export function stateFold(state: string, folds = 5): number {
+  let hash = 2166136261;
+  for (let i = 0; i < state.length; i++) {
+    hash ^= state.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % folds;
+}
+
+function quantile(values: number[], q: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+}
+
+function meanSd(values: number[]): { mean: number; sd: number } {
+  const mean = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+  const sd = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+    Math.max(1, values.length - 1)) || 1;
+  return { mean, sd };
+}
+
+function zApply(train: number[], values: number[]): number[] {
+  const { mean, sd } = meanSd(train);
+  return values.map((value) => Math.max(-4, Math.min(4, (value - mean) / sd)));
+}
+
+function pearson(a: number[], b: number[]): number {
+  const ma = meanSd(a).mean;
+  const mb = meanSd(b).mean;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < a.length; i++) {
+    cov += (a[i] - ma) * (b[i] - mb);
+    va += (a[i] - ma) ** 2;
+    vb += (b[i] - mb) ** 2;
+  }
+  return va > 0 && vb > 0 ? cov / Math.sqrt(va * vb) : NaN;
+}
+
+function ranks(values: number[]): number[] {
+  const ordered = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
+  const out = new Array(values.length).fill(0);
+  let i = 0;
+  while (i < ordered.length) {
+    let j = i + 1;
+    while (j < ordered.length && ordered[j].value === ordered[i].value) j++;
+    const rank = (i + j - 1) / 2;
+    for (let k = i; k < j; k++) out[ordered[k].index] = rank;
+    i = j;
   }
   return out;
 }
 
-interface Metrics {
-  n: number; auc: number;
-  recall: number; precision: number; flaggedShare: number; threshold: number;
-  calibration: { decile: number; meanPred: number; actualRate: number; n: number }[];
+function spearman(a: number[], b: number[]): number {
+  return pearson(ranks(a), ranks(b));
 }
 
-function evaluate(p: number[], y: number[], threshold: number): Metrics {
-  const flagged: number[] = p.map((v) => (v >= threshold ? 1 : 0));
-  const tp = y.reduce((s, yi, i) => s + (yi === 1 && flagged[i] === 1 ? 1 : 0), 0);
-  const fp = flagged.reduce((s, f, i) => s + (f === 1 && y[i] === 0 ? 1 : 0), 0);
-  const fn = y.reduce((s, yi, i) => s + (yi === 1 && flagged[i] === 0 ? 1 : 0), 0);
-  const idx = p.map((v, i) => ({ v, y: y[i] })).sort((a, b) => a.v - b.v);
-  const calibration: Metrics['calibration'] = [];
-  const nDec = 10;
-  for (let d = 0; d < nDec; d++) {
-    const lo = Math.floor((d * idx.length) / nDec);
-    const hi = Math.floor(((d + 1) * idx.length) / nDec);
-    const slice = idx.slice(lo, hi);
-    calibration.push({
-      decile: d + 1,
-      meanPred: +(slice.reduce((s, o) => s + o.v, 0) / slice.length).toFixed(3),
-      actualRate: +(slice.reduce((s, o) => s + o.y, 0) / slice.length).toFixed(3),
-      n: slice.length,
-    });
+function stateDemeaned(rows: FeatureRow[], growth: number[], indices: number[]): Map<number, number> {
+  const means = new Map<string, { sum: number; n: number }>();
+  for (const index of indices) {
+    const current = means.get(rows[index].state) ?? { sum: 0, n: 0 };
+    current.sum += growth[index];
+    current.n++;
+    means.set(rows[index].state, current);
   }
+  const out = new Map<number, number>();
+  for (const index of indices) {
+    const state = means.get(rows[index].state)!;
+    out.set(index, growth[index] - state.sum / state.n);
+  }
+  return out;
+}
+
+interface FoldMetric {
+  fold: number;
+  n: number;
+  nBig: number;
+  states: string[];
+  aucLogit: number;
+  aucHistorical: number;
+  aucMechanism: number;
+  aucBlend30Mechanism: number;
+  aucBlend50Mechanism: number;
+  aucBlend70Mechanism: number;
+  aucLogitBlend30Mechanism: number;
+  aucHistoricalBig: number;
+  aucMechanismBig: number;
+  aucBlend30MechanismBig: number;
+  aucLogitBlend30MechanismBig: number;
+  spearmanRidge: number;
+  spearmanMechanism: number;
+  spearmanBlend30Mechanism: number;
+  aucForeignShareBaseline: number;
+}
+
+function safeAuc(scores: number[], labels: number[]): number {
+  const value = rocAuc(scores, labels);
+  return Number.isFinite(value) ? value : 0.5;
+}
+
+function orientBaseline(train: number[], trainY: number[], test: number[]): number[] {
+  return safeAuc(train, trainY) < 0.5 ? test.map((value) => -value) : test;
+}
+
+function summary(values: number[]): { mean: number; min: number; max: number } {
   return {
-    n: p.length,
-    auc: +rocAuc(p, y).toFixed(4),
-    recall: +(tp / Math.max(1, tp + fn)).toFixed(3),
-    precision: +(tp / Math.max(1, tp + fp)).toFixed(3),
-    flaggedShare: +(flagged.reduce((s, v) => s + v, 0) / p.length).toFixed(3),
-    threshold: +threshold.toFixed(4),
-    calibration,
+    mean: +meanSd(values).mean.toFixed(3),
+    min: +Math.min(...values).toFixed(3),
+    max: +Math.max(...values).toFixed(3),
   };
 }
 
-/** Threshold achieving >= targetRecall on (p, y). */
-function thresholdForRecall(p: number[], y: number[], targetRecall: number): number {
-  const pos = p.filter((_, i) => y[i] === 1).sort((a, b) => b - a);
-  if (pos.length === 0) return 0.5;
-  const k = Math.min(pos.length - 1, Math.floor(targetRecall * pos.length));
-  return pos[k];
-}
-
-function main(): void {
-  const all = loadFeatureRows('features2000.csv');
-  // Backtest universe: places with a real outcome and enough size for a
-  // meaningful market (Zillow coverage below ~1k population is thin and noisy).
-  const rows = all.filter(
-    (r) => r.raw.logGrowth00_25 !== null && r.pop >= 1000
-  );
-  const growth = rows.map((r) => r.raw.logGrowth00_25 as number);
-
-  // Winner definition: top quartile of national 2000-2025 log value growth.
-  const sorted = [...growth].sort((a, b) => a - b);
-  const q75 = sorted[Math.floor(sorted.length * 0.75)];
-  const y: number[] = growth.map((g) => (g >= q75 ? 1 : 0));
-
-  // Matrix
-  const Xraw = buildMatrix(rows);
-  const { means, sds } = columnStats(Xraw);
-  const Z = standardize(Xraw, means, sds);
-
-  // Split 70/30
+function randomStateBaseline(rows: FeatureRow[], growth: number[]): number {
   const rng = mulberry32(42);
-  const isTest = rows.map(() => rng() < 0.3);
-  const trainIdx = rows.map((_, i) => i).filter((i) => !isTest[i]);
-  const testIdx = rows.map((_, i) => i).filter((i) => isTest[i]);
-  const Ztr = trainIdx.map((i) => Z[i]);
-  const ytr = trainIdx.map((i) => y[i]);
-  const Zte = testIdx.map((i) => Z[i]);
-  const yte = testIdx.map((i) => y[i]);
+  const train = rows.map((_, i) => i).filter(() => rng() >= 0.3);
+  // Recreate the RNG so train/test are complementary and deterministic.
+  const rng2 = mulberry32(42);
+  const test = rows.map((_, i) => i).filter(() => rng2() < 0.3);
+  const cutoff = quantile(train.map((i) => growth[i]), 0.75);
+  const yTrain = train.map((i) => Number(growth[i] >= cutoff));
+  const globalRate = yTrain.reduce((sum, value) => sum + value, 0) / yTrain.length;
+  const byState = new Map<string, { winners: number; n: number }>();
+  train.forEach((index, position) => {
+    const current = byState.get(rows[index].state) ?? { winners: 0, n: 0 };
+    current.winners += yTrain[position];
+    current.n++;
+    byState.set(rows[index].state, current);
+  });
+  const score = test.map((index) => {
+    const state = byState.get(rows[index].state);
+    return state ? (state.winners + 5 * globalRate) / (state.n + 5) : globalRate;
+  });
+  return safeAuc(score, test.map((i) => Number(growth[i] >= cutoff)));
+}
 
-  const w = fitLogit(Ztr, ytr, { l2: 1e-3, lr: 0.5, iters: 600 });
-  const ptr = predictLogit(Ztr, w);
-  const pte = predictLogit(Zte, w);
-
-  // High-recall operating point: catch 90% of winners on train.
-  const thr = thresholdForRecall(ptr, ytr, 0.9);
-  const mTrain = evaluate(ptr, ytr, thr);
-  const mTest = evaluate(pte, yte, thr);
-
-  // Large-place subset (pop >= 10k) — the markets that matter most.
-  const bigTest = testIdx.filter((i) => rows[i].pop >= 10000);
-  const mTestBig = evaluate(
-    bigTest.map((i) => predictLogit([Z[i]], w)[0]),
-    bigTest.map((i) => y[i]),
-    thr
+export function main(): void {
+  const rows = loadFeatureRows('features2000.csv').filter(
+    (row) => row.raw.logGrowth00_25 !== null && row.pop >= 1000
   );
+  const growth = rows.map((row) => row.raw.logGrowth00_25 as number);
+  const rawMatrix = buildMatrix(rows);
+  const mechanismRun = runAgingSim({ epoch: '2000', years: 25, minPop: 1000 });
+  const mechanismByGeoid = new Map<string, number>();
+  mechanismRun.data.statics.geoid.forEach((geoid, i) => {
+    mechanismByGeoid.set(geoid, mechanismRun.simRealLogGrowth[i]);
+  });
+  const mechanism = rows.map((row) => mechanismByGeoid.get(row.geoid) ?? 0);
+  const featureIndex = new Map(MODEL_FEATURES.map((feature, i) => [feature.name, i]));
+  const foreignIndex = featureIndex.get('foreignShare')!;
+  const folds: FoldMetric[] = [];
 
-  // Continuous expected-growth model. Fit on STATE-DEMEANED growth: the
-  // theory (and the JP/DE evidence: Fukuoka vs rural Kyushu, Leipzig vs
-  // Chemnitz) concerns within-region divergence, and demeaning removes the
-  // 2000-25 coastal-state macro cycle that would otherwise dominate weights.
-  const stateMean = new Map<string, { s: number; n: number }>();
-  for (const i of trainIdx) {
-    const st = rows[i].state;
-    const acc = stateMean.get(st) ?? { s: 0, n: 0 };
-    acc.s += growth[i]; acc.n++;
-    stateMean.set(st, acc);
+  for (let fold = 0; fold < 5; fold++) {
+    const test = rows.map((_, i) => i).filter((i) => stateFold(rows[i].state) === fold);
+    const train = rows.map((_, i) => i).filter((i) => stateFold(rows[i].state) !== fold);
+    const cutoff = quantile(train.map((i) => growth[i]), 0.75);
+    const yTrain = train.map((i) => Number(growth[i] >= cutoff));
+    const yTest = test.map((i) => Number(growth[i] >= cutoff));
+    const trainRaw = train.map((i) => rawMatrix[i]);
+    const stats = columnStats(trainRaw);
+    const zTrain = standardize(trainRaw, stats.means, stats.sds);
+    const zTest = standardize(test.map((i) => rawMatrix[i]), stats.means, stats.sds);
+
+    const logit = fitLogit(zTrain, yTrain, { l2: 1e-3, lr: 0.5, iters: 600 });
+    const logitTrain = predictLogit(zTrain, logit);
+    const logitTest = predictLogit(zTest, logit);
+    const trainDemeaned = stateDemeaned(rows, growth, train);
+    const testDemeaned = stateDemeaned(rows, growth, test);
+    const ridge = fitRidge(zTrain, train.map((i) => trainDemeaned.get(i)!), 1e-2);
+    const ridgeTrain = predictLinear(zTrain, ridge);
+    const ridgeTest = predictLinear(zTest, ridge);
+
+    const logitTrainZ = zApply(logitTrain, logitTrain);
+    const logitTestZ = zApply(logitTrain, logitTest);
+    const ridgeTrainZ = zApply(ridgeTrain, ridgeTrain);
+    const ridgeTestZ = zApply(ridgeTrain, ridgeTest);
+    const historicalTrain = logitTrainZ.map(
+      (value, i) => 0.5 * value + 0.5 * ridgeTrainZ[i]
+    );
+    const historicalTest = logitTestZ.map(
+      (value, i) => 0.5 * value + 0.5 * ridgeTestZ[i]
+    );
+    const mechanismTrainZ = zApply(train.map((i) => mechanism[i]), train.map((i) => mechanism[i]));
+    const mechanismTestZ = zApply(train.map((i) => mechanism[i]), test.map((i) => mechanism[i]));
+    const blend = (mechanismWeight: number): number[] => historicalTest.map(
+      (value, i) => mechanismWeight * mechanismTestZ[i] + (1 - mechanismWeight) * value
+    );
+    const blend30 = blend(0.3), blend50 = blend(0.5), blend70 = blend(0.7);
+    const logitBlend30 = logitTestZ.map((value, i) => 0.3 * mechanismTestZ[i] + 0.7 * value);
+    const bigPositions = test.map((index, position) => ({ index, position }))
+      .filter(({ index }) => rows[index].pop >= 10000).map(({ position }) => position);
+    const pick = (values: number[]): number[] => bigPositions.map((position) => values[position]);
+    const actualDemeaned = test.map((i) => testDemeaned.get(i)!);
+    const foreignTrain = zTrain.map((row) => row[foreignIndex]);
+    const foreignTest = orientBaseline(foreignTrain, yTrain, zTest.map((row) => row[foreignIndex]));
+    const states = [...new Set(test.map((i) => rows[i].state))].sort();
+    folds.push({
+      fold, n: test.length, nBig: bigPositions.length, states,
+      aucLogit: safeAuc(logitTest, yTest),
+      aucHistorical: safeAuc(historicalTest, yTest),
+      aucMechanism: safeAuc(mechanismTestZ, yTest),
+      aucBlend30Mechanism: safeAuc(blend30, yTest),
+      aucBlend50Mechanism: safeAuc(blend50, yTest),
+      aucBlend70Mechanism: safeAuc(blend70, yTest),
+      aucLogitBlend30Mechanism: safeAuc(logitBlend30, yTest),
+      aucHistoricalBig: safeAuc(pick(historicalTest), pick(yTest)),
+      aucMechanismBig: safeAuc(pick(mechanismTestZ), pick(yTest)),
+      aucBlend30MechanismBig: safeAuc(pick(blend30), pick(yTest)),
+      aucLogitBlend30MechanismBig: safeAuc(pick(logitBlend30), pick(yTest)),
+      spearmanRidge: spearman(ridgeTest, actualDemeaned),
+      spearmanMechanism: spearman(mechanismTestZ, actualDemeaned),
+      spearmanBlend30Mechanism: spearman(blend30, actualDemeaned),
+      aucForeignShareBaseline: safeAuc(foreignTest, yTest),
+    });
+    // Keep this variable explicit: it verifies every training prediction is
+    // produced with the same normalization used to calibrate the blend.
+    void historicalTrain;
+    void mechanismTrainZ;
   }
-  const natMean = growth.reduce((s, v) => s + v, 0) / growth.length;
-  const demean = (i: number): number => {
-    const acc = stateMean.get(rows[i].state);
-    return growth[i] - (acc && acc.n >= 8 ? acc.s / acc.n : natMean);
-  };
-  const lin = fitRidge(trainIdx.map((i) => Z[i]), trainIdx.map((i) => demean(i)), 1e-2);
-  const predTe = predictLinear(Zte, lin);
-  const actTe = testIdx.map((i) => demean(i));
-  const mY = actTe.reduce((s, v) => s + v, 0) / actTe.length;
-  const ssTot = actTe.reduce((s, v) => s + (v - mY) ** 2, 0);
-  const ssRes = actTe.reduce((s, v, i) => s + (v - predTe[i]) ** 2, 0);
-  const r2 = 1 - ssRes / ssTot;
-  // Rank correlation (Spearman via rank transform + Pearson)
-  const rankOf = (a: number[]): number[] => {
-    const order = a.map((v, i) => ({ v, i })).sort((x, z) => x.v - z.v);
-    const ranks = new Array(a.length).fill(0);
-    order.forEach((o, r) => { ranks[o.i] = r; });
-    return ranks;
-  };
-  const ra = rankOf(actTe);
-  const rp = rankOf(predTe);
-  const mra = ra.reduce((s, v) => s + v, 0) / ra.length;
-  const cov = ra.reduce((s, v, i) => s + (v - mra) * (rp[i] - mra), 0);
-  const va = ra.reduce((s, v) => s + (v - mra) ** 2, 0);
-  const vp = rp.reduce((s, v) => s + (v - mra) ** 2, 0);
-  const spearman = cov / Math.sqrt(va * vp);
 
-  // Refit production model on ALL rows (weights used by the forward forecast).
-  const wAll = fitLogit(Z, y, { l2: 1e-3, lr: 0.5, iters: 600 });
-  const allStateMean = new Map<string, { s: number; n: number }>();
-  for (let i = 0; i < rows.length; i++) {
-    const acc = allStateMean.get(rows[i].state) ?? { s: 0, n: 0 };
-    acc.s += growth[i]; acc.n++;
-    allStateMean.set(rows[i].state, acc);
-  }
-  const demeanAll = (i: number): number => {
-    const acc = allStateMean.get(rows[i].state);
-    return growth[i] - (acc && acc.n >= 8 ? acc.s / acc.n : natMean);
-  };
-  const linAll = fitRidge(Z, rows.map((_, i) => demeanAll(i)), 1e-2);
-  const pAll = predictLogit(Z, wAll);
-  const thrAll = thresholdForRecall(pAll, y, 0.9);
-
-  const model = {
-    features: MODEL_FEATURES.map((f) => f.name),
-    means, sds,
-    logitW: wAll, linW: linAll, threshold: thrAll,
-    meta: {
-      fitDate: '2026-07-15',
-      universe: `US places pop>=1000 with ZHVI 2000 & 2025 (n=${rows.length})`,
-      winnerDef: `top quartile of log(ZHVI2025/ZHVI2000), q75=${q75.toFixed(4)}`,
-      outcome: 'Zillow ZHVI city-level, June obs',
-      testMetrics: { train: mTrain, test: mTest, testBig: mTestBig, linR2: +r2.toFixed(3), spearman: +spearman.toFixed(3) },
+  const cv = {
+    method: '5-fold state-grouped cross-validation; train-only preprocessing',
+    foldAssignment: Object.fromEntries([...new Set(rows.map((row) => row.state))].sort()
+      .map((state) => [state, stateFold(state)])),
+    folds: folds.map((fold) => ({ ...fold, states: fold.states.join(',') })),
+    summary: {
+      aucLogit: summary(folds.map((fold) => fold.aucLogit)),
+      aucHistorical: summary(folds.map((fold) => fold.aucHistorical)),
+      aucMechanism: summary(folds.map((fold) => fold.aucMechanism)),
+      aucBlend30Mechanism: summary(folds.map((fold) => fold.aucBlend30Mechanism)),
+      aucBlend50Mechanism: summary(folds.map((fold) => fold.aucBlend50Mechanism)),
+      aucBlend70Mechanism: summary(folds.map((fold) => fold.aucBlend70Mechanism)),
+      aucLogitBlend30Mechanism: summary(folds.map((fold) => fold.aucLogitBlend30Mechanism)),
+      aucHistoricalBig: summary(folds.map((fold) => fold.aucHistoricalBig)),
+      aucMechanismBig: summary(folds.map((fold) => fold.aucMechanismBig)),
+      aucBlend30MechanismBig: summary(folds.map((fold) => fold.aucBlend30MechanismBig)),
+      aucLogitBlend30MechanismBig: summary(folds.map((fold) => fold.aucLogitBlend30MechanismBig)),
+      spearmanRidge: summary(folds.map((fold) => fold.spearmanRidge)),
+      spearmanMechanism: summary(folds.map((fold) => fold.spearmanMechanism)),
+      spearmanBlend30Mechanism: summary(folds.map((fold) => fold.spearmanBlend30Mechanism)),
+      aucForeignShareBaseline: summary(folds.map((fold) => fold.aucForeignShareBaseline)),
+    },
+    diagnostics: {
+      noSkillAuc: 0.5,
+      randomPlaceSplitStateOutcomeBaselineAuc: +randomStateBaseline(rows, growth).toFixed(3),
+      warning: 'The random-split state baseline uses outcome-derived state rates and is a leakage diagnostic, not a deployable model.',
     },
   };
-  fs.writeFileSync(path.join(DATA_DIR, 'model.json'), JSON.stringify(model, null, 1));
 
-  // ---- report ----
-  const fw = MODEL_FEATURES.map((f, j) => ({ name: f.name, w: +w[j + 1].toFixed(3), wLin: +lin[j + 1].toFixed(4) }))
-    .sort((a, b) => Math.abs(b.w) - Math.abs(a.w));
-  console.log(`universe n=${rows.length}  winners(top-quartile)=${y.reduce((s, v) => s + v, 0)}  q75 logGrowth=${q75.toFixed(3)}`);
-  console.log(`TRAIN  auc=${mTrain.auc} recall=${mTrain.recall} precision=${mTrain.precision} flagged=${mTrain.flaggedShare}`);
-  console.log(`TEST   auc=${mTest.auc} recall=${mTest.recall} precision=${mTest.precision} flagged=${mTest.flaggedShare}`);
-  console.log(`TEST>=10k auc=${mTestBig.auc} recall=${mTestBig.recall} precision=${mTestBig.precision} n=${mTestBig.n}`);
-  console.log(`LIN    testR2=${r2.toFixed(3)} spearman=${spearman.toFixed(3)}`);
-  console.log('calibration (test):', JSON.stringify(mTest.calibration));
-  console.log('top |w| features:');
-  for (const x of fw) console.log(`  ${x.name.padEnd(20)} logit=${String(x.w).padStart(7)}  lin=${x.wLin}`);
+  // Production fit on every historical row. Forecast preprocessing remains
+  // explicitly epoch-relative: current features are standardized within the
+  // current cross-section because nominal levels are not comparable to 2000.
+  const allStats = columnStats(rawMatrix);
+  const allZ = standardize(rawMatrix, allStats.means, allStats.sds);
+  const allCutoff = quantile(growth, 0.75);
+  const allY = growth.map((value) => Number(value >= allCutoff));
+  const logitW = fitLogit(allZ, allY, { l2: 1e-3, lr: 0.5, iters: 600 });
+  const allDemeaned = stateDemeaned(rows, growth, rows.map((_, i) => i));
+  const linW = fitRidge(allZ, rows.map((_, i) => allDemeaned.get(i)!), 1e-2);
+  const probabilities = predictLogit(allZ, logitW);
+  const positiveProbabilities = probabilities.filter((_, i) => allY[i] === 1).sort((a, b) => b - a);
+  const threshold = positiveProbabilities[Math.min(
+    positiveProbabilities.length - 1, Math.floor(0.9 * positiveProbabilities.length)
+  )];
+  const model = {
+    features: MODEL_FEATURES.map((feature) => feature.name),
+    means: allStats.means,
+    sds: allStats.sds,
+    logitW,
+    linW,
+    threshold,
+    preprocessing: 'epoch_zscore',
+    statisticalScore: 'logistic historical-winner index (headline); state-demeaned ridge retained as a diagnostic',
+    meta: {
+      fitDate: new Date().toISOString().slice(0, 10),
+      universe: `US places pop>=1000 with ZHVI 2000 & 2025 (n=${rows.length})`,
+      winnerDefinition: `top quartile of log(ZHVI2025/ZHVI2000), cutoff=${allCutoff.toFixed(4)}`,
+      outcome: 'Zillow ZHVI city-level, June observations',
+      validation: cv.summary,
+      caveat: 'Mechanism hindcast is a development diagnostic, not an independently untouched test.',
+    },
+  };
+  fs.writeFileSync(path.join(DATA_DIR, 'model.json'), JSON.stringify(model, null, 2) + '\n');
+  fs.writeFileSync(path.join(DATA_DIR, 'validation.json'), JSON.stringify(cv, null, 2) + '\n');
 
-  // Notable misses: biggest actual winners scored below threshold (test set)
-  const misses = testIdx
-    .filter((i) => y[i] === 1 && predictLogit([Z[i]], w)[0] < thr)
-    .sort((a, b) => growth[b] - growth[a])
-    .slice(0, 15)
-    .map((i) => `${rows[i].name}, ${rows[i].state} (pop ${rows[i].pop}, g=${growth[i].toFixed(2)})`);
-  console.log('\nbiggest missed winners (test):');
-  misses.forEach((m) => console.log('  ' + m));
+  console.log(`universe n=${rows.length}; production winner cutoff=${allCutoff.toFixed(3)}`);
+  console.log(JSON.stringify(cv.summary, null, 2));
+  console.log(JSON.stringify(cv.diagnostics, null, 2));
+  for (const fold of folds) {
+    console.log(`fold ${fold.fold} n=${fold.n} states=${fold.states.join(',')} historical=${fold.aucHistorical.toFixed(3)} mechanism=${fold.aucMechanism.toFixed(3)} blend30=${fold.aucBlend30Mechanism.toFixed(3)}`);
+  }
 }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));

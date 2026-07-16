@@ -39,10 +39,13 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     if (i === -1) throw new Error(`${file}: missing column ${name}`);
     return i;
   };
+  const maybeCol = (name: string): number => header.indexOf(name);
   const body = rows.slice(1).filter((r) => r.length >= header.length && Number(r[col('pop')]) >= minPop);
   const n = body.length;
   const get = (r: string[], name: string): number | null => {
-    const v = r[col(name)];
+    const ci = maybeCol(name);
+    if (ci === -1) return null;
+    const v = r[ci];
     if (v === '' || v === undefined) return null;
     const x = Number(v);
     return Number.isFinite(x) ? x : null;
@@ -56,7 +59,13 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     z: {},
     pop0: new Float64Array(n),
     units0: new Float64Array(n),
+    observedUnits0: new Float64Array(n),
+    occupiedUnits0: new Float64Array(n),
     seasonalShare: new Float64Array(n),
+    groupQuarters0: new Float64Array(n),
+    groupQuartersShare: new Float64Array(n),
+    headshipScale: new Float64Array(n),
+    housingMarketEligible: new Uint8Array(n),
     cohorts0: Object.fromEntries(COHORTS.map((c) => [c, new Float64Array(n)])) as Record<Cohort, Float64Array>,
     price0: new Float64Array(n),
     income0: new Float64Array(n),
@@ -97,6 +106,8 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
   const incomes = body.map((r) => get(r, 'medianHHInc')).filter((v): v is number => v !== null).sort((a, b) => a - b);
   const medianInc = incomes[Math.floor(incomes.length / 2)] || 60000;
   statics.z.prestigeVTI = zscore(body.map((r) => {
+    const stored = get(r, 'prestigeVTI');
+    if (stored !== null) return stored;
     const vti = get(r, 'valueToIncome');
     const inc = get(r, 'medianHHInc');
     if (vti === null || inc === null) return null;
@@ -114,13 +125,39 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     const r = body[i];
     const pop = get(r, 'pop') ?? 0;
     statics.pop0[i] = pop;
-    statics.units0[i] = get(r, 'units') ?? Math.max(1, pop * 0.42);
-    statics.seasonalShare[i] = get(r, 'seasonalShare') ?? 0;
+    const observedUnits = get(r, 'units') ?? 0;
+    const seasonalShare = Math.max(0, Math.min(1, get(r, 'seasonalShare') ?? 0));
+    const distressShare = Math.max(0, Math.min(1, get(r, 'distressVacancy') ?? 0));
+    const occupiedReported = get(r, 'occupied') ?? get(r, 'households');
+    const occupiedInferred = observedUnits > 0
+      ? observedUnits * Math.max(0, 1 - seasonalShare - distressShare)
+      : 0;
+    const occupied = Math.max(0, occupiedReported ?? occupiedInferred);
+    const groupQuarters = Math.max(0, Math.min(pop, get(r, 'groupQuarters') ?? 0));
+    // A zero housing stock is a real data-quality/market-eligibility signal,
+    // but a multiplicative supply model cannot recover from literal zero.
+    statics.observedUnits0[i] = observedUnits;
+    statics.units0[i] = observedUnits > 0 ? observedUnits : Math.max(1, pop * 0.42);
+    statics.occupiedUnits0[i] = occupied;
+    statics.seasonalShare[i] = seasonalShare;
+    statics.groupQuarters0[i] = groupQuarters;
+    statics.groupQuartersShare[i] = pop > 0 ? groupQuarters / pop : 0;
     statics.cohorts0.a0_19[i] = (get(r, 'share0_19') ?? 0.25) * pop;
     statics.cohorts0.a20_24[i] = (get(r, 'share20_24') ?? 0.06) * pop;
     statics.cohorts0.a25_44[i] = (get(r, 'share25_44') ?? 0.26) * pop;
     statics.cohorts0.a45_64[i] = (get(r, 'share45_64') ?? 0.26) * pop;
     statics.cohorts0.a65up[i] = (get(r, 'share65') ?? 0.16) * pop;
+    const defaultHeadship: Record<Cohort, number> = {
+      a0_19: 0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63,
+    };
+    let impliedHouseholds = 0;
+    for (const cohort of COHORTS) impliedHouseholds += defaultHeadship[cohort] * statics.cohorts0[cohort][i];
+    statics.headshipScale[i] = occupied > 0 && impliedHouseholds > 0
+      ? occupied / impliedHouseholds
+      : 1;
+    statics.housingMarketEligible[i] = Number(
+      observedUnits > 0 && occupied > 0 && statics.groupQuartersShare[i] < 0.5
+    );
     const income = get(r, 'medianHHInc') ?? 50000;
     statics.income0[i] = income;
     const zhvi = get(r, zhviCol);

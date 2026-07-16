@@ -1,118 +1,172 @@
-# Municipal Scoring & Simulation Methodology
+# Municipal model methodology
 
-## Overview
+## 1. What the project estimates
 
-Two complementary models score every US municipality (Census "place", n≈24,500 with population
-≥250), each validated a different way, then blended:
+The project produces three different quantities that should not be conflated:
 
-1. **Statistical model** (`src/scoring.ts`, fit in `scripts/backtest.ts`): logistic + ridge
-   regression on 25 year-2000 features predicting realized 2000-2025 Zillow ZHVI growth.
-   Validated on a held-out 30% test split (see BACKTEST.md). Answers: *which observable
-   structures preceded the last quarter-century's winners?*
-2. **Mechanism simulation** (`src/simulation.ts` + `src/modules/`): an overlapping-generations
-   municipal model run on this repo's generic simulation framework (`src/framework`), with
-   attraction weights taken from the international evidence (THEORY.md), *not* fitted to US
-   outcomes. Validated by hindcasting 2000→2025 and comparing against realized growth.
-   Answers: *where do the aging-society mechanisms concentrate value going forward?*
+1. **Historical winner index.** A logistic model learns which year-2000 place characteristics
+   preceded top-quartile nominal ZHVI growth through 2025. Applying its coefficients to the 2023
+   cross-section produces a relative ranking under a persistence assumption.
+2. **Mechanism scenario.** A municipal cohort-and-housing simulation projects one internally
+   consistent path from 2025 through 2065. Its output is real price growth under stated demographic
+   and behavioral assumptions.
+3. **Structural valuation screen.** A current, price-free fundamentals composite is compared with
+   current price/income. This is a screening residual, not an estimated fair value.
 
-Final **outlook score** = 0.7·z(simulated 2025-2065 log price growth) + 0.3·z(fitted expected
-growth), components winsorized at ±3σ. The mechanism model gets the larger weight because the
-fitted model's construct (past % price growth) embeds the 2000s bubble geography and cheap-base
-convergence, which are poor proxies for forward value concentration under aging (see
-STRESS_TEST.md, "the Boston test").
+The first is the headline because it has the best mean held-out-state discrimination. The other two
+remain visible diagnostics. There is no production blend.
 
-## Data
+## 2. Data and epochs
 
-| Dataset | Source | Access |
+| Layer | Historical epoch | Current epoch |
 |---|---|---|
-| Census 2000 place features | SF1 (P012, H001, H005) + SF3 (P021/P036/P037/P043/P049/P053/P082/H034/H063/H085) | data.census.gov table API (keyless) |
-| ACS 2019-23 place features | DP02/DP03/DP04/DP05 profiles + C24030, B25004, B19025 | data.census.gov table API |
-| Home values 2000-2025 | Zillow ZHVI, city level, all-homes smoothed SA, June obs | files.zillowstatic.com |
-| Coordinates & land area | Census 2023 gazetteer, place-by-county crosswalk | www2.census.gov |
-| Universities | IPEDS HD2023 + EFFY2023 (12-month unduplicated headcount) | nces.ed.gov |
+| Population, age, households, housing, income, education, industry | Census 2000 SF1/SF3 | ACS 2019–2023 five-year tables |
+| Group quarters | SF1 P037 | ACS B26001 |
+| Home values | Zillow city ZHVI, June 2000 and June 2025 | latest 2025 observation in the committed series |
+| Coordinates and land area | 2023 Census place gazetteer used as a common geography | same |
+| Institutions | IPEDS FA2000HD + EF2000A fall enrollment | IPEDS HD2023 + EFFY2023_DIST 12-month enrollment |
 
-All fetch scripts are in `scripts/`; compact gzipped extracts are committed under `data/` so
-results reproduce without re-fetching. Every Census variable code is documented inline with its
-label in `scripts/fetch-census.ts`.
+The exact tables, download pages, and demographic sources are linked in
+[REFERENCES.md](REFERENCES.md). `fetch-census.ts` documents every Census variable inline.
 
-## Feature set (both epochs, identical definitions)
+The 2000 and 2023 feature files contain 23,066 and 28,538 rows respectively. The simulation's
+population-at-least-250 current universe contains 24,525 rows. The historical validation universe
+requires population at least 1,000 and ZHVI at both endpoints, leaving 5,897 rows.
 
-- **Replacement engines / institutional density**: educational-services, health-care,
-  public-administration employment shares (split via C24030/P049); armed-forces share; college
-  enrollment ÷ population; university enrollment within 15km and 60km (IPEDS).
-- **Replacement ratios / regeneration**: (25-44)/(65+) ratio; 20-34 share; 65+ share; 45-64
-  share (single-cohort-trap signal).
-- **Human capital**: bachelor's-or-higher and graduate shares (pop 25+); professional/
-  information/finance employment share.
-- **Market access**: population and aggregate income within ~60/90/120 minutes (70/105/140km
-  haversine radii over all places, spatial-grid accelerated); regional dominance = own pop ÷
-  120-min population (the hinterland-hub geometry).
-- **Amenity capital**: seasonal/recreational vacant unit share (revealed second-home demand —
-  the single strongest amenity proxy available at place level); arts/recreation/accommodation
-  employment share.
-- **Scarcity capital**: *prestige-gated* value/income (V/I × min(2, income/median) — raw V/I
-  conflates prestige with poverty-unaffordability; see STRESS_TEST.md iteration 3); density;
-  low recent construction share.
-- **Supply/distress**: units built in the last decade ÷ stock; non-seasonal vacancy.
-- **Gateway**: foreign-born share.
-- Income, population, price levels (logs).
+### Institution cleaning
 
-## The OLG simulation (2025-2065, annual steps)
+Historical validation uses historical institutions, not 2023 institutions. For 2023, students who
+take every course remotely are subtracted from total 12-month enrollment. The 2000 Community
+College of the Air Force system-wide count is excluded because it cannot be localized to
+Montgomery. IPEDS is institution-level rather than physical-campus-level, so both epochs preserve
+raw enrollment but cap the spatial weight of one headquarters point at 75,000 students. Historical
+institutions without surviving coordinates are placed at their contemporaneous named city's
+centroid. These choices reduce, but do not eliminate, headquarters-location error.
 
-Four modules autowired by the framework (lags break the attraction↔market cycle):
+## 3. Features
 
-- **nation** — cohort-component projection (5 brackets), births (TFR 1.62, CDC 2024), survival
-  (SSA 2021), net immigration 1.1M/yr (CBO 2025); outputs national mover pools (2.5%/yr of
-  20-44s relocate across places; 0.9%/yr of 65+, ACS county-to-county rates) and an elderly
-  wealth index (+1.5%/yr real per capita).
-- **attraction** — working-age attraction = 0.30·engines + 0.25·human capital + 0.20·access +
-  0.15·regeneration + 0.10·gateway + 0.15·vitality (dynamic young share) − 0.25·affordability
-  (dynamic price/income) − 0.15·distress + 0.10·hub term (engines × regional dominance, the
-  Fukuoka/hinterland-consolidation mechanism). Retiree attraction = 0.45·amenity + 0.25·health
-  + 0.15·scarcity + 0.15·access − 0.10·affordability. Weights follow the evidence ranking in
-  LESSONS_JAPAN.md / LESSONS_ITALY.md.
-- **migration** — gravity-logit allocation of the pools: destination share ∝ mass × exp(β·A),
-  β=0.5 working / 0.3 retiree; departures proportional to stock, so internal flows sum to zero.
-- **market** — local cohort aging + arrivals; household demand via headship rates (Census 2023);
-  second-home demand = seasonal stock × elderly wealth index, wealth *growth* gated away from
-  remote-and-poor places (the akiya rule); supply elasticity declining in density/prestige-
-  scarcity (Saiz 2010 logic), slow abandonment (0.6%/yr max) in deep-surplus markets
-  (akiya/Stadtumbau channel); price responds to the demand/stock gap net of supply response,
-  plus an income-anchored **price-to-income error correction** (2.5%/yr toward 3.6× income,
-  Caldera & Johansson OECD 2013) damped by external support (prestige, metro access, or
-  university presence); kappa calibrated (0.28) so the hindcast's cross-sectional growth
-  dispersion matches ZHVI's (0.23 vs 0.26); real drift 1.2%/yr (Shiller long-run).
+The fitted model uses 25 predictors with identical definitions at both epochs:
 
-The hindcast (scripts/hindcast.ts) initializes with year-2000 data and 2000s national dynamics
-(TFR 2.0, NIM ~1M) and runs 25 years; correlations vs realized growth are in BACKTEST.md.
-Known limitation: university locations/enrollment are 2023-vintage even in the hindcast
-(institutions are highly persistent, but 2000 enrollment levels differ).
+- age structure: 25–44/65+ replacement ratio, 20–34 share, 65+ share, and 45–64 share;
+- institutions and employment: education, health, public administration, armed forces,
+  professional/information/finance, arts, resident college share, and IPEDS enrollment within
+  15 km and 60 km;
+- human capital: bachelor's and graduate shares;
+- housing: seasonal vacancy, non-seasonal vacancy, recent construction, density, and a
+  value/income feature gated by income relative to that epoch's median;
+- external connection: foreign-born share and population access within approximately 60 and
+  120 minutes; and
+- scale: log population and log household income.
 
-## Valuation gap (under/overvalued)
+Straight-line radii approximate travel time; they are not a road-network calculation. Missing
+values are imputed to the training mean after standardization.
 
-gap = outlook − z(log current price ÷ income). Undervalued list requires outlook ≥ +0.5 (strong
-fundamentals, cheap price); overvalued requires outlook < 0 (weak fundamentals, expensive).
-Prices use ZHVI 2025 (median value fallback), so the gap measures what the market currently
-charges for a place relative to what its aging-era fundamentals support.
+## 4. Statistical model and validation
 
-## Explainability
+The outcome is `log(ZHVI_2025 / ZHVI_2000)`. Within every training partition, the top quartile is
+defined as a winner. Validation uses five deterministic folds grouped by state. Thus no state—and
+no neighboring municipality within that state—appears in both train and test for a fold. The
+winner cutoff, missing-value means, standard deviations, and model coefficients are all learned
+from training rows only.
 
-For every place: the eight pillar composites (engines, human capital, access, regeneration,
-gateway, amenity, scarcity, distress), top positive/negative drivers, and rule-based typology
-tags (Knowledge Center, Medical Hub, Government Hub, Military Anchor, Regional Service Center,
-Amenity/Prestige Destination, Retirement Market, Metro Spillover Market, Aging Trap,
-Institutional Loser, Demographic Loser, Housing Overbuild) — rules in `scripts/forecast.ts`.
+Two fits are retained:
 
-## Known limitations
+- L2-regularized logistic regression for top-quartile classification; and
+- ridge regression on state-demeaned continuous growth as a diagnostic.
 
-- ZHVI covers ~72% of places (16.5k), skewed away from the smallest; backtest universe is
-  pop ≥1,000 with 2000 & 2025 observations (n=5,897).
-- Travel-time bands are straight-line approximations (70 km/h); no climate normals (amenity is
-  revealed-preference via seasonal share); no flood/climate-risk layer — a real aging-era
-  concern for coastal amenity markets.
-- Random train/test split leaves spatial autocorrelation between neighbors in train and test;
-  metrics are likely modestly optimistic.
-- The sim's migration pools are nationally uniform rates; no metro-level labor-market shocks,
-  no endogenous institutional decline (a university that will close scores as if permanent).
-- Municipal boundaries: places are compared as-is; unincorporated county territory outside
-  places is not scored.
+The production artifact is fit on all historical rows. On application to 2023, features are
+standardized within the 2023 cross-section because nominal 2000 and 2023 levels are not directly
+comparable. This assumes percentile relationships transfer across epochs. The logistic output is
+called `historicalWinnerIndex`; despite its 0–1 range it is not calibrated as a forward
+probability. `outlook` is its z-score across the modeled current universe.
+
+## 5. Mechanism simulation
+
+### National cohorts
+
+Five age groups—0–19, 20–24, 25–44, 45–64, and 65+—advance annually using bracket exits and
+approximate survival rates. The current scenario starts at final 2024 TFR 1.5995 and converges to
+1.53 by 2035. Net immigration rises from 0.41 million in 2025 to 1.2 million by 2035. These are
+simplified interpolations of current CDC/CBO information, not a reproduction of CBO's full
+age-sex model. The 2000 hindcast uses a separate historical TFR path and constant 1.05 million
+annual net immigration.
+
+### Attraction
+
+Working-age and retiree attraction are additive weighted scores. Working-age terms emphasize
+institutional employment, human capital, access, replacement, foreign-born share, current young
+share, affordability, distress, and an explicit institution-by-regional-dominance interaction.
+Retiree terms use seasonal amenity, health employment, structural scarcity, access, and
+affordability. Current prices are excluded from static amenity and scarcity so an expensive place
+is not mechanically labeled structurally attractive.
+
+The weights are theory-driven judgment parameters. They were inspected during development and are
+not independent causal estimates.
+
+### Migration
+
+Internal mover pools are sized from the cohort stocks in the modeled place universe: 2.5% annually
+for ages 20–44, 1.5% for ages 45–64, and 0.9% for ages 65+. Departures are proportional to origin
+stock and arrivals follow a gravity-logit share, so every internal pool sums to zero to numerical
+precision. Housing units affect destination capacity; they never substitute for the retiree origin
+stock.
+
+International migration is an open flow allocated by cohort and attraction. Each cohort's national
+flow is scaled by the share of the corresponding national cohort covered by modeled places. It is
+therefore added exactly once and is not forced to sum to zero.
+
+### Households, supply, and prices
+
+Place-specific headship multipliers anchor initial implied households to reported occupied housing
+units. Group-quarters residents remain in population cohorts but do not create an artificial initial
+household shortfall. Places with zero reported units or at least 50% group-quarters population stay
+in the full diagnostic output but are ineligible for headline housing rankings.
+
+Demand combines age-specific households and seasonal homes. Supply responds to positive demand
+gaps through an elasticity based on density and recent construction; deep surplus permits slow
+abandonment. Real prices respond to the bounded demand/stock gap, construction, a 1.2% national
+real drift, and symmetric error correction toward 3.6 times real household income. Income grows
+1% per year in the scenario.
+
+The 3.6 anchor, 2.5% annual reversion, drift, income growth, mover rates, and attraction weights are
+transparent scenario calibrations—not estimates supplied by the papers cited in the bibliography.
+
+## 6. Forecast and valuation outputs
+
+The top/bottom lists are sorted by `outlook` and require:
+
+- population at least 10,000;
+- observed current ZHVI;
+- positive observed housing and occupied-unit counts;
+- group-quarters share below 50%; and
+- confidence other than `low`.
+
+The structural score uses institutional engines, human capital, access, replacement, gateway,
+amenity, structural scarcity, health capacity, and distress, all without current price. The
+valuation screen is:
+
+`valuationGap = z(structural fundamentals) - z(log(current price / income))`.
+
+It is intentionally separate from the historical outlook and the mechanism scenario.
+
+## 7. Confidence labels
+
+`low` marks hard data/support problems: population below 2,500, no current ZHVI, missing income,
+zero reported units, majority group-quarters population, many missing predictors, or extreme
+statistical/mechanism disagreement. `medium` marks high group-quarters share, several missing or
+out-of-support predictors, or material disagreement. `high` only means none of these rule-based
+warnings fired; it is not a confidence interval.
+
+## 8. Main limitations
+
+- One historical window cannot identify an aging-specific causal effect; it includes credit,
+  interest-rate, regional, and pandemic-era housing regimes.
+- State grouping is stricter than random-place validation, but neighboring cross-state metros and
+  national shocks remain.
+- The current application assumes standardized feature ranks retain the same meaning across epochs.
+- The headline includes a value/income predictor and is not independent of starting valuation.
+- The mechanism model has weak raw national hindcast performance and should be used for scenarios,
+  not as an independently validated forecast.
+- Institutional capacity, local fertility, zoning, climate/insurance risk, employment shocks, and
+  municipal boundary change are not endogenous.
+- Zillow coverage selects toward larger and more active housing markets.

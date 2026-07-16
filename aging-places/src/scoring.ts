@@ -43,18 +43,12 @@ export const MODEL_FEATURES: { name: string; from: (r: Record<string, number | n
   { name: 'distressVacancy', from: (r) => r.distressVacancy },
   { name: 'newBuildShare', from: (r) => r.newBuildShare },
   { name: 'foreignShare', from: (r) => r.foreignShare },
-  // Prestige-gated value/income: raw V/I conflates prestige scarcity
-  // (Nantucket 12x at $110k income) with poverty-unaffordability (9x at
-  // $36k). Income anchor $60k is a fixed constant; cross-sectional
-  // z-scoring per epoch makes the level immaterial, only ordering matters.
+  // Prestige-gated value/income: raw V/I conflates prestige scarcity with
+  // poverty-unaffordability. build-features.ts gates income against each
+  // epoch's median, avoiding a fixed nominal-dollar threshold across eras.
   {
     name: 'prestigeVTI',
-    from: (r) => {
-      const vti = clip(r.valueToIncome, 0, 30);
-      const inc = r.medianHHInc;
-      if (vti === null || inc === null || inc <= 0) return null;
-      return vti * Math.min(2, inc / 60000);
-    },
+    from: (r) => clip(r.prestigeVTI, 0, 60),
   },
   { name: 'logIncome', from: (r) => logOrNull(r.medianHHInc) },
   { name: 'logDensity', from: (r) => log1pOrNull(r.density) },
@@ -86,6 +80,9 @@ export interface ModelSpec {
   linW: number[];
   /** Operating threshold on P(winner) chosen for high recall. */
   threshold: number;
+  /** Cross-epoch preprocessing contract. */
+  preprocessing?: 'epoch_zscore';
+  statisticalScore?: string;
   meta: Record<string, unknown>;
 }
 

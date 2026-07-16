@@ -1,15 +1,11 @@
 /**
- * Market module: local cohort aging, household demand (incl. second homes
- * funded by elderly wealth), supply response with density/scarcity-dependent
- * elasticity, and the resulting price index per municipality.
+ * Municipal cohort and housing-market module.
  *
- * Key dynamics from the international evidence:
- *  - supply elasticity interacts with demand direction (Tokyo vs Daegu):
- *    elastic supply moderates winner prices and deepens loser declines;
- *  - abandonment: units decay slowly where demand gap is deeply negative
- *    (akiya/Stadtumbau channel);
- *  - second-home demand scales with national elderly wealth and local
- *    amenity (seasonalShare), decoupling amenity markets from local cohorts.
+ * Housing demand is anchored to reported occupied units in the start year.
+ * A place-specific headship multiplier then carries that observed household
+ * structure forward as its age mix changes. This is essential for places with
+ * prisons, dormitories, barracks, and other group quarters: residents of those
+ * facilities are population, but they do not occupy ordinary housing units.
  */
 import { defineModule } from '../../../src/framework/index.js';
 import type { ValidationResult } from '../../../src/framework/index.js';
@@ -18,28 +14,21 @@ import { COHORT_RATES } from './nation.js';
 
 export interface MarketParams {
   statics: PlaceStatics | null;
-  /** Price response to demand gap (log units / yr). */
   kappaPrice: number;
-  /** National real price drift (yr). */
+  /** National real house-price drift. All price outputs are real. */
   drift: number;
-  /** Base supply elasticity (log units growth per unit positive gap). */
   elastBase: number;
-  /** Elasticity reduction per s.d. of density/scarcity. */
   elastDensitySlope: number;
-  /** Max abandonment rate when gap is deeply negative (units/yr). */
   abandonMax: number;
-  /** Headship rates per cohort (household heads per person). */
   headship: Record<Cohort, number>;
-  /** Second-home demand: wealth elasticity. */
+  targetOccupancy: number;
   secondHomeWealthElast: number;
-  /** Price-to-income error correction (yr^-1): prices above the local-income
-   * fundamental revert unless supported by external wealth (prestige) or
-   * metro access. Caldera & Johansson (OECD 2013) estimate 2-5%/yr. */
+  /** Annual error-correction speed toward a heuristic price/income anchor.
+   * This is a transparent calibration, not an estimate from the OECD paper. */
   ptiReversion: number;
-  /** Long-run US median price-to-income anchor (JCHS/Shiller ~3.5-4). */
   ptiAnchor: number;
-  /** TFR passed through for local births (kept equal to nation.tfr). */
-  tfr: number;
+  /** National real household-income growth used to evolve the denominator. */
+  realIncomeGrowth: number;
   /** Children accompanying each net working-age migrant. */
   childrenPerMover: number;
 }
@@ -47,68 +36,98 @@ export interface MarketParams {
 export interface MarketState {
   cohorts: Record<Cohort, Float64Array>;
   units: Float64Array;
-  logPrice: Float64Array; // log price level ($)
+  logPrice: Float64Array;
+  income: Float64Array;
   elasticity: Float64Array;
-  /** Akiya gate on second-home wealth growth: remote AND low-income places
-   * don't capture growing elderly wealth (Wakayama vs Niseko). */
   wealthGate: Float64Array;
-  /** External support for above-fundamental prices (prestige, metro access);
-   * 1 = fully supported (no error correction), 0 = local incomes must carry. */
   extSupport: Float64Array;
 }
 
 export interface MarketInputs {
   netWorking: Float64Array;
+  netMidlife: Float64Array;
   netRetiree: Float64Array;
+  localNetImmigrationByCohort: Record<Cohort, Float64Array>;
   elderlyWealthIndex: number;
+  currentTfr: number;
 }
 
 export interface MarketOutputs {
-  priceIndexVec: Float64Array;   // P / P0
+  priceIndexVec: Float64Array;
   priceToIncome: Float64Array;
   youngShareVec: Float64Array;
   workingStock: Float64Array;
-  retireeMass: Float64Array;     // housing stock (retiree destination mass)
+  midlifeStock: Float64Array;
+  retireeStock: Float64Array;
+  destinationUnits: Float64Array;
   unitsVec: Float64Array;
+  householdsVec: Float64Array;
+  incomeVec: Float64Array;
   gapVec: Float64Array;
   popVec: Float64Array;
-  // National aggregates for collectors
+  birthsTotal: number;
   meanPriceIndex: number;
   medianPriceIndex: number;
   p90PriceIndex: number;
   p10PriceIndex: number;
-  shareDecliningNominal: number;
+  shareDecliningReal: number;
 }
 
 const DEFAULTS: MarketParams = {
   statics: null,
-  kappaPrice: 0.28,        // calibrated so hindcast 2000-25 cross-sectional dispersion matches ZHVI (see METHODOLOGY)
-  drift: 0.012,            // long-run US real house price drift ~1.2%/yr, Shiller series
-  elastBase: 0.9,          // Saiz (2010): mean metro supply elasticity ~1.75 over decadal horizons; annualized response here
-  elastDensitySlope: 0.35, // Saiz: elasticity falls with density & geographic constraint
-  abandonMax: 0.006,       // ~0.6%/yr stock decay in deep-surplus markets (akiya/Stadtumbau analog)
-  headship: { a0_19: 0.0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63 }, // Census HH headship 2023
-  secondHomeWealthElast: 1.0,
+  kappaPrice: 0.28,
+  drift: 0.012,
+  elastBase: 0.9,
+  elastDensitySlope: 0.35,
+  abandonMax: 0.006,
+  headship: { a0_19: 0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63 },
+  targetOccupancy: 0.96,
+  secondHomeWealthElast: 1,
   ptiReversion: 0.025,
   ptiAnchor: 3.6,
-  tfr: 1.62,
-  childrenPerMover: 0.30,  // ACS: children per 25-44 cross-county migrant household
+  realIncomeGrowth: 0.01,
+  childrenPerMover: 0.30,
 };
 
+export function impliedHouseholds(
+  cohorts: Record<Cohort, number>, headship: Record<Cohort, number>, scale = 1
+): number {
+  let households = 0;
+  for (const cohort of COHORTS) households += headship[cohort] * cohorts[cohort];
+  return Math.max(0, scale * households);
+}
+
+export function housingDemandUnits(
+  households: number, secondHomes: number, targetOccupancy: number
+): number {
+  return (Math.max(0, households) + Math.max(0, secondHomes)) /
+    Math.max(0.5, Math.min(1, targetOccupancy));
+}
+
 function quantile(sorted: Float64Array, q: number): number {
+  if (sorted.length === 0) return NaN;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(q * sorted.length)));
   return sorted[idx];
 }
 
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
 export const marketModule = defineModule<MarketParams, MarketState, MarketInputs, MarketOutputs>({
   name: 'market',
-  description: 'Local cohorts, housing demand/supply, price formation',
+  description: 'Local cohorts, observed-household demand, supply, and real prices',
   defaults: DEFAULTS,
-  inputs: ['netWorking', 'netRetiree', 'elderlyWealthIndex'],
+  inputs: [
+    'netWorking', 'netMidlife', 'netRetiree', 'localNetImmigrationByCohort',
+    'elderlyWealthIndex', 'currentTfr',
+  ],
   outputs: [
-    'priceIndexVec', 'priceToIncome', 'youngShareVec', 'workingStock', 'retireeMass',
-    'unitsVec', 'gapVec', 'popVec',
-    'meanPriceIndex', 'medianPriceIndex', 'p90PriceIndex', 'p10PriceIndex', 'shareDecliningNominal',
+    'priceIndexVec', 'priceToIncome', 'youngShareVec', 'workingStock',
+    'midlifeStock', 'retireeStock', 'destinationUnits', 'unitsVec',
+    'householdsVec', 'incomeVec', 'gapVec', 'popVec', 'birthsTotal',
+    'meanPriceIndex', 'medianPriceIndex', 'p90PriceIndex', 'p10PriceIndex',
+    'shareDecliningReal',
   ],
 
   validate(params): ValidationResult {
@@ -118,6 +137,9 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     }
     if (params.elastBase !== undefined && (params.elastBase < 0 || params.elastBase > 5)) {
       errors.push('elastBase out of [0,5]');
+    }
+    if (params.targetOccupancy !== undefined && (params.targetOccupancy < 0.5 || params.targetOccupancy > 1)) {
+      errors.push('targetOccupancy out of [0.5,1]');
     }
     return { valid: errors.length === 0, errors, warnings: [] };
   },
@@ -129,119 +151,159 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
   init(params): MarketState {
     const s = params.statics;
     if (!s) throw new Error('market: statics dataset must be provided via params');
-    const n = s.n;
     const cohorts = {} as Record<Cohort, Float64Array>;
-    for (const c of COHORTS) cohorts[c] = Float64Array.from(s.cohorts0[c]);
+    for (const cohort of COHORTS) cohorts[cohort] = Float64Array.from(s.cohorts0[cohort]);
     const units = Float64Array.from(s.units0);
-    const logPrice = new Float64Array(n);
-    for (let i = 0; i < n; i++) logPrice[i] = Math.log(Math.max(1e4, s.price0[i]));
-    // Supply elasticity: falls with density and prestige-scarcity (Saiz 2010
-    // logic). Poverty-driven value/income does not imply constrained supply.
-    const elasticity = new Float64Array(n);
-    const zd = s.z.logDensity;
-    const zv = s.z.prestigeVTI;
-    const wealthGate = new Float64Array(n);
-    const extSupport = new Float64Array(n);
-    const za = s.z.logPopAccess60;
-    const zi = s.z.logIncome;
-    const zc = s.z.collegeShare;
-    const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
-    for (let i = 0; i < n; i++) {
-      elasticity[i] = Math.min(2.0, Math.max(0.05,
-        params.elastBase - params.elastDensitySlope * (0.6 * zd[i] + 0.4 * zv[i])));
-      wealthGate[i] = 1 - 0.7 * clamp01(-za[i] - 0.5) * clamp01(-zi[i]);
-      // External support: prestige wealth, metro access, or a university —
-      // student towns' median incomes are compositionally depressed, but
-      // their prices are carried by external (tuition/parental) money.
-      extSupport[i] = clamp01(0.5 * Math.max(0, zv[i]) + 0.5 * Math.max(0, za[i]) + 0.5 * Math.max(0, zc[i]));
+    const income = Float64Array.from(s.income0);
+    const logPrice = new Float64Array(s.n);
+    const elasticity = new Float64Array(s.n);
+    const wealthGate = new Float64Array(s.n);
+    const extSupport = new Float64Array(s.n);
+    for (let i = 0; i < s.n; i++) {
+      logPrice[i] = Math.log(Math.max(1e4, s.price0[i]));
+      // Use density and construction scarcity, not the current price level,
+      // to avoid making expensive places mechanically supply-constrained.
+      const structuralConstraint = 0.65 * s.z.logDensity[i] - 0.35 * s.z.newBuildShare[i];
+      elasticity[i] = Math.min(2, Math.max(0.05,
+        params.elastBase - params.elastDensitySlope * structuralConstraint));
+      wealthGate[i] = 1 - 0.7 * clamp01(-s.z.logPopAccess60[i] - 0.5) * clamp01(-s.z.logIncome[i]);
+      // Observable external-demand channels: metro access, institutions,
+      // seasonal demand, and high local income. Current prices are excluded.
+      extSupport[i] = clamp01(
+        0.4 * Math.max(0, s.z.logPopAccess60[i]) +
+        0.25 * Math.max(0, s.z.collegeShare[i]) +
+        0.2 * Math.max(0, s.z.seasonalShare[i]) +
+        0.15 * Math.max(0, s.z.logIncome[i])
+      );
     }
-    return { cohorts, units, logPrice, elasticity, wealthGate, extSupport };
+    return { cohorts, units, logPrice, income, elasticity, wealthGate, extSupport };
   },
 
-  step(state, inputs, params, _year, _yearIndex) {
+  step(state, inputs, params) {
     const s = params.statics!;
     const n = s.n;
-    const { survival: sv, exit: ex } = COHORT_RATES;
-    const c = state.cohorts;
+    const { survival: survival, exit } = COHORT_RATES;
+    const current = state.cohorts;
     const next = {} as Record<Cohort, Float64Array>;
-    for (const k of COHORTS) next[k] = new Float64Array(n);
+    for (const cohort of COHORTS) next[cohort] = new Float64Array(n);
+    let birthsTotal = 0;
 
     for (let i = 0; i < n; i++) {
-      const womenReproductive = 0.495 * (0.25 * c.a0_19[i] + c.a20_24[i] + c.a25_44[i]);
-      const births = (params.tfr / 30) * womenReproductive;
-      const grad0 = c.a0_19[i] * sv.a0_19 * ex.a0_19;
-      const grad20 = c.a20_24[i] * sv.a20_24 * ex.a20_24;
-      const grad25 = c.a25_44[i] * sv.a25_44 * ex.a25_44;
-      const grad45 = c.a45_64[i] * sv.a45_64 * ex.a45_64;
-      const netW = inputs.netWorking[i];
-      const netR = inputs.netRetiree[i];
-      next.a0_19[i] = Math.max(0, c.a0_19[i] * sv.a0_19 - grad0 + births + params.childrenPerMover * netW);
-      next.a20_24[i] = Math.max(0, c.a20_24[i] * sv.a20_24 - grad20 + grad0 + 0.25 * netW);
-      next.a25_44[i] = Math.max(0, c.a25_44[i] * sv.a25_44 - grad25 + grad20 + 0.75 * netW);
-      next.a45_64[i] = Math.max(0, c.a45_64[i] * sv.a45_64 - grad45 + grad25);
-      next.a65up[i] = Math.max(0, c.a65up[i] * sv.a65up + grad45 + netR);
+      const womenReproductive = 0.495 *
+        (0.25 * current.a0_19[i] + current.a20_24[i] + current.a25_44[i]);
+      const births = (inputs.currentTfr / 30) * womenReproductive;
+      birthsTotal += births;
+      const grad0 = current.a0_19[i] * survival.a0_19 * exit.a0_19;
+      const grad20 = current.a20_24[i] * survival.a20_24 * exit.a20_24;
+      const grad25 = current.a25_44[i] * survival.a25_44 * exit.a25_44;
+      const grad45 = current.a45_64[i] * survival.a45_64 * exit.a45_64;
+      const netWorking = inputs.netWorking[i];
+      const workingTotal = current.a20_24[i] + current.a25_44[i];
+      const share20 = netWorking < 0 && workingTotal > 0
+        ? current.a20_24[i] / workingTotal
+        : 0.25;
+      const candidates: Record<Cohort, number> = {
+        a0_19: current.a0_19[i] * survival.a0_19 - grad0 + births +
+          params.childrenPerMover * netWorking + inputs.localNetImmigrationByCohort.a0_19[i],
+        a20_24: current.a20_24[i] * survival.a20_24 - grad20 + grad0 +
+          share20 * netWorking + inputs.localNetImmigrationByCohort.a20_24[i],
+        a25_44: current.a25_44[i] * survival.a25_44 - grad25 + grad20 +
+          (1 - share20) * netWorking + inputs.localNetImmigrationByCohort.a25_44[i],
+        a45_64: current.a45_64[i] * survival.a45_64 - grad45 + grad25 +
+          inputs.netMidlife[i] + inputs.localNetImmigrationByCohort.a45_64[i],
+        a65up: current.a65up[i] * survival.a65up + grad45 +
+          inputs.netRetiree[i] + inputs.localNetImmigrationByCohort.a65up[i],
+      };
+      for (const cohort of COHORTS) {
+        if (candidates[cohort] < -1e-6) {
+          throw new Error(`market: migration exceeds ${cohort} stock for ${s.geoid[i]}`);
+        }
+        next[cohort][i] = Math.max(0, candidates[cohort]);
+      }
     }
 
     const priceIndexVec = new Float64Array(n);
     const priceToIncome = new Float64Array(n);
     const youngShareVec = new Float64Array(n);
     const workingStock = new Float64Array(n);
-    const retireeMass = new Float64Array(n);
-    const unitsVec = new Float64Array(n);
+    const midlifeStock = new Float64Array(n);
+    const retireeStock = new Float64Array(n);
+    const nextUnits = new Float64Array(n);
+    const householdsVec = new Float64Array(n);
+    const nextIncome = new Float64Array(n);
+    const nextLogPrice = new Float64Array(n);
     const gapVec = new Float64Array(n);
     const popVec = new Float64Array(n);
     const wealth = Math.pow(inputs.elderlyWealthIndex, params.secondHomeWealthElast);
+    let meanPriceIndex = 0;
+    let declining = 0;
 
     for (let i = 0; i < n; i++) {
-      // Demand: households + second homes + ~4% frictional vacancy target
-      let households = 0;
-      for (const k of COHORTS) households += params.headship[k] * next[k][i];
-      const secondHomes = s.seasonalShare[i] * s.units0[i] * (1 + (wealth - 1) * state.wealthGate[i]);
-      const demandUnits = (households + secondHomes) / 0.96;
+      const localCohorts = {} as Record<Cohort, number>;
+      for (const cohort of COHORTS) localCohorts[cohort] = next[cohort][i];
+      const households = impliedHouseholds(localCohorts, params.headship, s.headshipScale[i]);
+      const secondHomes0 = s.seasonalShare[i] * s.observedUnits0[i];
+      const secondHomes = secondHomes0 * (1 + (wealth - 1) * state.wealthGate[i]);
+      const demandUnits = housingDemandUnits(households, secondHomes, params.targetOccupancy);
       const gap = Math.log(Math.max(1, demandUnits) / Math.max(1, state.units[i]));
-      const gapC = Math.max(-1.5, Math.min(1.5, gap));
+      const boundedGap = Math.max(-1.5, Math.min(1.5, gap));
+      const build = boundedGap > 0 ? state.elasticity[i] * 0.35 * boundedGap : 0;
+      const abandon = boundedGap < -0.15
+        ? params.abandonMax * Math.min(1, (-boundedGap - 0.15) / 0.6)
+        : 0;
+      nextUnits[i] = Math.max(1, state.units[i] * (1 + build - abandon));
+      nextIncome[i] = Math.max(1, state.income[i] * (1 + params.realIncomeGrowth));
 
-      // Supply response: build when gap>0 (per elasticity), decay slowly when deeply negative
-      const build = gapC > 0 ? state.elasticity[i] * 0.35 * gapC : 0;
-      const abandon = gapC < -0.15 ? params.abandonMax * Math.min(1, (-gapC - 0.15) / 0.6) : 0;
-      state.units[i] = state.units[i] * (1 + build - abandon);
+      const fundamentalGap = state.logPrice[i] -
+        Math.log(params.ptiAnchor * Math.max(20000, state.income[i]));
+      const correctionSupport = fundamentalGap > 0 ? 1 - state.extSupport[i] : 1;
+      nextLogPrice[i] = state.logPrice[i] + params.drift + params.kappaPrice * 0.5 * boundedGap -
+        0.5 * build - params.ptiReversion * fundamentalGap * correctionSupport;
 
-      // Price: responds to gap net of the supply that will relieve it,
-      // with income-anchored error correction where external support is weak
-      const overFundamental = Math.max(0,
-        state.logPrice[i] - Math.log(params.ptiAnchor * Math.max(20000, s.income0[i])));
-      state.logPrice[i] += params.drift + params.kappaPrice * 0.5 * gapC - 0.5 * build
-        - params.ptiReversion * overFundamental * (1 - state.extSupport[i]);
-
-      const pop =
-        next.a0_19[i] + next.a20_24[i] + next.a25_44[i] + next.a45_64[i] + next.a65up[i];
+      const pop = COHORTS.reduce((total, cohort) => total + next[cohort][i], 0);
+      const priceIndex = Math.exp(nextLogPrice[i] - Math.log(Math.max(1e4, s.price0[i])));
       popVec[i] = pop;
-      priceIndexVec[i] = Math.exp(state.logPrice[i] - Math.log(Math.max(1e4, s.price0[i])));
-      priceToIncome[i] = s.income0[i] > 0 ? Math.exp(state.logPrice[i]) / s.income0[i] : 4;
+      priceIndexVec[i] = priceIndex;
+      priceToIncome[i] = Math.exp(nextLogPrice[i]) / nextIncome[i];
       youngShareVec[i] = pop > 0 ? (next.a20_24[i] + next.a25_44[i]) / pop : 0;
       workingStock[i] = next.a20_24[i] + next.a25_44[i];
-      retireeMass[i] = state.units[i];
-      unitsVec[i] = state.units[i];
-      gapVec[i] = gapC;
+      midlifeStock[i] = next.a45_64[i];
+      retireeStock[i] = next.a65up[i];
+      householdsVec[i] = households;
+      gapVec[i] = boundedGap;
+      meanPriceIndex += priceIndex;
+      if (priceIndex < 1) declining++;
     }
 
-    const sortedIdx = Float64Array.from(priceIndexVec).sort();
-    let declining = 0;
-    for (let i = 0; i < n; i++) if (priceIndexVec[i] < 1) declining++;
-    let mean = 0;
-    for (let i = 0; i < n; i++) mean += priceIndexVec[i];
-    mean /= n;
-
+    const sorted = Float64Array.from(priceIndexVec).sort();
+    meanPriceIndex /= Math.max(1, n);
     return {
-      state: { ...state, cohorts: next },
+      state: {
+        ...state,
+        cohorts: next,
+        units: nextUnits,
+        income: nextIncome,
+        logPrice: nextLogPrice,
+      },
       outputs: {
-        priceIndexVec, priceToIncome, youngShareVec, workingStock, retireeMass,
-        unitsVec, gapVec, popVec,
-        meanPriceIndex: mean,
-        medianPriceIndex: quantile(sortedIdx, 0.5),
-        p90PriceIndex: quantile(sortedIdx, 0.9),
-        p10PriceIndex: quantile(sortedIdx, 0.1),
-        shareDecliningNominal: declining / n,
+        priceIndexVec,
+        priceToIncome,
+        youngShareVec,
+        workingStock,
+        midlifeStock,
+        retireeStock,
+        destinationUnits: nextUnits,
+        unitsVec: nextUnits,
+        householdsVec,
+        incomeVec: nextIncome,
+        gapVec,
+        popVec,
+        birthsTotal,
+        meanPriceIndex,
+        medianPriceIndex: quantile(sorted, 0.5),
+        p90PriceIndex: quantile(sorted, 0.9),
+        p10PriceIndex: quantile(sorted, 0.1),
+        shareDecliningReal: declining / Math.max(1, n),
       },
     };
   },

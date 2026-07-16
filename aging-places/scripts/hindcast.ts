@@ -36,7 +36,7 @@ function spearman(a: number[], b: number[]): number {
 
 function main(): void {
   const res = runAgingSim({ epoch: '2000', years: 25, minPop: 1000 });
-  const { data, simLogGrowth } = res;
+  const { data, simRealLogGrowth } = res;
 
   const sim: number[] = [];
   const act: number[] = [];
@@ -44,7 +44,7 @@ function main(): void {
   for (let i = 0; i < data.statics.n; i++) {
     const o = data.outcome[i];
     if (o === null) continue;
-    sim.push(simLogGrowth[i]);
+    sim.push(simRealLogGrowth[i]);
     act.push(o);
     pops.push(data.statics.pop0[i]);
   }

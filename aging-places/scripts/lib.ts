@@ -8,14 +8,13 @@ import * as zlib from 'node:zlib';
 export const REPO_ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 export const DATA_DIR = path.join(REPO_ROOT, 'data');
 export const OUT_DIR = path.join(REPO_ROOT, 'outputs');
-export const SCRATCH =
-  process.env.AGING_SCRATCH ??
-  '/tmp/claude-0/-home-user-overlapping-generations/10f33201-42a7-5017-ada0-8d0f422ac0ad/scratchpad';
-export const RAW_DIR = path.join(SCRATCH, 'raw');
+/** Portable defaults. Both can be moved outside the repository with env vars. */
+export const SCRATCH = process.env.AGING_SCRATCH ?? path.join(REPO_ROOT, '.cache');
+export const RAW_DIR = process.env.AGING_RAW_DIR ?? path.join(REPO_ROOT, 'raw');
 export const CACHE_DIR = path.join(SCRATCH, 'census-cache');
 
 export function ensureDirs(): void {
-  for (const d of [DATA_DIR, OUT_DIR, CACHE_DIR]) fs.mkdirSync(d, { recursive: true });
+  for (const d of [DATA_DIR, OUT_DIR, RAW_DIR, CACHE_DIR]) fs.mkdirSync(d, { recursive: true });
 }
 
 /** Minimal RFC-4180-ish CSV parser (handles quoted fields with commas/newlines). */

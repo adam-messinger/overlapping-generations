@@ -1,0 +1,239 @@
+{
+  "method": "5-fold state-grouped cross-validation; train-only preprocessing",
+  "foldAssignment": {
+    "AK": 0,
+    "AL": 2,
+    "AR": 2,
+    "AZ": 0,
+    "CA": 3,
+    "CO": 3,
+    "CT": 1,
+    "DC": 4,
+    "DE": 3,
+    "FL": 4,
+    "GA": 2,
+    "HI": 0,
+    "IA": 4,
+    "ID": 4,
+    "IL": 1,
+    "IN": 4,
+    "KS": 0,
+    "KY": 1,
+    "LA": 2,
+    "MA": 3,
+    "MD": 0,
+    "ME": 4,
+    "MI": 1,
+    "MN": 1,
+    "MO": 0,
+    "NC": 2,
+    "NE": 0,
+    "NH": 0,
+    "NJ": 3,
+    "NV": 3,
+    "NY": 2,
+    "OH": 1,
+    "OK": 2,
+    "OR": 1,
+    "PA": 4,
+    "RI": 0,
+    "SC": 1,
+    "TN": 4,
+    "TX": 0,
+    "UT": 1,
+    "VA": 4,
+    "VT": 3,
+    "WA": 0,
+    "WI": 2,
+    "WV": 3
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "n": 810,
+      "nBig": 330,
+      "states": "AK,AZ,HI,KS,MD,MO,NE,NH,RI,TX,WA",
+      "aucLogit": 0.6391354324292865,
+      "aucHistorical": 0.6090967291351415,
+      "aucMechanism": 0.4444149400535444,
+      "aucBlend30Mechanism": 0.565322721452683,
+      "aucBlend50Mechanism": 0.5162524735187988,
+      "aucBlend70Mechanism": 0.47716360144337094,
+      "aucLogitBlend30Mechanism": 0.596918286578978,
+      "aucHistoricalBig": 0.6084565452578435,
+      "aucMechanismBig": 0.40930400288496216,
+      "aucBlend30MechanismBig": 0.5401190046880635,
+      "aucLogitBlend30MechanismBig": 0.5673458348359178,
+      "spearmanRidge": 0.07658878643846857,
+      "spearmanMechanism": 0.2730951532758344,
+      "spearmanBlend30Mechanism": 0.1742096985867923,
+      "aucForeignShareBaseline": 0.6033530729833547
+    },
+    {
+      "fold": 1,
+      "n": 1628,
+      "nBig": 589,
+      "states": "CT,IL,KY,MI,MN,OH,OR,SC,UT",
+      "aucLogit": 0.6579375482239637,
+      "aucHistorical": 0.5733422576716773,
+      "aucMechanism": 0.42353422390793055,
+      "aucBlend30Mechanism": 0.5081574030175419,
+      "aucBlend50Mechanism": 0.4652276171087003,
+      "aucBlend70Mechanism": 0.43836164021901813,
+      "aucLogitBlend30Mechanism": 0.5631071571334282,
+      "aucHistoricalBig": 0.4257142857142857,
+      "aucMechanismBig": 0.42695652173913046,
+      "aucBlend30MechanismBig": 0.41440993788819874,
+      "aucLogitBlend30MechanismBig": 0.4832298136645963,
+      "spearmanRidge": 0.2099640650785717,
+      "spearmanMechanism": 0.2524884195208019,
+      "spearmanBlend30Mechanism": 0.2778932636938113,
+      "aucForeignShareBaseline": 0.5571018211227933
+    },
+    {
+      "fold": 2,
+      "n": 1217,
+      "nBig": 342,
+      "states": "AL,AR,GA,LA,NC,NY,OK,WI",
+      "aucLogit": 0.624617683041596,
+      "aucHistorical": 0.6312288255223037,
+      "aucMechanism": 0.6497388481084133,
+      "aucBlend30Mechanism": 0.7123917748917749,
+      "aucBlend50Mechanism": 0.7334368530020704,
+      "aucBlend70Mechanism": 0.7111095426312818,
+      "aucLogitBlend30Mechanism": 0.7062688217579522,
+      "aucHistoricalBig": 0.6331699346405228,
+      "aucMechanismBig": 0.7365649963689179,
+      "aucBlend30MechanismBig": 0.7265795206971678,
+      "aucLogitBlend30MechanismBig": 0.6931735657225854,
+      "spearmanRidge": 0.09491967197122074,
+      "spearmanMechanism": 0.18979833536520715,
+      "spearmanBlend30Mechanism": 0.1962208073740051,
+      "aucForeignShareBaseline": 0.6014316299642387
+    },
+    {
+      "fold": 3,
+      "n": 1196,
+      "nBig": 608,
+      "states": "CA,CO,DE,MA,NJ,NV,VT,WV",
+      "aucLogit": 0.7078304597701149,
+      "aucHistorical": 0.7013649425287356,
+      "aucMechanism": 0.6276120689655172,
+      "aucBlend30Mechanism": 0.7420373563218391,
+      "aucBlend50Mechanism": 0.7565545977011494,
+      "aucBlend70Mechanism": 0.7312931034482759,
+      "aucLogitBlend30Mechanism": 0.7464511494252873,
+      "aucHistoricalBig": 0.7198954824648306,
+      "aucMechanismBig": 0.6296809986130375,
+      "aucBlend30MechanismBig": 0.743721517733307,
+      "aucLogitBlend30MechanismBig": 0.7464830592431148,
+      "spearmanRidge": 0.22686924878727321,
+      "spearmanMechanism": 0.36448015604649847,
+      "spearmanBlend30Mechanism": 0.3659717529384197,
+      "aucForeignShareBaseline": 0.7001968390804598
+    },
+    {
+      "fold": 4,
+      "n": 1046,
+      "nBig": 335,
+      "states": "DC,FL,IA,ID,IN,ME,PA,TN,VA",
+      "aucLogit": 0.7062063816170421,
+      "aucHistorical": 0.690538048944016,
+      "aucMechanism": 0.5942918965044343,
+      "aucBlend30Mechanism": 0.6972503276140554,
+      "aucBlend50Mechanism": 0.6793382196080822,
+      "aucBlend70Mechanism": 0.648466309084814,
+      "aucLogitBlend30Mechanism": 0.7030064303782038,
+      "aucHistoricalBig": 0.7365959877204254,
+      "aucMechanismBig": 0.6622760048547155,
+      "aucBlend30MechanismBig": 0.7544442064681944,
+      "aucLogitBlend30MechanismBig": 0.7383808095952024,
+      "spearmanRidge": 0.20963416442469013,
+      "spearmanMechanism": 0.35572545335188754,
+      "spearmanBlend30Mechanism": 0.365963843684786,
+      "aucForeignShareBaseline": 0.6818734190717094
+    }
+  ],
+  "summary": {
+    "aucLogit": {
+      "mean": 0.667,
+      "min": 0.625,
+      "max": 0.708
+    },
+    "aucHistorical": {
+      "mean": 0.641,
+      "min": 0.573,
+      "max": 0.701
+    },
+    "aucMechanism": {
+      "mean": 0.548,
+      "min": 0.424,
+      "max": 0.65
+    },
+    "aucBlend30Mechanism": {
+      "mean": 0.645,
+      "min": 0.508,
+      "max": 0.742
+    },
+    "aucBlend50Mechanism": {
+      "mean": 0.63,
+      "min": 0.465,
+      "max": 0.757
+    },
+    "aucBlend70Mechanism": {
+      "mean": 0.601,
+      "min": 0.438,
+      "max": 0.731
+    },
+    "aucLogitBlend30Mechanism": {
+      "mean": 0.663,
+      "min": 0.563,
+      "max": 0.746
+    },
+    "aucHistoricalBig": {
+      "mean": 0.625,
+      "min": 0.426,
+      "max": 0.737
+    },
+    "aucMechanismBig": {
+      "mean": 0.573,
+      "min": 0.409,
+      "max": 0.737
+    },
+    "aucBlend30MechanismBig": {
+      "mean": 0.636,
+      "min": 0.414,
+      "max": 0.754
+    },
+    "aucLogitBlend30MechanismBig": {
+      "mean": 0.646,
+      "min": 0.483,
+      "max": 0.746
+    },
+    "spearmanRidge": {
+      "mean": 0.164,
+      "min": 0.077,
+      "max": 0.227
+    },
+    "spearmanMechanism": {
+      "mean": 0.287,
+      "min": 0.19,
+      "max": 0.364
+    },
+    "spearmanBlend30Mechanism": {
+      "mean": 0.276,
+      "min": 0.174,
+      "max": 0.366
+    },
+    "aucForeignShareBaseline": {
+      "mean": 0.629,
+      "min": 0.557,
+      "max": 0.7
+    }
+  },
+  "diagnostics": {
+    "noSkillAuc": 0.5,
+    "randomPlaceSplitStateOutcomeBaselineAuc": 0.842,
+    "warning": "The random-split state baseline uses outcome-derived state rates and is a leakage diagnostic, not a deployable model."
+  }
+}

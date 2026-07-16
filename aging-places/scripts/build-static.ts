@@ -2,13 +2,15 @@
  * Process static raw downloads into compact CSVs:
  *   data/places.csv        — GEOID, name, state, county, lat, lon, land area
  *   data/zhvi.csv          — Zillow ZHVI city-level annual series (June obs), 2000-2025
- *   data/universities.csv  — IPEDS institutions with location + 12-month enrollment
+ *   data/universities2000.csv — contemporaneous IPEDS institutions + fall enrollment
+ *   data/universities2023.csv — IPEDS institutions + campus-linked 12-month enrollment
  *
- * Raw inputs live in the scratchpad (see fetch commands in README).
+ * Raw inputs live in aging-places/raw by default; fetch-static.ts builds that
+ * directory. Set AGING_RAW_DIR to put the source files elsewhere.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DATA_DIR, RAW_DIR, ensureDirs, parseCsv, writeCsv, num } from './lib.js';
+import { DATA_DIR, RAW_DIR, ensureDirs, parseCsv, readCsvAuto, writeCsv, num } from './lib.js';
 
 function buildPlaces(): void {
   // Gazetteer 2023: tab-delimited USPS GEOID ANSICODE NAME LSAD FUNCSTAT ALAND AWATER ALAND_SQMI AWATER_SQMI INTPTLAT INTPTLONG
@@ -68,8 +70,29 @@ function buildZhvi(): void {
     ['regionId', 'city', 'state', 'metro', 'county', ...years.map((y) => `v${y}`)], out);
 }
 
-function buildUniversities(): void {
-  const hd = parseCsv(fs.readFileSync(path.join(RAW_DIR, 'HD2023.csv'), 'latin1').replace(/^﻿|^ï»¿/, ''));
+function cleanTextFile(file: string): string {
+  return fs.readFileSync(path.join(RAW_DIR, file), 'latin1').replace(/^﻿|^ï»¿/, '');
+}
+
+function buildPlaceCoordinateIndex(): Map<string, { lat: number; lon: number }> {
+  const rows = parseCsv(readCsvAuto(path.join(DATA_DIR, 'places.csv')));
+  const header = rows[0];
+  const at = (name: string): number => header.indexOf(name);
+  const normalize = (name: string): string => name.toLowerCase()
+    .replace(/\b(city|town|village|borough|cdp|municipality)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const out = new Map<string, { lat: number; lon: number }>();
+  for (const row of rows.slice(1)) {
+    const lat = num(row[at('lat')]), lon = num(row[at('lon')]);
+    if (lat === null || lon === null) continue;
+    const key = `${row[at('state')]}|${normalize(row[at('name')])}`;
+    if (!out.has(key)) out.set(key, { lat, lon });
+  }
+  return out;
+}
+
+function buildUniversities2023(): void {
+  const hd = parseCsv(cleanTextFile('HD2023.csv'));
   const h = hd[0].map((s) => s.toUpperCase());
   const col = (name: string): number => {
     const i = h.indexOf(name);
@@ -78,29 +101,119 @@ function buildUniversities(): void {
   };
   const iUnit = col('UNITID'), iName = col('INSTNM'), iCity = col('CITY'), iSt = col('STABBR');
   const iLat = col('LATITUDE'), iLon = col('LONGITUD'), iSector = col('SECTOR'), iLevel = col('ICLEVEL');
-  // EFFY2023: 12-month unduplicated headcount; EFFYLEV 1 = all students total
-  const effy = parseCsv(fs.readFileSync(path.join(RAW_DIR, 'EFFY2023.csv'), 'latin1').replace(/^﻿|^ï»¿/, ''));
-  const eh = effy[0].map((s) => s.toUpperCase());
-  const eUnit = eh.indexOf('UNITID');
-  const eLev = eh.indexOf('EFFYALEV'); // 1 = all students, all levels
-  const eTot = eh.indexOf('EFYTOTLT');
-  const enroll = new Map<string, number>();
-  for (const r of effy.slice(1)) {
-    if (r[eLev]?.trim() === '1') enroll.set(r[eUnit], num(r[eTot]) ?? 0);
+  // EFFY2023_DIST: 12-month unduplicated count by distance status.
+  // EFFYDLEV=1 is all students. Campus-linked enrollment excludes students
+  // taking every course remotely; students taking some online courses remain.
+  const dist = parseCsv(cleanTextFile('EFFY2023_dist.csv'));
+  const dh = dist[0].map((s) => s.toUpperCase());
+  const dUnit = dh.indexOf('UNITID');
+  const dLev = dh.indexOf('EFFYDLEV');
+  const dTotal = dh.indexOf('EFYDETOT');
+  const dExclusive = dh.indexOf('EFYDEEXC');
+  for (const [name, idx] of [['UNITID', dUnit], ['EFFYDLEV', dLev], ['EFYDETOT', dTotal], ['EFYDEEXC', dExclusive]] as const) {
+    if (idx === -1) throw new Error(`EFFY2023_dist missing column ${name}`);
+  }
+  const enroll = new Map<string, { total: number; exclusiveOnline: number }>();
+  for (const row of dist.slice(1)) {
+    if (row[dLev]?.trim() !== '1') continue;
+    enroll.set(row[dUnit], {
+      total: num(row[dTotal]) ?? 0,
+      exclusiveOnline: num(row[dExclusive]) ?? 0,
+    });
   }
   const rows: (string | number | null)[][] = [];
   for (const r of hd.slice(1)) {
-    const en = enroll.get(r[iUnit]) ?? 0;
-    if (en <= 0) continue;
+    const counts = enroll.get(r[iUnit]);
+    if (!counts || counts.total <= 0) continue;
+    const campusEnrollment = Math.max(0, counts.total - counts.exclusiveOnline);
+    if (campusEnrollment <= 0) continue;
     const lat = num(r[iLat]), lon = num(r[iLon]);
     if (lat === null || lon === null) continue;
-    rows.push([r[iUnit], r[iName], r[iCity], r[iSt], lat, lon, en, r[iSector], r[iLevel]]);
+    // IPEDS reports at the institution rather than physical-campus level. Keep
+    // the observed count, but cap the count used spatially so a statewide
+    // multi-campus system is not assigned wholesale to its administrative HQ.
+    const spatialEnrollment = Math.min(75_000, campusEnrollment);
+    rows.push([
+      r[iUnit], r[iName], r[iCity], r[iSt], lat, lon,
+      counts.total, counts.exclusiveOnline, campusEnrollment, spatialEnrollment,
+      counts.total > 0 ? +(counts.exclusiveOnline / counts.total).toFixed(4) : 0,
+      r[iSector], r[iLevel],
+    ]);
   }
-  writeCsv(path.join(DATA_DIR, 'universities.csv.gz'),
-    ['unitid', 'name', 'city', 'state', 'lat', 'lon', 'enrollment', 'sector', 'iclevel'], rows);
+  writeCsv(path.join(DATA_DIR, 'universities2023.csv.gz'), [
+    'unitid', 'name', 'city', 'state', 'lat', 'lon', 'enrollment',
+    'exclusiveOnline', 'campusEnrollment', 'spatialEnrollment',
+    'exclusiveOnlineShare', 'sector', 'iclevel',
+  ], rows);
+}
+
+function buildUniversities2000(): void {
+  const hd = parseCsv(cleanTextFile('fa2000hd.csv'));
+  const hh = hd[0].map((s) => s.toUpperCase());
+  const hc = (name: string): number => {
+    const idx = hh.indexOf(name);
+    if (idx === -1) throw new Error(`FA2000HD missing column ${name}`);
+    return idx;
+  };
+  const hUnit = hc('UNITID'), hName = hc('INSTNM'), hCity = hc('CITY'), hState = hc('STABBR');
+  const hSector = hc('SECTOR'), hLevel = hc('ICLEVEL');
+
+  const ef = parseCsv(cleanTextFile('ef2000a.csv'));
+  const eh = ef[0].map((s) => s.toUpperCase());
+  const ec = (name: string): number => {
+    const idx = eh.indexOf(name);
+    if (idx === -1) throw new Error(`EF2000A missing column ${name}`);
+    return idx;
+  };
+  const eUnit = ec('UNITID'), eLine = ec('LINE'), eMale = ec('EFRACE15'), eFemale = ec('EFRACE16');
+  const enrollment = new Map<string, number>();
+  for (const row of ef.slice(1)) {
+    // Line 29 is the institution-wide fall enrollment total, male + female.
+    if (row[eLine]?.trim() !== '29') continue;
+    enrollment.set(row[eUnit], (num(row[eMale]) ?? 0) + (num(row[eFemale]) ?? 0));
+  }
+
+  const current = parseCsv(cleanTextFile('HD2023.csv'));
+  const ch = current[0].map((s) => s.toUpperCase());
+  const cUnit = ch.indexOf('UNITID'), cLat = ch.indexOf('LATITUDE'), cLon = ch.indexOf('LONGITUD');
+  const currentCoordinates = new Map<string, { lat: number; lon: number }>();
+  for (const row of current.slice(1)) {
+    const lat = num(row[cLat]), lon = num(row[cLon]);
+    if (lat !== null && lon !== null) currentCoordinates.set(row[cUnit], { lat, lon });
+  }
+  const placeCoordinates = buildPlaceCoordinateIndex();
+  const normalize = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const rows: (string | number | null)[][] = [];
+  let cityFallbacks = 0;
+  for (const row of hd.slice(1)) {
+    const count = enrollment.get(row[hUnit]) ?? 0;
+    if (count <= 0) continue;
+    // CCAF's reported enrollment is a worldwide, system-wide military total;
+    // it is not a local campus population and cannot be placed in Montgomery.
+    if (row[hName].toUpperCase().includes('COMMUNITY COLLEGE OF THE AIR FORCE')) continue;
+    let coord = currentCoordinates.get(row[hUnit]);
+    if (!coord) {
+      coord = placeCoordinates.get(`${row[hState]}|${normalize(row[hCity])}`);
+      if (coord) cityFallbacks++;
+    }
+    if (!coord) continue;
+    rows.push([
+      row[hUnit], row[hName], row[hCity], row[hState], coord.lat, coord.lon,
+      count, count, Math.min(75_000, count), row[hSector], row[hLevel],
+    ]);
+  }
+  writeCsv(path.join(DATA_DIR, 'universities2000.csv.gz'), [
+    'unitid', 'name', 'city', 'state', 'lat', 'lon', 'enrollment',
+    'campusEnrollment', 'spatialEnrollment', 'sector', 'iclevel',
+  ], rows);
+  console.log(`universities2000: ${cityFallbacks} institutions located by contemporaneous city centroid`);
 }
 
 ensureDirs();
-buildPlaces();
-buildZhvi();
-buildUniversities();
+const only = process.argv.find((arg) => arg.startsWith('--only='))?.split('=')[1];
+if (!only || only === 'places') buildPlaces();
+if (!only || only === 'zhvi') buildZhvi();
+if (!only || only === 'universities') {
+  buildUniversities2000();
+  buildUniversities2023();
+}

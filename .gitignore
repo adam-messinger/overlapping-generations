@@ -1,6 +1,8 @@
 node_modules/
 dist/
 *.log
+aging-places/.cache/
+aging-places/raw/
 
 # Regenerated on every regression run; reference.json is the checked-in blessed baseline
 baselines/current.json

@@ -1,86 +1,88 @@
-# Backtest & Hindcast Results
+# Validation results
 
-Design: score municipalities using **only information available in 2000** (Census 2000 + the
-persistence-safe university layer), predict which places would be 2000-2025 winners, then
-compare against realized Zillow ZHVI growth. Objective per the research brief: **high recall —
-do not miss future winners; false positives are acceptable.**
+These results supersede the earlier random-place split and the earlier mechanism hindcast. The
+machine-readable record is `data/validation.json`.
 
-## Universe and outcome
+## Design
 
-- Universe: places with pop ≥ 1,000 and ZHVI observed in 2000 and 2025 → **n = 5,897**.
-- Winner: top quartile of national log(ZHVI2025/ZHVI2000); q75 = 1.203 (≈ 3.33× nominal).
-- Split: 70% train / 30% test (seeded, deterministic).
+- Historical universe: 5,897 places with population at least 1,000 and ZHVI in 2000 and 2025.
+- Outcome: nominal `log(ZHVI_2025 / ZHVI_2000)`; full-sample q75 is 1.203.
+- Validation: five deterministic folds grouped by state.
+- Leakage controls: training-only winner cutoff, preprocessing statistics, imputation, and fitting.
+- Selection: the production headline is the component with the best mean held-out-state AUC.
 
-## Statistical model (logistic, 25 features)
+Fold means are reported with the worst and best fold in parentheses. Fold means are unweighted, so
+each geographical partition—not each observation—has equal influence on the summary.
 
-| Set | ROC-AUC | Recall | Precision | Share flagged |
-|---|---|---|---|---|
-| Train | 0.775 | 0.900 | 0.330 | 0.679 |
-| **Test** | **0.801** | **0.922** | 0.337 | 0.693 |
-| Test, pop ≥ 10k | **0.837** | **0.985** | 0.379 | (n = 673) |
+## Held-out-state classification
 
-(Metrics are for the final model with the prestige-gated value/income feature — see
-STRESS_TEST.md iteration 3; the raw-V/I variant scored 0.806/0.840, i.e. the gating cost
-≈0.004 AUC.)
+| Score | Mean AUC | Fold range |
+|---|---:|---:|
+| Logistic historical-winner index | **0.667** | 0.625–0.708 |
+| Logistic + state-demeaned ridge, equal z-score weight | 0.641 | 0.573–0.701 |
+| Foreign-born-share baseline | 0.629 | 0.557–0.700 |
+| Mechanism scenario | 0.548 | 0.424–0.650 |
+| 70% logistic + 30% mechanism | 0.663 | 0.563–0.746 |
+| 70% historical-composite + 30% mechanism | 0.645 | 0.508–0.742 |
+| 50% mechanism blend | 0.630 | 0.465–0.757 |
+| 70% mechanism blend | 0.601 | 0.438–0.731 |
 
-Operating threshold chosen on train for 90% recall; at that threshold the model flags ~69% of
-all places to catch ~92% of winners — the high-recall design trades precision exactly as
-specified. Base rate is 25%, so precision 0.336 is a 1.34× lift at 92% recall; at the top of
-the score distribution the lift is far higher (see calibration).
+The mechanism does not improve the mean logistic result, and it materially hurts some held-out
+state groups. That is why the production ranking no longer blends it into the headline.
 
-### Calibration (test set, deciles of predicted probability)
+For places with population at least 10,000, mean AUC is 0.625 for the historical composite, 0.573
+for mechanism, 0.636 for the 30%-mechanism composite blend, and 0.646 for the 30%-mechanism
+logistic blend. Fold ranges are wide, so the apparent large-place improvement from a blend is not
+stable geographically.
 
-| Decile | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Mean predicted | .076 | .106 | .128 | .149 | .172 | .200 | .239 | .297 | .410 | .692 |
-| Actual winner rate | .040 | .079 | .073 | .112 | .180 | .186 | .242 | .365 | .506 | .747 |
+## Fold detail
 
-Monotone and close to the diagonal; the top decile converts at 76%, bottom two deciles under 5%.
+| Fold | Held-out states | n | Historical composite AUC | Mechanism AUC | 30% mechanism blend |
+|---:|---|---:|---:|---:|---:|
+| 0 | AK AZ HI KS MD MO NE NH RI TX WA | 810 | 0.609 | 0.444 | 0.565 |
+| 1 | CT IL KY MI MN OH OR SC UT | 1,628 | 0.573 | 0.424 | 0.508 |
+| 2 | AL AR GA LA NC NY OK WI | 1,217 | 0.631 | 0.650 | 0.712 |
+| 3 | CA CO DE MA NJ NV VT WV | 1,196 | 0.701 | 0.628 | 0.742 |
+| 4 | DC FL IA ID IN ME PA TN VA | 1,046 | 0.691 | 0.594 | 0.697 |
 
-### Continuous growth model
+The geography dependence is substantive. Fold 1 is close to chance for the composite and
+mechanism, while folds 3–4 are much stronger. A single national score hides that instability.
 
-- National outcome (log growth): test R² = 0.303, Spearman = 0.567.
-- State-demeaned outcome (within-state divergence, the production model): test R² = 0.085,
-  Spearman = 0.256 — most 25-year variance is the state/coastal macro cycle; the within-state
-  signal is real but modest, which is exactly why the forward blend leans on the mechanism model.
+## Continuous within-state diagnostics
 
-### What the fitted weights say (and why they can't be used as-is)
+The ridge model is trained on state-demeaned growth. Mean held-out Spearman correlation with the
+state-demeaned outcome is 0.164 for ridge, 0.287 for mechanism, and 0.276 for their 30%-mechanism
+blend. The mechanism captures some within-state ordering while failing to rank raw national price
+growth; this is useful diagnostic evidence, but not enough to make it the headline.
 
-Largest |weights|: foreign-born share (+), value/income (+), 60-min access (−) with 120-min
-access (+) (= metro-edge, not core), bachelor's share (−), young share (−), professional
-employment (+), seasonal share (+). The negative education/young-share weights are partialling
-artifacts of the 2000s cheap-base convergence: conditional on scarcity and gateway status,
-already-expensive educated places had lower *percentage* growth. Predictively valid for
-2000-2025; structurally wrong as forward "importance" weights — hence the mechanism simulation.
+## Why the old random split looked much better
 
-## Mechanism simulation hindcast (theory weights, no outcome fitting)
+A deliberately non-deployable diagnostic learns each state's winner rate from a random 70% of
+places and assigns that rate to the other 30%. It reaches AUC 0.842 without municipal features.
+That demonstrates how easily a random place split can reward shared state-level price shocks. It
+does not mean state identity is a usable forecast for a new regime. The previous reported random-
+split AUCs around 0.80 therefore cannot be treated as spatially independent validation.
 
-Initialize with 2000 data, run 25 years, compare simulated vs realized growth:
+## Raw mechanism hindcast
 
-| Universe | Pearson | Spearman | AUC (top-quartile) |
-|---|---|---|---|
-| All (n = 5,897) | 0.207 | 0.198 | 0.609 |
-| pop ≥ 10k (n = 2,204) | 0.315 | 0.317 | 0.669 |
+Running the corrected 2000 municipal simulation for 25 years and comparing its raw national
+ranking with observed ZHVI growth gives:
 
-Cross-sectional dispersion: sd(sim) = 0.230 vs sd(actual) = 0.264 (kappa calibrated to this
-moment only — a scale, not a ranking, adjustment). National check: simulated 65+ share reaches
-19.3% by 2025 (actual ≈ 18%).
+| Universe | Pearson | Spearman | Top-quartile AUC |
+|---|---:|---:|---:|
+| All 5,897 places | 0.041 | −0.005 | 0.522 |
+| Population at least 10,000 (n=2,204) | 0.031 | −0.031 | 0.514 |
 
-A model with **zero US price information** in its attraction weights — weights ranked from
-Japanese/Korean/European evidence — recovers a 0.32 rank correlation with 25 years of realized
-US municipal price growth among 10k+ places. That is the study's core validation: the
-aging-geography mechanisms transfer.
+The simulated dispersion is 0.166 versus 0.264 observed. The national mean real-price index ends
+at 1.541 and the simulated national 65+ share at 0.198. These are scenario diagnostics, not proof
+of municipal ranking skill.
 
-Note: before iteration 3 (STRESS_TEST.md) the hindcast Spearman was 0.385. The prestige gating
-and income-anchored error correction deliberately removed the poverty-unaffordability and
-credit-bubble appreciation channels, which were genuinely predictive in the 2000-2025 window
-(subprime geography) but are the wrong construct for 2025-2065 value concentration. We accept
-the historical-fit cost for construct validity, and keep the historical channel alive only via
-the fitted component's 0.3 blend weight.
+## Interpretation
 
-## Biggest missed winners (test set) — recall audit
+The defensible claim is narrow: year-2000 municipal features contain modest information about
+which entirely held-out states' places landed in the national top quartile through 2025. The best
+mean AUC is 0.667, only 0.038 above a foreign-born-share baseline, and the fold range is broad.
 
-Mostly sub-3k exurban towns that rode metro expansion (Wolfforth TX, Rush City MN, Ferris TX),
-plus a few inner-suburb gentrifications (Fair Haven NJ, Shorewood Hills WI, Claremont CA at
-pop 34k the largest miss). The engine misses small-town *metro-edge conversion* — places that
-became commuter towns after 2000 — consistent with its structural (rather than momentum) design.
+The output does not establish causal aging mechanisms, calibrated probabilities, or investable
+40-year returns. The same data window was used during feature and specification development, so
+even grouped cross-validation is development validation rather than a final untouched replication.

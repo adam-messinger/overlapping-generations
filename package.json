@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "npx tsx src/simulation.ts",
-    "test": "npx tsc --noEmit && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; npx tsx \"$f\" || exit 1; done",
+    "test:core": "npx tsc --noEmit && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
+    "test:aging": "npx tsc --noEmit -p aging-places/tsconfig.json && find aging-places -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
+    "test": "npm run test:core && npm run test:aging",
     "capture-baseline": "npx tsx scripts/baseline.ts --output=baselines/current.json",
     "regression": "npm run capture-baseline && npx tsx scripts/compare-baselines.ts --strict baselines/reference.json baselines/current.json",
     "bless-baseline": "npx tsx scripts/bless-baseline.ts"
