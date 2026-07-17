@@ -161,6 +161,13 @@ If two official tables disagree, the domain-specific source above takes priority
 municipal compilation. Every raw file gets a URL, table ID, survey/reference date, retrieval date,
 SHA-256 hash, and a short population-concept note.
 
+Development acquisition now includes Census table 00520 / e-Stat dataset `0003052127` for 2010
+industry employment, table 00630 / `0003175084` for 2015 industry employment, table 04100 /
+`0003038639` for 2010 foreign residents, and table 03800 / `0003148596` for 2015 foreign residents.
+The exact category selections, raw-response hashes, and normalized-source hashes are recorded in
+`japan/data/origin-feature-sources.json`. These are origin features only and do not open the sealed
+post-2020 outcome.
+
 ## 7. Outcomes and ordering
 
 The claim hierarchy is fixed:

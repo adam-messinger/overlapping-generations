@@ -105,21 +105,26 @@ price regimes.
 
 `docs/INTERNATIONAL_PANEL.md` was committed before any post-2020 municipal outcome was acquired.
 The holdout remains sealed. The current Japan result uses official 2010, 2015, and 2020 censuses,
-2020-boundary municipalities, and origin-year 10% commuting basins. It tests only the frozen US
-demographic regeneration/vitality channel and working-age allocation; institutional, human-capital,
-gateway, vacancy, and price channels are not yet in this run.
+2020-boundary municipalities, origin-year 10% commuting basins, and newly acquired official
+2010/2015 municipal employment and non-Japanese-resident tables. The partial mechanism applies the
+unchanged US weights to education, health, public-administration, information/finance/professional
+employment, and non-Japanese share. Omitted US constructs contribute zero; observed weights are not
+renormalized or fitted to Japanese outcomes. Origin-median imputation follows the frozen protocol,
+and the reported comparison sample contains complete origin features.
 
-| Window | Conditional allocation MAE/yr | Nationally scaled no-migration MAE/yr | Equal-basin Spearman: mechanism | Lagged population | Difference, 95% CI |
-|---|---:|---:|---:|---:|---:|
-| 2010–2015 | **0.00525** | 0.00680 | 0.768 | 0.756 | +0.012 (−0.051, +0.075) |
-| 2015–2020 | **0.00542** | 0.00684 | 0.760 | 0.735 | +0.026 (−0.027, +0.080) |
+| Window | Partial mechanism MAE/yr | Demographic-only MAE/yr | Scaled no-migration MAE/yr | Equal-basin Spearman: partial | Lagged population | Partial minus lag, 95% CI |
+|---|---:|---:|---:|---:|---:|---:|
+| 2010–2015 | **0.00498** | 0.00525 | 0.00680 | **0.791** | 0.756 | +0.035 (−0.019, +0.090) |
+| 2015–2020 | **0.00515** | 0.00542 | 0.00684 | **0.766** | 0.735 | +0.032 (−0.025, +0.087) |
 
-The attraction term itself adds rank information over nationally scaled no-migration aging in both
-windows: +0.041 (95% interval 0.009 to 0.077) and +0.030 (0.013 to 0.050). But the preregistered
-kill comparator is lagged population, and both intervals against it cross zero. Household demand
-is not yet predicted by the partial mechanism, and a lagged household comparator is unavailable
-for the first window. The result is therefore encouraging channel evidence but **does not pass the
-international-validation gate**. The mechanism remains scenario tooling.
+On the same municipalities, the partial mechanism exceeds demographic-only allocation by +0.023
+equal-basin Spearman in 2010–2015 (95% interval +0.003 to +0.047) and +0.006 in 2015–2020
+(−0.018 to +0.030). This is evidence that the added channels carry some development-window signal,
+but the preregistered kill comparator is lagged population and both intervals against it still cross
+zero. The partial attraction score also trails the lagged trend for household growth, and a full
+household mechanism is not yet run. University throughput, resident education, radius access,
+vacancy, and land price remain missing. The result therefore **does not pass the
+international-validation gate** and is not `japan-model-v1`; the mechanism remains scenario tooling.
 
 ## Interpretation
 

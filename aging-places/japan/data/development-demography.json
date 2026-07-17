@@ -4,37 +4,66 @@
   "scope": {
     "included": [
       "frozen US demographic regeneration and young-vitality attraction terms",
+      "official origin-year education, health, and public-administration employment",
+      "official origin-year information, finance, and professional employment",
+      "official origin-year non-Japanese resident share",
       "frozen US working mover rates and beta",
       "origin-year 10% commuting basins",
       "no-migration, lagged-trend, and demographic-ridge comparators"
     ],
     "stillMissingForJapanModelV1": [
-      "institutional engines",
-      "human capital",
-      "foreign-resident gateway",
+      "on-site university enrollment throughput",
+      "resident degree attainment",
       "radius-based market access",
       "housing supply and vacancy",
       "land prices"
     ],
-    "claim": "feasibility diagnostic only; cannot earn the internationally validated label"
+    "claim": "partial development diagnostic only; cannot earn the internationally validated label"
   },
   "mechanismFormula": {
     "standardization": "centered unit-SD percentile ranks in the origin cross-section",
-    "workingAttraction": "0.15 * (0.6 * replacementRatio - 0.4 * share45_64) + 0.15 * youngWorkingShare",
+    "demographicWorkingAttraction": "0.15 * (0.6 * replacementRatio - 0.4 * share45_64) + 0.15 * youngWorkingShare",
+    "partialWorkingAttraction": "demographic + 0.30 * (0.25 * educationEmployment + 0.20 * healthEmployment + 0.15 * publicAdministrationEmployment) + 0.25 * (0.30 * professionalInformationFinanceEmployment) + 0.10 * nonJapaneseResidentShare",
+    "weights": "unchanged subset of frozen US attraction weights; omitted constructs contribute zero rather than being reweighted",
     "replacementRatio": "population age 25-44 / population age 65+",
     "youngWorkingShare": "population age 20-34 / total population",
     "allocation": "national-total-conditioned five-year closed reallocation; beta=0.5; cohort-weighted 2.5% young-working and 1.5% midlife annual mover rates"
   },
-  "adjacentWindowSignStable": true,
+  "developmentGate": {
+    "status": "fail; remain scenario tooling",
+    "reason": "lagged-population confidence intervals cross zero in both windows and the household mechanism is incomplete",
+    "windows": {
+      "2010-2015": {
+        "beatsNoMigrationWorkingAgeMae": true,
+        "beatsLaggedPopulationWithinMarketWithCiAboveZero": false,
+        "householdMechanismAndLaggedHouseholdGateAvailable": false,
+        "passesAvailableWorkingAgeGates": false
+      },
+      "2015-2020": {
+        "beatsNoMigrationWorkingAgeMae": true,
+        "beatsLaggedPopulationWithinMarketWithCiAboveZero": false,
+        "householdMechanismAndLaggedHouseholdGateAvailable": false,
+        "passesAvailableWorkingAgeGates": false
+      }
+    }
+  },
+  "adjacentWindowSignStable": {
+    "demographicAllocation": true,
+    "partialMechanismAllocation": true
+  },
   "windows": [
     {
       "window": "2010-2015",
-      "status": "development-only demographic-channel audit; not the full international mechanism",
+      "status": "development-only partial-mechanism audit; not Japan model v1",
       "universe": {
         "frozenBoundaryUnits": 1741,
         "allocationCoverageUnits": 1735,
         "primaryPopulation10kUnits": 1251,
         "exactLaggedPopulationCommonUnits": 1251,
+        "completeOriginFeatureUnits": 1654,
+        "partialMechanismPrimaryPredictionUnits": 1251,
+        "partialMechanismCompleteCaseEvaluationUnits": 1251,
+        "partialMechanismLaggedCommonUnits": 1251,
         "householdCommonUnits": 1251,
         "boundaryInexactExcluded": 7
       },
@@ -46,6 +75,179 @@
         "fiveYearMovedFraction": 0.097989,
         "observedEndpointTotal": 70280339,
         "conservationError": -4e-8
+      },
+      "partialMechanism": {
+        "status": "frozen US weights on observed equivalent constructs; no coefficient fitting",
+        "missingDataPolicy": {
+          "allocation": "origin-cross-section median imputation, as preregistered",
+          "evaluation": "complete origin-feature cases; all comparisons rerun on the same municipalities",
+          "imputedCounts": {
+            "educationEmploymentShare": 0,
+            "healthEmploymentShare": 0,
+            "publicAdminEmploymentShare": 0,
+            "professionalInfoFinanceShare": 80,
+            "foreignResidentShare": 10
+          }
+        },
+        "includedConstructs": [
+          "education employment",
+          "health and welfare employment",
+          "public-administration employment",
+          "information, finance, and professional employment",
+          "non-Japanese resident share"
+        ],
+        "stillOmittedFromFrozenUSWorkingAttraction": [
+          "armed-forces employment",
+          "resident degree attainment",
+          "on-site university enrollment within 15 km and 60 km",
+          "population access within 60 km and 120 km",
+          "hinterland dominance",
+          "affordability and distress-vacancy feedback"
+        ],
+        "allocation": {
+          "endpointNationalTotalIsObservedOnAllocationUniverse": true,
+          "allocationUniverseIncludesOriginMedianImputation": true,
+          "baselineScaleToObservedEndpointTotal": 0.990412,
+          "conservationError": -6e-8
+        },
+        "workingAge": {
+          "absoluteMaeAllPartialPrimary": {
+            "n": 1251,
+            "conditionalPartialMechanismAllocation": 0.00498,
+            "conditionalDemographicSameSample": 0.00525,
+            "nationallyScaledNoMigrationSameSample": 0.0068
+          },
+          "localLaggedPopulationExactCommonSample": {
+            "conditionalPartialMechanismAllocation": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7427,
+              "meanWithinMarketSpearman": 0.7913,
+              "medianWithinMarketSpearman": 0.868,
+              "meanWithinMarketPairwiseAccuracy": 0.8344
+            },
+            "conditionalDemographicSameSample": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7453,
+              "meanWithinMarketSpearman": 0.7683,
+              "medianWithinMarketSpearman": 0.8439,
+              "meanWithinMarketPairwiseAccuracy": 0.8304
+            },
+            "nationallyScaledNoMigrationSameSample": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.6689,
+              "meanWithinMarketSpearman": 0.7277,
+              "medianWithinMarketSpearman": 0.8136,
+              "meanWithinMarketPairwiseAccuracy": 0.8063
+            },
+            "laggedPopulationTrend": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7711,
+              "meanWithinMarketSpearman": 0.7563,
+              "medianWithinMarketSpearman": 0.8,
+              "meanWithinMarketPairwiseAccuracy": 0.8164
+            },
+            "partialMechanismAttractionScore": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7181,
+              "meanWithinMarketSpearman": 0.7292,
+              "medianWithinMarketSpearman": 0.797,
+              "meanWithinMarketPairwiseAccuracy": 0.804
+            },
+            "institutionalEmploymentScore": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": -0.0158,
+              "meanWithinMarketSpearman": 0.1381,
+              "medianWithinMarketSpearman": 0.1836,
+              "meanWithinMarketPairwiseAccuracy": 0.5584
+            },
+            "foreignResidentShare": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.3009,
+              "meanWithinMarketSpearman": 0.2638,
+              "medianWithinMarketSpearman": 0.3825,
+              "meanWithinMarketPairwiseAccuracy": 0.5974
+            },
+            "localEquivalentConstructRidge": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.6833,
+              "meanWithinMarketSpearman": 0.7143,
+              "medianWithinMarketSpearman": 0.8178,
+              "meanWithinMarketPairwiseAccuracy": 0.8012
+            }
+          },
+          "partialMechanismMinusLaggedPopulation": {
+            "markets": 56,
+            "meanDifference": 0.035,
+            "ci95": [
+              -0.0192,
+              0.0901
+            ]
+          },
+          "partialMechanismMinusDemographicSameSample": {
+            "markets": 56,
+            "meanDifference": 0.0229,
+            "ci95": [
+              0.0027,
+              0.0465
+            ]
+          }
+        },
+        "households": {
+          "localExactFeatureCommonSample": {
+            "partialMechanismAttractionScore": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.5791,
+              "meanWithinMarketSpearman": 0.6479,
+              "medianWithinMarketSpearman": 0.7143,
+              "meanWithinMarketPairwiseAccuracy": 0.7577
+            },
+            "institutionalEmploymentScore": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": -0.0077,
+              "meanWithinMarketSpearman": 0.1169,
+              "medianWithinMarketSpearman": 0.2119,
+              "meanWithinMarketPairwiseAccuracy": 0.5462
+            },
+            "foreignResidentShare": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.1773,
+              "meanWithinMarketSpearman": 0.1693,
+              "medianWithinMarketSpearman": 0.2,
+              "meanWithinMarketPairwiseAccuracy": 0.5708
+            },
+            "laggedPopulationTrend": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.6965,
+              "meanWithinMarketSpearman": 0.7441,
+              "medianWithinMarketSpearman": 0.8,
+              "meanWithinMarketPairwiseAccuracy": 0.8144
+            }
+          }
+        }
       },
       "workingAge": {
         "outcome": "annualized log change in population age 20-64",
@@ -164,12 +366,16 @@
     },
     {
       "window": "2015-2020",
-      "status": "development-only demographic-channel audit; not the full international mechanism",
+      "status": "development-only partial-mechanism audit; not Japan model v1",
       "universe": {
         "frozenBoundaryUnits": 1741,
         "allocationCoverageUnits": 1732,
         "primaryPopulation10kUnits": 1229,
         "exactLaggedPopulationCommonUnits": 1229,
+        "completeOriginFeatureUnits": 1658,
+        "partialMechanismPrimaryPredictionUnits": 1229,
+        "partialMechanismCompleteCaseEvaluationUnits": 1229,
+        "partialMechanismLaggedCommonUnits": 1229,
         "householdCommonUnits": 1229,
         "boundaryInexactExcluded": 0
       },
@@ -181,6 +387,188 @@
         "fiveYearMovedFraction": 0.097769,
         "observedEndpointTotal": 72916539,
         "conservationError": -1e-8
+      },
+      "partialMechanism": {
+        "status": "frozen US weights on observed equivalent constructs; no coefficient fitting",
+        "missingDataPolicy": {
+          "allocation": "origin-cross-section median imputation, as preregistered",
+          "evaluation": "complete origin-feature cases; all comparisons rerun on the same municipalities",
+          "imputedCounts": {
+            "educationEmploymentShare": 0,
+            "healthEmploymentShare": 0,
+            "publicAdminEmploymentShare": 0,
+            "professionalInfoFinanceShare": 71,
+            "foreignResidentShare": 6
+          }
+        },
+        "includedConstructs": [
+          "education employment",
+          "health and welfare employment",
+          "public-administration employment",
+          "information, finance, and professional employment",
+          "non-Japanese resident share"
+        ],
+        "stillOmittedFromFrozenUSWorkingAttraction": [
+          "armed-forces employment",
+          "resident degree attainment",
+          "on-site university enrollment within 15 km and 60 km",
+          "population access within 60 km and 120 km",
+          "hinterland dominance",
+          "affordability and distress-vacancy feedback"
+        ],
+        "allocation": {
+          "endpointNationalTotalIsObservedOnAllocationUniverse": true,
+          "allocationUniverseIncludesOriginMedianImputation": true,
+          "baselineScaleToObservedEndpointTotal": 1.074945,
+          "conservationError": 1.3e-7
+        },
+        "workingAge": {
+          "absoluteMaeAllPartialPrimary": {
+            "n": 1229,
+            "conditionalPartialMechanismAllocation": 0.00515,
+            "conditionalDemographicSameSample": 0.00542,
+            "nationallyScaledNoMigrationSameSample": 0.00684
+          },
+          "localLaggedPopulationExactCommonSample": {
+            "conditionalPartialMechanismAllocation": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.7728,
+              "meanWithinMarketSpearman": 0.766,
+              "medianWithinMarketSpearman": 0.825,
+              "meanWithinMarketPairwiseAccuracy": 0.8214
+            },
+            "conditionalDemographicSameSample": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.7844,
+              "meanWithinMarketSpearman": 0.7604,
+              "medianWithinMarketSpearman": 0.8561,
+              "meanWithinMarketPairwiseAccuracy": 0.8203
+            },
+            "nationallyScaledNoMigrationSameSample": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.763,
+              "meanWithinMarketSpearman": 0.7305,
+              "medianWithinMarketSpearman": 0.8036,
+              "meanWithinMarketPairwiseAccuracy": 0.804
+            },
+            "laggedPopulationTrend": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.7499,
+              "meanWithinMarketSpearman": 0.7345,
+              "medianWithinMarketSpearman": 0.7763,
+              "meanWithinMarketPairwiseAccuracy": 0.8057
+            },
+            "partialMechanismAttractionScore": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6896,
+              "meanWithinMarketSpearman": 0.667,
+              "medianWithinMarketSpearman": 0.7066,
+              "meanWithinMarketPairwiseAccuracy": 0.7584
+            },
+            "institutionalEmploymentScore": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.053,
+              "meanWithinMarketSpearman": 0.1896,
+              "medianWithinMarketSpearman": 0.1588,
+              "meanWithinMarketPairwiseAccuracy": 0.5775
+            },
+            "foreignResidentShare": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.2385,
+              "meanWithinMarketSpearman": 0.1066,
+              "medianWithinMarketSpearman": 0.1914,
+              "meanWithinMarketPairwiseAccuracy": 0.5427
+            },
+            "localEquivalentConstructRidge": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.737,
+              "meanWithinMarketSpearman": 0.75,
+              "medianWithinMarketSpearman": 0.8259,
+              "meanWithinMarketPairwiseAccuracy": 0.8058
+            }
+          },
+          "partialMechanismMinusLaggedPopulation": {
+            "markets": 52,
+            "meanDifference": 0.0315,
+            "ci95": [
+              -0.0249,
+              0.0872
+            ]
+          },
+          "partialMechanismMinusDemographicSameSample": {
+            "markets": 52,
+            "meanDifference": 0.0056,
+            "ci95": [
+              -0.0175,
+              0.0301
+            ]
+          }
+        },
+        "households": {
+          "localExactFeatureCommonSample": {
+            "partialMechanismAttractionScore": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6202,
+              "meanWithinMarketSpearman": 0.603,
+              "medianWithinMarketSpearman": 0.65,
+              "meanWithinMarketPairwiseAccuracy": 0.7365
+            },
+            "institutionalEmploymentScore": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": -0.0228,
+              "meanWithinMarketSpearman": 0.1198,
+              "medianWithinMarketSpearman": 0.0929,
+              "meanWithinMarketPairwiseAccuracy": 0.5513
+            },
+            "foreignResidentShare": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.2384,
+              "meanWithinMarketSpearman": 0.1345,
+              "medianWithinMarketSpearman": 0.2,
+              "meanWithinMarketPairwiseAccuracy": 0.5507
+            },
+            "laggedPopulationTrend": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.7242,
+              "meanWithinMarketSpearman": 0.6927,
+              "medianWithinMarketSpearman": 0.7429,
+              "meanWithinMarketPairwiseAccuracy": 0.7872
+            },
+            "laggedHouseholdTrend": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6332,
+              "meanWithinMarketSpearman": 0.6813,
+              "medianWithinMarketSpearman": 0.7446,
+              "meanWithinMarketPairwiseAccuracy": 0.7825
+            }
+          }
+        }
       },
       "workingAge": {
         "outcome": "annualized log change in population age 20-64",

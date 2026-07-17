@@ -25,7 +25,8 @@ Sources are linked in [REFERENCES.md](REFERENCES.md).
 - **A one-cohort settlement can age synchronously.** This motivates the 45–64 share and replacement
   ratio, but does not prove that US retirement communities will repeat a specific Japanese path.
 - **Institutional stock is not permanent throughput.** Enrollment, budgets, and branch viability
-  can shrink. The current US model does not endogenize those changes.
+  can shrink. The current US model exposes illustrative exogenous throughput-decline scenarios but
+  does not endogenize those changes.
 - **Access is conditional.** Proximity to a strong market can support spillover, but a transport link
   alone does not create local demand.
 
@@ -35,4 +36,4 @@ Japan and Korea differ from the United States in immigration, tenure, mortgage f
 law, municipal geography, construction practice, and the speed of aging. Named international
 examples should be used to propose sensitivity tests, not to assert a US locality outcome. In
 particular, the US simulation has no local fertility model, no rail-network model, and no endogenous
-institutional decline.
+institutional decline; its current low/base/high retention paths are explicit stress inputs.

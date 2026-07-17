@@ -162,10 +162,13 @@ and origin-year municipality commuting flows. Tokyo's 23 special wards remain ou
 official aggregate-origin commuting record assigns them one flagged basin without splitting flows
 using endpoint outcomes.
 
-The current development run tests only demographic regeneration/vitality and working-age
-allocation. It is not `japan-model-v1`, and the 2020–2025 holdout remains sealed. Institutional,
-human-capital, gateway, radius-access, vacancy, and land-price constructs must be added before the
-full preregistered model can be frozen and opened. Italy remains untouched replication data.
+The current development run adds official origin-year education, health, public-administration,
+information/finance/professional employment and non-Japanese-resident share to the earlier
+demographic allocation. It applies only the corresponding frozen US weights, without reweighting
+the observed subset or fitting signs to Japan. It is not `japan-model-v1`, and the 2020–2025 holdout
+remains sealed. On-site university throughput, resident degree attainment, radius access, vacancy,
+and land-price constructs must still be added before the full preregistered model can be frozen and
+opened. Italy remains untouched replication data.
 
 ## 7. Forecast and valuation outputs
 

@@ -1,10 +1,11 @@
 /**
  * First Japan development-window test on the frozen municipal geography.
  *
- * This is deliberately a demographic-channel audit, not japan-model-v1. It
- * tests the US mechanism's frozen regeneration/vitality terms while the
- * institutional, human-capital, gateway, housing, and price constructs are
- * still being assembled. It reads no outcome after 2020.
+ * This is deliberately a development audit, not japan-model-v1. It reports
+ * the original demographic-only feasibility run and an exact-common-sample
+ * partial mechanism with official institutional-employment and gateway
+ * constructs. Access, enrollment, housing, and price remain missing. It reads
+ * no outcome after 2020.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -31,6 +32,14 @@ interface PanelRow {
   prefecture: string;
   name: string;
   values: Record<string, number | null>;
+}
+
+interface OriginFeatures {
+  educationEmploymentShare: number | null;
+  healthEmploymentShare: number | null;
+  publicAdminEmploymentShare: number | null;
+  professionalInfoFinanceShare: number | null;
+  foreignResidentShare: number | null;
 }
 
 interface WindowConfig {
@@ -67,10 +76,20 @@ interface PreparedUnit {
   logDensity: number;
   logPopulation: number;
   annualMoverRate: number;
+  educationEmploymentShare: number | null;
+  healthEmploymentShare: number | null;
+  publicAdminEmploymentShare: number | null;
+  professionalInfoFinanceShare: number | null;
+  foreignResidentShare: number | null;
   attraction: number;
   conditionalWorking: number;
   nationallyScaledNoMigration: number;
+  partialAttraction: number | null;
+  conditionalPartialWorking: number | null;
+  conditionalPartialDemographicWorking: number | null;
+  partialNationallyScaledNoMigration: number | null;
   localWorkingRidge: number;
+  localPartialWorkingRidge: number;
   localHouseholdRidge: number;
 }
 
@@ -138,6 +157,37 @@ function loadMarkets(year: 2010 | 2015): Map<string, string> {
   return new Map(rows.slice(1).map((row) => [row[code], row[market]]));
 }
 
+function loadOriginFeatures(year: 2010 | 2015): Map<string, OriginFeatures> {
+  const rows = parseCsv(readCsvAuto(path.join(DATA_DIR, 'origin-features.csv')));
+  const header = rows[0];
+  const at = (name: string): number => {
+    const column = header.indexOf(name);
+    if (column < 0) throw new Error(`Japan origin features are missing ${name}`);
+    return column;
+  };
+  const code = at('code2020');
+  const originYear = at('originYear');
+  const features = [
+    'educationEmploymentShare',
+    'healthEmploymentShare',
+    'publicAdminEmploymentShare',
+    'professionalInfoFinanceShare',
+    'foreignResidentShare',
+  ] as const;
+  const result = new Map<string, OriginFeatures>();
+  for (const row of rows.slice(1).filter((candidate) => Number(candidate[originYear]) === year)) {
+    const values = Object.fromEntries(features.map((feature) => {
+      const raw = row[at(feature)];
+      const value = raw === '' ? NaN : Number(raw);
+      return [feature, Number.isFinite(value) ? value : null];
+    })) as unknown as OriginFeatures;
+    if (result.has(row[code])) throw new Error(`duplicate ${year} origin feature row ${row[code]}`);
+    result.set(row[code], values);
+  }
+  if (result.size !== 1_741) throw new Error(`expected 1,741 ${year} origin feature rows, found ${result.size}`);
+  return result;
+}
+
 function required(row: PanelRow, name: string): number {
   const value = row.values[name];
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -156,8 +206,21 @@ function maybePrepared(
   panel: PanelRow,
   config: WindowConfig,
   market: string | undefined,
-): Omit<PreparedUnit, 'attraction' | 'conditionalWorking' | 'nationallyScaledNoMigration' | 'localWorkingRidge' | 'localHouseholdRidge'> | null {
+  origin: OriginFeatures | undefined,
+): Omit<PreparedUnit,
+  | 'attraction'
+  | 'conditionalWorking'
+  | 'nationallyScaledNoMigration'
+  | 'partialAttraction'
+  | 'conditionalPartialWorking'
+  | 'conditionalPartialDemographicWorking'
+  | 'partialNationallyScaledNoMigration'
+  | 'localWorkingRidge'
+  | 'localPartialWorkingRidge'
+  | 'localHouseholdRidge'
+> | null {
   if (!market) return null;
+  if (!origin) throw new Error(`${config.originYear} origin features are missing ${panel.code}`);
   const value = (name: string): number | null => optional(panel, name);
   const population = value(config.populationOrigin);
   const originWorking = value(config.originWorking);
@@ -199,6 +262,7 @@ function maybePrepared(
     logDensity: Math.log1p(density!),
     logPopulation: Math.log(population!),
     annualMoverRate: working > 0 ? (0.025 * youngWorking + 0.015 * midlife) / working : 0.02,
+    ...origin,
   };
 }
 
@@ -216,7 +280,7 @@ function centerByMarket(units: PreparedUnit[], outcome: (unit: PreparedUnit) => 
   });
 }
 
-function featureMatrix(units: PreparedUnit[]): number[][] {
+function featureMatrix(units: PreparedUnit[], includeOriginFeatures = false): number[][] {
   return units.map((unit) => [
     unit.replacementRatio,
     unit.youngWorkingShare,
@@ -224,6 +288,13 @@ function featureMatrix(units: PreparedUnit[]): number[][] {
     unit.olderShare,
     unit.logDensity,
     unit.logPopulation,
+    ...(includeOriginFeatures ? [
+      unit.educationEmploymentShare!,
+      unit.healthEmploymentShare!,
+      unit.publicAdminEmploymentShare!,
+      unit.professionalInfoFinanceShare!,
+      unit.foreignResidentShare!,
+    ] : []),
   ]);
 }
 
@@ -231,8 +302,9 @@ function outOfFoldRidge(
   units: PreparedUnit[],
   year: number,
   outcome: (unit: PreparedUnit) => number,
+  includeOriginFeatures = false,
 ): number[] {
-  const matrix = featureMatrix(units);
+  const matrix = featureMatrix(units, includeOriginFeatures);
   const target = centerByMarket(units, outcome);
   const result = new Array(units.length).fill(NaN);
   for (let fold = 0; fold < 5; fold++) {
@@ -277,12 +349,46 @@ function publicMetrics(evaluation: LocalEvaluation): ReturnType<typeof evaluateL
   return evaluation.metrics;
 }
 
+function hasCompleteOriginFeatures(unit: {
+  educationEmploymentShare: number | null;
+  healthEmploymentShare: number | null;
+  publicAdminEmploymentShare: number | null;
+  professionalInfoFinanceShare: number | null;
+  foreignResidentShare: number | null;
+}): boolean {
+  return [
+    unit.educationEmploymentShare,
+    unit.healthEmploymentShare,
+    unit.publicAdminEmploymentShare,
+    unit.professionalInfoFinanceShare,
+    unit.foreignResidentShare,
+  ].every((value) => value !== null && Number.isFinite(value));
+}
+
+function medianImpute(values: Array<number | null>): { values: number[]; median: number; missing: number } {
+  const finite = values.filter((value): value is number => value !== null && Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (finite.length === 0) throw new Error('cannot impute an origin feature with no finite values');
+  const middle = Math.floor(finite.length / 2);
+  const median = finite.length % 2 === 1
+    ? finite[middle]
+    : (finite[middle - 1] + finite[middle]) / 2;
+  return {
+    values: values.map((value) => value === null || !Number.isFinite(value) ? median : value),
+    median,
+    missing: values.length - finite.length,
+  };
+}
+
 function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
   summary: Record<string, unknown>;
   units: PreparedUnit[];
 } {
   const marketByCode = loadMarkets(config.originYear);
-  const prelim = panel.map((row) => maybePrepared(row, config, marketByCode.get(row.code)))
+  const originByCode = loadOriginFeatures(config.originYear);
+  const prelim = panel.map((row) => maybePrepared(
+    row, config, marketByCode.get(row.code), originByCode.get(row.code),
+  ))
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
   const rep = percentileStandardize(prelim.map((unit) => unit.replacementRatio));
@@ -298,6 +404,76 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
     attraction: attractions[index],
     annualMoverRate: unit.annualMoverRate,
   })));
+
+  // The frozen protocol specifies origin-median imputation. Missing values are
+  // confined to small/suppressed municipalities in the current primary sample,
+  // but they remain in the national allocation rather than being dropped.
+  const completeOriginPrelim = prelim.filter(hasCompleteOriginFeatures);
+  const partialPrelim = prelim;
+  const partialRep = percentileStandardize(partialPrelim.map((unit) => unit.replacementRatio));
+  const partialMidlife = percentileStandardize(partialPrelim.map((unit) => unit.midlifeShare));
+  const partialVitality = percentileStandardize(partialPrelim.map((unit) => unit.youngWorkingShare));
+  const imputed = {
+    educationEmploymentShare: medianImpute(
+      partialPrelim.map((unit) => unit.educationEmploymentShare),
+    ),
+    healthEmploymentShare: medianImpute(
+      partialPrelim.map((unit) => unit.healthEmploymentShare),
+    ),
+    publicAdminEmploymentShare: medianImpute(
+      partialPrelim.map((unit) => unit.publicAdminEmploymentShare),
+    ),
+    professionalInfoFinanceShare: medianImpute(
+      partialPrelim.map((unit) => unit.professionalInfoFinanceShare),
+    ),
+    foreignResidentShare: medianImpute(
+      partialPrelim.map((unit) => unit.foreignResidentShare),
+    ),
+  };
+  const education = percentileStandardize(imputed.educationEmploymentShare.values);
+  const health = percentileStandardize(imputed.healthEmploymentShare.values);
+  const publicAdmin = percentileStandardize(imputed.publicAdminEmploymentShare.values);
+  const professional = percentileStandardize(imputed.professionalInfoFinanceShare.values);
+  const foreign = percentileStandardize(imputed.foreignResidentShare.values);
+  const partialDemographicAttraction = partialPrelim.map((_, index) => (
+    0.15 * (0.6 * partialRep[index] - 0.4 * partialMidlife[index])
+    + 0.15 * partialVitality[index]
+  ));
+  const partialAttraction = partialPrelim.map((_, index) => {
+    const observedInstitutionalEngine = 0.25 * education[index]
+      + 0.20 * health[index]
+      + 0.15 * publicAdmin[index];
+    const observedHumanCapital = 0.30 * professional[index];
+    return partialDemographicAttraction[index]
+      + 0.30 * observedInstitutionalEngine
+      + 0.25 * observedHumanCapital
+      + 0.10 * foreign[index];
+  });
+  const partialBaseUnits = partialPrelim.map((unit) => ({
+    originWorking: unit.originWorking,
+    demographicEndpoint: unit.demographicEndpoint,
+    observedEndpoint: unit.endpointWorking,
+    annualMoverRate: unit.annualMoverRate,
+  }));
+  const partialAllocation = conditionalWorkingAllocation(partialBaseUnits.map((unit, index) => ({
+    ...unit,
+    attraction: partialAttraction[index],
+  })));
+  const partialDemographicAllocation = conditionalWorkingAllocation(
+    partialBaseUnits.map((unit, index) => ({
+      ...unit,
+      attraction: partialDemographicAttraction[index],
+    })),
+  );
+  const partialByCode = new Map(partialPrelim.map((unit, index) => [unit.panel.code, {
+    attraction: partialAttraction[index],
+    conditionalWorking: partialAllocation.predictedLogChange[index],
+    conditionalDemographicWorking: partialDemographicAllocation.predictedLogChange[index],
+    nationallyScaledNoMigration: Math.log(
+      unit.demographicEndpoint * partialAllocation.baselineScaleToObservedNationalTotal
+      / unit.originWorking,
+    ),
+  }]));
   const units: PreparedUnit[] = prelim.map((unit, index) => ({
     ...unit,
     attraction: attractions[index],
@@ -305,7 +481,14 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
     nationallyScaledNoMigration: Math.log(
       unit.demographicEndpoint * allocation.baselineScaleToObservedNationalTotal / unit.originWorking,
     ),
+    partialAttraction: partialByCode.get(unit.panel.code)?.attraction ?? null,
+    conditionalPartialWorking: partialByCode.get(unit.panel.code)?.conditionalWorking ?? null,
+    conditionalPartialDemographicWorking:
+      partialByCode.get(unit.panel.code)?.conditionalDemographicWorking ?? null,
+    partialNationallyScaledNoMigration:
+      partialByCode.get(unit.panel.code)?.nationallyScaledNoMigration ?? null,
     localWorkingRidge: NaN,
+    localPartialWorkingRidge: NaN,
     localHouseholdRidge: NaN,
   }));
 
@@ -352,6 +535,67 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
     workingScores.nationallyScaledNoMigration.spearmanByMarket,
   );
 
+  const partialPrimary = primary.filter((unit) => (
+    unit.partialAttraction !== null
+    && unit.conditionalPartialWorking !== null
+    && unit.conditionalPartialDemographicWorking !== null
+    && unit.partialNationallyScaledNoMigration !== null
+  ));
+  const partialEvaluationPrimary = partialPrimary.filter(hasCompleteOriginFeatures);
+  const partialWorkingCommon = partialEvaluationPrimary.filter((unit) => unit.laggedPopulation !== null);
+  const partialRidge = outOfFoldRidge(
+    partialWorkingCommon,
+    config.originYear,
+    (unit) => unit.workingOutcome,
+    true,
+  );
+  partialWorkingCommon.forEach((unit, index) => {
+    unit.localPartialWorkingRidge = partialRidge[index];
+  });
+  const institutionalEmploymentScore = (unit: PreparedUnit): number => (
+    0.25 * unit.educationEmploymentShare!
+    + 0.20 * unit.healthEmploymentShare!
+    + 0.15 * unit.publicAdminEmploymentShare!
+  );
+  const partialWorkingScores: Record<string, LocalEvaluation> = {
+    conditionalPartialMechanismAllocation: local(
+      partialWorkingCommon, (unit) => unit.conditionalPartialWorking!, (unit) => unit.workingOutcome,
+    ),
+    conditionalDemographicSameSample: local(
+      partialWorkingCommon,
+      (unit) => unit.conditionalPartialDemographicWorking!,
+      (unit) => unit.workingOutcome,
+    ),
+    nationallyScaledNoMigrationSameSample: local(
+      partialWorkingCommon,
+      (unit) => unit.partialNationallyScaledNoMigration!,
+      (unit) => unit.workingOutcome,
+    ),
+    laggedPopulationTrend: local(
+      partialWorkingCommon, (unit) => unit.laggedPopulation!, (unit) => unit.workingOutcome,
+    ),
+    partialMechanismAttractionScore: local(
+      partialWorkingCommon, (unit) => unit.partialAttraction!, (unit) => unit.workingOutcome,
+    ),
+    institutionalEmploymentScore: local(
+      partialWorkingCommon, institutionalEmploymentScore, (unit) => unit.workingOutcome,
+    ),
+    foreignResidentShare: local(
+      partialWorkingCommon, (unit) => unit.foreignResidentShare!, (unit) => unit.workingOutcome,
+    ),
+    localEquivalentConstructRidge: local(
+      partialWorkingCommon, (unit) => unit.localPartialWorkingRidge, (unit) => unit.workingOutcome,
+    ),
+  };
+  const partialMechanismMinusLagged = bootstrapDifference(
+    partialWorkingScores.conditionalPartialMechanismAllocation.spearmanByMarket,
+    partialWorkingScores.laggedPopulationTrend.spearmanByMarket,
+  );
+  const partialMechanismMinusDemographic = bootstrapDifference(
+    partialWorkingScores.conditionalPartialMechanismAllocation.spearmanByMarket,
+    partialWorkingScores.conditionalDemographicSameSample.spearmanByMarket,
+  );
+
   const householdOutcome = primary.filter((unit) => unit.householdOutcome !== null);
   const householdCommon = config.laggedHousehold === null
     ? householdOutcome.filter((unit) => unit.laggedPopulation !== null)
@@ -378,17 +622,45 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
       householdCommon, (unit) => unit.laggedHousehold!, (unit) => unit.householdOutcome!,
     );
   }
+  const partialHouseholdCommon = partialEvaluationPrimary.filter((unit) => (
+    unit.householdOutcome !== null
+    && unit.laggedPopulation !== null
+    && (config.laggedHousehold === null || unit.laggedHousehold !== null)
+  ));
+  const partialHouseholdScores: Record<string, LocalEvaluation> = {
+    partialMechanismAttractionScore: local(
+      partialHouseholdCommon, (unit) => unit.partialAttraction!, (unit) => unit.householdOutcome!,
+    ),
+    institutionalEmploymentScore: local(
+      partialHouseholdCommon, institutionalEmploymentScore, (unit) => unit.householdOutcome!,
+    ),
+    foreignResidentShare: local(
+      partialHouseholdCommon, (unit) => unit.foreignResidentShare!, (unit) => unit.householdOutcome!,
+    ),
+    laggedPopulationTrend: local(
+      partialHouseholdCommon, (unit) => unit.laggedPopulation!, (unit) => unit.householdOutcome!,
+    ),
+  };
+  if (config.laggedHousehold !== null) {
+    partialHouseholdScores.laggedHouseholdTrend = local(
+      partialHouseholdCommon, (unit) => unit.laggedHousehold!, (unit) => unit.householdOutcome!,
+    );
+  }
 
   return {
     units,
     summary: {
       window: `${config.originYear}-${config.endpointYear}`,
-      status: 'development-only demographic-channel audit; not the full international mechanism',
+      status: 'development-only partial-mechanism audit; not Japan model v1',
       universe: {
         frozenBoundaryUnits: panel.length,
         allocationCoverageUnits: units.length,
         primaryPopulation10kUnits: primary.length,
         exactLaggedPopulationCommonUnits: workingCommon.length,
+        completeOriginFeatureUnits: completeOriginPrelim.length,
+        partialMechanismPrimaryPredictionUnits: partialPrimary.length,
+        partialMechanismCompleteCaseEvaluationUnits: partialEvaluationPrimary.length,
+        partialMechanismLaggedCommonUnits: partialWorkingCommon.length,
         householdCommonUnits: householdCommon.length,
         boundaryInexactExcluded: config.boundaryExactRequired
           ? units.filter((unit) => unit.population >= MIN_POPULATION && unit.panel.values.boundaryExact2010 !== 1).length
@@ -402,6 +674,71 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
         fiveYearMovedFraction: +allocation.fiveYearMovedFraction.toFixed(6),
         observedEndpointTotal: +allocation.observedEndpointTotal.toFixed(3),
         conservationError: +(allocation.predictedEndpointTotal - allocation.observedEndpointTotal).toFixed(8),
+      },
+      partialMechanism: {
+        status: 'frozen US weights on observed equivalent constructs; no coefficient fitting',
+        missingDataPolicy: {
+          allocation: 'origin-cross-section median imputation, as preregistered',
+          evaluation: 'complete origin-feature cases; all comparisons rerun on the same municipalities',
+          imputedCounts: Object.fromEntries(
+            Object.entries(imputed).map(([name, values]) => [name, values.missing]),
+          ),
+        },
+        includedConstructs: [
+          'education employment',
+          'health and welfare employment',
+          'public-administration employment',
+          'information, finance, and professional employment',
+          'non-Japanese resident share',
+        ],
+        stillOmittedFromFrozenUSWorkingAttraction: [
+          'armed-forces employment',
+          'resident degree attainment',
+          'on-site university enrollment within 15 km and 60 km',
+          'population access within 60 km and 120 km',
+          'hinterland dominance',
+          'affordability and distress-vacancy feedback',
+        ],
+        allocation: {
+          endpointNationalTotalIsObservedOnAllocationUniverse: true,
+          allocationUniverseIncludesOriginMedianImputation: true,
+          baselineScaleToObservedEndpointTotal:
+            +partialAllocation.baselineScaleToObservedNationalTotal.toFixed(6),
+          conservationError:
+            +(partialAllocation.predictedEndpointTotal - partialAllocation.observedEndpointTotal).toFixed(8),
+        },
+        workingAge: {
+          absoluteMaeAllPartialPrimary: {
+            n: partialEvaluationPrimary.length,
+            conditionalPartialMechanismAllocation: maeAnnualized(
+              partialEvaluationPrimary,
+              (unit) => unit.conditionalPartialWorking!,
+              (unit) => unit.workingOutcome,
+            ),
+            conditionalDemographicSameSample: maeAnnualized(
+              partialEvaluationPrimary,
+              (unit) => unit.conditionalPartialDemographicWorking!,
+              (unit) => unit.workingOutcome,
+            ),
+            nationallyScaledNoMigrationSameSample: maeAnnualized(
+              partialEvaluationPrimary,
+              (unit) => unit.partialNationallyScaledNoMigration!,
+              (unit) => unit.workingOutcome,
+            ),
+          },
+          localLaggedPopulationExactCommonSample: Object.fromEntries(
+            Object.entries(partialWorkingScores)
+              .map(([name, evaluation]) => [name, publicMetrics(evaluation)]),
+          ),
+          partialMechanismMinusLaggedPopulation: partialMechanismMinusLagged,
+          partialMechanismMinusDemographicSameSample: partialMechanismMinusDemographic,
+        },
+        households: {
+          localExactFeatureCommonSample: Object.fromEntries(
+            Object.entries(partialHouseholdScores)
+              .map(([name, evaluation]) => [name, publicMetrics(evaluation)]),
+          ),
+        },
       },
       workingAge: {
         outcome: 'annualized log change in population age 20-64',
@@ -451,31 +788,73 @@ function main(): void {
     const scores = working.localLaggedPopulationCommonSample as Record<string, Record<string, number | null>>;
     return scores.conditionalDemographicAllocation.meanWithinMarketSpearman;
   });
+  const partialWorkingMeans = analyses.map((analysis) => {
+    const partial = analysis.summary.partialMechanism as Record<string, unknown>;
+    const working = partial.workingAge as Record<string, unknown>;
+    const scores = working.localLaggedPopulationExactCommonSample as Record<
+      string,
+      Record<string, number | null>
+    >;
+    return scores.conditionalPartialMechanismAllocation.meanWithinMarketSpearman;
+  });
+  const gateWindows = Object.fromEntries(analyses.map((analysis) => {
+    const window = String(analysis.summary.window);
+    const partial = analysis.summary.partialMechanism as Record<string, unknown>;
+    const working = partial.workingAge as Record<string, unknown>;
+    const mae = working.absoluteMaeAllPartialPrimary as Record<string, number>;
+    const difference = working.partialMechanismMinusLaggedPopulation as {
+      meanDifference: number | null;
+      ci95: [number | null, number | null];
+    };
+    const beatsNoMigrationMae = mae.conditionalPartialMechanismAllocation
+      < mae.nationallyScaledNoMigrationSameSample;
+    const laggedPopulationCiAboveZero = difference.ci95[0] !== null && difference.ci95[0] > 0;
+    return [window, {
+      beatsNoMigrationWorkingAgeMae: beatsNoMigrationMae,
+      beatsLaggedPopulationWithinMarketWithCiAboveZero: laggedPopulationCiAboveZero,
+      householdMechanismAndLaggedHouseholdGateAvailable: false,
+      passesAvailableWorkingAgeGates: beatsNoMigrationMae && laggedPopulationCiAboveZero,
+    }];
+  }));
   const result = {
     protocol: 'docs/INTERNATIONAL_PANEL.md committed at ec2869b before post-2020 acquisition',
     holdoutStatus: 'sealed; this script reads no outcome after 2020',
     scope: {
       included: [
         'frozen US demographic regeneration and young-vitality attraction terms',
+        'official origin-year education, health, and public-administration employment',
+        'official origin-year information, finance, and professional employment',
+        'official origin-year non-Japanese resident share',
         'frozen US working mover rates and beta',
         'origin-year 10% commuting basins',
         'no-migration, lagged-trend, and demographic-ridge comparators',
       ],
       stillMissingForJapanModelV1: [
-        'institutional engines', 'human capital', 'foreign-resident gateway',
+        'on-site university enrollment throughput', 'resident degree attainment',
         'radius-based market access', 'housing supply and vacancy', 'land prices',
       ],
-      claim: 'feasibility diagnostic only; cannot earn the internationally validated label',
+      claim: 'partial development diagnostic only; cannot earn the internationally validated label',
     },
     mechanismFormula: {
       standardization: 'centered unit-SD percentile ranks in the origin cross-section',
-      workingAttraction: '0.15 * (0.6 * replacementRatio - 0.4 * share45_64) + 0.15 * youngWorkingShare',
+      demographicWorkingAttraction: '0.15 * (0.6 * replacementRatio - 0.4 * share45_64) + 0.15 * youngWorkingShare',
+      partialWorkingAttraction: 'demographic + 0.30 * (0.25 * educationEmployment + 0.20 * healthEmployment + 0.15 * publicAdministrationEmployment) + 0.25 * (0.30 * professionalInformationFinanceEmployment) + 0.10 * nonJapaneseResidentShare',
+      weights: 'unchanged subset of frozen US attraction weights; omitted constructs contribute zero rather than being reweighted',
       replacementRatio: 'population age 25-44 / population age 65+',
       youngWorkingShare: 'population age 20-34 / total population',
       allocation: 'national-total-conditioned five-year closed reallocation; beta=0.5; cohort-weighted 2.5% young-working and 1.5% midlife annual mover rates',
     },
-    adjacentWindowSignStable: workingMeans.every((value) => value !== null)
-      && Math.sign(workingMeans[0]!) === Math.sign(workingMeans[1]!),
+    developmentGate: {
+      status: 'fail; remain scenario tooling',
+      reason: 'lagged-population confidence intervals cross zero in both windows and the household mechanism is incomplete',
+      windows: gateWindows,
+    },
+    adjacentWindowSignStable: {
+      demographicAllocation: workingMeans.every((value) => value !== null)
+        && Math.sign(workingMeans[0]!) === Math.sign(workingMeans[1]!),
+      partialMechanismAllocation: partialWorkingMeans.every((value) => value !== null)
+        && Math.sign(partialWorkingMeans[0]!) === Math.sign(partialWorkingMeans[1]!),
+    },
     windows: analyses.map((analysis) => analysis.summary),
   };
   const target = path.join(DATA_DIR, 'development-demography.json');
@@ -498,7 +877,17 @@ function main(): void {
       unit.nationallyScaledNoMigration,
       unit.laggedPopulation,
       unit.attraction,
+      unit.partialAttraction,
+      unit.conditionalPartialWorking,
+      unit.conditionalPartialDemographicWorking,
+      unit.partialNationallyScaledNoMigration,
+      unit.educationEmploymentShare,
+      unit.healthEmploymentShare,
+      unit.publicAdminEmploymentShare,
+      unit.professionalInfoFinanceShare,
+      unit.foreignResidentShare,
       Number.isFinite(unit.localWorkingRidge) ? unit.localWorkingRidge : null,
+      Number.isFinite(unit.localPartialWorkingRidge) ? unit.localPartialWorkingRidge : null,
       unit.householdOutcome,
       unit.laggedHousehold,
       Number.isFinite(unit.localHouseholdRidge) ? unit.localHouseholdRidge : null,
@@ -511,17 +900,26 @@ function main(): void {
       'originPopulation', 'boundaryExact2010', 'workingAgeLogChangeObserved',
       'workingAgeLogChangeConditionalDemographic', 'workingAgeLogChangeNoMigration',
       'workingAgeLogChangeNationallyScaledNoMigration', 'laggedPopulationLogChange',
-      'demographicAttraction', 'localWorkingRidgeOof', 'privateHouseholdLogChangeObserved',
+      'demographicAttraction', 'partialMechanismAttraction',
+      'workingAgeLogChangeConditionalPartialMechanism',
+      'workingAgeLogChangeConditionalDemographicExactFeatureSample',
+      'workingAgeLogChangeNationallyScaledNoMigrationExactFeatureSample',
+      'educationEmploymentShare', 'healthEmploymentShare', 'publicAdminEmploymentShare',
+      'professionalInfoFinanceShare', 'foreignResidentShare',
+      'localWorkingRidgeOof', 'localEquivalentConstructRidgeOof',
+      'privateHouseholdLogChangeObserved',
       'laggedPrivateHouseholdLogChange', 'localHouseholdRidgeOof',
     ],
     localityRows,
   );
   console.log(`wrote ${target}`);
   console.log(JSON.stringify({
+    developmentGate: result.developmentGate,
     adjacentWindowSignStable: result.adjacentWindowSignStable,
     windows: result.windows.map((window) => ({
       window: window.window,
       workingAge: window.workingAge,
+      partialMechanism: window.partialMechanism,
       households: window.households,
     })),
   }, null, 2));

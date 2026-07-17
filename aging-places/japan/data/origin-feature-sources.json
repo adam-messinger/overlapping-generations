@@ -1,0 +1,411 @@
+{
+  "retrievedNoLaterThan": "2026-07-17T05:36:21.815Z",
+  "post2020OutcomeIncluded": false,
+  "endpointPolicy": "origin-year 2010 and 2015 features only; no outcome after 2020 requested",
+  "sources": [
+    {
+      "key": "employment2010",
+      "year": 2010,
+      "construct": "Industry, employment status, and sex by municipality",
+      "tableNumber": "00520",
+      "statsDataId": "0003052127",
+      "url": "https://www.e-stat.go.jp/dbview?sid=0003052127",
+      "selectedCodes": {
+        "2": [
+          "2010000000"
+        ],
+        "3": [
+          "00710"
+        ],
+        "4": [
+          "000",
+          "141",
+          "224",
+          "239",
+          "290",
+          "301",
+          "347"
+        ],
+        "5": [
+          "000"
+        ],
+        "6": [
+          "000"
+        ],
+        "18": [
+          "340"
+        ]
+      },
+      "selectedDimensions": [
+        {
+          "matterId": 2,
+          "matterName": "時間軸（年次）",
+          "items": [
+            {
+              "code": "2010000000",
+              "name": "2010年"
+            }
+          ]
+        },
+        {
+          "matterId": 3,
+          "matterName": "全域・人口集中地区2010",
+          "items": [
+            {
+              "code": "00710",
+              "name": "全域"
+            }
+          ]
+        },
+        {
+          "matterId": 4,
+          "matterName": "産業大分類2010",
+          "items": [
+            {
+              "code": "000",
+              "name": "総数（産業分類）"
+            },
+            {
+              "code": "141",
+              "name": "Ｇ 情報通信業"
+            },
+            {
+              "code": "224",
+              "name": "Ｊ 金融業，保険業"
+            },
+            {
+              "code": "239",
+              "name": "Ｌ 学術研究，専門・技術サービス業"
+            },
+            {
+              "code": "290",
+              "name": "Ｏ 教育，学習支援業"
+            },
+            {
+              "code": "301",
+              "name": "Ｐ 医療，福祉"
+            },
+            {
+              "code": "347",
+              "name": "Ｓ 公務（他に分類されるものを除く）"
+            }
+          ]
+        },
+        {
+          "matterId": 5,
+          "matterName": "従業上の地位2010",
+          "items": [
+            {
+              "code": "000",
+              "name": "総数（従業上の地位）"
+            }
+          ]
+        },
+        {
+          "matterId": 6,
+          "matterName": "男女別2010",
+          "items": [
+            {
+              "code": "000",
+              "name": "総数（男女別）"
+            }
+          ]
+        },
+        {
+          "matterId": 18,
+          "matterName": "表章項目",
+          "items": [
+            {
+              "code": "340",
+              "name": "15歳以上就業者数"
+            }
+          ]
+        }
+      ],
+      "modelBytes": 985131,
+      "modelSha256": "39e30d86b6139b6fffc7c6b645ec161544bf8e59e5d1504cc656af77f079d75f",
+      "resultBytes": 1258619,
+      "resultSha256": "14723ad5fb0e628d8a30674e060b3ffee8da0b3931e94969e80ffa4b29b61f94",
+      "normalizedFile": "origin-employment2010.csv",
+      "normalizedBytes": 80991,
+      "normalizedSha256": "c02edd5db60738a0a272f0d64ff03ce5184b8312ae90489222742c451a4a57f4",
+      "rows": 1750,
+      "populationConcept": "usual-resident workers age 15+; industry of resident employment; total sex; full municipality"
+    },
+    {
+      "key": "employment2015",
+      "year": 2015,
+      "construct": "Industry and sex by municipality",
+      "tableNumber": "00630",
+      "statsDataId": "0003175084",
+      "url": "https://www.e-stat.go.jp/dbview?sid=0003175084",
+      "selectedCodes": {
+        "2": [
+          "2015000000"
+        ],
+        "3": [
+          "0000"
+        ],
+        "7": [
+          "0000",
+          "1420",
+          "2250",
+          "2400",
+          "2910",
+          "3020",
+          "3480"
+        ],
+        "18": [
+          "1"
+        ]
+      },
+      "selectedDimensions": [
+        {
+          "matterId": 2,
+          "matterName": "時間軸（年次）",
+          "items": [
+            {
+              "code": "2015000000",
+              "name": "2015年"
+            }
+          ]
+        },
+        {
+          "matterId": 3,
+          "matterName": "男女別_2015",
+          "items": [
+            {
+              "code": "0000",
+              "name": "総数（男女別）"
+            }
+          ]
+        },
+        {
+          "matterId": 7,
+          "matterName": "産業分類_2015",
+          "items": [
+            {
+              "code": "0000",
+              "name": "総数（産業分類）"
+            },
+            {
+              "code": "1420",
+              "name": "G 情報通信業"
+            },
+            {
+              "code": "2250",
+              "name": "J 金融業，保険業"
+            },
+            {
+              "code": "2400",
+              "name": "L 学術研究，専門・技術サービス業"
+            },
+            {
+              "code": "2910",
+              "name": "O 教育，学習支援業"
+            },
+            {
+              "code": "3020",
+              "name": "P 医療，福祉"
+            },
+            {
+              "code": "3480",
+              "name": "S 公務（他に分類されるものを除く）"
+            }
+          ]
+        },
+        {
+          "matterId": 18,
+          "matterName": "表章項目",
+          "items": [
+            {
+              "code": "1",
+              "name": "15歳以上就業者数"
+            }
+          ]
+        }
+      ],
+      "modelBytes": 512052,
+      "modelSha256": "9d776fc6f5f941c455c67a6195a2aa16b9d03cca3a04f635a294bf95df1a5b8c",
+      "resultBytes": 1250186,
+      "resultSha256": "773f1b638112dbc019b3f019c0ab3bc81f529833ae919224cab28b21b00975f2",
+      "normalizedFile": "origin-employment2015.csv",
+      "normalizedBytes": 80425,
+      "normalizedSha256": "2687e89bcae34c5ef4032a57882b24c8833e71ed3b084efc1e49bdf503dab49a",
+      "rows": 1741,
+      "populationConcept": "usual-resident workers age 15+; industry of resident employment; total sex; full municipality"
+    },
+    {
+      "key": "foreign2010",
+      "year": 2010,
+      "construct": "Foreign residents by nationality and sex by municipality",
+      "tableNumber": "04100",
+      "statsDataId": "0003038639",
+      "url": "https://www.e-stat.go.jp/dbview?sid=0003038639",
+      "selectedCodes": {
+        "2": [
+          "2010000000"
+        ],
+        "3": [
+          "00710"
+        ],
+        "4": [
+          "000"
+        ],
+        "5": [
+          "000"
+        ],
+        "18": [
+          "020"
+        ]
+      },
+      "selectedDimensions": [
+        {
+          "matterId": 2,
+          "matterName": "時間軸（年次）",
+          "items": [
+            {
+              "code": "2010000000",
+              "name": "2010年"
+            }
+          ]
+        },
+        {
+          "matterId": 3,
+          "matterName": "全域・人口集中地区2010",
+          "items": [
+            {
+              "code": "00710",
+              "name": "全域"
+            }
+          ]
+        },
+        {
+          "matterId": 4,
+          "matterName": "男女別2010",
+          "items": [
+            {
+              "code": "000",
+              "name": "総数（男女別）"
+            }
+          ]
+        },
+        {
+          "matterId": 5,
+          "matterName": "外国人の国籍2010",
+          "items": [
+            {
+              "code": "000",
+              "name": "総数（外国人の国籍）"
+            }
+          ]
+        },
+        {
+          "matterId": 18,
+          "matterName": "表章項目",
+          "items": [
+            {
+              "code": "020",
+              "name": "人口"
+            }
+          ]
+        }
+      ],
+      "modelBytes": 526913,
+      "modelSha256": "92907f6c644b769a445f9c3b30bbf20b8c748a87af9803012c46f1ab40e0f733",
+      "resultBytes": 459336,
+      "resultSha256": "01efcb3b4345059246821c41469f9210fce298327efef009ffac0ccf374ea38b",
+      "normalizedFile": "origin-foreign2010.csv",
+      "normalizedBytes": 35839,
+      "normalizedSha256": "bf3dec09a22495f627514b0516e4539dcc7a260df8db8d5af1502d89bdf0a4fe",
+      "rows": 1750,
+      "populationConcept": "usual-resident non-Japanese population; total sex; full municipality"
+    },
+    {
+      "key": "foreign2015",
+      "year": 2015,
+      "construct": "Foreign residents by nationality and sex by municipality",
+      "tableNumber": "03800",
+      "statsDataId": "0003148596",
+      "url": "https://www.e-stat.go.jp/dbview?sid=0003148596",
+      "selectedCodes": {
+        "2": [
+          "2015000000"
+        ],
+        "3": [
+          "0000"
+        ],
+        "4": [
+          "0000"
+        ],
+        "5": [
+          "00710"
+        ],
+        "18": [
+          "020"
+        ]
+      },
+      "selectedDimensions": [
+        {
+          "matterId": 2,
+          "matterName": "時間軸（年次）",
+          "items": [
+            {
+              "code": "2015000000",
+              "name": "2015年"
+            }
+          ]
+        },
+        {
+          "matterId": 3,
+          "matterName": "国籍_2015",
+          "items": [
+            {
+              "code": "0000",
+              "name": "総数（国籍）"
+            }
+          ]
+        },
+        {
+          "matterId": 4,
+          "matterName": "男女別_2015",
+          "items": [
+            {
+              "code": "0000",
+              "name": "総数（男女別）"
+            }
+          ]
+        },
+        {
+          "matterId": 5,
+          "matterName": "全域・人口集中地区（2015）",
+          "items": [
+            {
+              "code": "00710",
+              "name": "全域"
+            }
+          ]
+        },
+        {
+          "matterId": 18,
+          "matterName": "表章項目",
+          "items": [
+            {
+              "code": "020",
+              "name": "人口"
+            }
+          ]
+        }
+      ],
+      "modelBytes": 529754,
+      "modelSha256": "c9a0d02d35daef568cbccd41ef174f3ca2411639d08bc17ada0b07c2291d9a50",
+      "resultBytes": 457036,
+      "resultSha256": "9370a39ab1dfd582d83307e1075a0bfd0598cfa6e916f81990e3538a9e0a97dd",
+      "normalizedFile": "origin-foreign2015.csv",
+      "normalizedBytes": 35690,
+      "normalizedSha256": "95608729ec2ca3375c873a4bfe6351310b5e5fd7f4ef76f9ea38584c5350c82b",
+      "rows": 1741,
+      "populationConcept": "usual-resident non-Japanese population; total sex; full municipality"
+    }
+  ]
+}

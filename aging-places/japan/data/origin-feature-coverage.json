@@ -1,0 +1,61 @@
+{
+  "post2020OutcomeIncluded": false,
+  "rows": 3482,
+  "frozenBoundaryUnitsPerYear": 1741,
+  "years": {
+    "2010": {
+      "sourceMunicipalities": 1750,
+      "frozenBoundaryUnits": 1741,
+      "aggregatedTargets": 6,
+      "finiteCoverage": {
+        "educationEmploymentShare": {
+          "n": 1741,
+          "share": 1
+        },
+        "healthEmploymentShare": {
+          "n": 1741,
+          "share": 1
+        },
+        "publicAdminEmploymentShare": {
+          "n": 1741,
+          "share": 1
+        },
+        "professionalInfoFinanceShare": {
+          "n": 1661,
+          "share": 0.954049
+        },
+        "foreignResidentShare": {
+          "n": 1731,
+          "share": 0.994256
+        }
+      }
+    },
+    "2015": {
+      "sourceMunicipalities": 1741,
+      "frozenBoundaryUnits": 1741,
+      "aggregatedTargets": 0,
+      "finiteCoverage": {
+        "educationEmploymentShare": {
+          "n": 1734,
+          "share": 0.995979
+        },
+        "healthEmploymentShare": {
+          "n": 1735,
+          "share": 0.996554
+        },
+        "publicAdminEmploymentShare": {
+          "n": 1736,
+          "share": 0.997128
+        },
+        "professionalInfoFinanceShare": {
+          "n": 1661,
+          "share": 0.954049
+        },
+        "foreignResidentShare": {
+          "n": 1729,
+          "share": 0.993107
+        }
+      }
+    }
+  }
+}

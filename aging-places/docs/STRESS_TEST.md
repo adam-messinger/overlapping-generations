@@ -157,8 +157,9 @@ not merely an untested concern.
 - University and medical proxies assume continuing capacity and do not predict closure or budget
   shocks.
 - Cross-state metro spillovers remain even after state-grouped validation.
-- Japan's post-2020 municipal holdout is sealed; the current demographic-channel development run
-  does not beat lagged population with a confidence interval above zero.
+- Japan's post-2020 municipal holdout is sealed; the partial development mechanism now includes
+  five institutional/employment/gateway constructs but still does not beat lagged population with
+  a confidence interval above zero in either development window.
 - University-throughput decline is now an explicit exogenous scenario lever, but its low/base/high
   paths remain illustrative until an official Japanese enrollment panel supplies a defensible
   calibration. The educated/non-educated international-migrant split is not yet available at
