@@ -1,0 +1,136 @@
+{
+ "openedAt": "first run recorded in git history; raw response hashed below",
+ "source": "e-Stat statInfId 000040454825 (R7 preliminary counts, municipal Excel)",
+ "resultSha256": "ac68e74efb74e2cd4b9cce64c85fa3ece508ae018205c121af76a37b8373758b",
+ "scope": "HOUSEHOLD PRIMARY ONLY - working-age primary sealed until the 2025 age tabulation (Sept 2026)",
+ "conceptNotes": [
+  "outcome: total households, official 2020-reorganized-to-2025-boundaries baseline -> 2025 preliminary",
+  "lagged comparator: private-household trend 2015-2020 (published lag; concept differs, logged)",
+  "basins: frozen 2015 vintage (2020-origin matrix pending, logged)"
+ ],
+ "conservationError": 0,
+ "primary": {
+  "label": "pop>=10k, 2015 basins",
+  "n": 1210,
+  "maeAnnualized": {
+   "mechanismAllocation": 0.00585,
+   "laggedHouseholdTrend": 0.00536,
+   "scaledNoMigration": 0.00729
+  },
+  "equalBasinSpearman": {
+   "mechanismAllocation": {
+    "n": 731,
+    "markets": 52,
+    "marketsWithDefinedSpearman": 52,
+    "pooledCenteredSpearman": 0.6299,
+    "meanWithinMarketSpearman": 0.6303,
+    "medianWithinMarketSpearman": 0.7129,
+    "meanWithinMarketPairwiseAccuracy": 0.756
+   },
+   "laggedHouseholdTrend": {
+    "n": 731,
+    "markets": 52,
+    "marketsWithDefinedSpearman": 52,
+    "pooledCenteredSpearman": 0.6175,
+    "meanWithinMarketSpearman": 0.6894,
+    "medianWithinMarketSpearman": 0.7149,
+    "meanWithinMarketPairwiseAccuracy": 0.7783
+   },
+   "laggedPopulationTrend": {
+    "n": 731,
+    "markets": 52,
+    "marketsWithDefinedSpearman": 52,
+    "pooledCenteredSpearman": 0.6634,
+    "meanWithinMarketSpearman": 0.7139,
+    "medianWithinMarketSpearman": 0.7652,
+    "meanWithinMarketPairwiseAccuracy": 0.7907
+   }
+  },
+  "mechanismMinusLaggedHousehold": {
+   "markets": 52,
+   "meanDifference": -0.0591,
+   "ci95": [
+    -0.1393,
+    0.0165
+   ]
+  },
+  "mechanismMinusLaggedPopulation": {
+   "markets": 52,
+   "meanDifference": -0.0836,
+   "ci95": [
+    -0.1589,
+    -0.0135
+   ]
+  },
+  "mechanismMinusNoMigration": {
+   "markets": 0,
+   "meanDifference": null,
+   "ci95": [
+    null,
+    null
+   ]
+  }
+ },
+ "sensitivity": {
+  "label": "pop>=15k sensitivity",
+  "n": 1048,
+  "maeAnnualized": {
+   "mechanismAllocation": 0.00539,
+   "laggedHouseholdTrend": 0.00527,
+   "scaledNoMigration": 0.00665
+  },
+  "equalBasinSpearman": {
+   "mechanismAllocation": {
+    "n": 628,
+    "markets": 43,
+    "marketsWithDefinedSpearman": 43,
+    "pooledCenteredSpearman": 0.5902,
+    "meanWithinMarketSpearman": 0.6528,
+    "medianWithinMarketSpearman": 0.7,
+    "meanWithinMarketPairwiseAccuracy": 0.7653
+   },
+   "laggedHouseholdTrend": {
+    "n": 628,
+    "markets": 43,
+    "marketsWithDefinedSpearman": 43,
+    "pooledCenteredSpearman": 0.5864,
+    "meanWithinMarketSpearman": 0.6718,
+    "medianWithinMarketSpearman": 0.7143,
+    "meanWithinMarketPairwiseAccuracy": 0.7771
+   },
+   "laggedPopulationTrend": {
+    "n": 628,
+    "markets": 43,
+    "marketsWithDefinedSpearman": 43,
+    "pooledCenteredSpearman": 0.6229,
+    "meanWithinMarketSpearman": 0.7091,
+    "medianWithinMarketSpearman": 0.75,
+    "meanWithinMarketPairwiseAccuracy": 0.7892
+   }
+  },
+  "mechanismMinusLaggedHousehold": {
+   "markets": 43,
+   "meanDifference": -0.0189,
+   "ci95": [
+    -0.115,
+    0.0693
+   ]
+  },
+  "mechanismMinusLaggedPopulation": {
+   "markets": 43,
+   "meanDifference": -0.0563,
+   "ci95": [
+    -0.1273,
+    0.014
+   ]
+  },
+  "mechanismMinusNoMigration": {
+   "markets": 0,
+   "meanDifference": null,
+   "ci95": [
+    null,
+    null
+   ]
+  }
+ }
+}

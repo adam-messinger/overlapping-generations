@@ -265,3 +265,29 @@ changed after seeing Italy. Italy is the replication; it is not an extra develop
 | Date | Commit before change | Frozen choice affected | Change and reason | Outcome already opened? |
 |---|---|---|---|---|
 | 2026-07-16 | `ec2869b` | Origin-year functional market for Tokyo's 23 special wards | The official 2010 origin-destination table reports the ward area as aggregate origin `13100`, not 23 ward origins. Retain all 23 wards as outcome units, exclude `13100` from outcomes, assign the common basin derived from `13100`, and flag those rows. This uses no endpoint outcome to infer a split. | Development census through 2020 only; no post-2020 holdout |
+
+## Deviation log (recorded before opening any post-2020 outcome)
+
+1. **2026-07-17 — MEXT municipal enrollment does not exist.** The School Basic Survey publishes
+   no municipal-resolution table. The university channels use the census-side substitute
+   (resident 18-24 students, 2010 Census table 01020, sid 0003052134): collegeEnrollShare =
+   resident students / population; uniEnroll15/60km = radius sums over municipal centroids.
+   Campus-based and residence-based enrollment differ; flagged on every use.
+2. **2026-07-17 — education carry-forward.** The 2015 census has no education question; the 2015
+   origin carries 2010 census attainment values (available at origin).
+3. **2026-07-17 — HLS coverage.** Municipal vacancy-by-type is published only for ~pop>=15k
+   (2008: 970 areas; 2013: 988). Smaller municipalities are median-imputed with coverage 46-47%.
+4. **2026-07-17 — holdout scope.** As of this date the 2025 Census publishes municipal
+   population and TOTAL households only (preliminary counts, sid 0004050397); the age tabulation
+   (人口等基本集計) is announced for September 2026. Therefore only the household primary opens
+   now; the working-age primary remains sealed. The 2020-2025 household outcome uses
+   totalHouseholds2020 -> 世帯総数2025 (source-consistent within the window); the lagged
+   household comparator remains the 2010-2015->2015-2020 private-household trend (the published
+   lag), and this concept difference is reported alongside results.
+5. **2026-07-17 — holdout basins.** The 2020-origin commuting matrix has not been acquired; the
+   holdout's local metrics are computed on the frozen 2015 basins and will be recomputed on
+   2020-origin basins when acquired. No basin choice is informed by any post-2020 outcome.
+6. **2026-07-17 — development verdict frozen before opening.** Full-mechanism development
+   results (both windows) are committed prior to any outcome fetch: extended channels reduce
+   within-basin performance versus the partial mechanism; the household chain trails the lagged
+   household trend. The holdout opens regardless, per Section 9.

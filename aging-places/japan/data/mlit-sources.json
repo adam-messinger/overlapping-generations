@@ -1,0 +1,848 @@
+[
+ {
+  "dataset": "P34-14",
+  "pref": "01",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_01_GML.zip",
+  "sha256": "a645cf98aa63f5635170330a36006238c55128a5807247dd81a0eca0367c75ef"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "02",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_02_GML.zip",
+  "sha256": "89621db44be37b8cd3e2e172dacc80e2bd42ed9f28bdc1565f3329b7a0e0bda2"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "03",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_03_GML.zip",
+  "sha256": "e41bbb7dcc6a4fc1fa3da7eed7576ca82e0a29362743d558d7282645aa13d938"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "04",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_04_GML.zip",
+  "sha256": "cf40b170df7ca29ff87abdeb8459a36d2e6d999d9582066730664160e705e9be"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "05",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_05_GML.zip",
+  "sha256": "8843036802009297c839eee75805757a80a4895b31f33aa927a344fb8e99dcb6"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "06",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_06_GML.zip",
+  "sha256": "382fb883b8c703f8ffc0e45b35f5beaea99da741127579689bb16c21eaa45c61"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "07",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_07_GML.zip",
+  "sha256": "59c0f5288fe8293ff84b146248bc5b3a7e5db912e057131f260e820c1f31ca19"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "08",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_08_GML.zip",
+  "sha256": "0cd3ba5d1f9adb78f65e9ed9c63c14232dd70eb670ad43737dedca73fb2e4266"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "09",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_09_GML.zip",
+  "sha256": "fb56b9ee27de8f11a2289651ec5cb5d12919914c0439b9eb8d37f9fa5b0f46a0"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "10",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_10_GML.zip",
+  "sha256": "e1a748c3de37083c5140b19d910611ef5fcdad1c53189b835c1b77305558c1b9"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "11",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_11_GML.zip",
+  "sha256": "053787c18bceb64f3ff04b3613307b35a0065d4cb78ce64d40c2875f3033db9a"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "12",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_12_GML.zip",
+  "sha256": "3159bbd07194b281c36e6bc30b4c74a89cfa956ee977d58bd663de9bb2efdb10"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "13",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_13_GML.zip",
+  "sha256": "9b7a46ffc551390ef30a98375cb379552dd9bd7f378b72d50bf5ddad130ebda1"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "14",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_14_GML.zip",
+  "sha256": "20e66abb25b55fdc3fee4b22380ea1a82f0081dae1ee21f2a7c4f2269f82a7ab"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "15",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_15_GML.zip",
+  "sha256": "34fb45e7ace4e14b9dd6703a1f361033fbf0dc1abbf903670d68228f4c42d968"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "16",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_16_GML.zip",
+  "sha256": "8a3d7f4ba0b4bd29470929557119110bb07abbaa55597cfcc95c9805fd9ef186"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "17",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_17_GML.zip",
+  "sha256": "a6b387f36dc9191e9aae01bed72de12b5232cc90633ddb7e753b1f92b89bfeba"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "18",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_18_GML.zip",
+  "sha256": "3557c73ca39d3d8c0da20fe673f010ec57df82a9b58c1aae5468d114f9bffdee"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "19",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_19_GML.zip",
+  "sha256": "91c230c8561b7b9eb8ca018497bfe91ae57df3f85c085467153d6319fd721cdf"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "20",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_20_GML.zip",
+  "sha256": "bbee811b16e107d97c9cb156239c7a438b08eea5d1a98efeeb7049d83627d11f"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "21",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_21_GML.zip",
+  "sha256": "ffc9f3d596748fcea51e2df2d06e71894e73a6cb300440886009214edc0f6f3b"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "22",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_22_GML.zip",
+  "sha256": "8c63e4bd0605917d5f033efe295566ef5d1f9a7211e5ab72a77f54e34a8e06de"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "23",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_23_GML.zip",
+  "sha256": "bf457c6b0d31afdc34a5b5ee13c0e0af2a125f28526c2affea3784602bae8d02"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "24",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_24_GML.zip",
+  "sha256": "b65d53582f73147bf0a5cb094ef2969dcca468142bad2dbcbcbb226249e1be98"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "25",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_25_GML.zip",
+  "sha256": "42a09e7496cc52fa9827198c88804fc8c853910d361515b9875ac8862c708c97"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "26",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_26_GML.zip",
+  "sha256": "9f467566556e344b2016bd7c6048fbc409dcbfaa21414ce1b126ef1589c334c0"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "27",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_27_GML.zip",
+  "sha256": "e27a2dea1e4610c0b864a615d8ba0a37d17114d6d9288e88d2cf2a4b1b7875ed"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "28",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_28_GML.zip",
+  "sha256": "cccef8ff4ffce84379e3a5fc1245e5edda128650e0a51651f63185dd1bbeb326"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "29",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_29_GML.zip",
+  "sha256": "ce3525b647376792d55a00a23d2aadcf72bba98ae49d6dace0904f8393a34c24"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "30",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_30_GML.zip",
+  "sha256": "faa96e8cb0e90094128fcd81e4c616b531c39b5d37e603d044ee6c2f566ba751"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "31",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_31_GML.zip",
+  "sha256": "66f39002ef6929d5a3271277baf6a7d8ecc17183da5fa4ff0960fbd1ca6785b9"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "32",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_32_GML.zip",
+  "sha256": "7494977a0dd7d11aab54d69bf495f0dd3f61f214971670ec807c3d5acc833408"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "33",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_33_GML.zip",
+  "sha256": "387fa4335b6445341dcdb9dbfa673ceb58d75bac2b927f2bf36bdd3d973d3b4c"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "34",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_34_GML.zip",
+  "sha256": "640b6669a2ef0a3a2e30a693b21ddbfdcfdfe5b5508376d1b4348a2446ef540d"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "35",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_35_GML.zip",
+  "sha256": "642206c2aa73a3836c14ccbb3a5ed3b492f9ee156a57d06249e0d8d2f0652ca2"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "36",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_36_GML.zip",
+  "sha256": "754603250d208be4b8632e3bbfa572d0a7c566d5ce36678d9cce68faf1c01ece"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "37",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_37_GML.zip",
+  "sha256": "f084c860dc78ae301f632feb618a093d3d8ed070c9145f4871a7355ea007f0cd"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "38",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_38_GML.zip",
+  "sha256": "f48a4d3079d9c20caf5e12c6a2ada42e272935da62884eefbee896b33d3ffcb2"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "39",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_39_GML.zip",
+  "sha256": "7034e95636f110c781d9d3054dba4f7ff05b4bb32996d370c37e1beecf71c437"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "40",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_40_GML.zip",
+  "sha256": "a4f67ab7070f6d9e0d86130efee0a5dfccd65c975a368fac834b50c6adedfc00"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "41",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_41_GML.zip",
+  "sha256": "471362d4c9d1d912703b049e81a295640075e3aae70b4c7375b5ea5b8f919859"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "42",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_42_GML.zip",
+  "sha256": "36d89017e78656a1c5a6bd6df930146b7e91a165a1be96028546f282dc8a830c"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "43",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_43_GML.zip",
+  "sha256": "80073334b9b67b492d67e209100d0dbe6dc75325e0d329919736432e88cc2935"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "44",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_44_GML.zip",
+  "sha256": "c6c5ac8aefa749a3497047ecacacf2c11e8464d29f3160c7c1a277f87e708bd0"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "45",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_45_GML.zip",
+  "sha256": "97ab7945dfcf052b1f0b5c53333c7952bbe9a9436d0b94a8b94a8f744f279a83"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "46",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_46_GML.zip",
+  "sha256": "73f7168082f2586f9005f9957baf849d6ddd44470d35de705727aeba6503d39f"
+ },
+ {
+  "dataset": "P34-14",
+  "pref": "47",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/P34/P34-14/P34-14_47_GML.zip",
+  "sha256": "69f6bc26ac67c9409fdf4313a8bc1384f6c25f1bd40df224164fae4cd499d8f6"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "01",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_01_GML.zip",
+  "sha256": "978abba472db6d9da7b78640b1b743855c015b8afddf5c041c7085a52a3c8e22"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "02",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_02_GML.zip",
+  "sha256": "0a78fb267214ca5c8d0f2d46bdc1618c161c387409346247085cf14c5e4ac8b1"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "03",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_03_GML.zip",
+  "sha256": "478f3f6c2d7b3b79743191a1e75f14cf3096c8efff1a89870e26ee765cbd3848"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "04",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_04_GML.zip",
+  "sha256": "32b77c11f509bf8776611390da1ca0c590f4de6657a84ca9d3b1cd480a7454b3"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "05",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_05_GML.zip",
+  "sha256": "aa2e6f2daa53efc729a2de5630010caa930852ff964b44adca6c78e2fe0e7ebb"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "06",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_06_GML.zip",
+  "sha256": "05ad8684a970ef78f09f6bdff574c8cba511f470e6878d351e1c7fa1db80c3b8"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "07",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_07_GML.zip",
+  "sha256": "918a48f9ddcea552998d0f89b02000d775c123512ce6463c21f897571efa5863"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "08",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_08_GML.zip",
+  "sha256": "8d03c57d4eac64904f6ef62abf97085af0017168ce7f2318d30aaac032fe62e9"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "09",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_09_GML.zip",
+  "sha256": "4d0c7c8c5277a6c3a7a58c48fb2cfbac51c563c383bcad9e89bcd23131a8512c"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "10",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_10_GML.zip",
+  "sha256": "09b0861683f1d4dd135431a1785723ccde9a261d473901f359c73c1d004f63b4"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "11",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_11_GML.zip",
+  "sha256": "305acc78ef98aa66a4b52c7c751254e3e48e36a6029d7792d4fc72aadf11cf47"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "12",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_12_GML.zip",
+  "sha256": "654a1260944a490dd10132bb4a78480581187059e12bda5dd2e8993275083090"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "13",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_13_GML.zip",
+  "sha256": "7bf26451fc8e56b037440b1a2e42befcbdb0e51f2006f5848fc10b6961de9e09"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "14",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_14_GML.zip",
+  "sha256": "3816160df69ac2cfe37397c1ed88fc68b0a7d911b3fe8007dff8dd3f592950a5"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "15",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_15_GML.zip",
+  "sha256": "79d3cd57293dddbd81c058c6aaa5d3a6a117939fe4c58badc4acdf055c7a574c"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "16",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_16_GML.zip",
+  "sha256": "00498b2adf4e58f9637f65d635510ce046cd23acc511d73e6369be6e1b36238b"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "17",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_17_GML.zip",
+  "sha256": "057e6258eb2499df03085088f4244d912900d3e31dac1b6c0c371308d4cf345b"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "18",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_18_GML.zip",
+  "sha256": "513b733ec7cc212d91cc271c6c0442e89ac7d8fece68b346d4683a2e8e26db33"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "19",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_19_GML.zip",
+  "sha256": "88e6df8fa9e05309489b1cf02acde3ddfa665c151b2a1935c1ea0367ba37dc89"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "20",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_20_GML.zip",
+  "sha256": "25459090e2efb4dfe23d4b906839b39febafa1a023fbe42f5d451b461f55b7a8"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "21",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_21_GML.zip",
+  "sha256": "02d43b385cec2a501e88160c05a1bcd904e5796dfa38eb1d77daaa985287567e"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "22",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_22_GML.zip",
+  "sha256": "ce0155351b5ca5ecd03124e0380449b51ef3862573248d17aa07d990b770b2f9"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "23",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_23_GML.zip",
+  "sha256": "37eba374fcdbbb6e68460ffda05fcfd579101e234979f3111844eeecff9fbc45"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "24",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_24_GML.zip",
+  "sha256": "ae0112273274f22c8b5770bfc6a4ce518e23594aebbe264102dc5ad5b339aba1"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "25",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_25_GML.zip",
+  "sha256": "1bb62dc2b988c46e6d378c0996425fa1ba65eb6b2834b082a6a66b2175ffabdc"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "26",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_26_GML.zip",
+  "sha256": "37a6caf6116b5cad99bce7cde79620f2f88601695a9fa0ddb5c2a9bfb9843493"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "27",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_27_GML.zip",
+  "sha256": "a2498398b38cd21020598410f0ee606302414e84d1285bedb792bef5c3e627b3"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "28",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_28_GML.zip",
+  "sha256": "9c97306aa61ffe80fa8cf9f9134ec6f4151121c1a7420db384515c4de1f2602f"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "29",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_29_GML.zip",
+  "sha256": "25664835fccf747243134cb21c6bac4305ced502fead647d27d4bdfffe9d59a5"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "30",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_30_GML.zip",
+  "sha256": "79663a673888aecb28b1c1a455cd6afbc85e91b09bc20b742f32ed7c86ef2c58"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "31",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_31_GML.zip",
+  "sha256": "8d88e17a06a3862be0ffbb75c03a979545c67a4c8926912edbbe9071791014c8"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "32",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_32_GML.zip",
+  "sha256": "7314b967d2570b8d56b3f30649737e47e54f48ba4cdce3e9f51e20a6f260b098"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "33",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_33_GML.zip",
+  "sha256": "3aaf8130a42a152486d0049fd410550d0a457298f1e78d15ae059320a45def36"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "34",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_34_GML.zip",
+  "sha256": "96f25b4521444141311940d9cf03d7bfa9dd03ae9193b3103d65839ec82289fb"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "35",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_35_GML.zip",
+  "sha256": "a232454966cd8b56ebbdc74137285267cb6f39b6da75a39a5d566808c752ceea"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "36",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_36_GML.zip",
+  "sha256": "b091b659f21b3ffa8a0d5b45f7e7cc1649d95b09c95de014bf33fbfe64c3b35a"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "37",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_37_GML.zip",
+  "sha256": "6497c66a801e0ea5ec695a3e05d73d24bd909dcdd0e0e1f7e88492787b8a98fc"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "38",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_38_GML.zip",
+  "sha256": "2da604547e703b3d70933908db1b59a77d4ae9a6fc8b20a9caa9cee5dbeb68c3"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "39",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_39_GML.zip",
+  "sha256": "0d81b4abc0741d02b922b63205731e189a1296935e866572046f78977ee9debf"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "40",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_40_GML.zip",
+  "sha256": "bc5da6fef4c138d10517bec59bc827918f4e2b68376ca118d1991a508e0d2ef1"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "41",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_41_GML.zip",
+  "sha256": "591770a73b80fabd1b4a96ccfc97cf62f7ccbb2174560b057c5dab2564abf5f5"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "42",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_42_GML.zip",
+  "sha256": "5f604ca0b70c4a1d8efac50980a936a31653e268e8192b860ff5863adece2b63"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "43",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_43_GML.zip",
+  "sha256": "425fb60184206047bc6d9357df8bebddeec810e7b597bba99e2cdb047bd5f269"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "44",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_44_GML.zip",
+  "sha256": "71ff1a52750cbb2d613884d2611b8bda5ea621cff26a67053678cb1aa34adec4"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "45",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_45_GML.zip",
+  "sha256": "72acaf65dc3cbd6cfa804219aa55d20e5522f2fc201c2c35f36679d03538a6a2"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "46",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_46_GML.zip",
+  "sha256": "6b78bfce1cbdfe0f6b9d047da423df07c000b12566e2b1d36309e948e7d5e42d"
+ },
+ {
+  "dataset": "L01-10",
+  "pref": "47",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-10/L01-10_47_GML.zip",
+  "sha256": "f4a317b4cbffe2497ee318729ed0ca082ce88654253620c75c39baa560ea1704"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "01",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_01_GML.zip",
+  "sha256": "16a5322c9d1c74160cc134ed3fa82e1bb8d556839a6e4693b76b8c9fee04bd95"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "02",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_02_GML.zip",
+  "sha256": "45f42220d320acc9687b2bde07a65ad7eb27966bea838f0896b8770e2daa2559"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "03",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_03_GML.zip",
+  "sha256": "04db90519a27f4fa3872c855d12368663b90ade39b76d7654a28d8062231bafe"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "04",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_04_GML.zip",
+  "sha256": "4ae9543b35a6585e772a7836b01dfcffb40fee4d1ebbb37f486ca3ad0ad48508"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "05",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_05_GML.zip",
+  "sha256": "03d73b780e7b12b514bdb563049323326f17eff90eb361d931dafa0fdd75fc27"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "06",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_06_GML.zip",
+  "sha256": "df904a3e853e9c45ffcd3a6d6e1e3b64f5487b37aacfcce2fd74ada38206efad"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "07",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_07_GML.zip",
+  "sha256": "2535c9f221f417cf816ce76239f1f0b312ed9d208702908099dce6b6a6390edc"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "08",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_08_GML.zip",
+  "sha256": "6d5dd7556251b3d084ae659ed707dd6ef480eb7a871cbe1ef9ef744b26f143e1"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "09",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_09_GML.zip",
+  "sha256": "0b5c135e18092c4da1120f31e9070d553b038e5e12ed55df3480c431ffb8910d"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "10",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_10_GML.zip",
+  "sha256": "140f52d0e7c6a7f4f68bdcd9e4af454c949bc67edf0a7ead2ae523b3e30bddef"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "11",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_11_GML.zip",
+  "sha256": "05aefa4fba1cc38da356798f8d96c65beb8c84203f63fc0b443b278311ea6858"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "12",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_12_GML.zip",
+  "sha256": "a3ad9d4cf2a0f6b472df7c0ae8be11a2ae5dc9a009c89e66feb21b279e1711dd"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "13",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_13_GML.zip",
+  "sha256": "3cd4251dcfa5bc1a24eda5de59f57b8d7fa8e6746b004b8f937e3b1251a5dd19"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "14",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_14_GML.zip",
+  "sha256": "583eb4fe9095750fe466d08a304a8c9e72b44141a294262108141661c83065d2"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "15",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_15_GML.zip",
+  "sha256": "7579a01a493daead690405d729a3f7d82156dc8d3a7c77f81efcae3800140330"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "16",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_16_GML.zip",
+  "sha256": "0f2bc829aa8e45aa2ac2583c70fbae328a33a479aaaa61efc72af65e48876124"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "17",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_17_GML.zip",
+  "sha256": "de35b98c5dc72f767d05ca5e2ed46b11b8cd13cbd01e79e393e9750482ab98dd"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "18",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_18_GML.zip",
+  "sha256": "e63f2e45e694ee5ff17b3f404d324bdb6289cffb5adebecb634431ed06a6fa57"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "19",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_19_GML.zip",
+  "sha256": "db91f5b7aa1fa1a3dc0b750ef55232d6c64cf784de1f6e07d09a2b1d105348c5"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "20",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_20_GML.zip",
+  "sha256": "299d8910da14c1f1b71a6a8fb95c60c4c6a2da4d6e87987930aba7dc97585c22"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "21",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_21_GML.zip",
+  "sha256": "449b7909504134a03406dc6498a01c9ee47dec28c2f008ce6d8c6558980e900e"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "22",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_22_GML.zip",
+  "sha256": "1b683411feac216e6e075c9e3e754f563783f8108f189866c8a227db57fa2b63"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "23",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_23_GML.zip",
+  "sha256": "80ccb2c1c35db3f38ebe39e1f0b2533b36bb5417dcde227901b652ccb2cfcbcf"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "24",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_24_GML.zip",
+  "sha256": "fb9eb6f2eb4f1cace54c3024b39d93d7fad7f78d26c08f8a89f37b0de9203721"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "25",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_25_GML.zip",
+  "sha256": "ddc094754983de66af8daa3638a1692ae325151a5c2a6c83bd1e243d927197c3"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "26",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_26_GML.zip",
+  "sha256": "0a5b59fc192386d2879eb478bbe6ee4c202b767cf872d13c2c8d21718ca853fd"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "27",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_27_GML.zip",
+  "sha256": "3da71c92f54ebd5ad6abba747ca73be9cea8ea0156f0a8743ca9454462dae713"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "28",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_28_GML.zip",
+  "sha256": "575c1e6720918811ffd00f3463fa7249be0e795dcd3998efe4f661afaa216493"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "29",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_29_GML.zip",
+  "sha256": "d4bb393424e9265475debea6a7985cfdb7076fc78e69d52ebf3b5a8cdbed3203"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "30",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_30_GML.zip",
+  "sha256": "d8e73515b622bb834ddbb2eccf3bb91da0a9fc15f0b07b633ad1f59beae52c81"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "31",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_31_GML.zip",
+  "sha256": "a33ebe93c12b3a103a5d1329be7b1a9263efc5e9d3c217edc719e847d42ed8e1"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "32",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_32_GML.zip",
+  "sha256": "b0eee746ee58def73bf885167ace2a9f536cbd2ecc7592444c5393e33a51b2b5"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "33",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_33_GML.zip",
+  "sha256": "dc27c6806cc991283fb857f5938bb7a2fca41e6da42d3da6b760d6a344fc38fe"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "34",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_34_GML.zip",
+  "sha256": "30f90456ba4a23352c482402d76e6342980e8887cf4f6593a3be60278267a380"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "35",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_35_GML.zip",
+  "sha256": "16155d11911cf8f336cbbd96f798c3e3053a9d93b99fa348426f856b48d58ac1"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "36",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_36_GML.zip",
+  "sha256": "06fc5ca86c38cdc845fbcd082b253661f28dc3f8cd21a1b51023140e5dfc0572"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "37",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_37_GML.zip",
+  "sha256": "05f7f580cc82689062be3407b680cdf0b385613095edb31271d9627c4c9adaf3"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "38",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_38_GML.zip",
+  "sha256": "9de5a37162aef80ea11a74ceecb40ebe99c717a6a066fde27e851897d1932540"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "39",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_39_GML.zip",
+  "sha256": "7cf5b9c574c11e2a466679e35016be5b9db0e3c5bbc1102a310e7c4578719773"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "40",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_40_GML.zip",
+  "sha256": "d9ef6f8bee9992a15cf4360fb0f97bddf9dd67b100eca19cd0b78b32a0368e27"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "41",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_41_GML.zip",
+  "sha256": "3eb82f9b8387fe3612afc10703ddc8391e189200c97416e79fe31eab9891416e"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "42",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_42_GML.zip",
+  "sha256": "69e0de13a020b2520fcff3805a209c3193e274a49b82628f0afffa8501e47cf6"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "43",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_43_GML.zip",
+  "sha256": "00dc3b7907aea20e5c95778f9e0cfcb9b63d53e2ce3df866df2b88ae62d297b9"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "44",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_44_GML.zip",
+  "sha256": "0b07fe41a617287497a1f5a790a6fc5cbe4e8df1cf6f5cdc9c778f59ddc7806d"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "45",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_45_GML.zip",
+  "sha256": "1cfe567b0d1b4fe91f6228ec907275f40dec9b614bbe88f50deab49e0b95a78f"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "46",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_46_GML.zip",
+  "sha256": "3b71fd506994b20081ded3a1d39f1a89e5b3fc19c34ac4be62bc71374930d802"
+ },
+ {
+  "dataset": "L01-15",
+  "pref": "47",
+  "url": "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-15/L01-15_47_GML.zip",
+  "sha256": "bbfcc7c8b6552b8504096c79bd75b618a8375ab3efd6c95647fdef1d71a80fd5"
+ }
+]

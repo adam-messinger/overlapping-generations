@@ -1,0 +1,80 @@
+{
+ "post2020OutcomeIncluded": false,
+ "education2015Policy": "2010 census values carried to the 2015 origin (2015 census has no education question); available-at-origin",
+ "hlsCoverage": "municipal vacancy published only for ~pop>=15k areas; smaller municipalities stay null and are median-imputed with reported coverage",
+ "sources": [
+  {
+   "key": "education2010",
+   "sid": "0003052134",
+   "title": "2010 Census: school attendance / last school completed x age x sex, municipal",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0003052134",
+   "columns": [
+    "pop15upTotal",
+    "graduatesTotal",
+    "universityGraduates",
+    "students15_19",
+    "students20_24"
+   ],
+   "rows": 1983,
+   "resultSha256": "4777b7389ede715c11981efe914beccbf6a5293b8b524059a25bbac3bb8d0525"
+  },
+  {
+   "key": "ssdsIncome",
+   "sid": "0000020203",
+   "title": "SSDS municipal C economic base: taxable income and taxpayers, FY2010/FY2015",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0000020203",
+   "columns": [
+    "taxableIncome2010",
+    "taxpayers2010",
+    "taxableIncome2015",
+    "taxpayers2015"
+   ],
+   "rows": 1913,
+   "resultSha256": "fb76ea6597aef34803984e81b23331e609866bfe15de96273356ed2e5f92634a"
+  },
+  {
+   "key": "hlsTypes2010",
+   "sid": "0003010419",
+   "title": "HLS vacant dwellings by type, municipal (~pop>=15k), origin 2010",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0003010419",
+   "columns": [
+    "otherVacant"
+   ],
+   "rows": 970,
+   "resultSha256": "5c25e541f3e74b50a87c43c4020cbffc4b363d2a3d69c27e7cb05390663ef8a7"
+  },
+  {
+   "key": "hlsTotals2010",
+   "sid": "0003009773",
+   "title": "HLS total dwellings, municipal, origin 2010",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0003009773",
+   "columns": [
+    "dwellingsTotal"
+   ],
+   "rows": 1318,
+   "resultSha256": "f668554ab02f9ae69b23a138959e01c55caa6539cfae832ff653a8b1323f257b"
+  },
+  {
+   "key": "hlsTypes2015",
+   "sid": "0003100835",
+   "title": "HLS vacant dwellings by type, municipal (~pop>=15k), origin 2015",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0003100835",
+   "columns": [
+    "otherVacant"
+   ],
+   "rows": 988,
+   "resultSha256": "2e04be563ecb5228d0eeef9d5fe2029056b727c14ed466da94bce4426daf51ca"
+  },
+  {
+   "key": "hlsTotals2015",
+   "sid": "0003099766",
+   "title": "HLS total dwellings, municipal, origin 2015",
+   "url": "https://www.e-stat.go.jp/dbview?sid=0003099766",
+   "columns": [
+    "dwellingsTotal"
+   ],
+   "rows": 1292,
+   "resultSha256": "2d520a9f5c9e0c5f633ffe346126504ba9d1f95140be53664afcda9e35a0984f"
+  }
+ ]
+}
