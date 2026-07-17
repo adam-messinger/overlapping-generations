@@ -1,0 +1,25 @@
+{
+ "runs": 24,
+ "places": 24525,
+ "axes": {
+  "immigration": [
+   "0.6M",
+   "1.2M (base)",
+   "1.8M"
+  ],
+  "gateway": [
+   "wGateway 0.05",
+   "0.10 (base)"
+  ],
+  "amenity": [
+   "rAmenity 0.25 (climate/insurance repricing)",
+   "0.45 (base)"
+  ],
+  "institutions": [
+   "retention 0.985 floor 0.5",
+   "1.0 (base)"
+  ]
+ },
+ "scenarioRobustShare": 0.9345,
+ "note": "bands are scenario ranges, not probability intervals"
+}
