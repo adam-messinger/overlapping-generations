@@ -59,15 +59,15 @@ export const MODEL_FEATURES: { name: string; from: (r: Record<string, number | n
   { name: 'logUni60', from: (r) => log1pOrNull(r.uniEnroll60) },
 ];
 
-function clip(v: number | null, lo: number, hi: number): number | null {
-  if (v === null) return null;
+function clip(v: number | null | undefined, lo: number, hi: number): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
   return Math.min(hi, Math.max(lo, v));
 }
-function logOrNull(v: number | null): number | null {
-  return v !== null && v > 0 ? Math.log(v) : null;
+function logOrNull(v: number | null | undefined): number | null {
+  return v !== null && v !== undefined && Number.isFinite(v) && v > 0 ? Math.log(v) : null;
 }
-function log1pOrNull(v: number | null): number | null {
-  return v !== null && v >= 0 ? Math.log1p(v) : null;
+function log1pOrNull(v: number | null | undefined): number | null {
+  return v !== null && v !== undefined && Number.isFinite(v) && v >= 0 ? Math.log1p(v) : null;
 }
 
 export interface ModelSpec {
@@ -84,6 +84,29 @@ export interface ModelSpec {
   preprocessing?: 'epoch_zscore';
   statisticalScore?: string;
   meta: Record<string, unknown>;
+}
+
+/** Refuse positional scoring when the persisted feature contract has drifted. */
+export function assertModelCompatible(model: ModelSpec): void {
+  const expected = MODEL_FEATURES.map((feature) => feature.name);
+  const exactFeatures = model.features.length === expected.length &&
+    model.features.every((feature, index) => feature === expected[index]);
+  if (!exactFeatures) {
+    throw new Error(
+      `model feature contract mismatch: expected [${expected.join(',')}], got [${model.features.join(',')}]`
+    );
+  }
+  const expectedWeights = expected.length + 1;
+  if (model.logitW.length !== expectedWeights || model.linW.length !== expectedWeights) {
+    throw new Error(
+      `model weight length mismatch: expected ${expectedWeights}, got logit=${model.logitW.length} linear=${model.linW.length}`
+    );
+  }
+  if (model.means.length !== expected.length || model.sds.length !== expected.length) {
+    throw new Error(
+      `model preprocessing length mismatch: expected ${expected.length}, got means=${model.means.length} sds=${model.sds.length}`
+    );
+  }
 }
 
 /** Build the raw (untransformed) model matrix; nulls stay null for later imputation. */

@@ -1,0 +1,178 @@
+{
+  "status": "fixed-2000-covariate outcome-window stability diagnostic; not a rolling-origin backtest",
+  "universe": "places pop>=1000 with June 2000, June 2012, and June 2025 ZHVI (n=5891)",
+  "periods": {
+    "early": "annualized log(ZHVI_2012 / ZHVI_2000)",
+    "late": "annualized log(ZHVI_2025 / ZHVI_2012)",
+    "covariates": "year 2000 for both fits"
+  },
+  "method": "5-fold state-grouped cross-validation with train-only preprocessing and window-specific winner cutoffs",
+  "descriptive": {
+    "rawEarlyLatePearson": -0.375,
+    "rawEarlyLateSpearman": -0.322,
+    "topQuartileJaccard": 0.061
+  },
+  "summary": {
+    "aucEarlyFitEarlyOutcome": {
+      "mean": 0.672,
+      "min": 0.476,
+      "max": 0.854
+    },
+    "aucEarlyFitLateOutcome": {
+      "mean": 0.408,
+      "min": 0.33,
+      "max": 0.515
+    },
+    "aucLateFitLateOutcome": {
+      "mean": 0.731,
+      "min": 0.671,
+      "max": 0.804
+    },
+    "aucLateFitEarlyOutcome": {
+      "mean": 0.392,
+      "min": 0.335,
+      "max": 0.488
+    },
+    "aucForeignEarlyOutcome": {
+      "mean": 0.529,
+      "min": 0.457,
+      "max": 0.668
+    },
+    "aucForeignLateOutcome": {
+      "mean": 0.661,
+      "min": 0.603,
+      "max": 0.742
+    },
+    "spearmanEarlyRidgeEarlyOutcome": {
+      "mean": 0.332,
+      "min": 0.232,
+      "max": 0.458
+    },
+    "spearmanEarlyRidgeLateOutcome": {
+      "mean": -0.363,
+      "min": -0.427,
+      "max": -0.182
+    },
+    "spearmanLateRidgeLateOutcome": {
+      "mean": 0.38,
+      "min": 0.241,
+      "max": 0.454
+    },
+    "spearmanLateRidgeEarlyOutcome": {
+      "mean": -0.27,
+      "min": -0.445,
+      "max": -0.177
+    },
+    "earlyLateOutcomeSpearman": {
+      "mean": -0.327,
+      "min": -0.446,
+      "max": -0.214
+    },
+    "logitCoefficientCosine": {
+      "mean": -0.222,
+      "min": -0.39,
+      "max": -0.078
+    },
+    "ridgeCoefficientCosine": {
+      "mean": -0.647,
+      "min": -0.75,
+      "max": -0.554
+    }
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "n": 810,
+      "states": "AK,AZ,HI,KS,MD,MO,NE,NH,RI,TX,WA",
+      "aucEarlyFitEarlyOutcome": 0.7075885978428351,
+      "aucEarlyFitLateOutcome": 0.3556374324399621,
+      "aucLateFitLateOutcome": 0.7095475566947123,
+      "aucLateFitEarlyOutcome": 0.3927503852080123,
+      "aucForeignEarlyOutcome": 0.45711479198767335,
+      "aucForeignLateOutcome": 0.6137933916532011,
+      "spearmanEarlyRidgeEarlyOutcome": 0.4583732409299313,
+      "spearmanEarlyRidgeLateOutcome": -0.36270590022313953,
+      "spearmanLateRidgeLateOutcome": 0.38224946231576956,
+      "spearmanLateRidgeEarlyOutcome": -0.4454807304254751,
+      "earlyLateOutcomeSpearman": -0.4410827526592957,
+      "logitCoefficientCosine": -0.15368890217736625,
+      "ridgeCoefficientCosine": -0.6229446277841089
+    },
+    {
+      "fold": 1,
+      "n": 1626,
+      "states": "CT,IL,KY,MI,MN,OH,OR,SC,UT",
+      "aucEarlyFitEarlyOutcome": 0.4762202753441802,
+      "aucEarlyFitLateOutcome": 0.48079813281312206,
+      "aucLateFitLateOutcome": 0.6709531013615734,
+      "aucLateFitEarlyOutcome": 0.4875737529054175,
+      "aucForeignEarlyOutcome": 0.46331351689612016,
+      "aucForeignLateOutcome": 0.6073445835655705,
+      "spearmanEarlyRidgeEarlyOutcome": 0.3486266534698437,
+      "spearmanEarlyRidgeLateOutcome": -0.42053032151810255,
+      "spearmanLateRidgeLateOutcome": 0.4535864491926943,
+      "spearmanLateRidgeEarlyOutcome": -0.31375206946589546,
+      "earlyLateOutcomeSpearman": -0.445625041010684,
+      "logitCoefficientCosine": -0.389591580114613,
+      "ridgeCoefficientCosine": -0.5808271005865774
+    },
+    {
+      "fold": 2,
+      "n": 1214,
+      "states": "AL,AR,GA,LA,NC,NY,OK,WI",
+      "aucEarlyFitEarlyOutcome": 0.8539491202422597,
+      "aucEarlyFitLateOutcome": 0.3296187435241378,
+      "aucLateFitLateOutcome": 0.7368068624755943,
+      "aucLateFitEarlyOutcome": 0.33538805931185717,
+      "aucForeignEarlyOutcome": 0.6678163995196575,
+      "aucForeignLateOutcome": 0.6034234843839208,
+      "spearmanEarlyRidgeEarlyOutcome": 0.2315904325723283,
+      "spearmanEarlyRidgeLateOutcome": -0.18242744966233057,
+      "spearmanLateRidgeLateOutcome": 0.24122106525957762,
+      "spearmanLateRidgeEarlyOutcome": -0.17718554071150358,
+      "earlyLateOutcomeSpearman": -0.2136499453602706,
+      "logitCoefficientCosine": -0.3558723663967673,
+      "ridgeCoefficientCosine": -0.7292940028320594
+    },
+    {
+      "fold": 3,
+      "n": 1196,
+      "states": "CA,CO,DE,MA,NJ,NV,VT,WV",
+      "aucEarlyFitEarlyOutcome": 0.6429613975767822,
+      "aucEarlyFitLateOutcome": 0.35972024656235185,
+      "aucLateFitLateOutcome": 0.8037280701754386,
+      "aucLateFitEarlyOutcome": 0.39461256692025926,
+      "aucForeignEarlyOutcome": 0.5252409129332206,
+      "aucForeignLateOutcome": 0.742014876718824,
+      "spearmanEarlyRidgeEarlyOutcome": 0.2627656496376907,
+      "spearmanEarlyRidgeLateOutcome": -0.42729664465997336,
+      "spearmanLateRidgeLateOutcome": 0.4479387013450562,
+      "spearmanLateRidgeEarlyOutcome": -0.21033093191654637,
+      "earlyLateOutcomeSpearman": -0.28264000371171843,
+      "logitCoefficientCosine": -0.13210486786411768,
+      "ridgeCoefficientCosine": -0.5535261625298562
+    },
+    {
+      "fold": 4,
+      "n": 1045,
+      "states": "DC,FL,IA,ID,IN,ME,PA,TN,VA",
+      "aucEarlyFitEarlyOutcome": 0.6770761459371513,
+      "aucEarlyFitLateOutcome": 0.5150380393849383,
+      "aucLateFitLateOutcome": 0.7357087850245838,
+      "aucLateFitEarlyOutcome": 0.3520013970168579,
+      "aucForeignEarlyOutcome": 0.533181279974104,
+      "aucForeignLateOutcome": 0.7384379733766618,
+      "spearmanEarlyRidgeEarlyOutcome": 0.35694514698303453,
+      "spearmanEarlyRidgeLateOutcome": -0.4238747349462119,
+      "spearmanLateRidgeLateOutcome": 0.37687580432436846,
+      "spearmanLateRidgeEarlyOutcome": -0.20459292869471293,
+      "earlyLateOutcomeSpearman": -0.24972356014874209,
+      "logitCoefficientCosine": -0.07778223232291051,
+      "ridgeCoefficientCosine": -0.7497613662921603
+    }
+  ],
+  "interpretationRule": {
+    "transfer": "aucEarlyFitLateOutcome is the relevant temporal-transfer diagnostic",
+    "limitation": "Because 2012 place features are unavailable, this cannot show how a model refit at a 2012 origin would perform."
+  }
+}

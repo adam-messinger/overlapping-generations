@@ -1,7 +1,7 @@
 import { expect, printSummary, test } from '../../src/test-utils.js';
 import { COHORTS, Cohort } from './domain-types.js';
 import { loadEpoch } from './data.js';
-import { allocateInternal, allocateInternational } from './modules/migration.js';
+import { allocateInternal, allocateInternational, boundClosedNet } from './modules/migration.js';
 import { impliedHouseholds } from './modules/market.js';
 import { runAgingSim } from './simulation.js';
 
@@ -36,6 +36,17 @@ test('international migration is an open flow whose allocations sum to the targe
   const outflow = allocateInternational(-70, stock, attraction, 0.5, stock);
   expect(sum(outflow)).toBeCloseTo(-70, 8);
   for (let i = 0; i < stock.length; i++) expect(-outflow[i] <= stock[i]).toBeTrue();
+});
+
+test('bounded closed flows conserve people and expose unmet departures', () => {
+  const proposed = Float64Array.from([-100, 60, 40]);
+  const capacity = Float64Array.from([25, 0, 0]);
+  const bounded = boundClosedNet(proposed, capacity);
+  expect(sum(bounded.net)).toBeCloseTo(0, 10);
+  expect(bounded.pool).toBe(25);
+  expect(bounded.unmet).toBe(75);
+  expect(bounded.departures[0]).toBe(25);
+  expect(sum(bounded.arrivals)).toBeCloseTo(25, 10);
 });
 
 test('start-year modeled headship reproduces observed occupied units', () => {
@@ -80,6 +91,27 @@ test('international migration changes municipal population and internal residual
   const maxResidual = Math.max(...highImmigration.national.internalMigrationResidual.map(Math.abs));
   expect(maxResidual).toBeLessThan(1e-5);
   expect(sum(highImmigration.national.localNetImmigration)).toBeGreaterThan(5e6);
+});
+
+test('extreme validated migration scenario remains nonnegative and records unmet demand', () => {
+  const result = runAgingSim({
+    epoch: '2023', years: 2, minPop: 10_000,
+    params: {
+      nation: { netImmigrationStart: -5e6, netImmigrationLongRun: -5e6 },
+      migration: {
+        workingMoverRate: 1,
+        midlifeMoverRate: 1,
+        retireeMoverRate: 1,
+        childrenPerMover: 2,
+      },
+    },
+  });
+  for (const cohort of COHORTS) {
+    for (const value of result.finalCohorts[cohort]) expect(value >= -1e-8).toBeTrue();
+  }
+  expect(Math.max(...result.national.internalMigrationResidual.map(Math.abs))).toBeLessThan(1e-5);
+  expect(result.national.unmetInternalMigration.reduce((sum, value) => sum + value, 0))
+    .toBeGreaterThan(0);
 });
 
 printSummary();

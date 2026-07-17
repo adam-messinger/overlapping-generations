@@ -34,7 +34,7 @@ prisons, barracks, and other group quarters made this especially severe.
 
 Each place receives a headship scale that reproduces observed occupied units at initialization.
 Census 2000 P015/P016/P037 and ACS occupied-unit/B26001 fields distinguish household and group-
-quarters population. Majority-group-quarters and zero-unit places are excluded from headline
+quarters population. Majority-group-quarters and zero-unit places are excluded from published
 housing rankings but retained for diagnostics.
 
 ### Test
@@ -96,23 +96,59 @@ of validation. A state-outcome baseline can reach AUC 0.842 under such a split.
 ### Correction
 
 Five folds now hold out entire states. Winner thresholds, imputation, standardization, and fitting
-are training-only. The corrected headline logistic mean is 0.667 rather than the earlier random-
+are training-only. The corrected historical-persistence logistic mean is 0.667 rather than the earlier random-
 split result near 0.80.
 
-## 7. Result invalidation
+## 7. Correctness audit after spatial validation
+
+A second code audit found two defects that changed published numbers and eight latent contract
+failures. All ten now have regression coverage or a pipeline assertion:
+
+- price/income reversion is one-sided again, so cheap below-anchor places do not receive a modeled
+  price subsidy;
+- same-name ZHVI candidates without a county match are treated as ambiguous rather than joined to
+  an arbitrary row;
+- international exits and internal moves are bounded by each place's actual cohort stock, with
+  closed-flow arrivals rescaled to realized departures and unmet demand recorded;
+- missing/undefined scoring fields remain null instead of becoming `NaN`;
+- required epoch columns fail loudly instead of silently taking defaults;
+- persisted model feature names, order, preprocessing lengths, and weight lengths are checked
+  before positional scoring;
+- start-year household anchoring uses the configured headship rates;
+- Census GEOIDs remain strings with leading zeros;
+- Census cache entries are written only after payload validation; and
+- repository paths use `fileURLToPath`, including checkouts whose path contains spaces.
+
+The price correction changed the mechanism diagnostics materially. In particular, the old 0.287
+within-state Spearman no longer describes the corrected model; the current value is 0.182.
+
+## 8. Result invalidation
 
 | Diagnostic | Earlier published value | Corrected value |
 |---|---:|---:|
 | Statistical AUC | 0.801 random-place test | 0.667 mean state-grouped folds |
-| Raw mechanism AUC, all places | 0.609 | 0.522 |
-| Raw mechanism Spearman, all places | 0.198 | −0.005 |
-| Raw mechanism AUC, population ≥10k | 0.669 | 0.514 |
+| Raw mechanism AUC, all places | 0.609 | 0.567 |
+| Raw mechanism Spearman, all places | 0.198 | 0.082 |
+| Raw mechanism AUC, population ≥10k | 0.669 | 0.621 |
+| State-demeaned mechanism Spearman | 0.287 with reversion bug | 0.182 corrected |
 
 These are not perfectly comparable specifications, but the direction is unambiguous: earlier
 confidence was not warranted. The mechanism remains useful for controlled scenarios and accounting
 experiments, not as an independently validated municipal forecast.
 
-## 8. Remaining stress cases
+## 9. Functional-market and temporal stress tests
+
+The corrected mechanism beats a lagged 1990–2000 population-trend baseline within 2000 commuting
+zones (equal-zone Spearman difference 0.156, 95% bootstrap interval 0.084 to 0.231), but a fitted
+local ridge is better. The historical-persistence classifier has only 0.023 equal-zone mean
+Spearman on the common sample.
+
+Splitting the US outcome into 2000–2012 and 2012–2025 produces negative cross-window transfer:
+early-fit/late-outcome AUC is 0.408, raw early/late Spearman is −0.322, and coefficient cosine
+similarity is negative. This turns the old “single window” caveat into an observed instability,
+not merely an untested concern.
+
+## 10. Remaining stress cases
 
 - Coastal Florida ranks highly in the historical index despite missing flood and insurance risk.
 - Affluent Midwest suburbs rank at the bottom, illustrating that classifier resemblance is not a
@@ -121,4 +157,9 @@ experiments, not as an independently validated municipal forecast.
 - University and medical proxies assume continuing capacity and do not predict closure or budget
   shocks.
 - Cross-state metro spillovers remain even after state-grouped validation.
-- A single 2000–2025 outcome window remains the largest unresolved validation limitation.
+- Japan's post-2020 municipal holdout is sealed; the current demographic-channel development run
+  does not beat lagged population with a confidence interval above zero.
+- University-throughput decline is now an explicit exogenous scenario lever, but its low/base/high
+  paths remain illustrative until an official Japanese enrollment panel supplies a defensible
+  calibration. The educated/non-educated international-migrant split is not yet available at
+  adequate cross-national coverage.

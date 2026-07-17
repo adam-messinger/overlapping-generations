@@ -10,7 +10,7 @@
  *   runAgingSim({epoch: '2000'}) — 2000->2025 hindcast (validation)
  */
 import { initAutowired, stepAutowired, LagConfig } from '../../src/framework/index.js';
-import { COHORTS, Cohort } from './domain-types.js';
+import { COHORTS, Cohort, DEFAULT_HEADSHIP } from './domain-types.js';
 import { EpochData, loadEpoch } from './data.js';
 import { nationModule, NationParams } from './modules/nation.js';
 import { attractionModule } from './modules/attraction.js';
@@ -42,6 +42,8 @@ export interface AgingSimResult {
     natPop65Share: number[];
     localNetImmigration: number[];
     internalMigrationResidual: number[];
+    unmetInternalMigration: number[];
+    unmetInternationalExit: number[];
   };
 }
 
@@ -68,7 +70,9 @@ const NATION_DYNAMICS: Record<'2000' | '2023', Pick<NationParams,
 
 export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   const file = cfg.epoch === '2000' ? 'features2000.csv' : 'features2023.csv';
-  const data = loadEpoch(file, cfg.minPop ?? 250);
+  const requestedHeadship = cfg.params?.market?.headship as Partial<Record<Cohort, number>> | undefined;
+  const headship: Record<Cohort, number> = { ...DEFAULT_HEADSHIP, ...(requestedHeadship ?? {}) };
+  const data = loadEpoch(file, cfg.minPop ?? 250, headship);
   const s = data.statics;
   const years = cfg.years ?? (cfg.epoch === '2000' ? 25 : 40);
   const startYear = cfg.epoch === '2000' ? 2000 : 2025;
@@ -94,6 +98,11 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
     laggedMidlifeStock: { source: 'midlifeStock', delay: 1, initial: midlife0 },
     laggedRetireeStock: { source: 'retireeStock', delay: 1, initial: retiree0 },
     laggedDestinationUnits: { source: 'destinationUnits', delay: 1, initial: Float64Array.from(s.units0) },
+    laggedA0_19Stock: { source: 'stockA0_19', delay: 1, initial: Float64Array.from(s.cohorts0.a0_19) },
+    laggedA20_24Stock: { source: 'stockA20_24', delay: 1, initial: Float64Array.from(s.cohorts0.a20_24) },
+    laggedA25_44Stock: { source: 'stockA25_44', delay: 1, initial: Float64Array.from(s.cohorts0.a25_44) },
+    laggedA45_64Stock: { source: 'stockA45_64', delay: 1, initial: Float64Array.from(s.cohorts0.a45_64) },
+    laggedA65upStock: { source: 'stockA65up', delay: 1, initial: Float64Array.from(s.cohorts0.a65up) },
   };
 
   const nationEpoch = {
@@ -115,7 +124,11 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
     params: {
       nation: { ...nationEpoch, ...(cfg.params?.nation ?? {}) },
       attraction: { statics: s, ...(cfg.params?.attraction ?? {}) },
-      migration: { immigrationCoverageByCohort, ...(cfg.params?.migration ?? {}) },
+      migration: {
+        immigrationCoverageByCohort,
+        childrenPerMover: cfg.params?.market?.childrenPerMover ?? 0.30,
+        ...(cfg.params?.migration ?? {}),
+      },
       market: { statics: s, ...(cfg.params?.market ?? {}) },
     },
     startYear,
@@ -125,6 +138,7 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   const national: AgingSimResult['national'] = {
     meanPriceIndex: [], medianPriceIndex: [], p90PriceIndex: [], p10PriceIndex: [],
     shareDecliningReal: [], natPop65Share: [], localNetImmigration: [], internalMigrationResidual: [],
+    unmetInternalMigration: [], unmetInternationalExit: [],
   };
   let last: Record<string, unknown> = {};
   const simYears: number[] = [];
@@ -139,6 +153,8 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
     national.shareDecliningReal.push(outputs.shareDecliningReal as number);
     national.localNetImmigration.push(outputs.internationalNetTotal as number);
     national.internalMigrationResidual.push(outputs.internalNetTotal as number);
+    national.unmetInternalMigration.push(outputs.unmetInternalMigrationTotal as number);
+    national.unmetInternationalExit.push(outputs.unmetInternationalExitTotal as number);
     const nat = outputs.natCohorts as Record<Cohort, number>;
     let tot = 0;
     for (const c of COHORTS) tot += nat[c];

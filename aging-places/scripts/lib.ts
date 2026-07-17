@@ -4,8 +4,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 
-export const REPO_ROOT = path.resolve(new URL('..', import.meta.url).pathname);
+export const REPO_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const DATA_DIR = path.join(REPO_ROOT, 'data');
 export const OUT_DIR = path.join(REPO_ROOT, 'outputs');
 /** Portable defaults. Both can be moved outside the repository with env vars. */

@@ -62,6 +62,10 @@ The frozen algorithm is:
    the same sink or cycle form one commuting basin; every member of a cycle is one joint sink.
 4. Apply the 2020-boundary crosswalk before calculating basin metrics.
 
+Tokyo's official 2010 matrix publishes the 23 special wards as one origin (`13100`). Per the
+deviation logged below, the ward outcomes remain separate, while all 23 receive the basin derived
+from that aggregate origin and are explicitly flagged in the market crosswalk.
+
 The primary within-market metric requires at least five eligible municipalities in a basin. Smaller
 basins remain in national absolute-error metrics. Five validation folds hold out whole basins;
 fold assignment is a frozen hash of the origin year and basin identifier. Prefecture-grouped folds
@@ -253,4 +257,4 @@ changed after seeing Italy. Italy is the replication; it is not an extra develop
 
 | Date | Commit before change | Frozen choice affected | Change and reason | Outcome already opened? |
 |---|---|---|---|---|
-| — | — | — | No deviations at registration | No |
+| 2026-07-16 | `ec2869b` | Origin-year functional market for Tokyo's 23 special wards | The official 2010 origin-destination table reports the ward area as aggregate origin `13100`, not 23 ward origins. Retain all 23 wards as outcome units, exclude `13100` from outcomes, assign the common basin derived from `13100`, and flag those rows. This uses no endpoint outcome to infer a split. | Development census through 2020 only; no post-2020 holdout |

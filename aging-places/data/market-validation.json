@@ -1,0 +1,344 @@
+{
+  "status": "development-window diagnostic; not independent forward validation",
+  "outcome": "log(ZHVI June 2025 / ZHVI June 2000)",
+  "interpretation": "local capture: rank places within a functional market, not national market growth",
+  "method": {
+    "folds": "5-fold grouped cross-validation holding out whole commuting zones",
+    "preprocessing": "training-fold means, standard deviations, winner cutoffs, and coefficients only",
+    "minimumMarketSize": 5,
+    "fittedModels": [
+      "historicalPersistence",
+      "localRidge"
+    ],
+    "unfittedComparators": [
+      "mechanism",
+      "foreignShare",
+      "marketAccess",
+      "laggedPopulationTrend"
+    ],
+    "uncertainty": "market-level bootstrap of the mean within-market Spearman difference",
+    "caveat": "Observed market outcome means are used only to evaluate local residuals; they are not forecast inputs."
+  },
+  "cz2000": {
+    "geography": "cz2000",
+    "role": "primary: start-period functional markets with rural coverage",
+    "universe": {
+      "outcomeRows": 5891,
+      "assignedRows": 5891,
+      "eligibleRows": 5576,
+      "eligibleMarkets": 223,
+      "minimumPlacesPerMarket": 5,
+      "excludedAmbiguousFallbackRows": 6
+    },
+    "folds": [
+      {
+        "fold": 0,
+        "trainN": 4252,
+        "testN": 1324,
+        "trainMarkets": 174,
+        "testMarkets": 49
+      },
+      {
+        "fold": 1,
+        "trainN": 4271,
+        "testN": 1305,
+        "trainMarkets": 178,
+        "testMarkets": 45
+      },
+      {
+        "fold": 2,
+        "trainN": 4665,
+        "testN": 911,
+        "trainMarkets": 177,
+        "testMarkets": 46
+      },
+      {
+        "fold": 3,
+        "trainN": 4747,
+        "testN": 829,
+        "trainMarkets": 183,
+        "testMarkets": 40
+      },
+      {
+        "fold": 4,
+        "trainN": 4369,
+        "testN": 1207,
+        "trainMarkets": 180,
+        "testMarkets": 43
+      }
+    ],
+    "allAvailable": {
+      "historicalPersistence": {
+        "n": 5576,
+        "markets": 223,
+        "pooledCenteredSpearman": 0.1488,
+        "meanWithinMarketSpearman": 0.02,
+        "medianWithinMarketSpearman": 0.0536,
+        "meanWithinMarketPairwiseAccuracy": 0.5052
+      },
+      "localRidge": {
+        "n": 5576,
+        "markets": 223,
+        "pooledCenteredSpearman": 0.2356,
+        "meanWithinMarketSpearman": 0.1762,
+        "medianWithinMarketSpearman": 0.2,
+        "meanWithinMarketPairwiseAccuracy": 0.5667
+      },
+      "mechanism": {
+        "n": 5576,
+        "markets": 223,
+        "pooledCenteredSpearman": 0.206,
+        "meanWithinMarketSpearman": 0.0925,
+        "medianWithinMarketSpearman": 0.119,
+        "meanWithinMarketPairwiseAccuracy": 0.5325
+      },
+      "foreignShare": {
+        "n": 5576,
+        "markets": 223,
+        "pooledCenteredSpearman": 0.0736,
+        "meanWithinMarketSpearman": -0.0743,
+        "medianWithinMarketSpearman": -0.088,
+        "meanWithinMarketPairwiseAccuracy": 0.4762
+      },
+      "marketAccess": {
+        "n": 5576,
+        "markets": 223,
+        "pooledCenteredSpearman": -0.0249,
+        "meanWithinMarketSpearman": 0.007,
+        "medianWithinMarketSpearman": -0.0221,
+        "meanWithinMarketPairwiseAccuracy": 0.5034
+      },
+      "laggedPopulationTrend": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": -0.0805,
+        "meanWithinMarketSpearman": -0.0591,
+        "medianWithinMarketSpearman": -0.0138,
+        "meanWithinMarketPairwiseAccuracy": 0.4789
+      }
+    },
+    "laggedPopulationCommonSample": {
+      "historicalPersistence": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": 0.1298,
+        "meanWithinMarketSpearman": 0.0229,
+        "medianWithinMarketSpearman": 0.05,
+        "meanWithinMarketPairwiseAccuracy": 0.5086
+      },
+      "localRidge": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": 0.2281,
+        "meanWithinMarketSpearman": 0.175,
+        "medianWithinMarketSpearman": 0.223,
+        "meanWithinMarketPairwiseAccuracy": 0.5658
+      },
+      "mechanism": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": 0.2091,
+        "meanWithinMarketSpearman": 0.0972,
+        "medianWithinMarketSpearman": 0.1117,
+        "meanWithinMarketPairwiseAccuracy": 0.5362
+      },
+      "foreignShare": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": 0.0693,
+        "meanWithinMarketSpearman": -0.0488,
+        "medianWithinMarketSpearman": -0.071,
+        "meanWithinMarketPairwiseAccuracy": 0.4843
+      },
+      "marketAccess": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": 0.0081,
+        "meanWithinMarketSpearman": -0.0007,
+        "medianWithinMarketSpearman": -0.02,
+        "meanWithinMarketPairwiseAccuracy": 0.5014
+      },
+      "laggedPopulationTrend": {
+        "n": 4499,
+        "markets": 210,
+        "pooledCenteredSpearman": -0.0805,
+        "meanWithinMarketSpearman": -0.0591,
+        "medianWithinMarketSpearman": -0.0138,
+        "meanWithinMarketPairwiseAccuracy": 0.4789
+      }
+    },
+    "baselineGate": {
+      "primaryMetric": "mean within-market Spearman on the exact lagged-population common sample",
+      "mechanismMinusLaggedPopulation": {
+        "markets": 210,
+        "meanDifference": 0.1562,
+        "ci95": [
+          0.0839,
+          0.2305
+        ]
+      },
+      "result": "passes: mechanism advantage is positive with a market-bootstrap 95% interval above zero"
+    }
+  },
+  "cz2020": {
+    "geography": "cz2020",
+    "role": "sensitivity only: end-period functional-market definitions",
+    "universe": {
+      "outcomeRows": 5891,
+      "assignedRows": 5859,
+      "eligibleRows": 5617,
+      "eligibleMarkets": 212,
+      "minimumPlacesPerMarket": 5,
+      "excludedAmbiguousFallbackRows": 6
+    },
+    "folds": [
+      {
+        "fold": 0,
+        "trainN": 4525,
+        "testN": 1092,
+        "trainMarkets": 167,
+        "testMarkets": 45
+      },
+      {
+        "fold": 1,
+        "trainN": 4703,
+        "testN": 914,
+        "trainMarkets": 169,
+        "testMarkets": 43
+      },
+      {
+        "fold": 2,
+        "trainN": 4708,
+        "testN": 909,
+        "trainMarkets": 173,
+        "testMarkets": 39
+      },
+      {
+        "fold": 3,
+        "trainN": 4298,
+        "testN": 1319,
+        "trainMarkets": 172,
+        "testMarkets": 40
+      },
+      {
+        "fold": 4,
+        "trainN": 4234,
+        "testN": 1383,
+        "trainMarkets": 167,
+        "testMarkets": 45
+      }
+    ],
+    "allAvailable": {
+      "historicalPersistence": {
+        "n": 5617,
+        "markets": 212,
+        "pooledCenteredSpearman": 0.1285,
+        "meanWithinMarketSpearman": 0.0141,
+        "medianWithinMarketSpearman": 0.0342,
+        "meanWithinMarketPairwiseAccuracy": 0.5063
+      },
+      "localRidge": {
+        "n": 5617,
+        "markets": 212,
+        "pooledCenteredSpearman": 0.2024,
+        "meanWithinMarketSpearman": 0.1671,
+        "medianWithinMarketSpearman": 0.1892,
+        "meanWithinMarketPairwiseAccuracy": 0.5646
+      },
+      "mechanism": {
+        "n": 5617,
+        "markets": 212,
+        "pooledCenteredSpearman": 0.205,
+        "meanWithinMarketSpearman": 0.0987,
+        "medianWithinMarketSpearman": 0.1037,
+        "meanWithinMarketPairwiseAccuracy": 0.5353
+      },
+      "foreignShare": {
+        "n": 5617,
+        "markets": 212,
+        "pooledCenteredSpearman": 0.0863,
+        "meanWithinMarketSpearman": -0.0521,
+        "medianWithinMarketSpearman": -0.0494,
+        "meanWithinMarketPairwiseAccuracy": 0.4826
+      },
+      "marketAccess": {
+        "n": 5617,
+        "markets": 212,
+        "pooledCenteredSpearman": 0.0114,
+        "meanWithinMarketSpearman": 0.0162,
+        "medianWithinMarketSpearman": -0.0435,
+        "meanWithinMarketPairwiseAccuracy": 0.5072
+      },
+      "laggedPopulationTrend": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": -0.0763,
+        "meanWithinMarketSpearman": -0.0479,
+        "medianWithinMarketSpearman": -0.0238,
+        "meanWithinMarketPairwiseAccuracy": 0.4815
+      }
+    },
+    "laggedPopulationCommonSample": {
+      "historicalPersistence": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": 0.1202,
+        "meanWithinMarketSpearman": 0.0294,
+        "medianWithinMarketSpearman": 0.0481,
+        "meanWithinMarketPairwiseAccuracy": 0.5122
+      },
+      "localRidge": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": 0.1929,
+        "meanWithinMarketSpearman": 0.1599,
+        "medianWithinMarketSpearman": 0.1769,
+        "meanWithinMarketPairwiseAccuracy": 0.5606
+      },
+      "mechanism": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": 0.2026,
+        "meanWithinMarketSpearman": 0.1069,
+        "medianWithinMarketSpearman": 0.1338,
+        "meanWithinMarketPairwiseAccuracy": 0.5401
+      },
+      "foreignShare": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": 0.0779,
+        "meanWithinMarketSpearman": -0.0253,
+        "medianWithinMarketSpearman": -0.0275,
+        "meanWithinMarketPairwiseAccuracy": 0.4915
+      },
+      "marketAccess": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": 0.0414,
+        "meanWithinMarketSpearman": 0.011,
+        "medianWithinMarketSpearman": -0.0496,
+        "meanWithinMarketPairwiseAccuracy": 0.5059
+      },
+      "laggedPopulationTrend": {
+        "n": 4561,
+        "markets": 201,
+        "pooledCenteredSpearman": -0.0763,
+        "meanWithinMarketSpearman": -0.0479,
+        "medianWithinMarketSpearman": -0.0238,
+        "meanWithinMarketPairwiseAccuracy": 0.4815
+      }
+    },
+    "baselineGate": {
+      "primaryMetric": "mean within-market Spearman on the exact lagged-population common sample",
+      "mechanismMinusLaggedPopulation": {
+        "markets": 201,
+        "meanDifference": 0.1548,
+        "ci95": [
+          0.0827,
+          0.2245
+        ]
+      },
+      "result": "passes: mechanism advantage is positive with a market-bootstrap 95% interval above zero"
+    }
+  }
+}

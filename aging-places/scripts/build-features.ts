@@ -137,6 +137,17 @@ function nameVariants(s: string): string[] {
   return Array.from(new Set(out.filter(Boolean)));
 }
 
+/** A colliding state/name key is usable only when county disambiguates it.
+ * Returning an arbitrary first row silently attaches another city's prices. */
+export function selectZhviCandidate(
+  candidates: string[][], expectedCounty: string, countyColumn: number
+): string[] | null {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  const sameCounty = candidates.filter((row) => row[countyColumn] === expectedCounty);
+  return sameCounty.length === 1 ? sameCounty[0] : null;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -216,9 +227,8 @@ function main(): void {
     for (const variant of nameVariants(p.name)) {
       const candidates = zIndex.get(`${p.state}|${variant}`);
       if (!candidates || candidates.length === 0) continue;
-      if (candidates.length === 1) return candidates[0];
-      const sameCounty = candidates.filter((r) => r[zi('county')] === p.county);
-      return (sameCounty[0] ?? candidates[0]);
+      const selected = selectZhviCandidate(candidates, p.county, zi('county'));
+      if (selected) return selected;
     }
     return null;
   };
@@ -408,4 +418,5 @@ function main(): void {
   writeCsv(path.join(DATA_DIR, 'features2023.csv.gz'), HEADER_2023, out2023);
 }
 
-main();
+const isMain = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));
+if (isMain) main();

@@ -1,0 +1,312 @@
+{
+  "protocol": "docs/INTERNATIONAL_PANEL.md committed at ec2869b before post-2020 acquisition",
+  "holdoutStatus": "sealed; this script reads no outcome after 2020",
+  "scope": {
+    "included": [
+      "frozen US demographic regeneration and young-vitality attraction terms",
+      "frozen US working mover rates and beta",
+      "origin-year 10% commuting basins",
+      "no-migration, lagged-trend, and demographic-ridge comparators"
+    ],
+    "stillMissingForJapanModelV1": [
+      "institutional engines",
+      "human capital",
+      "foreign-resident gateway",
+      "radius-based market access",
+      "housing supply and vacancy",
+      "land prices"
+    ],
+    "claim": "feasibility diagnostic only; cannot earn the internationally validated label"
+  },
+  "mechanismFormula": {
+    "standardization": "centered unit-SD percentile ranks in the origin cross-section",
+    "workingAttraction": "0.15 * (0.6 * replacementRatio - 0.4 * share45_64) + 0.15 * youngWorkingShare",
+    "replacementRatio": "population age 25-44 / population age 65+",
+    "youngWorkingShare": "population age 20-34 / total population",
+    "allocation": "national-total-conditioned five-year closed reallocation; beta=0.5; cohort-weighted 2.5% young-working and 1.5% midlife annual mover rates"
+  },
+  "adjacentWindowSignStable": true,
+  "windows": [
+    {
+      "window": "2010-2015",
+      "status": "development-only demographic-channel audit; not the full international mechanism",
+      "universe": {
+        "frozenBoundaryUnits": 1741,
+        "allocationCoverageUnits": 1735,
+        "primaryPopulation10kUnits": 1251,
+        "exactLaggedPopulationCommonUnits": 1251,
+        "householdCommonUnits": 1251,
+        "boundaryInexactExcluded": 7
+      },
+      "conditionalAllocation": {
+        "endpointNationalTotalIsObserved": true,
+        "municipalEndpointSharesArePredicted": true,
+        "baselineScaleToObservedNationalTotal": 0.990412,
+        "effectiveAnnualMoverRate": 0.020415,
+        "fiveYearMovedFraction": 0.097989,
+        "observedEndpointTotal": 70280339,
+        "conservationError": -4e-8
+      },
+      "workingAge": {
+        "outcome": "annualized log change in population age 20-64",
+        "absoluteMaeAllPrimary": {
+          "n": 1251,
+          "conditionalDemographicAllocation": 0.00525,
+          "noMigrationAging": 0.00793,
+          "nationallyScaledNoMigration": 0.0068
+        },
+        "localLaggedPopulationCommonSample": {
+          "conditionalDemographicAllocation": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.7453,
+            "meanWithinMarketSpearman": 0.7683,
+            "medianWithinMarketSpearman": 0.8439,
+            "meanWithinMarketPairwiseAccuracy": 0.8304
+          },
+          "noMigrationAging": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.6689,
+            "meanWithinMarketSpearman": 0.7277,
+            "medianWithinMarketSpearman": 0.8136,
+            "meanWithinMarketPairwiseAccuracy": 0.8063
+          },
+          "nationallyScaledNoMigration": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.6689,
+            "meanWithinMarketSpearman": 0.7277,
+            "medianWithinMarketSpearman": 0.8136,
+            "meanWithinMarketPairwiseAccuracy": 0.8063
+          },
+          "laggedPopulationTrend": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.7711,
+            "meanWithinMarketSpearman": 0.7563,
+            "medianWithinMarketSpearman": 0.8,
+            "meanWithinMarketPairwiseAccuracy": 0.8164
+          },
+          "ageStructureScore": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.7852,
+            "meanWithinMarketSpearman": 0.7682,
+            "medianWithinMarketSpearman": 0.817,
+            "meanWithinMarketPairwiseAccuracy": 0.8274
+          },
+          "localDemographicRidge": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.7219,
+            "meanWithinMarketSpearman": 0.7408,
+            "medianWithinMarketSpearman": 0.8038,
+            "meanWithinMarketPairwiseAccuracy": 0.8154
+          }
+        },
+        "conditionalMechanismMinusLaggedPopulation": {
+          "markets": 56,
+          "meanDifference": 0.012,
+          "ci95": [
+            -0.0513,
+            0.0746
+          ]
+        },
+        "conditionalMechanismMinusNationallyScaledNoMigration": {
+          "markets": 56,
+          "meanDifference": 0.0406,
+          "ci95": [
+            0.0088,
+            0.0766
+          ]
+        }
+      },
+      "households": {
+        "outcome": "annualized log change in private households",
+        "laggedHouseholdComparator": "not available for this window in the current panel",
+        "localExactCommonSample": {
+          "ageStructureScore": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.6479,
+            "meanWithinMarketSpearman": 0.7128,
+            "medianWithinMarketSpearman": 0.803,
+            "meanWithinMarketPairwiseAccuracy": 0.7995
+          },
+          "laggedPopulationTrend": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.6965,
+            "meanWithinMarketSpearman": 0.7441,
+            "medianWithinMarketSpearman": 0.8,
+            "meanWithinMarketPairwiseAccuracy": 0.8144
+          },
+          "localDemographicRidge": {
+            "n": 748,
+            "markets": 56,
+            "marketsWithDefinedSpearman": 56,
+            "pooledCenteredSpearman": 0.6217,
+            "meanWithinMarketSpearman": 0.6867,
+            "medianWithinMarketSpearman": 0.754,
+            "meanWithinMarketPairwiseAccuracy": 0.7821
+          }
+        }
+      }
+    },
+    {
+      "window": "2015-2020",
+      "status": "development-only demographic-channel audit; not the full international mechanism",
+      "universe": {
+        "frozenBoundaryUnits": 1741,
+        "allocationCoverageUnits": 1732,
+        "primaryPopulation10kUnits": 1229,
+        "exactLaggedPopulationCommonUnits": 1229,
+        "householdCommonUnits": 1229,
+        "boundaryInexactExcluded": 0
+      },
+      "conditionalAllocation": {
+        "endpointNationalTotalIsObserved": true,
+        "municipalEndpointSharesArePredicted": true,
+        "baselineScaleToObservedNationalTotal": 1.074945,
+        "effectiveAnnualMoverRate": 0.020367,
+        "fiveYearMovedFraction": 0.097769,
+        "observedEndpointTotal": 72916539,
+        "conservationError": -1e-8
+      },
+      "workingAge": {
+        "outcome": "annualized log change in population age 20-64",
+        "absoluteMaeAllPrimary": {
+          "n": 1229,
+          "conditionalDemographicAllocation": 0.00542,
+          "noMigrationAging": 0.01188,
+          "nationallyScaledNoMigration": 0.00684
+        },
+        "localLaggedPopulationCommonSample": {
+          "conditionalDemographicAllocation": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.7844,
+            "meanWithinMarketSpearman": 0.7604,
+            "medianWithinMarketSpearman": 0.8561,
+            "meanWithinMarketPairwiseAccuracy": 0.8203
+          },
+          "noMigrationAging": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.763,
+            "meanWithinMarketSpearman": 0.7305,
+            "medianWithinMarketSpearman": 0.8036,
+            "meanWithinMarketPairwiseAccuracy": 0.804
+          },
+          "nationallyScaledNoMigration": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.763,
+            "meanWithinMarketSpearman": 0.7305,
+            "medianWithinMarketSpearman": 0.8036,
+            "meanWithinMarketPairwiseAccuracy": 0.804
+          },
+          "laggedPopulationTrend": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.7499,
+            "meanWithinMarketSpearman": 0.7345,
+            "medianWithinMarketSpearman": 0.7763,
+            "meanWithinMarketPairwiseAccuracy": 0.8057
+          },
+          "ageStructureScore": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.7492,
+            "meanWithinMarketSpearman": 0.7155,
+            "medianWithinMarketSpearman": 0.8,
+            "meanWithinMarketPairwiseAccuracy": 0.7921
+          },
+          "localDemographicRidge": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.7607,
+            "meanWithinMarketSpearman": 0.7725,
+            "medianWithinMarketSpearman": 0.8259,
+            "meanWithinMarketPairwiseAccuracy": 0.8193
+          }
+        },
+        "conditionalMechanismMinusLaggedPopulation": {
+          "markets": 52,
+          "meanDifference": 0.0259,
+          "ci95": [
+            -0.0273,
+            0.0798
+          ]
+        },
+        "conditionalMechanismMinusNationallyScaledNoMigration": {
+          "markets": 52,
+          "meanDifference": 0.0299,
+          "ci95": [
+            0.0127,
+            0.0495
+          ]
+        }
+      },
+      "households": {
+        "outcome": "annualized log change in private households",
+        "laggedHouseholdComparator": {
+          "absoluteMae": 0.00468
+        },
+        "localExactCommonSample": {
+          "ageStructureScore": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.6953,
+            "meanWithinMarketSpearman": 0.6688,
+            "medianWithinMarketSpearman": 0.7223,
+            "meanWithinMarketPairwiseAccuracy": 0.7715
+          },
+          "laggedPopulationTrend": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.7242,
+            "meanWithinMarketSpearman": 0.6927,
+            "medianWithinMarketSpearman": 0.7429,
+            "meanWithinMarketPairwiseAccuracy": 0.7872
+          },
+          "localDemographicRidge": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.6976,
+            "meanWithinMarketSpearman": 0.6946,
+            "medianWithinMarketSpearman": 0.7143,
+            "meanWithinMarketPairwiseAccuracy": 0.785
+          },
+          "laggedHouseholdTrend": {
+            "n": 739,
+            "markets": 52,
+            "marketsWithDefinedSpearman": 52,
+            "pooledCenteredSpearman": 0.6332,
+            "meanWithinMarketSpearman": 0.6813,
+            "medianWithinMarketSpearman": 0.7446,
+            "meanWithinMarketPairwiseAccuracy": 0.7825
+          }
+        }
+      }
+    }
+  ]
+}

@@ -9,8 +9,7 @@
  */
 import { defineModule } from '../../../src/framework/index.js';
 import type { ValidationResult } from '../../../src/framework/index.js';
-import { COHORTS, Cohort, PlaceStatics } from '../domain-types.js';
-import { COHORT_RATES } from './nation.js';
+import { COHORTS, COHORT_RATES, Cohort, DEFAULT_HEADSHIP, PlaceStatics } from '../domain-types.js';
 
 export interface MarketParams {
   statics: PlaceStatics | null;
@@ -44,9 +43,7 @@ export interface MarketState {
 }
 
 export interface MarketInputs {
-  netWorking: Float64Array;
-  netMidlife: Float64Array;
-  netRetiree: Float64Array;
+  internalNetByCohort: Record<Cohort, Float64Array>;
   localNetImmigrationByCohort: Record<Cohort, Float64Array>;
   elderlyWealthIndex: number;
   currentTfr: number;
@@ -59,6 +56,11 @@ export interface MarketOutputs {
   workingStock: Float64Array;
   midlifeStock: Float64Array;
   retireeStock: Float64Array;
+  stockA0_19: Float64Array;
+  stockA20_24: Float64Array;
+  stockA25_44: Float64Array;
+  stockA45_64: Float64Array;
+  stockA65up: Float64Array;
   destinationUnits: Float64Array;
   unitsVec: Float64Array;
   householdsVec: Float64Array;
@@ -80,7 +82,7 @@ const DEFAULTS: MarketParams = {
   elastBase: 0.9,
   elastDensitySlope: 0.35,
   abandonMax: 0.006,
-  headship: { a0_19: 0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63 },
+  headship: { ...DEFAULT_HEADSHIP },
   targetOccupancy: 0.96,
   secondHomeWealthElast: 1,
   ptiReversion: 0.025,
@@ -114,17 +116,31 @@ function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
 
+/** One-sided price/income correction. Cheap places do not receive a modeled
+ * price subsidy merely because they sit below a heuristic national anchor. */
+export function priceToIncomeCorrection(
+  logPrice: number, income: number, anchor: number, reversion: number, externalSupport: number
+): number {
+  const overFundamental = Math.max(
+    0,
+    logPrice - Math.log(anchor * Math.max(20000, income))
+  );
+  return -reversion * overFundamental * (1 - clamp01(externalSupport));
+}
+
 export const marketModule = defineModule<MarketParams, MarketState, MarketInputs, MarketOutputs>({
   name: 'market',
   description: 'Local cohorts, observed-household demand, supply, and real prices',
   defaults: DEFAULTS,
   inputs: [
-    'netWorking', 'netMidlife', 'netRetiree', 'localNetImmigrationByCohort',
+    'internalNetByCohort', 'localNetImmigrationByCohort',
     'elderlyWealthIndex', 'currentTfr',
   ],
   outputs: [
     'priceIndexVec', 'priceToIncome', 'youngShareVec', 'workingStock',
-    'midlifeStock', 'retireeStock', 'destinationUnits', 'unitsVec',
+    'midlifeStock', 'retireeStock',
+    'stockA0_19', 'stockA20_24', 'stockA25_44', 'stockA45_64', 'stockA65up',
+    'destinationUnits', 'unitsVec',
     'householdsVec', 'incomeVec', 'gapVec', 'popVec', 'birthsTotal',
     'meanPriceIndex', 'medianPriceIndex', 'p90PriceIndex', 'p10PriceIndex',
     'shareDecliningReal',
@@ -197,22 +213,17 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
       const grad20 = current.a20_24[i] * survival.a20_24 * exit.a20_24;
       const grad25 = current.a25_44[i] * survival.a25_44 * exit.a25_44;
       const grad45 = current.a45_64[i] * survival.a45_64 * exit.a45_64;
-      const netWorking = inputs.netWorking[i];
-      const workingTotal = current.a20_24[i] + current.a25_44[i];
-      const share20 = netWorking < 0 && workingTotal > 0
-        ? current.a20_24[i] / workingTotal
-        : 0.25;
       const candidates: Record<Cohort, number> = {
         a0_19: current.a0_19[i] * survival.a0_19 - grad0 + births +
-          params.childrenPerMover * netWorking + inputs.localNetImmigrationByCohort.a0_19[i],
+          inputs.internalNetByCohort.a0_19[i] + inputs.localNetImmigrationByCohort.a0_19[i],
         a20_24: current.a20_24[i] * survival.a20_24 - grad20 + grad0 +
-          share20 * netWorking + inputs.localNetImmigrationByCohort.a20_24[i],
+          inputs.internalNetByCohort.a20_24[i] + inputs.localNetImmigrationByCohort.a20_24[i],
         a25_44: current.a25_44[i] * survival.a25_44 - grad25 + grad20 +
-          (1 - share20) * netWorking + inputs.localNetImmigrationByCohort.a25_44[i],
+          inputs.internalNetByCohort.a25_44[i] + inputs.localNetImmigrationByCohort.a25_44[i],
         a45_64: current.a45_64[i] * survival.a45_64 - grad45 + grad25 +
-          inputs.netMidlife[i] + inputs.localNetImmigrationByCohort.a45_64[i],
+          inputs.internalNetByCohort.a45_64[i] + inputs.localNetImmigrationByCohort.a45_64[i],
         a65up: current.a65up[i] * survival.a65up + grad45 +
-          inputs.netRetiree[i] + inputs.localNetImmigrationByCohort.a65up[i],
+          inputs.internalNetByCohort.a65up[i] + inputs.localNetImmigrationByCohort.a65up[i],
       };
       for (const cohort of COHORTS) {
         if (candidates[cohort] < -1e-6) {
@@ -254,11 +265,11 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
       nextUnits[i] = Math.max(1, state.units[i] * (1 + build - abandon));
       nextIncome[i] = Math.max(1, state.income[i] * (1 + params.realIncomeGrowth));
 
-      const fundamentalGap = state.logPrice[i] -
-        Math.log(params.ptiAnchor * Math.max(20000, state.income[i]));
-      const correctionSupport = fundamentalGap > 0 ? 1 - state.extSupport[i] : 1;
       nextLogPrice[i] = state.logPrice[i] + params.drift + params.kappaPrice * 0.5 * boundedGap -
-        0.5 * build - params.ptiReversion * fundamentalGap * correctionSupport;
+        0.5 * build + priceToIncomeCorrection(
+          state.logPrice[i], state.income[i], params.ptiAnchor,
+          params.ptiReversion, state.extSupport[i]
+        );
 
       const pop = COHORTS.reduce((total, cohort) => total + next[cohort][i], 0);
       const priceIndex = Math.exp(nextLogPrice[i] - Math.log(Math.max(1e4, s.price0[i])));
@@ -292,6 +303,11 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
         workingStock,
         midlifeStock,
         retireeStock,
+        stockA0_19: next.a0_19,
+        stockA20_24: next.a20_24,
+        stockA25_44: next.a25_44,
+        stockA45_64: next.a45_64,
+        stockA65up: next.a65up,
         destinationUnits: nextUnits,
         unitsVec: nextUnits,
         householdsVec,

@@ -189,22 +189,36 @@ const AGE2000: Record<string, number[]> = {
   a65up: [20, 21, 22, 23, 24, 25, 44, 45, 46, 47, 48, 49],
 };
 
+export function parseCensusTablePayload(
+  text: string, id: string, stateFips: string
+): { header: string[]; rows: string[][] } {
+  const parsed = JSON.parse(text);
+  const data: unknown = parsed.response?.data;
+  if (!Array.isArray(data) || data.length < 1 ||
+      !Array.isArray(data[0]) || !(data as unknown[][]).every(Array.isArray)) {
+    throw new Error(`no data for ${id} state ${stateFips}`);
+  }
+  const table = data as string[][];
+  return { header: table[0], rows: table.slice(1) };
+}
+
 async function fetchTable(id: string, stateFips: string): Promise<{ header: string[]; rows: string[][] }> {
   const cacheFile = path.join(CACHE_DIR, `${id}-${stateFips}.json`);
-  let text: string;
   if (fs.existsSync(cacheFile)) {
-    text = fs.readFileSync(cacheFile, 'utf8');
-  } else {
-    const url = `https://data.census.gov/api/access/data/table?id=${id}&g=040XX00US${stateFips}%241600000`;
-    text = await fetchWithRetry(url);
-    JSON.parse(text); // validate before caching
-    fs.writeFileSync(cacheFile, text);
-    await new Promise((r) => setTimeout(r, 300));
+    const cached = fs.readFileSync(cacheFile, 'utf8');
+    try {
+      return parseCensusTablePayload(cached, id, stateFips);
+    } catch {
+      console.warn(`discarding invalid Census cache ${cacheFile}`);
+      fs.unlinkSync(cacheFile);
+    }
   }
-  const parsed = JSON.parse(text);
-  const data: string[][] = parsed.response?.data;
-  if (!data || data.length < 1) throw new Error(`no data for ${id} state ${stateFips}`);
-  return { header: data[0], rows: data.slice(1) };
+  const url = `https://data.census.gov/api/access/data/table?id=${id}&g=040XX00US${stateFips}%241600000`;
+  const text = await fetchWithRetry(url);
+  const table = parseCensusTablePayload(text, id, stateFips);
+  fs.writeFileSync(cacheFile, text);
+  await new Promise((r) => setTimeout(r, 300));
+  return table;
 }
 
 async function buildYear(year: '2000' | '2023', states: string[]): Promise<void> {
@@ -312,7 +326,10 @@ async function main(): Promise<void> {
   if (!yearArg || yearArg === '2000') await buildYear('2000', states);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));
+if (isMain) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

@@ -1,0 +1,382 @@
+{
+  "surveyYear": 2015,
+  "retrievedAt": "2026-07-16T19:40:32.166Z",
+  "sources": [
+    {
+      "prefecture": "01",
+      "classificationId": "000001090438",
+      "statInfId": "000031586692",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586692",
+      "bytes": 1674030,
+      "sha256": "14c4c34d341963fc330b3a8c67005468f8df75671b2a79617db4f1025e1e0cac"
+    },
+    {
+      "prefecture": "02",
+      "classificationId": "000001090439",
+      "statInfId": "000031586707",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586707",
+      "bytes": 484005,
+      "sha256": "b9de966e6cddc34278fd3afccd0f19e7dfbb219669b16834732616e1b758dac7"
+    },
+    {
+      "prefecture": "03",
+      "classificationId": "000001090440",
+      "statInfId": "000031586722",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586722",
+      "bytes": 441004,
+      "sha256": "a35a84a99959fca8067f7cd02b9fcb7e0417ab5c8c1415f15d15d6b2fcbdf681"
+    },
+    {
+      "prefecture": "04",
+      "classificationId": "000001090441",
+      "statInfId": "000031586737",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586737",
+      "bytes": 786422,
+      "sha256": "e757e1838a0101ed08c49440e7079d3d91f2479ed7880892aa3e9aeb59eb8b7c"
+    },
+    {
+      "prefecture": "05",
+      "classificationId": "000001090442",
+      "statInfId": "000031586752",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586752",
+      "bytes": 288050,
+      "sha256": "261dd2338e1c6e8e279996fd16e66a567f9ecb5a470f8a28599e0afaf69435c8"
+    },
+    {
+      "prefecture": "06",
+      "classificationId": "000001090443",
+      "statInfId": "000031586767",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586767",
+      "bytes": 388537,
+      "sha256": "d259cd4d8f521af7084303c2fb3f1d4dc8e1340d7c2809aa6006e6846699fa1d"
+    },
+    {
+      "prefecture": "07",
+      "classificationId": "000001090444",
+      "statInfId": "000031586782",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586782",
+      "bytes": 665049,
+      "sha256": "ddc091c804a8fb856bae08109950cdcdc8351ef105904e7aa5fdda6084ad5962"
+    },
+    {
+      "prefecture": "08",
+      "classificationId": "000001090445",
+      "statInfId": "000031586797",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586797",
+      "bytes": 1115337,
+      "sha256": "631e6ee580aa1aa0c5a71612c5675011573d7e96628fe97cab7b5b6b7e8958ca"
+    },
+    {
+      "prefecture": "09",
+      "classificationId": "000001090446",
+      "statInfId": "000031586812",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586812",
+      "bytes": 617894,
+      "sha256": "45c9e6e55a6fa065ac1906528f4007f514608d20e559c64fcb7faa4596b7a794"
+    },
+    {
+      "prefecture": "10",
+      "classificationId": "000001090447",
+      "statInfId": "000031586827",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586827",
+      "bytes": 656602,
+      "sha256": "f3d1ba3e32ce03ca8703d8f83b6b6efb6096a28aeb46bb103b826ebb3b0f903d"
+    },
+    {
+      "prefecture": "11",
+      "classificationId": "000001090448",
+      "statInfId": "000031586842",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586842",
+      "bytes": 2571907,
+      "sha256": "e39dfdc2d179ac7d5b59f83dc1a35715a36ecdd2add8411dab1f5f705a60fdc2"
+    },
+    {
+      "prefecture": "12",
+      "classificationId": "000001090449",
+      "statInfId": "000031586857",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586857",
+      "bytes": 1831123,
+      "sha256": "a8f57a78efc2754474da9263dc0594a7b224796faf60235a3f67cc59dd2f5e30"
+    },
+    {
+      "prefecture": "13",
+      "classificationId": "000001090450",
+      "statInfId": "000031586872",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586872",
+      "bytes": 2565350,
+      "sha256": "a80d1ab4272f5d64a1ba4c7beedffca283a6e8da15698fa995ce616161ba32fa"
+    },
+    {
+      "prefecture": "14",
+      "classificationId": "000001090451",
+      "statInfId": "000031586887",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586887",
+      "bytes": 2597620,
+      "sha256": "c8c7a5927a1ca14297277872d141a2449f2e3c01d806a8dc1d4d8db26b0434e5"
+    },
+    {
+      "prefecture": "15",
+      "classificationId": "000001090452",
+      "statInfId": "000031586902",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586902",
+      "bytes": 662625,
+      "sha256": "10d94226d6891e30e79fa53df45f3d1c430e149951684349f6ea85210555025a"
+    },
+    {
+      "prefecture": "16",
+      "classificationId": "000001090453",
+      "statInfId": "000031586917",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586917",
+      "bytes": 273508,
+      "sha256": "cadbf513a85411d0d2c86b9b629b1e5283c5067df2db4bccd5b6c48b3d25c6bb"
+    },
+    {
+      "prefecture": "17",
+      "classificationId": "000001090454",
+      "statInfId": "000031586932",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586932",
+      "bytes": 295082,
+      "sha256": "7a2764c2d5b5595f7391a77fe5815ee5f77d296454e39f784ce5b2f5c27f6846"
+    },
+    {
+      "prefecture": "18",
+      "classificationId": "000001090455",
+      "statInfId": "000031586947",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586947",
+      "bytes": 257572,
+      "sha256": "a2eb2b95b12df9fa8dee1fb79ec13b14f3751ff00900e64e82798a05fb63ffbd"
+    },
+    {
+      "prefecture": "19",
+      "classificationId": "000001090456",
+      "statInfId": "000031586962",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586962",
+      "bytes": 416554,
+      "sha256": "a92f43fd65708fc83b359066045a109971fe586f01fc9712f3edab09a406a46a"
+    },
+    {
+      "prefecture": "20",
+      "classificationId": "000001090457",
+      "statInfId": "000031586977",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586977",
+      "bytes": 916609,
+      "sha256": "df8af1ab4acd236a9c2f83f22bde2c5be75d62d73a29b5dd8456e4691603f323"
+    },
+    {
+      "prefecture": "21",
+      "classificationId": "000001090458",
+      "statInfId": "000031586992",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031586992",
+      "bytes": 810717,
+      "sha256": "f6bf091fbfbc7f66ae4049dc27f1f5714f9f0ec97b0ee1d4595d5e26c94d0c42"
+    },
+    {
+      "prefecture": "22",
+      "classificationId": "000001090459",
+      "statInfId": "000031587007",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587007",
+      "bytes": 1160444,
+      "sha256": "b84a40008d7e5384633c95d6975c556aae77fc46eb44a3498016bfccaed74aad"
+    },
+    {
+      "prefecture": "23",
+      "classificationId": "000001090460",
+      "statInfId": "000031587022",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587022",
+      "bytes": 2079731,
+      "sha256": "5f8a0fe3ebba1d2999d48a3b5f0a8df0eafc944572e1ee56ec196d71ef9dfa92"
+    },
+    {
+      "prefecture": "24",
+      "classificationId": "000001090461",
+      "statInfId": "000031587037",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587037",
+      "bytes": 584045,
+      "sha256": "8aee8481e19018a2768dd8f51bc6de8030ba0dfa6455f4d6deb21108709af970"
+    },
+    {
+      "prefecture": "25",
+      "classificationId": "000001090462",
+      "statInfId": "000031587052",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587052",
+      "bytes": 503134,
+      "sha256": "09ab831d5c06e36618220bf5f3295d0a31c4066fa3d721ddea715c4dd72b1c0f"
+    },
+    {
+      "prefecture": "26",
+      "classificationId": "000001090463",
+      "statInfId": "000031587067",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587067",
+      "bytes": 1026001,
+      "sha256": "1e1b39d0272b7fb7815037529ad6257f34c38ba327cb44b9f2398a8461060429"
+    },
+    {
+      "prefecture": "27",
+      "classificationId": "000001090464",
+      "statInfId": "000031587082",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587082",
+      "bytes": 2767750,
+      "sha256": "e4197bda2f97a33ce47912abd96ea6150836298c710b67d3328d81ccce0932f7"
+    },
+    {
+      "prefecture": "28",
+      "classificationId": "000001090465",
+      "statInfId": "000031587097",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587097",
+      "bytes": 1583200,
+      "sha256": "35261b64319a9bb03c6737743b6d14b682811748a45740383d2e92574435ef25"
+    },
+    {
+      "prefecture": "29",
+      "classificationId": "000001090466",
+      "statInfId": "000031587112",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587112",
+      "bytes": 786405,
+      "sha256": "cbe2a3c7e30010ab26594d84a538832496555f07542d0357ec38da9f984a5ffd"
+    },
+    {
+      "prefecture": "30",
+      "classificationId": "000001090467",
+      "statInfId": "000031587127",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587127",
+      "bytes": 386782,
+      "sha256": "6cfb76607846f4d02095fc8ae65ec98effb5ddc64d147476bdc420be4bb864fd"
+    },
+    {
+      "prefecture": "31",
+      "classificationId": "000001090468",
+      "statInfId": "000031587142",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587142",
+      "bytes": 203827,
+      "sha256": "2ad87c996f14155dfb85bd6b70979b5b920c0b62bc11d0aeacfa48b91d3ed7e0"
+    },
+    {
+      "prefecture": "32",
+      "classificationId": "000001090469",
+      "statInfId": "000031587157",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587157",
+      "bytes": 182024,
+      "sha256": "81cfa4afac432e67637ac00c6dd1fef42d7c21c0223556800ba89460f2aef616"
+    },
+    {
+      "prefecture": "33",
+      "classificationId": "000001090470",
+      "statInfId": "000031587172",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587172",
+      "bytes": 578251,
+      "sha256": "0fc454f65bd68bb52260f166e0473187ac4491f0cb8911a8011ec4d24c69d577"
+    },
+    {
+      "prefecture": "34",
+      "classificationId": "000001090471",
+      "statInfId": "000031587187",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587187",
+      "bytes": 688878,
+      "sha256": "4fae4aff18ebcd6b21d98c010da6c8f0bdf556868c9d77ac46cbbc7cf7cf9cbc"
+    },
+    {
+      "prefecture": "35",
+      "classificationId": "000001090472",
+      "statInfId": "000031587202",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587202",
+      "bytes": 325824,
+      "sha256": "71b49820808a5e9c90218b981b47274ca82e7aba1018e37e384af1056dcb4151"
+    },
+    {
+      "prefecture": "36",
+      "classificationId": "000001090473",
+      "statInfId": "000031587217",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587217",
+      "bytes": 278189,
+      "sha256": "988444166567a842ba0f264eb66a297ae7ba2ce95f043a0a20dcb4acdd2af85f"
+    },
+    {
+      "prefecture": "37",
+      "classificationId": "000001090474",
+      "statInfId": "000031587232",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587232",
+      "bytes": 277475,
+      "sha256": "8ce035d5959298708080da1432aa14a9b499a4dcb6532466a77c7ceb8c7e542c"
+    },
+    {
+      "prefecture": "38",
+      "classificationId": "000001090475",
+      "statInfId": "000031587247",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587247",
+      "bytes": 309754,
+      "sha256": "ace252c01cd8a0ecab0441fc29210bf4edcaa919871d845b59825d7ffc5beec1"
+    },
+    {
+      "prefecture": "39",
+      "classificationId": "000001090476",
+      "statInfId": "000031587262",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587262",
+      "bytes": 265725,
+      "sha256": "3e83dd63d65ca73d8fc7580f1fa666fbbae4c4aec845f263a202b35fc4ee0dc1"
+    },
+    {
+      "prefecture": "40",
+      "classificationId": "000001090477",
+      "statInfId": "000031587277",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587277",
+      "bytes": 1710508,
+      "sha256": "7b185eb6873ef9e642f3a9d6edf85d797c8801d28428789b6097d71054fe00b3"
+    },
+    {
+      "prefecture": "41",
+      "classificationId": "000001090478",
+      "statInfId": "000031587292",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587292",
+      "bytes": 321606,
+      "sha256": "425f6fb63465b3461cd980548be0df9583b1905c78bc5d64e669e58776b9851f"
+    },
+    {
+      "prefecture": "42",
+      "classificationId": "000001090479",
+      "statInfId": "000031587307",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587307",
+      "bytes": 352781,
+      "sha256": "c31328a0cf5fa7cb94073ffb1de86c09d2da03e37ebd2a891dfe8aac2726d582"
+    },
+    {
+      "prefecture": "43",
+      "classificationId": "000001090480",
+      "statInfId": "000031587322",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587322",
+      "bytes": 704089,
+      "sha256": "6133048ec71d142aa59f067869f806bf2423935b889137c6e58f6d9e86c2cfb0"
+    },
+    {
+      "prefecture": "44",
+      "classificationId": "000001090481",
+      "statInfId": "000031587337",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587337",
+      "bytes": 278470,
+      "sha256": "8c8cfe567e615e049681486132055df0753b0377cb65b2287736817675a23ae2"
+    },
+    {
+      "prefecture": "45",
+      "classificationId": "000001090482",
+      "statInfId": "000031587352",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587352",
+      "bytes": 285822,
+      "sha256": "ca2a4b33530d35124ff60798665ff6522efa56c0ab716efe06164921e5e6e91e"
+    },
+    {
+      "prefecture": "46",
+      "classificationId": "000001090483",
+      "statInfId": "000031587367",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587367",
+      "bytes": 370963,
+      "sha256": "eac9def1d65aff5c87bb40be61702e98df03d1258c14bf7276f8cfbad5b08aa4"
+    },
+    {
+      "prefecture": "47",
+      "classificationId": "000001090484",
+      "statInfId": "000031587382",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031587382",
+      "bytes": 361931,
+      "sha256": "8259ccc5c03f2d3204aace4a098bc22796f0cd7d61c9453dba6f33eda43051c9"
+    }
+  ]
+}

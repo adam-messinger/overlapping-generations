@@ -1,0 +1,114 @@
+{
+  "retrievedNoLaterThan": "2026-07-16T19:50:23.421Z",
+  "post2020OutcomeIncluded": false,
+  "sources": [
+    {
+      "file": "census2010-basic.csv",
+      "year": 2010,
+      "construct": "population, area, households",
+      "statInfId": "000012460662",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000012460662",
+      "bytes": 580703,
+      "sha256": "9e42e7be6b8003b5452059e76896a8d1f754684b6a64ef7422cb36ec58bbe6ad",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2010-households.csv",
+      "year": 2010,
+      "construct": "private and total households",
+      "statInfId": "000012460663",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000012460663",
+      "bytes": 462264,
+      "sha256": "a62d439c22c7d0ef3cc156ee849dac08a9bb8d71a047f719657519591af6abd7",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2010-age.csv",
+      "year": 2010,
+      "construct": "five-year age groups",
+      "statInfId": "000012460665",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000012460665",
+      "bytes": 21695967,
+      "sha256": "265f70317755ca939b837457db7b03f8d92052c0481b59429fecd0f10c1ca2ec",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2015-basic.csv",
+      "year": 2015,
+      "construct": "population, area, households",
+      "statInfId": "000031473210",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031473210",
+      "bytes": 761542,
+      "sha256": "b940efda48409711ad8b9396a2103559e9c041ec78caeebe1ca9cc685e9504e4",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2015-age.csv",
+      "year": 2015,
+      "construct": "five-year age groups",
+      "statInfId": "000031473213",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031473213",
+      "bytes": 21000427,
+      "sha256": "729dd293832e6838f04fa365690ffe40e6384e1ade02595763d289ad74ad4f6f",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2015-households.csv",
+      "year": 2015,
+      "construct": "private households",
+      "statInfId": "000031473220",
+      "fileKind": 1,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=1&statInfId=000031473220",
+      "bytes": 1554690,
+      "sha256": "55f7d03aeb54d6644ccd1f58c9d24fe0b0ce124d827580b32ddfad1da22412ae",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2020-basic.xlsx",
+      "year": 2020,
+      "construct": "population, area, households and readjusted 2015 population",
+      "statInfId": "000032142402",
+      "fileKind": 0,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032142402",
+      "bytes": 791824,
+      "sha256": "286e9975ca64e5d46688fd0ba6451737a04163781b0768fb25f7444b410963e7",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2020-age.xlsx",
+      "year": 2020,
+      "construct": "five-year age groups",
+      "statInfId": "000032142410",
+      "fileKind": 0,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032142410",
+      "bytes": 8536679,
+      "sha256": "740a756d53f07188221a7dd08ec454bef646286c2fec14bda0cbb2547cee00f1",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    },
+    {
+      "file": "census2020-households.xlsx",
+      "year": 2020,
+      "construct": "private households",
+      "statInfId": "000032142481",
+      "fileKind": 0,
+      "survey": "Statistics Bureau of Japan Population Census",
+      "url": "https://www.e-stat.go.jp/stat-search/file-download?fileKind=0&statInfId=000032142481",
+      "bytes": 625583,
+      "sha256": "04db088c89a5b68e0e267ee6cfe74024e22ddb255a192c4632d4f8ac8402f9e9",
+      "populationConcept": "usual-resident municipal census; 2020-boundary processing documented in boundary audit"
+    }
+  ]
+}

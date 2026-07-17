@@ -4,7 +4,7 @@
  */
 import * as path from 'node:path';
 import { parseCsv, readCsvAuto, DATA_DIR } from '../scripts/lib.js';
-import { COHORTS, Cohort, PlaceStatics } from './domain-types.js';
+import { COHORTS, Cohort, DEFAULT_HEADSHIP, PlaceStatics } from './domain-types.js';
 
 /** Features that are z-scored for the attraction pillars. */
 const Z_FEATURES = [
@@ -28,27 +28,53 @@ export interface EpochData {
   outcome: (number | null)[];
   /** Current ZHVI level when available. */
   zhviLevel: (number | null)[];
-  raw: Record<string, (number | null)[]>;
+  raw: Record<string, (string | number | null)[]>;
 }
 
-export function loadEpoch(file: string, minPop = 250): EpochData {
+const REQUIRED_EPOCH_COLUMNS = [
+  'geoid', 'name', 'state', 'pop', 'units', 'occupied', 'groupQuarters',
+  'share0_19', 'share20_24', 'share25_44', 'share45_64', 'share65',
+  'medianHHInc', 'medianValue', 'prestigeVTI',
+  ...Z_FEATURES,
+  ...LOG_Z_FEATURES.map(([, rawName]) => rawName),
+] as const;
+
+export function assertEpochColumns(header: string[], file: string): void {
+  const missing: string[] = [...new Set<string>(REQUIRED_EPOCH_COLUMNS)]
+    .filter((name) => !header.includes(name));
+  if (!header.includes('zhvi2000') && !header.includes('zhvi2025')) {
+    missing.push('zhvi2000|zhvi2025');
+  }
+  if (missing.length > 0) throw new Error(`${file}: missing required columns ${missing.join(', ')}`);
+}
+
+export function loadEpoch(
+  file: string, minPop = 250, headship: Record<Cohort, number> = DEFAULT_HEADSHIP
+): EpochData {
   const rows = parseCsv(readCsvAuto(path.join(DATA_DIR, file)));
   const header = rows[0];
+  assertEpochColumns(header, file);
   const col = (name: string): number => {
     const i = header.indexOf(name);
     if (i === -1) throw new Error(`${file}: missing column ${name}`);
     return i;
   };
-  const maybeCol = (name: string): number => header.indexOf(name);
   const body = rows.slice(1).filter((r) => r.length >= header.length && Number(r[col('pop')]) >= minPop);
   const n = body.length;
   const get = (r: string[], name: string): number | null => {
-    const ci = maybeCol(name);
-    if (ci === -1) return null;
+    const ci = col(name);
     const v = r[ci];
     if (v === '' || v === undefined) return null;
     const x = Number(v);
     return Number.isFinite(x) ? x : null;
+  };
+  const getOptional = (r: string[], name: string): number | null => {
+    const ci = header.indexOf(name);
+    if (ci < 0) return null;
+    const value = r[ci];
+    if (value === '' || value === undefined) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   };
 
   const statics: PlaceStatics = {
@@ -128,7 +154,7 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     const observedUnits = get(r, 'units') ?? 0;
     const seasonalShare = Math.max(0, Math.min(1, get(r, 'seasonalShare') ?? 0));
     const distressShare = Math.max(0, Math.min(1, get(r, 'distressVacancy') ?? 0));
-    const occupiedReported = get(r, 'occupied') ?? get(r, 'households');
+    const occupiedReported = get(r, 'occupied');
     const occupiedInferred = observedUnits > 0
       ? observedUnits * Math.max(0, 1 - seasonalShare - distressShare)
       : 0;
@@ -147,11 +173,8 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     statics.cohorts0.a25_44[i] = (get(r, 'share25_44') ?? 0.26) * pop;
     statics.cohorts0.a45_64[i] = (get(r, 'share45_64') ?? 0.26) * pop;
     statics.cohorts0.a65up[i] = (get(r, 'share65') ?? 0.16) * pop;
-    const defaultHeadship: Record<Cohort, number> = {
-      a0_19: 0, a20_24: 0.38, a25_44: 0.50, a45_64: 0.56, a65up: 0.63,
-    };
     let impliedHouseholds = 0;
-    for (const cohort of COHORTS) impliedHouseholds += defaultHeadship[cohort] * statics.cohorts0[cohort][i];
+    for (const cohort of COHORTS) impliedHouseholds += headship[cohort] * statics.cohorts0[cohort][i];
     statics.headshipScale[i] = occupied > 0 && impliedHouseholds > 0
       ? occupied / impliedHouseholds
       : 1;
@@ -163,13 +186,17 @@ export function loadEpoch(file: string, minPop = 250): EpochData {
     const zhvi = get(r, zhviCol);
     const medVal = get(r, 'medianValue');
     statics.price0[i] = zhvi ?? medVal ?? 3.5 * income;
-    outcome.push(header.includes('logGrowth00_25') ? get(r, 'logGrowth00_25') : null);
-    zhviLevel.push(header.includes('zhvi2025') ? get(r, 'zhvi2025') : null);
+    outcome.push(getOptional(r, 'logGrowth00_25'));
+    zhviLevel.push(getOptional(r, 'zhvi2025'));
   }
 
-  const raw: Record<string, (number | null)[]> = {};
-  for (const name of header) raw[name] = body.map((r) => get(r, name));
-  raw.geoid = body.map((r) => Number(r[col('geoid')]));
+  const raw: Record<string, (string | number | null)[]> = {};
+  const textColumns = new Set(['geoid', 'name', 'state', 'county']);
+  for (const name of header) {
+    raw[name] = textColumns.has(name)
+      ? body.map((row) => row[col(name)] ?? null)
+      : body.map((row) => get(row, name));
+  }
 
   return { statics, outcome, zhviLevel, raw };
 }

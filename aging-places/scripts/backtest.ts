@@ -43,12 +43,12 @@ export function stateFold(state: string, folds = 5): number {
   return (hash >>> 0) % folds;
 }
 
-function quantile(values: number[], q: number): number {
+export function quantile(values: number[], q: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
 
-function meanSd(values: number[]): { mean: number; sd: number } {
+export function meanSd(values: number[]): { mean: number; sd: number } {
   const mean = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
   const sd = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
     Math.max(1, values.length - 1)) || 1;
@@ -60,7 +60,7 @@ function zApply(train: number[], values: number[]): number[] {
   return values.map((value) => Math.max(-4, Math.min(4, (value - mean) / sd)));
 }
 
-function pearson(a: number[], b: number[]): number {
+export function pearson(a: number[], b: number[]): number {
   const ma = meanSd(a).mean;
   const mb = meanSd(b).mean;
   let cov = 0, va = 0, vb = 0;
@@ -72,7 +72,7 @@ function pearson(a: number[], b: number[]): number {
   return va > 0 && vb > 0 ? cov / Math.sqrt(va * vb) : NaN;
 }
 
-function ranks(values: number[]): number[] {
+export function ranks(values: number[]): number[] {
   const ordered = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
   const out = new Array(values.length).fill(0);
   let i = 0;
@@ -86,11 +86,13 @@ function ranks(values: number[]): number[] {
   return out;
 }
 
-function spearman(a: number[], b: number[]): number {
+export function spearman(a: number[], b: number[]): number {
   return pearson(ranks(a), ranks(b));
 }
 
-function stateDemeaned(rows: FeatureRow[], growth: number[], indices: number[]): Map<number, number> {
+export function stateDemeaned(
+  rows: FeatureRow[], growth: number[], indices: number[]
+): Map<number, number> {
   const means = new Map<string, { sum: number; n: number }>();
   for (const index of indices) {
     const current = means.get(rows[index].state) ?? { sum: 0, n: 0 };
@@ -128,7 +130,7 @@ interface FoldMetric {
   aucForeignShareBaseline: number;
 }
 
-function safeAuc(scores: number[], labels: number[]): number {
+export function safeAuc(scores: number[], labels: number[]): number {
   const value = rocAuc(scores, labels);
   return Number.isFinite(value) ? value : 0.5;
 }
@@ -137,7 +139,7 @@ function orientBaseline(train: number[], trainY: number[], test: number[]): numb
   return safeAuc(train, trainY) < 0.5 ? test.map((value) => -value) : test;
 }
 
-function summary(values: number[]): { mean: number; min: number; max: number } {
+export function summary(values: number[]): { mean: number; min: number; max: number } {
   return {
     mean: +meanSd(values).mean.toFixed(3),
     min: +Math.min(...values).toFixed(3),
@@ -304,9 +306,9 @@ export function main(): void {
     linW,
     threshold,
     preprocessing: 'epoch_zscore',
-    statisticalScore: 'logistic historical-winner index (headline); state-demeaned ridge retained as a diagnostic',
+    statisticalScore: 'logistic historical-winner index (historical persistence only); state-demeaned ridge retained as a diagnostic',
     meta: {
-      fitDate: new Date().toISOString().slice(0, 10),
+      fitDataThrough: '2025-06',
       universe: `US places pop>=1000 with ZHVI 2000 & 2025 (n=${rows.length})`,
       winnerDefinition: `top quartile of log(ZHVI2025/ZHVI2000), cutoff=${allCutoff.toFixed(4)}`,
       outcome: 'Zillow ZHVI city-level, June observations',

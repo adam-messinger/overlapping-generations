@@ -1,7 +1,9 @@
 /**
- * Forward municipal ranking and mechanism scenario, 2025-2065.
+ * Forward municipal persistence ranking and mechanism scenario, 2025-2065.
  *
- * The headline ranking is the state-grouped-validated logistic winner model.
+ * The historical persistence ranking is the state-grouped-validated logistic
+ * winner model. It describes resemblance to 2000-2025 winners; it is not an
+ * aging-resilience forecast.
  * The mechanism simulation is reported separately because adding it to the
  * classifier did not improve mean held-out-state AUC. Structural valuation is
  * also separate and excludes current prices from its fundamental score.
@@ -11,7 +13,8 @@ import * as path from 'node:path';
 import { DATA_DIR, OUT_DIR, ensureDirs, writeCsv } from './lib.js';
 import { loadFeatureRows } from './backtest.js';
 import {
-  MODEL_FEATURES, ModelSpec, buildMatrix, columnStats, standardize, predictLogit, predictLinear,
+  MODEL_FEATURES, ModelSpec, assertModelCompatible, buildMatrix, columnStats, standardize,
+  predictLogit, predictLinear,
 } from '../src/scoring.js';
 import { runAgingSim } from '../src/simulation.js';
 import { attractionModule } from '../src/modules/attraction.js';
@@ -61,7 +64,9 @@ interface PlaceOut {
   name: string;
   state: string;
   pop: number;
-  /** Standardized headline score; ranking-equivalent to historicalWinnerIndex. */
+  /** Canonical standardized historical-persistence score. */
+  historicalPersistenceScore: number;
+  /** @deprecated Backward-compatible alias for historicalPersistenceScore. */
   outlook: number;
   /** A 0--1 logistic ranking index, not a calibrated forward probability. */
   historicalWinnerIndex: number;
@@ -97,6 +102,7 @@ const PILLAR_LABELS: Record<string, string> = {
 export function main(): void {
   ensureDirs();
   const model: ModelSpec = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'model.json'), 'utf8'));
+  assertModelCompatible(model);
   if (model.preprocessing !== 'epoch_zscore') {
     throw new Error(`unsupported model preprocessing: ${String(model.preprocessing)}`);
   }
@@ -108,7 +114,7 @@ export function main(): void {
   const zMatrix = standardize(rawMatrix, currentStats.means, currentStats.sds);
   const historicalWinnerIndex = predictLogit(zMatrix, model.logitW);
   const relativeGrowth = predictLinear(zMatrix, model.linW);
-  const outlook = zVec(historicalWinnerIndex);
+  const historicalPersistenceScore = zVec(historicalWinnerIndex);
 
   const sim = runAgingSim({ epoch: '2023', years: 40, minPop: 250 });
   const simIndex = new Map(sim.data.statics.geoid.map((geoid, i) => [geoid, i]));
@@ -174,7 +180,7 @@ export function main(): void {
     const housingMarketEligible = simI !== undefined && sim.data.statics.housingMarketEligible[simI] === 1;
     const missingFeatureCount = rawMatrix[i].filter((value) => value === null).length;
     const extremeFeatureCount = zMatrix[i].filter((value) => Math.abs(value) > 4).length;
-    const disagreement = Math.abs(outlook[i] - mechanismScore[i]);
+    const disagreement = Math.abs(historicalPersistenceScore[i] - mechanismScore[i]);
     const confidence = classifyConfidence({
       pop: row.pop,
       hasZhvi: row.raw.zhvi2025 !== null,
@@ -187,7 +193,8 @@ export function main(): void {
     });
     return {
       geoid: row.geoid, name: row.name, state: row.state, pop: row.pop,
-      outlook: +outlook[i].toFixed(3),
+      historicalPersistenceScore: +historicalPersistenceScore[i].toFixed(3),
+      outlook: +historicalPersistenceScore[i].toFixed(3),
       historicalWinnerIndex: +historicalWinnerIndex[i].toFixed(4),
       mechanismScore: +mechanismScore[i].toFixed(3),
       mechanismRealLogGrowth: +mechanismGrowth[i].toFixed(3),
@@ -207,7 +214,8 @@ export function main(): void {
   });
 
   const header = [
-    'geoid', 'name', 'state', 'pop', 'outlook', 'historicalWinnerIndex',
+    'geoid', 'name', 'state', 'pop', 'historicalPersistenceScore', 'outlook',
+    'historicalWinnerIndex',
     'mechanismScore', 'mechanismRealLogGrowth', 'historicalRelativeGrowth',
     'structuralScore', 'valuationGap', 'modelDisagreement', 'zhvi2025', 'medianValue',
     'housingMarketEligible', 'confidence', 'confidenceReasons',
@@ -215,7 +223,8 @@ export function main(): void {
     'tags', 'positives', 'negatives',
   ];
   const toRow = (place: PlaceOut): (string | number | null)[] => [
-    place.geoid, place.name, place.state, place.pop, place.outlook, place.historicalWinnerIndex,
+    place.geoid, place.name, place.state, place.pop, place.historicalPersistenceScore,
+    place.outlook, place.historicalWinnerIndex,
     place.mechanismScore, place.mechanismRealLogGrowth, place.historicalRelativeGrowth,
     place.structuralScore, place.valuationGap, place.modelDisagreement,
     place.zhvi2025, place.medianValue, Number(place.housingMarketEligible), place.confidence,
@@ -230,7 +239,9 @@ export function main(): void {
   const eligible = out.filter((place) =>
     place.pop >= 10000 && place.housingMarketEligible && place.zhvi2025 !== null && place.confidence !== 'low'
   );
-  const ranked = [...eligible].sort((a, b) => b.outlook - a.outlook);
+  const ranked = [...eligible].sort(
+    (a, b) => b.historicalPersistenceScore - a.historicalPersistenceScore
+  );
   writeCsv(path.join(OUT_DIR, 'top100.csv'), header, ranked.slice(0, 100).map(toRow));
   writeCsv(path.join(OUT_DIR, 'bottom100.csv'), header, ranked.slice(-100).reverse().map(toRow));
   const valued = eligible.filter((place) => place.valuationGap !== null);
@@ -240,14 +251,14 @@ export function main(): void {
   writeCsv(path.join(OUT_DIR, 'overvalued.csv'), header,
     byValue.filter((place) => place.structuralScore < 0).reverse().slice(0, 100).map(toRow));
 
-  console.log(`headline eligible universe: ${ranked.length}`);
-  console.log('=== TOP 20: validated historical winner score ===');
+  console.log(`historical-persistence eligible universe: ${ranked.length}`);
+  console.log('=== TOP 20: historical persistence score ===');
   ranked.slice(0, 20).forEach((place, i) => console.log(
-    `${String(i + 1).padStart(2)} ${place.outlook.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
+    `${String(i + 1).padStart(2)} ${place.historicalPersistenceScore.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
   ));
   console.log('=== BOTTOM 20 ===');
   ranked.slice(-20).reverse().forEach((place, i) => console.log(
-    `${String(ranked.length - i).padStart(4)} ${place.outlook.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
+    `${String(ranked.length - i).padStart(4)} ${place.historicalPersistenceScore.toFixed(2).padStart(6)} index=${place.historicalWinnerIndex.toFixed(3)} ${place.name}, ${place.state} [${place.confidence}]`
   ));
 }
 

@@ -7,6 +7,17 @@
 export const COHORTS = ['a0_19', 'a20_24', 'a25_44', 'a45_64', 'a65up'] as const;
 export type Cohort = (typeof COHORTS)[number];
 
+/** Default household headship assumptions shared by loading and simulation.
+ * A custom market.headship scenario must also use its custom rates when the
+ * start-year place multipliers are calibrated. */
+export const DEFAULT_HEADSHIP: Record<Cohort, number> = {
+  a0_19: 0,
+  a20_24: 0.38,
+  a25_44: 0.50,
+  a45_64: 0.56,
+  a65up: 0.63,
+};
+
 /** Static (slow-moving) municipal attributes, z-scored against the national
  * distribution at simulation start. */
 export interface PlaceStatics {
@@ -64,3 +75,10 @@ export interface CohortRates {
   /** Fraction of each bracket graduating to the next per year (1/width). */
   exit: Record<Cohort, number>;
 }
+
+export const COHORT_RATES: CohortRates = {
+  // Approximate annual survival by bracket, SSA 2021 period tables.
+  survival: { a0_19: 0.9996, a20_24: 0.999, a25_44: 0.9985, a45_64: 0.995, a65up: 0.955 },
+  // Annual share aging into the next bracket (1 / bracket width).
+  exit: { a0_19: 1 / 20, a20_24: 1 / 5, a25_44: 1 / 20, a45_64: 1 / 20, a65up: 0 },
+};

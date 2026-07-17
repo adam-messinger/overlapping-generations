@@ -2,7 +2,7 @@
 
 This document states the conceptual priors behind the mechanism simulation. They are hypotheses,
 not conclusions established by the US backtest. The international notes supply context, while the
-headline statistical model is empirical and may disagree with these priors.
+historical-persistence model is empirical and may disagree with these priors.
 
 ## Central hypothesis
 
@@ -67,9 +67,10 @@ additive with selected interactions, not generally multiplicative.
 
 The corrected validation supports only a limited version of the first proposition. The historical
 logistic index has mean held-out-state AUC 0.667, but the foreign-born-share baseline alone reaches
-0.629. The mechanism's raw national hindcast is near chance, although its mean within-held-out-state
-Spearman diagnostic is 0.287. The remaining propositions are model structure and research
-questions, not empirically confirmed findings.
+0.629. The mechanism's raw national hindcast is weak (AUC 0.567 and Spearman 0.082); its corrected
+mean within-held-out-state Spearman diagnostic is 0.182. It does beat lagged population within
+start-period commuting zones, although a fitted local ridge is better. The remaining propositions
+are model structure and research questions, not empirically confirmed findings.
 
 ## US scenario, not forecast law
 

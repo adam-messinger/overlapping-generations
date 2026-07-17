@@ -22,6 +22,11 @@ export interface AttractionParams {
   wVitality: number;   // dynamic: current young share (z)
   wAfford: number;     // dynamic penalty: z of lagged price/income
   wDistress: number;   // penalty: distress vacancy z
+  /** Annual retention of the enrollment-throughput contribution. A value of
+   * one preserves the current static institution assumption. */
+  universityThroughputAnnualRetention: number;
+  /** Lower bound on the retained enrollment-throughput contribution. */
+  universityThroughputFloor: number;
   /** Hinterland-consolidation bonus: institutions in low-access regions
    * capture their shrinking hinterland (Fukuoka/Sapporo/Mayo pattern). */
   wHub: number;
@@ -36,6 +41,8 @@ export interface AttractionParams {
 export interface AttractionState {
   /** Precomputed static pillar composites. */
   engines: Float64Array;
+  /** Enrollment-only portion of engines, exposed to scenario contraction. */
+  universityThroughput: Float64Array;
   human: Float64Array;
   access: Float64Array;
   dominance: Float64Array;
@@ -76,6 +83,8 @@ const DEFAULTS: AttractionParams = {
   wAfford: 0.25,
   wDistress: 0.15,
   wHub: 0.10,
+  universityThroughputAnnualRetention: 1,
+  universityThroughputFloor: 0,
   // Retiree weights: amenity dominates (Costa del Sol, Naples FL), healthcare
   // access second (empty-nester recentralization), prestige scarcity third.
   rAmenity: 0.45,
@@ -105,6 +114,14 @@ function meanSd(v: Float64Array): { mean: number; sd: number } {
   return { mean, sd: Math.sqrt(ss / Math.max(1, v.length - 1)) || 1 };
 }
 
+export function universityThroughputRetention(
+  annualRetention: number,
+  floor: number,
+  yearIndex: number,
+): number {
+  return Math.max(floor, annualRetention ** Math.max(0, yearIndex));
+}
+
 export const attractionModule = defineModule<AttractionParams, AttractionState, AttractionInputs, AttractionOutputs>({
   name: 'attraction',
   description: 'Four-capitals attraction scores per municipality',
@@ -115,6 +132,10 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
   validate(params): ValidationResult {
     const errors: string[] = [];
     for (const k of ['wEngines', 'wHuman', 'wAccess', 'wRegen', 'wGateway'] as const) {
+      const v = params[k];
+      if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
+    }
+    for (const k of ['universityThroughputAnnualRetention', 'universityThroughputFloor'] as const) {
       const v = params[k];
       if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
     }
@@ -132,6 +153,9 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
     const engines = combine(s, [
       ['eduEmpShare', 0.25], ['healthEmpShare', 0.20], ['pubAdminShare', 0.15],
       ['armedShare', 0.10], ['collegeShare', 0.15], ['logUni15', 0.10], ['logUni60', 0.05],
+    ]);
+    const universityThroughput = combine(s, [
+      ['logUni15', 0.10], ['logUni60', 0.05],
     ]);
     const human = combine(s, [['bachShare', 0.4], ['gradShare', 0.3], ['profInfoFireShare', 0.3]]);
     const access = combine(s, [['logPopAccess60', 0.6], ['logPopAccess120', 0.4]]);
@@ -167,19 +191,29 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       ys[i] = (s.cohorts0.a20_24[i] + s.cohorts0.a25_44[i]) / tot;
     }
     const { mean: ysMean, sd: ysSd } = meanSd(ys);
-    return { engines, human, access, dominance, regen, gateway, amenity, scarcity, distress, health, pti0Mean, pti0Sd, ysMean, ysSd };
+    return {
+      engines, universityThroughput, human, access, dominance, regen, gateway,
+      amenity, scarcity, distress, health, pti0Mean, pti0Sd, ysMean, ysSd,
+    };
   },
 
-  step(state, inputs, params, _year, _yearIndex) {
+  step(state, inputs, params, _year, yearIndex) {
     const n = state.engines.length;
     const aW = new Float64Array(n);
     const aR = new Float64Array(n);
     const { laggedPriceToIncome: pti, laggedYoungShare: ys } = inputs;
+    const throughputRetention = universityThroughputRetention(
+      params.universityThroughputAnnualRetention,
+      params.universityThroughputFloor,
+      yearIndex,
+    );
     for (let i = 0; i < n; i++) {
       const zPti = Math.max(-3, Math.min(6, (pti[i] - state.pti0Mean) / state.pti0Sd));
       const zYs = Math.max(-4, Math.min(4, (ys[i] - state.ysMean) / state.ysSd));
+      const engines = state.engines[i]
+        + (throughputRetention - 1) * state.universityThroughput[i];
       aW[i] =
-        params.wEngines * state.engines[i] +
+        params.wEngines * engines +
         params.wHuman * state.human[i] +
         params.wAccess * state.access[i] +
         params.wRegen * state.regen[i] +
@@ -187,7 +221,7 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
         params.wVitality * zYs -
         params.wAfford * zPti -
         params.wDistress * state.distress[i] +
-        params.wHub * Math.max(0, state.engines[i]) * Math.max(0, state.dominance[i]);
+        params.wHub * Math.max(0, engines) * Math.max(0, state.dominance[i]);
       aR[i] =
         params.rAmenity * state.amenity[i] +
         params.rHealth * state.health[i] +

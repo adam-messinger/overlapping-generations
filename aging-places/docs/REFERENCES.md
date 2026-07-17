@@ -12,6 +12,8 @@ from model judgment. Access and vintage were last reviewed on 2026-07-16.
 - Zillow Research, [Housing Data](https://www.zillow.com/research/data/) and [ZHVI User Guide](https://www.zillow.com/research/zhvi-user-guide/): city-level, all-homes, middle-tier, smoothed and seasonally adjusted ZHVI. Zillow calls this a typical home value, not a median.
 - NCES, [IPEDS complete data files](https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx): HD2023, EFFY2023_DIST, FA2000HD, and EF2000A.
 - NCES, [Distance Education in IPEDS](https://nces.ed.gov/ipeds/use-the-data/distance-education-in-ipeds): definitions used to remove exclusively online students from the current spatial enrollment measure.
+- USDA Economic Research Service, [Commuting Zones and Labor Market Areas](https://www.ers.usda.gov/data-products/commuting-zones-and-labor-market-areas): county membership for the start-period 2000 commuting zones and the 2020 sensitivity geography.
+- US Census Bureau, [1990–2000 Subcounty Population Estimates](https://www2.census.gov/programs-surveys/popest/tables/1990-2000/2000-subcounties-evaluation-estimates/): April 1990 population restated on January 2000 boundaries and April 2000 Census population, used for the lagged population-trend baseline and multi-county place assignment.
 
 ## National demographic scenario
 
@@ -30,6 +32,7 @@ rates, attraction weights, spatial enrollment cap, and confidence thresholds.
 
 ## International context
 
+- Statistics Bureau of Japan, [Population Census](https://www.stat.go.jp/english/data/kokusei/index.html) via [e-Stat](https://www.e-stat.go.jp/en): official 2010, 2015, and 2020 municipal population, five-year age, household, and origin-destination commuting tables used by the development panel. Exact table identifiers, URLs, byte counts, and SHA-256 hashes are committed under `japan/data/*-sources.json`.
 - Statistics Bureau of Japan, [2023 Housing and Land Survey](https://www.stat.go.jp/english/data/jyutaku/index.html) and [2024 results notice](https://www.stat.go.jp/english/info/news/20241030.html): official housing and vacancy evidence.
 - Eurostat, [Housing Price Statistics](https://ec.europa.eu/eurostat/web/housing-price-statistics) and [methodology](https://ec.europa.eu/eurostat/web/housing-price-statistics/methodology): harmonized national house-price indices for EU comparisons.
 

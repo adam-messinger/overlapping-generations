@@ -15,7 +15,7 @@
  */
 import { defineModule } from '../../../src/framework/index.js';
 import type { ValidationResult } from '../../../src/framework/index.js';
-import { COHORTS, Cohort, CohortRates, NationOutputs } from '../domain-types.js';
+import { COHORTS, COHORT_RATES, Cohort, NationOutputs } from '../domain-types.js';
 
 export interface NationParams {
   /** Total fertility rate at the beginning and end of convergence. */
@@ -36,13 +36,6 @@ export interface NationState {
   cohorts: Record<Cohort, number>;
   elderlyWealthIndex: number;
 }
-
-export const COHORT_RATES: CohortRates = {
-  // Approximate annual survival by bracket, SSA 2021 period tables
-  survival: { a0_19: 0.9996, a20_24: 0.999, a25_44: 0.9985, a45_64: 0.995, a65up: 0.955 },
-  // 1 / bracket width
-  exit: { a0_19: 1 / 20, a20_24: 1 / 5, a25_44: 1 / 20, a45_64: 1 / 20, a65up: 0 },
-};
 
 // Net immigration distribution by cohort (CBO/ACS age profile of new arrivals)
 export const IMMIG_SHARE: Record<Cohort, number> = {

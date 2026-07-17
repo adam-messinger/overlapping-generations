@@ -1,88 +1,134 @@
 # Validation results
 
-These results supersede the earlier random-place split and the earlier mechanism hindcast. The
-machine-readable record is `data/validation.json`.
+This page separates four questions that earlier versions blurred together: held-out-state
+classification, local capture within functional markets, transfer across US outcome windows, and
+external-regime mechanism evidence from Japan. Machine-readable results are in
+`data/validation.json`, `data/market-validation.json`, `data/window-stability.json`, and
+`japan/data/development-demography.json`.
 
-## Design
+## 1. Held-out-state historical classification
 
-- Historical universe: 5,897 places with population at least 1,000 and ZHVI in 2000 and 2025.
-- Outcome: nominal `log(ZHVI_2025 / ZHVI_2000)`; full-sample q75 is 1.203.
+### Design
+
+- Historical universe: 5,891 places with population at least 1,000 and ZHVI in June 2000 and June
+  2025.
+- Outcome: nominal `log(ZHVI_2025 / ZHVI_2000)`; full-sample q75 is 1.2034.
 - Validation: five deterministic folds grouped by state.
-- Leakage controls: training-only winner cutoff, preprocessing statistics, imputation, and fitting.
-- Selection: the production headline is the component with the best mean held-out-state AUC.
+- Leakage controls: training-only winner cutoff, preprocessing, imputation, and fitting.
 
-Fold means are reported with the worst and best fold in parentheses. Fold means are unweighted, so
-each geographical partition—not each observation—has equal influence on the summary.
-
-## Held-out-state classification
+Fold means are unweighted, so each geographical partition—not each observation—has equal influence.
 
 | Score | Mean AUC | Fold range |
 |---|---:|---:|
-| Logistic historical-winner index | **0.667** | 0.625–0.708 |
-| Logistic + state-demeaned ridge, equal z-score weight | 0.641 | 0.573–0.701 |
+| Logistic historical-persistence index | **0.667** | 0.624–0.707 |
+| Logistic + state-demeaned ridge | 0.641 | 0.573–0.702 |
 | Foreign-born-share baseline | 0.629 | 0.557–0.700 |
-| Mechanism scenario | 0.548 | 0.424–0.650 |
-| 70% logistic + 30% mechanism | 0.663 | 0.563–0.746 |
-| 70% historical-composite + 30% mechanism | 0.645 | 0.508–0.742 |
-| 50% mechanism blend | 0.630 | 0.465–0.757 |
-| 70% mechanism blend | 0.601 | 0.438–0.731 |
+| Mechanism scenario | 0.527 | 0.365–0.658 |
+| 70% logistic + 30% mechanism | 0.652 | 0.565–0.743 |
+| 70% historical composite + 30% mechanism | 0.633 | 0.516–0.738 |
 
-The mechanism does not improve the mean logistic result, and it materially hurts some held-out
-state groups. That is why the production ranking no longer blends it into the headline.
-
-For places with population at least 10,000, mean AUC is 0.625 for the historical composite, 0.573
-for mechanism, 0.636 for the 30%-mechanism composite blend, and 0.646 for the 30%-mechanism
-logistic blend. Fold ranges are wide, so the apparent large-place improvement from a blend is not
-stable geographically.
-
-## Fold detail
+The mechanism does not improve the logistic mean. The ranking files therefore expose the fitted
+classifier as a **historical persistence score**, never as a forward resilience forecast, and keep
+the mechanism separate.
 
 | Fold | Held-out states | n | Historical composite AUC | Mechanism AUC | 30% mechanism blend |
 |---:|---|---:|---:|---:|---:|
-| 0 | AK AZ HI KS MD MO NE NH RI TX WA | 810 | 0.609 | 0.444 | 0.565 |
-| 1 | CT IL KY MI MN OH OR SC UT | 1,628 | 0.573 | 0.424 | 0.508 |
-| 2 | AL AR GA LA NC NY OK WI | 1,217 | 0.631 | 0.650 | 0.712 |
-| 3 | CA CO DE MA NJ NV VT WV | 1,196 | 0.701 | 0.628 | 0.742 |
-| 4 | DC FL IA ID IN ME PA TN VA | 1,046 | 0.691 | 0.594 | 0.697 |
+| 0 | AK AZ HI KS MD MO NE NH RI TX WA | 810 | 0.610 | 0.472 | 0.587 |
+| 1 | CT IL KY MI MN OH OR SC UT | 1,626 | 0.573 | 0.365 | 0.516 |
+| 2 | AL AR GA LA NC NY OK WI | 1,214 | 0.631 | 0.559 | 0.647 |
+| 3 | CA CO DE MA NJ NV VT WV | 1,196 | 0.702 | 0.658 | 0.738 |
+| 4 | DC FL IA ID IN ME PA TN VA | 1,045 | 0.690 | 0.579 | 0.677 |
 
-The geography dependence is substantive. Fold 1 is close to chance for the composite and
-mechanism, while folds 3–4 are much stronger. A single national score hides that instability.
+A deliberately non-deployable random-place diagnostic learns each state's outcome rate from the
+training subset and reaches AUC 0.840. That is why the old random-place result near 0.80 was
+invalidated: state-level price regimes were present on both sides of the split.
 
-## Continuous within-state diagnostics
+## 2. Continuous and functional-market diagnostics
 
-The ridge model is trained on state-demeaned growth. Mean held-out Spearman correlation with the
-state-demeaned outcome is 0.164 for ridge, 0.287 for mechanism, and 0.276 for their 30%-mechanism
-blend. The mechanism captures some within-state ordering while failing to rank raw national price
-growth; this is useful diagnostic evidence, but not enough to make it the headline.
+After restoring the one-sided price-to-income correction, mean held-out-state Spearman with the
+state-demeaned outcome is 0.165 for the fitted ridge, 0.182 for the mechanism, and 0.201 for their
+30%-mechanism blend. The old 0.287 mechanism figure included the below-fundamental price-reversion
+bug and must not be reused.
 
-## Why the old random split looked much better
+The product geography is tested separately with USDA 2000 commuting zones. Whole zones are held
+out for fitted scores; local metrics require at least five modeled places. The primary table below
+uses the exact 1990–2000 lagged-population common sample: 4,499 places in 210 zones.
 
-A deliberately non-deployable diagnostic learns each state's winner rate from a random 70% of
-places and assigns that rate to the other 30%. It reaches AUC 0.842 without municipal features.
-That demonstrates how easily a random place split can reward shared state-level price shocks. It
-does not mean state identity is a usable forecast for a new regime. The previous reported random-
-split AUCs around 0.80 therefore cannot be treated as spatially independent validation.
+| Score | Pooled centered Spearman | Equal-zone mean Spearman | Pairwise accuracy |
+|---|---:|---:|---:|
+| Local ridge, held-out zones | **0.228** | **0.175** | **0.566** |
+| Mechanism scenario | 0.209 | 0.097 | 0.536 |
+| Historical persistence | 0.130 | 0.023 | 0.509 |
+| Foreign-born share | 0.069 | −0.049 | 0.484 |
+| Market access | 0.008 | −0.001 | 0.501 |
+| Lagged 1990–2000 population trend | −0.081 | −0.059 | 0.479 |
 
-## Raw mechanism hindcast
+The mechanism beats the lagged-population comparator by 0.156 equal-zone Spearman points; the
+4,000-draw zone bootstrap 95% interval is 0.084 to 0.231. The 2020-zone sensitivity is similar
+(difference 0.155, interval 0.083 to 0.225). This clears the cheap baseline gate, but the fitted
+local ridge remains better and the national historical-persistence score has almost no equal-zone
+local rank signal. These are development-window diagnostics, not untouched validation.
 
-Running the corrected 2000 municipal simulation for 25 years and comparing its raw national
-ranking with observed ZHVI growth gives:
+## 3. US outcome-window stability
+
+The 2000–2025 outcome is not one stable regime. A fixed-year-2000-covariate diagnostic splits ZHVI
+growth into 2000–2012 and 2012–2025:
+
+- raw early-versus-late Spearman is −0.322;
+- top-quartile overlap has Jaccard index 0.061;
+- the early-window classifier scores AUC 0.672 on its own window but 0.408 on the late window;
+- the late-window classifier scores AUC 0.731 on its own window but 0.392 on the early window;
+- mean logit-coefficient cosine similarity is −0.222; and
+- state-demeaned early-versus-late outcome Spearman is −0.327.
+
+This is not a rolling-origin backtest because 2012 covariates have not yet been assembled. It is
+still a strong falsification of naive temporal persistence: the feature relationships that sort
+one part of the historical window point largely the other way in the other part. The current
+classifier can describe resemblance to the full 2000–2025 winners; it cannot claim coefficient
+stability into 2025–2065.
+
+## 4. Corrected raw US mechanism hindcast
+
+Running the corrected 2000 municipal simulation for 25 years gives:
 
 | Universe | Pearson | Spearman | Top-quartile AUC |
 |---|---:|---:|---:|
-| All 5,897 places | 0.041 | −0.005 | 0.522 |
-| Population at least 10,000 (n=2,204) | 0.031 | −0.031 | 0.514 |
+| All 5,891 places | 0.120 | 0.082 | 0.567 |
+| Population at least 10,000 (n=2,202) | 0.216 | 0.185 | 0.621 |
 
-The simulated dispersion is 0.166 versus 0.264 observed. The national mean real-price index ends
-at 1.541 and the simulated national 65+ share at 0.198. These are scenario diagnostics, not proof
-of municipal ranking skill.
+Simulated log-growth dispersion is 0.132 versus 0.264 observed. The national mean real-price index
+ends at 1.276 and simulated 65+ share at 0.198. These improve on the bugged run but remain scenario
+diagnostics; the model is too smooth and omits national credit, rate, insurance, and regulatory
+price regimes.
+
+## 5. Japan development-window mechanism audit
+
+`docs/INTERNATIONAL_PANEL.md` was committed before any post-2020 municipal outcome was acquired.
+The holdout remains sealed. The current Japan result uses official 2010, 2015, and 2020 censuses,
+2020-boundary municipalities, and origin-year 10% commuting basins. It tests only the frozen US
+demographic regeneration/vitality channel and working-age allocation; institutional, human-capital,
+gateway, vacancy, and price channels are not yet in this run.
+
+| Window | Conditional allocation MAE/yr | Nationally scaled no-migration MAE/yr | Equal-basin Spearman: mechanism | Lagged population | Difference, 95% CI |
+|---|---:|---:|---:|---:|---:|
+| 2010–2015 | **0.00525** | 0.00680 | 0.768 | 0.756 | +0.012 (−0.051, +0.075) |
+| 2015–2020 | **0.00542** | 0.00684 | 0.760 | 0.735 | +0.026 (−0.027, +0.080) |
+
+The attraction term itself adds rank information over nationally scaled no-migration aging in both
+windows: +0.041 (95% interval 0.009 to 0.077) and +0.030 (0.013 to 0.050). But the preregistered
+kill comparator is lagged population, and both intervals against it cross zero. Household demand
+is not yet predicted by the partial mechanism, and a lagged household comparator is unavailable
+for the first window. The result is therefore encouraging channel evidence but **does not pass the
+international-validation gate**. The mechanism remains scenario tooling.
 
 ## Interpretation
 
-The defensible claim is narrow: year-2000 municipal features contain modest information about
-which entirely held-out states' places landed in the national top quartile through 2025. The best
-mean AUC is 0.667, only 0.038 above a foreign-born-share baseline, and the fold range is broad.
+The evidence now supports three deliberately separate outputs:
 
-The output does not establish causal aging mechanisms, calibrated probabilities, or investable
-40-year returns. The same data window was used during feature and specification development, so
-even grouped cross-validation is development validation rather than a final untouched replication.
+1. a US historical-persistence screen with modest held-out-state discrimination but failed temporal
+   transfer;
+2. a mechanism scenario with some local and Japanese demographic-channel signal, not yet a fully
+   validated resilience forecast; and
+3. a separate valuation/exposure screen.
+
+None establishes causal aging effects, calibrated probabilities, or investable 40-year returns.

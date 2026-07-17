@@ -1,0 +1,441 @@
+{
+  "status": "illustrative stress test; retention paths are not yet calibrated from Japan",
+  "interpretation": "Only the enrollment-throughput contribution contracts; campuses, employment anchors, health systems, and human capital do not disappear mechanically.",
+  "scenarios": [
+    {
+      "name": "highRetention",
+      "annualRetention": 1,
+      "floor": 1,
+      "finalThroughputRetention": 1,
+      "finalMeanRealPriceIndex": 1.0968,
+      "finalModeledPlacePopulation": 264535628,
+      "finalShareDecliningReal": 0.3912,
+      "totalUnmetInternalMigration": 0
+    },
+    {
+      "name": "baseRetention",
+      "annualRetention": 0.985,
+      "floor": 0.65,
+      "finalThroughputRetention": 0.65,
+      "finalMeanRealPriceIndex": 1.1001,
+      "finalModeledPlacePopulation": 264535628,
+      "finalShareDecliningReal": 0.3879,
+      "totalUnmetInternalMigration": 0
+    },
+    {
+      "name": "lowRetention",
+      "annualRetention": 0.96,
+      "floor": 0.25,
+      "finalThroughputRetention": 0.25,
+      "finalMeanRealPriceIndex": 1.1038,
+      "finalModeledPlacePopulation": 264535628,
+      "finalShareDecliningReal": 0.3844,
+      "totalUnmetInternalMigration": 0
+    }
+  ],
+  "eligibleLocalities": 4177,
+  "mostAdverselyExposed": [
+    {
+      "geoid": "3651000",
+      "locality": "New York city, NY",
+      "originPopulation": 8516202,
+      "throughputSignal": 0.2602,
+      "lowMinusHighRealLogPriceGrowth": -0.02507,
+      "lowMinusHighFinalPopulationLog": -0.03073
+    },
+    {
+      "geoid": "2622000",
+      "locality": "Detroit city, MI",
+      "originPopulation": 636644,
+      "throughputSignal": 0.1945,
+      "lowMinusHighRealLogPriceGrowth": -0.017,
+      "lowMinusHighFinalPopulationLog": -0.00824
+    },
+    {
+      "geoid": "1571550",
+      "locality": "Urban Honolulu CDP, HI",
+      "originPopulation": 346323,
+      "throughputSignal": 0.1505,
+      "lowMinusHighRealLogPriceGrowth": -0.01464,
+      "lowMinusHighFinalPopulationLog": -0.01039
+    },
+    {
+      "geoid": "1714000",
+      "locality": "Chicago city, IL",
+      "originPopulation": 2707648,
+      "throughputSignal": 0.2261,
+      "lowMinusHighRealLogPriceGrowth": -0.01272,
+      "lowMinusHighFinalPopulationLog": -0.03207
+    },
+    {
+      "geoid": "0644000",
+      "locality": "Los Angeles city, CA",
+      "originPopulation": 3857897,
+      "throughputSignal": 0.2389,
+      "lowMinusHighRealLogPriceGrowth": -0.01219,
+      "lowMinusHighFinalPopulationLog": -0.02112
+    },
+    {
+      "geoid": "3916000",
+      "locality": "Cleveland city, OH",
+      "originPopulation": 367523,
+      "throughputSignal": 0.1789,
+      "lowMinusHighRealLogPriceGrowth": -0.00982,
+      "lowMinusHighFinalPopulationLog": -0.00507
+    },
+    {
+      "geoid": "2836000",
+      "locality": "Jackson city, MS",
+      "originPopulation": 149827,
+      "throughputSignal": 0.1132,
+      "lowMinusHighRealLogPriceGrowth": -0.00644,
+      "lowMinusHighFinalPopulationLog": -0.00475
+    },
+    {
+      "geoid": "2270000",
+      "locality": "Shreveport city, LA",
+      "originPopulation": 183483,
+      "throughputSignal": 0.1036,
+      "lowMinusHighRealLogPriceGrowth": -0.00608,
+      "lowMinusHighFinalPopulationLog": -0.00326
+    },
+    {
+      "geoid": "2507000",
+      "locality": "Boston city, MA",
+      "originPopulation": 663972,
+      "throughputSignal": 0.2308,
+      "lowMinusHighRealLogPriceGrowth": -0.00566,
+      "lowMinusHighFinalPopulationLog": -0.01534
+    },
+    {
+      "geoid": "4832978",
+      "locality": "Heartland CDP, TX",
+      "originPopulation": 11019,
+      "throughputSignal": -0.0566,
+      "lowMinusHighRealLogPriceGrowth": -0.00529,
+      "lowMinusHighFinalPopulationLog": 0.02739
+    },
+    {
+      "geoid": "0150000",
+      "locality": "Mobile city, AL",
+      "originPopulation": 185097,
+      "throughputSignal": 0.1258,
+      "lowMinusHighRealLogPriceGrowth": -0.00529,
+      "lowMinusHighFinalPopulationLog": -0.0028
+    },
+    {
+      "geoid": "5147136",
+      "locality": "Loudoun Valley Estates CDP, VA",
+      "originPopulation": 10323,
+      "throughputSignal": 0.0481,
+      "lowMinusHighRealLogPriceGrowth": -0.00508,
+      "lowMinusHighFinalPopulationLog": 0.02705
+    },
+    {
+      "geoid": "4827876",
+      "locality": "Fulshear city, TX",
+      "originPopulation": 26986,
+      "throughputSignal": -0.056,
+      "lowMinusHighRealLogPriceGrowth": -0.00497,
+      "lowMinusHighFinalPopulationLog": 0.0238
+    },
+    {
+      "geoid": "4813684",
+      "locality": "Celina city, TX",
+      "originPopulation": 27141,
+      "throughputSignal": -0.0561,
+      "lowMinusHighRealLogPriceGrowth": -0.00484,
+      "lowMinusHighFinalPopulationLog": 0.02165
+    },
+    {
+      "geoid": "3260600",
+      "locality": "Reno city, NV",
+      "originPopulation": 268959,
+      "throughputSignal": 0.1466,
+      "lowMinusHighRealLogPriceGrowth": -0.00477,
+      "lowMinusHighFinalPopulationLog": -0.00629
+    },
+    {
+      "geoid": "5367000",
+      "locality": "Spokane city, WA",
+      "originPopulation": 229228,
+      "throughputSignal": 0.1376,
+      "lowMinusHighRealLogPriceGrowth": -0.00473,
+      "lowMinusHighFinalPopulationLog": -0.0085
+    },
+    {
+      "geoid": "4847496",
+      "locality": "Melissa city, TX",
+      "originPopulation": 17497,
+      "throughputSignal": -0.057,
+      "lowMinusHighRealLogPriceGrowth": -0.00472,
+      "lowMinusHighFinalPopulationLog": 0.02153
+    },
+    {
+      "geoid": "4842016",
+      "locality": "Leander city, TX",
+      "originPopulation": 67880,
+      "throughputSignal": -0.0655,
+      "lowMinusHighRealLogPriceGrowth": -0.00462,
+      "lowMinusHighFinalPopulationLog": 0.02246
+    },
+    {
+      "geoid": "1304204",
+      "locality": "Augusta-Richmond County consolidated government (balance), GA",
+      "originPopulation": 201504,
+      "throughputSignal": 0.1169,
+      "lowMinusHighRealLogPriceGrowth": -0.00459,
+      "lowMinusHighFinalPopulationLog": -0.00249
+    },
+    {
+      "geoid": "4825572",
+      "locality": "Fate city, TX",
+      "originPopulation": 20757,
+      "throughputSignal": -0.0564,
+      "lowMinusHighRealLogPriceGrowth": -0.00443,
+      "lowMinusHighFinalPopulationLog": 0.02086
+    },
+    {
+      "geoid": "3764000",
+      "locality": "Spout Springs CDP, NC",
+      "originPopulation": 11073,
+      "throughputSignal": -0.0811,
+      "lowMinusHighRealLogPriceGrowth": -0.00442,
+      "lowMinusHighFinalPopulationLog": 0.02401
+    },
+    {
+      "geoid": "2417350",
+      "locality": "Clarksburg CDP, MD",
+      "originPopulation": 29246,
+      "throughputSignal": -0.0417,
+      "lowMinusHighRealLogPriceGrowth": -0.00432,
+      "lowMinusHighFinalPopulationLog": 0.0299
+    },
+    {
+      "geoid": "0107000",
+      "locality": "Birmingham city, AL",
+      "originPopulation": 199322,
+      "throughputSignal": 0.1481,
+      "lowMinusHighRealLogPriceGrowth": -0.00403,
+      "lowMinusHighFinalPopulationLog": -0.00213
+    },
+    {
+      "geoid": "0831660",
+      "locality": "Grand Junction city, CO",
+      "originPopulation": 67027,
+      "throughputSignal": 0.1016,
+      "lowMinusHighRealLogPriceGrowth": -0.004,
+      "lowMinusHighFinalPopulationLog": -0.00273
+    },
+    {
+      "geoid": "4920810",
+      "locality": "Eagle Mountain city, UT",
+      "originPopulation": 49514,
+      "throughputSignal": -0.0562,
+      "lowMinusHighRealLogPriceGrowth": -0.00389,
+      "lowMinusHighFinalPopulationLog": 0.02183
+    }
+  ],
+  "relativeBeneficiaries": [
+    {
+      "geoid": "4649600",
+      "locality": "Pierre city, SD",
+      "originPopulation": 14008,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.06226,
+      "lowMinusHighFinalPopulationLog": 0.03614
+    },
+    {
+      "geoid": "0420050",
+      "locality": "Douglas city, AZ",
+      "originPopulation": 16118,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.04118,
+      "lowMinusHighFinalPopulationLog": 0.02721
+    },
+    {
+      "geoid": "1911080",
+      "locality": "Carroll city, IA",
+      "originPopulation": 10261,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.03374,
+      "lowMinusHighFinalPopulationLog": 0.01767
+    },
+    {
+      "geoid": "5625620",
+      "locality": "Evanston city, WY",
+      "originPopulation": 11803,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.03136,
+      "lowMinusHighFinalPopulationLog": 0.01595
+    },
+    {
+      "geoid": "0449640",
+      "locality": "Nogales city, AZ",
+      "originPopulation": 19753,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.03078,
+      "lowMinusHighFinalPopulationLog": 0.02059
+    },
+    {
+      "geoid": "5549300",
+      "locality": "Marinette city, WI",
+      "originPopulation": 11060,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.02994,
+      "lowMinusHighFinalPopulationLog": 0.01624
+    },
+    {
+      "geoid": "1773170",
+      "locality": "Streator city, IL",
+      "originPopulation": 12274,
+      "throughputSignal": -0.1232,
+      "lowMinusHighRealLogPriceGrowth": 0.02701,
+      "lowMinusHighFinalPopulationLog": 0.01381
+    },
+    {
+      "geoid": "2730644",
+      "locality": "Hutchinson city, MN",
+      "originPopulation": 14629,
+      "throughputSignal": -0.1577,
+      "lowMinusHighRealLogPriceGrowth": 0.02698,
+      "lowMinusHighFinalPopulationLog": 0.01456
+    },
+    {
+      "geoid": "3520270",
+      "locality": "Deming city, NM",
+      "originPopulation": 14735,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.02659,
+      "lowMinusHighFinalPopulationLog": 0.01568
+    },
+    {
+      "geoid": "4809328",
+      "locality": "Bonham city, TX",
+      "originPopulation": 10594,
+      "throughputSignal": -0.0985,
+      "lowMinusHighRealLogPriceGrowth": 0.02643,
+      "lowMinusHighFinalPopulationLog": 0.01375
+    },
+    {
+      "geoid": "1512600",
+      "locality": "Hawaiian Paradise Park CDP, HI",
+      "originPopulation": 13273,
+      "throughputSignal": -0.1234,
+      "lowMinusHighRealLogPriceGrowth": 0.02631,
+      "lowMinusHighFinalPopulationLog": 0.01522
+    },
+    {
+      "geoid": "4811368",
+      "locality": "Burkburnett city, TX",
+      "originPopulation": 11012,
+      "throughputSignal": -0.1199,
+      "lowMinusHighRealLogPriceGrowth": 0.02616,
+      "lowMinusHighFinalPopulationLog": 0.01357
+    },
+    {
+      "geoid": "2938306",
+      "locality": "Kennett city, MO",
+      "originPopulation": 10236,
+      "throughputSignal": -0.1501,
+      "lowMinusHighRealLogPriceGrowth": 0.02592,
+      "lowMinusHighFinalPopulationLog": 0.01333
+    },
+    {
+      "geoid": "0236400",
+      "locality": "Juneau city and borough, AK",
+      "originPopulation": 31969,
+      "throughputSignal": -0.1377,
+      "lowMinusHighRealLogPriceGrowth": 0.02586,
+      "lowMinusHighFinalPopulationLog": 0.02618
+    },
+    {
+      "geoid": "4848684",
+      "locality": "Mineral Wells city, TX",
+      "originPopulation": 15130,
+      "throughputSignal": -0.1185,
+      "lowMinusHighRealLogPriceGrowth": 0.02567,
+      "lowMinusHighFinalPopulationLog": 0.0132
+    },
+    {
+      "geoid": "0157576",
+      "locality": "Oxford city, AL",
+      "originPopulation": 22063,
+      "throughputSignal": -0.0962,
+      "lowMinusHighRealLogPriceGrowth": 0.02561,
+      "lowMinusHighFinalPopulationLog": 0.01343
+    },
+    {
+      "geoid": "1829718",
+      "locality": "Greensburg city, IN",
+      "originPopulation": 11585,
+      "throughputSignal": -0.1485,
+      "lowMinusHighRealLogPriceGrowth": 0.02558,
+      "lowMinusHighFinalPopulationLog": 0.01374
+    },
+    {
+      "geoid": "0174352",
+      "locality": "Sylacauga city, AL",
+      "originPopulation": 12388,
+      "throughputSignal": -0.105,
+      "lowMinusHighRealLogPriceGrowth": 0.02527,
+      "lowMinusHighFinalPopulationLog": 0.01301
+    },
+    {
+      "geoid": "5566800",
+      "locality": "Reedsburg city, WI",
+      "originPopulation": 10060,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.02524,
+      "lowMinusHighFinalPopulationLog": 0.01833
+    },
+    {
+      "geoid": "1353060",
+      "locality": "Moultrie city, GA",
+      "originPopulation": 14545,
+      "throughputSignal": -0.0944,
+      "lowMinusHighRealLogPriceGrowth": 0.02511,
+      "lowMinusHighFinalPopulationLog": 0.01264
+    },
+    {
+      "geoid": "2874840",
+      "locality": "Tupelo city, MS",
+      "originPopulation": 37825,
+      "throughputSignal": -0.1137,
+      "lowMinusHighRealLogPriceGrowth": 0.0251,
+      "lowMinusHighFinalPopulationLog": 0.01281
+    },
+    {
+      "geoid": "4858916",
+      "locality": "Port Lavaca city, TX",
+      "originPopulation": 11410,
+      "throughputSignal": -0.1209,
+      "lowMinusHighRealLogPriceGrowth": 0.02503,
+      "lowMinusHighFinalPopulationLog": 0.01293
+    },
+    {
+      "geoid": "4103650",
+      "locality": "Baker City city, OR",
+      "originPopulation": 10177,
+      "throughputSignal": -0.2722,
+      "lowMinusHighRealLogPriceGrowth": 0.02496,
+      "lowMinusHighFinalPopulationLog": 0.01533
+    },
+    {
+      "geoid": "4825168",
+      "locality": "Fair Oaks Ranch city, TX",
+      "originPopulation": 10630,
+      "throughputSignal": -0.0604,
+      "lowMinusHighRealLogPriceGrowth": 0.02454,
+      "lowMinusHighFinalPopulationLog": 0.01467
+    },
+    {
+      "geoid": "0141968",
+      "locality": "Leeds city, AL",
+      "originPopulation": 12221,
+      "throughputSignal": -0.082,
+      "lowMinusHighRealLogPriceGrowth": 0.0245,
+      "lowMinusHighFinalPopulationLog": 0.01281
+    }
+  ]
+}
