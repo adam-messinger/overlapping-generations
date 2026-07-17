@@ -79,52 +79,52 @@
       "fullMechanism": {
         "status": "frozen US weights; extended constructs enter percentile-standardized, none fitted to Japanese outcomes",
         "extendedConstructCoverage": {
-          "bachelorShare": 0,
-          "collegeEnrollShare": 0,
-          "uniEnroll15km": 0,
-          "uniEnroll60km": 0,
+          "bachelorShare": 1,
+          "collegeEnrollShare": 1,
+          "uniEnroll15km": 0.9988472622478386,
+          "uniEnroll60km": 0.9988472622478386,
           "popAccess70km": 0.9988472622478386,
           "popAccess140km": 0.9988472622478386,
           "domShare": 0.9988472622478386,
-          "priceToIncome": 0,
-          "otherVacancyShare": 0
+          "priceToIncome": 0.7757925072046109,
+          "otherVacancyShare": 0.461671469740634
         },
         "workingAge": {
-          "maeAnnualizedCompleteCaseSample": 0.00504,
+          "maeAnnualizedCompleteCaseSample": 0.00539,
           "equalBasin": {
             "conditionalFullMechanismAllocation": {
               "n": 748,
               "markets": 56,
               "marketsWithDefinedSpearman": 56,
-              "pooledCenteredSpearman": 0.7431,
-              "meanWithinMarketSpearman": 0.7827,
-              "medianWithinMarketSpearman": 0.8521,
-              "meanWithinMarketPairwiseAccuracy": 0.8302
+              "pooledCenteredSpearman": 0.7033,
+              "meanWithinMarketSpearman": 0.7665,
+              "medianWithinMarketSpearman": 0.8439,
+              "meanWithinMarketPairwiseAccuracy": 0.8207
             },
             "fullMechanismAttractionScore": {
               "n": 748,
               "markets": 56,
               "marketsWithDefinedSpearman": 56,
-              "pooledCenteredSpearman": 0.7138,
-              "meanWithinMarketSpearman": 0.7269,
-              "medianWithinMarketSpearman": 0.7886,
-              "meanWithinMarketPairwiseAccuracy": 0.8027
+              "pooledCenteredSpearman": 0.5971,
+              "meanWithinMarketSpearman": 0.6261,
+              "medianWithinMarketSpearman": 0.7,
+              "meanWithinMarketPairwiseAccuracy": 0.756
             }
           },
           "fullMinusLaggedPopulationTrend": {
             "markets": 56,
-            "meanDifference": 0.0264,
+            "meanDifference": 0.0102,
             "ci95": [
-              -0.0298,
-              0.0826
+              -0.0479,
+              0.0682
             ]
           },
           "fullMinusPartialMechanism": {
             "markets": 56,
-            "meanDifference": -0.0086,
+            "meanDifference": -0.0248,
             "ci95": [
-              -0.0237,
-              0.0019
+              -0.053,
+              0.0029
             ]
           }
         },
@@ -135,10 +135,10 @@
               "n": 748,
               "markets": 56,
               "marketsWithDefinedSpearman": 56,
-              "pooledCenteredSpearman": 0.5634,
-              "meanWithinMarketSpearman": 0.6464,
-              "medianWithinMarketSpearman": 0.7071,
-              "meanWithinMarketPairwiseAccuracy": 0.7571
+              "pooledCenteredSpearman": 0.4798,
+              "meanWithinMarketSpearman": 0.5609,
+              "medianWithinMarketSpearman": 0.6819,
+              "meanWithinMarketPairwiseAccuracy": 0.7312
             },
             "conditionalPartialHouseholdAllocation": {
               "n": 748,
@@ -151,7 +151,7 @@
             }
           },
           "maeAnnualized": {
-            "conditionalFullHouseholdAllocation": 0.00513,
+            "conditionalFullHouseholdAllocation": 0.00511,
             "laggedHouseholdTrend": null
           },
           "fullHouseholdMinusLaggedHousehold": null
@@ -472,52 +472,52 @@
       "fullMechanism": {
         "status": "frozen US weights; extended constructs enter percentile-standardized, none fitted to Japanese outcomes",
         "extendedConstructCoverage": {
-          "bachelorShare": 0,
-          "collegeEnrollShare": 0,
-          "uniEnroll15km": 0,
-          "uniEnroll60km": 0,
+          "bachelorShare": 1,
+          "collegeEnrollShare": 1,
+          "uniEnroll15km": 0.9988452655889145,
+          "uniEnroll60km": 0.9988452655889145,
           "popAccess70km": 0.9988452655889145,
           "popAccess140km": 0.9988452655889145,
           "domShare": 0.9988452655889145,
-          "priceToIncome": 0,
-          "otherVacancyShare": 0
+          "priceToIncome": 0.7782909930715936,
+          "otherVacancyShare": 0.46882217090069284
         },
         "workingAge": {
-          "maeAnnualizedCompleteCaseSample": 0.00514,
+          "maeAnnualizedCompleteCaseSample": 0.00548,
           "equalBasin": {
             "conditionalFullMechanismAllocation": {
               "n": 739,
               "markets": 52,
               "marketsWithDefinedSpearman": 52,
-              "pooledCenteredSpearman": 0.7712,
-              "meanWithinMarketSpearman": 0.7564,
-              "medianWithinMarketSpearman": 0.8304,
-              "meanWithinMarketPairwiseAccuracy": 0.8174
+              "pooledCenteredSpearman": 0.73,
+              "meanWithinMarketSpearman": 0.7371,
+              "medianWithinMarketSpearman": 0.8061,
+              "meanWithinMarketPairwiseAccuracy": 0.8089
             },
             "fullMechanismAttractionScore": {
               "n": 739,
               "markets": 52,
               "marketsWithDefinedSpearman": 52,
-              "pooledCenteredSpearman": 0.6839,
-              "meanWithinMarketSpearman": 0.6686,
-              "medianWithinMarketSpearman": 0.7117,
-              "meanWithinMarketPairwiseAccuracy": 0.7593
+              "pooledCenteredSpearman": 0.5381,
+              "meanWithinMarketSpearman": 0.5394,
+              "medianWithinMarketSpearman": 0.5407,
+              "meanWithinMarketPairwiseAccuracy": 0.7102
             }
           },
           "fullMinusLaggedPopulationTrend": {
             "markets": 52,
-            "meanDifference": 0.0219,
+            "meanDifference": 0.0026,
             "ci95": [
-              -0.0356,
-              0.0808
+              -0.0589,
+              0.0642
             ]
           },
           "fullMinusPartialMechanism": {
             "markets": 52,
-            "meanDifference": -0.0095,
+            "meanDifference": -0.0289,
             "ci95": [
-              -0.0273,
-              0.0054
+              -0.0533,
+              -0.006
             ]
           }
         },
@@ -528,10 +528,10 @@
               "n": 739,
               "markets": 52,
               "marketsWithDefinedSpearman": 52,
-              "pooledCenteredSpearman": 0.6037,
-              "meanWithinMarketSpearman": 0.6039,
-              "medianWithinMarketSpearman": 0.6748,
-              "meanWithinMarketPairwiseAccuracy": 0.7338
+              "pooledCenteredSpearman": 0.5314,
+              "meanWithinMarketSpearman": 0.5718,
+              "medianWithinMarketSpearman": 0.6559,
+              "meanWithinMarketPairwiseAccuracy": 0.7284
             },
             "conditionalPartialHouseholdAllocation": {
               "n": 739,
@@ -544,15 +544,15 @@
             }
           },
           "maeAnnualized": {
-            "conditionalFullHouseholdAllocation": 0.00562,
+            "conditionalFullHouseholdAllocation": 0.00541,
             "laggedHouseholdTrend": 0.00468
           },
           "fullHouseholdMinusLaggedHousehold": {
             "markets": 52,
-            "meanDifference": -0.0774,
+            "meanDifference": -0.1095,
             "ci95": [
-              -0.1726,
-              0.0138
+              -0.2078,
+              -0.0098
             ]
           }
         }

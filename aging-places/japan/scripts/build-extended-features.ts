@@ -134,10 +134,29 @@ function main(): void {
         return Number.isFinite(parsed) ? parsed : null;
       };
       const incomePerTaxpayer = num('taxableIncomePerTaxpayerThousandYen');
+      const students = num('students18_24');
+      // Radius sums of resident 18-24 students (census-side substitute for
+      // campus enrollment; MEXT publishes no municipal table — see manifest).
+      let uni15: number | null = null;
+      let uni60: number | null = null;
+      if (entry.point && estat) {
+        let sum15 = 0;
+        let sum60 = 0;
+        for (const other of located) {
+          const otherStudents = Number(estatByCode.get(other.code)?.students18_24 ?? NaN);
+          if (!Number.isFinite(otherStudents)) continue;
+          const distance = havKm(entry.point.lat, entry.point.lon, other.point!.lat, other.point!.lon);
+          if (distance <= 15) sum15 += otherStudents;
+          if (distance <= 60) sum60 += otherStudents;
+        }
+        uni15 = Math.log1p(sum15);
+        uni60 = Math.log1p(sum60);
+      }
       out.push([
         entry.code, originYear,
-        num('bachelorShare'), num('collegeEnrollShare'),
-        num('uniEnroll15km'), num('uniEnroll60km'),
+        num('bachelorShare'),
+        students !== null && entry.pop > 0 ? +(students / entry.pop).toFixed(5) : null,
+        uni15, uni60,
         access70 === null ? null : Math.log1p(access70),
         access140 === null ? null : Math.log1p(access140),
         dom,
