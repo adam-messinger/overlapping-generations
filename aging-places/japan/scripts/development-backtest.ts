@@ -40,7 +40,22 @@ interface OriginFeatures {
   publicAdminEmploymentShare: number | null;
   professionalInfoFinanceShare: number | null;
   foreignResidentShare: number | null;
+  // Extended constructs (origin-features-extended.csv; null until acquired).
+  bachelorShare: number | null;         // 2010 census sample tabulation
+  collegeEnrollShare: number | null;    // MEXT School Basic Survey / population
+  uniEnroll15km: number | null;         // enrollment within 15 km (municipal centroids)
+  uniEnroll60km: number | null;
+  popAccess70km: number | null;         // census population within 70 km
+  popAccess140km: number | null;
+  domShare: number | null;              // population / popAccess140km
+  priceToIncome: number | null;         // L01 residential median / SSDS income
+  otherVacancyShare: number | null;     // HLS "other" vacant / dwellings
 }
+
+const EXTENDED_FEATURES = [
+  'bachelorShare', 'collegeEnrollShare', 'uniEnroll15km', 'uniEnroll60km',
+  'popAccess70km', 'popAccess140km', 'domShare', 'priceToIncome', 'otherVacancyShare',
+] as const;
 
 interface WindowConfig {
   originYear: 2010 | 2015;
@@ -58,7 +73,7 @@ interface WindowConfig {
   olderShare: string;
 }
 
-interface PreparedUnit {
+interface PreparedUnit extends OriginFeatures {
   panel: PanelRow;
   market: string;
   population: number;
@@ -181,10 +196,30 @@ function loadOriginFeatures(year: 2010 | 2015): Map<string, OriginFeatures> {
       const value = raw === '' ? NaN : Number(raw);
       return [feature, Number.isFinite(value) ? value : null];
     })) as unknown as OriginFeatures;
+    for (const feature of EXTENDED_FEATURES) values[feature] = null;
     if (result.has(row[code])) throw new Error(`duplicate ${year} origin feature row ${row[code]}`);
     result.set(row[code], values);
   }
   if (result.size !== 1_741) throw new Error(`expected 1,741 ${year} origin feature rows, found ${result.size}`);
+  // Merge extended constructs when the acquisition file exists; absent
+  // constructs stay null and enter the mechanism at the origin median.
+  const extendedPath = path.join(DATA_DIR, 'origin-features-extended.csv');
+  if (fs.existsSync(extendedPath) || fs.existsSync(`${extendedPath}.gz`)) {
+    const ext = parseCsv(readCsvAuto(extendedPath));
+    const eh = ext[0];
+    const eat = (name: string): number => eh.indexOf(name);
+    for (const row of ext.slice(1)) {
+      if (Number(row[eat('originYear')]) !== year) continue;
+      const target = result.get(row[eat('code2020')]);
+      if (!target) continue;
+      for (const feature of EXTENDED_FEATURES) {
+        const column = eat(feature);
+        if (column < 0) continue;
+        const value = row[column] === '' ? NaN : Number(row[column]);
+        target[feature] = Number.isFinite(value) ? value : null;
+      }
+    }
+  }
   return result;
 }
 
@@ -449,6 +484,46 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
       + 0.25 * observedHumanCapital
       + 0.10 * foreign[index];
   });
+
+  // Full frozen-weight mechanism: partial channels plus the extended
+  // constructs. Unacquired constructs are all-null, impute to a constant,
+  // percentile-standardize to exact zeros, and so contribute nothing —
+  // acquisition coverage is reported per construct, never silently assumed.
+  const medianImputeTolerant = (values: Array<number | null>): number[] => {
+    const finite = values.filter((value): value is number => value !== null && Number.isFinite(value));
+    if (finite.length === 0) return values.map(() => 0);
+    return medianImpute(values).values;
+  };
+  const extPct = Object.fromEntries(EXTENDED_FEATURES.map((feature) => [
+    feature,
+    percentileStandardize(medianImputeTolerant(partialPrelim.map((unit) => unit[feature]))),
+  ])) as Record<(typeof EXTENDED_FEATURES)[number], number[]>;
+  const extendedCoverage = Object.fromEntries(EXTENDED_FEATURES.map((feature) => [
+    feature,
+    partialPrelim.filter((unit) => unit[feature] !== null && Number.isFinite(unit[feature]!)).length
+      / Math.max(1, partialPrelim.length),
+  ]));
+  const fullAttraction = partialPrelim.map((_, index) => {
+    // Frozen US pillar weights (attraction.ts): engines includes college 0.15,
+    // uni15 0.10, uni60 0.05; human capital includes bachelor 0.40; access
+    // 0.20 (0.6 near + 0.4 far); hub 0.10 = engines+ x dominance+; afford
+    // -0.25; distress -0.15. Armed-forces (0.10 in engines) has no acquired
+    // Japanese equivalent and stays at zero.
+    const enginesFull = 0.25 * education[index]
+      + 0.20 * health[index]
+      + 0.15 * publicAdmin[index]
+      + 0.15 * extPct.collegeEnrollShare[index]
+      + 0.10 * extPct.uniEnroll15km[index]
+      + 0.05 * extPct.uniEnroll60km[index];
+    const accessFull = 0.6 * extPct.popAccess70km[index] + 0.4 * extPct.popAccess140km[index];
+    return partialAttraction[index]
+      + 0.30 * (enginesFull - (0.25 * education[index] + 0.20 * health[index] + 0.15 * publicAdmin[index]))
+      + 0.25 * (0.40 * extPct.bachelorShare[index])
+      + 0.20 * accessFull
+      + 0.10 * Math.max(0, enginesFull) * Math.max(0, extPct.domShare[index])
+      - 0.25 * extPct.priceToIncome[index]
+      - 0.15 * extPct.otherVacancyShare[index];
+  });
   const partialBaseUnits = partialPrelim.map((unit) => ({
     originWorking: unit.originWorking,
     demographicEndpoint: unit.demographicEndpoint,
@@ -465,6 +540,34 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
       attraction: partialDemographicAttraction[index],
     })),
   );
+  const fullAllocation = conditionalWorkingAllocation(partialBaseUnits.map((unit, index) => ({
+    ...unit,
+    attraction: fullAttraction[index],
+  })));
+  // Household chain: origin private households anchor the no-migration
+  // baseline (carry = 1); the observed national household total enters only
+  // as the allocation constraint, exactly like the working-age chain.
+  const households = (unit: (typeof partialPrelim)[number], year: number): number => {
+    const value = unit.panel.values[`privateHouseholds${year}`];
+    return value !== null && value !== undefined && Number.isFinite(value) && value > 0 ? value : 1;
+  };
+  const householdAllocationFor = (attr: number[]) => conditionalWorkingAllocation(
+    partialPrelim.map((unit, index) => ({
+      originWorking: households(unit, config.originYear),
+      demographicEndpoint: households(unit, config.originYear),
+      observedEndpoint: households(unit, config.endpointYear),
+      attraction: attr[index],
+      annualMoverRate: unit.annualMoverRate,
+    })),
+  );
+  const fullHouseholdAllocation = householdAllocationFor(fullAttraction);
+  const partialHouseholdAllocation = householdAllocationFor(partialAttraction);
+  const fullByCode = new Map(partialPrelim.map((unit, index) => [unit.panel.code, {
+    attraction: fullAttraction[index],
+    conditionalWorking: fullAllocation.predictedLogChange[index],
+    conditionalHouseholdFull: fullHouseholdAllocation.predictedLogChange[index],
+    conditionalHouseholdPartial: partialHouseholdAllocation.predictedLogChange[index],
+  }]));
   const partialByCode = new Map(partialPrelim.map((unit, index) => [unit.panel.code, {
     attraction: partialAttraction[index],
     conditionalWorking: partialAllocation.predictedLogChange[index],
@@ -596,6 +699,29 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
     partialWorkingScores.conditionalDemographicSameSample.spearmanByMarket,
   );
 
+  // Full-mechanism working-age evaluation on the identical complete-case
+  // lagged-trend common sample used for the partial audit.
+  const fullOf = (unit: PreparedUnit) => fullByCode.get(unit.panel.code)!;
+  const fullWorkingScores: Record<string, LocalEvaluation> = {
+    conditionalFullMechanismAllocation: local(
+      partialWorkingCommon, (unit) => fullOf(unit).conditionalWorking, (unit) => unit.workingOutcome,
+    ),
+    fullMechanismAttractionScore: local(
+      partialWorkingCommon, (unit) => fullOf(unit).attraction, (unit) => unit.workingOutcome,
+    ),
+  };
+  const fullMechanismMinusLagged = bootstrapDifference(
+    fullWorkingScores.conditionalFullMechanismAllocation.spearmanByMarket,
+    partialWorkingScores.laggedPopulationTrend.spearmanByMarket,
+  );
+  const fullMechanismMinusPartial = bootstrapDifference(
+    fullWorkingScores.conditionalFullMechanismAllocation.spearmanByMarket,
+    partialWorkingScores.conditionalPartialMechanismAllocation.spearmanByMarket,
+  );
+  const fullWorkingMae = maeAnnualized(
+    partialEvaluationPrimary, (unit) => fullOf(unit).conditionalWorking, (unit) => unit.workingOutcome,
+  );
+
   const householdOutcome = primary.filter((unit) => unit.householdOutcome !== null);
   const householdCommon = config.laggedHousehold === null
     ? householdOutcome.filter((unit) => unit.laggedPopulation !== null)
@@ -674,6 +800,52 @@ function analyzeWindow(panel: PanelRow[], config: WindowConfig): {
         fiveYearMovedFraction: +allocation.fiveYearMovedFraction.toFixed(6),
         observedEndpointTotal: +allocation.observedEndpointTotal.toFixed(3),
         conservationError: +(allocation.predictedEndpointTotal - allocation.observedEndpointTotal).toFixed(8),
+      },
+      fullMechanism: {
+        status: 'frozen US weights; extended constructs enter percentile-standardized, none fitted to Japanese outcomes',
+        extendedConstructCoverage: extendedCoverage,
+        workingAge: {
+          maeAnnualizedCompleteCaseSample: fullWorkingMae,
+          equalBasin: {
+            conditionalFullMechanismAllocation: publicMetrics(fullWorkingScores.conditionalFullMechanismAllocation),
+            fullMechanismAttractionScore: publicMetrics(fullWorkingScores.fullMechanismAttractionScore),
+          },
+          fullMinusLaggedPopulationTrend: fullMechanismMinusLagged,
+          fullMinusPartialMechanism: fullMechanismMinusPartial,
+        },
+        households: {
+          note: 'origin-anchored household allocation; national household total is the only observed endpoint input',
+          equalBasin: {
+            conditionalFullHouseholdAllocation: publicMetrics(local(
+              partialHouseholdCommon,
+              (unit) => fullOf(unit).conditionalHouseholdFull,
+              (unit) => unit.householdOutcome!,
+            )),
+            conditionalPartialHouseholdAllocation: publicMetrics(local(
+              partialHouseholdCommon,
+              (unit) => fullOf(unit).conditionalHouseholdPartial,
+              (unit) => unit.householdOutcome!,
+            )),
+          },
+          maeAnnualized: {
+            conditionalFullHouseholdAllocation: maeAnnualized(
+              partialHouseholdCommon,
+              (unit) => fullOf(unit).conditionalHouseholdFull,
+              (unit) => unit.householdOutcome!,
+            ),
+            laggedHouseholdTrend: config.laggedHousehold === null ? null : maeAnnualized(
+              partialHouseholdCommon, (unit) => unit.laggedHousehold!, (unit) => unit.householdOutcome!,
+            ),
+          },
+          fullHouseholdMinusLaggedHousehold: config.laggedHousehold === null ? null : bootstrapDifference(
+            local(
+              partialHouseholdCommon,
+              (unit) => fullOf(unit).conditionalHouseholdFull,
+              (unit) => unit.householdOutcome!,
+            ).spearmanByMarket,
+            partialHouseholdScores.laggedHouseholdTrend.spearmanByMarket,
+          ),
+        },
       },
       partialMechanism: {
         status: 'frozen US weights on observed equivalent constructs; no coefficient fitting',

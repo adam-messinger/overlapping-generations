@@ -76,6 +76,87 @@
         "observedEndpointTotal": 70280339,
         "conservationError": -4e-8
       },
+      "fullMechanism": {
+        "status": "frozen US weights; extended constructs enter percentile-standardized, none fitted to Japanese outcomes",
+        "extendedConstructCoverage": {
+          "bachelorShare": 0,
+          "collegeEnrollShare": 0,
+          "uniEnroll15km": 0,
+          "uniEnroll60km": 0,
+          "popAccess70km": 0,
+          "popAccess140km": 0,
+          "domShare": 0,
+          "priceToIncome": 0,
+          "otherVacancyShare": 0
+        },
+        "workingAge": {
+          "maeAnnualizedCompleteCaseSample": 0.00498,
+          "equalBasin": {
+            "conditionalFullMechanismAllocation": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7427,
+              "meanWithinMarketSpearman": 0.7913,
+              "medianWithinMarketSpearman": 0.868,
+              "meanWithinMarketPairwiseAccuracy": 0.8344
+            },
+            "fullMechanismAttractionScore": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.7181,
+              "meanWithinMarketSpearman": 0.7292,
+              "medianWithinMarketSpearman": 0.797,
+              "meanWithinMarketPairwiseAccuracy": 0.804
+            }
+          },
+          "fullMinusLaggedPopulationTrend": {
+            "markets": 56,
+            "meanDifference": 0.035,
+            "ci95": [
+              -0.0192,
+              0.0901
+            ]
+          },
+          "fullMinusPartialMechanism": {
+            "markets": 56,
+            "meanDifference": 0,
+            "ci95": [
+              0,
+              0
+            ]
+          }
+        },
+        "households": {
+          "note": "origin-anchored household allocation; national household total is the only observed endpoint input",
+          "equalBasin": {
+            "conditionalFullHouseholdAllocation": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.5704,
+              "meanWithinMarketSpearman": 0.6479,
+              "medianWithinMarketSpearman": 0.7143,
+              "meanWithinMarketPairwiseAccuracy": 0.7577
+            },
+            "conditionalPartialHouseholdAllocation": {
+              "n": 748,
+              "markets": 56,
+              "marketsWithDefinedSpearman": 56,
+              "pooledCenteredSpearman": 0.5704,
+              "meanWithinMarketSpearman": 0.6479,
+              "medianWithinMarketSpearman": 0.7143,
+              "meanWithinMarketPairwiseAccuracy": 0.7577
+            }
+          },
+          "maeAnnualized": {
+            "conditionalFullHouseholdAllocation": 0.0053,
+            "laggedHouseholdTrend": null
+          },
+          "fullHouseholdMinusLaggedHousehold": null
+        }
+      },
       "partialMechanism": {
         "status": "frozen US weights on observed equivalent constructs; no coefficient fitting",
         "missingDataPolicy": {
@@ -387,6 +468,94 @@
         "fiveYearMovedFraction": 0.097769,
         "observedEndpointTotal": 72916539,
         "conservationError": -1e-8
+      },
+      "fullMechanism": {
+        "status": "frozen US weights; extended constructs enter percentile-standardized, none fitted to Japanese outcomes",
+        "extendedConstructCoverage": {
+          "bachelorShare": 0,
+          "collegeEnrollShare": 0,
+          "uniEnroll15km": 0,
+          "uniEnroll60km": 0,
+          "popAccess70km": 0,
+          "popAccess140km": 0,
+          "domShare": 0,
+          "priceToIncome": 0,
+          "otherVacancyShare": 0
+        },
+        "workingAge": {
+          "maeAnnualizedCompleteCaseSample": 0.00515,
+          "equalBasin": {
+            "conditionalFullMechanismAllocation": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.7728,
+              "meanWithinMarketSpearman": 0.766,
+              "medianWithinMarketSpearman": 0.825,
+              "meanWithinMarketPairwiseAccuracy": 0.8214
+            },
+            "fullMechanismAttractionScore": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6896,
+              "meanWithinMarketSpearman": 0.667,
+              "medianWithinMarketSpearman": 0.7066,
+              "meanWithinMarketPairwiseAccuracy": 0.7584
+            }
+          },
+          "fullMinusLaggedPopulationTrend": {
+            "markets": 52,
+            "meanDifference": 0.0315,
+            "ci95": [
+              -0.0249,
+              0.0872
+            ]
+          },
+          "fullMinusPartialMechanism": {
+            "markets": 52,
+            "meanDifference": 0,
+            "ci95": [
+              0,
+              0
+            ]
+          }
+        },
+        "households": {
+          "note": "origin-anchored household allocation; national household total is the only observed endpoint input",
+          "equalBasin": {
+            "conditionalFullHouseholdAllocation": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6148,
+              "meanWithinMarketSpearman": 0.603,
+              "medianWithinMarketSpearman": 0.65,
+              "meanWithinMarketPairwiseAccuracy": 0.7365
+            },
+            "conditionalPartialHouseholdAllocation": {
+              "n": 739,
+              "markets": 52,
+              "marketsWithDefinedSpearman": 52,
+              "pooledCenteredSpearman": 0.6148,
+              "meanWithinMarketSpearman": 0.603,
+              "medianWithinMarketSpearman": 0.65,
+              "meanWithinMarketPairwiseAccuracy": 0.7365
+            }
+          },
+          "maeAnnualized": {
+            "conditionalFullHouseholdAllocation": 0.00607,
+            "laggedHouseholdTrend": 0.00468
+          },
+          "fullHouseholdMinusLaggedHousehold": {
+            "markets": 52,
+            "meanDifference": -0.0784,
+            "ci95": [
+              -0.1701,
+              0.0117
+            ]
+          }
+        }
       },
       "partialMechanism": {
         "status": "frozen US weights on observed equivalent constructs; no coefficient fitting",
