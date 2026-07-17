@@ -137,3 +137,34 @@ The evidence now supports three deliberately separate outputs:
 3. a separate valuation/exposure screen.
 
 None establishes causal aging effects, calibrated probabilities, or investable 40-year returns.
+
+## 6. Sealed-holdout adjudication: household primary (opened 2026-07-17)
+
+The 2020-2025 household primary was opened per the deviation log (entries 4-6, committed before
+any outcome fetch). Outcome: official R7 preliminary counts with 2020 households rebased to 2025
+boundaries (statInfId 000040454825, SHA-256 in `japan/data/holdout-2025.json`). The working-age
+primary remains sealed until the age tabulation (announced September 2026). An initial parsing
+error (population mis-joined as households from the dbview table) was corrected before any verdict
+was recorded; both runs are in git history.
+
+| Score (pop>=10k, 2015 basins, n=1,210) | MAE/yr | Equal-basin mean Spearman |
+|---|---:|---:|
+| Frozen demographic mechanism allocation | 0.00585 | 0.630 |
+| Lagged household trend (kill comparator) | **0.00536** | **0.689** |
+| Lagged population trend | — | 0.714 |
+| Scaled no-migration | 0.00729 | — |
+
+Differences: mechanism − lagged household = −0.059 (95% CI −0.139..+0.017); mechanism − lagged
+population = −0.084 (CI −0.159..−0.014). Sensitivity (pop>=15k): −0.019 (CI −0.115..+0.069).
+Gate 1 (beat no-migration on absolute error) **passes**. Gate 3 (beat the lagged household trend
+on MAE and Spearman point estimates) **fails** on both.
+
+**Verdict: the mechanism does not earn the international-validation label. It remains scenario
+tooling.** The precise reading: origin demographic structure alone reproduces within-basin
+household allocation remarkably well in absolute terms (0.63 mean within-basin Spearman with no
+outcome-side information beyond the national total), but it adds nothing over simple five-year
+persistence — in Japan's highly stable municipal hierarchy, the lagged trend already embeds the
+demographic information the mechanism reconstructs. Combined with the development finding that
+the extended US channels (university, education, access, affordability, vacancy) *reduce*
+transfer, the defensible claim shrinks to: the demographic-regeneration core is a real,
+transferable signal; the US-calibrated channel weights are not.
