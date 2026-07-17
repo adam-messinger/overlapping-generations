@@ -24,9 +24,19 @@ const PREFS = Array.from({ length: 47 }, (_, i) => String(i + 1).padStart(2, '0'
 
 async function download(url: string, file: string): Promise<string> {
   if (!fs.existsSync(file)) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    let delay = 2000;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+        fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+        break;
+      } catch (error) {
+        if (attempt >= 5) throw error;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
