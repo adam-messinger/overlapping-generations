@@ -1,0 +1,1344 @@
+geoid,name,state,pop,zone,zoneName,zonePlaces,zoneRank,zonePercentile,structuralZoneRank,mechanismScore,structuralScore,historicalPersistenceScore,valuationGap,confidence,flowContradiction,tags
+0639114,Ladera Ranch CDP,CA,23609,18,"Los Angeles--Long Beach--Anaheim, CA",371,1,,66,1.017,2.009,0.659,0.61,high,0,
+0640886,Lawndale city,CA,31113,18,"Los Angeles--Long Beach--Anaheim, CA",371,2,,131,1.003,1.73,3.064,-0.09,medium,0,
+0646492,Maywood city,CA,24593,18,"Los Angeles--Long Beach--Anaheim, CA",371,3,,110,1.001,1.817,3.416,-0.219,medium,1,
+3663506,Roosevelt CDP,NY,19636,360,"New York city, NY",283,1,,75,1.317,2.358,1.367,1.99,high,0,
+3651000,New York city,NY,8516202,360,"New York city, NY",283,2,,54,1.177,2.508,2.858,0.569,high,0,
+3682942,Woodmere CDP,NY,18198,360,"New York city, NY",283,3,,48,1.161,2.526,-0.247,1.197,high,0,
+1772923,Stone Park village,IL,4504,132,"Chicago city, IL",353,1,,149,1.146,1.255,2.662,1.444,high,1,
+1724582,Evanston city,IL,76552,132,"Chicago city, IL",353,2,,3,1.141,2.538,-0.605,2.085,high,0,Knowledge Center
+1754885,Oak Park village,IL,53315,132,"Chicago city, IL",353,3,,15,1.132,2.206,-0.804,2.069,high,0,
+0600674,Albany city,CA,19768,39,"San Francisco--Oakland, CA",184,1,,6,1.155,2.769,2.191,0.984,high,0,
+0622594,Emeryville city,CA,12756,39,"San Francisco--Oakland, CA",184,2,,7,1.127,2.701,-0.032,2.503,high,0,
+0606000,Berkeley city,CA,120223,39,"San Francisco--Oakland, CA",184,3,,8,0.957,2.663,1.926,0.109,high,0,Knowledge Center
+4874492,University Park city,TX,25104,423,"Dallas city, TX",177,1,,1,0.972,2.32,-0.762,0.509,high,0,Knowledge Center
+4861796,Richardson city,TX,118269,423,"Dallas city, TX",177,2,,7,0.882,1.848,-0.092,1.402,high,0,
+4850100,Murphy city,TX,21001,423,"Dallas city, TX",177,3,,5,0.881,1.884,0.597,1.933,high,0,
+0473000,Tempe city,AZ,186419,16,"Phoenix--Mesa--Scottsdale, AZ",93,1,,2,0.933,1.591,-0.573,0.619,high,0,Knowledge Center
+0444410,Maricopa city,AZ,62986,16,"Phoenix--Mesa--Scottsdale, AZ",93,2,,29,0.766,0.612,-0.082,0.594,high,0,
+0402430,Anthem CDP,AZ,22622,16,"Phoenix--Mesa--Scottsdale, AZ",93,3,,11,0.75,1.069,-0.075,0.551,high,0,
+4814929,Cinco Ranch CDP,TX,19139,481,"Houston, TX",171,1,,5,1.013,1.975,0.529,2.142,high,0,
+4823164,El Lago city,TX,3016,481,"Houston, TX",171,2,,22,0.913,1.253,-0.35,1.681,high,0,
+4827996,Galena Park city,TX,10527,481,"Houston, TX",171,3,,58,0.9,0.591,1.685,0.923,high,0,
+5361115,Sammamish city,WA,66375,542,"Seattle--Tacoma, WA",287,1,,4,0.782,2.35,1.724,0.99,high,0,
+5363000,Seattle city,WA,741440,542,"Seattle--Tacoma, WA",287,2,,13,0.772,1.91,0.274,0.604,high,0,
+5343150,Maple Valley city,WA,28121,542,"Seattle--Tacoma, WA",287,3,,58,0.724,1.254,0.218,0.486,high,0,
+1202681,Aventura city,FL,39372,78,"Miami city, FL",117,1,,4,1.471,2.783,3.437,2.011,high,0,Amenity Destination
+1269555,Sunny Isles Beach city,FL,22125,78,"Miami city, FL",117,2,,5,1.448,2.628,3.622,0.438,medium,0,Amenity Destination
+1236300,Key Biscayne village,FL,14560,78,"Miami city, FL",117,3,,2,1.257,3.056,3.614,1.19,medium,0,Amenity Destination
+3428650,Guttenberg town,NJ,11638,347,"Newark city, NJ",334,1,,25,1.827,2.877,3.01,2.193,high,0,
+3479610,West New York town,NJ,51683,347,"Newark city, NJ",334,2,,49,1.57,2.557,3.294,1.433,high,0,
+3474630,Union City city,NJ,66375,347,"Newark city, NJ",334,3,,78,1.521,2.346,3.366,0.757,high,0,
+2511000,Cambridge city,MA,117794,234,"Boston, MA--NH",184,1,,2,1.498,3.183,0.606,1.571,high,0,Knowledge Center
+2562535,Somerville city,MA,80549,234,"Boston, MA--NH",184,2,,9,1.395,2.539,0.249,1.171,high,0,
+2509210,Brookline CDP,MA,62822,234,"Boston, MA--NH",184,3,,1,1.203,3.312,0.957,1.704,high,0,
+2445525,Langley Park CDP,MD,22057,73,"Washington city, DC",217,1,,96,1.814,1.817,3.511,1.471,high,0,
+2424650,East Riverdale CDP,MD,19043,73,"Washington city, DC",217,2,,92,1.32,1.862,3.392,1.476,medium,0,
+5187410,Woodlawn CDP,VA,21828,73,"Washington city, DC",217,3,,105,1.228,1.764,2.486,2.967,high,0,
+2689140,Ypsilanti city,MI,19937,252,"Detroit, MI",191,1,,13,1.11,1.733,-0.677,0.632,high,1,Knowledge Center
+2603000,Ann Arbor city,MI,121179,252,"Detroit, MI",191,2,,1,1.085,2.799,-0.858,1.729,high,0,Knowledge Center
+2636280,Hamtramck city,MI,27830,252,"Detroit, MI",191,3,,41,1.051,1.017,2.855,0.774,high,0,
+2743000,Minneapolis city,MN,426845,258,"Minneapolis city, MN",178,1,,8,0.973,1.594,-0.612,1.391,high,0,
+2720420,Falcon Heights city,MN,5145,258,"Minneapolis city, MN",178,2,,1,0.924,2.324,-0.49,2.021,high,1,
+2758000,St. Paul city,MN,307762,258,"Minneapolis city, MN",178,3,,12,0.917,1.494,-0.093,1.342,high,0,
+0616378,Coronado city,CA,18558,52,"San Diego, CA",56,1,,2,0.851,2.07,3.34,-1.102,medium,1,Military Anchor; Amenity Destination
+0607596,Borrego Springs CDP,CA,2781,52,"San Diego, CA",56,2,,44,0.667,0.651,3.305,0.371,medium,0,Amenity Destination; Aging Trap
+0668196,San Marcos city,CA,94078,52,"San Diego, CA",56,3,,12,0.63,1.523,1.938,-0.265,high,0,
+0807850,Boulder city,CO,106274,54,"Denver--Aurora, CO",118,1,,5,0.936,2.179,-0.072,-0.057,high,0,Knowledge Center
+0830340,Glendale city,CO,4546,54,"Denver--Aurora, CO",118,2,,6,0.876,2.138,-0.594,1.537,high,0,
+0830835,Golden city,CO,20467,54,"Denver--Aurora, CO",118,3,,26,0.862,1.507,-0.211,-0.272,high,0,Knowledge Center
+4275648,Swarthmore borough,PA,6524,72,"Philadelphia city, PA",223,1,,4,1.268,2.777,-0.802,3.128,medium,0,Knowledge Center
+4269752,Sharon Hill borough,PA,5978,72,"Philadelphia city, PA",223,2,,68,1.142,1.617,0.403,2.14,high,0,
+4282704,West Chester borough,PA,19235,72,"Philadelphia city, PA",223,3,,43,1.137,1.825,-0.912,0.325,medium,0,Knowledge Center
+1262885,St. Pete Beach city,FL,8832,88,"Tampa--St. Petersburg, FL",118,1,,9,0.87,1.559,1.085,0.629,high,1,Amenity Destination; Aging Trap
+1272325,Treasure Island city,FL,6568,88,"Tampa--St. Petersburg, FL",118,2,,46,0.833,0.983,1.292,-0.182,high,1,Amenity Destination; Aging Trap
+1264925,Seffner CDP,FL,8498,88,"Tampa--St. Petersburg, FL",118,3,,77,0.756,0.61,-0.186,0.446,high,0,
+4962470,Provo city,UT,114303,517,"Salt Lake City, UT",136,1,,5,0.946,1.658,-0.384,0.236,high,0,Knowledge Center
+4972720,Stansbury Park CDP,UT,11163,517,"Salt Lake City, UT",136,2,,47,0.764,0.775,-0.856,0.696,high,0,
+4911440,Cedar Hills city,UT,9945,517,"Salt Lake City, UT",136,3,,17,0.737,1.085,-0.378,0.609,high,0,
+4140300,Lafayette city,OR,4428,427,"Portland, OR--WA",142,1,,52,0.667,0.699,-0.298,0.216,high,0,
+4152100,Newberg city,OR,25622,427,"Portland, OR--WA",142,2,,46,0.654,0.771,-0.601,-0.138,high,0,
+4128650,Gervais city,OR,2588,427,"Portland, OR--WA",142,3,,70,0.651,0.581,1.378,0.033,high,0,
+0608968,Burbank CDP,CA,5552,51,"San Jose, CA",82,1,,27,0.978,1.625,2.649,0.125,high,0,
+0669084,Santa Clara city,CA,129239,51,"San Jose, CA",82,2,,8,0.965,2.644,3.017,0.666,medium,0,
+0669112,Santa Cruz city,CA,60953,51,"San Jose, CA",82,3,,15,0.944,1.972,1.267,-0.316,high,0,Knowledge Center
+2420875,Crofton CDP,MD,29878,232,"Baltimore, MD",97,1,,14,1.015,1.966,-0.288,2.182,high,0,Government Hub
+2431625,Garrison CDP,MD,10449,232,"Baltimore, MD",97,2,,11,0.958,2.146,-0.739,2.353,high,0,
+2478425,Towson CDP,MD,57683,232,"Baltimore, MD",97,3,,7,0.953,2.226,-0.852,1.776,high,0,Knowledge Center
+3978932,University Heights city,OH,13508,398,"Cleveland, OH",163,1,,5,1.35,1.978,-1.094,2.542,medium,1,Knowledge Center
+3916014,Cleveland Heights city,OH,44694,398,"Cleveland, OH",163,2,,12,0.989,1.674,-0.955,2.208,high,1,
+3973264,South Euclid city,OH,21606,398,"Cleveland, OH",163,3,,40,0.936,1.061,-0.923,2.024,high,1,
+1237648,Lake Butler CDP,FL,17242,80,"Orlando, FL",132,1,,15,0.766,1.263,0.968,3.062,high,0,
+1238425,Lake Mary city,FL,16724,80,"Orlando, FL",132,2,,23,0.764,1.189,-0.085,1.04,high,0,
+1250525,Oakland town,FL,3566,80,"Orlando, FL",132,3,,42,0.753,0.941,-0.412,0.838,high,0,
+0618100,Davis city,CA,66801,43,"Sacramento, CA",98,1,,1,1.095,2.776,0.018,0.809,high,0,Knowledge Center
+0640410,La Riviera CDP,CA,11503,43,"Sacramento, CA",98,2,,16,0.783,1.317,0.21,0.63,high,0,
+0686034,Winters city,CA,7453,43,"Sacramento, CA",98,3,,51,0.744,0.828,0.14,0.388,high,0,
+4862138,Rio Bravo city,TX,4502,480,"San Antonio, TX",92,1,,74,0.899,-0.573,1.439,0.322,high,1,
+4839448,Kirby city,TX,8100,480,"San Antonio, TX",92,2,,26,0.859,0.611,0.865,1.043,high,1,
+4874408,Universal City city,TX,19853,480,"San Antonio, TX",92,3,,15,0.858,0.847,-0.367,0.912,high,0,
+4876672,Watauga city,TX,23336,508,"Fort Worth city, TX",95,1,,25,0.927,0.808,-0.554,1.225,high,0,
+4862384,River Oaks city,TX,7516,508,"Fort Worth city, TX",95,2,,23,0.903,0.864,0.644,1.054,high,0,
+4824912,Everman city,TX,6060,508,"Fort Worth city, TX",95,3,,20,0.881,0.895,0.089,0.868,high,0,
+3251800,North Las Vegas city,NV,270773,340,"Las Vegas--Henderson--Paradise, NV",27,1,,11,0.523,0.571,1.251,-0.154,high,0,
+3231900,Henderson city,NV,324523,340,"Las Vegas--Henderson--Paradise, NV",27,2,,8,0.479,0.778,0.413,-0.023,high,0,
+3240000,Las Vegas city,NV,650873,340,"Las Vegas--Henderson--Paradise, NV",27,3,,7,0.402,0.8,1.415,-0.198,high,0,
+1322052,Decatur city,GA,24470,100,"Atlanta city, GA",99,1,,9,0.854,1.647,-0.628,2.82,high,0,
+1353004,Morrow city,GA,6519,100,"Atlanta city, GA",99,2,,38,0.834,0.644,2.086,0.614,high,0,
+1362524,Powder Springs city,GA,17414,100,"Atlanta city, GA",99,3,,25,0.787,0.895,-0.228,0.835,high,0,
+3774760,Wingate town,NC,4169,372,"Charlotte, NC--SC",126,1,,3,0.951,1.326,-0.095,0.803,medium,0,Knowledge Center
+3736860,Landis town,NC,3726,372,"Charlotte, NC--SC",126,2,,48,0.821,0.266,-0.635,0.642,high,0,
+3755260,Ranlo town,NC,4556,372,"Charlotte, NC--SC",126,3,,37,0.814,0.396,-0.353,0.525,high,0,
+1230200,Highland Beach town,FL,4264,77,"Port St. Lucie city, FL",125,1,,2,1.092,2.229,0.896,1.144,high,0,Amenity Destination
+1233150,Hypoluxo town,FL,2744,77,"Port St. Lucie city, FL",125,2,,15,1.048,1.511,1.332,1.344,high,0,Amenity Destination; Aging Trap
+1254025,Palm Beach town,FL,9234,77,"Port St. Lucie city, FL",125,3,,1,0.943,2.29,3.23,-0.052,medium,1,Amenity Destination
+2060825,Roeland Park city,KS,6800,174,"Kansas City, MO--KS",124,1,,7,0.937,1.411,-0.979,1.489,high,0,
+2022700,Fairway city,KS,4177,174,"Kansas City, MO--KS",124,2,,3,0.913,1.751,-0.946,1.767,high,0,
+2909424,Buckner city,MO,2917,174,"Kansas City, MO--KS",124,3,,61,0.876,0.127,-0.996,1.021,high,0,
+4857176,Pflugerville city,TX,65162,482,"Austin, TX",87,1,,25,0.811,0.894,-0.012,1.037,high,0,
+4823044,Elgin city,TX,10996,482,"Austin, TX",87,2,,49,0.794,0.401,-0.14,0.599,high,0,
+4865600,San Marcos city,TX,68920,482,"Austin, TX",87,3,,17,0.775,0.99,-0.801,-0.06,high,0,Knowledge Center
+2914572,Clayton city,MO,17282,140,"St. Louis city, MO",202,1,,1,1.129,2.497,-0.297,1.405,medium,0,Knowledge Center
+2927334,Glendale city,MO,6111,140,"St. Louis city, MO",202,2,,8,1.022,1.78,-1.022,2.057,medium,0,
+2908236,Brentwood city,MO,8151,140,"St. Louis city, MO",202,3,,10,0.989,1.74,-0.907,2.097,high,0,
+1853874,New Whiteland town,IN,5641,146,"Indianapolis, IN",95,1,,24,0.858,0.464,-0.936,1.233,high,0,
+1816336,Cumberland town,IN,6154,146,"Indianapolis, IN",95,2,,20,0.848,0.583,-0.575,0.765,high,0,
+1823278,Fishers city,IN,100918,146,"Indianapolis, IN",95,3,,4,0.829,1.315,-0.812,1.495,high,0,
+3657001,Pelham village,NY,7247,366,"Yonkers city, NY",239,1,,12,1.28,2.662,0.001,1.42,high,0,
+3608532,Bronxville village,NY,6539,366,"Yonkers city, NY",239,2,,23,1.065,2.525,-0.418,1.185,high,0,
+3641333,Larchmont village,NY,6542,366,"Yonkers city, NY",239,3,,5,1.065,3.192,1.28,1.295,high,0,
+3906278,Bexley city,OH,13324,406,"Columbus, OH",121,1,,7,1.034,1.705,-0.831,1.728,high,0,
+3936624,Huber Ridge CDP,OH,4311,406,"Columbus, OH",121,2,,22,0.973,0.931,-0.556,1.335,high,1,
+3906670,Blacklick Estates CDP,OH,8867,406,"Columbus, OH",121,3,,67,0.904,0.135,-0.461,0.555,high,1,
+5586700,Whitefish Bay village,WI,14750,557,"Milwaukee, WI",105,1,,2,0.957,1.945,-0.944,1.755,high,0,
+5506500,Beloit city,WI,36554,557,"Milwaukee, WI",105,2,,75,0.878,0.315,-0.025,0.642,high,0,
+5586925,Whitewater city,WI,15705,557,"Milwaukee, WI",105,3,,17,0.871,1.255,-0.76,0.084,high,0,Knowledge Center
+0614274,Coalinga city,CA,17352,45,"Fresno, CA",113,1,,25,0.797,0.619,1.568,0.661,medium,0,
+0657512,Pixley CDP,CA,3796,45,"Fresno, CA",113,2,,87,0.734,-0.018,1.579,-0.037,high,0,
+0636910,Ivanhoe CDP,CA,4397,45,"Fresno, CA",113,3,,32,0.705,0.572,2.81,0.145,medium,0,
+0680238,Tracy city,CA,95358,41,"Stockton, CA",119,1,,7,0.745,1.207,2.02,0.228,high,0,
+0641558,Lincoln Village CDP,CA,3954,41,"Stockton, CA",119,2,,6,0.722,1.211,2.336,0.709,high,1,Government Hub
+0616210,Copperopolis CDP,CA,4644,41,"Stockton, CA",119,3,,67,0.704,0.467,0.766,-0.124,high,0,Amenity Destination
+3986730,Wyoming city,OH,8712,205,"Cincinnati, OH--KY",195,1,,4,0.982,1.804,-1.021,2.19,medium,0,
+3913848,Cherry Grove CDP,OH,3940,205,"Cincinnati, OH--KY",195,2,,33,0.946,1.059,-0.895,1.825,high,1,
+3914128,Cheviot city,OH,8655,205,"Cincinnati, OH--KY",195,3,,138,0.913,0.204,-0.526,0.417,high,1,
+3711800,Chapel Hill town,NC,59889,381,"Raleigh, NC",55,1,,2,0.876,2.314,-0.562,0.924,high,0,Knowledge Center
+3710620,Carrboro town,NC,21170,381,"Raleigh, NC",55,2,,3,0.801,2.242,-0.5,1.573,high,0,Knowledge Center
+3771860,Wendell town,NC,11585,381,"Raleigh, NC",55,3,,27,0.719,0.371,-0.529,0.248,high,0,
+1262525,St. Augustine Beach city,FL,6819,75,"Jacksonville, FL",54,1,,2,0.879,1.342,1.702,0.271,high,0,Amenity Destination; Aging Trap
+1343640,Kingsland city,GA,19101,75,"Jacksonville, FL",54,2,,35,0.756,0.05,-0.527,0.07,high,0,Military Anchor
+1235000,Jacksonville city,FL,961739,75,"Jacksonville, FL",54,3,,21,0.637,0.513,0.114,0.218,high,0,
+4078500,Warr Acres city,OK,10437,415,"Oklahoma City, OK",100,1,,8,0.887,0.419,0.473,0.84,high,0,
+4005700,Bethany city,OK,20606,415,"Oklahoma City, OK",100,2,,11,0.883,0.357,-0.2,0.63,high,0,
+4049200,Moore city,OK,63045,415,"Oklahoma City, OK",100,3,,9,0.852,0.41,-0.727,0.946,high,0,
+2453325,Montgomery Village CDP,MD,34161,233,"Germantown CDP, MD",130,1,,49,1.064,2.028,1.753,1.828,high,1,
+2432025,Germantown CDP,MD,90521,233,"Germantown CDP, MD",130,2,,33,1.023,2.324,2.028,2.26,high,0,
+2472450,Silver Spring CDP,MD,82129,233,"Germantown CDP, MD",130,3,,21,0.987,2.488,1.581,1.668,high,0,
+4203320,Aspinwall borough,PA,2866,441,"Pittsburgh, PA",336,1,,2,1.166,1.953,-0.712,2.174,high,1,
+4281832,Waynesburg borough,PA,3868,441,"Pittsburgh, PA",336,2,,45,1.022,0.83,-0.403,1.06,medium,1,Knowledge Center; Government Hub
+4208416,Brentwood borough,PA,9927,441,"Pittsburgh, PA",336,3,,47,0.969,0.794,-0.469,1.22,high,1,
+3481170,Wildwood city,NJ,5140,346,"Trenton city, NJ",214,1,,174,1.018,0.43,3.209,-1.804,medium,1,Amenity Destination; Aging Trap
+3402200,Audubon borough,NJ,8699,346,"Trenton city, NJ",214,2,,36,1.017,1.431,-0.842,1.727,high,1,
+3428770,Haddonfield borough,NJ,12502,346,"Trenton city, NJ",214,3,,6,0.995,2.291,-0.891,2.08,high,0,
+4759560,Pleasant View city,TN,5111,468,"Nashville-Davidson, TN",62,1,,23,0.619,0.24,-0.62,0.046,high,0,
+4780200,White House city,TN,13875,468,"Nashville-Davidson, TN",62,2,,25,0.607,0.187,-0.673,-0.177,high,0,
+4730960,Greenbrier town,TN,6960,468,"Nashville-Davidson, TN",62,3,,34,0.552,-0.025,-0.418,-0.452,high,0,
+4841788,La Villa city,TX,2931,478,"McAllen, TX",131,1,,22,0.955,0.693,2.248,1.627,medium,0,
+4824036,Elsa city,TX,5688,478,"McAllen, TX",131,2,,37,0.867,0.49,-0.092,1.321,high,0,
+4801576,Alamo city,TX,20008,478,"McAllen, TX",131,3,,25,0.858,0.632,1.103,1.056,high,0,Amenity Destination
+5113160,Carrollton CDP,VA,7903,379,"Virginia Beach city, VA",47,1,,7,0.792,0.44,-0.81,0.534,high,0,
+3763130,Southern Shores town,NC,3119,379,"Virginia Beach city, VA",47,2,,14,0.685,0.233,0.937,-1.01,high,0,Amenity Destination
+5157000,Norfolk city,VA,235037,379,"Virginia Beach city, VA",47,3,,1,0.683,0.992,-0.35,0.487,high,0,Military Anchor
+0478540,Vail CDP,AZ,15722,14,"Tucson, AZ",56,1,,14,0.824,0.431,-0.868,0.622,high,0,
+0462140,Sahuarita town,AZ,35012,14,"Tucson, AZ",56,2,,10,0.794,0.64,-0.642,0.747,high,0,
+0444270,Marana town,AZ,54487,14,"Tucson, AZ",56,3,,11,0.693,0.635,-0.631,0.469,high,0,
+2249800,Meraux CDP,LA,7492,220,"New Orleans, LA",86,1,,27,0.86,0.156,-0.382,0.406,high,1,
+2246615,Luling CDP,LA,13873,220,"New Orleans, LA",86,2,,29,0.82,0.113,-0.707,0.303,high,0,
+2262385,Prairieville CDP,LA,35010,220,"New Orleans, LA",86,3,,17,0.812,0.363,-0.763,0.94,high,0,
+4728960,Germantown city,TN,40812,32,"Memphis, TN--MS--AR",54,1,,1,0.857,1.258,-0.948,1.454,high,0,
+0544180,Marion city,AR,13641,32,"Memphis, TN--MS--AR",54,2,,7,0.826,0.3,-0.701,0.867,high,0,
+4708500,Brighton town,TN,2865,32,"Memphis, TN--MS--AR",54,3,,12,0.824,0.098,-0.767,0.26,high,0,
+4459000,Providence city,RI,190214,236,"Providence, RI--MA",49,1,,6,0.86,1.722,1.441,0.664,high,0,
+4419180,Cranston city,RI,82632,236,"Providence, RI--MA",49,2,,13,0.611,1.232,0.261,0.589,high,0,
+2502690,Attleboro city,MA,46499,236,"Providence, RI--MA",49,3,,27,0.577,0.883,-0.116,0.07,high,0,
+1827324,Georgetown town,IN,3789,148,"Louisville/Jefferson County, KY--IN",121,1,,69,0.844,0.565,-0.692,1.046,high,0,
+2154228,Mount Washington city,KY,18228,148,"Louisville/Jefferson County, KY--IN",121,2,,95,0.824,-0.037,-0.807,0.168,high,0,
+2136982,Hillview city,KY,8735,148,"Louisville/Jefferson County, KY--IN",121,3,,91,0.801,0.09,-0.071,0.286,high,0,
+3542320,Los Alamos CDP,NM,13471,349,"Albuquerque, NM",128,1,,5,0.664,1.323,0.473,1.047,high,0,
+3563460,Rio Rancho city,NM,106533,349,"Albuquerque, NM",128,2,,32,0.652,0.389,-0.481,0.155,high,0,
+3522380,Edgewood town,NM,6122,349,"Albuquerque, NM",128,3,,40,0.518,0.284,-0.395,-0.132,high,0,
+3765580,Summerfield town,NC,11031,382,"Winston-Salem, NC",74,1,,4,0.839,0.878,-0.693,1.084,high,0,
+3765040,Stokesdale town,NC,5943,382,"Winston-Salem, NC",74,2,,15,0.809,0.302,-0.497,0.894,high,0,
+3725980,Gibsonville town,NC,9289,382,"Winston-Salem, NC",74,3,,14,0.783,0.417,-0.916,0.974,high,0,
+4834832,Horizon City city,TX,23069,353,"El Paso, TX--NM",54,1,,11,0.79,0.627,1.322,0.847,high,0,
+4865360,San Elizario city,TX,10123,353,"El Paso, TX--NM",54,2,,38,0.747,-0.038,1.563,-0.015,high,1,
+4824000,El Paso city,TX,678147,353,"El Paso, TX--NM",54,3,,8,0.735,0.76,0.884,0.652,high,0,
+1543250,Laie CDP,HI,5568,587,"Honolulu, HI",54,1,,3,1.03,1.768,2.364,-0.248,high,0,Knowledge Center; Amenity Destination
+1530300,Kapolei CDP,HI,23033,587,"Honolulu, HI",54,2,,36,0.383,0.563,0.679,-0.531,high,0,Military Anchor
+1512400,Hauula CDP,HI,3473,587,"Honolulu, HI",54,3,,37,0.311,0.561,1.121,-0.721,high,0,
+0131348,Grayson Valley CDP,AL,5882,5,"Birmingham, AL",120,1,,11,0.936,0.656,-0.671,1.164,high,0,
+0100820,Alabaster city,AL,33633,5,"Birmingham, AL",120,2,,18,0.844,0.461,-0.647,0.724,high,0,
+0176944,Trussville city,AL,26182,5,"Birmingham, AL",120,3,,15,0.838,0.559,-0.865,0.877,high,0,
+1224150,Fort Myers Beach town,FL,5548,81,"Cape Coral, FL",66,1,,30,0.864,0.697,1.689,-0.153,high,1,Amenity Destination
+1243083,Marco Island city,FL,15998,81,"Cape Coral, FL",66,2,,25,0.853,0.744,2.543,-0.859,high,0,Amenity Destination
+1247625,Naples city,FL,19421,81,"Cape Coral, FL",66,3,,7,0.832,1.29,2.371,1.134,high,1,Amenity Destination
+0660704,Ridgecrest city,CA,28138,47,"Bakersfield, CA",90,1,,47,0.855,0.078,1.168,0.459,high,0,Government Hub
+0677574,Taft city,CA,7228,47,"Bakersfield, CA",90,2,,43,0.789,0.122,0.386,0.34,high,0,
+0645358,Mammoth Lakes town,CA,7233,47,"Bakersfield, CA",90,3,,24,0.705,0.416,3.547,-1.394,medium,0,Amenity Destination
+0868847,Security-Widefield CDP,CO,38659,60,"Colorado Springs, CO",53,1,,15,0.613,0.581,0.289,0.177,high,0,Military Anchor
+0827865,Fountain city,CO,29327,60,"Colorado Springs, CO",53,2,,13,0.575,0.619,-0.129,0.189,high,0,Military Anchor
+0874430,Stratmoor CDP,CO,6396,60,"Colorado Springs, CO",53,3,,18,0.473,0.386,-0.061,-0.311,high,0,
+3602198,Angola village,NY,2628,359,"Buffalo, NY",108,1,,47,0.766,0.078,-0.545,0.615,high,0,
+3650221,Newfane CDP,NY,3470,359,"Buffalo, NY",108,2,,33,0.757,0.276,-0.778,0.695,high,0,
+3615836,Clarence Center CDP,NY,2551,359,"Buffalo, NY",108,3,,11,0.729,0.921,-0.548,0.77,high,0,Aging Trap
+4009050,Broken Arrow city,OK,115919,418,"Tulsa, OK",66,1,,4,0.844,0.334,-0.631,0.582,high,0,
+4029600,Glenpool city,OK,13885,418,"Tulsa, OK",66,2,,7,0.811,0.168,-0.612,0.568,high,0,
+4065300,Sand Springs city,OK,19973,418,"Tulsa, OK",66,3,,14,0.807,-0.113,-0.734,0.262,high,0,
+4228960,Gettysburg borough,PA,7929,440,"Harrisburg, PA",211,1,,5,1.084,1.647,-0.299,0.444,medium,0,Knowledge Center
+4249728,Millersville borough,PA,8711,440,"Harrisburg, PA",211,2,,10,1.045,1.378,-0.407,0.715,medium,0,Knowledge Center
+4279682,Valley View CDP,PA,2963,440,"Harrisburg, PA",211,3,,37,0.93,0.903,-0.357,2.022,high,0,
+3957764,Oakwood city,OH,9480,402,"Dayton, OH",98,1,,1,1.032,1.808,-1.076,2.646,medium,0,
+3927846,Fort McKinley CDP,OH,3832,402,"Dayton, OH",98,2,,13,0.918,0.55,-0.852,1.905,high,1,
+3940040,Kettering city,OH,57442,402,"Dayton, OH",98,3,,9,0.89,1.065,-0.79,1.285,high,0,
+4270248,Shillington borough,PA,5462,443,"Allentown--Bethlehem, PA--NJ",200,1,,54,0.922,0.777,-0.323,0.993,high,0,
+4227760,Freemansburg borough,PA,2871,443,"Allentown--Bethlehem, PA--NJ",200,2,,31,0.919,0.976,0.153,1.533,high,0,
+4200660,Alburtis borough,PA,2586,443,"Allentown--Bethlehem, PA--NJ",200,3,,21,0.917,1.134,-0.849,1.303,high,0,
+3103950,Bellevue city,NE,64355,170,"Omaha, NE--IA",64,1,,7,0.882,0.629,-0.365,0.862,high,0,
+1911215,Carter Lake city,IA,3773,170,"Omaha, NE--IA",64,2,,30,0.855,-0.086,0.124,0.562,high,0,
+3138295,Papillion city,NE,24063,170,"Omaha, NE--IA",64,3,,2,0.801,0.856,-0.872,0.883,high,0,
+2623980,East Grand Rapids city,MI,11394,242,"Grand Rapids, MI",81,1,,1,0.888,1.606,-1.07,1.551,high,0,
+2622660,Dorr CDP,MI,3952,242,"Grand Rapids, MI",81,2,,69,0.778,-0.474,-0.819,-0.466,high,0,
+2655100,Montague city,MI,2630,242,"Grand Rapids, MI",81,3,,61,0.748,-0.378,-0.67,-0.411,high,0,
+3235100,Incline Village CDP,NV,9152,40,"Reno, NV--CA",63,1,,7,0.768,1.142,2.907,-0.606,medium,0,Amenity Destination
+0621880,El Dorado Hills CDP,CA,50553,40,"Reno, NV--CA",63,2,,5,0.633,1.255,0.204,0.445,high,0,
+0673108,South Lake Tahoe city,CA,21319,40,"Reno, NV--CA",63,3,,8,0.568,1.013,3.107,-0.755,medium,1,Amenity Destination
+5124496,East Highland Park CDP,VA,16071,525,"Richmond, VA",46,1,,26,0.666,0.33,-0.353,0.283,high,0,
+5118448,Colonial Heights city,VA,18210,525,"Richmond, VA",46,2,,28,0.654,0.267,-0.393,0.196,high,0,
+5151560,Midlothian CDP,VA,18702,525,"Richmond, VA",46,3,,9,0.634,1.01,-0.601,0.7,high,0,
+1644290,Kuna city,ID,25960,108,"Boise City, ID",39,1,,13,0.47,0.064,-0.544,-0.479,high,0,
+4153750,Nyssa city,OR,3220,108,"Boise City, ID",39,2,,16,0.459,-0.051,0.697,-0.705,high,0,
+1652120,Meridian city,ID,124865,108,"Boise City, ID",39,3,,5,0.433,0.361,-0.663,-0.374,high,0,
+4849392,Morgan's Point Resort city,TX,4709,484,"Killeen, TX",71,1,,6,0.843,0.548,-0.777,0.805,high,0,
+4816624,Copperas Cove city,TX,37149,484,"Killeen, TX",71,2,,8,0.841,0.535,0.001,0.804,high,0,Military Anchor
+4807408,Bellmead city,TX,10550,484,"Killeen, TX",71,3,,14,0.828,0.211,1.609,0.686,high,0,
+1266000,Siesta Key CDP,FL,5690,79,"Bradenton--Sarasota--Venice, FL",58,1,,3,0.902,1.544,2.403,0.211,high,1,Amenity Destination; Aging Trap
+1241150,Longboat Key town,FL,7512,79,"Bradenton--Sarasota--Venice, FL",58,2,,1,0.896,2.009,2.023,0.706,high,0,Amenity Destination
+1214700,Cortez CDP,FL,5323,79,"Bradenton--Sarasota--Venice, FL",58,3,,14,0.699,1.011,0.391,-0.954,high,0,Amenity Destination
+3438580,Lakewood CDP,NJ,69884,348,"Toms River CDP, NJ",105,1,,27,1.064,1.904,1.118,0.047,high,0,
+3406970,Bradley Beach borough,NJ,4264,348,"Toms River CDP, NJ",105,2,,5,1.014,2.328,0.104,0.118,high,1,Amenity Destination
+3422740,Fairview CDP,NJ,3950,348,"Toms River CDP, NJ",105,3,,30,0.981,1.853,-0.755,1.894,high,0,
+0636868,Isla Vista CDP,CA,13717,53,"Santa Barbara, CA",49,1,,5,1.561,1.615,2.488,-4.211,medium,1,Knowledge Center
+0668154,San Luis Obispo city,CA,48039,53,"Santa Barbara, CA",49,2,,11,0.71,1.094,0.173,-1.846,high,0,Knowledge Center; Regional Service Center
+0612132,Cayucos CDP,CA,2517,53,"Santa Barbara, CA",49,3,,27,0.31,0.432,2.734,-2.542,medium,0,Amenity Destination; Aging Trap
+1851912,Munster town,IN,23733,154,"Hammond city, IN",58,1,,5,0.859,1.312,-0.775,1.569,high,0,
+1841535,Lake Station city,IN,13109,154,"Hammond city, IN",58,2,,33,0.853,0.346,-0.344,0.886,high,1,
+1831000,Hammond city,IN,77098,154,"Hammond city, IN",58,3,,23,0.835,0.6,-0.073,0.881,high,1,
+1921000,Des Moines city,IA,212464,155,"Des Moines, IA",71,1,,14,0.862,0.369,0.102,0.633,high,0,
+1933105,Grinnell city,IA,9527,155,"Des Moines, IA",71,2,,8,0.858,0.606,-0.574,0.991,high,0,Knowledge Center
+1979950,Urbandale city,IA,46026,155,"Des Moines, IA",71,3,,6,0.851,0.639,-0.464,1.024,high,0,
+3680863,West Sand Lake CDP,NY,3453,358,"Albany--Schenectady, NY",126,1,,42,0.847,0.493,-0.604,0.957,high,0,
+3665893,Scotia village,NY,7260,358,"Albany--Schenectady, NY",126,2,,37,0.817,0.526,-0.697,0.76,high,1,
+3683349,Wynantskill CDP,NY,3675,358,"Albany--Schenectady, NY",126,3,,40,0.817,0.513,-0.536,0.961,high,0,Government Hub
+5517175,Cottage Grove village,WI,7906,555,"Madison, WI",88,1,,8,0.83,1.039,-0.682,1.171,high,0,
+5549575,Marshall village,WI,3806,555,"Madison, WI",88,2,,13,0.73,0.528,-0.207,0.292,high,0,
+5506300,Belleville village,WI,2628,555,"Madison, WI",88,3,,20,0.697,0.343,-0.71,0.194,high,0,
+0828360,Frederick town,CO,15893,66,"Fort Collins, CO",38,1,,16,0.734,0.386,-0.852,0.197,high,0,
+0839855,Johnstown town,CO,18075,66,"Fort Collins, CO",38,2,,17,0.722,0.375,-0.995,0.248,high,0,
+0850480,Milliken town,CO,8695,66,"Fort Collins, CO",38,3,,19,0.646,0.355,-0.935,-0.015,high,0,
+0544600,Maumelle city,AR,19286,30,"Little Rock, AR",55,1,,3,0.842,0.762,-0.863,1.069,high,0,
+0563470,Shannon Hills city,AR,4557,30,"Little Rock, AR",55,2,,10,0.825,0.248,-0.512,0.876,high,0,
+0505290,Benton city,AR,35954,30,"Little Rock, AR",55,3,,16,0.822,0.04,-0.735,0.255,high,0,
+2061250,Rose Hill city,KS,4353,180,"Wichita, KS",50,1,,8,0.881,0.431,-0.841,1.061,high,0,
+2031125,Haysville city,KS,11117,180,"Wichita, KS",50,2,,29,0.85,-0.301,-0.728,0.198,high,0,
+2017800,Derby city,KS,25801,180,"Wichita, KS",50,3,,9,0.848,0.294,-0.862,0.507,high,0,
+1216550,Daytona Beach Shores city,FL,5139,84,"Daytona Beach--Palm Coast--Port Orange, FL",28,1,,1,0.918,1.181,1.636,0.486,high,0,Amenity Destination; Aging Trap
+1217200,Deltona city,FL,95682,84,"Daytona Beach--Palm Coast--Port Orange, FL",28,2,,8,0.712,0.602,0.224,0.395,high,0,
+1216875,DeLand city,FL,39832,84,"Daytona Beach--Palm Coast--Port Orange, FL",28,3,,2,0.686,0.926,-0.001,0.5,high,0,
+4529815,Goose Creek city,SC,46964,451,"Charleston, SC",36,1,,13,0.752,0.181,-0.489,0.193,high,0,Military Anchor
+4539220,Ladson CDP,SC,16261,451,"Charleston, SC",36,2,,16,0.724,0.074,-0.275,0.003,high,0,
+4547275,Moncks Corner town,SC,14362,451,"Charleston, SC",36,3,,18,0.693,-0.088,-0.584,-0.203,high,0,
+4513015,Central town,SC,5299,448,"Greenville, SC",76,1,,4,0.867,1.002,-0.537,0.42,high,0,Knowledge Center
+4514950,Clemson city,SC,17759,448,"Greenville, SC",76,2,,2,0.848,1.624,-0.973,0.081,high,0,Knowledge Center
+4550290,Ninety Six town,SC,2635,448,"Greenville, SC",76,3,,44,0.819,-0.178,-0.66,0.189,high,0,
+0133472,Harvest CDP,AL,6624,10,"Huntsville, AL",51,1,,6,0.822,0.122,-0.457,0.487,high,0,Government Hub
+0145784,Madison city,AL,58335,10,"Huntsville, AL",51,2,,1,0.812,0.968,-0.571,1.525,high,0,
+0154168,New Hope city,AL,2895,10,"Huntsville, AL",51,3,,8,0.784,0.01,-0.113,0.68,high,0,
+1245465,Midway CDP,FL,20745,83,"Pensacola, FL--AL",59,1,,39,0.842,-0.023,-0.261,0.536,high,0,
+1246000,Miramar Beach CDP,FL,8587,83,"Pensacola, FL--AL",59,2,,11,0.803,0.705,2.682,-0.499,high,0,Amenity Destination
+1253725,Pace CDP,FL,25630,83,"Pensacola, FL--AL",59,3,,21,0.739,0.317,-0.438,0.275,high,0,
+3335460,Henniker CDP,NH,2880,343,"Nashua, NH--MA",56,1,,18,0.906,0.767,-0.82,-0.376,high,0,Knowledge Center
+3329780,Goffstown CDP,NH,3127,343,"Nashua, NH--MA",56,2,,11,0.808,0.947,-1.113,0.991,high,0,
+3350260,Nashua city,NH,91131,343,"Nashua, NH--MA",56,3,,7,0.607,1.117,-0.3,0.4,high,0,
+3684099,Yorkville village,NY,2638,362,"Syracuse, NY",108,1,,47,0.852,0.163,-0.315,0.676,high,0,
+3613145,Cazenovia village,NY,2760,362,"Syracuse, NY",108,2,,5,0.847,1.338,-0.957,1.115,medium,0,Knowledge Center
+3608059,Brewerton CDP,NY,4466,362,"Syracuse, NY",108,3,,37,0.831,0.306,-0.808,0.488,high,0,
+3608466,Brockport village,NY,7153,368,"Rochester, NY",88,1,,10,0.979,0.886,-0.806,0.489,medium,1,Knowledge Center
+3628640,Geneva city,NY,12573,368,"Rochester, NY",88,2,,21,0.87,0.63,-0.783,0.986,high,1,Knowledge Center
+3634847,Hilton village,NY,5990,368,"Rochester, NY",88,3,,39,0.86,0.222,-0.709,0.377,high,0,
+4850580,Nederland city,TX,18475,219,"Lake Charles, LA",73,1,,3,0.788,0.106,-0.568,0.637,high,0,
+4810252,Bridge City city,TX,9549,219,"Lake Charles, LA",73,2,,14,0.747,-0.276,-0.822,1.036,high,0,
+4858940,Port Neches city,TX,13627,219,"Lake Charles, LA",73,3,,6,0.718,0.046,-0.234,0.661,high,0,
+1319000,Columbus city,GA,204383,7,"Columbus, GA--AL",47,1,,7,0.789,0.268,-0.007,0.711,high,0,Military Anchor
+0178204,Valley city,AL,10406,7,"Columbus, GA--AL",47,2,,30,0.771,-0.493,-0.752,-0.129,high,0,
+0103076,Auburn city,AL,78738,7,"Columbus, GA--AL",47,3,,1,0.693,1.242,-0.609,-0.063,high,0,Knowledge Center; Regional Service Center
+4551720,Oak Grove CDP,SC,12031,450,"Columbia, SC",93,1,,13,0.831,0.325,-0.436,0.689,high,0,
+4512655,Cayce city,SC,13718,450,"Columbia, SC",93,2,,17,0.789,0.22,-0.543,0.326,high,0,
+4541335,Lexington town,SC,24132,450,"Columbia, SC",93,3,,6,0.788,0.647,-0.213,0.709,high,0,
+3907972,Bowling Green city,OH,30051,405,"Toledo, OH--MI",72,1,,2,0.959,1.251,-0.893,0.476,high,0,Knowledge Center
+3959010,Ottawa Hills village,OH,4796,405,"Toledo, OH--MI",72,2,,1,0.957,1.666,-0.945,2.71,high,0,
+3976022,Sylvania city,OH,19038,405,"Toledo, OH--MI",72,3,,3,0.866,1.032,-0.911,1.288,high,0,
+2328205,Gorham CDP,ME,7365,228,"Portland, ME",98,1,,6,0.812,1.037,-0.674,0.739,high,0,Knowledge Center
+2380740,Waterville city,ME,16704,228,"Portland, ME",98,2,,32,0.59,0.417,-0.189,-0.226,high,0,Knowledge Center; Regional Service Center
+2340000,Lisbon CDP,ME,3453,228,"Portland, ME",98,3,,55,0.48,-0.1,0.102,-0.562,high,0,Government Hub
+4283856,West Pittston borough,PA,4645,447,"Scranton, PA",146,1,,44,0.835,0.582,-0.75,0.787,high,1,
+4251384,Mountain Top CDP,PA,11856,447,"Scranton, PA",146,2,,28,0.829,0.723,-0.448,1.077,high,1,
+4283136,West Hazleton borough,PA,5156,447,"Scranton, PA",146,3,,37,0.77,0.65,2.054,0.488,high,0,
+2536335,Longmeadow CDP,MA,15724,238,"Springfield, MA--CT",30,1,,2,0.858,1.949,-0.52,2.061,high,0,
+2501370,Amherst Town city,MA,35472,238,"Springfield, MA--CT",30,2,,1,0.811,2.617,-0.604,1.055,medium,0,Knowledge Center
+2576030,Westfield city,MA,40673,238,"Springfield, MA--CT",30,3,,13,0.671,0.839,-0.361,0.473,high,0,
+3722920,Fayetteville city,NC,209692,376,"Fayetteville, NC",75,1,,11,0.7,0.68,-0.278,0.556,high,0,Military Anchor
+3732640,Hope Mills town,NC,17823,376,"Fayetteville, NC",75,2,,13,0.637,0.556,0.16,0.277,high,0,
+3738220,Lillington town,NC,4683,376,"Fayetteville, NC",75,3,,17,0.577,0.36,-0.512,-0.021,medium,0,
+2183550,Wilmore city,KY,6031,201,"Lexington-Fayette, KY",19,1,,1,0.667,0.934,-0.995,0.388,high,0,Knowledge Center
+2144146,Lawrenceburg city,KY,11838,201,"Lexington-Fayette, KY",19,2,,8,0.665,0.095,-0.568,-0.126,high,0,
+2130700,Georgetown city,KY,38206,201,"Lexington-Fayette, KY",19,3,,7,0.655,0.144,-0.808,-0.071,high,0,
+1884950,Winona Lake town,IN,5073,143,"Fort Wayne, IN",68,1,,3,0.87,0.488,-0.994,0.953,high,0,Knowledge Center
+1865214,Rochester city,IN,6244,143,"Fort Wayne, IN",68,2,,30,0.84,-0.346,-0.251,-0.163,high,1,
+1842861,Leo-Cedarville town,IN,3670,143,"Fort Wayne, IN",68,3,,5,0.775,0.16,-0.931,0.304,high,0,
+2279240,Walker town,LA,6385,226,"Baton Rouge, LA",57,1,,27,0.797,-0.181,-0.479,0.339,high,0,
+2283405,Zachary city,LA,19637,226,"Baton Rouge, LA",57,2,,14,0.788,0.095,-0.83,0.57,high,0,
+2200415,Addis town,LA,7052,226,"Baton Rouge, LA",57,3,,19,0.698,0.004,-1.153,1.061,high,0,
+5311825,Cheney city,WA,12830,114,"Spokane, WA",63,1,,1,0.854,1.023,-0.663,-0.731,high,0,Knowledge Center
+5339335,Liberty Lake city,WA,12435,114,"Spokane, WA",63,2,,7,0.43,0.265,-0.625,-0.427,high,0,
+5344690,Medical Lake city,WA,4927,114,"Spokane, WA",63,3,,6,0.301,0.357,-0.211,-0.468,high,0,
+1321240,Dahlonega city,GA,7194,92,"Gainesville city, GA",56,1,,9,0.761,1.176,-0.64,0.543,medium,0,Knowledge Center
+1371604,Snellville city,GA,21203,92,"Gainesville city, GA",56,2,,8,0.755,1.216,0.417,1.018,high,0,
+1334596,Grayson city,GA,4699,92,"Gainesville city, GA",56,3,,11,0.729,1.018,0.421,1.156,high,0,
+4115800,Corvallis city,OR,60424,426,"Eugene, OR",43,1,,1,0.944,1.751,-0.486,0.019,high,0,Knowledge Center
+4148300,Millersburg city,OR,3096,426,"Eugene, OR",43,2,,7,0.548,0.347,-0.211,-0.162,high,0,
+4132550,Harrisburg city,OR,3675,426,"Eugene, OR",43,3,,15,0.385,-0.003,-0.214,-0.788,high,0,
+0554200,Pea Ridge city,AR,7348,23,"Fayetteville--Springdale--Rogers, AR--MO",45,1,,24,0.771,-0.113,-0.471,-0.041,high,0,
+0512820,Centerton city,AR,20212,23,"Fayetteville--Springdale--Rogers, AR--MO",45,2,,13,0.753,0.136,-0.915,0.521,high,0,
+0523170,Farmington city,AR,8469,23,"Fayetteville--Springdale--Rogers, AR--MO",45,3,,15,0.747,0.09,-0.866,0.144,high,0,
+4737820,Jasper town,TN,3610,101,"Chattanooga, TN--GA",65,1,,38,0.693,-0.594,-0.823,-0.449,high,0,
+4768540,Signal Mountain town,TN,8861,101,"Chattanooga, TN--GA",65,2,,2,0.622,1.119,-0.784,0.777,high,0,
+4716300,Collegedale city,TN,11185,101,"Chattanooga, TN--GA",65,3,,5,0.477,0.72,-0.761,-0.375,high,0,Knowledge Center
+4760480,Powell CDP,TN,13544,464,"Knoxville, TN",53,1,,14,0.596,0.019,-0.665,-0.196,high,0,
+4746380,Maryville city,TN,32196,464,"Knoxville, TN",53,2,,10,0.429,0.259,-0.573,-0.263,high,0,
+4725760,Farragut town,TN,24309,464,"Knoxville, TN",53,3,,1,0.369,0.766,-0.767,0.271,high,0,
+5502375,Appleton city,WI,74873,554,"Appleton, WI",90,1,,3,0.795,0.426,-0.66,0.458,high,0,
+5544950,Little Chute village,WI,11930,554,"Appleton, WI",90,2,,19,0.786,0.001,-0.837,0.104,high,0,
+5532790,Harrison village,WI,13345,554,"Appleton, WI",90,3,,4,0.766,0.282,-0.707,0.302,high,0,
+1257950,Polk City town,FL,2884,87,"Lakeland, FL",47,1,,24,0.823,0.388,-0.549,0.62,high,0,
+1230225,Highland City CDP,FL,12732,87,"Lakeland, FL",47,2,,17,0.816,0.542,-0.346,0.955,high,0,
+1203675,Bartow city,FL,19801,87,"Lakeland, FL",47,3,,20,0.697,0.521,-0.334,0.314,high,0,
+2676960,Sturgis city,MI,11077,151,"South Bend, IN--MI",73,1,,35,0.856,-0.122,-0.183,0.118,high,0,
+1828800,Granger CDP,IN,30279,151,"South Bend, IN--MI",73,2,,5,0.851,1.103,-0.715,1.281,high,0,
+1871000,South Bend city,IN,102866,151,"South Bend, IN--MI",73,3,,16,0.795,0.413,-0.245,0.525,high,1,
+5175376,Sterling CDP,VA,31251,532,"Leesburg town, VA",59,1,,20,0.964,1.903,2.795,1.293,high,0,
+5144984,Leesburg town,VA,48788,532,"Leesburg town, VA",59,2,,23,0.818,1.678,0.403,0.718,high,0,
+5165008,Purcellville town,VA,8974,532,"Leesburg town, VA",59,3,,24,0.792,1.5,-0.352,0.74,high,0,
+1984315,West Liberty city,IA,3795,160,"Cedar Rapids, IA",82,1,,13,0.883,0.245,0.536,0.525,high,0,
+1954840,Mount Vernon city,IA,4551,160,"Cedar Rapids, IA",82,2,,6,0.882,0.858,-0.721,1.218,high,0,Knowledge Center
+1938595,Iowa City city,IA,75264,160,"Cedar Rapids, IA",82,3,,2,0.855,1.576,-0.869,0.984,high,0,Knowledge Center; Regional Service Center
+0171976,Spanish Fort city,AL,10377,2,"Mobile, AL",48,1,,5,0.731,0.169,-0.805,0.165,high,0,
+0119648,Daphne city,AL,28673,2,"Mobile, AL",48,2,,4,0.72,0.181,-0.75,0.153,high,0,
+0114392,Chickasaw city,AL,6367,2,"Mobile, AL",48,3,,23,0.701,-0.593,-0.116,0.35,high,0,
+1373256,Statesboro city,GA,33705,98,"Savannah, GA",54,1,,10,0.853,0.365,-0.633,-0.703,high,0,Knowledge Center; Regional Service Center
+1332482,Georgetown CDP,GA,11606,98,"Savannah, GA",54,2,,9,0.822,0.373,-0.436,2.091,high,0,
+1311626,Buckhead CDP,GA,4640,98,"Savannah, GA",54,3,,6,0.738,0.435,-1.022,0.499,high,0,Military Anchor
+1748606,Metamora village,IL,4094,125,"Peoria, IL",112,1,,1,0.856,0.95,-0.902,2.043,high,0,
+1729080,Germantown Hills village,IL,3425,125,"Peoria, IL",112,2,,3,0.852,0.792,-1.021,1.821,high,0,
+1723737,El Paso city,IL,2871,125,"Peoria, IL",112,3,,34,0.849,-0.083,-0.32,0.669,high,0,
+4231656,Grove City borough,PA,7861,404,"Youngstown, OH",94,1,,2,0.963,1.219,-0.738,0.992,medium,1,Knowledge Center
+4225360,Farrell city,PA,4239,404,"Youngstown, OH",94,2,,12,0.821,0.552,-0.031,2.269,high,1,
+3911066,Campbell city,OH,7812,404,"Youngstown, OH",94,3,,25,0.796,0.197,0.034,1.106,high,1,
+1770590,South Beloit city,IL,7930,124,"Rockford, IL",72,1,,13,0.866,0.487,-0.632,1.148,high,0,
+1765156,Rockton village,IL,8238,124,"Rockford, IL",72,2,,6,0.86,0.602,-0.721,1.423,high,0,
+1710240,Byron city,IL,3742,124,"Rockford, IL",72,3,,18,0.845,0.401,-0.738,0.694,high,0,
+0203000,Anchorage municipality,AK,289069,567,"Anchorage, AK",31,1,,2,0.661,0.135,-0.134,-0.037,high,0,
+0247735,Meadow Lakes CDP,AK,8994,567,"Anchorage, AK",31,2,,15,0.593,-0.601,-0.258,-0.931,high,0,
+0258660,Palmer city,AK,6141,567,"Anchorage, AK",31,3,,5,0.326,-0.184,-0.611,-0.966,high,0,
+0655296,Palo Cedro CDP,CA,3561,42,"Redding, CA",69,1,,9,0.53,0.198,0.189,-0.307,high,0,Government Hub
+0616322,Corning city,CA,8168,42,"Redding, CA",69,2,,19,0.423,-0.055,2.099,-0.737,high,0,
+0613014,Chico city,CA,102032,42,"Redding, CA",69,3,,3,0.406,0.719,-0.047,-0.465,high,0,Knowledge Center
+1906355,Bettendorf city,IA,39297,136,"Davenport, IA--IL",71,1,,1,0.848,0.556,-0.775,0.936,high,0,
+1924600,Eldridge city,IA,6743,136,"Davenport, IA--IL",71,2,,4,0.825,0.318,-0.855,0.549,high,0,
+1765078,Rock Island city,IL,36758,136,"Davenport, IA--IL",71,3,,7,0.817,0.178,-0.269,1.24,high,1,
+5377665,West Richland city,WA,17126,438,"Kennewick--Richland--Pasco, WA",42,1,,9,0.641,0.136,-0.204,-0.092,high,0,
+5358235,Richland city,WA,61912,438,"Kennewick--Richland--Pasco, WA",42,2,,4,0.482,0.392,-0.43,-0.199,high,0,
+4133700,Hermiston city,OR,19406,438,"Kennewick--Richland--Pasco, WA",42,3,,14,0.448,-0.136,0.873,-0.741,high,0,
+1777005,Urbana city,IL,38447,127,"Champaign, IL",70,1,,1,0.916,1.785,-0.569,1.561,high,0,Knowledge Center; Regional Service Center
+1753234,Normal town,IL,52908,127,"Champaign, IL",70,2,,4,0.896,1.035,-0.765,0.888,high,0,Knowledge Center; Regional Service Center
+1766950,St. Joseph village,IL,3833,127,"Champaign, IL",70,3,,10,0.876,0.487,-0.624,1.425,high,0,
+2844520,Madison city,MS,27775,279,"Jackson, MS",38,1,,3,0.84,0.785,-0.831,0.983,high,0,
+2814420,Clinton city,MS,27418,279,"Jackson, MS",38,2,,6,0.82,0.482,-0.57,0.75,high,0,
+2862400,Richland city,MS,7250,279,"Jackson, MS",38,3,,13,0.791,-0.125,-0.531,0.106,high,0,
+4741200,La Vergne city,TN,38944,465,"Murfreesboro, TN",35,1,,3,0.638,0.425,0.28,0.089,high,0,
+4751560,Murfreesboro city,TN,157547,465,"Murfreesboro, TN",35,2,,2,0.512,0.677,-0.648,-0.133,high,0,
+4769420,Smyrna town,TN,55066,465,"Murfreesboro, TN",35,3,,6,0.502,0.312,0.105,-0.338,high,0,
+4860544,Rancho Viejo town,TX,2834,493,"Brownsville, TX",46,1,,1,0.851,1.232,0.664,1.455,high,0,
+4869140,South Padre Island town,TX,2852,493,"Brownsville, TX",46,2,,3,0.824,1.188,3.232,-0.036,medium,0,Amenity Destination; Aging Trap
+4832372,Harlingen city,TX,71669,493,"Brownsville, TX",46,3,,13,0.809,0.606,0.279,0.695,high,0,
+5186160,Williamsburg city,VA,15564,536,"Newport News city, VA",12,1,,1,0.826,1.468,-0.134,0.323,medium,0,Knowledge Center
+5163768,Poquoson city,VA,12556,536,"Newport News city, VA",12,2,,4,0.75,0.643,-0.686,0.601,high,0,
+5135000,Hampton city,VA,137334,536,"Newport News city, VA",12,3,,6,0.721,0.54,-0.435,0.373,high,1,Military Anchor
+2979882,Willard city,MO,6418,289,"Springfield, MO",67,1,,5,0.824,0.279,-0.766,0.687,high,0,
+2914788,Clever city,MO,2977,289,"Springfield, MO",67,2,,17,0.807,-0.138,-0.855,0.059,high,0,
+2903592,Battlefield city,MO,6095,289,"Springfield, MO",67,3,,3,0.802,0.357,-0.808,0.556,high,0,
+4222608,Edinboro borough,PA,5303,363,"Erie, PA",130,1,,3,0.853,1.092,-0.783,-0.126,high,1,Knowledge Center
+4240960,Lake City borough,PA,2901,363,"Erie, PA",130,2,,49,0.791,-0.147,-0.708,0.528,high,0,
+3627419,Fredonia village,NY,9601,363,"Erie, PA",130,3,,4,0.779,0.834,-0.624,0.575,high,1,Knowledge Center
+3111370,Crete city,NE,7521,337,"Lincoln, NE",36,1,,7,0.875,0.278,1.52,0.631,high,0,
+3132060,Milford city,NE,2656,337,"Lincoln, NE",36,2,,16,0.857,-0.131,-0.701,-0.035,high,0,
+3150965,Wahoo city,NE,4885,337,"Lincoln, NE",36,3,,4,0.853,0.35,-0.799,0.568,high,0,
+2624120,East Lansing city,MI,45394,249,"Lansing, MI",47,1,,2,0.999,2.016,-0.585,0.714,medium,1,Knowledge Center; Regional Service Center
+2646000,Lansing city,MI,112546,249,"Lansing, MI",47,2,,10,0.888,0.591,-0.057,0.933,high,1,
+2638780,Holt CDP,MI,25275,249,"Lansing, MI",47,3,,7,0.853,0.68,-0.525,1.123,high,0,
+2208920,Bossier City city,LA,62832,224,"Shreveport, LA",55,1,,2,0.629,0.006,-0.235,-0.159,high,0,Military Anchor
+2253545,Natchitoches city,LA,17682,224,"Shreveport, LA",55,2,,7,0.489,-0.364,-0.328,-0.885,high,0,Knowledge Center
+2270000,Shreveport city,LA,183483,224,"Shreveport, LA",55,3,,4,0.459,-0.064,-0.347,0.354,high,0,
+3978736,Uniontown CDP,OH,7571,401,"Canton, OH",77,1,,2,0.867,1.019,-0.829,1.332,high,0,
+3958828,Orrville city,OH,8361,401,"Canton, OH",77,2,,16,0.851,0.208,-0.814,0.447,high,1,
+3967356,Rittman city,OH,6033,401,"Canton, OH",77,3,,37,0.783,-0.103,-0.84,0.317,high,1,
+2458225,Ocean City town,MD,6887,71,"Dover, DE",110,1,,24,0.947,0.852,3.141,-0.267,medium,1,Amenity Destination
+2416225,Chestertown town,MD,5548,71,"Dover, DE",110,2,,8,0.864,1.36,-0.228,-0.221,medium,0,Knowledge Center
+2475025,Stevensville CDP,MD,8693,71,"Dover, DE",110,3,,10,0.797,1.082,-0.57,0.908,high,0,
+0468080,Somerton city,AZ,14383,19,"Yuma, AZ--CA",27,1,,8,0.788,0.351,2.549,0.41,high,0,
+0463470,San Luis city,AZ,35998,19,"Yuma, AZ--CA",27,2,,10,0.668,0.162,3.145,0.002,medium,0,
+0633084,Heber CDP,CA,7308,19,"Yuma, AZ--CA",27,3,,3,0.581,0.567,2.436,0.036,high,0,
+0162328,Prattville city,AL,38850,1,"Montgomery, AL",34,1,,6,0.818,0.231,-0.579,0.524,high,0,
+0148712,Millbrook city,AL,16923,1,"Montgomery, AL",34,2,,7,0.808,0.132,-0.287,0.397,high,0,Government Hub
+0120008,Deatsville town,AL,2618,1,"Montgomery, AL",34,3,,4,0.732,0.411,-0.737,1.219,high,0,
+4501450,Andrews town,SC,2558,452,"Myrtle Beach--North Myrtle Beach, SC--NC",65,1,,22,0.806,-0.264,0.057,0.189,high,1,
+4570585,Surfside Beach town,SC,4217,452,"Myrtle Beach--North Myrtle Beach, SC--NC",65,2,,10,0.723,-0.02,1.008,-0.503,high,1,Amenity Destination; Aging Trap
+4532560,Hartsville city,SC,7422,452,"Myrtle Beach--North Myrtle Beach, SC--NC",65,3,,19,0.678,-0.244,-0.367,-0.15,high,0,
+0423620,Flagstaff city,AZ,76333,15,"Prescott--Prescott Valley, AZ",62,1,,3,0.628,0.728,-0.222,-1.189,high,0,Knowledge Center; Regional Service Center
+0451810,Page city,AZ,7407,15,"Prescott--Prescott Valley, AZ",62,2,,50,0.614,-1.184,0.193,-1.457,high,0,
+4939920,Kanab city,UT,4950,15,"Prescott--Prescott Valley, AZ",62,3,,45,0.313,-1.079,-0.004,-1.776,high,0,
+4870040,Stanton city,TX,2658,476,"Odessa, TX",21,1,,7,0.85,-0.415,-0.767,-0.089,high,0,
+4803216,Andrews city,TX,13416,476,"Odessa, TX",21,2,,2,0.84,-0.26,-0.285,0.105,high,0,
+4853388,Odessa city,TX,114080,476,"Odessa, TX",21,3,,3,0.838,-0.268,-0.168,-0.002,high,0,
+2212665,Carencro city,LA,10882,218,"Lafayette, LA",55,1,,15,0.769,-0.344,-0.73,0.067,high,0,
+2240735,Lafayette city,LA,121537,218,"Lafayette, LA",55,2,,1,0.769,0.313,-0.445,0.392,high,0,
+2210075,Broussard city,LA,13791,218,"Lafayette, LA",55,3,,9,0.752,-0.094,-0.891,0.866,high,0,
+4845000,Lubbock city,TX,261078,485,"Lubbock, TX",30,1,,2,0.822,0.238,-0.67,0.411,high,0,
+4867136,Shallowater city,TX,2935,485,"Lubbock, TX",30,2,,4,0.786,-0.156,-0.617,-0.048,high,0,
+4879972,Wolfforth city,TX,6189,485,"Lubbock, TX",30,3,,5,0.745,-0.185,-0.623,0.351,high,0,
+1335716,Grovetown city,GA,16516,99,"Augusta-Richmond County consolidated government (balance), GA",24,1,,3,0.598,0.297,-0.503,0.101,high,0,Military Anchor
+1376280,Thomson city,GA,6824,99,"Augusta-Richmond County consolidated government (balance), GA",24,2,,10,0.592,-0.491,0.001,-0.79,high,0,
+1328044,Evans CDP,GA,37718,99,"Augusta-Richmond County consolidated government (balance), GA",24,3,,2,0.568,0.478,-0.651,0.815,high,0,
+3775820,Wrightsville Beach town,NC,2679,377,"Wilmington, NC",52,1,,1,0.908,1.126,0.849,-0.727,high,0,Amenity Destination; Aging Trap
+3704950,Belville town,NC,3183,377,"Wilmington, NC",52,2,,21,0.706,0.123,-0.732,0.031,high,0,
+3766040,Surf City town,NC,4160,377,"Wilmington, NC",52,3,,4,0.644,0.659,1.187,-0.683,high,0,Amenity Destination
+5165392,Radford city,VA,16505,528,"Roanoke, VA",43,1,,7,0.85,0.615,-0.742,0.067,high,0,Knowledge Center; Regional Service Center
+5107784,Blacksburg town,VA,45288,528,"Roanoke, VA",43,2,,1,0.826,1.709,-0.373,0.034,high,0,Knowledge Center; Regional Service Center
+5116608,Christiansburg town,VA,22820,528,"Roanoke, VA",43,3,,9,0.698,0.581,-0.789,0.456,high,0,
+2819180,D'Iberville city,MS,13033,285,"Gulfport--Biloxi, MS",34,1,,4,0.827,0.258,0.31,0.442,high,0,
+2853520,Ocean Springs city,MS,18561,285,"Gulfport--Biloxi, MS",34,2,,3,0.826,0.361,-0.433,0.537,high,0,
+2829620,Gulf Hills CDP,MS,8193,285,"Gulfport--Biloxi, MS",34,3,,6,0.742,0.208,-0.771,0.221,high,0,
+1380508,Warner Robins city,GA,81438,96,"Warner Robins, GA",20,1,,3,0.826,0.187,-0.113,0.543,high,0,
+1360340,Perry city,GA,22243,96,"Warner Robins, GA",20,2,,7,0.81,0.011,-0.608,0.284,high,0,
+1312260,Byron city,GA,5839,96,"Warner Robins, GA",20,3,,2,0.799,0.439,-0.878,0.889,high,0,Government Hub
+4775560,Tusculum city,TN,3304,467,"Johnson City, TN",50,1,,1,0.757,0.854,-0.923,0.544,medium,0,Knowledge Center
+4738320,Johnson City city,TN,71455,467,"Johnson City, TN",50,2,,3,0.498,0.586,-0.654,-0.113,high,0,
+4708540,Bristol city,TN,27490,467,"Johnson City, TN",50,3,,13,0.07,-0.2,-0.513,-0.52,high,0,
+1270600,Tallahassee city,FL,199696,86,"Tallahassee, FL",33,1,,2,0.688,0.85,-0.381,0.186,high,0,Knowledge Center; Regional Service Center
+1312400,Cairo city,GA,10067,86,"Tallahassee, FL",33,2,,8,0.606,-0.351,0.264,-0.648,high,0,
+1245425,Midway city,FL,3504,86,"Tallahassee, FL",33,3,,4,0.594,0.142,0.682,-0.094,high,0,Government Hub
+1776199,Troy city,IL,10889,123,"Granite City city, IL",77,1,,6,0.841,0.696,-0.919,0.998,high,0,
+1729639,Glen Carbon village,IL,13521,123,"Granite City city, IL",77,2,,3,0.837,0.956,-1.001,1.105,high,0,
+1708264,Brighton village,IL,2536,123,"Granite City city, IL",77,3,,27,0.831,-0.102,-0.696,0.486,high,0,
+5589150,Wrightstown village,WI,3330,553,"Green Bay, WI",45,1,,8,0.778,0.319,-0.913,0.379,high,0,
+5577975,Suamico village,WI,13003,553,"Green Bay, WI",45,2,,9,0.716,0.311,-0.593,0.244,high,0,
+5535150,Hobart village,WI,10418,553,"Green Bay, WI",45,3,,10,0.656,0.29,-1.002,0.077,high,0,
+4879000,Wichita Falls city,TX,102558,416,"Wichita Falls, TX",43,1,,4,0.78,-0.171,-0.257,0.283,high,0,Military Anchor
+4010700,Cache city,OK,3045,416,"Wichita Falls, TX",43,2,,8,0.75,-0.335,-0.524,-0.004,high,0,
+4023450,Elgin city,OK,3560,416,"Wichita Falls, TX",43,3,,1,0.714,0.513,-0.401,0.643,high,0,Government Hub; Military Anchor
+2675700,Springfield city,MI,5295,246,"Kalamazoo, MI",38,1,,22,0.859,-0.193,0.456,0.172,high,0,
+2665560,Portage city,MI,49015,246,"Kalamazoo, MI",38,2,,5,0.804,0.587,-0.823,0.666,high,0,
+2647230,Level Park-Oak Park CDP,MI,3367,246,"Kalamazoo, MI",38,3,,15,0.771,0.114,-0.719,0.932,high,1,
+4606840,Brandon city,SD,10996,275,"Sioux Falls, SD",42,1,,5,0.77,0.132,-0.647,0.155,high,0,
+4627260,Harrisburg city,SD,7790,275,"Sioux Falls, SD",42,2,,1,0.743,0.462,-0.881,0.573,high,0,
+2738564,Luverne city,MN,4907,275,"Sioux Falls, SD",42,3,,4,0.726,0.18,-0.655,0.216,high,0,
+2715976,Dilworth city,MN,4664,259,"Fargo, ND--MN",44,1,,8,0.825,0.083,-0.712,0.396,high,0,
+2703574,Barnesville city,MN,2757,259,"Fargo, ND--MN",44,2,,9,0.816,0.055,-0.755,0.151,high,0,
+3884780,West Fargo city,ND,39325,259,"Fargo, ND--MN",44,3,,3,0.778,0.348,-0.927,0.432,high,0,
+4874912,Van city,TX,2751,475,"Tyler, TX",62,1,,26,0.785,-0.298,-0.394,-0.165,high,0,
+4811212,Bullard town,TX,4080,475,"Tyler, TX",62,2,,14,0.756,0.007,-0.947,0.166,high,0,
+4879564,Wills Point city,TX,3848,475,"Tyler, TX",62,3,,24,0.734,-0.231,-0.395,-0.265,high,0,
+1704351,Beardstown city,IL,6047,126,"Springfield, IL",71,1,,41,0.864,-0.314,0.965,1.252,high,0,
+1702921,Auburn city,IL,4357,126,"Springfield, IL",71,2,,16,0.859,0.206,-0.381,1.382,high,0,
+1764759,Rochester village,IL,3784,126,"Springfield, IL",71,3,,5,0.852,0.714,-0.677,1.557,high,0,Government Hub
+2038900,Lawrence city,KS,95459,188,"Topeka, KS",35,1,,1,0.872,1.374,-0.915,0.725,high,0,Knowledge Center
+2021675,Eudora city,KS,6036,188,"Topeka, KS",35,2,,5,0.817,0.374,-0.955,0.77,high,0,
+2003900,Baldwin City city,KS,4881,188,"Topeka, KS",35,3,,2,0.782,0.829,-0.965,0.529,high,0,Knowledge Center
+1882862,West Lafayette city,IN,44802,141,"Lafayette, IN",70,1,,1,0.874,2.245,0.083,0.097,medium,0,Knowledge Center; Regional Service Center
+1780931,Westville village,IL,3442,141,"Lafayette, IN",70,2,,15,0.861,-0.067,-0.463,1.133,high,0,
+1825324,Frankfort city,IN,15536,141,"Lafayette, IN",70,3,,14,0.714,-0.062,0.133,-0.105,high,1,
+0180352,Weaver city,AL,3323,6,"Anniston--Oxford, AL",63,1,,11,0.811,0.228,-0.964,1.208,high,0,
+1310132,Bremen city,GA,7364,6,"Anniston--Oxford, AL",63,2,,13,0.809,-0.009,-0.576,0.219,high,0,
+0138272,Jacksonville city,AL,14345,6,"Anniston--Oxford, AL",63,3,,3,0.801,0.562,-0.518,0.27,high,0,Knowledge Center; Regional Service Center
+4815976,College Station city,TX,122280,486,"College Station--Bryan, TX",19,1,,1,0.772,1.41,-0.305,0.238,high,0,Knowledge Center; Regional Service Center
+4810912,Bryan city,TX,86169,486,"College Station--Bryan, TX",19,2,,3,0.527,0.486,0.332,-0.011,high,0,
+4810156,Brenham city,TX,18086,486,"College Station--Bryan, TX",19,3,,4,0.358,0.356,-0.04,-0.54,high,0,
+2656020,Mount Pleasant city,MI,21420,244,"Saginaw, MI",52,1,,1,0.931,1.064,-0.558,0.346,high,1,Knowledge Center; Regional Service Center
+2653780,Midland city,MI,42461,244,"Saginaw, MI",52,2,,3,0.852,0.379,-0.739,0.746,high,0,
+2601540,Alma city,MI,9421,244,"Saginaw, MI",52,3,,4,0.846,0.333,-0.64,0.738,high,0,Knowledge Center
+2932770,Holts Summit city,MO,4572,288,"Columbia, MO",42,1,,16,0.702,-0.327,-0.76,-0.128,high,0,Government Hub
+2910468,California city,MO,4523,288,"Columbia, MO",42,2,,14,0.683,-0.245,-0.107,-0.306,high,0,
+2902242,Ashland city,MO,4811,288,"Columbia, MO",42,3,,3,0.652,0.184,-0.979,0.069,high,0,
+4803000,Amarillo city,TX,200945,479,"Amarillo, TX",20,1,,5,0.749,-0.266,-0.148,0.021,high,0,
+4812532,Canyon city,TX,15398,479,"Amarillo, TX",20,2,,2,0.714,0.224,-0.774,-0.035,high,0,Knowledge Center
+4854960,Panhandle town,TX,2613,479,"Amarillo, TX",20,3,,6,-0.62,-0.417,-0.976,0.555,high,0,
+4549705,New Ellenton town,SC,2604,449,"Hilton Head Island town, SC",48,1,,20,0.702,-0.471,-0.749,0.215,high,0,
+4560280,Ridgeland town,SC,3756,449,"Hilton Head Island town, SC",48,2,,25,0.521,-0.566,0.17,-0.995,medium,0,
+4507210,Bluffton town,SC,31323,449,"Hilton Head Island town, SC",48,3,,7,0.507,0.378,-0.412,-0.124,high,0,
+4904060,Beaver city,UT,3632,342,"St. George, UT",30,1,,26,0.398,-1.342,-0.34,-1.571,high,0,
+4911320,Cedar City city,UT,37202,342,"St. George, UT",30,2,,6,0.373,-0.055,-0.417,-1.062,high,0,Knowledge Center
+4967660,Santa Clara city,UT,7891,342,"St. George, UT",30,3,,8,0.369,-0.075,-0.386,-0.95,high,0,
+1868022,Santa Claus town,IN,2822,142,"Evansville, IN",49,1,,3,0.841,0.037,-0.83,0.614,high,0,
+1837782,Jasper city,IN,16421,142,"Evansville, IN",49,2,,13,0.54,-0.415,-0.693,-0.508,high,0,
+1835284,Huntingburg city,IN,6504,142,"Evansville, IN",49,3,,15,0.471,-0.479,0.33,-0.832,high,0,
+5540550,Kronenwetter village,WI,8420,550,"Wausau, WI",66,1,,13,0.778,-0.131,-0.803,0.362,high,0,
+5569725,Rothschild village,WI,5532,550,"Wausau, WI",66,2,,20,0.76,-0.304,-0.724,0.287,high,0,
+5584475,Wausau city,WI,39893,550,"Wausau, WI",66,3,,7,0.707,0.076,-0.43,0.085,high,0,
+2712412,Cohasset city,MN,2700,263,"Duluth, MN--WI",50,1,,7,0.727,-0.333,-0.23,-0.395,high,0,
+2717000,Duluth city,MN,86863,263,"Duluth, MN--WI",50,2,,1,0.698,0.296,-0.781,0.057,high,0,Knowledge Center
+5578650,Superior city,WI,26550,263,"Duluth, MN--WI",50,3,,8,0.646,-0.338,-0.589,-0.193,high,1,
+4715160,Clarksville city,TN,171897,212,"Clarksville, TN--KY",12,1,,1,0.548,0.654,-0.495,0.159,high,0,Military Anchor
+2157090,Oak Grove city,KY,7945,212,"Clarksville, TN--KY",12,2,,3,0.538,-0.021,-0.29,-0.375,high,0,Military Anchor
+2137918,Hopkinsville city,KY,31011,212,"Clarksville, TN--KY",12,3,,6,0.321,-0.417,-0.493,-0.586,high,0,
+2705752,Big Lake city,MN,12115,260,"St. Cloud, MN",45,1,,9,0.855,0.405,-0.862,0.702,high,0,
+2772238,Zimmerman city,MN,6410,260,"St. Cloud, MN",45,2,,8,0.763,0.406,-0.887,0.362,high,0,
+2718674,Elk River city,MN,26367,260,"St. Cloud, MN",45,3,,12,0.755,0.32,-0.796,0.241,high,0,
+3766360,Swansboro town,NC,3887,380,"Jacksonville, NC",47,1,,14,0.823,0.188,-0.826,0.57,high,0,Military Anchor
+3730120,Havelock city,NC,16471,380,"Jacksonville, NC",47,2,,27,0.798,-0.144,-0.403,-0.034,high,1,Military Anchor
+3721160,Emerald Isle town,NC,3915,380,"Jacksonville, NC",47,3,,2,0.756,0.639,2.289,-0.95,high,0,Amenity Destination; Aging Trap
+0155200,Northport city,AL,30991,4,"Tuscaloosa, AL",39,1,,3,0.841,0.322,-0.751,0.523,high,0,
+0151648,Moundville town,AL,3649,4,"Tuscaloosa, AL",39,2,,8,0.797,-0.296,-0.562,0.008,high,0,
+0146768,Marion city,AL,2994,4,"Tuscaloosa, AL",39,3,,5,0.768,-0.041,-0.332,0.096,medium,1,Knowledge Center
+4269216,Selinsgrove borough,PA,5655,444,"Williamsport, PA",111,1,,5,0.932,1.007,-0.847,0.843,medium,0,Knowledge Center
+4242976,Lewisburg borough,PA,5247,444,"Williamsport, PA",111,2,,4,0.861,1.053,-0.515,0.092,medium,1,Knowledge Center
+4207128,Bloomsburg town,PA,12906,444,"Williamsport, PA",111,3,,8,0.836,0.76,-0.645,0.144,medium,0,Knowledge Center
+3775060,Winterville town,NC,10624,383,"Greenville, NC",53,1,,4,0.848,0.796,-0.715,1.059,high,0,
+3736400,La Grange town,NC,2692,383,"Greenville, NC",53,2,,19,0.782,-0.046,-0.136,0.015,high,1,
+3745100,Mount Olive town,NC,4204,383,"Greenville, NC",53,3,,13,0.746,0.089,1.292,0.671,high,1,
+3741620,Mars Hill town,NC,2738,378,"Asheville, NC",37,1,,5,0.716,0.968,-0.392,0.236,high,0,Knowledge Center
+3719420,East Flat Rock CDP,NC,6468,378,"Asheville, NC",37,2,,18,0.448,0.206,0.2,-0.423,high,0,
+3723600,Flat Rock village,NC,3502,378,"Asheville, NC",37,3,,4,0.246,0.985,-0.419,0.635,high,0,Amenity Destination
+1977115,Tama city,IA,3079,161,"Waterloo, IA",66,1,,26,0.845,-0.358,0.29,0.746,high,0,
+1949755,Marshalltown city,IA,27491,161,"Waterloo, IA",66,2,,7,0.836,0.06,0.164,0.897,high,0,
+1911755,Cedar Falls city,IA,40662,161,"Waterloo, IA",66,3,,1,0.823,0.618,-0.971,0.752,high,0,Knowledge Center
+2746924,Northfield city,MN,20678,262,"Mankato, MN",44,1,,1,0.912,1.676,-0.832,1.473,medium,0,Knowledge Center
+2717378,Eagle Lake city,MN,3268,262,"Mankato, MN",44,2,,6,0.806,0.556,-0.848,0.758,high,0,
+2749300,Owatonna city,MN,26462,262,"Mankato, MN",44,3,,14,0.748,0.111,-0.536,0.195,high,0,
+4181450,White City CDP,OR,10913,435,"Medford, OR",26,1,,12,0.334,-0.363,0.379,-1.097,high,0,
+4121550,Eagle Point city,OR,9783,435,"Medford, OR",26,2,,11,0.31,-0.324,-0.167,-1.009,high,0,
+4112400,Central Point city,OR,19183,435,"Medford, OR",26,3,,7,0.292,-0.096,-0.173,-0.739,high,0,
+4236816,Indiana borough,PA,14170,442,"Altoona, PA",119,1,,2,0.903,0.926,-0.856,0.686,medium,1,Knowledge Center
+4255000,Northern Cambria borough,PA,3515,442,"Altoona, PA",119,2,,28,0.852,0.058,-0.43,1.743,high,1,
+4222144,Ebensburg borough,PA,3381,442,"Altoona, PA",119,3,,14,0.465,0.348,-0.703,0.61,high,0,
+5371960,Toppenish city,WA,8746,543,"Yakima, WA",30,1,,8,0.726,0.08,1.869,-0.115,high,1,
+5347665,Moxee city,WA,4545,543,"Yakima, WA",30,2,,16,0.66,-0.097,-0.373,-0.27,high,0,
+5373290,Union Gap city,WA,6511,543,"Yakima, WA",30,3,,23,0.578,-0.261,1.52,-0.558,high,0,
+2709154,Byron city,MN,6510,267,"Rochester, MN",40,1,,2,0.824,1.538,-0.989,1.863,high,0,
+2732498,Kasson city,MN,6964,267,"Rochester, MN",40,2,,4,0.814,0.924,-0.715,0.997,high,0,
+2715994,Dodge Center city,MN,2864,267,"Rochester, MN",40,3,,20,0.77,0.111,-0.501,0.199,high,0,
+5551025,Menomonie city,WI,16548,276,"Eau Claire, WI",61,1,,2,0.808,0.595,-0.888,-0.135,high,0,Knowledge Center
+2756788,St. Charles city,MN,4021,276,"Eau Claire, WI",61,2,,5,0.8,0.272,-0.847,0.419,high,0,
+5502500,Arcadia city,WI,3720,276,"Eau Claire, WI",61,3,,28,0.761,-0.397,1.631,-0.374,high,0,
+1308536,Blakely city,GA,5276,3,"Dothan, AL",53,1,,10,0.724,-0.639,-0.13,0.307,high,1,
+0175096,Taylor town,AL,2916,3,"Dothan, AL",53,2,,27,0.723,-0.901,-0.204,-0.294,high,0,
+0124184,Enterprise city,AL,28990,3,"Dothan, AL",53,3,,2,0.695,-0.176,-0.242,0.217,high,0,Military Anchor
+1751206,Mount Zion village,IL,6076,128,"Decatur, IL",66,1,,5,0.846,-0.007,-0.844,1.589,high,0,
+1727091,Forsyth village,IL,3656,128,"Decatur, IL",66,2,,1,0.845,0.699,-1.004,1.481,high,0,
+1701881,Arcola city,IL,2867,128,"Decatur, IL",66,3,,8,0.842,-0.134,-0.551,1.459,high,0,
+0100988,Albertville city,AL,22584,8,"Gadsden, AL",57,1,,3,0.769,0.013,0.22,0.056,high,0,
+0171832,Southside city,AL,9407,8,"Gadsden, AL",57,2,,2,0.67,0.022,-0.743,0.085,high,0,
+0102116,Arab city,AL,8573,8,"Gadsden, AL",57,3,,12,0.648,-0.234,-0.406,-0.316,high,0,
+5135624,Harrisonburg city,VA,51492,527,"Harrisonburg, VA",42,1,,4,0.806,0.846,0.396,0.013,high,0,Knowledge Center
+5133488,Grottoes town,VA,2926,527,"Harrisonburg, VA",42,2,,21,0.783,-0.192,-0.616,-0.09,high,0,
+5109656,Bridgewater town,VA,6650,527,"Harrisonburg, VA",42,3,,2,0.759,0.866,-0.626,0.47,high,0,Knowledge Center
+1225175,Gainesville city,FL,143611,74,"Gainesville, FL",26,1,,1,0.882,1.487,-0.381,0.341,high,0,Knowledge Center; Regional Service Center
+1248200,Newberry city,FL,7608,74,"Gainesville, FL",26,2,,5,0.757,0.162,-0.376,0.383,high,0,
+1230525,High Springs city,FL,6396,74,"Gainesville, FL",26,3,,6,0.66,0.068,-0.096,-0.071,high,0,
+3618388,Cortland city,NY,17465,364,"Elmira, NY",61,1,,18,0.954,0.573,-0.693,0.731,high,1,Knowledge Center
+3606464,Big Flats CDP,NY,5846,364,"Elmira, NY",61,2,,21,0.655,0.492,-0.717,1.378,high,0,
+3624251,Elmira Heights village,NY,4254,364,"Elmira, NY",61,3,,52,0.221,-0.388,-0.02,0.714,high,0,
+2218930,Cut Off CDP,LA,5157,221,"Houma, LA",43,1,,6,0.779,-0.07,-0.357,1.493,high,1,
+2275425,Thibodaux city,LA,15792,221,"Houma, LA",43,2,,2,0.635,0.493,-0.721,0.238,high,0,
+2236255,Houma city,LA,32760,221,"Houma, LA",43,3,,10,0.632,-0.298,-0.589,-0.242,high,0,
+4945860,Logan city,UT,53923,119,"Logan, UT",45,1,,1,0.731,0.888,-0.457,-0.297,high,0,Knowledge Center
+4963680,Richmond city,UT,2971,119,"Logan, UT",45,2,,22,0.588,-0.251,-0.401,-0.593,high,0,
+4954660,Nibley city,UT,7651,119,"Logan, UT",45,3,,7,0.521,0.408,-0.487,0.021,high,0,
+3727420,Granite Falls town,NC,4921,370,"Hickory, NC",36,1,,14,0.682,-0.034,-0.609,0.055,high,0,
+3714340,Conover city,NC,8491,370,"Hickory, NC",36,2,,9,0.563,0.119,0.181,-0.39,high,0,
+3731060,Hickory city,NC,43747,370,"Hickory, NC",36,3,,4,0.521,0.27,-0.496,-0.141,high,0,
+3528460,Gallup city,NM,21333,13,"Gallup, NM",112,1,,19,0.728,-0.332,0.031,-0.388,high,0,
+0433280,Holbrook city,AZ,4834,13,"Gallup, NM",112,2,,76,0.727,-1.236,0.197,-0.92,high,0,
+0462350,St. Johns city,AZ,3409,13,"Gallup, NM",112,3,,87,0.519,-1.408,-0.536,0.083,high,0,
+4145250,Madras city,OR,7596,430,"Bend, OR",22,1,,11,0.189,-0.26,0.931,-1.331,high,0,
+4161200,Redmond city,OR,35161,430,"Bend, OR",22,2,,10,0.094,-0.254,-0.386,-1.356,high,0,
+4105800,Bend city,OR,101472,430,"Bend, OR",22,3,,6,-0.086,0.244,-0.225,-1.383,high,0,
+0528780,Greenwood city,AR,9570,31,"Fort Smith, AR--OK",45,1,,6,0.781,-0.271,-0.492,-0.143,high,0,
+0524550,Fort Smith city,AR,89496,31,"Fort Smith, AR--OK",45,2,,3,0.709,-0.125,0.162,-0.049,high,0,
+0507720,Booneville city,AR,3814,31,"Fort Smith, AR--OK",45,3,,15,0.7,-0.594,-0.471,0.21,high,1,
+1553300,Mountain View CDP,HI,3833,586,"Hilo, HI",50,1,,35,0.366,-0.814,1.678,-1.527,high,0,Government Hub
+1515700,Holualoa CDP,HI,2825,586,"Hilo, HI",50,2,,4,0.098,0.092,2.98,-1.773,medium,0,Amenity Destination
+1576600,Waikoloa Village CDP,HI,7028,586,"Hilo, HI",50,3,,13,0.088,-0.238,2.853,-2.018,medium,0,Amenity Destination
+4839124,Kilgore city,TX,13444,507,"Longview, TX",29,1,,5,0.734,-0.325,0.218,-0.256,high,0,
+4843888,Longview city,TX,82765,507,"Longview, TX",29,2,,2,0.694,-0.148,-0.154,-0.118,high,0,
+4846776,Marshall city,TX,23646,507,"Longview, TX",29,3,,4,0.61,-0.316,-0.284,0.042,high,0,
+2911368,Carl Junction city,MO,8257,178,"Joplin, MO",53,1,,4,0.837,0.021,-0.855,0.305,high,0,
+2056025,Pittsburg city,KS,20606,178,"Joplin, MO",53,2,,3,0.827,0.109,-0.501,0.274,high,0,Knowledge Center
+2954920,Oronogo city,MO,2685,178,"Joplin, MO",53,3,,6,0.811,-0.014,-0.685,0.443,high,0,
+4507345,Boiling Springs CDP,SC,12609,385,"Spartanburg, SC",55,1,,3,0.793,0.497,-0.584,0.661,high,0,
+4568290,Spartanburg city,SC,38578,385,"Spartanburg, SC",55,2,,5,0.578,0.35,-0.521,-0.016,high,1,
+4543315,Lyman town,SC,6317,385,"Spartanburg, SC",55,3,,8,0.566,0.22,-0.874,-0.043,high,0,
+3972102,Shelby city,OH,8706,397,"Mansfield, OH",42,1,,12,0.669,0.007,-0.15,0.274,high,1,
+3942994,Lexington village,OH,4866,397,"Mansfield, OH",42,2,,4,0.613,0.252,0.13,0.061,high,0,
+3958520,Ontario city,OH,6649,397,"Mansfield, OH",42,3,,5,0.542,0.149,-0.293,0.321,high,0,
+0876795,Telluride town,CO,2595,61,"Grand Junction, CO",28,1,,4,0.272,0.155,0.923,-3.266,high,0,Amenity Destination
+0815165,Clifton CDP,CO,19746,61,"Grand Junction, CO",28,2,,9,0.161,-0.395,0.346,-1.368,high,0,
+0831660,Grand Junction city,CO,67027,61,"Grand Junction, CO",28,3,,6,0.11,-0.047,-0.361,-1.078,high,0,
+3721095,Elon town,NC,11325,369,"Burlington, NC",21,1,,1,0.827,1.27,-0.961,1.042,medium,0,Knowledge Center
+3726460,Glen Raven CDP,NC,3684,369,"Burlington, NC",21,2,,11,0.675,0.11,-0.455,-0.044,high,0,
+3742240,Mebane city,NC,18899,369,"Burlington, NC",21,3,,3,0.667,0.773,-0.674,0.533,high,0,
+3624515,Endicott village,NY,13456,361,"Binghamton, NY",58,1,,22,0.576,0.182,-0.192,0.012,high,0,
+3606607,Binghamton city,NY,47357,361,"Binghamton, NY",58,2,,11,0.485,0.477,-0.325,0.333,high,0,
+3624526,Endwell CDP,NY,11821,361,"Binghamton, NY",58,3,,12,0.415,0.467,-0.716,1.017,high,0,
+4733260,Henderson city,TN,6349,469,"Jackson, TN",53,1,,2,0.836,0.029,-0.809,0.383,high,0,Knowledge Center
+4747000,Medina city,TN,5268,469,"Jackson, TN",53,2,,3,0.819,0.029,-0.409,0.257,high,0,
+4704720,Bells city,TN,2531,469,"Jackson, TN",53,3,,7,0.75,-0.398,-0.134,-0.388,high,0,
+1378996,Varnell city,GA,2623,93,"Dalton, GA",30,1,,5,0.807,0.197,-0.529,0.556,high,0,
+1315508,Chatsworth city,GA,4857,93,"Dalton, GA",30,2,,16,0.775,-0.232,-0.358,-0.168,high,0,
+1321380,Dalton city,GA,34402,93,"Dalton, GA",30,3,,2,0.708,0.293,1.039,0.216,high,0,
+0553390,Paragould city,AR,29940,27,"Jonesboro, AR",33,1,,4,0.762,-0.401,-0.558,-0.194,high,0,
+0509100,Brookland city,AR,4230,27,"Jonesboro, AR",33,2,,2,0.741,-0.256,-0.59,-0.193,high,0,
+0535710,Jonesboro city,AR,79187,27,"Jonesboro, AR",33,3,,1,0.654,0.093,-0.356,-0.111,high,0,
+5406940,Bethlehem village,WV,2568,400,"Steubenville--Weirton, OH--WV--PA",71,1,,2,0.848,0.831,-0.832,1.716,high,1,
+3974608,Steubenville city,OH,18144,400,"Steubenville--Weirton, OH--WV--PA",71,2,,6,0.701,0.48,-0.551,1.145,high,1,
+3903926,Barnesville village,OH,3602,400,"Steubenville--Weirton, OH--WV--PA",71,3,,37,0.327,-0.562,-0.317,0.066,high,0,
+1254725,Panama City Beach city,FL,18493,76,"Panama City--Panama City Beach, FL",38,1,,2,0.764,0.46,2.305,-0.274,high,0,Amenity Destination
+1241825,Lynn Haven city,FL,19451,76,"Panama City--Panama City Beach, FL",38,2,,10,0.679,-0.142,-0.027,-0.234,high,0,
+1254700,Panama City city,FL,34211,76,"Panama City--Panama City Beach, FL",38,3,,13,0.338,-0.2,0.561,-0.616,high,0,
+3008950,Bozeman city,MT,55042,305,"Bozeman, MT",36,1,,1,0.45,0.582,-0.865,-1.22,high,0,Knowledge Center
+3004975,Belgrade city,MT,11425,305,"Bozeman, MT",36,2,,15,0.224,-0.453,-0.689,-1.487,high,0,
+3035600,Helena city,MT,33126,305,"Bozeman, MT",36,3,,4,0.14,0.168,-0.373,-1.008,high,0,Government Hub
+5475292,South Charleston city,WV,13594,546,"Charleston, WV",51,1,,9,0.481,0.027,-0.554,0.645,high,0,
+5487988,Winfield town,WV,2538,546,"Charleston, WV",51,2,,15,0.259,-0.155,-0.454,0.169,high,0,
+5467108,Ravenswood city,WV,3846,546,"Charleston, WV",51,3,,14,0.133,-0.144,-0.476,-0.191,high,0,
+1326616,Elberton city,GA,4691,103,"Athens-Clarke County, GA",27,1,,21,0.447,-0.568,-0.269,-0.704,high,0,
+1380788,Watkinsville city,GA,3151,103,"Athens-Clarke County, GA",27,2,,2,0.369,1.283,-0.726,0.408,high,0,
+1345460,Lavonia city,GA,2508,103,"Athens-Clarke County, GA",27,3,,15,-0.23,-0.25,0.233,-2.084,high,0,
+5010675,Burlington city,VT,44649,521,"Burlington, VT",47,1,,3,0.978,1.276,-0.76,-0.131,high,0,Knowledge Center; Regional Service Center
+5044275,Middlebury CDP,VT,7145,521,"Burlington, VT",47,2,,4,0.772,1.228,-0.635,0.298,medium,0,Knowledge Center
+5066175,South Burlington city,VT,20488,521,"Burlington, VT",47,3,,7,0.508,0.978,-0.689,0.399,high,0,
+1667420,Rexburg city,ID,39589,110,"Pocatello, ID",30,1,,1,0.701,0.592,-0.358,-0.941,high,0,Knowledge Center; Regional Service Center
+1601900,American Falls city,ID,4636,110,"Pocatello, ID",30,2,,10,0.549,-0.518,0.657,-0.952,high,0,
+1614680,Chubbuck city,ID,15900,110,"Pocatello, ID",30,3,,5,0.487,-0.178,0.092,-0.702,high,0,
+3044650,Lolo CDP,MT,4378,310,"Missoula, MT",32,1,,6,0.086,0.029,-0.701,-1.302,high,0,
+3050200,Missoula city,MT,75600,310,"Missoula, MT",32,2,,4,0.024,0.152,-0.711,-1.536,high,0,
+3019825,Deer Lodge city,MT,3035,310,"Missoula, MT",32,3,,8,-1.053,-0.381,0.717,-1.098,high,0,Government Hub
+1877966,Upland town,IN,3935,145,"Muncie, IN",31,1,,1,0.824,1.188,-0.904,1.667,medium,0,Knowledge Center
+1851876,Muncie city,IN,64739,145,"Muncie, IN",31,2,,5,0.808,0.408,-0.659,0.545,high,1,Knowledge Center
+1886084,Yorktown town,IN,11617,145,"Muncie, IN",31,3,,3,0.806,0.566,-0.752,1.089,high,0,
+1531100,Kaunakakai CDP,HI,3721,585,"Kahului--Wailuku, HI",26,1,,19,-0.056,-0.47,0.135,-1.273,high,0,
+1560200,Paia CDP,HI,2629,585,"Kahului--Wailuku, HI",26,2,,9,-0.222,-0.178,1.842,-2.395,medium,0,
+1577450,Wailuku CDP,HI,15754,585,"Kahului--Wailuku, HI",26,3,,5,-0.967,-0.065,1.865,-2.029,medium,0,
+2700730,Albertville city,MN,8066,273,"Otsego city, MN",36,1,,8,0.863,0.419,-1.019,0.854,high,0,
+2743810,Montrose city,MN,3840,273,"Otsego city, MN",36,2,,10,0.825,0.381,-0.82,0.683,high,0,
+2757346,St. Michael city,MN,19267,273,"Otsego city, MN",36,3,,2,0.811,0.588,-0.918,0.825,high,0,
+1711514,Carterville city,IL,5822,122,"Marion--Herrin, IL",77,1,,1,0.839,0.898,-0.797,1.5,high,0,
+1763043,Red Bud city,IL,3789,122,"Marion--Herrin, IL",77,2,,4,0.837,0.377,-0.947,0.621,high,0,
+1711163,Carbondale city,IL,21813,122,"Marion--Herrin, IL",77,3,,2,0.766,0.885,-0.457,0.516,high,0,Knowledge Center; Regional Service Center
+2230515,Grambling city,LA,5302,223,"Monroe, LA",38,1,,1,0.756,0.572,0.403,-1.169,medium,0,Knowledge Center
+2266655,Ruston city,LA,22224,223,"Monroe, LA",38,2,,2,0.698,0.485,-0.565,-0.74,high,0,Knowledge Center; Regional Service Center
+2251410,Monroe city,LA,47241,223,"Monroe, LA",38,3,,6,0.567,-0.073,0.1,-0.299,high,1,
+3146030,South Sioux City city,NE,13871,172,"Sioux City, IA--NE--SD",39,1,,3,0.883,0.182,1.747,0.47,high,0,
+3112000,Dakota City city,NE,2980,172,"Sioux City, IA--NE--SD",39,2,,13,0.871,-0.152,0.076,0.388,high,0,
+1973335,Sioux City city,IA,85651,172,"Sioux City, IA--NE--SD",39,3,,10,0.843,-0.089,0.14,0.374,high,0,
+5586275,West Salem village,WI,5268,269,"La Crosse, WI--MN",43,1,,2,0.676,0.415,-0.772,0.309,high,0,
+5540775,La Crosse city,WI,51791,269,"La Crosse, WI--MN",43,2,,1,0.663,0.424,-0.773,-0.197,high,0,Knowledge Center
+5559925,Onalaska city,WI,18909,269,"La Crosse, WI--MN",43,3,,3,0.586,0.301,-0.903,0.08,high,0,
+4801000,Abilene city,TX,127130,492,"Abilene, TX",18,1,,1,0.807,-0.033,-0.338,0.25,high,0,Military Anchor
+4815676,Clyde city,TX,3899,492,"Abilene, TX",18,2,,8,0.721,-1.073,-0.628,-0.82,high,0,
+4869980,Stamford city,TX,2902,492,"Abilene, TX",18,3,,10,0.404,-1.215,-0.142,-0.439,high,0,
+3333780,Hanover CDP,NH,8520,345,"Lebanon, NH--VT",77,1,,1,0.903,2.879,-0.333,1.628,medium,0,Knowledge Center
+3362580,Plymouth CDP,NH,4877,345,"Lebanon, NH--VT",77,2,,3,0.803,1.451,-0.482,0.936,medium,0,Knowledge Center
+5050200,Northfield CDP,VT,4165,345,"Lebanon, NH--VT",77,3,,25,0.734,0.083,-0.496,-0.984,medium,0,Knowledge Center
+4662155,Summerset city,SD,2978,457,"Rapid City, SD",32,1,,1,0.74,-0.117,-0.854,-0.084,high,0,
+4606620,Box Elder city,SD,12457,457,"Rapid City, SD",32,2,,2,0.497,-0.13,-0.723,-0.646,high,0,Military Anchor
+4652980,Rapid City city,SD,76836,457,"Rapid City, SD",32,3,,3,0.227,-0.153,-0.624,-0.898,high,0,
+2864840,Saltillo city,MS,4962,277,"Tupelo, MS",53,1,,5,0.62,-0.332,-0.949,0.289,high,0,
+2805100,Belmont town,MS,2538,277,"Tupelo, MS",53,2,,17,0.584,-0.718,-0.241,-0.955,high,0,
+2807780,Booneville city,MS,9060,277,"Tupelo, MS",53,3,,8,0.488,-0.444,-0.614,0.123,high,0,Knowledge Center
+5455756,Morgantown city,WV,30273,547,"Morgantown, WV",55,1,,1,0.871,1.333,-0.653,0.218,high,0,Knowledge Center; Regional Service Center
+5411188,Buckhannon city,WV,5144,547,"Morgantown, WV",55,2,,16,0.825,0.045,-0.058,0.391,high,1,Knowledge Center
+5464228,Pleasant Valley city,WV,3494,547,"Morgantown, WV",55,3,,8,0.769,0.327,-0.421,0.387,high,0,
+3954446,New Concord village,OH,2623,408,"Parkersburg, WV--OH",52,1,,1,0.886,1.123,-0.886,1.287,medium,0,Knowledge Center
+5483500,Vienna city,WV,10575,408,"Parkersburg, WV--OH",52,2,,7,0.608,0.132,-0.654,0.686,high,1,
+3910996,Cambridge city,OH,10046,408,"Parkersburg, WV--OH",52,3,,21,0.396,-0.255,-0.096,-0.532,high,0,
+1903160,Asbury city,IA,5949,138,"Dubuque, IA--IL",48,1,,4,0.827,0.23,-0.675,0.78,high,0,
+1911305,Cascade city,IA,2565,138,"Dubuque, IA--IL",48,2,,11,0.689,-0.2,-0.883,-0.323,high,0,
+1922395,Dubuque city,IA,59271,138,"Dubuque, IA--IL",48,3,,5,0.674,0.093,-0.62,0.149,high,0,
+5404276,Barboursville village,WV,4394,206,"Huntington, WV--KY--OH",36,1,,2,0.742,0.691,-0.607,0.88,high,0,
+2167458,Russell city,KY,3696,206,"Huntington, WV--KY--OH",36,2,,7,0.732,0.12,-0.615,0.704,high,0,
+5439460,Huntington city,WV,46189,206,"Huntington, WV--KY--OH",36,3,,6,0.288,0.151,-0.711,0.484,high,0,Knowledge Center
+3006550,Billings city,MT,118321,306,"Billings, MT",20,1,,1,0.263,-0.195,-0.681,-0.946,high,0,
+3042700,Laurel city,MT,7198,306,"Billings, MT",20,2,,5,-0.117,-0.827,-0.668,-1.654,high,0,
+1666340,Rathdrum city,ID,10133,112,"Coeur d'Alene, ID",20,1,,8,0.147,-0.42,-0.802,-1.543,high,0,
+1664810,Post Falls city,ID,41716,112,"Coeur d'Alene, ID",20,2,,6,0.076,-0.097,-0.379,-1.389,high,0,
+1616750,Coeur d'Alene city,ID,55558,112,"Coeur d'Alene, ID",20,3,,3,-0.111,0.117,-0.332,-1.482,high,0,
+1654550,Moscow city,ID,25868,117,"Lewiston, ID--WA",40,1,,2,0.918,0.956,-0.576,-0.677,high,0,Knowledge Center; Regional Service Center
+5356625,Pullman city,WA,31939,117,"Lewiston, ID--WA",40,2,,1,0.86,1.272,-0.487,-0.673,high,0,Knowledge Center; Regional Service Center
+5312630,Clarkston city,WA,7240,117,"Lewiston, ID--WA",40,3,,11,0.122,-0.352,-0.192,-1.444,high,0,
+5572975,Sheboygan city,WI,49812,558,"Sheboygan, WI",27,1,,9,0.655,-0.078,-0.4,-0.205,high,0,
+5560100,Oostburg village,WI,3077,558,"Sheboygan, WI",27,2,,4,0.498,0.265,-0.847,0.484,high,0,
+5581325,Two Rivers city,WI,11224,558,"Sheboygan, WI",27,3,,15,0.491,-0.209,-0.673,-0.235,high,0,
+1829358,Greencastle city,IN,9863,129,"Terre Haute, IN",54,1,,3,0.869,0.671,-0.871,0.343,medium,0,Knowledge Center
+1875428,Terre Haute city,IN,58491,129,"Terre Haute, IN",54,2,,6,0.718,0.041,-0.393,0.025,high,0,Knowledge Center
+1807174,Brazil city,IN,8064,129,"Terre Haute, IN",54,3,,13,0.138,-0.347,-0.589,-0.388,high,0,
+1901855,Ames city,IA,66112,162,"Ames, IA",37,1,,1,0.818,1.626,-0.969,1.077,high,0,Knowledge Center
+1955695,Nevada city,IA,6952,162,"Ames, IA",37,2,,11,0.759,-0.105,-0.88,0.202,high,0,
+1937920,Huxley city,IA,4440,162,"Ames, IA",37,3,,3,0.756,0.573,-0.945,1.176,high,0,
+3907426,Bluffton village,OH,3799,396,"Lima, OH",44,1,,1,0.844,0.84,-0.902,1.066,high,1,
+3969540,St. Henry village,OH,2812,396,"Lima, OH",44,2,,25,0.841,-0.231,-1.062,0.189,high,0,
+3950918,Minster village,OH,3213,396,"Lima, OH",44,3,,12,0.839,-0.048,-0.887,0.117,high,0,
+3525800,Farmington city,NM,46339,56,"Farmington, NM",42,1,,11,0.562,-0.595,-0.381,-0.827,high,0,
+3507880,Bloomfield city,NM,7391,56,"Farmington, NM",42,2,,23,0.438,-0.98,-0.315,-1.396,high,0,
+0805265,Bayfield town,CO,2862,56,"Farmington, NM",42,3,,15,0.377,-0.759,-0.425,-1.529,high,0,
+4876096,Wake Village city,TX,5887,36,"Texarkana, TX--AR",35,1,,9,0.789,-0.393,-0.496,0.169,high,0,
+4849860,Mount Vernon town,TX,2523,36,"Texarkana, TX--AR",35,2,,13,0.659,-0.582,0.253,-0.677,high,0,
+4850352,Nash city,TX,3952,36,"Texarkana, TX--AR",35,3,,5,0.616,-0.169,-0.149,-0.375,high,0,
+4775940,Union City city,TN,11040,139,"Paducah, KY--IL",41,1,,15,0.74,-0.614,-0.273,-0.47,high,0,
+4746240,Martin city,TN,10864,139,"Paducah, KY--IL",41,2,,3,0.703,0.143,-0.549,-0.427,high,0,Knowledge Center; Regional Service Center
+2154642,Murray city,KY,17888,139,"Paducah, KY--IL",41,3,,2,0.674,0.158,-0.556,-0.484,high,0,Knowledge Center; Regional Service Center
+3746000,Nashville town,NC,5672,384,"Rocky Mount, NC",22,1,,4,0.346,-0.075,-0.75,-0.224,high,0,
+3774540,Wilson city,NC,47740,384,"Rocky Mount, NC",22,2,,2,0.296,0.106,-0.19,-0.299,high,0,
+3757500,Rocky Mount city,NC,54175,384,"Rocky Mount, NC",22,3,,9,-0.146,-0.298,-0.46,-0.202,high,0,
+2831020,Hattiesburg city,MS,48507,284,"Hattiesburg, MS",39,1,,6,0.59,0.073,-0.605,-0.452,high,0,Knowledge Center
+2822020,Ellisville city,MS,4593,284,"Hattiesburg, MS",39,2,,7,0.489,0.019,1.408,-0.797,medium,0,Knowledge Center
+2856800,Petal city,MS,11195,284,"Hattiesburg, MS",39,3,,11,0.415,-0.327,-0.799,0.115,high,0,
+1805860,Bloomington city,IN,78791,153,"Bloomington, IN",24,1,,1,0.937,1.709,-0.548,0.645,high,0,Knowledge Center; Regional Service Center
+1820800,Ellettsville town,IN,6653,153,"Bloomington, IN",24,2,,3,0.833,0.23,-0.896,0.491,high,0,
+1849950,Mitchell city,IN,3941,153,"Bloomington, IN",24,3,,6,0.315,-0.385,-0.176,-0.494,high,0,
+3900198,Ada village,OH,4553,409,"Findlay, OH",48,1,,1,0.856,0.751,-0.746,0.851,medium,1,Knowledge Center
+3976778,Tiffin city,OH,17814,409,"Findlay, OH",48,2,,4,0.814,0.295,-0.71,0.562,high,0,
+3979044,Upper Sandusky city,OH,6580,409,"Findlay, OH",48,3,,7,0.76,-0.085,-0.833,0.611,high,0,
+2702908,Austin city,MN,26167,165,"Mason City, IA",54,1,,1,0.859,0.204,0.099,0.849,high,0,
+1928380,Forest City city,IA,4280,165,"Mason City, IA",54,2,,11,0.836,-0.23,-0.57,0.379,high,0,
+1914025,Clear Lake city,IA,7603,165,"Mason City, IA",54,3,,6,0.619,-0.041,0.077,-0.425,high,1,Amenity Destination
+4273808,State College borough,PA,40669,446,"State College, PA",73,1,,2,1.407,2.006,-0.45,0.315,medium,0,Knowledge Center; Regional Service Center
+4261232,Pleasant Gap CDP,PA,3154,446,"State College, PA",73,2,,8,0.809,0.5,-0.428,0.581,high,0,
+4207368,Boalsburg CDP,PA,4653,446,"State College, PA",73,3,,6,0.695,0.938,-0.898,0.807,high,0,
+5147672,Lynchburg city,VA,79255,526,"Lynchburg, VA",14,1,,3,0.649,0.282,-0.72,-0.056,high,0,Knowledge Center
+5128688,Forest CDP,VA,12476,526,"Lynchburg, VA",14,2,,1,0.331,0.562,-0.772,-0.075,high,0,
+5148520,Madison Heights CDP,VA,10398,526,"Lynchburg, VA",14,3,,7,-0.208,-0.494,-0.384,-0.597,high,0,
+2935648,Jackson city,MO,15532,291,"Cape Girardeau, MO--IL",39,1,,3,0.836,0.12,-0.791,0.417,high,0,
+2911242,Cape Girardeau city,MO,40047,291,"Cape Girardeau, MO--IL",39,2,,2,0.743,0.279,-0.627,0.211,high,0,Knowledge Center
+2966368,Scott City city,MO,4354,291,"Cape Girardeau, MO--IL",39,3,,14,0.673,-0.64,-0.653,0.003,high,1,
+4045750,Madill city,OK,3966,413,"Ardmore, OK",50,1,,15,0.723,-0.66,0.904,-0.62,high,0,
+4043750,Lone Grove city,OK,5070,413,"Ardmore, OK",50,2,,19,0.706,-0.702,-0.329,-0.267,high,0,
+4043150,Lindsay city,OK,2852,413,"Ardmore, OK",50,3,,13,0.684,-0.642,-0.611,0.58,high,0,
+4864472,San Angelo city,TX,99507,495,"San Angelo, TX",16,1,,1,0.788,-0.289,-0.182,-0.088,high,0,
+4808212,Big Lake city,TX,3092,495,"San Angelo, TX",16,2,,10,0.776,-1.334,0.166,-0.589,high,0,
+4830629,Grape Creek CDP,TX,4214,495,"San Angelo, TX",16,3,,4,0.478,-0.644,0.364,-1.063,high,0,
+3957302,Norwalk city,OH,17054,407,"Sandusky--Port Clinton, OH",36,1,,13,0.733,0.051,-0.59,0.237,high,0,
+3970380,Sandusky city,OH,24748,407,"Sandusky--Port Clinton, OH",36,2,,15,0.701,-0.004,-0.565,0.296,high,1,
+3964150,Port Clinton city,OH,5999,407,"Sandusky--Port Clinton, OH",36,3,,12,0.667,0.096,-0.227,-0.36,high,1,Amenity Destination
+2002900,Atchison city,KS,10795,175,"St. Joseph, MO--KS",35,1,,1,0.823,0.473,-0.462,1.01,high,0,Knowledge Center
+2916802,Country Club village,MO,3171,175,"St. Joseph, MO--KS",35,2,,5,0.773,0.116,-0.604,0.167,high,0,
+2940826,Lathrop city,MO,2646,175,"St. Joseph, MO--KS",35,3,,12,0.757,-0.301,-0.599,-0.241,high,0,
+2128918,Franklin city,KY,10254,200,"Bowling Green, KY",22,1,,9,0.467,-0.662,-0.799,-1.055,high,0,
+2108902,Bowling Green city,KY,73638,200,"Bowling Green, KY",22,2,,2,0.422,0.391,0.197,-0.522,high,0,Knowledge Center
+2113978,Central City city,KY,5736,200,"Bowling Green, KY",22,3,,5,0.336,-0.487,0.048,0.036,high,0,
+3612331,Canton village,NY,7222,365,"Plattsburgh, NY",56,1,,4,0.905,0.831,-0.578,1.294,medium,0,Knowledge Center
+3659564,Potsdam village,NY,8507,365,"Plattsburgh, NY",56,2,,7,0.894,0.719,-0.233,-0.011,medium,1,Knowledge Center
+3658574,Plattsburgh city,NY,19878,365,"Plattsburgh, NY",56,3,,10,0.759,0.404,-0.676,0.09,high,0,Knowledge Center
+0828690,Frisco town,CO,2865,62,"Edwards--Avon, CO",33,1,,1,0.885,0.992,2.199,-0.659,high,0,Amenity Destination
+0880040,Vail town,CO,4729,62,"Edwards--Avon, CO",33,2,,3,0.814,0.839,3.137,-2.104,medium,0,Amenity Destination
+0808400,Breckenridge town,CO,5001,62,"Edwards--Avon, CO",33,3,,7,0.732,0.594,2.142,-1.162,high,0,Amenity Destination
+0501870,Arkadelphia city,AR,10316,26,"Hot Springs, AR",36,1,,3,0.807,0.231,-0.575,0.009,high,1,Knowledge Center; Regional Service Center
+0543610,Malvern city,AR,10938,26,"Hot Springs, AR",36,2,,10,0.421,-0.419,-0.303,-0.386,high,0,
+0548560,Nashville city,AR,4114,26,"Hot Springs, AR",36,3,,19,0.272,-0.763,1.387,-1.158,high,0,
+2044250,Manhattan city,KS,53951,185,"Manhattan, KS",24,1,,1,0.843,0.891,-0.722,0.386,high,0,Knowledge Center; Regional Service Center
+2035750,Junction City city,KS,22431,185,"Manhattan, KS",24,2,,10,0.784,-0.307,-0.434,-0.055,high,0,Military Anchor
+2062400,St. Marys city,KS,2795,185,"Manhattan, KS",24,3,,8,0.778,-0.254,-0.754,-0.247,high,0,
+3846640,Lincoln city,ND,4309,390,"Bismarck, ND",21,1,,3,0.766,-0.697,-0.819,-0.646,high,0,
+3849900,Mandan city,ND,24293,390,"Bismarck, ND",21,2,,2,0.475,-0.624,-0.74,-0.887,high,0,
+3807200,Bismarck city,ND,74146,390,"Bismarck, ND",21,3,,1,0.433,-0.293,-0.686,-0.71,high,0,
+4115350,Coquille city,OR,4019,429,"Roseburg, OR",30,1,,8,-0.166,-0.415,0.536,-1.538,high,0,
+4163650,Roseburg city,OR,23773,429,"Roseburg, OR",30,2,,6,-0.346,-0.33,0.169,-1.547,high,0,
+4153000,North Bend city,OR,10231,429,"Roseburg, OR",30,3,,5,-0.371,-0.291,0.391,-0.915,high,0,
+4858916,Port Lavaca city,TX,11410,491,"Victoria, TX",20,1,,10,0.665,-0.618,-0.012,-0.09,high,1,
+4875428,Victoria city,TX,65514,491,"Victoria, TX",20,2,,5,0.524,-0.526,-0.219,-0.185,high,0,
+4880560,Yoakum city,TX,5649,491,"Victoria, TX",20,3,,8,0.109,-0.595,0.319,-0.858,high,0,
+3118580,Gering city,NE,8567,327,"Cheyenne, WY",18,1,,7,0.806,-0.494,-0.13,0.01,high,0,
+3144245,Scottsbluff city,NE,14406,327,"Cheyenne, WY",18,2,,6,0.678,-0.446,-0.376,-0.215,high,1,
+5613900,Cheyenne city,WY,64976,327,"Cheyenne, WY",18,3,,2,0.446,0.16,-0.448,-0.354,high,0,
+1345768,Leesburg city,GA,3509,90,"Albany, GA",22,1,,2,0.723,-0.13,-0.174,-0.096,high,0,Government Hub
+1359976,Pelham city,GA,3465,90,"Albany, GA",22,2,,8,0.665,-0.823,-0.127,-0.801,high,1,
+1353060,Moultrie city,GA,14545,90,"Albany, GA",22,3,,4,0.385,-0.375,-0.384,-0.356,high,0,
+2355575,Orono CDP,ME,10699,230,"Bangor, ME",38,1,,2,0.846,1.247,-1.023,0.495,medium,0,Knowledge Center; Regional Service Center
+2330760,Hampden CDP,ME,4937,230,"Bangor, ME",38,2,,5,0.771,0.23,-0.827,0.423,high,0,
+2323200,Ellsworth city,ME,8550,230,"Bangor, ME",38,3,,13,0.473,-0.31,-0.178,-0.862,high,0,Amenity Destination
+2031600,Hesston city,KS,3747,193,"Hutchinson, KS",34,1,,2,0.85,0.59,-0.895,0.867,high,0,
+2041375,Lindsborg city,KS,3773,193,"Hutchinson, KS",34,2,,3,0.846,0.33,-0.926,0.604,high,0,Knowledge Center
+2043950,McPherson city,KS,13956,193,"Hutchinson, KS",34,3,,10,0.845,-0.011,-0.716,0.636,high,0,
+4818020,Crystal City city,TX,6241,498,"Eagle Pass, TX",24,1,,14,0.797,-0.862,0.134,0.438,high,1,
+4819792,Del Rio city,TX,34638,498,"Eagle Pass, TX",24,2,,8,0.731,-0.466,1.276,-0.43,high,0,Government Hub
+4821892,Eagle Pass city,TX,28186,498,"Eagle Pass, TX",24,3,,5,0.655,0.092,2.349,-0.129,high,0,
+2638460,Hillsdale city,MI,8013,254,"Jackson, MI",35,1,,4,0.791,0.506,-0.28,0.455,high,1,Knowledge Center
+2653580,Michigan Center CDP,MI,4623,254,"Jackson, MI",35,2,,13,0.785,0.104,-0.683,0.569,high,0,
+2679120,Tecumseh city,MI,8655,254,"Jackson, MI",35,3,,9,0.667,0.254,-0.669,0.213,high,0,
+0602476,Arcata city,CA,18578,46,"Eureka, CA",30,1,,3,0.574,0.332,-0.145,-1.701,high,0,Knowledge Center
+0644910,McKinleyville CDP,CA,17152,46,"Eureka, CA",30,2,,9,-0.002,-0.114,0.107,-1.55,high,0,
+0625296,Fortuna city,CA,12413,46,"Eureka, CA",30,3,,14,-0.16,-0.358,0.95,-1.607,high,0,
+1643030,Ketchum city,ID,3551,113,"Twin Falls, ID",23,1,,4,0.714,-0.355,2.188,-3.111,high,0,Amenity Destination; Aging Trap
+1643570,Kimberly city,ID,4883,113,"Twin Falls, ID",23,2,,2,0.336,-0.236,0.488,-1.08,high,0,
+1641320,Jerome city,ID,12689,113,"Twin Falls, ID",23,3,,8,0.251,-0.577,1.324,-1.536,high,0,
+4816240,Commerce city,TX,9211,497,"Greenville, TX",30,1,,1,0.809,0.725,0.181,0.052,high,0,Knowledge Center
+4861592,Reno city,TX,3478,497,"Greenville, TX",30,2,,6,0.754,0.191,-0.363,0.837,high,0,
+4830920,Greenville city,TX,29936,497,"Greenville, TX",30,3,,5,0.688,0.29,-0.378,0.169,high,0,
+5120560,Crozet CDP,VA,9211,523,"Charlottesville, VA",26,1,,9,0.509,1.08,-0.903,0.588,high,0,
+5114968,Charlottesville city,VA,45863,523,"Charlottesville, VA",26,2,,3,0.505,1.502,-0.424,0.12,high,0,Knowledge Center; Regional Service Center
+2717612,East Grand Forks city,MN,9067,274,"Grand Forks, ND--MN",36,1,,8,0.765,-0.334,-0.486,-0.289,high,0,
+3832060,Grand Forks city,ND,58882,274,"Grand Forks, ND--MN",36,2,,2,0.691,0.29,-0.764,-0.003,high,0,Knowledge Center
+2764570,Thief River Falls city,MN,8841,274,"Grand Forks, ND--MN",36,3,,27,0.058,-1.224,-0.697,-0.733,high,0,
+1339524,Holly Springs city,GA,17693,102,"Woodstock city, GA",14,1,,5,0.748,0.338,-0.71,0.229,high,0,
+1384176,Woodstock city,GA,36297,102,"Woodstock city, GA",14,2,,2,0.693,1.063,-0.564,0.723,high,0,
+1305036,Ball Ground city,GA,2665,102,"Woodstock city, GA",14,3,,4,0.67,0.393,-0.91,0.077,high,0,
+4070300,Stillwater city,OK,48818,422,"Stillwater, OK",17,1,,1,0.8,1.256,-0.517,0.293,high,0,Knowledge Center; Regional Service Center
+4074150,Tonkawa city,OK,3018,422,"Stillwater, OK",17,2,,2,0.747,-0.299,-0.245,1.049,high,1,
+4058150,Perkins city,OK,3229,422,"Stillwater, OK",17,3,,3,0.511,-0.328,-0.006,-0.804,high,0,
+2204055,Ball town,LA,3900,222,"Alexandria, LA",40,1,,5,0.801,-0.221,-0.522,0.667,high,0,Government Hub
+2248750,Marksville city,LA,4964,222,"Alexandria, LA",40,2,,12,0.759,-0.647,0.824,-0.559,high,1,Government Hub
+2260530,Pineville city,LA,14268,222,"Alexandria, LA",40,3,,4,0.405,-0.219,-0.437,-0.224,high,0,
+0255910,North Pole city,AK,2663,570,"Fairbanks, AK",27,1,,6,0.786,-0.253,-0.666,-0.078,high,0,Government Hub; Military Anchor
+0224230,Fairbanks city,AK,32242,570,"Fairbanks, AK",27,2,,4,0.648,-0.056,-0.501,-0.247,high,0,Military Anchor; Regional Service Center
+1336052,Hahira city,GA,3404,95,"Valdosta, GA",22,1,,2,0.612,0.087,-0.338,-0.189,high,0,
+1378800,Valdosta city,GA,55222,95,"Valdosta, GA",22,2,,4,0.61,-0.11,-0.493,-0.481,high,0,
+1354264,Nashville city,GA,4918,95,"Valdosta, GA",22,3,,10,-0.459,-0.866,0.118,-1.24,high,0,
+1601990,Ammon city,ID,18496,115,"Idaho Falls, ID",13,1,,1,0.484,0.197,-0.495,-0.349,high,0,
+1640420,Iona city,ID,2882,115,"Idaho Falls, ID",13,2,,4,0.367,-0.156,-0.302,-0.821,high,0,
+1639700,Idaho Falls city,ID,66672,115,"Idaho Falls, ID",13,3,,5,0.326,-0.165,-0.336,-0.998,high,0,
+4027200,Fort Gibson town,OK,3805,411,"Muskogee, OK",49,1,,6,0.809,0.15,-0.799,0.419,high,1,
+4072100,Tahlequah city,OK,16513,411,"Muskogee, OK",49,2,,5,0.754,0.357,-0.48,0.343,high,0,Knowledge Center
+4057300,Park Hill CDP,OK,3092,411,"Muskogee, OK",49,3,,7,0.733,0.09,-0.6,0.112,high,1,
+3505220,Artesia city,NM,12555,350,"Roswell, NM",13,1,,6,0.735,-0.814,-0.633,-0.461,high,0,
+3564930,Roswell city,NM,47823,350,"Roswell, NM",13,2,,4,0.529,-0.574,0.448,-0.429,high,0,
+3512150,Carlsbad city,NM,31813,350,"Roswell, NM",13,3,,8,0.263,-1.016,-0.301,-0.713,high,0,
+2165388,Rineyville CDP,KY,2869,210,"Elizabethtown--Radcliff, KY",22,1,,6,0.763,-0.009,0.391,0.007,high,0,
+2163912,Radcliff city,KY,22967,210,"Elizabethtown--Radcliff, KY",22,2,,8,0.748,-0.081,-0.213,0.008,high,0,
+2179734,Vine Grove city,KY,6721,210,"Elizabethtown--Radcliff, KY",22,3,,5,0.737,0.044,-0.762,0.065,high,0,
+1962040,Pella city,IA,10624,158,"Ottumwa, IA",43,1,,2,0.686,0.463,-0.969,0.193,high,0,
+1959925,Oskaloosa city,IA,11492,158,"Ottumwa, IA",43,2,,9,0.539,-0.415,-0.781,0.109,high,0,
+1907030,Bloomfield city,IA,2723,158,"Ottumwa, IA",43,3,,11,0.507,-0.508,-0.567,-0.426,high,0,
+3516420,Clovis city,NM,38153,352,"Clovis, NM",19,1,,5,0.803,-0.507,-0.102,-0.076,high,0,Military Anchor
+4833320,Hereford city,TX,14874,352,"Clovis, NM",19,2,,6,0.783,-0.695,0.37,-0.482,high,0,
+3559260,Portales city,NM,12023,352,"Clovis, NM",19,3,,4,0.775,-0.501,-0.494,0.23,high,0,
+0613945,Clearlake city,CA,16604,48,"Ukiah, CA",32,1,,15,0.358,-0.059,1.753,-0.732,high,0,
+0639710,Lakeport city,CA,5085,48,"Ukiah, CA",32,2,,3,0.218,0.594,0.736,-0.434,high,0,
+0633549,Hidden Valley Lake CDP,CA,5896,48,"Ukiah, CA",32,3,,10,0.11,0.219,0.716,-0.434,high,0,
+5350570,Ocean Shores city,WA,7076,428,"Aberdeen, WA",36,1,,6,0.55,0.033,1.641,-0.751,high,0,Amenity Destination; Aging Trap
+5300100,Aberdeen city,WA,17040,428,"Aberdeen, WA",36,2,,19,0.153,-0.315,0.959,-1.093,high,0,
+4103150,Astoria city,OR,10162,428,"Aberdeen, WA",36,3,,5,0.046,0.053,0.263,-1.159,high,0,
+0573310,Warren city,AR,5342,21,"Pine Bluff, AR",28,1,,10,0.784,-0.67,1.655,-0.328,high,1,
+0575170,White Hall city,AR,5520,21,"Pine Bluff, AR",28,2,,2,0.682,0.085,-0.67,1.803,high,0,Government Hub
+0518520,Dermott city,AR,2727,21,"Pine Bluff, AR",28,3,,15,0.507,-0.822,0.871,-0.614,high,1,Government Hub
+1814734,Columbus city,IN,51104,144,"Columbus, IN",16,1,,3,0.817,0.583,-0.688,0.697,high,0,
+1868832,Seymour city,IN,21536,144,"Columbus, IN",16,2,,7,0.809,-0.223,-0.147,-0.111,high,0,
+1855116,North Vernon city,IN,7214,144,"Columbus, IN",16,3,,9,0.498,-0.486,-0.461,-0.688,high,0,
+1707744,Bradley village,IL,15331,137,"Kankakee, IL",32,1,,4,0.873,0.409,-0.709,0.988,high,0,
+1707471,Bourbonnais village,IL,18109,137,"Kankakee, IL",32,2,,1,0.87,0.945,-0.675,1.086,high,0,Knowledge Center
+1749893,Momence city,IL,3076,137,"Kankakee, IL",32,3,,16,0.824,0.025,-0.612,0.316,high,1,
+4737960,Jefferson City city,TN,8472,471,"Morristown, TN",19,1,,2,0.372,-0.199,-0.684,-1.032,high,0,
+4706340,Blaine city,TN,2797,471,"Morristown, TN",19,2,,5,0.324,-0.347,-0.51,-0.881,high,0,
+4750280,Morristown city,TN,30983,471,"Morristown, TN",19,3,,8,-0.002,-0.457,0.342,-1.32,high,0,
+1762367,Quincy city,IL,39188,121,"Quincy, IL",36,1,,3,0.303,-0.265,-0.567,0.139,high,0,
+2907660,Bowling Green city,MO,4130,121,"Quincy, IL",36,2,,9,0.246,-0.613,-0.272,-0.777,high,0,Government Hub
+2930214,Hannibal city,MO,16825,121,"Quincy, IL",36,3,,7,-0.061,-0.598,-0.597,-0.229,high,0,
+3035050,Havre city,MT,9333,304,"Great Falls, MT",30,1,,9,0.637,-0.958,-0.573,-0.974,high,1,
+3032800,Great Falls city,MT,60412,304,"Great Falls, MT",30,2,,3,0.036,-0.434,-0.53,-1.074,high,0,
+2977092,Warrensburg city,MO,19437,290,"Sedalia, MO",30,1,,2,0.765,0.729,-0.845,0.338,high,0,Knowledge Center; Military Anchor
+2966440,Sedalia city,MO,21869,290,"Sedalia, MO",30,2,,9,0.739,-0.286,0.14,-0.168,high,0,
+2946316,Marshall city,MO,13699,290,"Sedalia, MO",30,3,,7,0.637,-0.186,-0.245,0.097,high,0,
+2183334,Williamsburg city,KY,5226,213,"Richmond, KY",19,1,,6,0.717,-0.269,0.34,-0.664,high,0,Knowledge Center
+2105842,Berea city,KY,15557,213,"Richmond, KY",19,2,,2,0.596,0.094,-0.691,-0.251,high,0,
+2117362,Corbin city,KY,8430,213,"Richmond, KY",19,3,,4,0.52,-0.154,-0.227,0.004,high,0,
+2770420,Willmar city,MN,21136,264,"Willmar, MN",53,1,,1,0.723,0.162,0.523,0.132,high,0,
+2740688,Marshall city,MN,13880,264,"Willmar, MN",53,2,,7,0.701,-0.293,0.068,-0.162,high,0,
+2725280,Granite Falls city,MN,2612,264,"Willmar, MN",53,3,,2,0.625,0.036,-0.49,0.923,high,1,
+2579950,Williamstown CDP,MA,4352,235,"Pittsfield, MA",22,1,,1,0.846,2.492,-0.728,1.559,medium,1,Knowledge Center
+5004750,Bennington CDP,VT,8888,235,"Pittsfield, MA",22,2,,9,0.306,0.675,-0.801,0.2,high,0,
+2553960,Pittsfield city,MA,43559,235,"Pittsfield, MA",22,3,,10,0.277,0.623,-0.358,0.273,high,0,
+2825340,Forest city,MS,5365,9,"Meridian, MS",38,1,,16,0.473,-0.805,0.674,0.195,high,0,
+2849080,Morton city,MS,3661,9,"Meridian, MS",38,2,,27,0.386,-1.333,0.489,-0.266,high,0,
+2811780,Carthage city,MS,4859,9,"Meridian, MS",38,3,,6,0.278,-0.41,-0.002,-0.102,high,0,
+3937842,Jackson city,OH,6222,410,"Portsmouth, OH--KY",33,1,,22,0.761,-0.375,-0.617,-0.137,high,0,
+3962708,Piketon village,OH,2603,410,"Portsmouth, OH--KY",33,2,,7,0.668,0.063,-0.198,-0.075,high,0,
+3984588,Wheelersburg CDP,OH,6414,410,"Portsmouth, OH--KY",33,3,,5,0.501,0.218,-0.623,0.996,high,0,
+2870240,Starkville city,MS,25611,282,"Starkville, MS",20,1,,2,0.599,0.525,-0.517,-0.726,high,0,Knowledge Center; Regional Service Center
+2844240,Macon city,MS,3454,282,"Starkville, MS",20,2,,8,0.46,-0.747,-0.115,-0.812,high,0,
+2879120,West Point city,MS,9967,282,"Starkville, MS",20,3,,9,0.292,-0.92,0.121,-1.182,high,0,
+4716540,Columbia city,TN,43971,474,"Columbia, TN",19,1,,1,0.284,0.044,-0.516,-0.925,high,0,
+4751080,Mount Pleasant city,TN,4803,474,"Columbia, TN",19,2,,8,-0.194,-0.592,-0.296,-1.413,high,0,
+4741340,Lawrenceburg city,TN,11732,474,"Columbia, TN",19,3,,4,-0.313,-0.377,-0.171,-1.18,high,0,
+3119595,Grand Island city,NE,52761,336,"Grand Island, NE",32,1,,3,0.645,-0.288,0.567,-0.457,high,0,
+3108535,Central City city,NE,3039,336,"Grand Island, NE",32,2,,5,0.518,-0.377,-0.306,-0.073,high,0,
+3154045,York city,NE,8114,336,"Grand Island, NE",32,3,,8,0.059,-0.477,-0.537,-0.292,high,0,
+3005875,Bigfork CDP,MT,5249,312,"Kalispell, MT",35,1,,10,0.083,-0.4,0.519,-2.284,high,0,Amenity Destination
+3016600,Columbia Falls city,MT,5531,312,"Kalispell, MT",35,2,,15,-0.136,-0.685,0.281,-2.505,high,0,
+3040075,Kalispell city,MT,26830,312,"Kalispell, MT",35,3,,5,-0.223,-0.22,-0.264,-1.991,high,0,
+1983685,West Burlington city,IA,3184,135,"Burlington, IA--IL",35,1,,3,0.817,-0.11,-0.536,0.089,high,0,
+1732434,Hamilton city,IL,2738,135,"Burlington, IA--IL",35,2,,14,0.178,-0.717,-0.548,0.458,high,0,
+1909550,Burlington city,IA,23800,135,"Burlington, IA--IL",35,3,,5,0.04,-0.406,-0.517,0.594,high,0,
+2135020,Hartford city,KY,2653,215,"Owensboro, KY",22,1,,2,0.836,0.064,-0.328,0.505,high,0,
+2158620,Owensboro city,KY,60112,215,"Owensboro, KY",22,2,,3,0.647,0.055,-0.414,-0.029,high,0,
+2104654,Beaver Dam city,KY,3526,215,"Owensboro, KY",22,3,,4,0.422,0.027,-0.348,0.431,high,0,
+5605245,Bar Nunn town,WY,2980,562,"Casper, WY",13,1,,4,0.779,-0.856,-0.834,-0.573,high,0,
+5625765,Evansville town,WY,2766,562,"Casper, WY",13,2,,8,0.606,-1.164,-0.83,-1.291,high,0,
+5621125,Douglas city,WY,6400,562,"Casper, WY",13,3,,7,0.551,-1.159,-0.192,-1.219,high,0,
+2149368,Madisonville city,KY,19442,211,"Henderson, KY",25,1,,4,0.043,-0.247,-0.454,0.196,high,0,
+2135866,Henderson city,KY,27994,211,"Henderson, KY",25,2,,7,-0.018,-0.489,-0.403,-0.769,high,0,
+2123824,Eddyville city,KY,2945,211,"Henderson, KY",25,3,,6,-0.225,-0.328,-0.266,-0.643,medium,0,Government Hub
+5129744,Fredericksburg city,VA,28383,531,"Fredericksburg, VA",18,1,,6,0.659,1.292,-0.11,0.475,high,0,
+5118400,Colonial Beach town,VA,3930,531,"Fredericksburg, VA",18,2,,15,0.57,0.377,0.718,-0.681,high,0,Government Hub; Military Anchor; Amenity Destination
+5142568,King George CDP,VA,4833,531,"Fredericksburg, VA",18,3,,10,0.565,0.584,-0.06,0.017,high,0,Government Hub
+4716920,Cookeville city,TN,35544,470,"Cookeville, TN",21,1,,1,0.427,0.226,-0.177,-0.884,high,0,Knowledge Center
+4749760,Monterey town,TN,2751,470,"Cookeville, TN",21,2,,12,0.044,-0.665,1.585,-1.805,high,0,
+4700640,Algood city,TN,4002,470,"Cookeville, TN",21,3,,2,-0.085,-0.085,0.228,-1.309,high,0,
+4835492,Huntington city,TX,4022,477,"Lufkin, TX",22,1,,6,0.804,-0.409,-0.346,-0.275,high,0,
+4845072,Lufkin city,TX,34158,477,"Lufkin, TX",22,2,,3,0.715,-0.314,0.313,-0.241,high,0,
+4820308,Diboll city,TX,4531,477,"Lufkin, TX",22,3,,1,0.681,-0.122,0.804,0.148,high,1,
+1311560,Brunswick city,GA,15248,97,"Brunswick--St. Simons, GA",19,1,,4,-0.448,-0.263,0.865,-1.697,high,0,
+1380956,Waycross city,GA,13813,97,"Brunswick--St. Simons, GA",19,2,,18,-0.785,-1.102,0.281,-1.178,high,0,
+1308284,Blackshear city,GA,3562,97,"Brunswick--St. Simons, GA",19,3,,13,-1.013,-0.766,0.441,-1.799,high,0,
+3126910,Lexington city,NE,10693,332,"Kearney, NE",35,1,,3,0.891,-0.279,2.714,0.017,high,0,
+3125055,Kearney city,NE,34024,332,"Kearney, NE",35,2,,2,0.679,-0.036,-0.815,-0.299,high,0,
+3132340,Minden city,NE,3020,332,"Kearney, NE",35,3,,10,0.374,-0.702,-0.754,-0.175,high,0,
+2814260,Cleveland city,MS,10855,280,"Greenville, MS",28,1,,4,0.702,-0.327,-0.275,-0.144,high,1,
+2834740,Indianola city,MS,9360,280,"Greenville, MS",28,2,,8,0.386,-0.617,-0.572,0.116,high,0,
+2864200,Ruleville city,MS,2859,280,"Greenville, MS",28,3,,11,-0.085,-0.677,-0.638,0.062,high,0,
+5486812,White Sulphur Springs city,WV,2646,548,"Beckley, WV",50,1,,3,0.455,0.035,-0.339,-0.178,high,0,
+5460028,Oak Hill city,WV,8057,548,"Beckley, WV",50,2,,16,0.262,-0.458,-0.161,-0.071,high,0,
+5446636,Lewisburg city,WV,3871,548,"Beckley, WV",50,3,,2,-0.179,1.157,-0.695,0.422,high,0,
+5322080,Ephrata city,WA,8493,539,"Moses Lake, WA",22,1,,11,0.539,-0.277,0.17,-0.685,high,0,
+5352215,Othello city,WA,8699,539,"Moses Lake, WA",22,2,,2,0.435,0.235,1.523,-0.391,high,0,
+5347245,Moses Lake city,WA,25594,539,"Moses Lake, WA",22,3,,7,0.433,-0.236,-0.035,-0.84,high,0,
+4139700,Klamath Falls city,OR,21879,50,"Klamath Falls--Altamont, OR",31,1,,4,0.211,-0.217,0.521,-1.298,high,0,
+0601444,Alturas city,CA,2703,50,"Klamath Falls--Altamont, OR",31,2,,19,-0.063,-1.037,1.274,-0.726,high,0,
+0686944,Yreka city,CA,7832,50,"Klamath Falls--Altamont, OR",31,3,,13,-0.241,-0.632,0.555,-1.582,high,0,Government Hub
+1752142,New Baden village,IL,3493,131,"Centralia, IL",43,1,,2,0.887,0.555,-0.119,1.191,high,0,
+1775991,Trenton city,IL,2673,131,"Centralia, IL",43,2,,3,0.835,0.467,-0.957,1.326,high,0,
+1711228,Carlyle city,IL,3134,131,"Centralia, IL",43,3,,7,0.821,0.047,-0.97,1.167,high,1,
+2962912,Rolla city,MO,20144,297,"Fort Leonard Wood--St. Robert--Waynesville, MO",15,1,,2,0.709,0.412,-0.369,-0.341,high,0,Knowledge Center; Regional Service Center
+2965144,St. Robert city,MO,5327,297,"Fort Leonard Wood--St. Robert--Waynesville, MO",15,2,,4,0.704,0.021,-0.161,0.005,high,0,Military Anchor
+2977992,Waynesville city,MO,5422,297,"Fort Leonard Wood--St. Robert--Waynesville, MO",15,3,,3,0.688,0.188,-0.332,0.533,high,0,Government Hub; Military Anchor
+4004450,Bartlesville city,OK,37559,182,"Bartlesville, OK",25,1,,1,0.385,-0.086,-0.73,0.361,high,0,
+4052900,Nowata city,OK,3522,182,"Bartlesville, OK",25,2,,3,-0.483,-0.494,-0.531,-0.421,high,0,
+2033875,Independence city,KS,8469,182,"Bartlesville, OK",25,3,,5,-0.666,-0.691,-0.632,0.328,high,0,
+0473420,Thatcher town,AZ,5354,17,"Safford, AZ",38,1,,6,0.622,-0.315,-0.139,-0.604,high,0,
+0462000,Safford city,AZ,10217,17,"Safford, AZ",38,2,,13,0.566,-0.782,-0.283,-1.022,high,0,
+0455560,Pima town,AZ,2910,17,"Safford, AZ",38,3,,21,0.436,-1.026,-0.433,-0.748,high,0,
+3611671,Calcium CDP,NY,3245,367,"Watertown, NY",36,1,,1,0.765,0.749,-0.674,0.982,medium,1,Knowledge Center; Military Anchor
+3678608,Watertown city,NY,24574,367,"Watertown, NY",36,2,,12,0.413,-0.186,-0.23,-0.293,high,0,
+3612683,Carthage village,NY,3546,367,"Watertown, NY",36,3,,31,0.323,-0.726,-0.228,-0.513,high,0,Military Anchor
+2803620,Batesville city,MS,7432,283,"Oxford, MS",25,1,,10,0.639,-0.462,-0.325,-0.625,high,0,
+2854840,Oxford city,MS,26086,283,"Oxford, MS",25,2,,2,0.58,0.561,-0.735,-0.613,high,0,Knowledge Center; Regional Service Center; Amenity Destination
+2878000,Water Valley city,MS,3380,283,"Oxford, MS",25,3,,7,0.439,-0.301,-0.338,-0.298,high,0,
+2705068,Bemidji city,MN,15490,257,"Brainerd, MN",38,1,,9,0.746,-0.194,-0.56,-0.246,high,0,Knowledge Center
+2707516,Breezy Point city,MN,2647,257,"Brainerd, MN",38,2,,6,0.646,-0.012,1.335,-0.434,high,0,Amenity Destination
+2704042,Baxter city,MN,8804,257,"Brainerd, MN",38,3,,7,0.225,-0.077,-0.453,-0.668,high,0,
+2744242,Morris city,MN,5092,268,"Alexandria, MN",45,1,,2,0.827,0.025,-0.269,0.357,high,0,Knowledge Center
+2700928,Alexandria city,MN,14579,268,"Alexandria, MN",45,2,,5,0.46,-0.413,-0.601,-0.824,high,0,
+2724074,Glenwood city,MN,2648,268,"Alexandria, MN",45,3,,6,0.399,-0.425,-0.283,-1.045,high,0,
+2430900,Frostburg city,MD,7025,231,"Cumberland, MD--WV--PA",47,1,,3,0.883,0.778,-0.688,0.968,high,1,Knowledge Center
+5462956,Petersburg city,WV,3172,231,"Cumberland, MD--WV--PA",47,2,,31,-0.003,-0.697,-0.415,-0.758,high,0,
+2421325,Cumberland city,MD,18938,231,"Cumberland, MD--WV--PA",47,3,,18,-0.772,-0.351,-0.054,-0.019,high,0,
+5320155,East Wenatchee city,WA,14114,540,"Wenatchee, WA",13,1,,5,0.217,-0.173,0.668,-1.182,high,0,
+5311615,Chelan city,WA,4314,540,"Wenatchee, WA",13,2,,7,0.201,-0.29,1.571,-1.693,high,0,Amenity Destination
+5377105,Wenatchee city,WA,35502,540,"Wenatchee, WA",13,3,,2,0.096,0.256,0.776,-1.006,high,0,
+5105336,Bealeton CDP,VA,5193,533,"Warrenton--New Baltimore, VA",15,1,,7,0.622,0.623,0.63,0.102,high,0,
+5149656,Marshall CDP,VA,3213,533,"Warrenton--New Baltimore, VA",15,2,,4,0.609,0.885,2.488,-0.354,high,0,
+5120752,Culpeper town,VA,20437,533,"Warrenton--New Baltimore, VA",15,3,,6,0.574,0.85,0.967,0.326,high,0,
+4023950,Enid city,OK,50821,412,"Enid, OK",21,1,,6,0.667,-0.529,-0.138,0.638,high,0,
+4001800,Alva city,OK,5009,412,"Enid, OK",21,2,,7,0.589,-0.693,-0.619,0.131,high,1,Knowledge Center
+4025100,Fairview city,OK,2699,412,"Enid, OK",21,3,,14,-0.502,-1.183,-0.174,-0.247,high,0,
+1524950,Kalaheo CDP,HI,4612,588,"Kapaa, HI",22,1,,9,-0.94,-0.434,1.385,-2.408,medium,0,
+4821904,Early city,TX,3159,490,"Brownwood, TX",16,1,,3,0.784,-0.556,-0.435,-0.47,high,0,
+4870208,Stephenville city,TX,21345,490,"Brownwood, TX",16,2,,1,0.64,0.172,-0.513,-0.724,high,0,Knowledge Center
+4821484,Dublin city,TX,3404,490,"Brownwood, TX",16,3,,2,0.194,-0.485,1.706,-1.327,high,0,
+2956272,Park Hills city,MO,8667,300,"Farmington, MO",30,1,,10,0.601,-0.474,-0.265,-0.066,high,0,
+2907102,Bonne Terre city,MO,6773,300,"Farmington, MO",30,2,,8,-0.075,-0.353,-0.25,-0.952,medium,0,
+2923752,Farmington city,MO,17999,300,"Farmington, MO",30,3,,5,-0.145,-0.157,-0.007,-0.734,high,0,
+3853380,Minot city,ND,47922,389,"Minot, ND",19,1,,3,0.764,-0.614,-0.823,-0.453,high,0,Military Anchor
+3268550,Spring Creek CDP,NV,14967,341,"Elko, NV",18,1,,5,0.62,-1.301,-0.686,-1.352,high,0,
+3284800,Winnemucca city,NV,8391,341,"Elko, NV",18,2,,1,0.6,-0.933,0.06,-1.208,high,0,
+3204900,Battle Mountain CDP,NV,3957,341,"Elko, NV",18,3,,10,0.546,-1.958,0.309,-1.876,high,0,Government Hub
+2656860,Negaunee city,MI,4641,241,"Marquette, MI",16,1,,10,0.671,-0.792,-0.544,-0.448,high,0,
+2651900,Marquette city,MI,20691,241,"Marquette, MI",16,2,,2,0.635,0.106,-0.759,-0.687,high,0,Knowledge Center
+2632300,Gladstone city,MI,5240,241,"Marquette, MI",16,3,,8,0.474,-0.719,-0.289,-0.516,high,0,
+4081000,Wilburton city,OK,2861,421,"McAlester, OK",34,1,,18,0.627,-0.965,0.076,-0.856,high,1,
+4060350,Poteau city,OK,8903,421,"McAlester, OK",34,2,,4,0.544,-0.623,0.205,-0.558,high,0,
+4044800,McAlester city,OK,18098,421,"McAlester, OK",34,3,,2,0.333,-0.517,0.18,-0.128,high,0,
+3745640,Murfreesboro town,NC,2814,375,"Roanoke Rapids, NC",37,1,,3,0.778,0.36,0.323,0.978,high,0,Knowledge Center
+5173904,South Hill town,VA,4737,375,"Roanoke Rapids, NC",37,2,,4,0.42,0.182,0.087,0.322,high,0,
+3756900,Roanoke Rapids city,NC,15024,375,"Roanoke Rapids, NC",37,3,,9,0.401,-0.098,-0.168,0.971,high,0,
+0543820,Manila city,AR,3675,37,"Blytheville, AR",27,1,,5,0.282,-0.721,-0.975,-0.233,high,0,
+2911692,Caruthersville city,MO,5426,37,"Blytheville, AR",27,2,,3,-0.139,-0.561,0.08,0.182,high,0,
+2938306,Kennett city,MO,10236,37,"Blytheville, AR",27,3,,4,-0.152,-0.646,-0.528,0.635,high,0,
+4238688,Kane borough,PA,3573,445,"Bradford, PA--NY",35,1,,4,0.833,-0.055,-0.646,0.992,high,1,
+4282160,Wellsboro borough,PA,3445,445,"Bradford, PA--NY",35,2,,2,0.745,0.469,-0.396,0.46,high,0,
+4247080,Mansfield borough,PA,3014,445,"Bradford, PA--NY",35,3,,3,0.471,0.164,-0.915,-0.46,high,0,Knowledge Center
+4048000,Miami city,OK,12960,417,"Miami, OK",35,1,,8,0.69,-0.332,-0.258,0.274,high,1,
+4037650,Jay city,OK,2724,417,"Miami, OK",35,2,,15,-0.025,-0.462,-0.2,-1.521,high,0,
+4031600,Grove city,OK,7101,417,"Miami, OK",35,3,,5,-0.128,-0.211,-0.509,-0.846,high,0,
+4607580,Brookings city,SD,23710,454,"Brookings, SD",22,1,,1,0.736,0.35,-0.697,-0.218,high,0,Knowledge Center; Regional Service Center
+4669300,Watertown city,SD,22859,454,"Brookings, SD",22,2,,10,0.301,-0.872,-0.417,-1.387,high,0,
+1329528,Fitzgerald city,GA,8962,94,"Tifton, GA",20,1,,9,0.498,-0.844,-0.008,-0.771,high,0,
+1376476,Tifton city,GA,17140,94,"Tifton, GA",20,2,,1,0.481,-0.284,-0.082,-0.697,high,0,
+1319616,Cordele city,GA,10107,94,"Tifton, GA",20,3,,6,0.438,-0.738,-0.084,-1.038,high,0,
+0524430,Forrest City city,AR,12826,20,"Helena-West Helena, AR",27,1,,6,0.338,-0.595,0.445,0.36,high,0,
+0577090,Wynne city,AR,8220,20,"Helena-West Helena, AR",27,2,,3,0.308,-0.511,-0.023,-0.386,high,0,
+0567490,Stuttgart city,AR,8060,20,"Helena-West Helena, AR",27,3,,11,-0.173,-0.964,-0.63,0.196,high,0,
+1811836,Centerville town,IN,2748,152,"Richmond, IN--OH",14,1,,5,0.649,-0.001,-0.207,-0.095,high,0,
+1864260,Richmond city,IN,35551,152,"Richmond, IN--OH",14,2,,3,0.195,0.112,-0.546,0.385,high,0,
+1814932,Connersville city,IN,13241,152,"Richmond, IN--OH",14,3,,12,-0.3,-0.374,-0.686,-0.151,high,0,
+0556990,Pottsville city,AR,3201,35,"Russellville, AR",17,1,,3,0.772,-0.394,-0.309,-0.094,high,0,
+0502590,Atkins city,AR,2877,35,"Russellville, AR",17,2,,9,0.742,-0.701,-0.445,-0.242,high,0,
+0561670,Russellville city,AR,29057,35,"Russellville, AR",17,3,,1,0.633,-0.04,-0.212,-0.337,high,0,
+0563020,Searcy city,AR,23115,34,"Searcy, AR",24,1,,1,0.677,0.203,-0.687,-0.001,high,0,Knowledge Center
+0503280,Bald Knob city,AR,2545,34,"Searcy, AR",24,2,,14,0.44,-1,-0.475,-0.713,high,0,
+0504600,Beebe city,AR,8580,34,"Searcy, AR",24,3,,7,0.16,-0.583,-0.381,-0.552,high,0,
+5355365,Port Angeles city,WA,20087,541,"Sequim, WA",16,1,,7,-0.141,0.277,0.299,-1.09,high,0,
+5324810,Forks city,WA,3413,541,"Sequim, WA",16,2,,15,-0.483,-1.038,1.464,-2.348,high,0,Government Hub
+5355645,Port Ludlow CDP,WA,2979,541,"Sequim, WA",16,3,,1,-1.248,1.044,-0.364,-0.233,high,0,Government Hub
+1325300,East Dublin city,GA,2712,104,"Dublin, GA",22,1,,14,0.675,-0.885,0.39,-0.746,high,0,
+1379388,Vidalia city,GA,10762,104,"Dublin, GA",22,2,,4,0.553,-0.359,-0.218,-0.153,high,0,
+1324376,Dublin city,GA,16023,104,"Dublin, GA",22,3,,3,0.082,-0.215,-0.184,-0.68,high,0,
+0273070,Sterling CDP,AK,6776,569,"Kenai, AK",24,1,,7,0.753,-0.751,-0.095,-0.329,high,0,Amenity Destination
+0238420,Kenai city,AK,7562,569,"Kenai, AK",24,2,,5,0.57,-0.655,-0.112,-0.871,high,0,
+0268560,Seward city,AK,2735,569,"Kenai, AK",24,3,,2,0.401,-0.366,1.43,-0.889,medium,0,Government Hub
+3565210,Ruidoso village,NM,7701,355,"Alamogordo, NM",14,1,,5,0.634,-0.462,2.135,-1.661,high,0,Amenity Destination
+3565280,Ruidoso Downs city,NM,2629,355,"Alamogordo, NM",14,2,,9,0.046,-0.677,1.75,-1.982,high,0,Amenity Destination
+3501780,Alamogordo city,NM,31063,355,"Alamogordo, NM",14,3,,4,-0.107,-0.245,0.303,-0.56,high,0,Military Anchor
+3902736,Athens city,OH,23211,399,"Athens, OH",30,1,,1,0.91,1.6,-0.671,0.545,medium,0,Knowledge Center; Regional Service Center
+3953886,Nelsonville city,OH,3816,399,"Athens, OH",30,2,,20,-0.156,-0.511,-0.744,0.1,high,0,Knowledge Center
+3929204,Gallipolis village,OH,3352,399,"Athens, OH",30,3,,8,-0.217,-0.051,-0.765,0.271,high,0,
+2062700,Salina city,KS,46432,190,"Salina, KS",13,1,,2,0.7,-0.165,-0.403,0.42,high,0,
+2020500,Ellsworth city,KS,3098,190,"Salina, KS",13,2,,4,-0.188,-0.361,-0.303,0.731,medium,0,Government Hub
+5563250,Platteville city,WI,11421,157,"Platteville, WI",38,1,,1,0.865,0.658,-0.809,-0.186,high,0,Knowledge Center; Regional Service Center
+5525600,Fennimore city,WI,2762,157,"Platteville, WI",38,2,,3,0.846,-0.068,-0.722,0.368,high,0,
+5542250,Lancaster city,WI,3916,157,"Platteville, WI",38,3,,8,0.771,-0.524,-0.83,0.225,high,1,
+5108152,Bluefield town,VA,5016,529,"Bluefield, WV--VA",31,1,,2,0.654,0.117,-0.294,0.864,high,0,
+5177792,Tazewell town,VA,4419,529,"Bluefield, WV--VA",31,2,,8,-0.063,-0.656,0.743,-0.958,high,0,
+5408524,Bluefield city,WV,9511,529,"Bluefield, WV--VA",31,3,,5,-0.259,-0.257,-0.41,0.257,high,0,
+2278470,Vidalia town,LA,3938,225,"Natchez, MS--LA",19,1,,6,-0.604,-0.762,-0.214,-0.147,high,0,
+2850440,Natchez city,MS,14207,225,"Natchez, MS--LA",19,2,,5,-0.717,-0.761,0.119,-0.676,high,0,
+2876720,Vicksburg city,MS,20944,225,"Natchez, MS--LA",19,3,,8,-1.063,-0.789,-0.248,-0.62,high,0,
+1351492,Milledgeville city,GA,16873,91,"Milledgeville, GA",21,1,,3,0.497,0.197,0.141,-0.715,medium,0,Knowledge Center; Regional Service Center
+1349196,Madison city,GA,4714,91,"Milledgeville, GA",21,2,,5,0.37,0.056,-0.908,-0.647,high,0,
+1368208,Sandersville city,GA,5673,91,"Milledgeville, GA",21,3,,11,-0.023,-0.604,0.186,-0.375,high,0,
+3985792,Wilmington city,OH,12637,403,"Washington Court House, OH",20,1,,3,0.523,0.136,-0.679,-0.423,high,0,
+3981718,Washington Court House city,OH,14406,403,"Washington Court House, OH",20,2,,6,0.494,-0.202,-0.63,-0.34,high,0,
+3906908,Blanchester village,OH,4681,403,"Washington Court House, OH",20,3,,4,0.393,-0.053,0.034,-0.897,high,0,
+1833392,Hidden Valley CDP,IN,5625,149,"Greendale--Lawrenceburg--Hidden Valley, IN--OH",19,1,,1,0.84,0.429,-0.576,0.641,high,0,
+1807624,Bright CDP,IN,5735,149,"Greendale--Lawrenceburg--Hidden Valley, IN--OH",19,2,,3,0.83,0.372,-0.842,0.72,high,0,
+2113024,Carrollton city,KY,3894,149,"Greendale--Lawrenceburg--Hidden Valley, IN--OH",19,3,,16,0.817,-0.739,-0.138,-0.197,high,0,
+5567350,Rice Lake city,WI,9030,552,"Rice Lake, WI",38,1,,7,0.402,-0.189,-0.45,-0.706,high,0,
+5560450,Osceola village,WI,2818,552,"Rice Lake, WI",38,2,,3,0.395,0,-0.983,-0.868,high,0,
+5504875,Barron city,WI,3689,552,"Rice Lake, WI",38,3,,15,-0.393,-0.487,-0.016,-0.746,high,0,
+1928515,Fort Dodge city,IA,24788,164,"Fort Dodge, IA",33,1,,2,0.619,-0.339,-0.372,0.822,high,0,
+1937560,Humboldt city,IA,4761,164,"Fort Dodge, IA",33,2,,8,0.485,-0.565,-0.622,0.236,high,0,
+1901135,Algona city,IA,5414,164,"Fort Dodge, IA",33,3,,13,-0.161,-0.722,-0.3,-0.553,high,0,
+3151840,Wayne city,NE,6055,325,"Norfolk, NE",25,1,,1,0.822,0.613,-0.328,0.331,high,0,Knowledge Center
+3134615,Norfolk city,NE,25962,325,"Norfolk, NE",25,2,,7,0.56,-0.452,-0.23,-0.594,high,0,
+2160852,Pikeville city,KY,7560,216,"Pikeville, KY",50,1,,6,0.736,0.197,0.214,0.267,high,0,Knowledge Center
+2162940,Prestonsburg city,KY,3823,216,"Pikeville, KY",50,2,,15,0.049,-0.524,1.073,-1.211,high,0,
+2147854,Louisa city,KY,2645,216,"Pikeville, KY",50,3,,25,-0.764,-0.798,-0.337,-0.881,high,0,
+4142600,Lincoln City city,OR,9890,437,"Newport, OR",27,1,,11,0.344,0.279,2.258,-1.417,high,0,Amenity Destination
+4173700,Tillamook city,OR,5229,437,"Newport, OR",27,2,,14,-0.064,0.103,1.75,-1.403,high,0,
+4174000,Toledo city,OR,3547,437,"Newport, OR",27,3,,21,-0.386,-0.525,-0.202,-1.839,high,0,
+5562175,Peshtigo city,WI,3404,251,"Marinette--Menominee, WI--MI",22,1,,1,0.365,-0.576,-0.877,-0.374,high,0,
+2643300,Kingsford city,MI,5138,251,"Marinette--Menominee, WI--MI",22,2,,6,0.295,-0.922,-0.385,-0.072,high,0,
+2659220,Norway city,MI,2835,251,"Marinette--Menominee, WI--MI",22,3,,3,0.148,-0.694,-0.278,-0.437,high,0,
+5633740,Green River city,WY,11679,561,"Rock Springs, WY",15,1,,3,0.551,-1.112,-0.434,-0.925,high,0,
+5667235,Rock Springs city,WY,23229,561,"Rock Springs, WY",15,2,,2,0.368,-1.082,-0.221,-1.23,high,0,
+5663900,Rawlins city,WY,8217,561,"Rock Springs, WY",15,3,,10,-0.743,-1.735,0.342,-1.169,high,0,Government Hub
+0122216,East Brewton city,AL,3325,11,"Andalusia, AL",19,1,,4,0.584,-0.933,0.056,0.329,high,0,
+0150192,Monroeville city,AL,5875,11,"Andalusia, AL",19,2,,9,-0.856,-1.253,0.229,-1.644,high,0,
+0109208,Brewton city,AL,5232,11,"Andalusia, AL",19,3,,7,-1.328,-1.082,-0.786,-0.636,high,0,
+2116750,Columbia city,KY,4842,199,"Bardstown, KY",15,1,,2,0.63,0.05,0.132,-0.159,high,0,Knowledge Center
+2112160,Campbellsville city,KY,11523,199,"Bardstown, KY",15,2,,1,0.539,0.076,-0.402,-0.254,high,0,
+2103628,Bardstown city,KY,13673,199,"Bardstown, KY",15,3,,3,0.405,-0.036,-0.595,-0.644,high,0,
+4850256,Nacogdoches city,TX,32104,511,"Nacogdoches, TX",16,1,,1,0.676,0.068,-0.111,-0.74,high,0,Knowledge Center
+4813732,Center city,TX,5198,511,"Nacogdoches, TX",16,2,,9,0.162,-0.971,0.694,-1.113,high,0,
+2771734,Worthington city,MN,13792,266,"Worthington, MN",26,1,,2,0.76,-0.137,1.973,-0.119,high,0,
+2731562,Jackson city,MN,3298,266,"Worthington, MN",26,2,,9,0.342,-0.454,-0.533,-0.346,high,0,
+2770798,Windom city,MN,4786,266,"Worthington, MN",26,3,,10,-0.132,-0.508,-0.52,0.242,high,0,
+1959475,Orange City city,IA,6312,171,"Sioux Center, IA",27,1,,2,0.795,0.24,-0.859,0.231,high,0,Knowledge Center
+1935265,Hawarden city,IA,2674,171,"Sioux Center, IA",27,2,,3,0.767,-0.188,0.17,0.518,high,0,
+1973290,Sioux Center city,IA,8335,171,"Sioux Center, IA",27,3,,1,0.731,0.585,-0.491,0.523,high,0,Knowledge Center
+4079450,Weatherford city,OK,12014,414,"Weatherford, OK",17,1,,1,0.693,0.127,-0.619,-0.208,high,0,Knowledge Center
+4015400,Clinton city,OK,8461,414,"Weatherford, OK",17,2,,3,-0.108,-0.745,-0.243,0.641,high,0,
+4023500,Elk City city,OK,11406,414,"Weatherford, OK",17,3,,12,-0.578,-1.485,-0.482,-1.223,high,0,
+3715880,Cullowhee CDP,NC,7300,106,"Waynesville, NC",22,1,,4,0.783,0.662,-0.213,-1.656,medium,0,Knowledge Center
+3736480,Lake Junaluska CDP,NC,2903,106,"Waynesville, NC",22,2,,3,0.544,0.776,0.751,-0.033,high,0,Government Hub; Amenity Destination
+3766500,Sylva town,NC,2600,106,"Waynesville, NC",22,3,,7,-0.02,0.464,0.646,-1.04,high,0,
+3338420,Jaffrey CDP,NH,2885,344,"Keene, NH",16,1,,11,0.668,-0.021,-0.859,-0.226,high,0,
+3339300,Keene city,NH,22923,344,"Keene, NH",16,2,,5,0.63,0.501,-0.849,0.203,high,0,
+5007975,Brattleboro CDP,VT,7793,344,"Keene, NH",16,3,,4,-0.429,0.609,-0.68,-0.636,high,0,
+3883860,Watford City city,ND,6016,321,"Williston, ND",13,1,,4,0.621,-1.283,-0.954,-1.457,high,0,
+3886220,Williston city,ND,27964,321,"Williston, ND",13,2,,2,0.108,-1.244,-0.756,-1.468,high,0,
+3067900,Sidney city,MT,6235,321,"Williston, ND",13,3,,7,-0.197,-1.656,-0.299,-1.864,high,0,
+0504030,Batesville city,AR,11385,33,"Batesville, AR",27,1,,1,0.695,-0.407,0.022,-0.031,high,0,
+0513450,Cherokee Village city,AR,5078,33,"Batesville, AR",27,2,,17,-0.738,-1.074,0.269,-1.351,high,0,Amenity Destination
+0547540,Mountain View city,AR,2890,33,"Batesville, AR",27,3,,7,-1.479,-0.735,1.29,-2.142,medium,0,
+1237775,Lake City city,FL,12404,82,"Lake City, FL",15,1,,1,0.402,0.082,0.337,-0.543,high,0,
+1242425,Madison city,FL,2960,82,"Lake City, FL",15,2,,14,0.141,-0.955,-0.495,-1.966,high,0,
+1240875,Live Oak city,FL,6901,82,"Lake City, FL",15,3,,11,-0.452,-0.837,0.011,-1.263,high,0,
+5130208,Galax city,VA,6698,371,"Marion, VA",24,1,,9,-0.562,-0.634,0.72,-0.825,high,0,
+5149464,Marion town,VA,5694,371,"Marion, VA",24,2,,7,-0.616,-0.455,-0.314,-0.727,high,0,
+5188000,Wytheville town,VA,8224,371,"Marion, VA",24,3,,3,-0.655,-0.175,-0.022,-0.726,high,0,
+3144035,Schuyler city,NE,6517,329,"Columbus, NE",20,1,,2,0.887,-0.156,2.789,0.416,high,0,
+3112315,David City city,NE,3013,329,"Columbus, NE",20,2,,1,0.832,0.028,-0.851,0.574,high,0,
+3110110,Columbus city,NE,24188,329,"Columbus, NE",20,3,,4,0.625,-0.522,0.145,-0.611,high,0,
+4172950,The Dalles city,OR,15973,434,"The Dalles, OR",20,1,,5,-0.045,-0.078,0.879,-1.071,high,0,
+4134900,Hood River city,OR,8360,434,"The Dalles, OR",20,2,,2,-0.376,0.291,0.727,-1.496,high,0,
+5327435,Goldendale city,WA,3458,434,"The Dalles, OR",20,3,,11,-1.04,-0.507,-0.028,-1.925,high,0,
+4833008,Hebbronville CDP,TX,4324,489,"Alice, TX",15,1,,10,0.611,-1.214,-0.142,-0.083,high,1,
+4801852,Alice city,TX,17797,489,"Alice, TX",15,2,,4,0.56,-0.747,-0.001,-0.52,high,1,
+4865180,San Diego city,TX,3795,489,"Alice, TX",15,3,,13,-0.181,-1.408,-0.065,-0.152,high,0,
+1879208,Vincennes city,IN,16676,133,"Vincennes, IN",18,1,,1,0.26,-0.515,-0.491,-0.224,high,0,
+1805176,Bicknell city,IN,2879,133,"Vincennes, IN",18,2,,11,0.051,-0.726,-0.569,0.443,high,0,
+1742405,Lawrenceville city,IL,4241,133,"Vincennes, IN",18,3,,9,-0.705,-0.653,-0.262,0.64,high,0,
+1844658,Logansport city,IN,17766,147,"Logansport, IN",15,1,,2,0.777,-0.148,0.52,-0.001,high,1,
+1859328,Peru city,IN,10835,147,"Logansport, IN",15,2,,11,-0.105,-0.656,-0.624,-0.22,high,0,
+2871480,Summit town,MS,2684,278,"McComb, MS",17,1,,2,0.534,-0.683,-0.256,-0.991,high,0,
+2844680,Magnolia city,MS,3264,278,"McComb, MS",17,2,,7,0.191,-1.002,-0.338,-0.383,high,0,
+2843280,McComb city,MS,12202,278,"McComb, MS",17,3,,3,-0.472,-0.742,-0.332,0.163,high,0,
+4666700,Vermillion city,SD,11800,333,"Yankton, SD",19,1,,1,0.823,0.838,-0.913,0.231,high,0,Knowledge Center; Regional Service Center
+4673060,Yankton city,SD,15501,333,"Yankton, SD",19,2,,3,0.217,-0.327,-0.703,-0.452,high,0,
+1653920,Montpelier city,ID,2681,111,"Evanston, WY",32,1,,17,0.184,-0.845,0.292,-1.697,high,0,
+5625620,Evanston city,WY,11803,111,"Evanston, WY",32,2,,19,-0.224,-0.885,-0.042,-0.963,high,0,
+1675195,Soda Springs city,ID,3150,111,"Evanston, WY",32,3,,23,-0.268,-1.41,0.404,-2.553,high,0,
+0510720,Camden city,AR,10427,25,"El Dorado, AR",17,1,,3,0.811,-0.586,0.261,0.514,high,1,Amenity Destination
+0524220,Fordyce city,AR,3320,25,"El Dorado, AR",17,2,,6,0.564,-0.704,0.561,0.154,high,1,Amenity Destination
+0521070,El Dorado city,AR,17382,25,"El Dorado, AR",17,3,,4,0.336,-0.657,0.033,-0.173,high,0,
+5645050,Laramie city,WY,31848,63,"Laramie, WY",11,1,,2,0.803,0.881,-0.556,-0.433,high,0,Knowledge Center; Regional Service Center
+2902674,Ava city,MO,2978,298,"West Plains, MO",18,1,,1,0.431,-0.415,-0.779,-0.954,high,0,
+2978928,West Plains city,MO,12341,298,"West Plains, MO",18,2,,2,0.256,-0.429,-0.022,-1.194,high,0,
+2942464,Licking city,MO,2816,298,"West Plains, MO",18,3,,9,-1.201,-1.118,0.249,-1.921,medium,0,
+4800160,Abernathy city,TX,3108,488,"Plainview, TX",13,1,,2,0.824,-0.309,-0.807,0.765,high,0,
+4857980,Plainview city,TX,19893,488,"Plainview, TX",13,2,,4,0.62,-0.724,0.548,0.008,high,1,
+4826268,Floydada city,TX,2618,488,"Plainview, TX",13,3,,6,0.067,-1.22,-0.455,0.205,high,0,
+1975630,Storm Lake city,IA,11275,163,"Storm Lake, IA",27,1,,1,0.856,-0.215,1.648,0.23,high,0,
+1913080,Cherokee city,IA,5157,163,"Storm Lake, IA",27,2,,10,0.052,-0.675,-0.017,-0.22,high,0,
+1974415,Spirit Lake city,IA,5469,168,"Spirit Lake, IA",21,1,,6,0.57,-0.311,-0.729,-0.677,high,0,
+1974280,Spencer city,IA,11393,168,"Spirit Lake, IA",21,2,,8,0.192,-0.489,-0.493,-0.22,high,0,
+1952095,Milford city,IA,3315,168,"Spirit Lake, IA",21,3,,7,-0.034,-0.478,-0.364,-0.986,high,0,
+0518490,De Queen city,AR,6077,38,"De Queen, AR",22,1,,1,0.836,-0.337,2.14,-0.068,high,0,
+4009100,Broken Bow city,OK,4215,38,"De Queen, AR",22,2,,16,-0.055,-1.434,0.047,-2.662,high,0,
+4036300,Hugo city,OK,5184,38,"De Queen, AR",22,3,,6,-0.17,-1.122,0.682,-1.124,high,0,
+1966135,Red Oak city,IA,5542,156,"Creston, IA",24,1,,8,0.111,-0.691,-0.785,0.083,high,0,
+1917265,Creston city,IA,7466,156,"Creston, IA",24,2,,10,0.038,-0.716,-0.51,-0.2,high,0,
+1972525,Shenandoah city,IA,4913,156,"Creston, IA",24,3,,14,-0.828,-0.868,-0.733,-0.097,high,0,
+3121415,Hastings city,NE,25005,324,"Hastings, NE",21,1,,2,0.779,-0.262,-0.574,0.007,high,0,
+4752400,Newbern town,TN,3313,473,"Dyersburg, TN",12,1,,2,0.721,-0.28,-0.768,-0.319,high,0,
+4722200,Dyersburg city,TN,16075,473,"Dyersburg, TN",12,2,,3,0.508,-0.284,-0.25,0.017,high,1,
+4763340,Ripley city,TN,7718,473,"Dyersburg, TN",12,3,,12,-0.036,-1.122,-0.164,-0.873,high,0,
+2680340,Traverse City city,MI,15491,243,"Traverse City--Garfield, MI",29,1,,9,0.185,0.02,-0.467,-0.963,high,0,
+4600100,Aberdeen city,SD,28297,455,"Aberdeen, SD",12,1,,3,0.656,-0.736,-0.599,-0.651,high,0,
+2018250,Dodge City city,KS,27652,184,"Dodge City, KS",14,1,,1,0.862,-0.527,1.132,-0.183,high,0,
+0677364,Susanville city,CA,14992,49,"Susanville, CA",30,1,,21,-0.227,-0.743,1.354,-0.936,medium,0,Government Hub
+2829460,Grenada city,MS,12484,281,"Greenwood, MS",12,1,,3,-0.312,-0.737,-0.366,-0.359,high,0,
+2829340,Greenwood city,MS,13983,281,"Greenwood, MS",12,2,,4,-0.39,-0.787,-0.466,0.002,high,0,
+2880760,Winona city,MS,4319,281,"Greenwood, MS",12,3,,10,-1.651,-1.53,0.612,-1.761,medium,0,
+2031100,Hays city,KS,21078,189,"Hays, KS",13,1,,1,0.751,0.079,-0.668,-0.179,high,0,Knowledge Center
+2061825,Russell city,KS,4258,189,"Hays, KS",13,2,,7,-0.599,-1.022,-0.306,0.075,high,0,
+3539940,Las Vegas city,NM,13120,351,"Las Vegas, NM",23,1,,6,-0.428,-0.143,-0.092,-0.739,high,0,Regional Service Center
+3579910,Tucumcari city,NM,5197,351,"Las Vegas, NM",23,2,,19,-0.479,-1.436,0.72,-0.396,high,0,
+3562060,Raton city,NM,6013,351,"Las Vegas, NM",23,3,,17,-1.096,-1.415,-0.34,-0.862,high,0,
+2021275,Emporia city,KS,24098,181,"Emporia, KS",16,1,,2,0.819,-0.136,-0.057,0.201,high,1,
+2009400,Burlington city,KS,2615,181,"Emporia, KS",16,2,,5,-0.22,-0.663,-0.443,-0.385,high,0,
+3034225,Hardin city,MT,3766,303,"Sheridan, WY",15,1,,3,0.705,-0.652,-0.311,-0.649,high,0,
+5669845,Sheridan city,WY,19035,303,"Sheridan, WY",15,2,,1,0.065,-0.447,-0.19,-1.684,high,0,
+5610685,Buffalo city,WY,4516,303,"Sheridan, WY",15,3,,9,-1.255,-1.082,-0.601,-2.21,high,0,
+5127440,Farmville town,VA,7613,530,"Farmville, VA",20,1,,1,0.829,0.551,0.211,-0.465,medium,0,Knowledge Center
+5107832,Blackstone town,VA,3341,530,"Farmville, VA",20,2,,11,0.746,-0.319,-0.234,0.033,high,1,
+5120160,Crewe town,VA,2795,530,"Farmville, VA",20,3,,4,0.742,0.113,-0.705,0.643,high,0,
+4815004,Cisco city,TX,3926,499,"Graham, TX",15,1,,1,0.753,-0.441,-0.187,0.217,high,0,
+4830392,Graham city,TX,8758,499,"Graham, TX",15,2,,2,0.672,-0.585,0.086,-0.525,high,0,
+4854000,Olney city,TX,3011,499,"Graham, TX",15,3,,7,0.218,-0.891,-0.308,-0.576,high,0,
+4631060,Huron city,SD,14347,453,"Mitchell, SD",13,1,,5,0.695,-0.901,0.447,-0.601,high,0,
+4643100,Mitchell city,SD,15637,453,"Mitchell, SD",13,2,,3,-0.131,-0.717,-0.3,-1.048,high,0,
+1755912,Olney city,IL,8864,130,"Olney, IL",18,1,,5,-0.22,-0.695,-0.637,0.334,high,0,
+1724816,Fairfield city,IL,4658,130,"Olney, IL",18,2,,1,-0.403,-0.525,-0.364,0.151,high,0,
+1726454,Flora city,IL,4860,130,"Olney, IL",18,3,,4,-0.406,-0.601,-0.786,0.592,high,0,
+5118352,Collinsville CDP,VA,7645,537,"Martinsville, VA",14,1,,1,0.646,0.184,-0.5,0.496,high,0,
+5149784,Martinsville city,VA,13584,537,"Martinsville, VA",14,2,,4,-0.132,-0.219,0.029,0.112,high,0,
+2012500,Chanute city,KS,8629,173,"Parsons, KS",17,1,,10,0.433,-0.752,-0.151,0.574,high,0,
+2034300,Iola city,KS,5368,173,"Parsons, KS",17,2,,6,0.054,-0.56,-0.344,0.899,high,0,
+2054675,Parsons city,KS,9482,173,"Parsons, KS",17,3,,5,-0.749,-0.558,-0.688,1.136,high,0,
+2360825,Presque Isle city,ME,8736,229,"Presque Isle, ME",15,1,,6,-0.174,-0.89,-0.404,-0.425,high,0,
+2333945,Houlton CDP,ME,4958,229,"Presque Isle, ME",15,2,,8,-0.645,-1.058,-0.342,-0.549,high,0,
+2310565,Caribou city,ME,7427,229,"Presque Isle, ME",15,3,,12,-1.422,-1.144,-0.048,-0.721,high,0,
+1803664,Batesville city,IN,6842,150,"Greensburg, IN",17,1,,6,0.507,0.084,-0.829,-0.336,high,0,
+1808182,Brookville town,IN,2640,150,"Greensburg, IN",17,2,,2,0.492,0.479,-0.8,0.182,high,0,
+1829718,Greensburg city,IN,11585,150,"Greensburg, IN",17,3,,11,0.297,-0.363,-0.756,-0.496,high,0,
+2608300,Big Rapids city,MI,7847,255,"Cadillac, MI",20,1,,2,0.812,0.193,-0.489,-0.472,medium,1,Knowledge Center
+2612320,Cadillac city,MI,10404,255,"Cadillac, MI",20,2,,12,-0.05,-0.924,-0.516,-1.287,high,0,
+2667820,Reed City city,MI,2505,255,"Cadillac, MI",20,3,,13,-0.928,-0.977,-0.398,-1.025,high,0,
+1323872,Douglas city,GA,11720,89,"Douglas, GA",12,1,,2,0.442,-0.693,0.423,-1.214,high,0,
+1337564,Hazlehurst city,GA,4072,89,"Douglas, GA",12,2,,1,0.408,-0.683,0.777,-0.952,high,0,
+1301612,Alma city,GA,3441,89,"Douglas, GA",12,3,,10,-0.332,-1.242,0.497,-1.091,high,0,
+3707080,Boone town,NC,19534,373,"Boone, NC",14,1,,5,0.851,1.181,-0.334,-1.871,medium,0,Knowledge Center; Regional Service Center
+4821556,Dumas city,TX,14362,357,"Dumas, TX",10,1,,2,0.79,-0.839,0.979,-0.311,high,0,
+4811692,Cactus city,TX,3063,357,"Dumas, TX",10,2,,3,0.592,-0.962,3.397,-1.181,medium,0,Institutional Risk
+4818524,Dalhart city,TX,7885,357,"Dumas, TX",10,3,,7,0.259,-1.166,1.134,-0.266,high,0,
+3135000,North Platte city,NE,23030,326,"North Platte, NE",11,1,,3,-0.232,-1.088,-0.259,-0.955,high,0,
+3135980,Ogallala city,NE,4800,326,"North Platte, NE",11,2,,8,-0.839,-1.41,-0.254,-1.39,high,0,
+5644760,Lander city,WY,7565,563,"Riverton, WY",13,1,,1,0.442,-0.37,-0.345,-1.016,high,0,
+5666220,Riverton city,WY,10803,563,"Riverton, WY",13,2,,2,0.342,-1.074,-0.086,-1.556,high,0,
+5676515,Thermopolis town,WY,2716,563,"Riverton, WY",13,3,,3,0.232,-1.125,-0.154,-0.619,high,0,
+4856912,Perryton city,TX,8625,424,"Guymon, OK",14,1,,5,0.817,-0.781,1.815,0.737,high,0,
+4031750,Guymon city,OK,12596,424,"Guymon, OK",14,2,,6,0.794,-0.787,1.434,-0.239,high,0,
+4869476,Spearman city,TX,2809,424,"Guymon, OK",14,3,,8,-0.569,-0.999,0.748,0.482,high,0,
+4718540,Crossville city,TN,12265,472,"Crossville, TN",11,1,,4,-0.542,-0.601,-0.305,-1.566,high,0,
+4001700,Altus city,OK,18670,420,"Altus, OK",13,1,,1,0.604,-0.583,0.124,0.714,high,1,Military Anchor
+4046050,Mangum city,OK,2759,420,"Altus, OK",13,2,,2,-0.071,-0.843,-0.611,1.27,high,0,
+4035000,Hobart city,OK,3378,420,"Altus, OK",13,3,,6,-1.413,-1.168,0.083,-0.179,high,0,
+2949034,Moberly city,MO,13634,301,"Moberly, MO",14,1,,4,-0.286,-0.691,-0.462,-0.557,high,0,
+2949394,Monroe City city,MO,3162,301,"Moberly, MO",14,2,,6,-0.411,-0.945,-0.59,-0.767,high,0,
+2945326,Macon city,MO,5457,301,"Moberly, MO",14,3,,5,-0.654,-0.94,-0.035,-0.627,high,0,
+1919945,Denison city,IA,8247,159,"Denison, IA",23,1,,1,0.839,-0.291,1.479,0.369,high,0,
+1903520,Atlantic city,IA,6773,159,"Denison, IA",23,2,,9,-0.398,-0.834,-0.507,-0.166,high,0,
+1934500,Harlan city,IA,4896,159,"Denison, IA",23,3,,4,-0.598,-0.58,-0.33,-0.509,high,0,
+3774220,Williamston town,NC,5157,374,"Washington, NC",20,1,,4,-0.388,-0.277,0.742,0.005,high,0,
+3771220,Washington city,NC,9754,374,"Washington, NC",20,2,,8,-1.215,-0.422,0.185,-1.254,high,0,
+3753040,Plymouth town,NC,3264,374,"Washington, NC",20,3,,18,-2.02,-1.385,0.13,-1.212,medium,0,
+4821844,Eagle Lake city,TX,3464,496,"Gonzales, TX",15,1,,2,0.68,-0.27,-0.465,0.56,high,1,
+4877020,Weimar city,TX,3240,496,"Gonzales, TX",15,2,,7,0.227,-0.485,0.501,-1.173,high,0,
+4830116,Gonzales city,TX,7180,496,"Gonzales, TX",15,3,,3,0.143,-0.328,1.205,-1.066,high,0,
+3819620,Dickinson city,ND,25216,323,"Dickinson, ND",11,1,,3,0.565,-1.279,-0.766,-1.418,high,0,
+4736580,Huntingdon town,TN,4413,466,"Paris, TN",13,1,,2,0.382,-0.171,-0.717,-0.277,high,0,
+4744940,McKenzie city,TN,5706,466,"Paris, TN",13,2,,1,0.269,-0.065,-0.057,-0.711,high,0,Knowledge Center
+4710560,Camden city,TN,3664,466,"Paris, TN",13,3,,3,0.132,-0.453,-0.341,-0.375,high,0,
+4953560,Naples city,UT,3217,516,"Vernal, UT",13,1,,4,0.666,-1.14,-0.537,-1.27,high,0,
+4964670,Roosevelt city,UT,6960,516,"Vernal, UT",13,2,,3,0.52,-0.895,-0.11,-1.316,high,0,
+4947180,Maeser CDP,UT,4533,516,"Vernal, UT",13,3,,8,0.479,-1.369,-0.181,-1.843,high,0,
+4140350,La Grande city,OR,13059,425,"La Grande, OR",10,1,,1,0.413,-0.39,-0.314,-1.019,high,0,
+4103650,Baker City city,OR,10177,425,"La Grande, OR",10,2,,6,-0.282,-0.934,-0.371,-1.311,high,0,
+0528600,Green Forest city,AR,3072,24,"Harrison, AR",14,1,,2,0.561,-0.552,1.943,-0.235,high,0,
+0505560,Berryville city,AR,5715,24,"Harrison, AR",14,2,,1,0.158,-0.432,0.473,-1.332,high,0,
+0530460,Harrison city,AR,13217,24,"Harrison, AR",14,3,,4,-0.604,-0.62,0.147,-1.451,high,0,
+4831280,Groesbeck city,TX,3634,503,"Mexia, TX",18,1,,4,0.672,-0.127,0.182,-0.142,high,1,Government Hub
+4845996,Madisonville city,TX,4510,503,"Mexia, TX",18,2,,3,0.569,-0.06,0.386,-0.46,high,0,
+4872020,Teague city,TX,3443,503,"Mexia, TX",18,3,,9,0.427,-0.607,0.49,-0.622,high,0,
+0132848,Hamilton city,AL,6907,12,"Hamilton city, AL",15,1,,6,-1.749,-1.227,-0.409,-0.919,high,0,
+0182992,Winfield city,AL,4982,12,"Hamilton city, AL",15,2,,2,-1.85,-1.043,-0.617,-0.227,high,0,
+0125840,Fayette city,AL,4221,12,"Hamilton city, AL",15,3,,3,-2.426,-1.106,-0.822,-1.057,high,0,
+1622690,Driggs city,ID,2655,120,"Jackson, WY",15,1,,1,0.088,0.39,2.346,-1.474,medium,0,Amenity Destination
+1684250,Victor city,ID,3024,120,"Jackson, WY",15,2,,3,-0.255,0.007,1.589,-2.32,high,0,Amenity Destination
+2153418,Morehead city,KY,6924,203,"Mount Sterling, KY",14,1,,1,0.784,0.844,0.141,0.072,medium,0,Knowledge Center
+2154084,Mount Sterling city,KY,7549,203,"Mount Sterling, KY",14,2,,5,0.412,-0.248,-0.723,-0.474,high,0,
+2173164,Stanton city,KY,3211,203,"Mount Sterling, KY",14,3,,9,-1.048,-0.819,0.099,-1.909,high,0,
+1302116,Americus city,GA,15910,105,"Americus, GA",12,1,,2,0.828,-0.227,0.065,0.086,high,1,
+1352304,Montezuma city,GA,3002,105,"Americus, GA",12,2,,10,-2.139,-1.064,-0.883,0.491,high,0,
+2282495,Winnsboro city,LA,4777,227,"Tallulah, LA",18,1,,10,0.201,-1.16,-0.101,-1.25,high,0,
+2241400,Lake Providence town,LA,3424,227,"Tallulah, LA",18,2,,6,-0.348,-0.883,0.352,-0.237,high,0,Government Hub
+2263680,Rayville town,LA,3297,227,"Tallulah, LA",18,3,,7,-0.36,-0.92,1.3,-2.234,high,0,
+2177160,Tompkinsville city,KY,2672,202,"Glasgow, KY",11,1,,8,0.204,-1.016,0.231,-1.199,high,0,
+2131114,Glasgow city,KY,15141,202,"Glasgow, KY",11,2,,1,-0.016,-0.291,0.078,-0.98,high,0,
+2113492,Cave City city,KY,2545,202,"Glasgow, KY",11,3,,4,-0.606,-0.801,0.038,-1.935,high,0,
+1923250,Eagle Grove city,IA,3588,169,"Iowa Falls, IA",16,1,,4,0.765,-0.545,0.198,0.738,high,1,
+1905680,Belmond city,IA,2678,169,"Iowa Falls, IA",16,2,,1,0.21,-0.04,-0.417,0.807,high,0,
+1913620,Clarion city,IA,2775,169,"Iowa Falls, IA",16,3,,7,0.048,-0.667,-0.681,0.153,high,0,
+2939026,Kirksville city,MO,17493,286,"Kirksville, MO",12,1,,1,0.731,-0.017,-0.704,0.32,high,0,Knowledge Center; Regional Service Center
+2171688,Somerset city,KY,12108,214,"Somerset, KY",11,1,,2,-0.384,-0.462,0.553,-1.479,high,0,
+2153130,Monticello city,KY,5741,214,"Somerset, KY",11,2,,4,-0.522,-0.643,0.723,-1.012,high,0,
+2670800,St. Helen CDP,MI,2841,250,"Houghton Lake, MI",17,1,,11,0.848,-0.947,1.619,-0.532,high,1,Amenity Destination
+2639400,Houghton Lake CDP,MI,5761,250,"Houghton Lake, MI",17,2,,6,0.784,-0.533,0.963,-0.557,high,0,Amenity Destination
+2631720,Gaylord city,MI,4307,250,"Houghton Lake, MI",17,3,,7,0.187,-0.741,-0.251,-1.639,high,0,
+2663820,Petoskey city,MI,5851,247,"Petoskey, MI",19,1,,1,0.406,0.284,-0.411,-0.68,high,0,Amenity Destination
+2609820,Boyne City city,MI,3829,247,"Petoskey, MI",19,2,,8,0.387,-0.454,-0.392,-1.382,high,0,Amenity Destination
+2615000,Cheboygan city,MI,4801,247,"Petoskey, MI",19,3,,14,-0.387,-1.099,0.097,-1.78,high,0,
+2039825,Liberal city,KS,19107,194,"Liberal, KS",11,1,,2,0.775,-0.731,1.671,0.249,high,1,
+3108605,Chadron city,NE,5207,330,"Alliance, NE",15,1,,1,0.736,-0.28,-0.721,-0.134,high,1,Knowledge Center
+3100905,Alliance city,NE,8089,330,"Alliance, NE",15,2,,6,0.378,-1.174,-0.33,-0.443,high,0,
+5187072,Wise town,VA,2940,534,"Wise--Norton, VA",21,1,,3,0.201,-0.343,-0.442,-0.527,high,0,
+5157688,Norton city,VA,3620,534,"Wise--Norton, VA",21,2,,7,-0.224,-0.521,0.892,-0.21,high,0,
+5107480,Big Stone Gap town,VA,5193,534,"Wise--Norton, VA",21,3,,2,-0.504,-0.291,-0.495,0.324,medium,0,
+2957422,Piedmont city,MO,2857,292,"Poplar Bluff, MO",13,1,,7,0.524,-0.921,0.156,-0.632,high,0,
+2959096,Poplar Bluff city,MO,16243,292,"Poplar Bluff, MO",13,2,,6,-0.616,-0.892,-0.252,-0.885,high,0,
+0851635,Monte Vista city,CO,4178,55,"Alamosa, CO",18,1,,6,0.338,-0.411,0.921,-1.157,high,0,
+0801090,Alamosa city,CO,9847,55,"Alamosa, CO",18,2,,3,0.319,-0.053,0.231,-1.154,high,0,
+2601740,Alpena city,MI,10178,240,"Alpena, MI",16,1,,10,-0.53,-1.161,-0.05,-1.152,high,0,
+2624420,East Tawas city,MI,2686,240,"Alpena, MI",16,2,,4,-0.713,-0.807,0.689,-1.161,high,0,Amenity Destination
+2669260,Rogers City city,MI,2873,240,"Alpena, MI",16,3,,11,-0.722,-1.242,0.369,-1.032,high,0,
+2028300,Great Bend city,KS,14596,177,"Great Bend, KS",10,1,,5,-0.114,-0.944,0.136,0.156,high,0,
+2032550,Hoisington city,KS,2660,177,"Great Bend, KS",10,2,,2,-0.551,-0.557,-0.761,1.149,high,0,
+2038700,Larned city,KS,3328,177,"Great Bend, KS",10,3,,8,-1.754,-1.278,-0.644,0.019,high,0,
+0886750,Yuma city,CO,3427,67,"Sterling, CO",11,1,,3,0.453,-0.742,2.025,-1.278,high,0,
+0873935,Sterling city,CO,13273,67,"Sterling, CO",11,2,,2,-0.253,-0.696,0.394,-1.457,high,0,
+4963570,Richfield city,UT,8173,518,"Richfield, UT",25,1,,15,0.569,-1.188,-0.403,-1.374,high,0,
+4965880,Salina city,UT,2521,518,"Richfield, UT",25,2,,13,0.434,-1.121,0.099,-1.533,high,0,Government Hub
+4951360,Monroe city,UT,2570,518,"Richfield, UT",25,3,,10,-0.764,-0.936,0.207,-1.817,high,0,
+0547390,Mountain Home city,AR,13021,22,"Mountain Home, AR",13,1,,4,-0.573,-0.665,-0.303,-1.457,high,0,
+4934530,Helper city,UT,2680,515,"Price, UT",15,1,,2,-0.042,-0.593,0.181,-0.914,high,0,
+4962030,Price city,UT,8216,515,"Price, UT",15,2,,5,-0.188,-0.924,0.298,-2.012,high,0,
+4108650,Brookings city,OR,6733,44,"Crescent City, CA",13,1,,2,-0.513,-0.523,1.344,-1.679,high,0,Government Hub
+0617022,Crescent City city,CA,6180,44,"Crescent City, CA",13,2,,1,-0.911,-0.383,1.3,-2.102,medium,0,
+2639360,Houghton city,MI,8341,245,"Houghton--Hancock, MI",16,1,,1,0.816,1.272,-0.196,0.032,medium,0,Knowledge Center
+2636300,Hancock city,MI,4510,245,"Houghton--Hancock, MI",16,2,,2,0.795,-0.112,-0.704,-0.075,high,0,Knowledge Center
+2955244,Osage Beach city,MO,4715,293,"Village of Four Seasons, MO",15,1,,4,0.756,0.079,2.527,-1.062,high,0,Amenity Destination
+2910810,Camdenton city,MO,4017,293,"Village of Four Seasons, MO",15,2,,7,0.154,-0.577,0.452,-1.835,high,0,
+2921484,Eldon city,MO,4486,293,"Village of Four Seasons, MO",15,3,,8,-0.908,-0.609,-0.516,-1.119,high,0,
+2911566,Carrollton city,MO,3335,294,"Chillicothe, MO",12,1,,2,0.314,-0.359,-0.321,0.268,high,0,
+2913690,Chillicothe city,MO,9129,294,"Chillicothe, MO",12,2,,4,-0.372,-0.649,-0.293,-0.538,high,0,
+2908650,Brookfield city,MO,4128,294,"Chillicothe, MO",12,3,,11,-1.304,-1.316,-0.724,-0.24,high,0,
+5116512,Chincoteague town,VA,3300,522,"Chincoteague, VA",32,1,,4,0.716,0.376,1.935,-0.538,high,1,Military Anchor; Amenity Destination
+1919405,Decorah city,IA,7597,166,"Decorah, IA",15,1,,1,0.681,0.341,-0.673,-0.166,high,1,Knowledge Center
+1956100,New Hampton city,IA,3462,166,"Decorah, IA",15,2,,14,-0.044,-1.1,-0.672,-0.545,high,0,
+1917220,Cresco city,IA,3901,166,"Decorah, IA",15,3,,9,-0.213,-0.816,-0.777,-0.49,high,0,
+4868624,Snyder city,TX,11310,483,"Snyder, TX",10,1,,3,0.6,-1.123,-0.276,-0.414,high,0,
+4832696,Haskell city,TX,3038,483,"Snyder, TX",10,2,,2,-0.573,-1.089,0.429,0.565,high,0,
+4866968,Seymour city,TX,2607,483,"Snyder, TX",10,3,,6,-2.625,-1.69,0.102,-1.404,medium,0,
+3133705,Nebraska City city,NE,7287,287,"Nebraska City, NE",15,1,,3,0.831,0.016,-0.162,0.545,high,0,
+3102655,Auburn city,NE,3468,287,"Nebraska City, NE",15,2,,14,-0.316,-0.87,-0.807,-0.203,high,0,
+4082150,Woodward city,OK,11976,419,"Woodward, OK",13,1,,1,0.4,-1.186,-0.167,-0.029,high,0,
+1733136,Harrisburg city,IL,8608,134,"Harrisburg, IL",12,1,,4,-0.384,-0.502,-0.431,0.772,high,0,
+1723009,Eldorado city,IL,3762,134,"Harrisburg, IL",12,2,,1,-0.643,-0.344,-0.374,1.031,high,0,
+5463292,Philippi city,WV,2919,545,"Elkins, WV",15,1,,4,-0.344,-0.336,0.386,-0.004,high,0,Knowledge Center
+5424580,Elkins city,WV,6875,545,"Elkins, WV",15,2,,5,-0.393,-0.456,-0.424,-0.312,high,0,
+2650720,Manistee city,MI,6275,256,"Ludington, MI",13,1,,5,0.055,-0.757,0.3,-0.934,high,0,
+2649640,Ludington city,MI,7664,256,"Ludington, MI",13,2,,3,-0.519,-0.54,0.4,-1.627,high,0,
+2015200,Concordia city,KS,5067,186,"Concordia, KS",16,1,,4,0.067,-0.667,-0.23,0.177,high,0,
+2045050,Marysville city,KS,3423,186,"Concordia, KS",16,2,,12,-0.664,-1.297,-0.314,-0.399,high,0,
+3576200,Taos town,NM,6468,356,"Taos, NM",12,1,,2,-1.69,-0.319,1.305,-2.221,medium,0,
+1912720,Chariton city,IA,4235,167,"Osceola, IA",11,1,,5,0.202,-0.789,-0.674,-0.361,high,0,
+1959835,Osceola city,IA,5495,167,"Osceola, IA",11,2,,3,-0.219,-0.661,-0.1,-0.197,high,0,
+4642260,Milbank city,SD,3513,261,"Milbank city, SD",18,1,,5,-0.894,-0.682,-0.643,-0.65,high,0,
+0531090,Heber Springs city,AR,7101,28,"Heber Springs, AR",12,1,,4,-0.178,-0.813,-0.349,-1.362,high,0,
+0514260,Clinton city,AR,2506,28,"Heber Springs, AR",12,2,,9,-1.533,-1.248,0.066,-1.481,high,0,
+3018775,Cut Bank city,MT,3040,314,"Shelby city, MT",13,1,,6,-0.208,-1.321,-0.379,-0.939,high,0,
+5503225,Ashland city,WI,7884,551,"Ashland, WI",12,1,,3,-0.163,-0.754,-0.003,-0.963,high,0,
+3067450,Shelby city,MT,3129,314,"Shelby city, MT",13,2,,5,-0.73,-1.188,0.663,-0.971,high,0,
+3017275,Conrad city,MT,2553,314,"Shelby city, MT",13,3,,8,-1.683,-1.677,-0.423,-2.18,high,0,
+2135362,Hazard city,KY,5105,209,"Hazard, KY",14,1,,4,-0.067,0.267,-0.532,1.843,high,0,
+2031675,Hiawatha city,KS,3223,179,"Falls City, NE",12,1,,7,-0.302,-0.698,-0.29,0.517,high,0,
+2973816,Trenton city,MO,5542,296,"Trenton, MO",13,1,,4,-1.01,-1.016,-0.165,0.053,high,0,
+2905068,Bethany city,MO,3164,296,"Trenton, MO",13,2,,2,-1.469,-0.817,0.174,-0.278,high,0,
+3831820,Grafton city,ND,4128,270,"Grafton city, ND",15,1,,1,0.179,-0.76,-0.57,-0.071,high,0,
+4906370,Blanding city,UT,3303,519,"Moab, UT",11,1,,2,0.475,-0.956,-0.114,-1.523,high,0,
+4950700,Moab city,UT,5316,519,"Moab, UT",11,2,,4,-0.751,-1.118,1.007,-3.111,high,0,
+2641060,Ironwood city,MI,5004,253,"Ironwood, MI--WI",12,1,,3,-0.689,-1.036,0.012,-0.391,high,0,
+3129925,McCook city,NE,7360,334,"McCook, NE",11,1,,2,-0.783,-1.299,-0.529,-1.108,high,0,
+3149950,Valentine city,NE,2632,335,"Valentine city, NE",12,1,,10,-0.424,-1.429,0.197,-1.829,high,0,
+2005775,Beloit city,KS,3141,195,"Beloit city, KS",10,1,,2,-0.237,-0.794,-0.385,-0.282,high,0,
+3081475,Wolf Point city,MT,2604,316,"Glasgow city, MT",12,1,,7,0.097,-1.883,0.368,-1.247,high,0,
+3031075,Glasgow city,MT,3194,316,"Glasgow city, MT",12,2,,6,-0.714,-1.66,-0.298,-0.379,high,0,
+4611220,Chamberlain city,SD,2621,456,"Chamberlain city, SD",11,1,,2,-1.065,-1.3,-0.595,-0.843,high,0,
