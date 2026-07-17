@@ -1,0 +1,26 @@
+{
+ "design": "county net IRS migration rate 2015-2020 vs year-2000 county-aggregated attraction; kill comparator = lagged 2005-2010 net rate",
+ "counties": 2883,
+ "zonesWith5PlusCounties": 255,
+ "national": {
+  "attraction2000_vs_netRate2015_2020": 0.1265,
+  "laggedNetRate2005_2010_vs_netRate2015_2020": 0.6413,
+  "attraction2000_vs_netRate2005_2010": 0.2945
+ },
+ "withinCommutingZone": {
+  "equalZoneMeanSpearman_attraction": -0.1312,
+  "equalZoneMeanSpearman_laggedFlows": 0.5306,
+  "attractionMinusLag": {
+   "mean": -0.6617,
+   "ci95": [
+    -0.7315,
+    -0.5845
+   ]
+  }
+ },
+ "caveats": [
+  "IRS exemptions undercount non-filers (students, low-income elderly)",
+  "all-ages flows; the mechanism claim is strongest for working-age movers",
+  "attraction aggregated from modeled places only (incorporated-place coverage of counties varies)"
+ ]
+}
