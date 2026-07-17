@@ -139,6 +139,7 @@ interface CapitalInputs {
 interface CapitalOutputs {
   // Stock and flows
   stock: number;              // Capital stock ($ trillions)
+  nextCapitalStock: number;   // End-of-period capital stock ($ trillions)
   investment: number;         // Annual investment ($ trillions)
 
   // Rates
@@ -166,6 +167,8 @@ interface CapitalOutputs {
   // Intergenerational transfers
   retireeCost: number;          // $ trillions (pensions + healthcare for 65+)
   childCost: number;            // $ trillions (education for 0-19)
+  regionalRetireeCost: Record<Region, number>; // $ trillions by region
+  regionalChildCost: Record<Region, number>;   // $ trillions by region
   transferBurden: number;       // (retireeCost + childCost) / GDP, capped at 0.50
   workerConsumption: number;    // $ trillions (GDP - investment - retireeCost - childCost - publicDebtService)
 
@@ -173,6 +176,10 @@ interface CapitalOutputs {
   publicDebtGDP: number;       // ratio
   privateDebtGDP: number;      // ratio
   totalDebtGDP: number;        // ratio
+  publicDebtStock: number;     // Beginning-of-period public debt ($T)
+  privateDebtStock: number;    // Beginning-of-period private debt ($T)
+  nextPublicDebtStock: number; // End-of-period public debt ($T)
+  nextPrivateDebtStock: number;// End-of-period private debt ($T)
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
   debtRiskPremium: number;     // fraction added to interest rate
@@ -445,6 +452,7 @@ export const capitalModule: Module<
 
   outputs: [
     'stock',
+    'nextCapitalStock',
     'investment',
     'savingsRate',
     'regionalSavings',
@@ -460,11 +468,17 @@ export const capitalModule: Module<
     'energyShareOfInvestment',
     'retireeCost',
     'childCost',
+    'regionalRetireeCost',
+    'regionalChildCost',
     'transferBurden',
     'workerConsumption',
     'publicDebtGDP',
     'privateDebtGDP',
     'totalDebtGDP',
+    'publicDebtStock',
+    'privateDebtStock',
+    'nextPublicDebtStock',
+    'nextPrivateDebtStock',
     'publicDebtService',
     'creditImpulse',
     'debtRiskPremium',
@@ -654,6 +668,12 @@ export const capitalModule: Module<
     const MAX_TRANSFER_BURDEN = 0.50;
     let retireeCost = 0;
     let childCost = 0;
+    const regionalRetireeCost = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
+    const regionalChildCost = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
 
     // Capture reference values on first step (year 0)
     const refGdpPerWorker = { ...state.referenceGdpPerWorker };
@@ -712,8 +732,13 @@ export const capitalModule: Module<
       const effectiveGdpPerCapita = wi * currentGdpPerCapita + (1 - wi) * (refGdpPerCapita[r] ?? currentGdpPerCapita);
 
       // Use adjusted old population + blended GDP rates for transfer costs
-      retireeCost += adjustedOld * (pensionRate * effectiveGdpPerWorker + healthcareRate * effectiveGdpPerCapita);
-      childCost += young * educationRate * effectiveGdpPerCapita;
+      const regionRetireeCost = adjustedOld *
+        (pensionRate * effectiveGdpPerWorker + healthcareRate * effectiveGdpPerCapita);
+      const regionChildCost = young * educationRate * effectiveGdpPerCapita;
+      regionalRetireeCost[r] = regionRetireeCost;
+      regionalChildCost[r] = regionChildCost;
+      retireeCost += regionRetireeCost;
+      childCost += regionChildCost;
     }
 
     const transferBurden = Math.min(MAX_TRANSFER_BURDEN, inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0);
@@ -837,6 +862,7 @@ export const capitalModule: Module<
       },
       outputs: {
         stock: state.stock, // Output current stock (before update)
+        nextCapitalStock: newStock,
         investment,
         savingsRate,
         regionalSavings,
@@ -852,11 +878,17 @@ export const capitalModule: Module<
         energyShareOfInvestment: energyShare,
         retireeCost,
         childCost,
+        regionalRetireeCost,
+        regionalChildCost,
         transferBurden,
         workerConsumption,
         publicDebtGDP,
         privateDebtGDP,
         totalDebtGDP,
+        publicDebtStock: publicDebt,
+        privateDebtStock: privateDebt,
+        nextPublicDebtStock: newPublicDebt,
+        nextPrivateDebtStock: newPrivateDebt,
         publicDebtService,
         creditImpulse,
         debtRiskPremium,

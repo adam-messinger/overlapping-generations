@@ -16,6 +16,8 @@ export type { Scenario } from './scenario.js';
 export { demographicsModule, demographicsDefaults } from './modules/demographics.js';
 export { demandModule, demandDefaults } from './modules/demand.js';
 export { capitalModule, capitalDefaults } from './modules/capital.js';
+export { generationsModule, generationsDefaults } from './modules/generations.js';
+export type { GenerationsParams, CohortAccount, CohortStatus } from './modules/generations.js';
 export { energyModule, energyDefaults } from './modules/energy.js';
 export { dispatchModule, dispatchDefaults } from './modules/dispatch.js';
 export { productionModule, productionDefaults } from './modules/production.js';

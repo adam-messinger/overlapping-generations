@@ -1,8 +1,8 @@
 # Overlapping Generations Energy Simulation
 
 A TypeScript simulation exploring energy transitions, demographics, debt, and
-climate from 2025 to 2100. Nine pure modules (demographics, production,
-demand, capital, energy, dispatch, resources, CDR, climate) are composed by a
+climate from 2025 to 2100. Ten pure modules (demographics, production,
+demand, capital, generations, energy, dispatch, resources, CDR, climate) are composed by a
 small domain-independent framework (`src/framework/`) that resolves
 dependencies topologically and breaks feedback cycles with explicit one-year
 lags.
@@ -12,6 +12,14 @@ a primary growth factor), Wright's Law learning curves for solar/wind/battery,
 merit-order dispatch with VRE penetration limits, DICE-style climate damages
 with tipping points, Fernández-Villaverde demographic convergence, and an
 explicit intergenerational transfer + debt/credit channel.
+
+The diagnostic layer in `src/modules/generations.ts` allocates those
+flows to five-year birth-cohort balance sheets and reports borrowing-limit and
+credit-rationing gaps without changing the macro path. See
+[`docs/GENERATIONAL_ACCOUNTS.md`](docs/GENERATIONAL_ACCOUNTS.md). The conditional
+1989–2025 validation against Federal Reserve, World Bank, and National Transfer
+Accounts data is documented in
+[`docs/GENERATIONAL_BACKCAST.md`](docs/GENERATIONAL_BACKCAST.md).
 
 ## Quick start
 
@@ -50,7 +58,7 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
 
 - **[CLAUDE.md](CLAUDE.md)** — architecture, module dependency graph,
   development conventions, scenario table, key outputs. Start here.
-- `src/modules/` — the nine simulation modules (pure
+- `src/modules/` — the ten simulation modules (pure
   `init`/`step`/`validate` interfaces)
 - `src/framework/` — generic autowiring/collector/problem framework
   (no domain imports; reusable for other simulations)

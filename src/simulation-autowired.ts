@@ -20,6 +20,7 @@ import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
+import { generationsModule } from './modules/generations.js';
 import { energyModule } from './modules/energy.js';
 import { dispatchModule } from './modules/dispatch.js';
 // expansion module dissolved into demand + production
@@ -39,6 +40,7 @@ export const ALL_MODULES: AnyModule[] = [
   productionModule,
   demandModule,
   capitalModule,
+  generationsModule,
   energyModule,
   dispatchModule,
   resourcesModule,
@@ -511,6 +513,7 @@ export function runAutowiredSimulation(
       production: params.production,
       demand: params.demand,
       capital: params.capital,
+      generations: params.generations,
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
@@ -596,6 +599,23 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       publicDebtService: o.publicDebtService ?? 0,
       creditImpulse: o.creditImpulse ?? 0,
       debtRiskPremium: o.debtRiskPremium ?? 0,
+
+      // Five-year birth-cohort accounts
+      cohortAccounts: o.cohortAccounts ?? {},
+      regionalCohortAccounts: o.regionalCohortAccounts ??
+        Object.fromEntries(REGIONS.map(r => [r, {}])),
+      cohortDesiredCapital: o.cohortDesiredCapital ?? 0,
+      cohortFundedCapital: o.cohortFundedCapital ?? 0,
+      cohortFundingGap: o.cohortFundingGap ?? 0,
+      aggregateCapitalFundingGap: o.aggregateCapitalFundingGap ?? 0,
+      aggregateCapitalCoverage: o.aggregateCapitalCoverage ?? 1,
+      cohortBorrowingLimitGap: o.cohortBorrowingLimitGap ?? 0,
+      cohortCreditRationingGap: o.cohortCreditRationingGap ?? 0,
+      constrainedWorkingShare: o.constrainedWorkingShare ?? 0,
+      borrowingConstrainedWorkingShare: o.borrowingConstrainedWorkingShare ?? 0,
+      cohortBequests: o.cohortBequests ?? 0,
+      cohortAssets: o.cohortAssets ?? 0,
+      cohortLiabilities: o.cohortLiabilities ?? 0,
 
       // Energy
       lcoes: o.lcoes,

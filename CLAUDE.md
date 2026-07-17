@@ -12,6 +12,7 @@ overlapping-generations/
 │   │   ├── production.ts
 │   │   ├── demand.ts
 │   │   ├── capital.ts
+│   │   ├── generations.ts
 │   │   ├── energy.ts
 │   │   ├── dispatch.ts
 │   │   ├── resources.ts
@@ -83,6 +84,7 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
    demand ← production (GDP), demographics, lagged damages, lagged LCOE
      ↓
    capital ← demographics, demand, lagged damages, regional life expectancy
+     ├→ generations ← demographics, demand (diagnostic, no feedback)
      ↓
    energy ← demand, capital
      ↓
@@ -179,6 +181,13 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Risk premium**: high total debt/GDP → higher interest rate → self-limiting
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity
 - Demographic savings response: life expectancy and dependency ratio affect savings
+
+### Five-Year Generational Accounts
+- Diagnostic birth-cohort assets, liabilities, taxes, transfers, and bequests
+- Desired versus funded productive-capital acquisition by cohort
+- Separates income-based borrowing-limit gaps from aggregate credit rationing
+- Reconciles to macro capital/debt stocks but does not feed back into the macro path
+- See `docs/GENERATIONAL_ACCOUNTS.md` for equations and interpretation limits
 
 ## Scenarios
 

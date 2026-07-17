@@ -37,6 +37,7 @@ export interface Scenario {
   demographics?: SimulationParams['demographics'];
   demand?: SimulationParams['demand'];
   capital?: SimulationParams['capital'];
+  generations?: SimulationParams['generations'];
   energy?: SimulationParams['energy'];
   dispatch?: SimulationParams['dispatch'];
   resources?: SimulationParams['resources'];
@@ -73,7 +74,7 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   const knownKeys = new Set([
     'name', 'description', 'meta',
     'demographics', 'demand', 'capital', 'energy',
-    'dispatch', 'resources', 'cdr', 'climate', 'production',
+    'generations', 'dispatch', 'resources', 'cdr', 'climate', 'production',
     'startYear', 'endYear',
   ]);
 
@@ -89,6 +90,7 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   if (scenario.demographics) params.demographics = scenario.demographics;
   if (scenario.demand) params.demand = scenario.demand;
   if (scenario.capital) params.capital = scenario.capital;
+  if (scenario.generations) params.generations = scenario.generations;
   if (scenario.energy) params.energy = scenario.energy;
   if (scenario.dispatch) params.dispatch = scenario.dispatch;
   if (scenario.resources) params.resources = scenario.resources;

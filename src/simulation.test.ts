@@ -33,6 +33,34 @@ test('scenarioToParams passes through startYear/endYear', () => {
   expect(params.endYear).toBe(2032);
 });
 
+test('cohort accounts reconcile to the next-year macro stocks', () => {
+  const result = runSimulation({ startYear: 2025, endYear: 2026 });
+  const first = result.results[0];
+  const second = result.results[1];
+  expect(Object.keys(first.cohortAccounts).length).toBeGreaterThan(0);
+  expect(first.cohortAssets).toBeCloseTo(second.capitalStock, 6);
+});
+
+test('cohort constraint assumptions do not feed back into the macro path', () => {
+  const tight = runSimulation({
+    startYear: 2025,
+    endYear: 2030,
+    generations: { borrowingLimitIncomeMultiple: 0 },
+  });
+  const loose = runSimulation({
+    startYear: 2025,
+    endYear: 2030,
+    generations: { borrowingLimitIncomeMultiple: 20 },
+  });
+  const tightFinal = tight.results[tight.results.length - 1];
+  const looseFinal = loose.results[loose.results.length - 1];
+  expect(tightFinal.gdp).toBeCloseTo(looseFinal.gdp, 8);
+  expect(tightFinal.capitalStock).toBeCloseTo(looseFinal.capitalStock, 8);
+  expect(tightFinal.cohortBorrowingLimitGap).toBeGreaterThan(
+    looseFinal.cohortBorrowingLimitGap,
+  );
+});
+
 // Cross-check: standardCollectors covers all toYearResults fields
 test('standardCollectors covers all toYearResults fields', () => {
   const result = runAutowiredFull({ startYear: 2025, endYear: 2026 });

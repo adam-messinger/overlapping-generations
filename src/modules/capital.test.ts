@@ -339,6 +339,23 @@ test('child cost is positive', () => {
   expect(outputs.childCost).toBeGreaterThan(0);
 });
 
+test('regional transfer flows reconcile to global transfer outputs', () => {
+  const { outputs } = runYears(1);
+  const regionalRetirees = Object.values(outputs.regionalRetireeCost as Record<string, number>)
+    .reduce((sum, value) => sum + value, 0);
+  const regionalChildren = Object.values(outputs.regionalChildCost as Record<string, number>)
+    .reduce((sum, value) => sum + value, 0);
+  expect(regionalRetirees).toBeCloseTo(outputs.retireeCost, 6);
+  expect(regionalChildren).toBeCloseTo(outputs.childCost, 6);
+});
+
+test('end-of-period stock outputs reconcile to returned state', () => {
+  const { state, outputs } = runYears(1);
+  expect(outputs.nextCapitalStock).toBeCloseTo(state.stock, 6);
+  expect(outputs.nextPublicDebtStock).toBeCloseTo(state.publicDebt, 6);
+  expect(outputs.nextPrivateDebtStock).toBeCloseTo(state.privateDebt, 6);
+});
+
 test('transfer burden rises over 75 years (aging population)', () => {
   const year1 = runYears(1).outputs.transferBurden;
   const year76 = runYears(76).outputs.transferBurden;

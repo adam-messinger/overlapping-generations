@@ -113,6 +113,22 @@ export const standardCollectors: CollectorConfig = {
     { source: 'creditImpulse', unit: '$T', description: 'Net new private credit flow', module: 'capital' },
     { source: 'debtRiskPremium', unit: 'fraction', description: 'Interest rate premium from debt levels', module: 'capital' },
 
+    // Five-year birth-cohort accounts
+    { source: 'cohortAccounts', unit: 'account records', description: 'Global five-year birth-cohort balance sheets and annual flows', module: 'generations' },
+    { source: 'regionalCohortAccounts', unit: 'account records', description: 'Five-year birth-cohort accounts by region', module: 'generations' },
+    { source: 'cohortDesiredCapital', unit: '$T/year', description: 'Diagnostic desired cohort capital formation: replacement plus target net growth', module: 'generations' },
+    { source: 'cohortFundedCapital', unit: '$T/year', description: 'Desired cohort capital acquisition funded by own saving and allocated credit', module: 'generations' },
+    { source: 'cohortFundingGap', unit: '$T/year', description: 'Desired cohort capital acquisition not funded', module: 'generations' },
+    { source: 'aggregateCapitalFundingGap', unit: '$T/year', description: 'Shortfall of general investment relative to replacement plus target net capital growth', module: 'generations' },
+    { source: 'aggregateCapitalCoverage', unit: 'fraction', description: 'General investment divided by diagnostic desired aggregate capital formation, capped at one', module: 'generations' },
+    { source: 'cohortBorrowingLimitGap', unit: '$T/year', description: 'Funding gap attributable to cohort income-based borrowing limits', module: 'generations' },
+    { source: 'cohortCreditRationingGap', unit: '$T/year', description: 'Funding gap attributable to scarce aggregate credit despite borrowing headroom', module: 'generations' },
+    { source: 'constrainedWorkingShare', unit: 'fraction', description: 'Working population in cohorts with a material capital funding gap', module: 'generations' },
+    { source: 'borrowingConstrainedWorkingShare', unit: 'fraction', description: 'Working population in cohorts whose desired borrowing exceeds their limit', module: 'generations' },
+    { source: 'cohortBequests', unit: '$T/year', description: 'Productive-asset ownership transferred to working-age heirs', module: 'generations' },
+    { source: 'cohortAssets', unit: '$T', description: 'End-of-period productive capital owned across cohort accounts', module: 'generations' },
+    { source: 'cohortLiabilities', unit: '$T', description: 'End-of-period private liabilities across cohort accounts', module: 'generations' },
+
     // Energy
     { source: 'lcoes', unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
     { source: 'capacities', unit: 'GW (GWh for battery)', description: 'Installed capacity by source', module: 'energy' },

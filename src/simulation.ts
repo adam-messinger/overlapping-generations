@@ -11,6 +11,8 @@
  *      demand ← production (GDP), demographics, lagged damages
  *        ↓
  *      capital ← demographics, demand, lagged damages
+ *          ↓
+ *   generations ← demographics, demand, capital (diagnostic only)
  *        ↓
  *      energy ← demand, capital
  *        ↓
@@ -27,6 +29,7 @@ import type { DemographicsParams } from './modules/demographics.js';
 import type { ProductionParams } from './modules/production.js';
 import type { DemandParams } from './modules/demand.js';
 import type { CapitalParams } from './modules/capital.js';
+import type { GenerationsParams, CohortAccount } from './modules/generations.js';
 import type { EnergyParams } from './modules/energy.js';
 import type { DispatchParams } from './modules/dispatch.js';
 import type { ResourcesParams } from './modules/resources.js';
@@ -46,6 +49,7 @@ export interface SimulationParams {
   production?: Partial<ProductionParams>;
   demand?: Partial<DemandParams>;
   capital?: Partial<CapitalParams>;
+  generations?: Partial<GenerationsParams>;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
   resources?: Partial<ResourcesParams>;
@@ -117,6 +121,22 @@ export interface YearResult {
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
   debtRiskPremium: number;     // fraction added to interest rate
+
+  // Five-year birth-cohort accounts
+  cohortAccounts: Record<string, CohortAccount>;
+  regionalCohortAccounts: Record<Region, Record<string, CohortAccount>>;
+  cohortDesiredCapital: number;            // $T/year
+  cohortFundedCapital: number;             // $T/year
+  cohortFundingGap: number;                // $T/year
+  aggregateCapitalFundingGap: number;      // macro $T/year
+  aggregateCapitalCoverage: number;        // funded/desired, capped at 1
+  cohortBorrowingLimitGap: number;         // $T/year
+  cohortCreditRationingGap: number;        // $T/year
+  constrainedWorkingShare: number;         // fraction of workers
+  borrowingConstrainedWorkingShare: number;// fraction of workers
+  cohortBequests: number;                  // $T/year
+  cohortAssets: number;                    // end-of-period $T
+  cohortLiabilities: number;               // end-of-period $T
 
   // Energy
   lcoes: Record<EnergySource, number>;
@@ -546,6 +566,27 @@ async function runCLI() {
   console.log(`Worker consumption 2025: $${result.results[idx2025].workerConsumption.toFixed(0)}T`);
   console.log(`Worker consumption 2050: ${fmt2050(r => '$' + r.workerConsumption.toFixed(0) + 'T')}`);
   console.log(`Worker consumption 2100: $${result.results[idx2100].workerConsumption.toFixed(0)}T`);
+
+  // Five-year generational accounts
+  const mostConstrained = (r: YearResult): string => {
+    const account = Object.values(r.cohortAccounts)
+      .filter(a => a.workingPopulation > 0 && a.desiredCapital > 0)
+      .sort((a, b) => b.constraintShare - a.constraintShare)[0];
+    return account
+      ? `${account.label} (${(account.constraintShare * 100).toFixed(0)}% acquisition gap)`
+      : 'none';
+  };
+  console.log('\n=== Five-Year Generational Accounts ===\n');
+  console.log(`Cohort acquisition gap 2025: $${result.results[idx2025].cohortFundingGap.toFixed(1)}T`);
+  console.log(`Cohort acquisition gap 2050: ${fmt2050(r => '$' + r.cohortFundingGap.toFixed(1) + 'T')}`);
+  console.log(`Cohort acquisition gap 2100: $${result.results[idx2100].cohortFundingGap.toFixed(1)}T`);
+  console.log(`Aggregate capital coverage 2025: ${(result.results[idx2025].aggregateCapitalCoverage * 100).toFixed(0)}%`);
+  console.log(`Aggregate capital coverage 2100: ${(result.results[idx2100].aggregateCapitalCoverage * 100).toFixed(0)}%`);
+  console.log(`Workers in constrained cohorts 2025: ${(result.results[idx2025].constrainedWorkingShare * 100).toFixed(0)}%`);
+  console.log(`Workers in constrained cohorts 2100: ${(result.results[idx2100].constrainedWorkingShare * 100).toFixed(0)}%`);
+  console.log(`Borrowing-limit constrained 2025: ${(result.results[idx2025].borrowingConstrainedWorkingShare * 100).toFixed(0)}%`);
+  console.log(`Most constrained cohort 2025: ${mostConstrained(result.results[idx2025])}`);
+  console.log(`Most constrained cohort 2100: ${mostConstrained(result.results[idx2100])}`);
 
   // Debt/credit
   console.log('\n=== Debt/Credit ===\n');
