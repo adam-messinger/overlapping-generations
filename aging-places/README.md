@@ -43,6 +43,7 @@ npx tsx aging-places/scripts/window-stability.ts
 node --import tsx aging-places/japan/scripts/development-backtest.ts
 npx tsx aging-places/scripts/institutional-scenarios.ts
 npx tsx aging-places/scripts/forecast.ts
+npx tsx aging-places/scripts/market-rankings.ts
 npm test
 ```
 
@@ -80,6 +81,9 @@ is therefore a new data vintage, not a byte-for-byte recreation of the committed
 - `structuralScore`: price-free current fundamentals composite.
 - `valuationGap`: structural score minus standardized current log price/income.
 - `confidence` and `confidenceReasons`: data/support warnings, not statistical intervals.
+- `outputs/market-rankings.csv.gz` / `outputs/market-leaders.csv`: the primary ranked surface —
+  places ranked WITHIN commuting zones by `mechanismScore`, the only score with validated local
+  rank signal (see docs/MARKET_RANKINGS.md). National lists are valuation/exposure screens.
 
 The top/bottom lists currently cover 3,496 eligible places and require population at least 10,000,
 observed current ZHVI, a non-group-quarters-dominated housing market, and confidence above `low`.
