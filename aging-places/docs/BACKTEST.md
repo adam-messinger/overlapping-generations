@@ -168,3 +168,29 @@ demographic information the mechanism reconstructs. Combined with the developmen
 the extended US channels (university, education, access, affordability, vacancy) *reduce*
 transfer, the defensible claim shrinks to: the demographic-regeneration core is a real,
 transferable signal; the US-calibrated channel weights are not.
+
+## 7. Italy external-regime test (preregistered; holdout opened 2026-07-18)
+
+Protocol: `ITALY_PANEL.md`. Demographic-core mechanism only (deviation log #3), 2011 commuting
+basins, frozen US weights. Development (committed before holdout): trails the lagged trend in
+both windows (2012-2019: -0.072, CI -0.138..-0.004), and inverts at the metro top — Milano
+predicted 67/93 in its basin, realized #1; Roma predicted 43/45, realized #7. Italian
+concentration runs through jobs and institutions, not existing age structure.
+
+Sealed 2019-2024 holdout (POSAS pair, COVID inside the window, conservation error 0):
+
+| pop>=10k, n=1,191, 41 basins | MAE/yr | Equal-basin Spearman |
+|---|---:|---:|
+| Frozen demographic mechanism | 0.00638 | 0.468 |
+| Lagged working-age trend | 0.00575 | 0.428 |
+| Scaled no-migration aging | **0.00538** | 0.487 |
+
+Mechanism minus lag: +0.040 (CI -0.068..+0.155); sensitivity +0.069 (CI spans zero). Gate 1
+(beat no-migration on MAE) fails; gate 2 (beat lag, CI above zero) fails. **Verdict: not
+validated in Italy; the mechanism remains scenario tooling there too.** Two regime lessons are
+now on the record: (a) in Japan's stable hierarchy the demographic core allocates well but adds
+nothing over persistence; (b) in Italy's winner-take-all regime it mispredicts the metros
+outright in development, and in the COVID holdout the *no-migration aging* baseline was the best
+absolute predictor — 2019-2024 Italy was demography-dominated in levels, while relative ranks
+were shock-scrambled (Milano predicted 15/94, realized 40). The US within-market price surface
+remains the only validated claim.

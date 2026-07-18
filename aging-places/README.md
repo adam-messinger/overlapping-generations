@@ -15,8 +15,10 @@ validated aging-resilience score.
 Start with [REPORT.md](docs/REPORT.md), then read [METHODOLOGY.md](docs/METHODOLOGY.md) and
 [BACKTEST.md](docs/BACKTEST.md). Data provenance is in [REFERENCES.md](docs/REFERENCES.md).
 The pre-registered external test is documented in
-[INTERNATIONAL_PANEL.md](docs/INTERNATIONAL_PANEL.md) and the
-[Japan pipeline](japan/README.md).
+[INTERNATIONAL_PANEL.md](docs/INTERNATIONAL_PANEL.md), the
+[Japan pipeline](japan/README.md), and the preregistered Italy replication
+([ITALY_PANEL.md](docs/ITALY_PANEL.md), `italy/`): neither regime validates the mechanism
+beyond scenario tooling (BACKTEST.md §5-7).
 
 ## Layout
 

@@ -1,0 +1,127 @@
+{
+ "scope": "WORKING-AGE PRIMARY, 2019-2024 (COVID inside the window, per protocol)",
+ "sealedFileSha256": "67ee1f4c9b8ad8db57f671e75d0e78c5fccd7e447c97e22835c4f03ada28a6b0",
+ "conservationError": 0,
+ "primary": {
+  "label": "pop>=10k",
+  "n": 1191,
+  "maeAnnualized": {
+   "mechanism": 0.00638,
+   "laggedTrend": 0.00575,
+   "scaledNoMigration": 0.00538
+  },
+  "equalBasinSpearman": {
+   "mechanism": {
+    "n": 602,
+    "markets": 41,
+    "marketsWithDefinedSpearman": 41,
+    "pooledCenteredSpearman": 0.4523,
+    "meanWithinMarketSpearman": 0.4675,
+    "medianWithinMarketSpearman": 0.4956,
+    "meanWithinMarketPairwiseAccuracy": 0.6773
+   },
+   "laggedTrend": {
+    "n": 602,
+    "markets": 41,
+    "marketsWithDefinedSpearman": 41,
+    "pooledCenteredSpearman": 0.4128,
+    "meanWithinMarketSpearman": 0.4275,
+    "medianWithinMarketSpearman": 0.5167,
+    "meanWithinMarketPairwiseAccuracy": 0.6635
+   },
+   "scaledNoMigration": {
+    "n": 602,
+    "markets": 41,
+    "marketsWithDefinedSpearman": 41,
+    "pooledCenteredSpearman": 0.4683,
+    "meanWithinMarketSpearman": 0.4872,
+    "medianWithinMarketSpearman": 0.4927,
+    "meanWithinMarketPairwiseAccuracy": 0.6878
+   }
+  },
+  "mechanismMinusLagged": {
+   "markets": 41,
+   "meanDifference": 0.04,
+   "ci95": [
+    -0.0675,
+    0.1547
+   ]
+  },
+  "mechanismMinusNoMigration": {
+   "markets": 41,
+   "meanDifference": -0.0197,
+   "ci95": [
+    -0.0971,
+    0.0494
+   ]
+  }
+ },
+ "sensitivity": {
+  "label": "pop>=15k",
+  "n": 728,
+  "maeAnnualized": {
+   "mechanism": 0.00656,
+   "laggedTrend": 0.00571,
+   "scaledNoMigration": 0.00548
+  },
+  "equalBasinSpearman": {
+   "mechanism": {
+    "n": 304,
+    "markets": 19,
+    "marketsWithDefinedSpearman": 19,
+    "pooledCenteredSpearman": 0.5175,
+    "meanWithinMarketSpearman": 0.4885,
+    "medianWithinMarketSpearman": 0.5404,
+    "meanWithinMarketPairwiseAccuracy": 0.6819
+   },
+   "laggedTrend": {
+    "n": 304,
+    "markets": 19,
+    "marketsWithDefinedSpearman": 19,
+    "pooledCenteredSpearman": 0.3926,
+    "meanWithinMarketSpearman": 0.4198,
+    "medianWithinMarketSpearman": 0.4667,
+    "meanWithinMarketPairwiseAccuracy": 0.661
+   },
+   "scaledNoMigration": {
+    "n": 304,
+    "markets": 19,
+    "marketsWithDefinedSpearman": 19,
+    "pooledCenteredSpearman": 0.5328,
+    "meanWithinMarketSpearman": 0.5629,
+    "medianWithinMarketSpearman": 0.6,
+    "meanWithinMarketPairwiseAccuracy": 0.7119
+   }
+  },
+  "mechanismMinusLagged": {
+   "markets": 19,
+   "meanDifference": 0.0687,
+   "ci95": [
+    -0.0938,
+    0.2276
+   ]
+  },
+  "mechanismMinusNoMigration": {
+   "markets": 19,
+   "meanDifference": -0.0744,
+   "ci95": [
+    -0.2176,
+    0.034
+   ]
+  }
+ },
+ "namedCases": {
+  "roma": {
+   "code": "058091",
+   "basinUnits": 49,
+   "predictedRank": 46,
+   "realizedRank": 37
+  },
+  "milano": {
+   "code": "015146",
+   "basinUnits": 94,
+   "predictedRank": 15,
+   "realizedRank": 40
+  }
+ }
+}
