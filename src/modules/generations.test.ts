@@ -133,6 +133,28 @@ test('scenario asset-age weights shift the initial asset allocation', () => {
   expect(oldShare(old)).toBeGreaterThan(oldShare(young));
 });
 
+test('a lower funder share leaves more new-capital ownership with incumbent owners', () => {
+  const oldShareOfAssets = (funderShare: number): number => {
+    const accounts = runOne({ newCapitalFunderShare: funderShare }).outputs
+      .regionalCohortAccounts.oecd;
+    const values = Object.values(accounts);
+    const total = values.reduce((sum, account) => sum + account.assets, 0);
+    const retired = values
+      .filter(account => account.ageStart >= 65)
+      .reduce((sum, account) => sum + account.assets, 0);
+    return retired / total;
+  };
+  expect(oldShareOfAssets(0)).toBeGreaterThan(oldShareOfAssets(1));
+});
+
+test('cohort assets reconcile to the macro stock at any funder share', () => {
+  const inputs = makeInputs();
+  for (const funderShare of [0, 0.25, 1]) {
+    const { outputs } = runOne({ newCapitalFunderShare: funderShare });
+    expect(outputs.cohortAssets).toBeCloseTo(inputs.nextCapitalStock, 6);
+  }
+});
+
 test('cohort debt is amortized once by the macro debt transition', () => {
   const params = generationsModule.mergeParams({});
   const firstInputs = makeInputs({
@@ -240,6 +262,8 @@ test('validation rejects invalid cohort and borrowing parameters', () => {
     assetAgeWeight55to69: 0,
     assetAgeWeight70plus: 0,
   }).valid).toBeFalse();
+  expect(generationsModule.validate({ newCapitalFunderShare: 1.5 }).valid).toBeFalse();
+  expect(generationsModule.validate({ newCapitalFunderShare: -0.1 }).valid).toBeFalse();
 });
 
 printSummary();

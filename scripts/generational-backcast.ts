@@ -89,6 +89,10 @@ const PROFILE_SIDES = {
       'assetAgeWeight55to69',
       'assetAgeWeight70plus',
     ],
+    // Ownership dynamics are calibrated jointly with the initial curve: the
+    // asset replay is dominated by who ends up owning new capital, not by the
+    // starting allocation.
+    extras: ['newCapitalFunderShare'],
   },
   liabilities: {
     label: 'debt',
@@ -99,10 +103,11 @@ const PROFILE_SIDES = {
       'debtAgeWeight55to69',
       'debtAgeWeight70plus',
     ],
+    extras: [],
   },
 } as const;
 type ProfileSide = typeof PROFILE_SIDES[keyof typeof PROFILE_SIDES];
-type ProfileKey = ProfileSide['keys'][number];
+type ProfileKey = ProfileSide['keys'][number] | ProfileSide['extras'][number];
 type AgeProfile = Partial<Record<ProfileKey, number>>;
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
@@ -474,7 +479,9 @@ function normalizeProfile(side: ProfileSide, profile: AgeProfile): AgeProfile {
 function defaultProfile(side: ProfileSide): AgeProfile {
   return normalizeProfile(
     side,
-    Object.fromEntries(side.keys.map(key => [key, generationsModule.defaults[key]])),
+    Object.fromEntries(
+      [...side.keys, ...side.extras].map(key => [key, generationsModule.defaults[key]]),
+    ),
   );
 }
 
@@ -500,17 +507,27 @@ function calibrateProfile(
   const validationYears = availableYears.filter(year => year >= 2013);
   const trainingReplayYears = [1995, 2001, 2007, 2009, 2011];
   const validationReplayYears = [2019, 2025];
-  const starts: AgeProfile[] = [
+  const weightStarts: AgeProfile[] = [
     defaultProfile(side),
     profileFromWeights(side, [0.50, 1, 0.50, 0.25]),
     profileFromWeights(side, [1, 1, 1, 1]),
     profileFromWeights(side, [0.25, 1, 1, 1]),
     profileFromWeights(side, [0.25, 1, 2, 3]),
   ];
-  const adjustable: ProfileKey[] = [side.keys[0], side.keys[2], side.keys[3]];
+  const extraStarts: number[] = side.extras.length > 0 ? [1, 0.2, 0.05] : [Number.NaN];
+  const starts: AgeProfile[] = weightStarts.flatMap(weights =>
+    extraStarts.map(extra => ({
+      ...weights,
+      ...Object.fromEntries(side.extras.map(key => [key, extra])),
+    })),
+  );
+  const adjustable: ProfileKey[] = [side.keys[0], side.keys[2], side.keys[3], ...side.extras];
+  const upperBound = (key: ProfileKey): number =>
+    (side.extras as readonly string[]).includes(key) ? 1 : 10;
   const cache = new Map<string, number>();
+  const allKeys: ProfileKey[] = [...side.keys, ...side.extras];
   const objective = (profile: AgeProfile): number => {
-    const key = side.keys.map(field => (profile[field] ?? 0).toFixed(8)).join(':');
+    const key = allKeys.map(field => (profile[field] ?? 0).toFixed(8)).join(':');
     const cached = cache.get(key);
     if (cached !== undefined) return cached;
     const overrides = { ...baseOverrides, ...profile };
@@ -545,7 +562,10 @@ function calibrateProfile(
           for (const direction of [-1, 1]) {
             const candidate = {
               ...profile,
-              [field]: Math.min(10, Math.max(0.01, (profile[field] ?? 0) * Math.exp(direction * logStep))),
+              [field]: Math.min(
+                upperBound(field),
+                Math.max(0.005, (profile[field] ?? 0) * Math.exp(direction * logStep)),
+              ),
             };
             const candidateScore = objective(candidate);
             if (candidateScore < nextScore - 1e-9) {
@@ -567,7 +587,7 @@ function calibrateProfile(
 
   // Three decimals avoids presenting optimizer noise as empirical precision.
   const rounded = Object.fromEntries(
-    side.keys.map(field => [field, Number((bestProfile[field] ?? 0).toFixed(3))]),
+    allKeys.map(field => [field, Number((bestProfile[field] ?? 0).toFixed(3))]),
   ) as AgeProfile;
   const roundedOverrides = { ...baseOverrides, ...rounded };
   const roundedReplay = runReplay(dfa, '', roundedOverrides, worldBank);
@@ -745,6 +765,7 @@ function usage(): void {
     [--sloos=/path/to/DRTSCILM.csv] \\
     [--calibrate-asset-profile] \\
     [--asset-profile=20-39,40-54,55-69,70+] \\
+    [--funder-share=0..1] \\
     [--calibrate-debt-profile] \\
     [--debt-profile=20-39,40-54,55-69,70+]
 
@@ -789,6 +810,13 @@ function main(): void {
         ...parseProfile(side, `${flagBase}-profile`, args[`${flagBase}-profile`] as string),
       };
     }
+    if (side.extras.length > 0 && typeof args['funder-share'] === 'string') {
+      const share = Number(args['funder-share']);
+      if (!Number.isFinite(share) || share < 0 || share > 1) {
+        throw new Error('--funder-share requires a number between 0 and 1');
+      }
+      profile = { ...profile, newCapitalFunderShare: share };
+    }
     if (args[`calibrate-${flagBase}-profile`]) {
       const calibration = calibrateProfile(dfa, worldBank, side, { ...baseOverrides, ...profile });
       profile = calibration.profile;
@@ -796,6 +824,9 @@ function main(): void {
       console.log(`Training years: ${calibration.trainingYears[0]}-${calibration.trainingYears.at(-1)}`);
       console.log(`Temporal check: ${calibration.validationYears[0]}-${calibration.validationYears.at(-1)}`);
       console.log(`Selected weights: ${formatProfile(side, calibration.profile)}`);
+      for (const extra of side.extras) {
+        console.log(`Selected ${extra}: ${(calibration.profile[extra] ?? 0).toFixed(3)}`);
+      }
       console.log(`Training snapshot fit: ${formatFit(calibration.trainingSnapshotFit)}`);
       console.log(`Training replay fit: ${formatFit(calibration.trainingReplayFit)}`);
       console.log(`Temporal snapshot check: ${formatFit(calibration.validationSnapshotFit)}`);
@@ -835,6 +866,7 @@ function main(): void {
   console.log('Observed aggregate assets/debt and demographics are inputs; age allocation is the test.');
   console.log(`Holdouts: ${holdoutYears.join(', ')}`);
   console.log(`Asset age weights: ${formatProfile(PROFILE_SIDES.assets, assetProfile)}`);
+  console.log(`New-capital funder share: ${(assetProfile.newCapitalFunderShare ?? 1).toFixed(3)}`);
   console.log(`Debt age weights: ${formatProfile(PROFILE_SIDES.liabilities, debtProfile)}`);
   console.log(`Asset-share fit: ${formatFit(assetFit)}`);
   console.log(`Debt-share fit:  ${formatFit(debtFit)}`);

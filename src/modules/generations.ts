@@ -36,6 +36,7 @@ export interface GenerationsParams {
   assetAgeWeight40to54: number;         // Initial asset ownership normalization
   assetAgeWeight55to69: number;         // Initial asset ownership, relative to ages 40-54
   assetAgeWeight70plus: number;         // Initial asset ownership, relative to ages 40-54
+  newCapitalFunderShare: number;        // Share of new capital owned by current funders vs incumbents
   debtAgeWeight20to39: number;          // Initial debt exposure, relative to ages 40-54
   debtAgeWeight40to54: number;          // Initial debt exposure normalization
   debtAgeWeight55to69: number;          // Initial debt exposure, relative to ages 40-54
@@ -187,15 +188,15 @@ export const generationsDefaults: GenerationsParams = {
   constraintTolerance: 0.01,
   bequestRecipientMinAge: 30,
   bequestRecipientMaxAge: 54,
-  // Five-year band averages of the previous hardcoded lifecycle curve, with
-  // ages 40-54 normalized to one. DFA calibration is available via
-  // scripts/generational-backcast.ts --calibrate-asset-profile.
-  assetAgeWeight20to39: 0.273,
-  assetAgeWeight40to54: 1.00,
-  assetAgeWeight55to69: 1.477,
-  assetAgeWeight70plus: 1.104,
   // Scale-free DFA calibration on 1989-2012 U.S. age shares, with ages 40-54
-  // normalized to one. See scripts/generational-backcast.ts.
+  // normalized to one. Asset weights and the funder share are calibrated
+  // jointly (Fed DFA July 2026 release, 2013-2025 held out as a temporal
+  // check). See scripts/generational-backcast.ts --calibrate-asset-profile.
+  assetAgeWeight20to39: 0.241,
+  assetAgeWeight40to54: 1.00,
+  assetAgeWeight55to69: 1.182,
+  assetAgeWeight70plus: 1.202,
+  newCapitalFunderShare: 0.255,
   debtAgeWeight20to39: 0.579,
   debtAgeWeight40to54: 1.00,
   debtAgeWeight55to69: 0.487,
@@ -568,7 +569,7 @@ export const generationsModule: Module<
     assetAgeWeight20to39: {
       description: 'Initial per-person asset ownership for ages 20-39, relative to ages 40-54.',
       unit: 'relative weight',
-      range: { min: 0, max: 5, default: 0.273 },
+      range: { min: 0, max: 5, default: 0.241 },
       tier: 2 as const,
     },
     assetAgeWeight40to54: {
@@ -580,13 +581,19 @@ export const generationsModule: Module<
     assetAgeWeight55to69: {
       description: 'Initial per-person asset ownership for ages 55-69, relative to ages 40-54.',
       unit: 'relative weight',
-      range: { min: 0, max: 5, default: 1.477 },
+      range: { min: 0, max: 5, default: 1.182 },
       tier: 2 as const,
     },
     assetAgeWeight70plus: {
       description: 'Initial per-person asset ownership for ages 70+, relative to ages 40-54.',
       unit: 'relative weight',
-      range: { min: 0, max: 5, default: 1.104 },
+      range: { min: 0, max: 5, default: 1.202 },
+      tier: 2 as const,
+    },
+    newCapitalFunderShare: {
+      description: 'Share of new productive investment owned by its current cohort funders; the rest accrues pro rata to incumbent owners.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.255 },
       tier: 2 as const,
     },
     debtAgeWeight20to39: {
@@ -690,6 +697,11 @@ export const generationsModule: Module<
     }
     if (assetAgeWeights.length === 4 && assetAgeWeights.every(value => value === 0)) {
       errors.push('at least one asset age weight must be positive');
+    }
+    if (partial.newCapitalFunderShare !== undefined &&
+        (!Number.isFinite(partial.newCapitalFunderShare) ||
+          partial.newCapitalFunderShare < 0 || partial.newCapitalFunderShare > 1)) {
+      errors.push('newCapitalFunderShare must be between 0 and 1');
     }
     const debtAgeWeights = [
       partial.debtAgeWeight20to39,
@@ -896,15 +908,22 @@ export const generationsModule: Module<
     }
 
     // End-of-period productive asset ownership. Existing owners retain the
-    // post-depreciation stock; current funders own the new general investment.
-    const retainedCapital = Math.max(0, inputs.nextCapitalStock - inputs.generalInvestment);
-    scaleLedgerField(ledgers, 'assets', retainedCapital, assetScores);
+    // post-depreciation stock. Only newCapitalFunderShare of new general
+    // investment is owned by its current cohort funders; the remainder accrues
+    // pro rata to incumbent owners. Households mostly hold new capital through
+    // retained corporate earnings, pension claims, and revalued existing
+    // assets rather than by directly purchasing it from labor income, so
+    // funder-only ownership drained old cohorts of assets at rates the DFA
+    // replay rejects.
+    const funderOwnedInvestment = inputs.generalInvestment * params.newCapitalFunderShare;
+    const incumbentCapital = Math.max(0, inputs.nextCapitalStock - funderOwnedInvestment);
+    scaleLedgerField(ledgers, 'assets', incumbentCapital, assetScores);
     const ownershipScores: Record<string, number> = {};
     for (const key of keys) {
       ownershipScores[key] = flows[key].ownFunds + flows[key].creditAllocated;
       if (ownershipScores[key] <= 0) ownershipScores[key] = savingScores[key] + desiredScores[key];
     }
-    const newAssetOwnership = allocatePool(inputs.generalInvestment, ownershipScores, keys);
+    const newAssetOwnership = allocatePool(funderOwnedInvestment, ownershipScores, keys);
     for (const key of keys) ledgers[key].assets += newAssetOwnership[key];
 
     // End-of-period private liabilities: retain the post-amortization base and
