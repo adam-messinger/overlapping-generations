@@ -152,10 +152,7 @@ export const resourcesDefaults: ResourcesParams = {
       name: 'Copper',
       perMW_solar: 2800,          // kg/MW utility PV, IEA Critical Minerals 2021 (~2.8 t/MW); see docs/
       perMW_wind: 3500,           // kg/MW onshore, IEA 2021 (~2.9 t/MW onshore, ~8 t/MW offshore — blended)
-      // 0.7 kg/kWh: cell current collectors ~0.3-0.5 kg/kWh plus module/pack
-      // busbars and interconnects (IEA Critical Minerals 2021; EV teardowns).
-      // Was 800 kg/GWh — a ~1000x unit error that made battery copper invisible.
-      perGWh_battery: 700000,     // kg/GWh (0.7 kg/kWh)
+      perGWh_battery: 700000,     // kg/GWh (0.7 kg/kWh): cell collectors + pack busbars, IEA Critical Minerals 2021
       learningRate: 0.02,         // Intensity decline assumption
       reserves: 880,              // Mt, USGS Mineral Commodity Summaries 2023 (~890 Mt)
       recyclingBase: 0.15,
@@ -179,9 +176,9 @@ export const resourcesDefaults: ResourcesParams = {
     },
     rareEarths: {
       name: 'Rare Earths',
-      // Fleet average: ~200 kg NdPr-eq/MW applies to direct-drive machines only
-      // (IEA 2021); direct-drive is ~30% of the market (GWEC), geared DFIG uses
-      // ~10x less. Previously 200 applied to all additions — ~3x overstated.
+      // Fleet-weighted: ~200 kg NdPr-eq/MW applies to direct-drive machines
+      // only (IEA 2021); direct-drive is ~30% of the market (GWEC), geared
+      // DFIG uses ~10x less.
       perMW_wind: 65,             // kg NdPr-equivalent/MW, fleet-weighted
       learningRate: 0.01,
       reserves: 130,              // Mt REO, USGS 2024 (~110-130 Mt range)
@@ -218,9 +215,7 @@ export const resourcesDefaults: ResourcesParams = {
       copper: 30,       // GJ per ton (lit. ~20-30 GJ/t at current ore grades)
       lithium: 50,      // GJ per ton
       rareEarths: 100,  // GJ per ton
-      // worldsteel: ~20 GJ/t crude steel global average (BF-BOF ~24, EAF ~10).
-      // Was 5 GJ/t — an EAF-scrap figure applied to all steel, ~4x low.
-      steel: 20,        // GJ per ton
+      steel: 20,        // GJ per ton crude, worldsteel global average (BF-BOF ~24, EAF ~10)
     },
     depletionExponent: 0.3,
   },
@@ -248,8 +243,7 @@ export const resourcesDefaults: ResourcesParams = {
     // t C/ha (the code converts to CO2 via 44/12). Deforestation is
     // tropics-concentrated, so the density of *cleared* forest is
     // tropical-weighted: ~150-200 t C/ha above+below-ground biomass in moist
-    // tropical forest (IPCC 2006 Guidelines Tier-1; FAO FRA 2020). The old
-    // comment mislabeled this value as t CO2/ha.
+    // tropical forest (IPCC 2006 Guidelines Tier-1; FAO FRA 2020).
     forestCarbonDensity: 150,
     sequestrationRate: 7.5,    // t CO2/ha/yr young forest (IPCC AR6 WGIII afforestation range ~4-10)
     deforestationEmissionFactor: 0.5, // Fraction emitted immediately vs decay pool (assumption)

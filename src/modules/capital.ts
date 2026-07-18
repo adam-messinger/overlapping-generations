@@ -190,14 +190,11 @@ interface CapitalOutputs {
 
 export const capitalDefaults: CapitalParams = {
   // Production
-  // Capital INCOME share, used for interest-rate formation (r = alpha*Y/K - delta)
-  // and labor-income splits. Deliberately NOT the production module's fitted
-  // Ayres-Warr capital elasticity (0.25): in the exergy-economics literature,
-  // fitted output elasticities differ from factor cost shares (Kuemmel et al.
-  // 2010 treat this "cost-share theorem" failure as central), and market factor
-  // payments follow observed income shares. So r tracks what capital is paid,
-  // not the fitted marginal product.
-  alpha: 0.33,              // Capital income share ~1/3: Gollin (2002), Penn World Table labor-share complement
+  // Capital INCOME share for interest-rate formation (r = alpha*Y/K - delta):
+  // deliberately not production's fitted Ayres-Warr elasticity (0.25) — fitted
+  // output elasticities differ from factor cost shares (Kuemmel et al. 2010),
+  // and r tracks what capital is paid, not the fitted marginal product.
+  alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
   depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
 
   // OLG lifecycle savings

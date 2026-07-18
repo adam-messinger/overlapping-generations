@@ -291,11 +291,10 @@ export const energyDefaults: EnergyParams = {
       growthRate: 0.02,
       carbonIntensity: 400,
       eroei0: 30,
-      // 2025 gas fleet ~2,005 GW extracts ~20 units/yr; 960 units ≈ the
-      // ~48-year proved-reserves R/P ratio (EI Statistical Review of World
-      // Energy 2024: ~188 tcm reserves / ~4.0 tcm/yr production). The prior
-      // value (200) exhausted the budget by ~2035 — a hidden peak-gas
-      // assumption with no published basis.
+      // 2025 fleet (sum of capacity2025) x 0.01/yr exhausts this budget on
+      // the ~48-year proved-reserves R/P timescale (EI Statistical Review of
+      // World Energy 2024: ~188 tcm reserves / ~4.0 tcm/yr production).
+      // Pinned by the R/P calibration test in energy.test.ts.
       reserves: 960,
     },
     coal: {
@@ -308,10 +307,10 @@ export const energyDefaults: EnergyParams = {
       growthRate: -0.02,
       carbonIntensity: 900,
       eroei0: 25,
-      // 2025 coal fleet ~2,110 GW extracts ~21 units/yr; 2,640 units ≈ the
-      // ~125-year proved-reserves R/P ratio (EI Statistical Review 2024:
-      // ~1,074 Gt reserves / ~8.7 Gt/yr production). Prior value (500)
-      // exhausted by ~2048.
+      // 2025 fleet x 0.01/yr exhausts this budget on the ~125-year
+      // proved-reserves R/P timescale (EI Statistical Review 2024: ~1,074 Gt
+      // reserves / ~8.7 Gt/yr production). Pinned by the R/P calibration
+      // test in energy.test.ts.
       reserves: 2640,
     },
     nuclear: {
@@ -1490,11 +1489,10 @@ export const energyModule: Module<
 
       let extracted = state.global[source].extracted;
       if (s.reserves !== undefined) {
-        // Extraction proxy: installed capacity (GW) × 0.01 per year, drawn
-        // against a budget calibrated to proved-reserves R/P ratios (see the
-        // gas/coal defaults). The EROEI decline with fraction remaining
-        // follows the net-energy literature (Murphy & Hall 2010; Delannoy et
-        // al. 2021; Brockway et al. 2019); the sqrt exponent in
+        // Extraction proxy: installed capacity (GW) × 0.01 per year (budget
+        // provenance at the gas/coal defaults). EROEI decline with fraction
+        // remaining follows the net-energy literature (Murphy & Hall 2010;
+        // Delannoy et al. 2021; Brockway et al. 2019); the sqrt exponent in
         // primitives/math.ts depletion() is a stylized midpoint.
         let globalInstalled = 0;
         for (const region of REGIONS) {
