@@ -199,7 +199,10 @@ export const capitalDefaults: CapitalParams = {
   savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
   // Regional premiums: calibrated to gross national savings differentials
-  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%)
+  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%).
+  // NOTE: the energy module's REGIONAL_FINANCING_SPREADS residuals are
+  // derived from the 2025 savings rates these produce; changing them is
+  // caught by the spread-calibration test in simulation.test.ts.
   savingsPremium: {
     oecd: 0.00,             // Baseline
     china: 0.15,            // +15% higher savings
@@ -659,6 +662,8 @@ export const capitalModule: Module<
       weightedSavings += rate * gdpWeight;
     }
 
+    // Unreachable divide guard (regional GDP is positive every wired step);
+    // fallback ≈ savingsWorking × working-age share ≈ the ~22% global rate.
     const savingsRate = totalGdp > 0 ? weightedSavings / totalGdp : params.savingsWorking * 0.5;
 
     // Calculate stability factor from damages (if provided)

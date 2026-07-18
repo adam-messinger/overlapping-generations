@@ -1149,7 +1149,9 @@ export const energyModule: Module<
     // =========================================================================
 
     const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
-    const effectiveWACC = Math.max(params.minWACC, laggedInterestRate + params.riskPremium);
+    const waccAt = (spread: number): number =>
+      Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
+    const effectiveWACC = waccAt(0);
 
     // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
     const PROJECT_LIFE = 25; // years, generic generation asset
@@ -1160,19 +1162,20 @@ export const energyModule: Module<
     const crfBase = crf(params.baseWACC);
 
     // Adjust LCOE for the capital-intensity-weighted portion only, so soft
-    // floor bounds are respected. Applied globally here (global capital-market
-    // rate) and per region below with each region's financing spread.
-    const waccAdjustedLCOE = (baseLCOE: number, source: EnergySource, wacc: number): number => {
+    // floor bounds are respected. The CRF ratio depends only on the WACC, so
+    // callers precompute it once per WACC (global, then per region below).
+    const waccAdjustedLCOE = (baseLCOE: number, source: EnergySource, crfRatio: number): number => {
       const ci = params.capitalIntensity[source] ?? 0;
       const capitalPortion = baseLCOE * ci;
       const nonCapitalPortion = baseLCOE * (1 - ci);
-      return capitalPortion * (crf(wacc) / crfBase) + nonCapitalPortion;
+      return capitalPortion * crfRatio + nonCapitalPortion;
     };
 
     // Pre-adjustment LCOEs are the basis for the regional adjustment.
     const preWaccLcoes = { ...lcoes };
+    const crfGlobalRatio = crf(effectiveWACC) / crfBase;
     for (const source of ENERGY_SOURCES) {
-      lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, effectiveWACC);
+      lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, crfGlobalRatio);
     }
 
     // Regional financing spreads over the global rate: a static residual for
@@ -1181,6 +1184,7 @@ export const energyModule: Module<
     // are scarce relative to the world pool pay more for capital
     // (Feldstein & Horioka 1980).
     const regionalWACC = {} as Record<Region, number>;
+    const regionalCrfRatio = {} as Record<Region, number>;
     for (const region of REGIONS) {
       const regionalSavingsRate = inputs.regionalSavings?.[region];
       const savingsGap = inputs.savingsRate !== undefined && regionalSavingsRate !== undefined
@@ -1188,7 +1192,8 @@ export const energyModule: Module<
         : 0;
       const spread = ((params.regional[region].financingSpread ?? 0) +
         params.financingHomeBias * savingsGap) * params.financingSpreadScale;
-      regionalWACC[region] = Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
+      regionalWACC[region] = waccAt(spread);
+      regionalCrfRatio[region] = crf(regionalWACC[region]) / crfBase;
     }
 
     // =========================================================================
@@ -1214,7 +1219,7 @@ export const energyModule: Module<
       // Regional effective LCOE (regional financing cost + carbon cost + site quality)
       const regionalLCOE: Record<EnergySource, number> = {} as any;
       for (const source of ENERGY_SOURCES) {
-        let lcoe = waccAdjustedLCOE(preWaccLcoes[source], source, regionalWACC[region]);
+        let lcoe = waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
         // Add regional carbon cost for fossil fuels
         if (source === 'gas' || source === 'coal') {
           const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;

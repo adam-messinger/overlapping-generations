@@ -10,6 +10,11 @@ import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.j
 
 import { test, expect, printSummary } from '../test-utils.js';
 
+// Helper to build a constant-filled per-region record
+function regionalRecord(value: number): Record<Region, number> {
+  return Object.fromEntries(REGIONS.map(r => [r, value])) as Record<Region, number>;
+}
+
 // Helper to create inputs
 function createInputs(
   electricityDemand: number = 30000,
@@ -613,7 +618,7 @@ test('home bias raises WACC for savings-scarce regions and lowers it for savings
     regional: { oecd: { financingSpread: 0 }, china: { financingSpread: 0 }, ssa: { financingSpread: 0 } } as any,
   });
   const state = energyModule.init(params);
-  const savings = Object.fromEntries(REGIONS.map(r => [r, 0.25])) as Record<Region, number>;
+  const savings = regionalRecord(0.25);
   savings.china = 0.45;
   savings.ssa = 0.13;
   const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.28, regionalSavings: savings };
@@ -627,7 +632,7 @@ test('home bias raises WACC for savings-scarce regions and lowers it for savings
 test('a savings increase in a region lowers its own WACC, all else equal', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  const base = Object.fromEntries(REGIONS.map(r => [r, 0.25])) as Record<Region, number>;
+  const base = regionalRecord(0.25);
   const run = (ssaSavings: number) => {
     const regionalSavings = { ...base, ssa: ssaSavings };
     const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.25, regionalSavings };
@@ -639,7 +644,7 @@ test('a savings increase in a region lowers its own WACC, all else equal', () =>
 test('home bias 0 or missing savings inputs fall back to static spreads only', () => {
   const zeroBias = energyModule.mergeParams({ financingHomeBias: 0 });
   const state = energyModule.init(zeroBias);
-  const savings = Object.fromEntries(REGIONS.map(r => [r, 0.10])) as Record<Region, number>;
+  const savings = regionalRecord(0.10);
   const withSavings = energyModule.step(
     state,
     { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.30, regionalSavings: savings },
