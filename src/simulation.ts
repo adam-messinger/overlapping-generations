@@ -101,6 +101,7 @@ export interface YearResult {
   capitalStock: number;
   investment: number;
   savingsRate: number;
+  regionalSavings: Record<Region, number>;
   stability: number;
   interestRate: number;
   robotsDensity: number;
@@ -239,6 +240,7 @@ export interface YearResult {
   // Regional Energy (v2)
   regionalCapacities: Record<Region, Record<EnergySource, number>>;
   regionalAdditions: Record<Region, Record<EnergySource, number>>;
+  regionalWACC: Record<Region, number>;
 
   // Regional Dispatch (v2)
   regionalGeneration: Record<Region, Record<string, number>>;

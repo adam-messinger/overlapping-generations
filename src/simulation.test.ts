@@ -32,6 +32,25 @@ test('scenarioToParams passes through startYear/endYear', () => {
   expect(params.endYear).toBe(2032);
 });
 
+test('2025 regional financing spreads reproduce the IEA-observed calibration', () => {
+  // Total spread = static residual (energy defaults) + financingHomeBias ×
+  // 2025 savings gap (capital outputs). The residuals were derived by hand
+  // from the observed totals, so this pins the cross-module calibration:
+  // changing capital's savings params or financingHomeBias without
+  // re-deriving the residuals breaks this test rather than silently
+  // decalibrating the spreads. See REGIONAL_FINANCING_SPREADS in energy.ts.
+  const observed: Record<string, number> = {
+    oecd: -0.010, china: -0.015, india: 0.020, latam: 0.030,
+    seasia: 0.025, russia: 0.050, mena: 0.010, ssa: 0.060,
+  };
+  const result = runSimulation({ startYear: 2025, endYear: 2025 });
+  const r = result.results[0];
+  for (const [region, total] of Object.entries(observed)) {
+    const actual = r.regionalWACC[region as keyof typeof r.regionalWACC] - r.effectiveWACC;
+    expect(Math.abs(actual - total)).toBeLessThan(0.001);
+  }
+});
+
 test('cohort accounts reconcile to the next-year macro stocks', () => {
   const result = runSimulation({ startYear: 2025, endYear: 2026 });
   const first = result.results[0];

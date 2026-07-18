@@ -119,8 +119,9 @@ test('step year 0 returns correct K/Y ratio', () => {
 
 test('step year 0 returns correct savings rate', () => {
   const { outputs } = runYears(1);
-  // Global savings rate ~22% (demographic-weighted)
-  expect(outputs.savingsRate).toBeBetween(0.18, 0.28);
+  // GDP-weighted global gross savings ~26-28% of GDP (World Bank WDI 2023);
+  // China's high rate carries its GDP share, not its population share
+  expect(outputs.savingsRate).toBeBetween(0.22, 0.32);
 });
 
 test('step year 0 returns correct interest rate', () => {

@@ -55,6 +55,7 @@ export interface RegionalEnergyParams {
   carbonPrice: number;                          // $/ton CO2
   maxGrowthRate?: Partial<Record<EnergySource, number>>;  // Policy constraints (overrides global)
   capacityFactor?: Partial<Record<EnergySource, number>>; // Resource quality (solar irradiance, etc.)
+  financingSpread?: number;                     // Financing cost spread over global rate (fraction, e.g. 0.06 = +6pp)
 }
 
 export interface EnergyParams {
@@ -132,6 +133,13 @@ export interface EnergyParams {
   /** Floor on effective WACC */
   minWACC: number;
 
+  /** Multiplier on all regional financing spreads (0 = frictionless capital markets) */
+  financingSpreadScale: number;
+
+  /** Fraction of a region's savings-rate gap vs the world that passes into its
+   *  financing spread (Feldstein-Horioka home bias; 0 = perfect capital mobility) */
+  financingHomeBias: number;
+
   /** Fraction of LCOE that is capital cost, by source */
   capitalIntensity: Record<EnergySource, number>;
 
@@ -186,6 +194,48 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
   russia: 0,
   mena: 0,
   ssa: 0,
+};
+
+/**
+ * Regional Financing Spreads — static risk residual (fraction, over the
+ * global rate)
+ *
+ * A region's total spread = static residual + financingHomeBias x (world
+ * savings rate - regional savings rate). The observed totals are calibrated
+ * to the IEA Cost of Capital Observatory (2024: nominal WACC ~6-7% advanced
+ * economies vs ~10-15% EMDE, Africa highest) and Steffen (2020, Energy
+ * Economics) renewable project-finance survey; IRENA Renewable Power
+ * Generation Costs 2023 uses 3.5-11% WACC assumptions across country tiers.
+ *
+ * The static residuals below are the observed 2025 totals minus the
+ * home-bias component at the model's 2025 savings rates (home bias 0.15,
+ * world savings 29.8%), so 2025 total spreads reproduce the observed values
+ * by construction and evolve thereafter with regional savings:
+ *
+ *   region  observed  savings gap  home-bias  static residual
+ *   oecd    -0.010      +3.7pp      +0.006      -0.016
+ *   china   -0.015     -15.0pp      -0.022      +0.007
+ *   india   +0.020      +1.2pp      +0.002      +0.018
+ *   latam   +0.030      +6.4pp      +0.010      +0.020
+ *   seasia  +0.025      +3.4pp      +0.005      +0.020
+ *   russia  +0.050      +4.9pp      +0.007      +0.043
+ *   mena    +0.010      -1.8pp      -0.003      +0.013
+ *   ssa     +0.060     +16.2pp      +0.024      +0.036
+ *
+ * The residual carries sovereign, currency, and off-taker risk: China's is
+ * slightly positive (its cheap capital is entirely a savings/state-credit
+ * story), Russia's stays large (sanctions-era isolation), MENA blends cheap
+ * Gulf auction finance with expensive North African markets.
+ */
+const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
+  oecd: -0.016,
+  china: 0.007,
+  india: 0.018,
+  latam: 0.020,
+  seasia: 0.020,
+  russia: 0.043,
+  mena: 0.013,
+  ssa: 0.036,
 };
 
 /**
@@ -285,14 +335,14 @@ export const energyDefaults: EnergyParams = {
 
   // Regional policy parameters
   regional: {
-    oecd:   { carbonPrice: REGIONAL_CARBON_PRICES.oecd,   capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd } },
-    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china } },
-    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india } },
-    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam } },
-    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia } },
-    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia } },
-    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena } },
-    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa } },
+    oecd:   { carbonPrice: REGIONAL_CARBON_PRICES.oecd,   capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd },   financingSpread: REGIONAL_FINANCING_SPREADS.oecd   },
+    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china },  financingSpread: REGIONAL_FINANCING_SPREADS.china  },
+    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india },  financingSpread: REGIONAL_FINANCING_SPREADS.india  },
+    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam },  financingSpread: REGIONAL_FINANCING_SPREADS.latam  },
+    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia }, financingSpread: REGIONAL_FINANCING_SPREADS.seasia },
+    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia }, financingSpread: REGIONAL_FINANCING_SPREADS.russia },
+    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena },   financingSpread: REGIONAL_FINANCING_SPREADS.mena   },
+    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa },    financingSpread: REGIONAL_FINANCING_SPREADS.ssa    },
   },
 
   // EROI assumptions (used for net energy fraction). Contested literature:
@@ -382,6 +432,13 @@ export const energyDefaults: EnergyParams = {
   riskPremium: 0.02,               // 2% over risk-free (interest) rate
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
+  financingSpreadScale: 1.0,       // Regional spreads applied at face value
+  // Domestic savings scarcity raises the local cost of capital: savings and
+  // investment stay correlated because capital is imperfectly mobile
+  // (Feldstein & Horioka 1980; retention coefficients ~0.3-0.5 in recent
+  // decades). 0.15 maps savings-rate gaps to price, attributing roughly a
+  // third of the extreme regions' observed spread to savings scarcity.
+  financingHomeBias: 0.15,
   capitalIntensity: {              // Fraction of LCOE that is capital cost
     solar: 0.85,
     wind: 0.80,
@@ -480,6 +537,12 @@ export interface EnergyInputs {
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
+
+  /** Global savings rate this year (from capital) for the home-bias spread */
+  savingsRate?: number;
+
+  /** Regional savings rates this year (from capital) for the home-bias spread */
+  regionalSavings?: Record<Region, number>;
 }
 
 /** Regional capacity outputs */
@@ -546,6 +609,9 @@ export interface EnergyOutputs {
 
   /** Effective WACC used for LCOE adjustment this year */
   effectiveWACC: number;
+
+  /** Effective WACC by region (global rate + regional financing spread) */
+  regionalWACC: Record<Region, number>;
 }
 
 // =============================================================================
@@ -717,6 +783,18 @@ export const energyModule: Module<
       range: { min: 0.01, max: 0.10, default: 0.03 },
       tier: 1 as const,
     },
+    financingSpreadScale: {
+      description: 'Multiplier on regional financing spreads over the global rate. 0 = frictionless global capital market, 1 = observed spreads, >1 = fragmentation.',
+      unit: 'dimensionless',
+      range: { min: 0, max: 3, default: 1.0 },
+      tier: 1 as const,
+    },
+    financingHomeBias: {
+      description: 'Fraction of a region\'s savings-rate gap vs the world that passes into its financing spread. 0 = perfect capital mobility (Feldstein-Horioka home bias).',
+      unit: 'dimensionless',
+      range: { min: 0, max: 1, default: 0.15 },
+      tier: 2 as const,
+    },
     regional: {
       oecd: {
         carbonPrice: {
@@ -756,6 +834,8 @@ export const energyModule: Module<
     'mineralConstraint',
     'laggedCurtailmentRate',
     'laggedInterestRate',
+    'savingsRate',
+    'regionalSavings',
   ] as const,
 
   outputs: [
@@ -778,6 +858,7 @@ export const energyModule: Module<
     'longStorageCapacity',
     'longStorageRegional',
     'effectiveWACC',
+    'regionalWACC',
   ] as const,
 
   validate(params: Partial<EnergyParams>): ValidationResult {
@@ -844,6 +925,22 @@ export const energyModule: Module<
     }
     if (p.minWACC !== undefined && p.minWACC < 0) {
       errors.push('minWACC cannot be negative');
+    }
+    if (p.financingSpreadScale !== undefined &&
+        (!Number.isFinite(p.financingSpreadScale) || p.financingSpreadScale < 0 || p.financingSpreadScale > 3)) {
+      errors.push('financingSpreadScale must be between 0 and 3');
+    }
+    if (p.financingHomeBias !== undefined &&
+        (!Number.isFinite(p.financingHomeBias) || p.financingHomeBias < 0 || p.financingHomeBias > 1)) {
+      errors.push('financingHomeBias must be between 0 and 1');
+    }
+    if (p.regional) {
+      for (const region of REGIONS) {
+        const spread = p.regional[region]?.financingSpread;
+        if (spread !== undefined && (!Number.isFinite(spread) || spread < -0.05 || spread > 0.20)) {
+          errors.push(`financingSpread for ${region} must be between -0.05 and 0.20`);
+        }
+      }
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -1052,7 +1149,9 @@ export const energyModule: Module<
     // =========================================================================
 
     const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
-    const effectiveWACC = Math.max(params.minWACC, laggedInterestRate + params.riskPremium);
+    const waccAt = (spread: number): number =>
+      Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
+    const effectiveWACC = waccAt(0);
 
     // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
     const PROJECT_LIFE = 25; // years, generic generation asset
@@ -1060,18 +1159,41 @@ export const energyModule: Module<
       if (r < 0.001) return 1 / n; // Limit as r→0
       return r / (1 - Math.pow(1 + r, -n));
     };
-    const crfEffective = crf(effectiveWACC);
     const crfBase = crf(params.baseWACC);
 
-    // Adjust LCOE for each source based on capital intensity and WACC deviation.
-    // Apply adjustment only to the capital portion to respect soft floor bounds.
-    const crfRatio = crfEffective / crfBase;
-    for (const source of ENERGY_SOURCES) {
+    // Adjust LCOE for the capital-intensity-weighted portion only, so soft
+    // floor bounds are respected. The CRF ratio depends only on the WACC, so
+    // callers precompute it once per WACC (global, then per region below).
+    const waccAdjustedLCOE = (baseLCOE: number, source: EnergySource, crfRatio: number): number => {
       const ci = params.capitalIntensity[source] ?? 0;
-      const baseLCOE = lcoes[source];
       const capitalPortion = baseLCOE * ci;
       const nonCapitalPortion = baseLCOE * (1 - ci);
-      lcoes[source] = capitalPortion * crfRatio + nonCapitalPortion;
+      return capitalPortion * crfRatio + nonCapitalPortion;
+    };
+
+    // Pre-adjustment LCOEs are the basis for the regional adjustment.
+    const preWaccLcoes = { ...lcoes };
+    const crfGlobalRatio = crf(effectiveWACC) / crfBase;
+    for (const source of ENERGY_SOURCES) {
+      lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, crfGlobalRatio);
+    }
+
+    // Regional financing spreads over the global rate: a static residual for
+    // sovereign/currency/off-taker risk (IEA Cost of Capital Observatory;
+    // Steffen 2020) plus a home-bias term — regions whose domestic savings
+    // are scarce relative to the world pool pay more for capital
+    // (Feldstein & Horioka 1980).
+    const regionalWACC = {} as Record<Region, number>;
+    const regionalCrfRatio = {} as Record<Region, number>;
+    for (const region of REGIONS) {
+      const regionalSavingsRate = inputs.regionalSavings?.[region];
+      const savingsGap = inputs.savingsRate !== undefined && regionalSavingsRate !== undefined
+        ? inputs.savingsRate - regionalSavingsRate
+        : 0;
+      const spread = ((params.regional[region].financingSpread ?? 0) +
+        params.financingHomeBias * savingsGap) * params.financingSpreadScale;
+      regionalWACC[region] = waccAt(spread);
+      regionalCrfRatio[region] = crf(regionalWACC[region]) / crfBase;
     }
 
     // =========================================================================
@@ -1094,10 +1216,10 @@ export const energyModule: Module<
       const regionDemand = regionalDemand[region];
       const regionInvestment = regionalInvestment[region];
 
-      // Regional effective LCOE (base LCOE + carbon cost + site quality adjustment)
+      // Regional effective LCOE (regional financing cost + carbon cost + site quality)
       const regionalLCOE: Record<EnergySource, number> = {} as any;
       for (const source of ENERGY_SOURCES) {
-        let lcoe = lcoes[source];
+        let lcoe = waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
         // Add regional carbon cost for fossil fuels
         if (source === 'gas' || source === 'coal') {
           const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
@@ -1472,6 +1594,7 @@ export const energyModule: Module<
         longStorageCapacity: longStorageTotal,
         longStorageRegional: newLongStorageRegional,
         effectiveWACC,
+        regionalWACC,
       },
     };
   },

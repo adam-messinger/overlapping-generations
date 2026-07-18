@@ -199,7 +199,10 @@ export const capitalDefaults: CapitalParams = {
   savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
   // Regional premiums: calibrated to gross national savings differentials
-  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%)
+  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%).
+  // NOTE: the energy module's REGIONAL_FINANCING_SPREADS residuals are
+  // derived from the 2025 savings rates these produce; changing them is
+  // caught by the spread-calibration test in simulation.test.ts.
   savingsPremium: {
     oecd: 0.00,             // Baseline
     china: 0.15,            // +15% higher savings
@@ -628,7 +631,7 @@ export const capitalModule: Module<
 
     // Calculate regional and global savings rates (with LE/dependency adjustments)
     const regionalSavings = {} as Record<Region, number>;
-    let totalPop = 0;
+    let totalGdp = 0;
     let weightedSavings = 0;
 
     for (const region of REGIONS) {
@@ -650,11 +653,18 @@ export const capitalModule: Module<
       );
       regionalSavings[region] = rate;
 
-      totalPop += pop;
-      weightedSavings += rate * pop;
+      // Savings rates are shares of GDP (World Bank WDI: gross savings % of
+      // GDP), so the global rate is a GDP-weighted mean. Population weighting
+      // overstated poor, populous regions' pull on the global capital pool
+      // by roughly their population/GDP share ratio.
+      const gdpWeight = Math.max(0, inputs.regionalGdp[region]);
+      totalGdp += gdpWeight;
+      weightedSavings += rate * gdpWeight;
     }
 
-    const savingsRate = weightedSavings / totalPop;
+    // Unreachable divide guard (regional GDP is positive every wired step);
+    // fallback ≈ savingsWorking × working-age share ≈ the ~22% global rate.
+    const savingsRate = totalGdp > 0 ? weightedSavings / totalGdp : params.savingsWorking * 0.5;
 
     // Calculate stability factor from damages (if provided)
     const uncertainty = inputs.damages ?? 0;

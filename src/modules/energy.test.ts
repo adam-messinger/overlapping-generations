@@ -10,6 +10,11 @@ import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.j
 
 import { test, expect, printSummary } from '../test-utils.js';
 
+// Helper to build a constant-filled per-region record
+function regionalRecord(value: number): Record<Region, number> {
+  return Object.fromEntries(REGIONS.map(r => [r, value])) as Record<Region, number>;
+}
+
 // Helper to create inputs
 function createInputs(
   electricityDemand: number = 30000,
@@ -557,6 +562,118 @@ test('low interest rate produces minWACC floor', () => {
   const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
   // laggedInterestRate=0.005 + riskPremium=0.02 = 0.025, but minWACC=0.03
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
+});
+
+// --- Regional financing spreads ---
+
+console.log('\n--- Regional Financing Spreads ---\n');
+
+test('regionalWACC equals global WACC plus the regional spread', () => {
+  const params = energyModule.mergeParams({
+    regional: { oecd: { financingSpread: 0 }, ssa: { financingSpread: 0.06 } } as any,
+  });
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);
+  expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.06, 6);
+  expect(r.outputs.regionalWACC.oecd).toBeCloseTo(r.outputs.effectiveWACC, 6);
+});
+
+test('a positive financing spread suppresses regional solar additions', () => {
+  const run = (spread: number) => {
+    const params = energyModule.mergeParams({
+      regional: { india: { financingSpread: spread } } as any,
+    });
+    let state = energyModule.init(params);
+    let outputs: any;
+    for (let i = 0; i < 10; i++) {
+      const result = energyModule.step(state, createInputs(30000 + i * 500, 25 + i * 0.5), params, 2025 + i, i);
+      state = result.state;
+      outputs = result.outputs;
+    }
+    return outputs;
+  };
+  const frictionless = run(0);
+  const constrained = run(0.20);
+  expect(constrained.regionalCapacities.india.solar)
+    .toBeLessThan(frictionless.regionalCapacities.india.solar);
+  // Other regions' financing is untouched
+  expect(constrained.regionalWACC.china).toBeCloseTo(frictionless.regionalWACC.china, 6);
+});
+
+test('financingSpreadScale=0 neutralizes all regional spreads', () => {
+  const spreads = { ssa: { financingSpread: 0.08 }, india: { financingSpread: 0.03 } };
+  const withScale = energyModule.mergeParams({
+    regional: spreads as any,
+    financingSpreadScale: 0,
+  });
+  const state = energyModule.init(withScale);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), withScale, 2025, 0);
+  for (const region of REGIONS) {
+    expect(r.outputs.regionalWACC[region]).toBeCloseTo(r.outputs.effectiveWACC, 6);
+  }
+});
+
+test('home bias raises WACC for savings-scarce regions and lowers it for savings-rich ones', () => {
+  const params = energyModule.mergeParams({
+    regional: { oecd: { financingSpread: 0 }, china: { financingSpread: 0 }, ssa: { financingSpread: 0 } } as any,
+  });
+  const state = energyModule.init(params);
+  const savings = regionalRecord(0.25);
+  savings.china = 0.45;
+  savings.ssa = 0.13;
+  const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.28, regionalSavings: savings };
+  const r = energyModule.step(state, inputs, params, 2025, 0);
+  // gap = world - region: ssa +0.15 * 0.15 = +2.25pp; china -0.17 * 0.15 = -2.55pp
+  expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.15 * 0.15, 6);
+  expect(r.outputs.regionalWACC.china).toBeCloseTo(r.outputs.effectiveWACC - 0.17 * 0.15, 6);
+  expect(r.outputs.regionalWACC.oecd).toBeCloseTo(r.outputs.effectiveWACC + 0.03 * 0.15, 6);
+});
+
+test('a savings increase in a region lowers its own WACC, all else equal', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const base = regionalRecord(0.25);
+  const run = (ssaSavings: number) => {
+    const regionalSavings = { ...base, ssa: ssaSavings };
+    const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.25, regionalSavings };
+    return energyModule.step(state, inputs, params, 2025, 0).outputs.regionalWACC.ssa;
+  };
+  expect(run(0.25)).toBeGreaterThan(run(0.35));
+});
+
+test('home bias 0 or missing savings inputs fall back to static spreads only', () => {
+  const zeroBias = energyModule.mergeParams({ financingHomeBias: 0 });
+  const state = energyModule.init(zeroBias);
+  const savings = regionalRecord(0.10);
+  const withSavings = energyModule.step(
+    state,
+    { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.30, regionalSavings: savings },
+    zeroBias, 2025, 0,
+  );
+  const defaults = energyModule.mergeParams({});
+  const withoutSavings = energyModule.step(
+    energyModule.init(defaults), createInputs(30000, 25, 1.0, 0, 0.05), defaults, 2025, 0,
+  );
+  for (const region of REGIONS) {
+    const staticSpread = defaults.regional[region].financingSpread ?? 0;
+    expect(withSavings.outputs.regionalWACC[region])
+      .toBeCloseTo(withSavings.outputs.effectiveWACC + staticSpread, 6);
+    expect(withoutSavings.outputs.regionalWACC[region])
+      .toBeCloseTo(withoutSavings.outputs.effectiveWACC + staticSpread, 6);
+  }
+});
+
+test('validation rejects out-of-range financing spreads and scale', () => {
+  expect(energyModule.validate({ financingSpreadScale: -1 }).valid).toBeFalse();
+  expect(energyModule.validate({ financingSpreadScale: 5 }).valid).toBeFalse();
+  expect(energyModule.validate({ financingHomeBias: -0.1 }).valid).toBeFalse();
+  expect(energyModule.validate({ financingHomeBias: 1.5 }).valid).toBeFalse();
+  expect(energyModule.validate({
+    regional: { ssa: { financingSpread: 0.5 } } as any,
+  }).valid).toBeFalse();
+  expect(energyModule.validate({
+    regional: { ssa: { financingSpread: 0.06 } } as any,
+  }).valid).toBeTrue();
 });
 
 // --- System LCOE ---

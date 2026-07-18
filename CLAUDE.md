@@ -156,6 +156,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
 - **WACC**: Interest rate → WACC → LCOE channel (capital-intensive sources penalized when rates high)
+- **Regional financing spreads**: per-region WACC = global rate + static risk residual + home-bias term from the region's savings gap vs the world (Feldstein-Horioka, `financingHomeBias`); calibrated so 2025 totals match the IEA Cost of Capital Observatory, `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 
