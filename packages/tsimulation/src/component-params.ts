@@ -29,7 +29,9 @@ export class ComponentParams<T extends object = Record<string, unknown>> {
 
   /**
    * Get value at dot-path (e.g., 'climate.sensitivity').
-   * Returns undefined if path doesn't exist.
+   * Returns undefined if path doesn't exist. Object subtrees are returned as
+   * deep clones so the container stays immutable — mutating the result cannot
+   * change internal state. (Primitives copy by value already.)
    */
   get(path: string): unknown {
     const parts = path.split('.');
@@ -40,19 +42,23 @@ export class ComponentParams<T extends object = Record<string, unknown>> {
       }
       current = current[part];
     }
-    return current;
+    return current !== null && typeof current === 'object' ? structuredClone(current) : current;
   }
 
   /**
    * Returns a new ComponentParams with the value at path replaced.
-   * Does not mutate the original.
+   * Does not mutate the original. Missing intermediate nodes — including `null`
+   * ones — are created as empty objects; a primitive sitting on the path is
+   * likewise overwritten with an object to make room for the deeper key.
    */
   set(path: string, value: unknown): ComponentParams<T> {
     const parts = path.split('.');
     const clone = structuredClone(this.data);
     let current: any = clone;
     for (let i = 0; i < parts.length - 1; i++) {
-      if (current[parts[i]] === undefined || typeof current[parts[i]] !== 'object') {
+      // `== null` catches both undefined and null (typeof null === 'object',
+      // so the type check alone would step into a null and then throw).
+      if (current[parts[i]] == null || typeof current[parts[i]] !== 'object') {
         current[parts[i]] = {};
       }
       current = current[parts[i]];
