@@ -559,6 +559,66 @@ test('low interest rate produces minWACC floor', () => {
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
 });
 
+// --- Regional financing spreads ---
+
+console.log('\n--- Regional Financing Spreads ---\n');
+
+test('regionalWACC equals global WACC plus the regional spread', () => {
+  const params = energyModule.mergeParams({
+    regional: { ssa: { financingSpread: 0.06 } } as any,
+  });
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);
+  expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.06, 6);
+  expect(r.outputs.regionalWACC.oecd).toBeCloseTo(r.outputs.effectiveWACC, 6);
+});
+
+test('a positive financing spread suppresses regional solar additions', () => {
+  const run = (spread: number) => {
+    const params = energyModule.mergeParams({
+      regional: { india: { financingSpread: spread } } as any,
+    });
+    let state = energyModule.init(params);
+    let outputs: any;
+    for (let i = 0; i < 10; i++) {
+      const result = energyModule.step(state, createInputs(30000 + i * 500, 25 + i * 0.5), params, 2025 + i, i);
+      state = result.state;
+      outputs = result.outputs;
+    }
+    return outputs;
+  };
+  const frictionless = run(0);
+  const constrained = run(0.20);
+  expect(constrained.regionalCapacities.india.solar)
+    .toBeLessThan(frictionless.regionalCapacities.india.solar);
+  // Other regions' financing is untouched
+  expect(constrained.regionalWACC.china).toBeCloseTo(frictionless.regionalWACC.china, 6);
+});
+
+test('financingSpreadScale=0 neutralizes all regional spreads', () => {
+  const spreads = { ssa: { financingSpread: 0.08 }, india: { financingSpread: 0.03 } };
+  const withScale = energyModule.mergeParams({
+    regional: spreads as any,
+    financingSpreadScale: 0,
+  });
+  const state = energyModule.init(withScale);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), withScale, 2025, 0);
+  for (const region of REGIONS) {
+    expect(r.outputs.regionalWACC[region]).toBeCloseTo(r.outputs.effectiveWACC, 6);
+  }
+});
+
+test('validation rejects out-of-range financing spreads and scale', () => {
+  expect(energyModule.validate({ financingSpreadScale: -1 }).valid).toBeFalse();
+  expect(energyModule.validate({ financingSpreadScale: 5 }).valid).toBeFalse();
+  expect(energyModule.validate({
+    regional: { ssa: { financingSpread: 0.5 } } as any,
+  }).valid).toBeFalse();
+  expect(energyModule.validate({
+    regional: { ssa: { financingSpread: 0.06 } } as any,
+  }).valid).toBeTrue();
+});
+
 // --- System LCOE ---
 
 console.log('\n--- System LCOE ---\n');

@@ -238,6 +238,7 @@ export const standardCollectors: CollectorConfig = {
       },
     },
     { source: 'regionalCapacities', unit: 'GW', description: 'Energy capacity by region and source', module: 'energy' },
+    { source: 'regionalWACC', unit: 'fraction', description: 'Energy project WACC by region (global rate + regional financing spread)', module: 'energy' },
     { source: 'regionalAdditions', unit: 'GW', description: 'Capacity additions by region and source', module: 'energy' },
     { source: 'regionalGeneration', unit: 'TWh', description: 'Generation by region and source', module: 'dispatch' },
     { source: 'regionalGridIntensity', unit: 'kg CO2/MWh', description: 'Grid intensity by region', module: 'dispatch' },

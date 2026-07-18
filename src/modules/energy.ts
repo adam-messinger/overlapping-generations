@@ -55,6 +55,7 @@ export interface RegionalEnergyParams {
   carbonPrice: number;                          // $/ton CO2
   maxGrowthRate?: Partial<Record<EnergySource, number>>;  // Policy constraints (overrides global)
   capacityFactor?: Partial<Record<EnergySource, number>>; // Resource quality (solar irradiance, etc.)
+  financingSpread?: number;                     // Financing cost spread over global rate (fraction, e.g. 0.06 = +6pp)
 }
 
 export interface EnergyParams {
@@ -131,6 +132,9 @@ export interface EnergyParams {
 
   /** Floor on effective WACC */
   minWACC: number;
+
+  /** Multiplier on all regional financing spreads (0 = frictionless capital markets) */
+  financingSpreadScale: number;
 
   /** Fraction of LCOE that is capital cost, by source */
   capitalIntensity: Record<EnergySource, number>;
@@ -382,6 +386,7 @@ export const energyDefaults: EnergyParams = {
   riskPremium: 0.02,               // 2% over risk-free (interest) rate
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
+  financingSpreadScale: 1.0,       // Regional spreads applied at face value
   capitalIntensity: {              // Fraction of LCOE that is capital cost
     solar: 0.85,
     wind: 0.80,
@@ -546,6 +551,9 @@ export interface EnergyOutputs {
 
   /** Effective WACC used for LCOE adjustment this year */
   effectiveWACC: number;
+
+  /** Effective WACC by region (global rate + regional financing spread) */
+  regionalWACC: Record<Region, number>;
 }
 
 // =============================================================================
@@ -717,6 +725,12 @@ export const energyModule: Module<
       range: { min: 0.01, max: 0.10, default: 0.03 },
       tier: 1 as const,
     },
+    financingSpreadScale: {
+      description: 'Multiplier on regional financing spreads over the global rate. 0 = frictionless global capital market, 1 = observed spreads, >1 = fragmentation.',
+      unit: 'dimensionless',
+      range: { min: 0, max: 3, default: 1.0 },
+      tier: 1 as const,
+    },
     regional: {
       oecd: {
         carbonPrice: {
@@ -778,6 +792,7 @@ export const energyModule: Module<
     'longStorageCapacity',
     'longStorageRegional',
     'effectiveWACC',
+    'regionalWACC',
   ] as const,
 
   validate(params: Partial<EnergyParams>): ValidationResult {
@@ -844,6 +859,18 @@ export const energyModule: Module<
     }
     if (p.minWACC !== undefined && p.minWACC < 0) {
       errors.push('minWACC cannot be negative');
+    }
+    if (p.financingSpreadScale !== undefined &&
+        (!Number.isFinite(p.financingSpreadScale) || p.financingSpreadScale < 0 || p.financingSpreadScale > 3)) {
+      errors.push('financingSpreadScale must be between 0 and 3');
+    }
+    if (p.regional) {
+      for (const region of REGIONS) {
+        const spread = p.regional[region]?.financingSpread;
+        if (spread !== undefined && (!Number.isFinite(spread) || spread < -0.05 || spread > 0.20)) {
+          errors.push(`financingSpread for ${region} must be between -0.05 and 0.20`);
+        }
+      }
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -1060,18 +1087,31 @@ export const energyModule: Module<
       if (r < 0.001) return 1 / n; // Limit as r→0
       return r / (1 - Math.pow(1 + r, -n));
     };
-    const crfEffective = crf(effectiveWACC);
     const crfBase = crf(params.baseWACC);
 
-    // Adjust LCOE for each source based on capital intensity and WACC deviation.
-    // Apply adjustment only to the capital portion to respect soft floor bounds.
-    const crfRatio = crfEffective / crfBase;
-    for (const source of ENERGY_SOURCES) {
+    // Adjust LCOE for the capital-intensity-weighted portion only, so soft
+    // floor bounds are respected. Applied globally here (global capital-market
+    // rate) and per region below with each region's financing spread.
+    const waccAdjustedLCOE = (baseLCOE: number, source: EnergySource, wacc: number): number => {
       const ci = params.capitalIntensity[source] ?? 0;
-      const baseLCOE = lcoes[source];
       const capitalPortion = baseLCOE * ci;
       const nonCapitalPortion = baseLCOE * (1 - ci);
-      lcoes[source] = capitalPortion * crfRatio + nonCapitalPortion;
+      return capitalPortion * (crf(wacc) / crfBase) + nonCapitalPortion;
+    };
+
+    // Pre-adjustment LCOEs are the basis for the regional adjustment.
+    const preWaccLcoes = { ...lcoes };
+    for (const source of ENERGY_SOURCES) {
+      lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, effectiveWACC);
+    }
+
+    // Regional financing spreads over the global rate: capital-market depth,
+    // currency and political risk make identical projects cost more to finance
+    // in most emerging regions (IEA Cost of Capital Observatory; Steffen 2020).
+    const regionalWACC = {} as Record<Region, number>;
+    for (const region of REGIONS) {
+      const spread = (params.regional[region].financingSpread ?? 0) * params.financingSpreadScale;
+      regionalWACC[region] = Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
     }
 
     // =========================================================================
@@ -1094,10 +1134,10 @@ export const energyModule: Module<
       const regionDemand = regionalDemand[region];
       const regionInvestment = regionalInvestment[region];
 
-      // Regional effective LCOE (base LCOE + carbon cost + site quality adjustment)
+      // Regional effective LCOE (regional financing cost + carbon cost + site quality)
       const regionalLCOE: Record<EnergySource, number> = {} as any;
       for (const source of ENERGY_SOURCES) {
-        let lcoe = lcoes[source];
+        let lcoe = waccAdjustedLCOE(preWaccLcoes[source], source, regionalWACC[region]);
         // Add regional carbon cost for fossil fuels
         if (source === 'gas' || source === 'coal') {
           const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
@@ -1472,6 +1512,7 @@ export const energyModule: Module<
         longStorageCapacity: longStorageTotal,
         longStorageRegional: newLongStorageRegional,
         effectiveWACC,
+        regionalWACC,
       },
     };
   },

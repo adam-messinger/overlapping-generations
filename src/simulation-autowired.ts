@@ -244,6 +244,12 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['regionalCapacities'],
     },
 
+    // Regional energy-project WACC from energy module
+    regionalWACC: {
+      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'regionalWACC', 'regionalWACC'),
+      dependsOn: ['regionalWACC'],
+    },
+
     // Long-duration storage regional capacities (GWh) from energy module
     longStorageRegional: {
       fn: (outputs: Record<string, any>) => requireOutput(outputs, 'longStorageRegional', 'longStorageRegional'),
@@ -724,6 +730,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       // Regional Energy
       regionalCapacities: o.regionalCapacities,
       regionalAdditions: o.regionalAdditions,
+      regionalWACC: o.regionalWACC,
 
       // Regional Dispatch
       regionalGeneration: o.regionalGeneration,
