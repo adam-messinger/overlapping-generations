@@ -172,6 +172,31 @@ test('deep ocean temp output matches state', () => {
   expect(result.outputs.deepOceanTemp).toBe(result.state.deepTemp);
 });
 
+test('damage function reproduces its documented calibration quantitatively', () => {
+  // paramMeta claims ~4.8% GDP at 3°C before tipping amplification:
+  // 0.00536 x 3^2 = 0.0482. Pins damageCoeff against silent drift — the
+  // audit found the previous damage test asserted only emissions.
+  const preTipping = climateDefaults.damageCoeff * 3 * 3;
+  expect(preTipping).toBeCloseTo(0.048, 2);
+
+  // The step output composes quadratic x tipping multiplier, capped:
+  // damages = min(min(coeff*T^2, maxDamage) * tippingMult(T), maxDamage)
+  const state = climateModule.init(climateDefaults);
+  const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
+  const T = outputs.temperature;
+  const quadratic = Math.min(climateDefaults.damageCoeff * T * T, climateDefaults.maxDamage);
+  const transition = 1 / (1 + Math.exp(-climateDefaults.tippingSteepness * (T - climateDefaults.tippingThreshold)));
+  const tippingMult = 1 + (climateDefaults.tippingMultiplier - 1) * transition;
+  const expected = Math.min(quadratic * tippingMult, climateDefaults.maxDamage);
+  expect(outputs.damages).toBeCloseTo(expected, 9);
+});
+
+test('damages are capped at maxDamage under extreme warming', () => {
+  const state = { ...climateModule.init(climateDefaults), temperature: 12 };
+  const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
+  expect(outputs.damages).toBeCloseTo(climateDefaults.maxDamage, 6);
+});
+
 test('damages increase with temperature', () => {
   const state = climateModule.init(climateDefaults);
 

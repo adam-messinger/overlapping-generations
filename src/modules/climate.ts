@@ -51,11 +51,11 @@ export interface ClimateParams {
   heatExchange: number;          // γ: inter-layer heat exchange, W·m⁻²·K⁻¹ (0.73)
   forcingPerDoubling: number;    // F₂ₓ: radiative forcing per CO2 doubling, W/m² (3.7)
   warmingRate: number;           // Observed surface warming rate in 2025, °C/yr (0.02)
-  currentTemp: number;           // °C above preindustrial in 2025 (1.2)
+  currentTemp: number;           // °C above preindustrial in 2025 (1.45)
 
-  // Damage function (DICE-2023)
-  damageCoeff: number;           // Quadratic coefficient (0.00236)
-  maxDamage: number;             // Cap on damages (0.30)
+  // Damage function (DICE-2023/Howard-Sterner midpoint)
+  damageCoeff: number;           // Quadratic coefficient (0.00536)
+  maxDamage: number;             // Cap on damages (0.50)
 
   // Regional multipliers
   regionalDamage: Record<Region, number>;
