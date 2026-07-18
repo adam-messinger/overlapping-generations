@@ -4,10 +4,19 @@ A TypeScript simulation exploring energy transitions, demographics, and climate 
 
 ## Project Structure
 
+This repository is an npm **workspaces monorepo**. The generic engine lives in
+its own package (`packages/tsimulation`) and the energy model consumes it.
+
 ```
-overlapping-generations/
+overlapping-generations/           # workspaces monorepo root (private)
+├── packages/
+│   └── tsimulation/               # Generic simulation framework — standalone, MIT, publishable
+│       ├── src/                   # autowire, module, problem, collectors, introspect, component-params, ...
+│       ├── test/                  # node:test suite (zero test deps)
+│       ├── examples/              # runnable predator-prey demo
+│       └── README.md              # framework docs
 ├── src/
-│   ├── modules/              # Simulation modules (pure functions)
+│   ├── modules/                   # Simulation modules (pure functions)
 │   │   ├── demographics.ts
 │   │   ├── production.ts
 │   │   ├── demand.ts
@@ -18,31 +27,25 @@ overlapping-generations/
 │   │   ├── resources.ts
 │   │   ├── cdr.ts
 │   │   └── climate.ts
-│   ├── framework/            # Generic, domain-independent framework
-│   │   ├── index.ts          # Barrel export
-│   │   ├── autowire.ts       # Init/step/finalize with dependency resolution
-│   │   ├── collectors.ts     # Generic collector infrastructure
-│   │   ├── problem.ts        # Problem-solve separation (Julia SciML-inspired)
-│   │   ├── types.ts          # YearIndex, TimeSeries, ValidationResult, ParamMeta
-│   │   ├── module.ts         # Module interface + defineModule
-│   │   ├── introspect.ts     # Parameter schema generation
-│   │   ├── validated-merge.ts # validatedMerge wrapper
-│   │   └── component-params.ts # Dot-path get/set (Julia ComponentArrays-inspired)
-│   ├── primitives/           # Math functions (learningCurve, compound, etc.)
-│   ├── domain-types.ts       # Region, EnergySource, Fuel, Mineral types + arrays
-│   ├── standard-collectors.ts # standardCollectors + computeEnergySystemOverhead
-│   ├── simulation.ts         # Main runner + CLI
-│   ├── simulation-autowired.ts # Autowired runner, transforms, lags, YearResult mapping
-│   ├── scenario.ts           # Scenario loader
-│   ├── introspection.ts      # Agent parameter discovery
-│   └── index.ts              # Public API
-├── scenarios/                # Scenario configurations
-├── scripts/                  # Analysis scripts
-├── sources/                  # Academic references
-└── baselines/                # Saved baseline runs
+│   ├── primitives/                # Math functions (learningCurve, compound, etc.)
+│   ├── domain-types.ts            # Region, EnergySource, Fuel, Mineral types + arrays
+│   ├── standard-collectors.ts     # standardCollectors + computeEnergySystemOverhead
+│   ├── simulation.ts              # Main runner + CLI
+│   ├── simulation-autowired.ts    # Autowired runner, transforms, lags, YearResult mapping
+│   ├── scenario.ts                # Scenario loader
+│   ├── introspection.ts           # Agent parameter discovery
+│   └── index.ts                   # Public API
+├── scenarios/                     # Scenario configurations
+├── scripts/                       # Analysis scripts
+├── sources/                       # Academic references
+└── baselines/                     # Saved baseline runs
 ```
 
-The `framework/` directory is fully domain-independent and reusable for other simulations. Domain-specific types live in `domain-types.ts` and domain-specific collectors in `standard-collectors.ts`.
+The `tsimulation` framework is fully domain-independent and published as a
+standalone open-source package (see `packages/tsimulation/README.md`). Modules
+and runners import it as a workspace dependency: `import { defineModule } from 'tsimulation'`.
+Domain-specific types live in `domain-types.ts` and domain-specific collectors in
+`standard-collectors.ts`.
 
 ## Quick Start
 
@@ -136,8 +139,13 @@ Do this before committing. Most fix-up commits in project history would have bee
 
 ### Architecture Boundaries
 
-- `src/framework/` must not import from `src/modules/` or `src/domain-types.ts`
-- Shared test infrastructure: `src/test-utils.ts`
+- `packages/tsimulation/` is a standalone, domain-independent package: it must not
+  import from `src/` (the energy domain) and must stay dependency-free. Its own
+  tests live in `packages/tsimulation/test/` (Node's built-in `node:test`).
+- After changing framework source, rebuild it (`npm run build:framework`) so the
+  workspace consumers pick up new `dist` types. `npm test`/`npm run regression`
+  do this automatically via pre-hooks.
+- Shared (domain) test infrastructure: `src/test-utils.ts`
 - Shared math/utility functions: `src/primitives/`
 - When a new approach replaces an old one, remove the old code in the same or next commit
 

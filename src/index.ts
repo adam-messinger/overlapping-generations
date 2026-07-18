@@ -29,25 +29,25 @@ export { climateModule, climateDefaults } from './modules/climate.js';
 export { compound, learningCurve, depletion, logistic, poissonShock } from './primitives/math.js';
 
 // Component params (Julia ComponentArrays-inspired)
-export { ComponentParams } from './framework/component-params.js';
+export { ComponentParams } from 'tsimulation';
 
 // Agent introspection
 export { describeParameters, describeOutputs, buildParams, buildMultiParams, listParameters } from './introspection.js';
 export type { ParameterInfo, ParameterSchema, OutputInfo, OutputSchema } from './introspection.js';
 
 // Auto-wired simulation
-export { runAutowired, initAutowired, stepAutowired, finalizeAutowired, buildOutputRegistry, buildDependencyGraph, topologicalSort, getOutputsAtYear, getTimeSeries, validateConnectorTypes } from './framework/autowire.js';
-export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AutowireState, AnyModule } from './framework/autowire.js';
-export type { ConnectorType } from './framework/module.js';
+export { runAutowired, initAutowired, stepAutowired, finalizeAutowired, buildOutputRegistry, buildDependencyGraph, topologicalSort, getOutputsAtYear, getTimeSeries, validateConnectorTypes } from 'tsimulation';
+export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AutowireState, AnyModule } from 'tsimulation';
+export type { ConnectorType } from 'tsimulation';
 export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics } from './simulation-autowired.js';
 
 // Problem-solve separation (Julia SciML-inspired)
-export { defineSimulation, solve, init } from './framework/problem.js';
-export type { SimulationProblem, StepperResult, Stepper } from './framework/problem.js';
+export { defineSimulation, solve, init } from 'tsimulation';
+export type { SimulationProblem, StepperResult, Stepper } from 'tsimulation';
 
 // Declarative data collectors (generic framework)
-export { collectResults, resolveKey } from './framework/collectors.js';
-export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from './framework/collectors.js';
+export { collectResults, resolveKey } from 'tsimulation';
+export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from 'tsimulation';
 
 // Standard collectors (domain-specific)
 export { standardCollectors, computeEnergySystemOverhead } from './standard-collectors.js';
@@ -59,4 +59,4 @@ export { getAtYear, extractTimeSeries } from './helpers.js';
 export type { Region, EnergySource } from './domain-types.js';
 
 // Framework types
-export type { ValidationResult } from './framework/types.js';
+export type { ValidationResult } from 'tsimulation';

@@ -3,9 +3,13 @@
 A TypeScript simulation exploring energy transitions, demographics, debt, and
 climate from 2025 to 2100. Ten pure modules (demographics, production,
 demand, capital, generations, energy, dispatch, resources, CDR, climate) are composed by a
-small domain-independent framework (`src/framework/`) that resolves
-dependencies topologically and breaks feedback cycles with explicit one-year
-lags.
+small domain-independent framework — the [`tsimulation`](packages/tsimulation/)
+package — that resolves dependencies topologically and breaks feedback cycles
+with explicit one-year lags.
+
+This is an npm workspaces monorepo: `packages/tsimulation/` is the standalone,
+MIT-licensed engine (reusable for any discrete-time simulation), and the energy
+model in `src/` consumes it as a workspace dependency.
 
 Key modeling commitments: Ayres–Warr biophysical production (useful energy as
 a primary growth factor), Wright's Law learning curves for solar/wind/battery,
@@ -60,8 +64,9 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   development conventions, scenario table, key outputs. Start here.
 - `src/modules/` — the ten simulation modules (pure
   `init`/`step`/`validate` interfaces)
-- `src/framework/` — generic autowiring/collector/problem framework
-  (no domain imports; reusable for other simulations)
+- `packages/tsimulation/` — the generic autowiring/collector/problem framework
+  (no domain imports; reusable for other simulations; see its
+  [README](packages/tsimulation/README.md))
 - `scenarios/` — scenario JSON files ([format docs](scenarios/README.md))
 - `baselines/` + `scripts/` — blessed regression baselines and the
   capture/compare/bless tooling

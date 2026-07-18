@@ -27,10 +27,8 @@
  * - emissions: Gt CO2 from electricity - GLOBAL
  */
 
-import { defineModule, Module } from '../framework/module.js';
-import { ValidationResult } from '../framework/types.js';
+import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
-import { validatedMerge } from '../framework/validated-merge.js';
 import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 
 // =============================================================================

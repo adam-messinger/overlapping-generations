@@ -16,9 +16,7 @@
  * - Lackner (2020): The promise of negative emissions
  */
 
-import { defineModule, Module } from '../framework/module.js';
-import { ValidationResult } from '../framework/types.js';
-import { validatedMerge } from '../framework/validated-merge.js';
+import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 
 // =============================================================================
 // PARAMETERS

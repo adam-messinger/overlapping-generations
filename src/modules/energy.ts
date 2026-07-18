@@ -24,11 +24,9 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module } from '../framework/module.js';
-import { ValidationResult } from '../framework/types.js';
+import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
-import { validatedMerge } from '../framework/validated-merge.js';
 import { distributeByGDP } from '../primitives/distribute.js';
 
 

@@ -8,8 +8,7 @@
  * International migration is intentionally non-zero-sum and is scaled by the
  * cohort-specific share of the national population covered by modeled places.
  */
-import { defineModule } from '../../../src/framework/index.js';
-import type { ValidationResult } from '../../../src/framework/index.js';
+import { defineModule, ValidationResult } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort } from '../domain-types.js';
 
 export interface MigrationParams {

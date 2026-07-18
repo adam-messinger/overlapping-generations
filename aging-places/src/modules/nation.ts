@@ -13,8 +13,7 @@
  * from the municipal stocks in migration.ts so a partial place universe never
  * receives the full-country mover pool.
  */
-import { defineModule } from '../../../src/framework/index.js';
-import type { ValidationResult } from '../../../src/framework/index.js';
+import { defineModule, ValidationResult } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort, NationOutputs } from '../domain-types.js';
 
 export interface NationParams {

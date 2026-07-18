@@ -1,9 +1,7 @@
 /**
- * Framework barrel export.
+ * tsimulation — public API barrel.
  *
- * All generic, domain-independent framework primitives.
- * Domain types (Region, EnergySource, etc.) live in ../domain-types.ts.
- * Domain collectors (standardCollectors, etc.) live in ../standard-collectors.ts.
+ * A dependency-free engine for modular, discrete-time simulations.
  */
 
 export * from './types.js';

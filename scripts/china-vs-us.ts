@@ -8,7 +8,7 @@
  * Scenario: China $80/t, OECD $15/t
  */
 import { runAutowiredSimulation, toYearResults } from '../src/simulation-autowired.js';
-import { getOutputsAtYear } from '../src/framework/autowire.js';
+import { getOutputsAtYear } from 'tsimulation';
 import type { SimulationParams } from '../src/simulation.js';
 
 function run(label: string, overrides: SimulationParams) {

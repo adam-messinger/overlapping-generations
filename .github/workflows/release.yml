@@ -1,0 +1,42 @@
+name: Publish tsimulation
+
+# Publishes the tsimulation framework package to npm when a tag of the form
+# `tsimulation-v*` (e.g. tsimulation-v0.1.0) is pushed.
+#
+# Requires an `NPM_TOKEN` repository secret (an npm automation token). Publishing
+# uses npm provenance, which needs the `id-token: write` permission below.
+
+on:
+  push:
+    tags:
+      - 'tsimulation-v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build framework
+        run: npm run build:framework
+
+      - name: Framework tests
+        run: npm run test:framework
+
+      - name: Publish to npm
+        run: npm publish --workspace tsimulation --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

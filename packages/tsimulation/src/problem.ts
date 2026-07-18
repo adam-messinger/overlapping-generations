@@ -14,7 +14,7 @@
  *   const stepper = init(problem);
  *   while (!stepper.done()) {
  *     const { year, outputs } = stepper.step();
- *     console.log(year, outputs.temperature);
+ *     console.log(year, outputs.someOutput);
  *   }
  *   const result = stepper.result();
  */

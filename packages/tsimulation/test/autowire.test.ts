@@ -1,7 +1,10 @@
 /**
- * Tests for automatic dependency resolution
+ * Tests for automatic dependency resolution.
+ * Uses the Node built-in test runner (node:test) with zero test dependencies.
  */
 
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
 import {
   buildOutputRegistry,
   buildDependencyGraph,
@@ -10,13 +13,11 @@ import {
   getOutputsAtYear,
   getTimeSeries,
   validateWiring,
-  requireOutput,
   yearZeroFallback,
   optionalOutput,
-  AnyModule,
-} from './autowire.js';
-import { defineModule } from './module.js';
-import { test, expect, printSummary } from '../test-utils.js';
+} from '../src/autowire.js';
+import { defineModule } from '../src/module.js';
+import { okValidate, throwsWith } from './helpers.js';
 
 // =============================================================================
 // TEST MODULES
@@ -82,15 +83,13 @@ const feedbackModule = defineModule({
 // TESTS: OUTPUT REGISTRY
 // =============================================================================
 
-console.log('\n=== Output Registry Tests ===\n');
-
 test('buildOutputRegistry creates mapping from outputs to modules', () => {
   const registry = buildOutputRegistry([rootModule, dependentModule]);
 
-  expect(registry.get('value')).toBe('root');
-  expect(registry.get('doubled')).toBe('root');
-  expect(registry.get('result')).toBe('dependent');
-  expect(registry.size).toBe(3);
+  assert.strictEqual(registry.get('value'), 'root');
+  assert.strictEqual(registry.get('doubled'), 'root');
+  assert.strictEqual(registry.get('result'), 'dependent');
+  assert.strictEqual(registry.size, 3);
 });
 
 test('buildOutputRegistry detects collisions', () => {
@@ -100,20 +99,18 @@ test('buildOutputRegistry detects collisions', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['value'] as const, // Collision with root
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { value: 0 } }),
   });
 
-  expect(() => buildOutputRegistry([rootModule, collision])).toThrow('collision');
+  throwsWith(() => buildOutputRegistry([rootModule, collision]), 'collision');
 });
 
 // =============================================================================
 // TESTS: DEPENDENCY GRAPH
 // =============================================================================
-
-console.log('\n=== Dependency Graph Tests ===\n');
 
 test('buildDependencyGraph identifies dependencies', () => {
   const registry = buildOutputRegistry([rootModule, dependentModule]);
@@ -122,11 +119,11 @@ test('buildDependencyGraph identifies dependencies', () => {
   const rootNode = graph.get('root')!;
   const depNode = graph.get('dependent')!;
 
-  expect(rootNode.dependsOn.size).toBe(0);
-  expect(rootNode.providesTo.has('dependent')).toBeTrue();
+  assert.strictEqual(rootNode.dependsOn.size, 0);
+  assert.strictEqual(rootNode.providesTo.has('dependent'), true);
 
-  expect(depNode.dependsOn.has('root')).toBeTrue();
-  expect(depNode.providesTo.size).toBe(0);
+  assert.strictEqual(depNode.dependsOn.has('root'), true);
+  assert.strictEqual(depNode.providesTo.size, 0);
 });
 
 test('buildDependencyGraph throws on unresolved input', () => {
@@ -136,14 +133,14 @@ test('buildDependencyGraph throws on unresolved input', () => {
     defaults: {},
     inputs: ['nonexistent'] as const,
     outputs: ['orphanOut'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { orphanOut: 0 } }),
   });
 
   const registry = buildOutputRegistry([orphan]);
-  expect(() => buildDependencyGraph([orphan], registry)).toThrow('Unresolved input');
+  throwsWith(() => buildDependencyGraph([orphan], registry), 'Unresolved input');
 });
 
 test('buildDependencyGraph allows transforms for computed inputs', () => {
@@ -153,7 +150,7 @@ test('buildDependencyGraph allows transforms for computed inputs', () => {
     defaults: {},
     inputs: ['computedValue'] as const,
     outputs: ['computedOut'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { computedOut: inputs.computedValue * 2 } }),
@@ -166,7 +163,7 @@ test('buildDependencyGraph allows transforms for computed inputs', () => {
 
   // Should not throw
   const graph = buildDependencyGraph([rootModule, computed], registry, transforms);
-  expect(graph.size).toBe(2);
+  assert.strictEqual(graph.size, 2);
 });
 
 test('transforms with dependsOn create proper dependency edges', () => {
@@ -176,7 +173,7 @@ test('transforms with dependsOn create proper dependency edges', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['rawValue'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { rawValue: 42 } }),
@@ -188,7 +185,7 @@ test('transforms with dependsOn create proper dependency edges', () => {
     defaults: {},
     inputs: ['derivedValue'] as const,
     outputs: ['result'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { result: inputs.derivedValue * 2 } }),
@@ -205,8 +202,8 @@ test('transforms with dependsOn create proper dependency edges', () => {
   const graph = buildDependencyGraph([producer, consumer], registry, transforms);
 
   // Consumer should depend on producer (via transform's dependsOn)
-  expect(graph.get('consumer')!.dependsOn.has('producer')).toBeTrue();
-  expect(graph.get('producer')!.providesTo.has('consumer')).toBeTrue();
+  assert.strictEqual(graph.get('consumer')!.dependsOn.has('producer'), true);
+  assert.strictEqual(graph.get('producer')!.providesTo.has('consumer'), true);
 });
 
 test('transforms without dependsOn (bare functions) still work but create no edges', () => {
@@ -216,7 +213,7 @@ test('transforms without dependsOn (bare functions) still work but create no edg
     defaults: {},
     inputs: [] as const,
     outputs: ['rawValue'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { rawValue: 42 } }),
@@ -228,7 +225,7 @@ test('transforms without dependsOn (bare functions) still work but create no edg
     defaults: {},
     inputs: ['derivedValue'] as const,
     outputs: ['result'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { result: inputs.derivedValue * 2 } }),
@@ -243,14 +240,12 @@ test('transforms without dependsOn (bare functions) still work but create no edg
   const graph = buildDependencyGraph([producer, consumer], registry, transforms);
 
   // Consumer should NOT depend on producer (bare function has no dependsOn)
-  expect(graph.get('consumer')!.dependsOn.has('producer')).toBeFalse();
+  assert.strictEqual(graph.get('consumer')!.dependsOn.has('producer'), false);
 });
 
 // =============================================================================
 // TESTS: TOPOLOGICAL SORT
 // =============================================================================
-
-console.log('\n=== Topological Sort Tests ===\n');
 
 test('topologicalSort orders modules correctly', () => {
   const registry = buildOutputRegistry([rootModule, dependentModule]);
@@ -258,10 +253,10 @@ test('topologicalSort orders modules correctly', () => {
   const sorted = topologicalSort(graph);
 
   // Root must come before dependent
-  const rootIdx = sorted.findIndex(m => m.name === 'root');
-  const depIdx = sorted.findIndex(m => m.name === 'dependent');
+  const rootIdx = sorted.findIndex((m) => m.name === 'root');
+  const depIdx = sorted.findIndex((m) => m.name === 'dependent');
 
-  expect(rootIdx < depIdx).toBeTrue();
+  assert.ok(rootIdx < depIdx);
 });
 
 test('topologicalSort handles multiple roots', () => {
@@ -271,7 +266,7 @@ test('topologicalSort handles multiple roots', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['value2'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { value2: 999 } }),
@@ -283,7 +278,7 @@ test('topologicalSort handles multiple roots', () => {
     defaults: {},
     inputs: ['value', 'value2'] as const,
     outputs: ['combined'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { combined: inputs.value + inputs.value2 } }),
@@ -294,12 +289,12 @@ test('topologicalSort handles multiple roots', () => {
   const sorted = topologicalSort(graph);
 
   // Both roots must come before multi
-  const rootIdx = sorted.findIndex(m => m.name === 'root');
-  const root2Idx = sorted.findIndex(m => m.name === 'root2');
-  const multiIdx = sorted.findIndex(m => m.name === 'multi');
+  const rootIdx = sorted.findIndex((m) => m.name === 'root');
+  const root2Idx = sorted.findIndex((m) => m.name === 'root2');
+  const multiIdx = sorted.findIndex((m) => m.name === 'multi');
 
-  expect(rootIdx < multiIdx).toBeTrue();
-  expect(root2Idx < multiIdx).toBeTrue();
+  assert.ok(rootIdx < multiIdx);
+  assert.ok(root2Idx < multiIdx);
 });
 
 test('topologicalSort detects cycles', () => {
@@ -309,7 +304,7 @@ test('topologicalSort detects cycles', () => {
     defaults: {},
     inputs: ['fromB'] as const,
     outputs: ['toB'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { toB: 1 } }),
@@ -321,7 +316,7 @@ test('topologicalSort detects cycles', () => {
     defaults: {},
     inputs: ['toB'] as const,
     outputs: ['fromB'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { fromB: 2 } }),
@@ -330,14 +325,12 @@ test('topologicalSort detects cycles', () => {
   const registry = buildOutputRegistry([cycleA, cycleB]);
   const graph = buildDependencyGraph([cycleA, cycleB], registry);
 
-  expect(() => topologicalSort(graph)).toThrow('cycle');
+  throwsWith(() => topologicalSort(graph), 'cycle');
 });
 
 // =============================================================================
 // TESTS: FULL SIMULATION
 // =============================================================================
-
-console.log('\n=== Simulation Tests ===\n');
 
 test('runAutowired executes modules in correct order', () => {
   const result = runAutowired({
@@ -346,23 +339,19 @@ test('runAutowired executes modules in correct order', () => {
     endYear: 2027,
   });
 
-  expect(result.years).toHaveLength(3);
+  assert.strictEqual(result.years.length, 3);
 
   // Root outputs: value = state.current + yearIndex
-  // state.current starts at 100, increments each year
-  // Year 0: current=100, value=100+0=100, new current=101
-  // Year 1: current=101, value=101+1=102, new current=102
-  // Year 2: current=102, value=102+2=104, new current=103
   const rootValues = result.outputs.root.value;
-  expect(rootValues[0]).toBe(100); // year 2025, yearIndex 0
-  expect(rootValues[1]).toBe(102); // year 2026, yearIndex 1
-  expect(rootValues[2]).toBe(104); // year 2027, yearIndex 2
+  assert.strictEqual(rootValues[0], 100); // year 2025, yearIndex 0
+  assert.strictEqual(rootValues[1], 102); // year 2026, yearIndex 1
+  assert.strictEqual(rootValues[2], 104); // year 2027, yearIndex 2
 
   // Dependent outputs: result = value * 10
   const depResults = result.outputs.dependent.result;
-  expect(depResults[0]).toBe(1000);
-  expect(depResults[1]).toBe(1020);
-  expect(depResults[2]).toBe(1040);
+  assert.strictEqual(depResults[0], 1000);
+  assert.strictEqual(depResults[1], 1020);
+  assert.strictEqual(depResults[2], 1040);
 });
 
 test('runAutowired handles transforms', () => {
@@ -372,7 +361,7 @@ test('runAutowired handles transforms', () => {
     defaults: {},
     inputs: ['summed'] as const,
     outputs: ['final'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { final: inputs.summed } }),
@@ -388,7 +377,7 @@ test('runAutowired handles transforms', () => {
   });
 
   // summed = value + doubled = 100 + 200 = 300 for year 0
-  expect(result.outputs.computed.final[0]).toBe(300);
+  assert.strictEqual(result.outputs.computed.final[0], 300);
 });
 
 test('runAutowired handles lags for feedback', () => {
@@ -408,10 +397,10 @@ test('runAutowired handles lags for feedback', () => {
   const accumulated = result.outputs.feedback.accumulated;
 
   // Year 0: state.total=0, value=100, lagged=0, newTotal = 0 + 100 + 0 = 100
-  expect(accumulated[0]).toBe(100);
+  assert.strictEqual(accumulated[0], 100);
 
   // Year 1: state.total=100, value=102, lagged=100, newTotal = 100 + 102 + 100 = 302
-  expect(accumulated[1]).toBe(302);
+  assert.strictEqual(accumulated[1], 302);
 });
 
 test('runAutowired applies parameter overrides', () => {
@@ -425,14 +414,12 @@ test('runAutowired applies parameter overrides', () => {
   });
 
   // result = value * multiplier = 100 * 5 = 500
-  expect(result.outputs.dependent.result[0]).toBe(500);
+  assert.strictEqual(result.outputs.dependent.result[0], 500);
 });
 
 // =============================================================================
 // TESTS: HELPERS
 // =============================================================================
-
-console.log('\n=== Helper Tests ===\n');
 
 test('getOutputsAtYear returns flat output record', () => {
   const result = runAutowired({
@@ -443,11 +430,11 @@ test('getOutputsAtYear returns flat output record', () => {
 
   const year0 = getOutputsAtYear(result, 0);
 
-  expect(year0.value).toBe(100);
-  expect(year0.doubled).toBe(200);
-  expect(year0.result).toBe(1000);
-  expect(year0['root.value']).toBe(100);
-  expect(year0['dependent.result']).toBe(1000);
+  assert.strictEqual(year0.value, 100);
+  assert.strictEqual(year0.doubled, 200);
+  assert.strictEqual(year0.result, 1000);
+  assert.strictEqual(year0['root.value'], 100);
+  assert.strictEqual(year0['dependent.result'], 1000);
 });
 
 test('getTimeSeries returns specific output array', () => {
@@ -458,29 +445,29 @@ test('getTimeSeries returns specific output array', () => {
   });
 
   const values = getTimeSeries(result, 'root', 'value');
-  expect(values).toHaveLength(3);
-  expect(values[0]).toBe(100);
-  expect(values[1]).toBe(102);
-  expect(values[2]).toBe(104);
+  assert.strictEqual(values.length, 3);
+  assert.strictEqual(values[0], 100);
+  assert.strictEqual(values[1], 102);
+  assert.strictEqual(values[2], 104);
 });
 
 // =============================================================================
 // TESTS: WIRING VALIDATION
 // =============================================================================
 
-console.log('\n=== Wiring Validation Tests ===\n');
-
 test('validateWiring catches typo in transform dependsOn', () => {
   const registry = buildOutputRegistry([rootModule]);
   const transforms = {
     derived: {
       fn: (outputs: Record<string, any>) => outputs.value * 2,
-      dependsOn: ['valeu'],  // Typo!
+      dependsOn: ['valeu'], // Typo!
     },
   };
 
-  expect(() => validateWiring([rootModule], registry, transforms, {}))
-    .toThrow("depends on 'valeu' which doesn't exist");
+  throwsWith(
+    () => validateWiring([rootModule], registry, transforms, {}),
+    "depends on 'valeu' which doesn't exist"
+  );
 });
 
 test('validateWiring catches missing lag source', () => {
@@ -489,8 +476,10 @@ test('validateWiring catches missing lag source', () => {
     laggedFoo: { source: 'nonexistent', delay: 1, initial: 0 },
   };
 
-  expect(() => validateWiring([rootModule], registry, {}, lags))
-    .toThrow("reads source 'nonexistent' which doesn't exist");
+  throwsWith(
+    () => validateWiring([rootModule], registry, {}, lags),
+    "reads source 'nonexistent' which doesn't exist"
+  );
 });
 
 test('validateWiring passes for correct wiring', () => {
@@ -516,23 +505,27 @@ test('runAutowired throws on bad dependsOn (integration)', () => {
     defaults: {},
     inputs: ['derived'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.derived } }),
   });
 
-  expect(() => runAutowired({
-    modules: [rootModule, consumer],
-    transforms: {
-      derived: {
-        fn: (outputs: Record<string, any>) => outputs.value,
-        dependsOn: ['valeu'],  // Typo — should be caught at init
-      },
-    },
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("depends on 'valeu' which doesn't exist");
+  throwsWith(
+    () =>
+      runAutowired({
+        modules: [rootModule, consumer],
+        transforms: {
+          derived: {
+            fn: (outputs: Record<string, any>) => outputs.value,
+            dependsOn: ['valeu'], // Typo — should be caught at init
+          },
+        },
+        startYear: 2025,
+        endYear: 2025,
+      }),
+    "depends on 'valeu' which doesn't exist"
+  );
 });
 
 test('validateWiring rejects transform dependsOn referencing other transforms', () => {
@@ -544,21 +537,19 @@ test('validateWiring rejects transform dependsOn referencing other transforms', 
     },
     derived2: {
       fn: () => 84,
-      dependsOn: ['derived1'],  // References another transform — no ordering
-      // edge is created and transform values are never in currentOutputs,
-      // so this would silently read undefined at runtime.
+      dependsOn: ['derived1'], // References another transform — not supported
     },
   };
 
-  expect(() => validateWiring([rootModule], registry, transforms, {}))
-    .toThrow("Transform 'derived2' depends on transform 'derived1'");
+  throwsWith(
+    () => validateWiring([rootModule], registry, transforms, {}),
+    "Transform 'derived2' depends on transform 'derived1'"
+  );
 });
 
 // =============================================================================
 // TESTS: OUTPUT COMPLETENESS + NaN GUARD
 // =============================================================================
-
-console.log('\n=== Output Completeness Tests ===\n');
 
 test('throws when module step omits a declared output', () => {
   const incomplete = defineModule({
@@ -567,20 +558,19 @@ test('throws when module step omits a declared output', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['present', 'missing'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({
       state: {},
-      outputs: { present: 42 } as any,  // 'missing' not returned
+      outputs: { present: 42 } as any, // 'missing' not returned
     }),
   });
 
-  expect(() => runAutowired({
-    modules: [incomplete],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("declares output 'missing' but step() didn't return it");
+  throwsWith(
+    () => runAutowired({ modules: [incomplete], startYear: 2025, endYear: 2025 }),
+    "declares output 'missing' but step() didn't return it"
+  );
 });
 
 test('throws when module step returns NaN output', () => {
@@ -590,20 +580,16 @@ test('throws when module step returns NaN output', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['bad'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
-    step: () => ({
-      state: {},
-      outputs: { bad: NaN },
-    }),
+    step: () => ({ state: {}, outputs: { bad: NaN } }),
   });
 
-  expect(() => runAutowired({
-    modules: [nanModule],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("output 'bad' is NaN at year 2025");
+  throwsWith(
+    () => runAutowired({ modules: [nanModule], startYear: 2025, endYear: 2025 }),
+    "output 'bad' is NaN at year 2025"
+  );
 });
 
 test('throws when module step returns Infinity output', () => {
@@ -613,20 +599,16 @@ test('throws when module step returns Infinity output', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['bad'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
-    step: () => ({
-      state: {},
-      outputs: { bad: Infinity },
-    }),
+    step: () => ({ state: {}, outputs: { bad: Infinity } }),
   });
 
-  expect(() => runAutowired({
-    modules: [infModule],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("output 'bad' is Infinity at year 2025");
+  throwsWith(
+    () => runAutowired({ modules: [infModule], startYear: 2025, endYear: 2025 }),
+    "output 'bad' is Infinity at year 2025"
+  );
 });
 
 test('throws when nested record output contains NaN', () => {
@@ -636,20 +618,16 @@ test('throws when nested record output contains NaN', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['regional'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
-    step: () => ({
-      state: {},
-      outputs: { regional: { oecd: 42, china: NaN } },
-    }),
+    step: () => ({ state: {}, outputs: { regional: { oecd: 42, china: NaN } } }),
   });
 
-  expect(() => runAutowired({
-    modules: [nestedNan],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("output 'regional.china' is NaN at year 2025");
+  throwsWith(
+    () => runAutowired({ modules: [nestedNan], startYear: 2025, endYear: 2025 }),
+    "output 'regional.china' is NaN at year 2025"
+  );
 });
 
 test('throws when module step returns -Infinity output', () => {
@@ -659,20 +637,16 @@ test('throws when module step returns -Infinity output', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['bad'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
-    step: () => ({
-      state: {},
-      outputs: { bad: -Infinity },
-    }),
+    step: () => ({ state: {}, outputs: { bad: -Infinity } }),
   });
 
-  expect(() => runAutowired({
-    modules: [negInfModule],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("output 'bad' is -Infinity at year 2025");
+  throwsWith(
+    () => runAutowired({ modules: [negInfModule], startYear: 2025, endYear: 2025 }),
+    "output 'bad' is -Infinity at year 2025"
+  );
 });
 
 test('throws when deeply nested output (2 levels) contains NaN', () => {
@@ -682,7 +656,7 @@ test('throws when deeply nested output (2 levels) contains NaN', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['minerals'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({
@@ -691,11 +665,10 @@ test('throws when deeply nested output (2 levels) contains NaN', () => {
     }),
   });
 
-  expect(() => runAutowired({
-    modules: [deepNan],
-    startYear: 2025,
-    endYear: 2025,
-  })).toThrow("output 'minerals.copper.cumulative' is NaN at year 2025");
+  throwsWith(
+    () => runAutowired({ modules: [deepNan], startYear: 2025, endYear: 2025 }),
+    "output 'minerals.copper.cumulative' is NaN at year 2025"
+  );
 });
 
 test('allows null and non-numeric outputs', () => {
@@ -705,7 +678,7 @@ test('allows null and non-numeric outputs', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['num', 'str', 'nul', 'obj'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({
@@ -715,66 +688,42 @@ test('allows null and non-numeric outputs', () => {
   });
 
   // Should not throw
-  const result = runAutowired({
-    modules: [mixed],
-    startYear: 2025,
-    endYear: 2025,
-  });
-  expect(result.outputs.mixed.num[0]).toBe(42);
+  const result = runAutowired({ modules: [mixed], startYear: 2025, endYear: 2025 });
+  assert.strictEqual(result.outputs.mixed.num[0], 42);
 });
 
 // =============================================================================
 // TESTS: TRANSFORM HELPERS
 // =============================================================================
 
-console.log('\n=== Transform Helper Tests ===\n');
-
 test('yearZeroFallback returns value when present', () => {
   const outputs = { foo: 42 };
-  expect(yearZeroFallback(outputs, 'foo', 0, 5, 'test')).toBe(42);
+  assert.strictEqual(yearZeroFallback(outputs, 'foo', 0, 5, 'test'), 42);
 });
 
 test('yearZeroFallback returns initial on year 0 when missing', () => {
   const outputs = {};
-  expect(yearZeroFallback(outputs, 'foo', 99, 0, 'test')).toBe(99);
+  assert.strictEqual(yearZeroFallback(outputs, 'foo', 99, 0, 'test'), 99);
 });
 
 test('yearZeroFallback throws after year 0 when missing', () => {
   const outputs = {};
-  expect(() => yearZeroFallback(outputs, 'foo', 99, 1, 'test'))
-    .toThrow("'foo' missing at year index 1");
+  throwsWith(() => yearZeroFallback(outputs, 'foo', 99, 1, 'test'), "'foo' missing at year index 1");
 });
 
 test('optionalOutput returns value when present', () => {
   const outputs = { bar: 42 };
-  expect(optionalOutput(outputs, 'bar', 0)).toBe(42);
+  assert.strictEqual(optionalOutput(outputs, 'bar', 0), 42);
 });
 
 test('optionalOutput returns fallback when missing', () => {
   const outputs = {};
-  expect(optionalOutput(outputs, 'bar', 99)).toBe(99);
-});
-
-// =============================================================================
-// TESTS: YEAR RESULT MAPPING
-// =============================================================================
-
-console.log('\n=== Year Result Mapping Tests ===\n');
-
-test('energySystemOverhead > 0 after year 1 in full simulation', async () => {
-  const { runAutowiredFull } = await import('../simulation-autowired.js');
-  const { results } = runAutowiredFull({ startYear: 2025, endYear: 2030 });
-
-  // Year 0 might be 0 (no prior additions), but subsequent years should have overhead
-  const year5 = results[results.length - 1];
-  expect(year5.energySystemOverhead).toBeGreaterThan(0);
+  assert.strictEqual(optionalOutput(outputs, 'bar', 99), 99);
 });
 
 // =============================================================================
 // TESTS: TRANSFORM READ TRACKING
 // =============================================================================
-
-console.log('\n=== Transform Read Tracking Tests ===\n');
 
 test('trackReads detects undeclared reads (via console.warn)', () => {
   const producer = defineModule({
@@ -783,7 +732,7 @@ test('trackReads detects undeclared reads (via console.warn)', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['a', 'b'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { a: 10, b: 20 } }),
@@ -795,7 +744,7 @@ test('trackReads detects undeclared reads (via console.warn)', () => {
     defaults: {},
     inputs: ['derived'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.derived } }),
@@ -804,7 +753,9 @@ test('trackReads detects undeclared reads (via console.warn)', () => {
   // Transform reads 'a' AND 'b' but only declares 'a'
   const warnings: string[] = [];
   const origWarn = console.warn;
-  console.warn = (msg: string) => { warnings.push(msg); };
+  console.warn = (msg: string) => {
+    warnings.push(msg);
+  };
 
   try {
     runAutowired({
@@ -812,7 +763,7 @@ test('trackReads detects undeclared reads (via console.warn)', () => {
       transforms: {
         derived: {
           fn: (outputs: Record<string, any>) => outputs.a + outputs.b,
-          dependsOn: ['a'],  // Missing 'b'!
+          dependsOn: ['a'], // Missing 'b'!
         },
       },
       startYear: 2025,
@@ -820,8 +771,8 @@ test('trackReads detects undeclared reads (via console.warn)', () => {
       trackReads: true,
     });
 
-    const undeclaredWarnings = warnings.filter(w => w.includes("reads 'b'"));
-    expect(undeclaredWarnings.length > 0).toBeTrue();
+    const undeclaredWarnings = warnings.filter((w) => w.includes("reads 'b'"));
+    assert.ok(undeclaredWarnings.length > 0);
   } finally {
     console.warn = origWarn;
   }
@@ -834,7 +785,7 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['a'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { a: 10 } }),
@@ -846,7 +797,7 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
     defaults: {},
     inputs: ['cycled'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.cycled ?? 0 } }),
@@ -854,7 +805,9 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
 
   const warnings: string[] = [];
   const origWarn = console.warn;
-  console.warn = (msg: string) => { warnings.push(msg); };
+  console.warn = (msg: string) => {
+    warnings.push(msg);
+  };
 
   try {
     runAutowired({
@@ -862,7 +815,7 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
       transforms: {
         cycled: {
           fn: (outputs: Record<string, any>) => outputs.a ?? 0,
-          dependsOn: [],  // Cycle-breaker
+          dependsOn: [], // Cycle-breaker
         },
       },
       startYear: 2025,
@@ -870,8 +823,8 @@ test('trackReads does not warn for cycle-breakers (dependsOn: [])', () => {
       trackReads: true,
     });
 
-    const trackWarnings = warnings.filter(w => w.includes('reads'));
-    expect(trackWarnings.length).toBe(0);
+    const trackWarnings = warnings.filter((w) => w.includes('reads'));
+    assert.strictEqual(trackWarnings.length, 0);
   } finally {
     console.warn = origWarn;
   }
@@ -888,7 +841,7 @@ test('validateWiring errors when module directly consumes a cycle-breaker transf
     defaults: {},
     inputs: [] as const,
     outputs: ['a'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { a: 10 } }),
@@ -901,7 +854,7 @@ test('validateWiring errors when module directly consumes a cycle-breaker transf
     defaults: {},
     inputs: ['cycled'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.cycled ?? 0 } }),
@@ -914,28 +867,30 @@ test('validateWiring errors when module directly consumes a cycle-breaker transf
     defaults: {},
     inputs: ['laggedCycled'] as const,
     outputs: ['out2'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out2: inputs.laggedCycled ?? 0 } }),
   });
 
-  expect(() => {
-    runAutowired({
-      modules: [producer, consumer, properConsumer],
-      transforms: {
-        cycled: {
-          fn: (outputs: Record<string, any>) => outputs.a ?? 0,
-          dependsOn: [],  // Cycle-breaker
+  throwsWith(
+    () =>
+      runAutowired({
+        modules: [producer, consumer, properConsumer],
+        transforms: {
+          cycled: {
+            fn: (outputs: Record<string, any>) => outputs.a ?? 0,
+            dependsOn: [], // Cycle-breaker
+          },
         },
-      },
-      lags: {
-        laggedCycled: { source: 'cycled', delay: 1, initial: 0 },
-      },
-      startYear: 2025,
-      endYear: 2025,
-    });
-  }).toThrow('directly consumes cycle-breaker');
+        lags: {
+          laggedCycled: { source: 'cycled', delay: 1, initial: 0 },
+        },
+        startYear: 2025,
+        endYear: 2025,
+      }),
+    'directly consumes cycle-breaker'
+  );
 });
 
 test('validateWiring allows cycle-breaker when consumed via lag only', () => {
@@ -945,7 +900,7 @@ test('validateWiring allows cycle-breaker when consumed via lag only', () => {
     defaults: {},
     inputs: [] as const,
     outputs: ['a'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { a: 10 } }),
@@ -957,7 +912,7 @@ test('validateWiring allows cycle-breaker when consumed via lag only', () => {
     defaults: {},
     inputs: ['laggedCycled'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.laggedCycled ?? 0 } }),
@@ -969,7 +924,7 @@ test('validateWiring allows cycle-breaker when consumed via lag only', () => {
     transforms: {
       cycled: {
         fn: (outputs: Record<string, any>) => outputs.a ?? 0,
-        dependsOn: [],  // Cycle-breaker (also a lag source)
+        dependsOn: [], // Cycle-breaker (also a lag source)
       },
     },
     lags: {
@@ -978,7 +933,6 @@ test('validateWiring allows cycle-breaker when consumed via lag only', () => {
     startYear: 2025,
     endYear: 2025,
   });
-  // If we get here, no error was thrown — pass
 });
 
 test('validateWiring allows dependsOn:[] transform that is not a lag source (parameter injection)', () => {
@@ -988,7 +942,7 @@ test('validateWiring allows dependsOn:[] transform that is not a lag source (par
     defaults: {},
     inputs: [] as const,
     outputs: ['a'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: () => ({ state: {}, outputs: { a: 10 } }),
@@ -1000,7 +954,7 @@ test('validateWiring allows dependsOn:[] transform that is not a lag source (par
     defaults: {},
     inputs: ['constant'] as const,
     outputs: ['out'] as const,
-    validate: () => ({ valid: true, errors: [], warnings: [] }),
+    validate: okValidate,
     mergeParams: (p) => p,
     init: () => ({}),
     step: (_s, inputs) => ({ state: {}, outputs: { out: inputs.constant ?? 0 } }),
@@ -1013,17 +967,10 @@ test('validateWiring allows dependsOn:[] transform that is not a lag source (par
     transforms: {
       constant: {
         fn: () => 42,
-        dependsOn: [],  // No deps, but not a lag source — OK
+        dependsOn: [], // No deps, but not a lag source — OK
       },
     },
     startYear: 2025,
     endYear: 2025,
   });
-  // If we get here, no error was thrown — pass
 });
-
-// =============================================================================
-// SUMMARY
-// =============================================================================
-
-printSummary();
