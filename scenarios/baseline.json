@@ -1,6 +1,6 @@
 {
   "name": "Baseline",
-  "description": "Current policies trajectory. Moderate carbon pricing, default technology learning rates, IEA STEPS-aligned electrification.",
+  "description": "Endogenous fast-transition baseline: model defaults with 2025-level carbon prices and no further policy. NOT aligned with IEA STEPS — Way-et-al learning rates, the Ayres-Warr energy-growth feedback, and near-unit income elasticity of energy demand produce roughly 4x STEPS electricity demand by 2050, ~4% fossil electricity share (vs ~35% in STEPS), and ~2.1C warming by 2100 (vs ~2.4C STEPS-consistent). Treat as the model's own no-policy trajectory, not a replication of any IEA scenario.",
 
   "energy": {
     "carbonPrice": 35

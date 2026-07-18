@@ -202,7 +202,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 
 | Scenario | Description |
 |----------|-------------|
-| `baseline` | Current policies (STEPS-aligned) |
+| `baseline` | Endogenous fast-transition, no further policy (NOT IEA STEPS — see scenario description) |
 | `net-zero` | IEA NZE 2050, aggressive electrification |
 | `high-sensitivity` | Climate sensitivity 4.5°C |
 | `climate-cascade` | High sensitivity + tipping points |
