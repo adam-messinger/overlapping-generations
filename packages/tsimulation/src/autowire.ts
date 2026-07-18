@@ -215,28 +215,36 @@ export function buildDependencyGraph(
  */
 export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
   const sorted: AnyModule[] = [];
-  const remaining = new Map(graph);
+
+  // Work on a private copy of each node's dependency set. `new Map(graph)` would
+  // be a shallow copy that shares the DepNode Sets, so mutating them below would
+  // corrupt the caller's graph — this function is exported and must be safe to
+  // call more than once on the same graph. `providesTo` is only read.
+  const pending = new Map<string, Set<string>>();
+  for (const [name, node] of graph) {
+    pending.set(name, new Set(node.dependsOn));
+  }
 
   // Find nodes with no dependencies
   const ready: string[] = [];
-  for (const [name, node] of remaining) {
-    if (node.dependsOn.size === 0) {
+  for (const [name, deps] of pending) {
+    if (deps.size === 0) {
       ready.push(name);
     }
   }
 
   while (ready.length > 0) {
     const name = ready.shift()!;
-    const node = remaining.get(name)!;
+    const node = graph.get(name)!;
     sorted.push(node.module);
-    remaining.delete(name);
+    pending.delete(name);
 
-    // Remove this node from dependencies of others
+    // Remove this node from the pending dependencies of others
     for (const dependent of node.providesTo) {
-      if (remaining.has(dependent)) {
-        const depNode = remaining.get(dependent)!;
-        depNode.dependsOn.delete(name);
-        if (depNode.dependsOn.size === 0) {
+      const deps = pending.get(dependent);
+      if (deps) {
+        deps.delete(name);
+        if (deps.size === 0) {
           ready.push(dependent);
         }
       }
@@ -244,8 +252,8 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
   }
 
   // Check for cycles
-  if (remaining.size > 0) {
-    const cycleNodes = Array.from(remaining.keys()).join(', ');
+  if (pending.size > 0) {
+    const cycleNodes = Array.from(pending.keys()).join(', ');
     throw new Error(
       `Dependency cycle detected involving: ${cycleNodes}. ` +
       `Use 'lags' configuration to break the cycle.`
