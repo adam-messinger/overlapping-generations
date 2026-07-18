@@ -3,12 +3,20 @@
 ## Plan
 
 The mechanism is scenario tooling; this step makes the scenarios explicit instead of publishing
-one future. Full 24-run factorial of the 2025-2065 simulation over the four documented
-fragility axes: net immigration (0.6M / 1.2M / 1.8M per year), gateway-channel rerouting
-(wGateway 0.05 vs 0.10), climate/insurance repricing of amenity demand (rAmenity 0.25 vs 0.45),
-and secular institutional enrollment decline (throughput retention 0.985, floor 0.5, vs stable).
-Per place: percentile of real log price growth within each run -> band [min, max], base
-percentile, per-axis mean absolute percentile shift, dominant axis, and `scenarioRobust`
+one future. Full 48-run factorial of the 2025-2065 simulation over five documented fragility
+axes: net immigration (0.6M / 1.2M / 1.8M per year), gateway-channel rerouting (wGateway 0.05
+vs 0.10), climate/insurance repricing of amenity demand (rAmenity 0.25 vs 0.45), secular
+institutional enrollment decline (throughput retention 0.985, floor 0.5, vs stable), and
+**regime concentration** (concentrationSensitivity 1 vs 0). The concentration axis encodes the
+Japan/Italy old-regime lesson (BACKTEST.md §6-8): as national working-age growth turns negative,
+allocation shifts from demographic momentum toward institutional hierarchy. The dial reads
+*simulated* national working-age growth (fully off at +0.5%/yr or better, fully on at
+-0.5%/yr or worse), so it engages earlier and deeper in low-immigration runs — the interaction
+is endogenous, not assumed. The mixing rule is unvalidatable on US data by construction (no US
+observation exists at those demographic states); that is exactly why it is an ensemble axis and
+not a default. Per place: percentile of real log price growth within each run -> band
+[min, max], base percentile, per-axis mean absolute percentile shift, dominant axis, signed
+`concentrationShift` (mean old-regime minus current-regime percentile), and `scenarioRobust`
 (band width <= 0.15). Review notes: bands are **scenario ranges, not probability intervals** —
 no distribution over futures is asserted; axis levels are documented judgments, not estimates.
 

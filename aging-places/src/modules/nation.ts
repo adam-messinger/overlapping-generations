@@ -60,7 +60,7 @@ export const nationModule = defineModule<NationParams, NationState, Record<strin
   inputs: [],
   outputs: [
     'natCohorts', 'currentTfr', 'netImmigrationByCohort', 'netImmigration',
-    'elderlyWealthIndex', 'births',
+    'elderlyWealthIndex', 'births', 'natWorkingGrowth',
   ],
 
   validate(params): ValidationResult {
@@ -116,6 +116,9 @@ export const nationModule = defineModule<NationParams, NationState, Record<strin
 
     const elderlyWealthIndex =
       state.elderlyWealthIndex * (1 + params.wealthGrowth) * (next.a65up / c.a65up);
+    const working = c.a20_24 + c.a25_44 + c.a45_64;
+    const nextWorking = next.a20_24 + next.a25_44 + next.a45_64;
+    const natWorkingGrowth = working > 0 && nextWorking > 0 ? Math.log(nextWorking / working) : 0;
 
     const outputs: NationOutputs = {
       natCohorts: next,
@@ -124,6 +127,7 @@ export const nationModule = defineModule<NationParams, NationState, Record<strin
       netImmigration,
       elderlyWealthIndex,
       births,
+      natWorkingGrowth,
     };
     return { state: { cohorts: next, elderlyWealthIndex }, outputs };
   },
