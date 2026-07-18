@@ -1,0 +1,262 @@
+{
+ "status": "development windows only; 2019-2024 holdout sealed at run time",
+ "mechanism": "frozen US demographic core (0.15 x (0.6 rep - 0.4 midlife) + 0.15 vitality); no Italian fitting",
+ "windows": [
+  {
+   "window": "2005-2012",
+   "conservationError": 0,
+   "primary": {
+    "label": "pop>=10k",
+    "n": 1128,
+    "maeAnnualized": {
+     "mechanism": 0.00749,
+     "laggedTrend": 0.00483,
+     "scaledNoMigration": 0.00676
+    },
+    "equalBasinSpearman": {
+     "mechanism": {
+      "n": 562,
+      "markets": 43,
+      "marketsWithDefinedSpearman": 43,
+      "pooledCenteredSpearman": 0.5575,
+      "meanWithinMarketSpearman": 0.5963,
+      "medianWithinMarketSpearman": 0.6156,
+      "meanWithinMarketPairwiseAccuracy": 0.7318
+     },
+     "laggedTrend": {
+      "n": 562,
+      "markets": 43,
+      "marketsWithDefinedSpearman": 43,
+      "pooledCenteredSpearman": 0.671,
+      "meanWithinMarketSpearman": 0.637,
+      "medianWithinMarketSpearman": 0.6905,
+      "meanWithinMarketPairwiseAccuracy": 0.7585
+     },
+     "scaledNoMigration": {
+      "n": 562,
+      "markets": 43,
+      "marketsWithDefinedSpearman": 43,
+      "pooledCenteredSpearman": 0.5227,
+      "meanWithinMarketSpearman": 0.5281,
+      "medianWithinMarketSpearman": 0.5333,
+      "meanWithinMarketPairwiseAccuracy": 0.7023
+     }
+    },
+    "mechanismMinusLagged": {
+     "markets": 43,
+     "meanDifference": -0.0407,
+     "ci95": [
+      -0.1359,
+      0.0564
+     ]
+    },
+    "mechanismMinusNoMigration": {
+     "markets": 43,
+     "meanDifference": 0.0682,
+     "ci95": [
+      0.0132,
+      0.1262
+     ]
+    }
+   },
+   "sensitivity": {
+    "label": "pop>=15k",
+    "n": 678,
+    "maeAnnualized": {
+     "mechanism": 0.00746,
+     "laggedTrend": 0.00466,
+     "scaledNoMigration": 0.00656
+    },
+    "equalBasinSpearman": {
+     "mechanism": {
+      "n": 267,
+      "markets": 18,
+      "marketsWithDefinedSpearman": 18,
+      "pooledCenteredSpearman": 0.5509,
+      "meanWithinMarketSpearman": 0.5781,
+      "medianWithinMarketSpearman": 0.6481,
+      "meanWithinMarketPairwiseAccuracy": 0.7232
+     },
+     "laggedTrend": {
+      "n": 267,
+      "markets": 18,
+      "marketsWithDefinedSpearman": 18,
+      "pooledCenteredSpearman": 0.7327,
+      "meanWithinMarketSpearman": 0.684,
+      "medianWithinMarketSpearman": 0.7,
+      "meanWithinMarketPairwiseAccuracy": 0.786
+     },
+     "scaledNoMigration": {
+      "n": 267,
+      "markets": 18,
+      "marketsWithDefinedSpearman": 18,
+      "pooledCenteredSpearman": 0.5226,
+      "meanWithinMarketSpearman": 0.5452,
+      "medianWithinMarketSpearman": 0.6054,
+      "meanWithinMarketPairwiseAccuracy": 0.7038
+     }
+    },
+    "mechanismMinusLagged": {
+     "markets": 18,
+     "meanDifference": -0.1059,
+     "ci95": [
+      -0.2587,
+      0.0604
+     ]
+    },
+    "mechanismMinusNoMigration": {
+     "markets": 18,
+     "meanDifference": 0.0329,
+     "ci95": [
+      -0.0085,
+      0.0735
+     ]
+    }
+   },
+   "namedCases": {
+    "roma": {
+     "code": "058091",
+     "basin": "058091",
+     "basinUnits": 41,
+     "predictedRank": 41,
+     "realizedRank": 36
+    },
+    "milano": {
+     "code": "015146",
+     "basin": "015146",
+     "basinUnits": 86,
+     "predictedRank": 82,
+     "realizedRank": 56
+    }
+   }
+  },
+  {
+   "window": "2012-2019",
+   "conservationError": 0,
+   "primary": {
+    "label": "pop>=10k",
+    "n": 1200,
+    "maeAnnualized": {
+     "mechanism": 0.00601,
+     "laggedTrend": 0.00968,
+     "scaledNoMigration": 0.00489
+    },
+    "equalBasinSpearman": {
+     "mechanism": {
+      "n": 610,
+      "markets": 44,
+      "marketsWithDefinedSpearman": 44,
+      "pooledCenteredSpearman": 0.3719,
+      "meanWithinMarketSpearman": 0.2812,
+      "medianWithinMarketSpearman": 0.3653,
+      "meanWithinMarketPairwiseAccuracy": 0.608
+     },
+     "laggedTrend": {
+      "n": 610,
+      "markets": 44,
+      "marketsWithDefinedSpearman": 44,
+      "pooledCenteredSpearman": 0.4104,
+      "meanWithinMarketSpearman": 0.3534,
+      "medianWithinMarketSpearman": 0.4172,
+      "meanWithinMarketPairwiseAccuracy": 0.6346
+     },
+     "scaledNoMigration": {
+      "n": 610,
+      "markets": 44,
+      "marketsWithDefinedSpearman": 44,
+      "pooledCenteredSpearman": 0.3854,
+      "meanWithinMarketSpearman": 0.2992,
+      "medianWithinMarketSpearman": 0.3649,
+      "meanWithinMarketPairwiseAccuracy": 0.6178
+     }
+    },
+    "mechanismMinusLagged": {
+     "markets": 44,
+     "meanDifference": -0.0722,
+     "ci95": [
+      -0.1377,
+      -0.0039
+     ]
+    },
+    "mechanismMinusNoMigration": {
+     "markets": 44,
+     "meanDifference": -0.018,
+     "ci95": [
+      -0.0668,
+      0.0255
+     ]
+    }
+   },
+   "sensitivity": {
+    "label": "pop>=15k",
+    "n": 726,
+    "maeAnnualized": {
+     "mechanism": 0.0063,
+     "laggedTrend": 0.00904,
+     "scaledNoMigration": 0.00508
+    },
+    "equalBasinSpearman": {
+     "mechanism": {
+      "n": 294,
+      "markets": 19,
+      "marketsWithDefinedSpearman": 19,
+      "pooledCenteredSpearman": 0.4477,
+      "meanWithinMarketSpearman": 0.4086,
+      "medianWithinMarketSpearman": 0.4231,
+      "meanWithinMarketPairwiseAccuracy": 0.6535
+     },
+     "laggedTrend": {
+      "n": 294,
+      "markets": 19,
+      "marketsWithDefinedSpearman": 19,
+      "pooledCenteredSpearman": 0.4381,
+      "meanWithinMarketSpearman": 0.4094,
+      "medianWithinMarketSpearman": 0.4941,
+      "meanWithinMarketPairwiseAccuracy": 0.6531
+     },
+     "scaledNoMigration": {
+      "n": 294,
+      "markets": 19,
+      "marketsWithDefinedSpearman": 19,
+      "pooledCenteredSpearman": 0.447,
+      "meanWithinMarketSpearman": 0.3774,
+      "medianWithinMarketSpearman": 0.4018,
+      "meanWithinMarketPairwiseAccuracy": 0.632
+     }
+    },
+    "mechanismMinusLagged": {
+     "markets": 19,
+     "meanDifference": -0.0007,
+     "ci95": [
+      -0.1139,
+      0.1323
+     ]
+    },
+    "mechanismMinusNoMigration": {
+     "markets": 19,
+     "meanDifference": 0.0313,
+     "ci95": [
+      -0.008,
+      0.081
+     ]
+    }
+   },
+   "namedCases": {
+    "roma": {
+     "code": "058091",
+     "basin": "058091",
+     "basinUnits": 45,
+     "predictedRank": 43,
+     "realizedRank": 7
+    },
+    "milano": {
+     "code": "015146",
+     "basin": "015146",
+     "basinUnits": 93,
+     "predictedRank": 67,
+     "realizedRank": 1
+    }
+   }
+  }
+ ]
+}

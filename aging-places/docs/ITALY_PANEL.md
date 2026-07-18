@@ -55,3 +55,19 @@ now. Land/house prices (OMI) are secondary and cannot overturn a primary failure
 ## Deviation log
 
 (entries must precede the affected outcome's acquisition)
+1. **2026-07-18 — POSAS 2024 format sample.** A scouting agent downloaded POSAS_2024 for format
+   verification concurrent with preregistration; it was quarantined unread as
+   raw/italy/SEALED_posas2024.zip and no value from it entered any analysis before freeze.
+2. **2026-07-18 — frozen geography = Istat reconstruction vintage.** The intercensal
+   reconstruction ships pre-harmonized by Istat to its own (post-2019) comune vintage; that
+   vintage is adopted instead of a locally built 2019 crosswalk. 2011 basin codes not present in
+   the panel are dropped with counts reported.
+3. **2026-07-18 — development mechanism narrowed to the demographic core.** Origin-vintage
+   municipal employment (2011 census) and university enrollment (USTAT outage) are not keylessly
+   acquirable; the development runs therefore test the demographic core only — the sole channel
+   that carried transferable signal in Japan. Gateway/income channels are not tested.
+4. **2026-07-18 — development verdict frozen before holdout.** Window 2005-2012: mechanism
+   within-basin Spearman 0.596 vs lagged 0.637 (diff -0.041, CI -0.136..+0.056); beats
+   no-migration (+0.068, CI +0.013..+0.126). Window 2012-2019: 0.281 vs 0.353 (diff -0.072,
+   CI -0.138..-0.004). Named cases: the mechanism ranked Milano 67/93 in its basin (realized #1)
+   and Roma 43/45 (realized #7) in 2012-2019. The holdout opens regardless, per protocol.
