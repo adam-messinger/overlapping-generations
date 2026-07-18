@@ -74,33 +74,27 @@ function merge(a: Record<string, Record<string, unknown>>, b: Record<string, Rec
   return out;
 }
 
+interface Run {
+  key: string;
+  levels: Record<AxisName, string>;
+  params: Record<string, Record<string, unknown>>;
+}
+
 function main(): void {
   ensureDirs();
-  // Build the 24-run grid
-  const runs: { key: string; levels: Record<AxisName, string>; params: Record<string, Record<string, unknown>> }[] = [];
-  for (const immigration of AXES.immigration) {
-    for (const gateway of AXES.gateway) {
-      for (const amenity of AXES.amenity) {
-        for (const institutions of AXES.institutions) {
-          for (const concentration of AXES.concentration) {
-            let params: Record<string, Record<string, unknown>> = {};
-            for (const spec of [immigration, gateway, amenity, institutions, concentration]) {
-              params = merge(params, spec.params as Record<string, Record<string, unknown>>);
-            }
-            runs.push({
-              key: [immigration.level, gateway.level, amenity.level, institutions.level, concentration.level].join('|'),
-              levels: {
-                immigration: immigration.level, gateway: gateway.level,
-                amenity: amenity.level, institutions: institutions.level,
-                concentration: concentration.level,
-              },
-              params,
-            });
-          }
-        }
-      }
-    }
+  // Full factorial over AXES: fold each axis into the grid (last axis varies
+  // fastest), so adding an axis is a one-line edit to AXES.
+  let grid: Omit<Run, 'key'>[] = [{ levels: {} as Record<AxisName, string>, params: {} }];
+  for (const axis of AXIS_NAMES) {
+    grid = grid.flatMap((partial) => AXES[axis].map((spec) => ({
+      levels: { ...partial.levels, [axis]: spec.level },
+      params: merge(partial.params, spec.params as Record<string, Record<string, unknown>>),
+    })));
   }
+  const runs: Run[] = grid.map((entry) => ({
+    key: AXIS_NAMES.map((axis) => entry.levels[axis]).join('|'),
+    ...entry,
+  }));
 
   let geoid: string[] = [];
   let names: string[] = [];
@@ -120,59 +114,62 @@ function main(): void {
     console.log(`${run.key}: ${((Date.now() - started) / 1000).toFixed(0)}s`);
   }
 
-  const baseKey = 'base|base|base|base|base';
+  const baseKey = AXIS_NAMES.map(() => 'base').join('|');
   const basePct = pctByRun.get(baseKey)!;
   const n = geoid.length;
+  // Precompute per-run percentile arrays and, per axis, each non-base run's
+  // base-counterpart pair — none of this depends on the place index.
+  const runPcts = runs.map((run) => pctByRun.get(run.key)!);
+  const pairsByAxis: Record<AxisName, { run: number; counterpart: number; immigration: string }[]> = Object.fromEntries(
+    AXIS_NAMES.map((axis) => [axis, runs.flatMap((run, index) => {
+      if (run.levels[axis] === 'base') return [];
+      const counterpartKey = AXIS_NAMES.map((name) => (name === axis ? 'base' : run.levels[name])).join('|');
+      const counterpart = runs.findIndex((other) => other.key === counterpartKey);
+      return counterpart >= 0 ? [{ run: index, counterpart, immigration: run.levels.immigration }] : [];
+    })]),
+  ) as Record<AxisName, { run: number; counterpart: number; immigration: string }[]>;
   const rows: (string | number | null)[][] = [];
   let robustCount = 0;
   const interactionAbsShift: Record<string, { total: number; count: number }> = {};
   for (let i = 0; i < n; i++) {
     let min = 1;
     let max = 0;
-    for (const run of runs) {
-      const p = pctByRun.get(run.key)![i];
+    for (const pct of runPcts) {
+      const p = pct[i];
       if (p < min) min = p;
       if (p > max) max = p;
     }
-    // Per-axis effect: mean |pctl - pctl of the run differing only on that axis|
-    const axisEffect: Record<AxisName, number> = {
-      immigration: 0, gateway: 0, amenity: 0, institutions: 0, concentration: 0,
-    };
+    // Per-axis effects vs the run differing only on that axis: mean |diff|
+    // (fragility) and mean signed diff (direction of the non-base level).
+    const axisEffect = {} as Record<AxisName, number>;
+    const axisSigned = {} as Record<AxisName, number>;
+    const shiftByImmigration: Record<string, { total: number; count: number }> = {};
     for (const axis of AXIS_NAMES) {
       let total = 0;
-      let count = 0;
-      for (const run of runs) {
-        if (run.levels[axis] === 'base') continue;
-        const counterpartKey = AXIS_NAMES.map((name) => (name === axis ? 'base' : run.levels[name])).join('|');
-        const counterpart = pctByRun.get(counterpartKey);
-        if (!counterpart) continue;
-        total += Math.abs(pctByRun.get(run.key)![i] - counterpart[i]);
-        count += 1;
+      let signed = 0;
+      for (const pair of pairsByAxis[axis]) {
+        const diff = runPcts[pair.run][i] - runPcts[pair.counterpart][i];
+        total += Math.abs(diff);
+        signed += diff;
+        if (axis === 'concentration') {
+          const bucket = shiftByImmigration[pair.immigration] ?? { total: 0, count: 0 };
+          bucket.total += diff;
+          bucket.count += 1;
+          shiftByImmigration[pair.immigration] = bucket;
+        }
       }
+      const count = pairsByAxis[axis].length;
       axisEffect[axis] = count > 0 ? total / count : 0;
+      axisSigned[axis] = count > 0 ? signed / count : 0;
     }
     const dominant = AXIS_NAMES.reduce((best, axis) => (axisEffect[axis] > axisEffect[best] ? axis : best), AXIS_NAMES[0]);
     const width = max - min;
     const robust = width <= 0.15 ? 1 : 0;
     robustCount += robust;
-    // Signed concentration shift: mean (old-regime minus base-concentration)
-    // percentile over the 24 counterpart pairs, overall and per immigration
-    // level (the dial reads simulated growth, so low immigration deepens it).
-    let shiftTotal = 0;
-    let shiftCount = 0;
-    const shiftByImmigration: Record<string, { total: number; count: number }> = {};
-    for (const run of runs) {
-      if (run.levels.concentration !== 'old-regime') continue;
-      const counterpartKey = AXIS_NAMES.map((name) => (name === 'concentration' ? 'base' : run.levels[name])).join('|');
-      const diff = pctByRun.get(run.key)![i] - pctByRun.get(counterpartKey)![i];
-      shiftTotal += diff;
-      shiftCount += 1;
-      const bucket = shiftByImmigration[run.levels.immigration] ?? { total: 0, count: 0 };
-      bucket.total += diff;
-      bucket.count += 1;
-      shiftByImmigration[run.levels.immigration] = bucket;
-    }
-    const signedShift = shiftCount > 0 ? shiftTotal / shiftCount : 0;
+    // Signed concentration shift (old-regime minus base), also bucketed by
+    // immigration level: the dial reads simulated growth, so low immigration
+    // deepens it.
+    const signedShift = axisSigned.concentration;
     for (const [level, bucket] of Object.entries(shiftByImmigration)) {
       const acc = interactionAbsShift[level] ?? { total: 0, count: 0 };
       acc.total += Math.abs(bucket.total / bucket.count);

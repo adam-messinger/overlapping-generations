@@ -176,6 +176,15 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       const v = params[k];
       if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
     }
+    const high = params.concentrationGrowthHigh ?? DEFAULTS.concentrationGrowthHigh;
+    const low = params.concentrationGrowthLow ?? DEFAULTS.concentrationGrowthLow;
+    if (high <= low) errors.push('concentrationGrowthHigh must exceed concentrationGrowthLow');
+    // The per-place mask ablates demographic signal for measurement; the
+    // concentration dial reroutes it to institutions. Combining them would
+    // reallocate weight that the mask already removed, so it is rejected.
+    if (params.demographicAttractionMultiplier && (params.concentrationSensitivity ?? 0) > 0) {
+      errors.push('demographicAttractionMultiplier (diagnostic) cannot combine with concentrationSensitivity > 0');
+    }
     return { valid: errors.length === 0, errors, warnings: [] };
   },
 
@@ -246,16 +255,18 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
     );
     const demoMult = params.demographicAttractionMultiplier;
     // Regime-concentration dial: as simulated national working-age growth
-    // declines, weight moves from the demographic terms to the institutional
-    // terms (55/45 mirrors the default engines:human ratio) and hinterland
-    // consolidation strengthens. shift = 0 reproduces the base model exactly.
+    // declines, the demographic weight moves to the institutional terms in
+    // proportion to their existing importance, and hinterland consolidation
+    // strengthens (hub weight scales 1x -> 2x across the band). shift = 0
+    // reproduces the base model exactly.
     const shift = concentrationShift(
       params.concentrationSensitivity, inputs.natWorkingGrowth,
       params.concentrationGrowthHigh, params.concentrationGrowthLow,
     );
     const freed = shift * (params.wRegen + params.wVitality);
-    const wEngines = params.wEngines + 0.55 * freed;
-    const wHuman = params.wHuman + 0.45 * freed;
+    const enginesSplit = params.wEngines / (params.wEngines + params.wHuman);
+    const wEngines = params.wEngines + enginesSplit * freed;
+    const wHuman = params.wHuman + (1 - enginesSplit) * freed;
     const wHub = params.wHub * (1 + shift);
     const demoScale = 1 - shift;
     for (let i = 0; i < n; i++) {

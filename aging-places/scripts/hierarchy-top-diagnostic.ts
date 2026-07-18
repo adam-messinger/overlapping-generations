@@ -18,36 +18,9 @@ import { DATA_DIR } from './lib.js';
 import { loadFeatureRows } from './backtest.js';
 import { loadPlaceMarkets } from './market-backtest.js';
 import { runAgingSim } from '../src/simulation.js';
-import { bootstrapDifference, evaluateLocal } from '../japan/src/validation.js';
+import { bootstrapDifference, evaluateLocal, spearman } from '../japan/src/validation.js';
 
 const MIN_PLACES = 5;
-
-function spearman(a: number[], b: number[]): number | null {
-  const n = a.length;
-  if (n < 3) return null;
-  const rank = (v: number[]): number[] => {
-    const order = v.map((x, i) => [x, i] as const).sort((p, q) => p[0] - q[0]);
-    const r = new Array<number>(n);
-    for (let i = 0; i < n;) {
-      let j = i;
-      while (j + 1 < n && order[j + 1][0] === order[i][0]) j++;
-      const avg = (i + j) / 2 + 1;
-      for (let k = i; k <= j; k++) r[order[k][1]] = avg;
-      i = j + 1;
-    }
-    return r;
-  };
-  const ra = rank(a); const rb = rank(b);
-  const mean = (v: number[]): number => v.reduce((s, x) => s + x, 0) / n;
-  const ma = mean(ra); const mb = mean(rb);
-  let num = 0; let da = 0; let db = 0;
-  for (let i = 0; i < n; i++) {
-    num += (ra[i] - ma) * (rb[i] - mb);
-    da += (ra[i] - ma) ** 2;
-    db += (rb[i] - mb) ** 2;
-  }
-  return da > 0 && db > 0 ? num / Math.sqrt(da * db) : null;
-}
 
 function main(): void {
   const rows = loadFeatureRows('features2000.csv').filter(
@@ -70,10 +43,10 @@ function main(): void {
     list.push(unit);
     byZone.set(unit.zone, list);
   }
-  const primaryGeoids = new Set<string>();
-  for (const list of byZone.values()) {
-    primaryGeoids.add(list.reduce((a, b) => (b.pop > a.pop ? b : a)).geoid);
-  }
+  const primaryByZone = new Map<string, string>(
+    [...byZone.entries()].map(([zone, list]) => [zone, list.reduce((a, b) => (b.pop > a.pop ? b : a)).geoid]),
+  );
+  const primaryGeoids = new Set(primaryByZone.values());
   console.log(`sample: ${sample.length} places, ${byZone.size} zones, ${primaryGeoids.size} zone primaries`);
 
   const base = runAgingSim({ epoch: '2000', years: 25, minPop: 1000 });
@@ -92,18 +65,15 @@ function main(): void {
       params: { attraction: { demographicAttractionMultiplier: mask } },
     })],
   ];
-  const scoreByGeoid = new Map<string, Map<string, number>>();
-  for (const [label, run] of variants) {
-    const m = new Map<string, number>();
-    run.data.statics.geoid.forEach((geoid, i) => m.set(geoid, run.simRealLogGrowth[i]));
-    scoreByGeoid.set(label, m);
-  }
-
-  const evaluations = new Map<string, ReturnType<typeof evaluateLocal>>();
   const scores: Record<string, (u: typeof sample[number]) => number> = {
     laggedTrend: (u) => u.lagged,
   };
-  for (const [label] of variants) scores[label] = (u) => scoreByGeoid.get(label)!.get(u.geoid) ?? NaN;
+  for (const [label, run] of variants) {
+    const byGeoid = new Map<string, number>();
+    run.data.statics.geoid.forEach((geoid, i) => byGeoid.set(geoid, run.simRealLogGrowth[i]));
+    scores[label] = (u) => byGeoid.get(u.geoid) ?? NaN;
+  }
+  const evaluations = new Map<string, ReturnType<typeof evaluateLocal>>();
   for (const [label, score] of Object.entries(scores)) {
     evaluations.set(label, evaluateLocal(
       sample.map((u) => ({ market: u.zone, score: score(u), outcome: u.outcome })), MIN_PLACES,
@@ -128,18 +98,19 @@ function main(): void {
     let inversions = 0;
     for (const [zone, list] of zones10) {
       if (!subset(zone)) continue;
-      const primary = list.reduce((a, b) => (b.pop > a.pop ? b : a)).geoid;
+      const primary = primaryByZone.get(zone)!;
       const p = pctl(list, primary, score);
       const r = pctl(list, primary, (u) => u.outcome);
       predicted.push(p); realized.push(r);
       if (p < 0.5 && r >= 1 - 3 / list.length) inversions += 1; // predicted bottom half, realized top 3
     }
     const mean = (v: number[]): number => +(v.reduce((s, x) => s + x, 0) / v.length).toFixed(3);
+    const crossZone = spearman(predicted, realized);
     return {
       zones: predicted.length,
       meanPredictedPctl: mean(predicted),
       meanRealizedPctl: mean(realized),
-      crossZoneSpearman: spearman(predicted, realized) === null ? null : +spearman(predicted, realized)!.toFixed(3),
+      crossZoneSpearman: Number.isFinite(crossZone) ? +crossZone.toFixed(3) : null,
       milanoInversions: inversions,
     };
   };

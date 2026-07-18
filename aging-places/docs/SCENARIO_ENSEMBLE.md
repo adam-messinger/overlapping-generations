@@ -20,21 +20,30 @@ not a default. Per place: percentile of real log price growth within each run ->
 (band width <= 0.15). Review notes: bands are **scenario ranges, not probability intervals** —
 no distribution over futures is asserted; axis levels are documented judgments, not estimates.
 
-## Results (`outputs/scenario-bands.csv.gz`, `data/scenario-ensemble.json`)
+## Results (`outputs/scenario-bands.csv.gz`, `data/scenario-ensemble.json`, 48 runs)
 
-- **93.5% of the 24,525 modeled places are scenario-robust** — their relative standing moves
-  less than 15 percentile points across all 24 futures. The ranked product is mostly not a bet
-  on any single assumption.
-- **Dominant fragility axis (places >= 10k): immigration (3,249), gateway rerouting (872),
-  amenity repricing (53), institutional decline (10).** National immigration policy is by far
-  the largest single lever over municipal relative standing.
-- **The most scenario-fragile places are precisely the gateway suburbs** (band widths 0.38-0.42:
-  Diamond Bar, Walnut, Hacienda Heights, Artesia CA; Palisades Park, Little Ferry NJ) —
-  quantifying the fragility raised qualitatively in the gateway critique and flagged
-  per-place in step 2.
-- Anchors hold in every future: Evanston band [0.995, 0.996]; The Villages stays in the bottom
-  3% across all 24 runs; Nantucket, Berkeley, Sunny Isles Beach all robust. Maywood is robust
-  overall but gateway-sensitive at the margin (min percentile 0.92 under rerouting).
+- **88.3% of the 24,525 modeled places are scenario-robust** across all 48 futures (93.5% on
+  the earlier 24-run grid — a new axis can only widen bands). The ranked product is mostly not
+  a bet on any single assumption.
+- **Dominant fragility axis (places >= 10k): immigration (2,584), regime concentration
+  (1,142), gateway rerouting (444), amenity repricing (12), institutional decline (2).** The
+  concentration axis lands second on its first inclusion: whether US allocation stays
+  momentum-driven or turns old-regime is the largest structural unknown after immigration
+  itself.
+- **The immigration x concentration interaction is confirmed and endogenous**: mean per-place
+  concentration effect is 0.0223 under 0.6M immigration, 0.0174 at base, 0.0119 under 1.8M —
+  the dial reads simulated working-age growth, so a low-immigration US enters the old regime
+  sooner and deeper. Concentration risk and immigration risk compound; they do not diversify.
+- **Old-regime winners are institution-heavy, demographically quiet wealthy suburbs currently
+  mid-pack on momentum** (concentrationShift up to +0.23: Melville NY, Los Altos, Palo Alto,
+  North Tustin, Rancho Palos Verdes, Leawood KS, Northbrook IL, Mercer Island WA). Old-regime
+  losers are young, dense, momentum-driven places without institutional anchors (LA's
+  southeast corridor: Florence-Graham, Huntington Park, Cudahy, East Los Angeles, -0.07 to
+  -0.08; rust-belt satellites: Lemay MO, Conneaut and Piqua OH, Michigan City IN).
+- Anchors hold in every future: Evanston, Cambridge, Ann Arbor and the rest of the top-of-zone
+  institutional names sit near percentile 0.99 with concentrationShift within +-0.01 — already
+  ranked by their institutions, they are indifferent to the regime. The Villages stays in the
+  bottom 3% across all 48 runs.
 - Institutional decline barely moves relative standing at these levels — university towns'
   rank advantage survives a 40-year enrollment slide because the decline hits their comparators'
   access channels too.
