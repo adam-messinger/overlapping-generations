@@ -53,10 +53,13 @@ export type MetricAggregator =
 /**
  * How to compute a summary metric from timeseries data.
  *
- * - source: timeseries field to aggregate (must match a timeseries 'as' or 'source')
+ * - source: the produced timeseries key to aggregate — a timeseries def's `as`
+ *   if it set one, otherwise its `source` (validated; an unknown key throws)
  * - as: name for the metric in output
  * - aggregator: how to reduce the timeseries to a single value
  * - transform: optional function over all year outputs (for multi-field metrics)
+ *
+ * Exactly one of `source` or `transform` must be set.
  */
 export interface MetricDef {
   source?: string;
@@ -118,6 +121,8 @@ export function resolveKey(def: TimeseriesDef): string {
 // AGGREGATION
 // =============================================================================
 
+const isNumber = (v: unknown): v is number => typeof v === 'number';
+
 /**
  * Aggregate a series of values into a metric.
  */
@@ -126,12 +131,14 @@ function aggregate(values: any[], years: number[], aggregator: MetricAggregator)
     return values[values.length - 1];
   }
 
-  if (aggregator === 'max') {
-    return Math.max(...values.filter(v => typeof v === 'number'));
-  }
-
-  if (aggregator === 'min') {
-    return Math.min(...values.filter(v => typeof v === 'number'));
+  if (aggregator === 'max' || aggregator === 'min') {
+    // Return undefined — not a silent -Infinity/Infinity — when there is no
+    // numeric value. Reduce (not Math.max(...spread)) also avoids a call-stack
+    // overflow when a generic series is very long.
+    const nums = values.filter(isNumber);
+    if (nums.length === 0) return undefined;
+    const pick = aggregator === 'max' ? Math.max : Math.min;
+    return nums.reduce((a, b) => pick(a, b));
   }
 
   if (typeof aggregator === 'object' && 'first' in aggregator) {
@@ -146,13 +153,17 @@ function aggregate(values: any[], years: number[], aggregator: MetricAggregator)
   if (typeof aggregator === 'object' && 'peak' in aggregator) {
     let maxVal = -Infinity;
     let maxYear = years[0];
+    let found = false;
     for (let i = 0; i < values.length; i++) {
-      if (typeof values[i] === 'number' && values[i] > maxVal) {
-        maxVal = values[i];
-        maxYear = years[i];
+      if (isNumber(values[i])) {
+        found = true;
+        if (values[i] > maxVal) {
+          maxVal = values[i];
+          maxYear = years[i];
+        }
       }
     }
-    return { value: maxVal, year: maxYear };
+    return found ? { value: maxVal, year: maxYear } : undefined;
   }
 
   if (typeof aggregator === 'object' && 'custom' in aggregator) {
@@ -171,9 +182,26 @@ function aggregate(values: any[], years: number[], aggregator: MetricAggregator)
  */
 export function collectResults(result: AutowireResult, config: CollectorConfig): CollectedResults {
   const { years } = result;
-  const timeseries: Record<string, any>[] = [];
+
+  // Validate metric configs before doing any work (fail fast, like
+  // validateWiring). Each metric needs exactly one of source/transform, and a
+  // `source` must name a *produced* timeseries key — the resolved name (`as` if
+  // the timeseries def set one, else its `source`), not the raw source.
+  const timeseriesKeys = new Set(config.timeseries.map(resolveKey));
+  for (const def of config.metrics) {
+    if (def.transform) continue;
+    if (!def.source) {
+      throw new Error(`Metric '${def.as}' has neither a 'source' nor a 'transform'`);
+    }
+    if (!timeseriesKeys.has(def.source)) {
+      const renamed = config.timeseries.find(t => t.source === def.source && t.as && t.as !== def.source);
+      const hint = renamed ? ` (a timeseries has source '${def.source}' but was renamed via as: '${renamed.as}')` : '';
+      throw new Error(`Metric '${def.as}' reads timeseries key '${def.source}' which no timeseries def produces${hint}`);
+    }
+  }
 
   // Collect timeseries per year
+  const timeseries: Record<string, any>[] = [];
   for (let i = 0; i < years.length; i++) {
     const outputs = getOutputsAtYear(result, i);
     const record: Record<string, any> = { year: years[i] };
@@ -186,9 +214,8 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
     timeseries.push(record);
   }
 
-  // Collect metrics
+  // Collect metrics (config validated above)
   const metrics: Record<string, any> = {};
-
   for (const def of config.metrics) {
     if (def.transform) {
       // Multi-field metric: compute per-year values then aggregate
@@ -198,8 +225,8 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
         values.push(def.transform(outputs, years[i], i));
       }
       metrics[def.as] = aggregate(values, years, def.aggregator);
-    } else if (def.source) {
-      // Single-field metric: extract from timeseries
+    } else {
+      // Single-field metric: extract from a produced timeseries key
       const values = timeseries.map(r => r[def.source!]);
       metrics[def.as] = aggregate(values, years, def.aggregator);
     }
