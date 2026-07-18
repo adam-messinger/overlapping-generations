@@ -395,14 +395,23 @@ export function validateWiring(
 // =============================================================================
 
 /**
- * Recursively check a value for NaN/Infinity up to a depth limit.
- * Covers Record<Region, number>, Record<Mineral, {demand, cumulative}>, etc.
+ * Recursively check a value for NaN/Infinity.
+ * Descends into both plain objects (Record<Region, number>,
+ * Record<Mineral, {demand, cumulative}>) and arrays (number[] time series,
+ * arrays of records). The depth cap is a runaway/cyclic-structure guard, not a
+ * semantic limit — set well beyond any realistic output nesting.
  */
+const MAX_CHECK_DEPTH = 8;
 function checkNumeric(val: unknown, path: string, mod: string, year: number, depth = 0): void {
   if (typeof val === 'number' && (Number.isNaN(val) || !Number.isFinite(val))) {
     throw new Error(`Module '${mod}' output '${path}' is ${val} at year ${year}`);
   }
-  if (depth < 3 && typeof val === 'object' && val !== null && !Array.isArray(val)) {
+  if (depth >= MAX_CHECK_DEPTH || typeof val !== 'object' || val === null) return;
+  if (Array.isArray(val)) {
+    for (let i = 0; i < val.length; i++) {
+      checkNumeric(val[i], `${path}[${i}]`, mod, year, depth + 1);
+    }
+  } else {
     for (const [k, v] of Object.entries(val)) {
       checkNumeric(v, `${path}.${k}`, mod, year, depth + 1);
     }
