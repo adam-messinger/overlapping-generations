@@ -25,8 +25,8 @@ no distribution over futures is asserted; axis levels are documented judgments, 
 - **88.3% of the 24,525 modeled places are scenario-robust** across all 48 futures (93.5% on
   the earlier 24-run grid — a new axis can only widen bands). The ranked product is mostly not
   a bet on any single assumption.
-- **Dominant fragility axis (places >= 10k): immigration (2,584), regime concentration
-  (1,142), gateway rerouting (444), amenity repricing (12), institutional decline (2).** The
+- **Dominant fragility axis (places >= 10k): immigration (2,582), regime concentration
+  (1,147), gateway rerouting (441), amenity repricing (12), institutional decline (2).** The
   concentration axis lands second on its first inclusion: whether US allocation stays
   momentum-driven or turns old-regime is the largest structural unknown after immigration
   itself.

@@ -1,5 +1,5 @@
 {
- "runs": 24,
+ "runs": 48,
  "places": 24525,
  "axes": {
   "immigration": [
@@ -18,8 +18,17 @@
   "institutions": [
    "retention 0.985 floor 0.5",
    "1.0 (base)"
+  ],
+  "concentration": [
+   "sensitivity 1 (old-regime allocation, Japan/Italy)",
+   "0 (base)"
   ]
  },
- "scenarioRobustShare": 0.9345,
+ "scenarioRobustShare": 0.8826,
+ "concentrationEffectByImmigration": {
+  "low": 0.0223,
+  "base": 0.0174,
+  "high": 0.012
+ },
  "note": "bands are scenario ranges, not probability intervals"
 }
