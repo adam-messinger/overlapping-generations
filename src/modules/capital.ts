@@ -628,7 +628,7 @@ export const capitalModule: Module<
 
     // Calculate regional and global savings rates (with LE/dependency adjustments)
     const regionalSavings = {} as Record<Region, number>;
-    let totalPop = 0;
+    let totalGdp = 0;
     let weightedSavings = 0;
 
     for (const region of REGIONS) {
@@ -650,11 +650,16 @@ export const capitalModule: Module<
       );
       regionalSavings[region] = rate;
 
-      totalPop += pop;
-      weightedSavings += rate * pop;
+      // Savings rates are shares of GDP (World Bank WDI: gross savings % of
+      // GDP), so the global rate is a GDP-weighted mean. Population weighting
+      // overstated poor, populous regions' pull on the global capital pool
+      // by roughly their population/GDP share ratio.
+      const gdpWeight = Math.max(0, inputs.regionalGdp[region]);
+      totalGdp += gdpWeight;
+      weightedSavings += rate * gdpWeight;
     }
 
-    const savingsRate = weightedSavings / totalPop;
+    const savingsRate = totalGdp > 0 ? weightedSavings / totalGdp : params.savingsWorking * 0.5;
 
     // Calculate stability factor from damages (if provided)
     const uncertainty = inputs.damages ?? 0;
