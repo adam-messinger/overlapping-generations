@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defineSimulation, solve, init } from '../src/problem.js';
 import { defineModule } from '../src/module.js';
+import { okValidate } from './helpers.js';
 
 const counter = defineModule({
   name: 'counter',
@@ -13,7 +14,7 @@ const counter = defineModule({
   defaults: { step: 1 },
   inputs: [] as const,
   outputs: ['n'] as const,
-  validate: () => ({ valid: true, errors: [], warnings: [] }),
+  validate: okValidate,
   mergeParams: (p) => ({ step: 1, ...p }),
   init: (params) => ({ n: 0, step: params.step }),
   step: (state) => ({

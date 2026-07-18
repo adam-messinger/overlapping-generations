@@ -1,7 +1,7 @@
 /**
  * Domain-specific types for the energy/demographics simulation.
  *
- * These are separated from framework/types.ts to keep the framework
+ * These are kept out of the tsimulation package to keep the framework
  * fully domain-independent and reusable.
  */
 

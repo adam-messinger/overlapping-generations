@@ -20,16 +20,16 @@ test('validatedMerge throws with module name and all errors on invalid', () => {
   assert.throws(
     () =>
       validatedMerge(
-        'climate',
-        () => ({ valid: false, errors: ['sensitivity too low', 'bad damage exp'], warnings: [] }),
+        'moduleA',
+        () => ({ valid: false, errors: ['value too low', 'bad exponent'], warnings: [] }),
         (p) => p,
         {}
       ),
     (err: unknown) =>
       err instanceof Error &&
-      err.message.includes('[climate]') &&
-      err.message.includes('sensitivity too low') &&
-      err.message.includes('bad damage exp')
+      err.message.includes('[moduleA]') &&
+      err.message.includes('value too low') &&
+      err.message.includes('bad exponent')
   );
 });
 
@@ -41,14 +41,14 @@ test('validatedMerge logs warnings but does not throw', () => {
   };
   try {
     const merged = validatedMerge(
-      'energy',
-      () => ({ valid: true, errors: [], warnings: ['carbonPrice unusually high'] }),
-      (p: { carbonPrice?: number }) => ({ carbonPrice: 999, ...p }),
+      'moduleB',
+      () => ({ valid: true, errors: [], warnings: ['threshold unusually high'] }),
+      (p: { threshold?: number }) => ({ threshold: 999, ...p }),
       {}
     );
-    assert.strictEqual(merged.carbonPrice, 999);
-    assert.ok(warnings.some((w) => w.includes('carbonPrice unusually high')));
-    assert.ok(warnings.some((w) => w.includes('[energy]')));
+    assert.strictEqual(merged.threshold, 999);
+    assert.ok(warnings.some((w) => w.includes('threshold unusually high')));
+    assert.ok(warnings.some((w) => w.includes('[moduleB]')));
   } finally {
     console.warn = orig;
   }

@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { ComponentParams } from '../src/component-params.js';
 
 test('get reads dot-paths and returns undefined for missing paths', () => {
-  const p = ComponentParams.from({ climate: { sensitivity: 3 }, energy: { carbonPrice: 50 } });
-  assert.strictEqual(p.get('climate.sensitivity'), 3);
-  assert.strictEqual(p.get('energy.carbonPrice'), 50);
-  assert.strictEqual(p.get('climate.missing'), undefined);
+  const p = ComponentParams.from({ group: { alpha: 3 }, other: { beta: 50 } });
+  assert.strictEqual(p.get('group.alpha'), 3);
+  assert.strictEqual(p.get('other.beta'), 50);
+  assert.strictEqual(p.get('group.missing'), undefined);
   assert.strictEqual(p.get('nope.deep.path'), undefined);
 });
 

@@ -4,7 +4,7 @@
  * Defines the canonical output fields, energy overhead computation,
  * and standardCollectors configuration for the energy/demographics simulation.
  *
- * Separated from framework/collectors.ts to keep the framework domain-independent.
+ * Kept out of the tsimulation package to keep the framework domain-independent.
  */
 
 import { Region, REGIONS } from './domain-types.js';
