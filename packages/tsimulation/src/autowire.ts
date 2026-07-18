@@ -13,6 +13,7 @@
 
 import { Module, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
+import { validatedMerge } from './validated-merge.js';
 
 // =============================================================================
 // TYPES
@@ -559,7 +560,15 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   const paramsMap = new Map<string, any>();
 
   for (const mod of sortedModules) {
-    const mergedParams = mod.mergeParams(params[mod.name] ?? {});
+    // Merge + validate at load time: throws on invalid params, warns on
+    // warnings. This is what makes each Module's required validate() actually
+    // run — the engine's contract, not something consumers must wire by hand.
+    const mergedParams = validatedMerge(
+      mod.name,
+      (p) => mod.validate(p),
+      (p) => mod.mergeParams(p),
+      params[mod.name] ?? {}
+    );
     paramsMap.set(mod.name, mergedParams);
     stateMap.set(mod.name, mod.init(mergedParams));
   }
