@@ -172,6 +172,29 @@ test('deep ocean temp output matches state', () => {
   expect(result.outputs.deepOceanTemp).toBe(result.state.deepTemp);
 });
 
+test('damage function reproduces its documented calibration quantitatively', () => {
+  // paramMeta claims ~4.8% GDP at 3°C before tipping amplification:
+  // 0.00536 x 3^2 = 0.0482. Pins damageCoeff against an external literal —
+  // the audit found the previous damage test asserted only emissions.
+  const preTipping = climateDefaults.damageCoeff * 3 * 3;
+  expect(preTipping).toBeCloseTo(0.048, 2);
+
+  // Step-level anchor at the 2025 starting temperature (~1.45-1.50°C after
+  // one zero-emission step): hand-computed damages there are ~0.0115-0.0128.
+  // DICE-2023's coefficient would give ~0.008 and Howard-Sterner ~0.017, so
+  // this band detects coefficient drift through the real step path without
+  // mirroring the implementation formula.
+  const state = climateModule.init(climateDefaults);
+  const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
+  expect(outputs.damages).toBeBetween(0.011, 0.013);
+});
+
+test('damages are capped at maxDamage under extreme warming', () => {
+  const state = { ...climateModule.init(climateDefaults), temperature: 12 };
+  const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
+  expect(outputs.damages).toBeCloseTo(climateDefaults.maxDamage, 6);
+});
+
 test('damages increase with temperature', () => {
   const state = climateModule.init(climateDefaults);
 

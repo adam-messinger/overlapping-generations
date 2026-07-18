@@ -158,9 +158,9 @@ export const productionModule: Module<
       tier: 1 as const,
     },
     gamma: {
-      description: 'Useful energy elasticity. Ayres-Warr find ~0.5-0.6 for useful work. Dominant growth driver.',
+      description: 'Useful energy elasticity. Ayres-Warr find ~0.5-0.6 for useful work (dominant growth driver); mainstream cost-share logic implies ~0.05-0.08. GDP levels are highly sensitive to this choice — see docs/SENSITIVITY.md.',
       unit: 'fraction',
-      range: { min: 0.30, max: 0.70, default: 0.55 },
+      range: { min: 0.05, max: 0.70, default: 0.55 },
       tier: 1 as const,
     },
   },
