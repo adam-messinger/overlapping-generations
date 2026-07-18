@@ -194,3 +194,28 @@ outright in development, and in the COVID holdout the *no-migration aging* basel
 absolute predictor — 2019-2024 Italy was demography-dominated in levels, while relative ranks
 were shock-scrambled (Milano predicted 15/94, realized 40). The US within-market price surface
 remains the only validated claim.
+
+## 8. Hierarchy-top diagnostic: does the Milano inversion exist in the US? (2026-07-18)
+
+`scripts/hierarchy-top-diagnostic.ts`, on the exact §2 common sample (4,499 evaluated places,
+210 zones). Three mechanism runs: baseline; demographic attraction terms (regen + vitality)
+zeroed globally; and zeroed only for each zone's largest place. Development-window diagnostic,
+not validation.
+
+| Score | Equal-zone mean Spearman | vs mechanism, 95% CI |
+|---|---:|---|
+| Mechanism (baseline) | 0.097 | — |
+| Demographic terms zeroed globally | **0.110** | **+0.013 (+0.001, +0.025)** |
+| Zeroed at zone primaries only | 0.098 | +0.001 (−0.004, +0.006) |
+| Lagged population trend | −0.059 | −0.156 |
+
+Zone-primary ("Milano") statistics over the 30 largest zones: primaries realized a mean
+within-zone outcome percentile of 0.55; the mechanism *over*-ranks them (mean predicted 0.72)
+with zero Milano-style inversions, while the lagged trend under-ranks them (0.34, three
+inversions). Two readings: (a) the Italian failure mode — demographic scores burying eventual
+metro winners — is **not present** in the US 2000-2025 window; the mechanism's institutional
+and access channels already rank hierarchy tops highly; (b) the demographic attraction terms
+contribute slightly *negatively* to the US within-market price surface overall — removing them
+everywhere improves the metric with a bootstrap interval above zero. Channel weights are
+regime-specific: in the US the extended channels do the work (demographic terms are mild
+noise); in Japan only the demographic core transferred; in Italy it inverted.

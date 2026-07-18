@@ -27,6 +27,10 @@ export interface AttractionParams {
   universityThroughputAnnualRetention: number;
   /** Lower bound on the retained enrollment-throughput contribution. */
   universityThroughputFloor: number;
+  /** Diagnostic-only per-place multiplier on the demographic attraction terms
+   * (regen + vitality), aligned with statics order. Null = 1 everywhere.
+   * Used by the hierarchy-top diagnostic (Italy/Milano lesson). */
+  demographicAttractionMultiplier: Float64Array | null;
   /** Hinterland-consolidation bonus: institutions in low-access regions
    * capture their shrinking hinterland (Fukuoka/Sapporo/Mayo pattern). */
   wHub: number;
@@ -85,6 +89,7 @@ const DEFAULTS: AttractionParams = {
   wHub: 0.10,
   universityThroughputAnnualRetention: 1,
   universityThroughputFloor: 0,
+  demographicAttractionMultiplier: null,
   // Retiree weights: amenity dominates (Costa del Sol, Naples FL), healthcare
   // access second (empty-nester recentralization), prestige scarcity third.
   rAmenity: 0.45,
@@ -207,18 +212,20 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       params.universityThroughputFloor,
       yearIndex,
     );
+    const demoMult = params.demographicAttractionMultiplier;
     for (let i = 0; i < n; i++) {
       const zPti = Math.max(-3, Math.min(6, (pti[i] - state.pti0Mean) / state.pti0Sd));
       const zYs = Math.max(-4, Math.min(4, (ys[i] - state.ysMean) / state.ysSd));
+      const dm = demoMult ? demoMult[i] : 1;
       const engines = state.engines[i]
         + (throughputRetention - 1) * state.universityThroughput[i];
       aW[i] =
         params.wEngines * engines +
         params.wHuman * state.human[i] +
         params.wAccess * state.access[i] +
-        params.wRegen * state.regen[i] +
+        dm * params.wRegen * state.regen[i] +
         params.wGateway * state.gateway[i] +
-        params.wVitality * zYs -
+        dm * params.wVitality * zYs -
         params.wAfford * zPti -
         params.wDistress * state.distress[i] +
         params.wHub * Math.max(0, engines) * Math.max(0, state.dominance[i]);
