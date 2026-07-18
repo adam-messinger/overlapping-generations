@@ -174,21 +174,19 @@ test('deep ocean temp output matches state', () => {
 
 test('damage function reproduces its documented calibration quantitatively', () => {
   // paramMeta claims ~4.8% GDP at 3°C before tipping amplification:
-  // 0.00536 x 3^2 = 0.0482. Pins damageCoeff against silent drift — the
-  // audit found the previous damage test asserted only emissions.
+  // 0.00536 x 3^2 = 0.0482. Pins damageCoeff against an external literal —
+  // the audit found the previous damage test asserted only emissions.
   const preTipping = climateDefaults.damageCoeff * 3 * 3;
   expect(preTipping).toBeCloseTo(0.048, 2);
 
-  // The step output composes quadratic x tipping multiplier, capped:
-  // damages = min(min(coeff*T^2, maxDamage) * tippingMult(T), maxDamage)
+  // Step-level anchor at the 2025 starting temperature (~1.45-1.50°C after
+  // one zero-emission step): hand-computed damages there are ~0.0115-0.0128.
+  // DICE-2023's coefficient would give ~0.008 and Howard-Sterner ~0.017, so
+  // this band detects coefficient drift through the real step path without
+  // mirroring the implementation formula.
   const state = climateModule.init(climateDefaults);
   const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
-  const T = outputs.temperature;
-  const quadratic = Math.min(climateDefaults.damageCoeff * T * T, climateDefaults.maxDamage);
-  const transition = 1 / (1 + Math.exp(-climateDefaults.tippingSteepness * (T - climateDefaults.tippingThreshold)));
-  const tippingMult = 1 + (climateDefaults.tippingMultiplier - 1) * transition;
-  const expected = Math.min(quadratic * tippingMult, climateDefaults.maxDamage);
-  expect(outputs.damages).toBeCloseTo(expected, 9);
+  expect(outputs.damages).toBeBetween(0.011, 0.013);
 });
 
 test('damages are capped at maxDamage under extreme warming', () => {

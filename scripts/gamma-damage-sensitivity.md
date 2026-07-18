@@ -79,6 +79,15 @@ documented in the script header; interpretation guidance in
 | **0.4** | 3.8% | 3.8% | 3.8% | 3.8% |
 | **0.55** (default) | 3.8% | 3.8% | 3.8% | 3.9% |
 
+### GDP 2100 by γ at default damages
+
+| γ | GDP 2100 | implied 2025-2100 growth |
+|---|---:|---:|
+| **0.08** (mainstream) | $243T | ~0.6%/yr |
+| **0.25** | $321T | ~1.0%/yr |
+| **0.4** | $491T | ~1.5%/yr |
+| **0.55** (default) | $1196T | ~2.7%/yr |
+
 ## Grid ranges
 
 | Metric | Min | Max | Default cell |

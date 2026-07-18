@@ -16,18 +16,18 @@ constrained parameters:
   (~6× DICE-2023) is used as a growth-effects-consistent anchor.
 
 `scripts/gamma-damage-sensitivity.ts` runs the full simulation over the 4×4
-grid and regenerates `scripts/gamma-damage-sensitivity.md`. Summary of the
-July 2026 run:
+grid and regenerates `scripts/gamma-damage-sensitivity.md` — **that generated
+file is the source of truth for all exact figures**; numbers quoted below are
+illustrative, from the July 2026 run, and are not updated automatically when
+the model changes. Qualitative summary:
 
 ## What is robust across the entire grid
 
 The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
-damages ∈ [DICE-2023, 6× DICE]:
-
-- Fossil share of electricity 2050: 3.5–6.7%
-- Electrification rate 2050: 81.6–83.2%
-- Warming 2100: 1.98–2.13 °C
-- Peak energy burden: ~4% of GDP
+damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in single digits
+(3.5–6.7% in the July 2026 run), electrification moves by less than two
+percentage points, warming 2100 varies by ~0.15 °C, and the peak energy
+burden stays near 4% of GDP.
 
 The fast transition is driven by Wright's-Law solar economics flipping the
 competitiveness gate — not by the biophysical production function. Doubting
@@ -37,29 +37,23 @@ transition survives its assumptions being individually knocked out.)
 
 ## What is an artifact of the defaults
 
-**GDP levels are almost entirely a bet on γ.** GDP 2100 spans **$225T to
-$1,223T (5.4×)** across the grid, nearly all of it from γ:
-
-| γ | GDP 2100 (default damages) | implied 2025–2100 growth |
-|---|---:|---:|
-| 0.08 (mainstream) | $243T | ~0.6%/yr |
-| 0.25 | $321T | ~0.9%/yr |
-| 0.40 | $491T | ~1.5%/yr |
-| 0.55 (default) | $1,196T | ~2.7%/yr |
-
-At the mainstream γ, the model produces an SSP2-like world (~$245T in 2100);
-at the Ayres-Warr default it produces an energy-abundance boom far above any
-SSP marker. Any claim about absolute GDP, per-capita wealth, or the size of
-mid-century interest-rate/funding effects inherits this choice. Claims about
-*relative* effects (scenario deltas, regional comparisons, timing of the
-WACC peak) are much less exposed.
+**GDP levels are almost entirely a bet on γ.** GDP 2100 spans roughly **5×
+across the grid** (≈$225T–$1,220T in the July 2026 run), nearly all of it
+from γ — see the "GDP 2100 by γ" table in the generated report for current
+values. At the mainstream γ the model produces an SSP2-like world (~$245T
+in 2100, ≈0.6%/yr growth); at the Ayres-Warr default it produces an
+energy-abundance boom (~2.7%/yr) far above any SSP marker. Any claim about
+absolute GDP, per-capita wealth, or the size of mid-century
+interest-rate/funding effects inherits this choice. Claims about *relative*
+effects (scenario deltas, regional comparisons, timing of the WACC peak)
+are much less exposed.
 
 **The damage coefficient matters little — but only because warming stays
-low.** Even 6× DICE damages cut 2100 GDP by only 8–20%, because the model's
-endogenous transition holds warming near 2 °C where any quadratic is small.
-This is conditional robustness: in high-sensitivity/tipping scenarios where
-warming runs higher, the damage-coefficient choice becomes first-order.
-Damage-side conclusions should always be checked against the
+low.** Even 6× DICE damages cut 2100 GDP by only ~10–20%, because the
+model's endogenous transition holds warming near 2 °C where any quadratic is
+small. This is conditional robustness: in high-sensitivity/tipping scenarios
+where warming runs higher, the damage-coefficient choice becomes
+first-order. Damage-side conclusions should always be checked against the
 `high-sensitivity` and `climate-cascade` scenarios, not just the baseline.
 
 ## Guidance
@@ -68,5 +62,7 @@ Damage-side conclusions should always be checked against the
   row as a conservative bound.
 - Transition-shape results (shares, timing, capacity mix) may be reported
   without γ caveats.
-- The pinning tests in `production.test.ts` and `climate.test.ts` fail if
-  the defaults drift from the documented values.
+- The pinning tests in `production.test.ts` and `climate.test.ts` guard the
+  *parameter defaults* (γ, α, β, damageCoeff) against silent drift; the
+  output figures above are pinned by nothing and must be regenerated with
+  the sweep after model changes.

@@ -41,7 +41,6 @@ const DAMAGE_COEFFS = [
 interface Cell {
   gamma: number;
   damageCoeff: number;
-  damageLabel: string;
   gdp2050: number;
   gdp2100: number;
   warming2100: number;
@@ -63,7 +62,6 @@ function runCell(gamma: number, damage: { value: number; label: string }): Cell 
   return {
     gamma,
     damageCoeff: damage.value,
-    damageLabel: damage.label,
     gdp2050: r2050.gdp,
     gdp2100: r2100.gdp,
     warming2100: r2100.temperature,
@@ -122,9 +120,28 @@ function main(): void {
   const warmingRange = range(cells, c => c.warming2100);
   const fossilRange = range(cells, c => c.fossilShare2050);
   const elecRange = range(cells, c => c.electrification2050);
-  const defaultCell = cells.find(c => c.gamma === 0.55 && c.damageCoeff === 0.00536)!;
-  const mainstreamCell = cells.find(c => c.gamma === 0.08 && c.damageCoeff === 0.003467)!;
-  const pessimistCell = cells.find(c => c.gamma === 0.08 && c.damageCoeff === 0.021)!;
+  const cellAt = (gamma: number, damage: { value: number }) =>
+    cells.find(c => c.gamma === gamma && c.damageCoeff === damage.value)!;
+  const defaultCell = cellAt(0.55, DAMAGE_COEFFS[1]);
+  const mainstreamCell = cellAt(0.08, DAMAGE_COEFFS[0]);
+  const pessimistCell = cellAt(0.08, DAMAGE_COEFFS[3]);
+
+  // Per-gamma summary at default damages, with implied average growth —
+  // the table docs/SENSITIVITY.md points at (generated here so it cannot
+  // go stale against the grid).
+  const growthTable = [
+    '### GDP 2100 by γ at default damages',
+    '',
+    '| γ | GDP 2100 | implied 2025-2100 growth |',
+    '|---|---:|---:|',
+    ...GAMMAS.map(gamma => {
+      const cell = cellAt(gamma, DAMAGE_COEFFS[1]);
+      const growth = Math.pow(cell.gdp2100 / 158, 1 / 75) - 1;
+      const marker = gamma === 0.55 ? ' (default)' : gamma === 0.08 ? ' (mainstream)' : '';
+      return `| **${gamma}**${marker} | $${cell.gdp2100.toFixed(0)}T | ~${(growth * 100).toFixed(1)}%/yr |`;
+    }),
+    '',
+  ].join('\n');
 
   const report = `# Gamma x damage-coefficient sensitivity
 
@@ -143,6 +160,7 @@ ${table(cells, c => `${(c.electrification2050 * 100).toFixed(1)}%`, 'Electrifica
 ${table(cells, c => `${c.solar2050TW.toFixed(0)} TW`, 'Solar capacity 2050')}
 ${table(cells, c => `${(c.damages2100 * 100).toFixed(1)}%`, 'Climate damages 2100 (fraction of GDP)')}
 ${table(cells, c => `${(c.peakEnergyBurden * 100).toFixed(1)}%`, 'Peak energy burden')}
+${growthTable}
 ## Grid ranges
 
 | Metric | Min | Max | Default cell |
