@@ -565,7 +565,7 @@ console.log('\n--- Regional Financing Spreads ---\n');
 
 test('regionalWACC equals global WACC plus the regional spread', () => {
   const params = energyModule.mergeParams({
-    regional: { ssa: { financingSpread: 0.06 } } as any,
+    regional: { oecd: { financingSpread: 0 }, ssa: { financingSpread: 0.06 } } as any,
   });
   const state = energyModule.init(params);
   const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);

@@ -193,6 +193,30 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
 };
 
 /**
+ * Regional Financing Spreads (fraction, over the global rate)
+ *
+ * Real cost-of-capital spreads for utility-scale renewables relative to the
+ * model's ~7% 2025 global anchor. Calibrated to the IEA Cost of Capital
+ * Observatory (2024: nominal WACC ~6-7% advanced economies vs ~10-15% EMDE,
+ * Africa highest) and Steffen (2020, Energy Economics) renewable
+ * project-finance survey; IRENA Renewable Power Generation Costs 2023 uses
+ * 3.5-11% WACC assumptions across country tiers. China reflects
+ * state-directed low-cost finance; MENA blends cheap Gulf auction finance
+ * with expensive North African markets; Russia reflects sanctions-era
+ * isolation.
+ */
+const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
+  oecd: -0.010,   // ~6% real: deep capital markets
+  china: -0.015,  // ~5.5% real: policy banks, cheap state credit
+  india: 0.020,   // ~9% real
+  latam: 0.030,   // ~10% real (Brazil-weighted)
+  seasia: 0.025,  // ~9.5% real
+  russia: 0.050,  // ~12% real: sanctions, political risk
+  mena: 0.010,    // ~8% real: Gulf cheap, North Africa expensive
+  ssa: 0.060,     // ~13% real: IEA reports Africa's cost of capital 2-3x advanced economies
+};
+
+/**
  * Regional Solar Capacity Factors
  *
  * Based on latitude and irradiance. MENA has world's best solar (0.24).
@@ -289,14 +313,14 @@ export const energyDefaults: EnergyParams = {
 
   // Regional policy parameters
   regional: {
-    oecd:   { carbonPrice: REGIONAL_CARBON_PRICES.oecd,   capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd } },
-    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china } },
-    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india } },
-    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam } },
-    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia } },
-    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia } },
-    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena } },
-    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa } },
+    oecd:   { carbonPrice: REGIONAL_CARBON_PRICES.oecd,   capacityFactor: { solar: REGIONAL_SOLAR_CF.oecd },   financingSpread: REGIONAL_FINANCING_SPREADS.oecd   },
+    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china },  financingSpread: REGIONAL_FINANCING_SPREADS.china  },
+    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india },  financingSpread: REGIONAL_FINANCING_SPREADS.india  },
+    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam },  financingSpread: REGIONAL_FINANCING_SPREADS.latam  },
+    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia }, financingSpread: REGIONAL_FINANCING_SPREADS.seasia },
+    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia }, financingSpread: REGIONAL_FINANCING_SPREADS.russia },
+    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena },   financingSpread: REGIONAL_FINANCING_SPREADS.mena   },
+    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa },    financingSpread: REGIONAL_FINANCING_SPREADS.ssa    },
   },
 
   // EROI assumptions (used for net energy fraction). Contested literature:
