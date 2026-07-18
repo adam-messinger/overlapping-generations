@@ -101,6 +101,38 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
   expect(oldShare(old)).toBeGreaterThan(oldShare(young));
 });
 
+test('scenario asset-age weights shift the initial asset allocation', () => {
+  const young = runOne({
+    assetAgeWeight20to39: 1,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 0,
+  }, {
+    generalInvestment: 0,
+    investment: 0,
+    nextCapitalStock: 553 * 0.95,
+  }).outputs.regionalCohortAccounts.oecd;
+  const old = runOne({
+    assetAgeWeight20to39: 0,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 1,
+  }, {
+    generalInvestment: 0,
+    investment: 0,
+    nextCapitalStock: 553 * 0.95,
+  }).outputs.regionalCohortAccounts.oecd;
+  const oldShare = (accounts: typeof old) => {
+    const values = Object.values(accounts);
+    const total = values.reduce((sum, account) => sum + account.assets, 0);
+    const age70plus = values
+      .filter(account => account.ageStart >= 70)
+      .reduce((sum, account) => sum + account.assets, 0);
+    return age70plus / total;
+  };
+  expect(oldShare(old)).toBeGreaterThan(oldShare(young));
+});
+
 test('cohort debt is amortized once by the macro debt transition', () => {
   const params = generationsModule.mergeParams({});
   const firstInputs = makeInputs({
@@ -200,6 +232,13 @@ test('validation rejects invalid cohort and borrowing parameters', () => {
     debtAgeWeight40to54: 0,
     debtAgeWeight55to69: 0,
     debtAgeWeight70plus: 0,
+  }).valid).toBeFalse();
+  expect(generationsModule.validate({ assetAgeWeight70plus: -1 }).valid).toBeFalse();
+  expect(generationsModule.validate({
+    assetAgeWeight20to39: 0,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 0,
   }).valid).toBeFalse();
 });
 

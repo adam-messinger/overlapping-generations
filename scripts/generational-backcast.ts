@@ -76,14 +76,34 @@ interface WorldBankData {
   lifeExpectancy: Map<number, number>;
 }
 
-const DEBT_PROFILE_KEYS = [
-  'debtAgeWeight20to39',
-  'debtAgeWeight40to54',
-  'debtAgeWeight55to69',
-  'debtAgeWeight70plus',
-] as const;
-type DebtProfileKey = typeof DEBT_PROFILE_KEYS[number];
-type DebtProfile = Pick<GenerationsParams, DebtProfileKey>;
+// Initial age-weight calibration is symmetric between the two balance-sheet
+// sides: four scale-free weights on the DFA age bands, with 40-54 normalized
+// to one. Each side declares its param keys and the DFA field it is scored on.
+const PROFILE_SIDES = {
+  assets: {
+    label: 'asset',
+    field: 'assets',
+    keys: [
+      'assetAgeWeight20to39',
+      'assetAgeWeight40to54',
+      'assetAgeWeight55to69',
+      'assetAgeWeight70plus',
+    ],
+  },
+  liabilities: {
+    label: 'debt',
+    field: 'liabilities',
+    keys: [
+      'debtAgeWeight20to39',
+      'debtAgeWeight40to54',
+      'debtAgeWeight55to69',
+      'debtAgeWeight70plus',
+    ],
+  },
+} as const;
+type ProfileSide = typeof PROFILE_SIDES[keyof typeof PROFILE_SIDES];
+type ProfileKey = ProfileSide['keys'][number];
+type AgeProfile = Partial<Record<ProfileKey, number>>;
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const result: Record<string, string | boolean> = {};
@@ -360,10 +380,11 @@ function runReplay(
   return replay;
 }
 
-function debtSnapshotShares(
+function snapshotShares(
   observed: DfaYear,
   worldBank: WorldBankData,
-  profile: DebtProfile,
+  overrides: Partial<GenerationsParams>,
+  field: keyof DfaCell,
 ): Record<AgeGroup, number> {
   const year = observed.year;
   const pop = lastAvailable(worldBank.population, year);
@@ -375,7 +396,7 @@ function debtSnapshotShares(
   const old = pop * share65plus;
   const gdp = lastAvailable(worldBank.gdp, year) / 1e12;
   const life = lastAvailable(worldBank.lifeExpectancy, year);
-  const params = generationsModule.mergeParams(profile);
+  const params = generationsModule.mergeParams(overrides);
   const step = generationsModule.step(generationsModule.init(params), {
     regionalYoung: regionalRecord(young),
     regionalWorking: regionalRecord(working),
@@ -396,30 +417,32 @@ function debtSnapshotShares(
     regionalRetireeCost: regionalRecord(0),
     regionalChildCost: regionalRecord(0),
   }, params, year, 0);
-  return shares(groupModelAccounts(step.outputs.regionalCohortAccounts.oecd), 'liabilities');
+  return shares(groupModelAccounts(step.outputs.regionalCohortAccounts.oecd), field);
 }
 
-function debtSnapshotFit(
+function snapshotFit(
   dfa: Map<number, DfaYear>,
   worldBank: WorldBankData,
   years: number[],
-  profile: DebtProfile,
+  overrides: Partial<GenerationsParams>,
+  field: keyof DfaCell,
 ): ShareFit {
   const observed: Array<Record<AgeGroup, number>> = [];
   const modeled: Array<Record<AgeGroup, number>> = [];
   for (const year of years) {
     const row = dfa.get(year);
     if (!row) continue;
-    observed.push(shares(row.groups, 'liabilities'));
-    modeled.push(debtSnapshotShares(row, worldBank, profile));
+    observed.push(shares(row.groups, field));
+    modeled.push(snapshotShares(row, worldBank, overrides, field));
   }
   return fitShares(observed, modeled);
 }
 
-function replayDebtFit(
+function replayFit(
   dfa: Map<number, DfaYear>,
   replay: ReplayYear[],
   years: number[],
+  field: keyof DfaCell,
 ): ShareFit {
   const observed: Array<Record<AgeGroup, number>> = [];
   const modeled: Array<Record<AgeGroup, number>> = [];
@@ -427,27 +450,41 @@ function replayDebtFit(
     const observedRow = dfa.get(year);
     const modeledRow = replay.find(row => row.year === year);
     if (!observedRow || !modeledRow) continue;
-    observed.push(shares(observedRow.groups, 'liabilities'));
-    modeled.push(shares(groupModelAccounts(modeledRow.accounts), 'liabilities'));
+    observed.push(shares(observedRow.groups, field));
+    modeled.push(shares(groupModelAccounts(modeledRow.accounts), field));
   }
   return fitShares(observed, modeled);
 }
 
-function normalizeDebtProfile(profile: DebtProfile): DebtProfile {
-  const scale = Math.max(1e-9, profile.debtAgeWeight40to54);
+function profileFromWeights(side: ProfileSide, weights: number[]): AgeProfile {
+  return Object.fromEntries(side.keys.map((key, i) => [key, weights[i]]));
+}
+
+function normalizeProfile(side: ProfileSide, profile: AgeProfile): AgeProfile {
+  const scale = Math.max(1e-9, profile[side.keys[1]] ?? 0);
   return {
-    debtAgeWeight20to39: profile.debtAgeWeight20to39 / scale,
-    debtAgeWeight40to54: 1,
-    debtAgeWeight55to69: profile.debtAgeWeight55to69 / scale,
-    debtAgeWeight70plus: profile.debtAgeWeight70plus / scale,
+    ...profile,
+    ...profileFromWeights(
+      side,
+      side.keys.map((key, i) => i === 1 ? 1 : (profile[key] ?? 0) / scale),
+    ),
   };
 }
 
-function calibrateDebtProfile(
+function defaultProfile(side: ProfileSide): AgeProfile {
+  return normalizeProfile(
+    side,
+    Object.fromEntries(side.keys.map(key => [key, generationsModule.defaults[key]])),
+  );
+}
+
+function calibrateProfile(
   dfa: Map<number, DfaYear>,
   worldBank: WorldBankData,
+  side: ProfileSide,
+  baseOverrides: Partial<GenerationsParams>,
 ): {
-  profile: DebtProfile;
+  profile: AgeProfile;
   trainingYears: number[];
   validationYears: number[];
   trainingSnapshotFit: ShareFit;
@@ -463,64 +500,42 @@ function calibrateDebtProfile(
   const validationYears = availableYears.filter(year => year >= 2013);
   const trainingReplayYears = [1995, 2001, 2007, 2009, 2011];
   const validationReplayYears = [2019, 2025];
-  const defaults = generationsModule.defaults;
-  const defaultProfile = normalizeDebtProfile({
-    debtAgeWeight20to39: defaults.debtAgeWeight20to39,
-    debtAgeWeight40to54: defaults.debtAgeWeight40to54,
-    debtAgeWeight55to69: defaults.debtAgeWeight55to69,
-    debtAgeWeight70plus: defaults.debtAgeWeight70plus,
-  });
-  const starts: DebtProfile[] = [
-    defaultProfile,
-    {
-      debtAgeWeight20to39: 0.50,
-      debtAgeWeight40to54: 1,
-      debtAgeWeight55to69: 0.50,
-      debtAgeWeight70plus: 0.25,
-    },
-    {
-      debtAgeWeight20to39: 1,
-      debtAgeWeight40to54: 1,
-      debtAgeWeight55to69: 1,
-      debtAgeWeight70plus: 1,
-    },
-    {
-      debtAgeWeight20to39: 0.25,
-      debtAgeWeight40to54: 1,
-      debtAgeWeight55to69: 1,
-      debtAgeWeight70plus: 1,
-    },
+  const starts: AgeProfile[] = [
+    defaultProfile(side),
+    profileFromWeights(side, [0.50, 1, 0.50, 0.25]),
+    profileFromWeights(side, [1, 1, 1, 1]),
+    profileFromWeights(side, [0.25, 1, 1, 1]),
+    profileFromWeights(side, [0.25, 1, 2, 3]),
   ];
-  const adjustable = [
-    'debtAgeWeight20to39',
-    'debtAgeWeight55to69',
-    'debtAgeWeight70plus',
-  ] as const;
+  const adjustable: ProfileKey[] = [side.keys[0], side.keys[2], side.keys[3]];
   const cache = new Map<string, number>();
-  const objective = (profile: DebtProfile): number => {
-    const key = DEBT_PROFILE_KEYS.map(field => profile[field].toFixed(8)).join(':');
+  const objective = (profile: AgeProfile): number => {
+    const key = side.keys.map(field => (profile[field] ?? 0).toFixed(8)).join(':');
     const cached = cache.get(key);
     if (cached !== undefined) return cached;
-    const snapshotMae = debtSnapshotFit(
+    const overrides = { ...baseOverrides, ...profile };
+    const snapshotMae = snapshotFit(
       dfa,
       worldBank,
       trainingYears,
-      profile,
+      overrides,
+      side.field,
     ).maePercentagePoints;
-    const replayMae = replayDebtFit(
+    const replayMae = replayFit(
       dfa,
-      runReplay(dfa, '', profile, worldBank),
+      runReplay(dfa, '', overrides, worldBank),
       trainingReplayYears,
+      side.field,
     ).maePercentagePoints;
     const value = 0.5 * (snapshotMae + replayMae);
     cache.set(key, value);
     return value;
   };
 
-  let bestProfile = defaultProfile;
+  let bestProfile = starts[0];
   let bestScore = objective(bestProfile);
   for (const start of starts) {
-    let profile = normalizeDebtProfile(start);
+    let profile = normalizeProfile(side, start);
     let score = objective(profile);
     for (const logStep of [1, 0.5, 0.25, 0.10, 0.05, 0.02, 0.01]) {
       for (let iteration = 0; iteration < 20; iteration++) {
@@ -530,7 +545,7 @@ function calibrateDebtProfile(
           for (const direction of [-1, 1]) {
             const candidate = {
               ...profile,
-              [field]: Math.min(10, Math.max(0.01, profile[field] * Math.exp(direction * logStep))),
+              [field]: Math.min(10, Math.max(0.01, (profile[field] ?? 0) * Math.exp(direction * logStep))),
             };
             const candidateScore = objective(candidate);
             if (candidateScore < nextScore - 1e-9) {
@@ -552,41 +567,37 @@ function calibrateDebtProfile(
 
   // Three decimals avoids presenting optimizer noise as empirical precision.
   const rounded = Object.fromEntries(
-    DEBT_PROFILE_KEYS.map(field => [field, Number(bestProfile[field].toFixed(3))]),
-  ) as DebtProfile;
-  const roundedReplay = runReplay(dfa, '', rounded, worldBank);
+    side.keys.map(field => [field, Number((bestProfile[field] ?? 0).toFixed(3))]),
+  ) as AgeProfile;
+  const roundedOverrides = { ...baseOverrides, ...rounded };
+  const roundedReplay = runReplay(dfa, '', roundedOverrides, worldBank);
   return {
     profile: rounded,
     trainingYears,
     validationYears,
-    trainingSnapshotFit: debtSnapshotFit(dfa, worldBank, trainingYears, rounded),
-    validationSnapshotFit: debtSnapshotFit(dfa, worldBank, validationYears, rounded),
-    trainingReplayFit: replayDebtFit(dfa, roundedReplay, trainingReplayYears),
-    validationReplayFit: replayDebtFit(dfa, roundedReplay, validationReplayYears),
+    trainingSnapshotFit: snapshotFit(dfa, worldBank, trainingYears, roundedOverrides, side.field),
+    validationSnapshotFit: snapshotFit(dfa, worldBank, validationYears, roundedOverrides, side.field),
+    trainingReplayFit: replayFit(dfa, roundedReplay, trainingReplayYears, side.field),
+    validationReplayFit: replayFit(dfa, roundedReplay, validationReplayYears, side.field),
   };
 }
 
-function formatDebtProfile(profile: DebtProfile): string {
-  return `20-39 ${profile.debtAgeWeight20to39.toFixed(3)}, ` +
-    `40-54 ${profile.debtAgeWeight40to54.toFixed(3)}, ` +
-    `55-69 ${profile.debtAgeWeight55to69.toFixed(3)}, ` +
-    `70+ ${profile.debtAgeWeight70plus.toFixed(3)}`;
+function formatProfile(side: ProfileSide, profile: AgeProfile): string {
+  const bands = ['20-39', '40-54', '55-69', '70+'];
+  return side.keys
+    .map((key, i) => `${bands[i]} ${(profile[key] ?? 0).toFixed(3)}`)
+    .join(', ');
 }
 
-function parseDebtProfile(value: string): DebtProfile {
+function parseProfile(side: ProfileSide, flag: string, value: string): AgeProfile {
   const weights = value.split(',').map(Number);
   if (weights.length !== 4 || weights.some(weight => !Number.isFinite(weight) || weight < 0) ||
       weights[1] <= 0) {
     throw new Error(
-      '--debt-profile requires four non-negative comma-separated weights, with 40-54 positive',
+      `--${flag} requires four non-negative comma-separated weights, with 40-54 positive`,
     );
   }
-  return normalizeDebtProfile({
-    debtAgeWeight20to39: weights[0],
-    debtAgeWeight40to54: weights[1],
-    debtAgeWeight55to69: weights[2],
-    debtAgeWeight70plus: weights[3],
-  });
+  return normalizeProfile(side, profileFromWeights(side, weights));
 }
 
 function normalizedProfile(values: number[]): number[] {
@@ -732,6 +743,8 @@ function usage(): void {
     --world-bank-dir=/path/to/world-bank-jsons \\
     [--nta=/path/to/nta-transposed.csv] \\
     [--sloos=/path/to/DRTSCILM.csv] \\
+    [--calibrate-asset-profile] \\
+    [--asset-profile=20-39,40-54,55-69,70+] \\
     [--calibrate-debt-profile] \\
     [--debt-profile=20-39,40-54,55-69,70+]
 
@@ -760,28 +773,40 @@ function main(): void {
 
   const dfa = loadDfa(dfaPath);
   const worldBank = loadWorldBankData(worldBankDir);
-  let debtProfile: DebtProfile = {
-    debtAgeWeight20to39: generationsModule.defaults.debtAgeWeight20to39,
-    debtAgeWeight40to54: generationsModule.defaults.debtAgeWeight40to54,
-    debtAgeWeight55to69: generationsModule.defaults.debtAgeWeight55to69,
-    debtAgeWeight70plus: generationsModule.defaults.debtAgeWeight70plus,
+
+  // Debt resolves first because the asset replay depends on cohort borrowing
+  // headroom (and therefore the debt profile), while the debt replay does not
+  // read the asset side.
+  const resolveProfile = (
+    side: ProfileSide,
+    flagBase: string,
+    baseOverrides: Partial<GenerationsParams>,
+  ): AgeProfile => {
+    let profile = defaultProfile(side);
+    if (typeof args[`${flagBase}-profile`] === 'string') {
+      profile = {
+        ...profile,
+        ...parseProfile(side, `${flagBase}-profile`, args[`${flagBase}-profile`] as string),
+      };
+    }
+    if (args[`calibrate-${flagBase}-profile`]) {
+      const calibration = calibrateProfile(dfa, worldBank, side, { ...baseOverrides, ...profile });
+      profile = calibration.profile;
+      console.log(`\nDFA ${side.label.toUpperCase()}-AGE PROFILE CALIBRATION`);
+      console.log(`Training years: ${calibration.trainingYears[0]}-${calibration.trainingYears.at(-1)}`);
+      console.log(`Temporal check: ${calibration.validationYears[0]}-${calibration.validationYears.at(-1)}`);
+      console.log(`Selected weights: ${formatProfile(side, calibration.profile)}`);
+      console.log(`Training snapshot fit: ${formatFit(calibration.trainingSnapshotFit)}`);
+      console.log(`Training replay fit: ${formatFit(calibration.trainingReplayFit)}`);
+      console.log(`Temporal snapshot check: ${formatFit(calibration.validationSnapshotFit)}`);
+      console.log(`Temporal replay check: ${formatFit(calibration.validationReplayFit)}`);
+    }
+    return profile;
   };
-  if (typeof args['debt-profile'] === 'string') {
-    debtProfile = parseDebtProfile(args['debt-profile']);
-  }
-  if (args['calibrate-debt-profile']) {
-    const calibration = calibrateDebtProfile(dfa, worldBank);
-    debtProfile = calibration.profile;
-    console.log('\nDFA DEBT-AGE PROFILE CALIBRATION');
-    console.log(`Training years: ${calibration.trainingYears[0]}-${calibration.trainingYears.at(-1)}`);
-    console.log(`Temporal check: ${calibration.validationYears[0]}-${calibration.validationYears.at(-1)}`);
-    console.log(`Selected weights: ${formatDebtProfile(calibration.profile)}`);
-    console.log(`Training snapshot fit: ${formatFit(calibration.trainingSnapshotFit)}`);
-    console.log(`Training replay fit: ${formatFit(calibration.trainingReplayFit)}`);
-    console.log(`Temporal snapshot check: ${formatFit(calibration.validationSnapshotFit)}`);
-    console.log(`Temporal replay check: ${formatFit(calibration.validationReplayFit)}`);
-  }
-  const replay = runReplay(dfa, worldBankDir, debtProfile, worldBank);
+  const debtProfile = resolveProfile(PROFILE_SIDES.liabilities, 'debt', {});
+  const assetProfile = resolveProfile(PROFILE_SIDES.assets, 'asset', debtProfile);
+  const ageProfiles: Partial<GenerationsParams> = { ...debtProfile, ...assetProfile };
+  const replay = runReplay(dfa, worldBankDir, ageProfiles, worldBank);
   const holdoutYears = [1995, 2001, 2007, 2009, 2011, 2019, 2025]
     .filter(year => dfa.has(year) && replay.some(row => row.year === year));
   const observedAssetShares: Array<Record<AgeGroup, number>> = [];
@@ -809,7 +834,8 @@ function main(): void {
   console.log('\nGENERATIONAL BACKCAST — conditional U.S. balance-sheet replay');
   console.log('Observed aggregate assets/debt and demographics are inputs; age allocation is the test.');
   console.log(`Holdouts: ${holdoutYears.join(', ')}`);
-  console.log(`Debt age weights: ${formatDebtProfile(debtProfile)}`);
+  console.log(`Asset age weights: ${formatProfile(PROFILE_SIDES.assets, assetProfile)}`);
+  console.log(`Debt age weights: ${formatProfile(PROFILE_SIDES.liabilities, debtProfile)}`);
   console.log(`Asset-share fit: ${formatFit(assetFit)}`);
   console.log(`Debt-share fit:  ${formatFit(debtFit)}`);
 
@@ -832,7 +858,7 @@ function main(): void {
   const baseline2025 = runSimulation({
     startYear: 2025,
     endYear: 2025,
-    generations: debtProfile,
+    generations: ageProfiles,
   }).results[0];
   const baselineGrouped = groupModelAccounts(baseline2025.regionalCohortAccounts.oecd);
   if (dfa.has(2025)) {
@@ -870,7 +896,7 @@ function main(): void {
   console.log('Assumption             avg constrained  avg limit-bound  peak (year)');
   for (const scenario of sensitivityCases) {
     const rows = runReplay(dfa, worldBankDir, {
-      ...debtProfile,
+      ...ageProfiles,
       ...scenario.overrides,
     }, worldBank);
     const peak = rows.reduce((best, row) =>

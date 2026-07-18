@@ -32,6 +32,10 @@ export interface GenerationsParams {
   constraintTolerance: number;          // Relative gap below which a cohort is treated as unconstrained
   bequestRecipientMinAge: number;       // Youngest typical heir
   bequestRecipientMaxAge: number;       // Oldest typical heir
+  assetAgeWeight20to39: number;         // Initial asset ownership, relative to ages 40-54
+  assetAgeWeight40to54: number;         // Initial asset ownership normalization
+  assetAgeWeight55to69: number;         // Initial asset ownership, relative to ages 40-54
+  assetAgeWeight70plus: number;         // Initial asset ownership, relative to ages 40-54
   debtAgeWeight20to39: number;          // Initial debt exposure, relative to ages 40-54
   debtAgeWeight40to54: number;          // Initial debt exposure normalization
   debtAgeWeight55to69: number;          // Initial debt exposure, relative to ages 40-54
@@ -183,6 +187,13 @@ export const generationsDefaults: GenerationsParams = {
   constraintTolerance: 0.01,
   bequestRecipientMinAge: 30,
   bequestRecipientMaxAge: 54,
+  // Five-year band averages of the previous hardcoded lifecycle curve, with
+  // ages 40-54 normalized to one. DFA calibration is available via
+  // scripts/generational-backcast.ts --calibrate-asset-profile.
+  assetAgeWeight20to39: 0.273,
+  assetAgeWeight40to54: 1.00,
+  assetAgeWeight55to69: 1.477,
+  assetAgeWeight70plus: 1.104,
   // Scale-free DFA calibration on 1989-2012 U.S. age shares, with ages 40-54
   // normalized to one. See scripts/generational-backcast.ts.
   debtAgeWeight20to39: 0.579,
@@ -333,15 +344,12 @@ function buildPopulationSlices(
   return result;
 }
 
-function assetAgeWeight(age: number): number {
+function assetAgeWeight(age: number, params: GenerationsParams): number {
   if (age < 20) return 0;
-  if (age < 30) return 0.20;
-  if (age < 40) return 0.60;
-  if (age < 50) return 1.20;
-  if (age < 65) return 2.00;
-  if (age < 75) return 2.50;
-  if (age < 85) return 1.80;
-  return 1.00;
+  if (age < 40) return params.assetAgeWeight20to39;
+  if (age < 55) return params.assetAgeWeight40to54;
+  if (age < 70) return params.assetAgeWeight55to69;
+  return params.assetAgeWeight70plus;
 }
 
 function debtAgeWeight(age: number, params: GenerationsParams): number {
@@ -557,6 +565,30 @@ export const generationsModule: Module<
       range: { min: 0.4, max: 0.85, default: 0.67 },
       tier: 2 as const,
     },
+    assetAgeWeight20to39: {
+      description: 'Initial per-person asset ownership for ages 20-39, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 0.273 },
+      tier: 2 as const,
+    },
+    assetAgeWeight40to54: {
+      description: 'Initial per-person asset ownership for ages 40-54 (normalization band).',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.00 },
+      tier: 2 as const,
+    },
+    assetAgeWeight55to69: {
+      description: 'Initial per-person asset ownership for ages 55-69, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.477 },
+      tier: 2 as const,
+    },
+    assetAgeWeight70plus: {
+      description: 'Initial per-person asset ownership for ages 70+, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.104 },
+      tier: 2 as const,
+    },
     debtAgeWeight20to39: {
       description: 'Initial per-person debt exposure for ages 20-39, relative to ages 40-54.',
       unit: 'relative weight',
@@ -647,6 +679,18 @@ export const generationsModule: Module<
         (partial.constraintTolerance < 0 || partial.constraintTolerance > 1)) {
       errors.push('constraintTolerance must be between 0 and 1');
     }
+    const assetAgeWeights = [
+      partial.assetAgeWeight20to39,
+      partial.assetAgeWeight40to54,
+      partial.assetAgeWeight55to69,
+      partial.assetAgeWeight70plus,
+    ].filter((value): value is number => value !== undefined);
+    if (assetAgeWeights.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
+      errors.push('asset age weights must be finite numbers between 0 and 10');
+    }
+    if (assetAgeWeights.length === 4 && assetAgeWeights.every(value => value === 0)) {
+      errors.push('at least one asset age weight must be positive');
+    }
     const debtAgeWeights = [
       partial.debtAgeWeight20to39,
       partial.debtAgeWeight40to54,
@@ -722,7 +766,8 @@ export const generationsModule: Module<
       const slice = slices[key];
       const regionPop = Math.max(1, inputs.regionalPopulation[slice.region]);
       const incomePerCapita = Math.max(0, inputs.regionalGdp[slice.region]) / regionPop;
-      assetScores[key] = slice.population * assetAgeWeight(slice.representativeAge) * incomePerCapita;
+      assetScores[key] = slice.population * incomePerCapita *
+        assetAgeWeight(slice.representativeAge, params);
       // Outstanding liabilities persist after labor income stops. Using current
       // labor income here assigned retirees exactly zero debt, despite mortgages
       // and other balances commonly extending into retirement. Population ×
