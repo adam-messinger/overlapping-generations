@@ -13,6 +13,7 @@
 
 import { Module, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
+import { validatedMerge } from './validated-merge.js';
 
 // =============================================================================
 // TYPES
@@ -214,28 +215,36 @@ export function buildDependencyGraph(
  */
 export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
   const sorted: AnyModule[] = [];
-  const remaining = new Map(graph);
+
+  // Work on a private copy of each node's dependency set. `new Map(graph)` would
+  // be a shallow copy that shares the DepNode Sets, so mutating them below would
+  // corrupt the caller's graph — this function is exported and must be safe to
+  // call more than once on the same graph. `providesTo` is only read.
+  const pending = new Map<string, Set<string>>();
+  for (const [name, node] of graph) {
+    pending.set(name, new Set(node.dependsOn));
+  }
 
   // Find nodes with no dependencies
   const ready: string[] = [];
-  for (const [name, node] of remaining) {
-    if (node.dependsOn.size === 0) {
+  for (const [name, deps] of pending) {
+    if (deps.size === 0) {
       ready.push(name);
     }
   }
 
   while (ready.length > 0) {
     const name = ready.shift()!;
-    const node = remaining.get(name)!;
+    const node = graph.get(name)!;
     sorted.push(node.module);
-    remaining.delete(name);
+    pending.delete(name);
 
-    // Remove this node from dependencies of others
+    // Remove this node from the pending dependencies of others
     for (const dependent of node.providesTo) {
-      if (remaining.has(dependent)) {
-        const depNode = remaining.get(dependent)!;
-        depNode.dependsOn.delete(name);
-        if (depNode.dependsOn.size === 0) {
+      const deps = pending.get(dependent);
+      if (deps) {
+        deps.delete(name);
+        if (deps.size === 0) {
           ready.push(dependent);
         }
       }
@@ -243,8 +252,8 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
   }
 
   // Check for cycles
-  if (remaining.size > 0) {
-    const cycleNodes = Array.from(remaining.keys()).join(', ');
+  if (pending.size > 0) {
+    const cycleNodes = Array.from(pending.keys()).join(', ');
     throw new Error(
       `Dependency cycle detected involving: ${cycleNodes}. ` +
       `Use 'lags' configuration to break the cycle.`
@@ -307,8 +316,9 @@ export function validateConnectorTypes(
 
 /**
  * Validate all wiring at composition time.
- * Catches typos in dependsOn, missing lag sources, transform chaining,
- * and modules that directly consume cycle-breaker transforms.
+ * Catches transform/output name collisions, typos in dependsOn, missing or
+ * invalid lag sources/delays, transform chaining, and modules that directly
+ * consume cycle-breaker transforms.
  */
 export function validateWiring(
   modules: AnyModule[],
@@ -325,6 +335,25 @@ export function validateWiring(
     Object.entries(transforms).filter(([, entry]) => entry !== undefined)
   );
 
+  // A transform must not reuse a module output's name. If it did, a module
+  // consuming that name would silently receive the transform's value (module
+  // inputs resolve transforms before outputs) while dependsOn/lag sources
+  // resolve to the module output — the two paths disagree. Identity
+  // pass-throughs are simply redundant: a same-named input already resolves to
+  // the output natively.
+  for (const name of Object.keys(definedTransforms)) {
+    const provider = outputRegistry.get(name);
+    if (provider) {
+      errors.push(
+        `Transform '${name}' collides with output '${name}' provided by module '${provider}'. ` +
+        `Rename the transform, or drop it if it only passes the output through.`
+      );
+      // Drop it so the passes below reason over a clean transform set (a name
+      // here is now guaranteed to be a pure transform, not a shadowed output).
+      delete definedTransforms[name];
+    }
+  }
+
   // All available output names (module outputs + transform names)
   const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(definedTransforms)]);
 
@@ -333,15 +362,14 @@ export function validateWiring(
   // ordering edge for them (buildDependencyGraph resolves deps through the
   // output registry only) and transform values are never written to
   // currentOutputs, so a chained transform would silently read undefined.
+  // (Colliding transform names were dropped above, so a dep still found in
+  // definedTransforms is necessarily a pure transform name.)
   for (const [name, entry] of Object.entries(definedTransforms)) {
     const config = normalizeTransform(entry);
     for (const dep of config.dependsOn) {
       if (!allOutputs.has(dep)) {
         errors.push(`Transform '${name}' depends on '${dep}' which doesn't exist`);
-      } else if (definedTransforms[dep] !== undefined && !outputRegistry.has(dep)) {
-        // A dep that is both a transform name and a module output resolves
-        // to the module output (transforms read module outputs only), so
-        // only pure transform names are chaining errors.
+      } else if (definedTransforms[dep] !== undefined) {
         errors.push(
           `Transform '${name}' depends on transform '${dep}'. ` +
           `Transform chaining is not supported — depend on module outputs instead.`
@@ -350,10 +378,13 @@ export function validateWiring(
     }
   }
 
-  // Check lag sources exist
+  // Check lag sources exist and delays are valid
   for (const [name, lag] of Object.entries(lags)) {
     if (!allOutputs.has(lag.source)) {
       errors.push(`Lag '${name}' reads source '${lag.source}' which doesn't exist`);
+    }
+    if (!Number.isInteger(lag.delay) || lag.delay < 1) {
+      errors.push(`Lag '${name}' has delay ${lag.delay}: delay must be an integer >= 1`);
     }
   }
 
@@ -394,14 +425,23 @@ export function validateWiring(
 // =============================================================================
 
 /**
- * Recursively check a value for NaN/Infinity up to a depth limit.
- * Covers Record<Region, number>, Record<Mineral, {demand, cumulative}>, etc.
+ * Recursively check a value for NaN/Infinity.
+ * Descends into both plain objects (Record<Region, number>,
+ * Record<Mineral, {demand, cumulative}>) and arrays (number[] time series,
+ * arrays of records). The depth cap is a runaway/cyclic-structure guard, not a
+ * semantic limit — set well beyond any realistic output nesting.
  */
+const MAX_CHECK_DEPTH = 8;
 function checkNumeric(val: unknown, path: string, mod: string, year: number, depth = 0): void {
   if (typeof val === 'number' && (Number.isNaN(val) || !Number.isFinite(val))) {
     throw new Error(`Module '${mod}' output '${path}' is ${val} at year ${year}`);
   }
-  if (depth < 3 && typeof val === 'object' && val !== null && !Array.isArray(val)) {
+  if (depth >= MAX_CHECK_DEPTH || typeof val !== 'object' || val === null) return;
+  if (Array.isArray(val)) {
+    for (let i = 0; i < val.length; i++) {
+      checkNumeric(val[i], `${path}[${i}]`, mod, year, depth + 1);
+    }
+  } else {
     for (const [k, v] of Object.entries(val)) {
       checkNumeric(v, `${path}.${k}`, mod, year, depth + 1);
     }
@@ -559,7 +599,15 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   const paramsMap = new Map<string, any>();
 
   for (const mod of sortedModules) {
-    const mergedParams = mod.mergeParams(params[mod.name] ?? {});
+    // Merge + validate at load time: throws on invalid params, warns on
+    // warnings. This is what makes each Module's required validate() actually
+    // run — the engine's contract, not something consumers must wire by hand.
+    const mergedParams = validatedMerge(
+      mod.name,
+      (p) => mod.validate(p),
+      (p) => mod.mergeParams(p),
+      params[mod.name] ?? {}
+    );
     paramsMap.set(mod.name, mergedParams);
     stateMap.set(mod.name, mod.init(mergedParams));
   }

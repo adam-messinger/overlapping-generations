@@ -67,24 +67,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['energyInvestment'],
     },
 
-    // Capital uses effectiveWorkers from demographics
-    effectiveWorkers: {
-      fn: (outputs: Record<string, any>) => outputs.effectiveWorkers,
-      dependsOn: ['effectiveWorkers'],
-    },
-
-    // Capital and demand use gdp from production
-    gdp: {
-      fn: (outputs: Record<string, any>) => outputs.gdp,
-      dependsOn: ['gdp'],
-    },
-
-    // Dispatch and energy use electricity demand from demand module
-    electricityDemand: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'electricityDemand', 'electricityDemand'),
-      dependsOn: ['electricityDemand'],
-    },
-
     // Resources needs gdpPerCapita (derived)
     gdpPerCapita: {
       fn: (outputs: Record<string, any>) => {
@@ -127,18 +109,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: [],
     },
 
-    // Dispatch needs capacities from energy
-    capacities: {
-      fn: (outputs: Record<string, any>) => outputs.capacities,
-      dependsOn: ['capacities'],
-    },
-
-    // Resources needs additions from energy
-    additions: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'additions', 'additions'),
-      dependsOn: ['additions'],
-    },
-
     // Resources needs transport electrification for EV battery mineral demand
     transportElectrification: {
       fn: (outputs: Record<string, any>) => {
@@ -146,12 +116,6 @@ function buildTransforms(mergedEnergyParams: any) {
         return sectors.transport?.electrificationRate ?? 0;
       },
       dependsOn: ['sectors'],
-    },
-
-    // Resources needs population from demographics
-    population: {
-      fn: (outputs: Record<string, any>) => outputs.population,
-      dependsOn: ['population'],
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
@@ -238,24 +202,6 @@ function buildTransforms(mergedEnergyParams: any) {
       dependsOn: ['investment', 'regionalSavings'],
     },
 
-    // Regional capacities from energy module
-    regionalCapacities: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'regionalCapacities', 'regionalCapacities'),
-      dependsOn: ['regionalCapacities'],
-    },
-
-    // Regional energy-project WACC from energy module
-    regionalWACC: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'regionalWACC', 'regionalWACC'),
-      dependsOn: ['regionalWACC'],
-    },
-
-    // Long-duration storage regional capacities (GWh) from energy module
-    longStorageRegional: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'longStorageRegional', 'longStorageRegional'),
-      dependsOn: ['longStorageRegional'],
-    },
-
     // Regional carbon prices from energy params
     regionalCarbonPrice: {
       fn: () => {
@@ -276,12 +222,6 @@ function buildTransforms(mergedEnergyParams: any) {
         optionalOutput<Record<string, number> | null>(outputs, 'capacities', null),
       ),
       dependsOn: [],
-    },
-
-    // Regional life expectancy for capital module retirement age adjustment
-    regionalLifeExpectancy: {
-      fn: (outputs: Record<string, any>) => outputs.regionalLifeExpectancy,
-      dependsOn: ['regionalLifeExpectancy'],
     },
 
     // Regional GDP for capital module intergenerational transfers

@@ -94,6 +94,68 @@ test('metric aggregator: peak returns value and year', () => {
   assert.deepStrictEqual(metrics.peak, { value: 40, year: 2004 });
 });
 
+test('max/min return undefined (not ±Infinity) on an all-non-numeric series', () => {
+  const { metrics } = collectResults(run(), {
+    // path resolves to nothing → every value undefined
+    timeseries: [{ source: 'group', as: 'empty', path: 'nope.nope' }],
+    metrics: [
+      { source: 'empty', as: 'hi', aggregator: 'max' },
+      { source: 'empty', as: 'lo', aggregator: 'min' },
+      { source: 'empty', as: 'pk', aggregator: { peak: true } },
+    ],
+  });
+  assert.strictEqual(metrics.hi, undefined);
+  assert.strictEqual(metrics.lo, undefined);
+  assert.strictEqual(metrics.pk, undefined);
+});
+
+test('a metric whose source is not a produced timeseries key throws', () => {
+  assert.throws(
+    () =>
+      collectResults(run(), {
+        timeseries: [{ source: 'level' }],
+        metrics: [{ source: 'ghost', as: 'x', aggregator: 'last' }],
+      }),
+    /Metric 'x' reads timeseries key 'ghost' which no timeseries def produces/
+  );
+});
+
+test('a metric referencing a renamed source gets a helpful hint', () => {
+  assert.throws(
+    () =>
+      collectResults(run(), {
+        timeseries: [{ source: 'level', as: 'renamed' }],
+        metrics: [{ source: 'level', as: 'x', aggregator: 'last' }],
+      }),
+    /renamed via as: 'renamed'/
+  );
+});
+
+test('a metric with neither source nor transform throws', () => {
+  assert.throws(
+    () =>
+      collectResults(run(), {
+        timeseries: [{ source: 'level' }],
+        metrics: [{ as: 'ghost', aggregator: 'last' }],
+      }),
+    /Metric 'ghost' has neither a 'source' nor a 'transform'/
+  );
+});
+
+test('max reduces without a stack overflow on a long series', () => {
+  const N = 200000;
+  const big = {
+    years: Array.from({ length: N }, (_, i) => i),
+    outputs: { m: { v: Array.from({ length: N }, (_, i) => i) } },
+    states: { m: [] as any[] },
+  };
+  const { metrics } = collectResults(big, {
+    timeseries: [{ source: 'v' }],
+    metrics: [{ source: 'v', as: 'hi', aggregator: 'max' }],
+  });
+  assert.strictEqual(metrics.hi, N - 1);
+});
+
 test('metric aggregator: custom, and a transform-based metric', () => {
   const { metrics } = collectResults(run(), {
     timeseries: [{ source: 'level' }],

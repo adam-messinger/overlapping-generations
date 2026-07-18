@@ -39,6 +39,22 @@ test('entries and paths walk numeric leaves only', () => {
   assert.deepStrictEqual(p.paths().sort(), ['a.b', 'c']);
 });
 
+test('set() through a null intermediate node does not throw', () => {
+  const p = ComponentParams.from({ a: { b: null } });
+  const q = p.set('a.b.c', 5);
+  assert.strictEqual(q.get('a.b.c'), 5);
+  // top-level null too
+  const r = ComponentParams.from<{ a: unknown }>({ a: null }).set('a.x', 9);
+  assert.strictEqual(r.get('a.x'), 9);
+});
+
+test('get() of an object subtree does not alias internal state', () => {
+  const p = ComponentParams.from({ g: { x: 1 } });
+  const sub = p.get('g') as { x: number };
+  sub.x = 999; // mutating the returned subtree must not leak back
+  assert.strictEqual(p.get('g.x'), 1);
+});
+
 test('toParams returns a deep clone that does not alias internal state', () => {
   const src = { a: { b: 1 } };
   const p = ComponentParams.from(src);
