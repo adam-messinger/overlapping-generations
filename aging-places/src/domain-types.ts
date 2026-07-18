@@ -66,6 +66,9 @@ export interface NationOutputs {
   elderlyWealthIndex: number;
   /** National births this year. */
   births: number;
+  /** Log growth of the national working-age (20-64) stock this transition.
+   * Drives the regime-concentration dial in the attraction module. */
+  natWorkingGrowth: number;
 }
 
 /** Per-cohort annual survival + bracket-exit rates used by both the national

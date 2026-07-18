@@ -90,9 +90,12 @@ is therefore a new data vintage, not a byte-for-byte recreation of the committed
   rank signal (see docs/MARKET_RANKINGS.md). National lists are valuation/exposure screens.
 - The migration submodel is a modeling device, not a flow forecast: it fails direct IRS
   county-flow validation within zones (docs/FLOW_VALIDATION.md); its validated surface is prices.
-- `outputs/scenario-bands.csv.gz`: per-place scenario ranges over a 24-run fragility ensemble
-  (immigration, gateway, amenity repricing, institutional decline) with `scenarioRobust` and
-  dominant-axis attribution (docs/SCENARIO_ENSEMBLE.md). Ranges, not probability intervals.
+- `outputs/scenario-bands.csv.gz`: per-place scenario ranges over a 48-run fragility ensemble
+  (immigration, gateway, amenity repricing, institutional decline, regime concentration) with
+  `scenarioRobust`, dominant-axis attribution, and a signed `concentrationShift` (percentile
+  move if US allocation turns old-regime, Japan/Italy-style; the dial reads simulated national
+  working-age growth, so it deepens under low immigration). See docs/SCENARIO_ENSEMBLE.md.
+  Ranges, not probability intervals.
 
 The top/bottom lists currently cover 3,496 eligible places and require population at least 10,000,
 observed current ZHVI, a non-group-quarters-dominated housing market, and confidence above `low`.

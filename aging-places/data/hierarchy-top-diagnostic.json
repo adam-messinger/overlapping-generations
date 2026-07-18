@@ -1,0 +1,146 @@
+{
+ "scope": "development-window diagnostic on the market-backtest cz2000 common sample; not validation",
+ "sample": {
+  "places": 4824,
+  "zones": 356,
+  "zonesWith10": 133
+ },
+ "equalZoneSpearman": {
+  "laggedTrend": {
+   "n": 4499,
+   "markets": 210,
+   "marketsWithDefinedSpearman": 210,
+   "pooledCenteredSpearman": -0.0805,
+   "meanWithinMarketSpearman": -0.0591,
+   "medianWithinMarketSpearman": -0.0138,
+   "meanWithinMarketPairwiseAccuracy": 0.4789
+  },
+  "mechanism": {
+   "n": 4499,
+   "markets": 210,
+   "marketsWithDefinedSpearman": 210,
+   "pooledCenteredSpearman": 0.2091,
+   "meanWithinMarketSpearman": 0.0972,
+   "medianWithinMarketSpearman": 0.1117,
+   "meanWithinMarketPairwiseAccuracy": 0.5362
+  },
+  "demoZeroGlobal": {
+   "n": 4499,
+   "markets": 210,
+   "marketsWithDefinedSpearman": 210,
+   "pooledCenteredSpearman": 0.2151,
+   "meanWithinMarketSpearman": 0.1097,
+   "medianWithinMarketSpearman": 0.1272,
+   "meanWithinMarketPairwiseAccuracy": 0.5406
+  },
+  "demoZeroAtZonePrimary": {
+   "n": 4499,
+   "markets": 210,
+   "marketsWithDefinedSpearman": 210,
+   "pooledCenteredSpearman": 0.2102,
+   "meanWithinMarketSpearman": 0.0984,
+   "medianWithinMarketSpearman": 0.1355,
+   "meanWithinMarketPairwiseAccuracy": 0.5361
+  }
+ },
+ "differences": {
+  "demoZeroGlobalMinusMechanism": {
+   "markets": 210,
+   "meanDifference": 0.0125,
+   "ci95": [
+    0.0011,
+    0.0252
+   ]
+  },
+  "demoZeroAtZonePrimaryMinusMechanism": {
+   "markets": 210,
+   "meanDifference": 0.0012,
+   "ci95": [
+    -0.0036,
+    0.0062
+   ]
+  },
+  "mechanismMinusLagged": {
+   "markets": 210,
+   "meanDifference": 0.1562,
+   "ci95": [
+    0.0839,
+    0.2305
+   ]
+  },
+  "demoZeroAtZonePrimaryMinusLagged": {
+   "markets": 210,
+   "meanDifference": 0.1575,
+   "ci95": [
+    0.0836,
+    0.2324
+   ]
+  }
+ },
+ "zonePrimaryStats": {
+  "laggedTrend": {
+   "allZones10": {
+    "zones": 133,
+    "meanPredictedPctl": 0.391,
+    "meanRealizedPctl": 0.415,
+    "crossZoneSpearman": -0.073,
+    "milanoInversions": 10
+   },
+   "thirtyLargestZones": {
+    "zones": 30,
+    "meanPredictedPctl": 0.337,
+    "meanRealizedPctl": 0.55,
+    "crossZoneSpearman": 0.291,
+    "milanoInversions": 3
+   }
+  },
+  "mechanism": {
+   "allZones10": {
+    "zones": 133,
+    "meanPredictedPctl": 0.698,
+    "meanRealizedPctl": 0.415,
+    "crossZoneSpearman": 0.181,
+    "milanoInversions": 2
+   },
+   "thirtyLargestZones": {
+    "zones": 30,
+    "meanPredictedPctl": 0.715,
+    "meanRealizedPctl": 0.55,
+    "crossZoneSpearman": 0.29,
+    "milanoInversions": 0
+   }
+  },
+  "demoZeroGlobal": {
+   "allZones10": {
+    "zones": 133,
+    "meanPredictedPctl": 0.692,
+    "meanRealizedPctl": 0.415,
+    "crossZoneSpearman": 0.172,
+    "milanoInversions": 2
+   },
+   "thirtyLargestZones": {
+    "zones": 30,
+    "meanPredictedPctl": 0.696,
+    "meanRealizedPctl": 0.55,
+    "crossZoneSpearman": 0.293,
+    "milanoInversions": 0
+   }
+  },
+  "demoZeroAtZonePrimary": {
+   "allZones10": {
+    "zones": 133,
+    "meanPredictedPctl": 0.694,
+    "meanRealizedPctl": 0.415,
+    "crossZoneSpearman": 0.173,
+    "milanoInversions": 2
+   },
+   "thirtyLargestZones": {
+    "zones": 30,
+    "meanPredictedPctl": 0.7,
+    "meanRealizedPctl": 0.55,
+    "crossZoneSpearman": 0.291,
+    "milanoInversions": 0
+   }
+  }
+ }
+}

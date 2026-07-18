@@ -27,6 +27,24 @@ export interface AttractionParams {
   universityThroughputAnnualRetention: number;
   /** Lower bound on the retained enrollment-throughput contribution. */
   universityThroughputFloor: number;
+  /** Diagnostic-only per-place multiplier on the demographic attraction terms
+   * (regen + vitality), aligned with statics order. Null = 1 everywhere.
+   * Used by the hierarchy-top diagnostic (Italy/Milano lesson). */
+  demographicAttractionMultiplier: Float64Array | null;
+  /** Regime-concentration dial (0 = off, current model; 1 = full response).
+   * Scales a weight shift from the demographic terms (regen, vitality) to the
+   * institutional terms (engines, human, hub) as SIMULATED national
+   * working-age growth declines — the Japan/Italy old-regime pattern
+   * (BACKTEST.md sections 6-8). Unvalidatable on US data by construction;
+   * scenario tooling only, so the default stays 0. */
+  concentrationSensitivity: number;
+  /** National working-age log growth at/above which the shift is zero.
+   * +0.5%/yr: the dispersed-growth US of the 2000s sat well above this. */
+  concentrationGrowthHigh: number;
+  /** Growth at/below which the shift is full. -0.5%/yr: Italy 2012-2019
+   * (~-0.4%/yr, winner-take-all) and Japan 2010s (~-1%/yr, frozen
+   * hierarchy) sit at or below this band edge. */
+  concentrationGrowthLow: number;
   /** Hinterland-consolidation bonus: institutions in low-access regions
    * capture their shrinking hinterland (Fukuoka/Sapporo/Mayo pattern). */
   wHub: number;
@@ -62,6 +80,7 @@ export interface AttractionState {
 export interface AttractionInputs {
   laggedPriceToIncome: Float64Array;
   laggedYoungShare: Float64Array;
+  natWorkingGrowth: number;
 }
 
 export interface AttractionOutputs {
@@ -85,6 +104,10 @@ const DEFAULTS: AttractionParams = {
   wHub: 0.10,
   universityThroughputAnnualRetention: 1,
   universityThroughputFloor: 0,
+  demographicAttractionMultiplier: null,
+  concentrationSensitivity: 0,
+  concentrationGrowthHigh: 0.005,
+  concentrationGrowthLow: -0.005,
   // Retiree weights: amenity dominates (Costa del Sol, Naples FL), healthcare
   // access second (empty-nester recentralization), prestige scarcity third.
   rAmenity: 0.45,
@@ -122,11 +145,25 @@ export function universityThroughputRetention(
   return Math.max(floor, annualRetention ** Math.max(0, yearIndex));
 }
 
+/** Regime-concentration shift in [0, sensitivity]: 0 while national
+ * working-age growth is at/above `high`, ramping linearly to full at/below
+ * `low`. See AttractionParams.concentrationSensitivity for grounding. */
+export function concentrationShift(
+  sensitivity: number,
+  natWorkingGrowth: number,
+  high: number,
+  low: number,
+): number {
+  if (sensitivity <= 0 || high <= low) return 0;
+  const band = Math.max(0, Math.min(1, (high - natWorkingGrowth) / (high - low)));
+  return sensitivity * band;
+}
+
 export const attractionModule = defineModule<AttractionParams, AttractionState, AttractionInputs, AttractionOutputs>({
   name: 'attraction',
   description: 'Four-capitals attraction scores per municipality',
   defaults: DEFAULTS,
-  inputs: ['laggedPriceToIncome', 'laggedYoungShare'],
+  inputs: ['laggedPriceToIncome', 'laggedYoungShare', 'natWorkingGrowth'],
   outputs: ['attractionWorking', 'attractionRetiree'],
 
   validate(params): ValidationResult {
@@ -135,9 +172,18 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       const v = params[k];
       if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
     }
-    for (const k of ['universityThroughputAnnualRetention', 'universityThroughputFloor'] as const) {
+    for (const k of ['universityThroughputAnnualRetention', 'universityThroughputFloor', 'concentrationSensitivity'] as const) {
       const v = params[k];
       if (v !== undefined && (v < 0 || v > 1)) errors.push(`${k} out of [0,1]`);
+    }
+    const high = params.concentrationGrowthHigh ?? DEFAULTS.concentrationGrowthHigh;
+    const low = params.concentrationGrowthLow ?? DEFAULTS.concentrationGrowthLow;
+    if (high <= low) errors.push('concentrationGrowthHigh must exceed concentrationGrowthLow');
+    // The per-place mask ablates demographic signal for measurement; the
+    // concentration dial reroutes it to institutions. Combining them would
+    // reallocate weight that the mask already removed, so it is rejected.
+    if (params.demographicAttractionMultiplier && (params.concentrationSensitivity ?? 0) > 0) {
+      errors.push('demographicAttractionMultiplier (diagnostic) cannot combine with concentrationSensitivity > 0');
     }
     return { valid: errors.length === 0, errors, warnings: [] };
   },
@@ -207,21 +253,38 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       params.universityThroughputFloor,
       yearIndex,
     );
+    const demoMult = params.demographicAttractionMultiplier;
+    // Regime-concentration dial: as simulated national working-age growth
+    // declines, the demographic weight moves to the institutional terms in
+    // proportion to their existing importance, and hinterland consolidation
+    // strengthens (hub weight scales 1x -> 2x across the band). shift = 0
+    // reproduces the base model exactly.
+    const shift = concentrationShift(
+      params.concentrationSensitivity, inputs.natWorkingGrowth,
+      params.concentrationGrowthHigh, params.concentrationGrowthLow,
+    );
+    const freed = shift * (params.wRegen + params.wVitality);
+    const enginesSplit = params.wEngines / (params.wEngines + params.wHuman);
+    const wEngines = params.wEngines + enginesSplit * freed;
+    const wHuman = params.wHuman + (1 - enginesSplit) * freed;
+    const wHub = params.wHub * (1 + shift);
+    const demoScale = 1 - shift;
     for (let i = 0; i < n; i++) {
       const zPti = Math.max(-3, Math.min(6, (pti[i] - state.pti0Mean) / state.pti0Sd));
       const zYs = Math.max(-4, Math.min(4, (ys[i] - state.ysMean) / state.ysSd));
+      const dm = (demoMult ? demoMult[i] : 1) * demoScale;
       const engines = state.engines[i]
         + (throughputRetention - 1) * state.universityThroughput[i];
       aW[i] =
-        params.wEngines * engines +
-        params.wHuman * state.human[i] +
+        wEngines * engines +
+        wHuman * state.human[i] +
         params.wAccess * state.access[i] +
-        params.wRegen * state.regen[i] +
+        dm * params.wRegen * state.regen[i] +
         params.wGateway * state.gateway[i] +
-        params.wVitality * zYs -
+        dm * params.wVitality * zYs -
         params.wAfford * zPti -
         params.wDistress * state.distress[i] +
-        params.wHub * Math.max(0, engines) * Math.max(0, state.dominance[i]);
+        wHub * Math.max(0, engines) * Math.max(0, state.dominance[i]);
       aR[i] =
         params.rAmenity * state.amenity[i] +
         params.rHealth * state.health[i] +
