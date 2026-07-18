@@ -345,20 +345,19 @@ function buildPopulationSlices(
   return result;
 }
 
-function assetAgeWeight(age: number, params: GenerationsParams): number {
+/** DFA age bands shared by the initial asset and debt distributions. */
+function ageBandWeight(
+  age: number,
+  weight20to39: number,
+  weight40to54: number,
+  weight55to69: number,
+  weight70plus: number,
+): number {
   if (age < 20) return 0;
-  if (age < 40) return params.assetAgeWeight20to39;
-  if (age < 55) return params.assetAgeWeight40to54;
-  if (age < 70) return params.assetAgeWeight55to69;
-  return params.assetAgeWeight70plus;
-}
-
-function debtAgeWeight(age: number, params: GenerationsParams): number {
-  if (age < 20) return 0;
-  if (age < 40) return params.debtAgeWeight20to39;
-  if (age < 55) return params.debtAgeWeight40to54;
-  if (age < 70) return params.debtAgeWeight55to69;
-  return params.debtAgeWeight70plus;
+  if (age < 40) return weight20to39;
+  if (age < 55) return weight40to54;
+  if (age < 70) return weight55to69;
+  return weight70plus;
 }
 
 function savingAgeWeight(age: number): number {
@@ -686,34 +685,33 @@ export const generationsModule: Module<
         (partial.constraintTolerance < 0 || partial.constraintTolerance > 1)) {
       errors.push('constraintTolerance must be between 0 and 1');
     }
-    const assetAgeWeights = [
+    const ageWeightErrors = (label: string, weights: Array<number | undefined>): string[] => {
+      const provided = weights.filter((value): value is number => value !== undefined);
+      const result: string[] = [];
+      if (provided.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
+        result.push(`${label} age weights must be finite numbers between 0 and 10`);
+      }
+      if (provided.length === 4 && provided.every(value => value === 0)) {
+        result.push(`at least one ${label} age weight must be positive`);
+      }
+      return result;
+    };
+    errors.push(...ageWeightErrors('asset', [
       partial.assetAgeWeight20to39,
       partial.assetAgeWeight40to54,
       partial.assetAgeWeight55to69,
       partial.assetAgeWeight70plus,
-    ].filter((value): value is number => value !== undefined);
-    if (assetAgeWeights.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
-      errors.push('asset age weights must be finite numbers between 0 and 10');
-    }
-    if (assetAgeWeights.length === 4 && assetAgeWeights.every(value => value === 0)) {
-      errors.push('at least one asset age weight must be positive');
-    }
-    if (partial.newCapitalFunderShare !== undefined &&
-        (!Number.isFinite(partial.newCapitalFunderShare) ||
-          partial.newCapitalFunderShare < 0 || partial.newCapitalFunderShare > 1)) {
-      errors.push('newCapitalFunderShare must be between 0 and 1');
-    }
-    const debtAgeWeights = [
+    ]));
+    errors.push(...ageWeightErrors('debt', [
       partial.debtAgeWeight20to39,
       partial.debtAgeWeight40to54,
       partial.debtAgeWeight55to69,
       partial.debtAgeWeight70plus,
-    ].filter((value): value is number => value !== undefined);
-    if (debtAgeWeights.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
-      errors.push('debt age weights must be finite numbers between 0 and 10');
-    }
-    if (debtAgeWeights.length === 4 && debtAgeWeights.every(value => value === 0)) {
-      errors.push('at least one debt age weight must be positive');
+    ]));
+    if (partial.newCapitalFunderShare !== undefined &&
+        (!Number.isFinite(partial.newCapitalFunderShare) ||
+          partial.newCapitalFunderShare < 0 || partial.newCapitalFunderShare > 1)) {
+      errors.push('newCapitalFunderShare must be between 0 and 1');
     }
     const minAge = partial.bequestRecipientMinAge ?? generationsDefaults.bequestRecipientMinAge;
     const maxAge = partial.bequestRecipientMaxAge ?? generationsDefaults.bequestRecipientMaxAge;
@@ -778,16 +776,26 @@ export const generationsModule: Module<
       const slice = slices[key];
       const regionPop = Math.max(1, inputs.regionalPopulation[slice.region]);
       const incomePerCapita = Math.max(0, inputs.regionalGdp[slice.region]) / regionPop;
-      assetScores[key] = slice.population * incomePerCapita *
-        assetAgeWeight(slice.representativeAge, params);
+      assetScores[key] = slice.population * incomePerCapita * ageBandWeight(
+        slice.representativeAge,
+        params.assetAgeWeight20to39,
+        params.assetAgeWeight40to54,
+        params.assetAgeWeight55to69,
+        params.assetAgeWeight70plus,
+      );
       // Outstanding liabilities persist after labor income stops. Using current
       // labor income here assigned retirees exactly zero debt, despite mortgages
       // and other balances commonly extending into retirement. Population ×
       // regional income per capita supplies a scale-neutral exposure base; the
       // age profile determines its allocation. New credit remains restricted
       // separately below to cohorts with capital demand and borrowing headroom.
-      debtScores[key] = slice.population * incomePerCapita *
-        debtAgeWeight(slice.representativeAge, params);
+      debtScores[key] = slice.population * incomePerCapita * ageBandWeight(
+        slice.representativeAge,
+        params.debtAgeWeight20to39,
+        params.debtAgeWeight40to54,
+        params.debtAgeWeight55to69,
+        params.debtAgeWeight70plus,
+      );
     }
 
     // Initialize the 2025 ownership/debt distribution, or carry prior cohort

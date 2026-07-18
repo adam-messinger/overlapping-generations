@@ -92,7 +92,12 @@ const PROFILE_SIDES = {
     // Ownership dynamics are calibrated jointly with the initial curve: the
     // asset replay is dominated by who ends up owning new capital, not by the
     // starting allocation.
-    extras: ['newCapitalFunderShare'],
+    extra: {
+      key: 'newCapitalFunderShare',
+      flag: 'funder-share',
+      starts: [1, 0.2, 0.05],
+      max: 1,
+    },
   },
   liabilities: {
     label: 'debt',
@@ -103,11 +108,11 @@ const PROFILE_SIDES = {
       'debtAgeWeight55to69',
       'debtAgeWeight70plus',
     ],
-    extras: [],
+    extra: undefined,
   },
 } as const;
 type ProfileSide = typeof PROFILE_SIDES[keyof typeof PROFILE_SIDES];
-type ProfileKey = ProfileSide['keys'][number] | ProfileSide['extras'][number];
+type ProfileKey = ProfileSide['keys'][number] | NonNullable<ProfileSide['extra']>['key'];
 type AgeProfile = Partial<Record<ProfileKey, number>>;
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
@@ -476,12 +481,14 @@ function normalizeProfile(side: ProfileSide, profile: AgeProfile): AgeProfile {
   };
 }
 
+function sideKeys(side: ProfileSide): ProfileKey[] {
+  return side.extra ? [...side.keys, side.extra.key] : [...side.keys];
+}
+
 function defaultProfile(side: ProfileSide): AgeProfile {
   return normalizeProfile(
     side,
-    Object.fromEntries(
-      [...side.keys, ...side.extras].map(key => [key, generationsModule.defaults[key]]),
-    ),
+    Object.fromEntries(sideKeys(side).map(key => [key, generationsModule.defaults[key]])),
   );
 }
 
@@ -514,30 +521,37 @@ function calibrateProfile(
     profileFromWeights(side, [0.25, 1, 1, 1]),
     profileFromWeights(side, [0.25, 1, 2, 3]),
   ];
-  const extraStarts: number[] = side.extras.length > 0 ? [1, 0.2, 0.05] : [Number.NaN];
-  const starts: AgeProfile[] = weightStarts.flatMap(weights =>
-    extraStarts.map(extra => ({
-      ...weights,
-      ...Object.fromEntries(side.extras.map(key => [key, extra])),
-    })),
-  );
-  const adjustable: ProfileKey[] = [side.keys[0], side.keys[2], side.keys[3], ...side.extras];
-  const upperBound = (key: ProfileKey): number =>
-    (side.extras as readonly string[]).includes(key) ? 1 : 10;
+  const extra = side.extra;
+  const starts: AgeProfile[] = extra
+    ? weightStarts.flatMap(weights =>
+        extra.starts.map(value => ({ ...weights, [extra.key]: value })))
+    : weightStarts;
+  const adjustable: ProfileKey[] = [side.keys[0], side.keys[2], side.keys[3]];
+  if (extra) adjustable.push(extra.key);
+  const upperBound = (key: ProfileKey): number => extra && key === extra.key ? extra.max : 10;
+  const allKeys = sideKeys(side);
   const cache = new Map<string, number>();
-  const allKeys: ProfileKey[] = [...side.keys, ...side.extras];
+  // The snapshot scores a zero-investment initialization step, so it depends
+  // only on the age weights, not on the extra dynamics parameter. Caching it
+  // on the weights alone avoids recomputing it on extra-only descent moves.
+  const snapshotCache = new Map<string, number>();
   const objective = (profile: AgeProfile): number => {
     const key = allKeys.map(field => (profile[field] ?? 0).toFixed(8)).join(':');
     const cached = cache.get(key);
     if (cached !== undefined) return cached;
     const overrides = { ...baseOverrides, ...profile };
-    const snapshotMae = snapshotFit(
-      dfa,
-      worldBank,
-      trainingYears,
-      overrides,
-      side.field,
-    ).maePercentagePoints;
+    const weightsKey = side.keys.map(field => (profile[field] ?? 0).toFixed(8)).join(':');
+    let snapshotMae = snapshotCache.get(weightsKey);
+    if (snapshotMae === undefined) {
+      snapshotMae = snapshotFit(
+        dfa,
+        worldBank,
+        trainingYears,
+        overrides,
+        side.field,
+      ).maePercentagePoints;
+      snapshotCache.set(weightsKey, snapshotMae);
+    }
     const replayMae = replayFit(
       dfa,
       runReplay(dfa, '', overrides, worldBank),
@@ -800,32 +814,33 @@ function main(): void {
   // read the asset side.
   const resolveProfile = (
     side: ProfileSide,
-    flagBase: string,
     baseOverrides: Partial<GenerationsParams>,
   ): AgeProfile => {
     let profile = defaultProfile(side);
-    if (typeof args[`${flagBase}-profile`] === 'string') {
+    const profileFlag = `${side.label}-profile`;
+    if (typeof args[profileFlag] === 'string') {
       profile = {
         ...profile,
-        ...parseProfile(side, `${flagBase}-profile`, args[`${flagBase}-profile`] as string),
+        ...parseProfile(side, profileFlag, args[profileFlag] as string),
       };
     }
-    if (side.extras.length > 0 && typeof args['funder-share'] === 'string') {
-      const share = Number(args['funder-share']);
-      if (!Number.isFinite(share) || share < 0 || share > 1) {
-        throw new Error('--funder-share requires a number between 0 and 1');
+    const extra = side.extra;
+    if (extra && typeof args[extra.flag] === 'string') {
+      const value = Number(args[extra.flag]);
+      if (!Number.isFinite(value) || value < 0 || value > extra.max) {
+        throw new Error(`--${extra.flag} requires a number between 0 and ${extra.max}`);
       }
-      profile = { ...profile, newCapitalFunderShare: share };
+      profile = { ...profile, [extra.key]: value };
     }
-    if (args[`calibrate-${flagBase}-profile`]) {
+    if (args[`calibrate-${side.label}-profile`]) {
       const calibration = calibrateProfile(dfa, worldBank, side, { ...baseOverrides, ...profile });
       profile = calibration.profile;
       console.log(`\nDFA ${side.label.toUpperCase()}-AGE PROFILE CALIBRATION`);
       console.log(`Training years: ${calibration.trainingYears[0]}-${calibration.trainingYears.at(-1)}`);
       console.log(`Temporal check: ${calibration.validationYears[0]}-${calibration.validationYears.at(-1)}`);
       console.log(`Selected weights: ${formatProfile(side, calibration.profile)}`);
-      for (const extra of side.extras) {
-        console.log(`Selected ${extra}: ${(calibration.profile[extra] ?? 0).toFixed(3)}`);
+      if (extra) {
+        console.log(`Selected ${extra.key}: ${(calibration.profile[extra.key] ?? 0).toFixed(3)}`);
       }
       console.log(`Training snapshot fit: ${formatFit(calibration.trainingSnapshotFit)}`);
       console.log(`Training replay fit: ${formatFit(calibration.trainingReplayFit)}`);
@@ -834,8 +849,8 @@ function main(): void {
     }
     return profile;
   };
-  const debtProfile = resolveProfile(PROFILE_SIDES.liabilities, 'debt', {});
-  const assetProfile = resolveProfile(PROFILE_SIDES.assets, 'asset', debtProfile);
+  const debtProfile = resolveProfile(PROFILE_SIDES.liabilities, {});
+  const assetProfile = resolveProfile(PROFILE_SIDES.assets, debtProfile);
   const ageProfiles: Partial<GenerationsParams> = { ...debtProfile, ...assetProfile };
   const replay = runReplay(dfa, worldBankDir, ageProfiles, worldBank);
   const holdoutYears = [1995, 2001, 2007, 2009, 2011, 2019, 2025]
@@ -866,7 +881,10 @@ function main(): void {
   console.log('Observed aggregate assets/debt and demographics are inputs; age allocation is the test.');
   console.log(`Holdouts: ${holdoutYears.join(', ')}`);
   console.log(`Asset age weights: ${formatProfile(PROFILE_SIDES.assets, assetProfile)}`);
-  console.log(`New-capital funder share: ${(assetProfile.newCapitalFunderShare ?? 1).toFixed(3)}`);
+  console.log(
+    `New-capital funder share: ` +
+    `${(assetProfile.newCapitalFunderShare ?? generationsModule.defaults.newCapitalFunderShare).toFixed(3)}`,
+  );
   console.log(`Debt age weights: ${formatProfile(PROFILE_SIDES.liabilities, debtProfile)}`);
   console.log(`Asset-share fit: ${formatFit(assetFit)}`);
   console.log(`Debt-share fit:  ${formatFit(debtFit)}`);
