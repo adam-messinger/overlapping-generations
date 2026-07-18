@@ -136,6 +136,10 @@ export interface EnergyParams {
   /** Multiplier on all regional financing spreads (0 = frictionless capital markets) */
   financingSpreadScale: number;
 
+  /** Fraction of a region's savings-rate gap vs the world that passes into its
+   *  financing spread (Feldstein-Horioka home bias; 0 = perfect capital mobility) */
+  financingHomeBias: number;
+
   /** Fraction of LCOE that is capital cost, by source */
   capitalIntensity: Record<EnergySource, number>;
 
@@ -193,27 +197,45 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
 };
 
 /**
- * Regional Financing Spreads (fraction, over the global rate)
+ * Regional Financing Spreads — static risk residual (fraction, over the
+ * global rate)
  *
- * Real cost-of-capital spreads for utility-scale renewables relative to the
- * model's ~7% 2025 global anchor. Calibrated to the IEA Cost of Capital
- * Observatory (2024: nominal WACC ~6-7% advanced economies vs ~10-15% EMDE,
- * Africa highest) and Steffen (2020, Energy Economics) renewable
- * project-finance survey; IRENA Renewable Power Generation Costs 2023 uses
- * 3.5-11% WACC assumptions across country tiers. China reflects
- * state-directed low-cost finance; MENA blends cheap Gulf auction finance
- * with expensive North African markets; Russia reflects sanctions-era
- * isolation.
+ * A region's total spread = static residual + financingHomeBias x (world
+ * savings rate - regional savings rate). The observed totals are calibrated
+ * to the IEA Cost of Capital Observatory (2024: nominal WACC ~6-7% advanced
+ * economies vs ~10-15% EMDE, Africa highest) and Steffen (2020, Energy
+ * Economics) renewable project-finance survey; IRENA Renewable Power
+ * Generation Costs 2023 uses 3.5-11% WACC assumptions across country tiers.
+ *
+ * The static residuals below are the observed 2025 totals minus the
+ * home-bias component at the model's 2025 savings rates (home bias 0.15,
+ * world savings 29.8%), so 2025 total spreads reproduce the observed values
+ * by construction and evolve thereafter with regional savings:
+ *
+ *   region  observed  savings gap  home-bias  static residual
+ *   oecd    -0.010      +3.7pp      +0.006      -0.016
+ *   china   -0.015     -15.0pp      -0.022      +0.007
+ *   india   +0.020      +1.2pp      +0.002      +0.018
+ *   latam   +0.030      +6.4pp      +0.010      +0.020
+ *   seasia  +0.025      +3.4pp      +0.005      +0.020
+ *   russia  +0.050      +4.9pp      +0.007      +0.043
+ *   mena    +0.010      -1.8pp      -0.003      +0.013
+ *   ssa     +0.060     +16.2pp      +0.024      +0.036
+ *
+ * The residual carries sovereign, currency, and off-taker risk: China's is
+ * slightly positive (its cheap capital is entirely a savings/state-credit
+ * story), Russia's stays large (sanctions-era isolation), MENA blends cheap
+ * Gulf auction finance with expensive North African markets.
  */
 const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
-  oecd: -0.010,   // ~6% real: deep capital markets
-  china: -0.015,  // ~5.5% real: policy banks, cheap state credit
-  india: 0.020,   // ~9% real
-  latam: 0.030,   // ~10% real (Brazil-weighted)
-  seasia: 0.025,  // ~9.5% real
-  russia: 0.050,  // ~12% real: sanctions, political risk
-  mena: 0.010,    // ~8% real: Gulf cheap, North Africa expensive
-  ssa: 0.060,     // ~13% real: IEA reports Africa's cost of capital 2-3x advanced economies
+  oecd: -0.016,
+  china: 0.007,
+  india: 0.018,
+  latam: 0.020,
+  seasia: 0.020,
+  russia: 0.043,
+  mena: 0.013,
+  ssa: 0.036,
 };
 
 /**
@@ -411,6 +433,12 @@ export const energyDefaults: EnergyParams = {
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
   financingSpreadScale: 1.0,       // Regional spreads applied at face value
+  // Domestic savings scarcity raises the local cost of capital: savings and
+  // investment stay correlated because capital is imperfectly mobile
+  // (Feldstein & Horioka 1980; retention coefficients ~0.3-0.5 in recent
+  // decades). 0.15 maps savings-rate gaps to price, attributing roughly a
+  // third of the extreme regions' observed spread to savings scarcity.
+  financingHomeBias: 0.15,
   capitalIntensity: {              // Fraction of LCOE that is capital cost
     solar: 0.85,
     wind: 0.80,
@@ -509,6 +537,12 @@ export interface EnergyInputs {
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
+
+  /** Global savings rate this year (from capital) for the home-bias spread */
+  savingsRate?: number;
+
+  /** Regional savings rates this year (from capital) for the home-bias spread */
+  regionalSavings?: Record<Region, number>;
 }
 
 /** Regional capacity outputs */
@@ -755,6 +789,12 @@ export const energyModule: Module<
       range: { min: 0, max: 3, default: 1.0 },
       tier: 1 as const,
     },
+    financingHomeBias: {
+      description: 'Fraction of a region\'s savings-rate gap vs the world that passes into its financing spread. 0 = perfect capital mobility (Feldstein-Horioka home bias).',
+      unit: 'dimensionless',
+      range: { min: 0, max: 1, default: 0.15 },
+      tier: 2 as const,
+    },
     regional: {
       oecd: {
         carbonPrice: {
@@ -794,6 +834,8 @@ export const energyModule: Module<
     'mineralConstraint',
     'laggedCurtailmentRate',
     'laggedInterestRate',
+    'savingsRate',
+    'regionalSavings',
   ] as const,
 
   outputs: [
@@ -887,6 +929,10 @@ export const energyModule: Module<
     if (p.financingSpreadScale !== undefined &&
         (!Number.isFinite(p.financingSpreadScale) || p.financingSpreadScale < 0 || p.financingSpreadScale > 3)) {
       errors.push('financingSpreadScale must be between 0 and 3');
+    }
+    if (p.financingHomeBias !== undefined &&
+        (!Number.isFinite(p.financingHomeBias) || p.financingHomeBias < 0 || p.financingHomeBias > 1)) {
+      errors.push('financingHomeBias must be between 0 and 1');
     }
     if (p.regional) {
       for (const region of REGIONS) {
@@ -1129,12 +1175,19 @@ export const energyModule: Module<
       lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, effectiveWACC);
     }
 
-    // Regional financing spreads over the global rate: capital-market depth,
-    // currency and political risk make identical projects cost more to finance
-    // in most emerging regions (IEA Cost of Capital Observatory; Steffen 2020).
+    // Regional financing spreads over the global rate: a static residual for
+    // sovereign/currency/off-taker risk (IEA Cost of Capital Observatory;
+    // Steffen 2020) plus a home-bias term — regions whose domestic savings
+    // are scarce relative to the world pool pay more for capital
+    // (Feldstein & Horioka 1980).
     const regionalWACC = {} as Record<Region, number>;
     for (const region of REGIONS) {
-      const spread = (params.regional[region].financingSpread ?? 0) * params.financingSpreadScale;
+      const regionalSavingsRate = inputs.regionalSavings?.[region];
+      const savingsGap = inputs.savingsRate !== undefined && regionalSavingsRate !== undefined
+        ? inputs.savingsRate - regionalSavingsRate
+        : 0;
+      const spread = ((params.regional[region].financingSpread ?? 0) +
+        params.financingHomeBias * savingsGap) * params.financingSpreadScale;
       regionalWACC[region] = Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
     }
 

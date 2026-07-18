@@ -589,6 +589,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       capitalStock: o.stock,
       investment: o.investment,
       savingsRate: o.savingsRate,
+      regionalSavings: o.regionalSavings,
       stability: o.stability,
       interestRate: o.interestRate,
       robotsDensity: o.robotsDensity,

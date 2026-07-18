@@ -96,6 +96,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'stock', as: 'capitalStock', unit: '$T', description: 'Global capital stock', module: 'capital' },
     { source: 'investment', unit: '$T', description: 'Annual investment', module: 'capital' },
     { source: 'savingsRate', unit: 'fraction', description: 'Aggregate savings rate', module: 'capital' },
+    { source: 'regionalSavings', unit: 'fraction', description: 'Savings rate by region', module: 'capital' },
     { source: 'stability', unit: 'index', description: 'Financial stability index (0-1)', module: 'capital' },
     { source: 'interestRate', unit: 'fraction', description: 'Real interest rate', module: 'capital' },
     { source: 'robotsDensity', unit: 'per 1000 workers', description: 'Automation capital density', module: 'capital' },
