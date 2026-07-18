@@ -316,8 +316,9 @@ export function validateConnectorTypes(
 
 /**
  * Validate all wiring at composition time.
- * Catches typos in dependsOn, missing lag sources, transform chaining,
- * and modules that directly consume cycle-breaker transforms.
+ * Catches transform/output name collisions, typos in dependsOn, missing or
+ * invalid lag sources/delays, transform chaining, and modules that directly
+ * consume cycle-breaker transforms.
  */
 export function validateWiring(
   modules: AnyModule[],
@@ -334,6 +335,25 @@ export function validateWiring(
     Object.entries(transforms).filter(([, entry]) => entry !== undefined)
   );
 
+  // A transform must not reuse a module output's name. If it did, a module
+  // consuming that name would silently receive the transform's value (module
+  // inputs resolve transforms before outputs) while dependsOn/lag sources
+  // resolve to the module output — the two paths disagree. Identity
+  // pass-throughs are simply redundant: a same-named input already resolves to
+  // the output natively.
+  for (const name of Object.keys(definedTransforms)) {
+    const provider = outputRegistry.get(name);
+    if (provider) {
+      errors.push(
+        `Transform '${name}' collides with output '${name}' provided by module '${provider}'. ` +
+        `Rename the transform, or drop it if it only passes the output through.`
+      );
+      // Drop it so the passes below reason over a clean transform set (a name
+      // here is now guaranteed to be a pure transform, not a shadowed output).
+      delete definedTransforms[name];
+    }
+  }
+
   // All available output names (module outputs + transform names)
   const allOutputs = new Set([...outputRegistry.keys(), ...Object.keys(definedTransforms)]);
 
@@ -342,15 +362,14 @@ export function validateWiring(
   // ordering edge for them (buildDependencyGraph resolves deps through the
   // output registry only) and transform values are never written to
   // currentOutputs, so a chained transform would silently read undefined.
+  // (Colliding transform names were dropped above, so a dep still found in
+  // definedTransforms is necessarily a pure transform name.)
   for (const [name, entry] of Object.entries(definedTransforms)) {
     const config = normalizeTransform(entry);
     for (const dep of config.dependsOn) {
       if (!allOutputs.has(dep)) {
         errors.push(`Transform '${name}' depends on '${dep}' which doesn't exist`);
-      } else if (definedTransforms[dep] !== undefined && !outputRegistry.has(dep)) {
-        // A dep that is both a transform name and a module output resolves
-        // to the module output (transforms read module outputs only), so
-        // only pure transform names are chaining errors.
+      } else if (definedTransforms[dep] !== undefined) {
         errors.push(
           `Transform '${name}' depends on transform '${dep}'. ` +
           `Transform chaining is not supported — depend on module outputs instead.`
@@ -359,10 +378,13 @@ export function validateWiring(
     }
   }
 
-  // Check lag sources exist
+  // Check lag sources exist and delays are valid
   for (const [name, lag] of Object.entries(lags)) {
     if (!allOutputs.has(lag.source)) {
       errors.push(`Lag '${name}' reads source '${lag.source}' which doesn't exist`);
+    }
+    if (!Number.isInteger(lag.delay) || lag.delay < 1) {
+      errors.push(`Lag '${name}' has delay ${lag.delay}: delay must be an integer >= 1`);
     }
   }
 
