@@ -70,7 +70,12 @@ export const cdrDefaults: CDRParams = {
   socialDiscountFactor: 0.5, // Social rate = 50% of market rate
 
   damageCoeff: 0.00536,   // Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate module default
-  tcre: 0.00045,          // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt)
+  // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt). Duplicated here because
+  // modules are parameter-isolated: this approximates the climate module's
+  // EMERGENT TCRE (~0.00044 at default sensitivity 3.0). Scenarios that change
+  // climate sensitivity should override this to match, or the SCC gate and
+  // realized warming silently diverge.
+  tcre: 0.00045,
 };
 
 // =============================================================================

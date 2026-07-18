@@ -190,7 +190,11 @@ interface CapitalOutputs {
 
 export const capitalDefaults: CapitalParams = {
   // Production
-  alpha: 0.33,              // Capital share ~1/3: Gollin (2002), Penn World Table labor-share complement
+  // Capital INCOME share for interest-rate formation (r = alpha*Y/K - delta):
+  // deliberately not production's fitted Ayres-Warr elasticity (0.25) — fitted
+  // output elasticities differ from factor cost shares (Kuemmel et al. 2010),
+  // and r tracks what capital is paid, not the fitted marginal product.
+  alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
   depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
 
   // OLG lifecycle savings

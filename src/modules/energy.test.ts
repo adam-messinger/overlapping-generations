@@ -564,6 +564,21 @@ test('low interest rate produces minWACC floor', () => {
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
 });
 
+test('fossil reserve budgets reproduce their stated R/P calibration', () => {
+  // reserves = 2025 fleet x 0.01/yr x proved-reserves R/P years (EI
+  // Statistical Review 2024). Pins the hand-derived budgets to the capacity
+  // defaults they were computed from: editing REGIONAL_CAPACITY_2025 without
+  // re-deriving the budgets breaks this test instead of silently shifting
+  // the depletion horizon.
+  const rpYears = { gas: 48, coal: 125 } as const;
+  for (const source of ['gas', 'coal'] as const) {
+    const s = energyDefaults.sources[source];
+    const fleet2025 = REGIONS.reduce((sum, region) => sum + s.capacity2025[region], 0);
+    const implied = fleet2025 * 0.01 * rpYears[source];
+    expect(Math.abs(s.reserves! - implied) / implied).toBeLessThan(0.02);
+  }
+});
+
 // --- Regional financing spreads ---
 
 console.log('\n--- Regional Financing Spreads ---\n');
