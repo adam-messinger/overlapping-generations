@@ -5,12 +5,10 @@
  * Collectors define how to extract timeseries data and summary metrics
  * from raw AutowireResult.
  *
- * This file is domain-independent. Domain-specific collectors
- * (standardCollectors, computeEnergySystemOverhead) live in
- * ../standard-collectors.ts.
+ * Define collectors describing which outputs to extract as time series and
+ * how to aggregate them into summary metrics.
  *
  * Usage:
- *   const config = standardCollectors;  // or custom
  *   const { timeseries, metrics } = collectResults(autowireResult, config);
  */
 

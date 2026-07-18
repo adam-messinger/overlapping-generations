@@ -11,10 +11,8 @@
  *   // { type: 'number', default: 35, min: 0, max: 200, unit: '$/ton', path: 'energy.carbonPrice', ... }
  */
 
-import { ComponentParams } from './framework/component-params.js';
-import { generateParameterSchema, GeneratedParameterInfo } from './framework/introspect.js';
+import { ComponentParams, generateParameterSchema, GeneratedParameterInfo, resolveKey } from 'tsimulation';
 import { standardCollectors } from './standard-collectors.js';
-import { resolveKey } from './framework/collectors.js';
 import { deepMerge } from './scenario.js';
 
 // Import all modules for auto-generated schema

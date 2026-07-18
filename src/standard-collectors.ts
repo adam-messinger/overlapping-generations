@@ -8,7 +8,7 @@
  */
 
 import { Region, REGIONS } from './domain-types.js';
-import type { CollectorConfig } from './framework/collectors.js';
+import type { CollectorConfig } from 'tsimulation';
 
 // =============================================================================
 // ENERGY SYSTEM OVERHEAD (shared computation)

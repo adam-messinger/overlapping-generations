@@ -2,14 +2,14 @@
  * Core types for the simulation framework
  */
 
-/** Year index (0 = 2025, 75 = 2100) */
+/** Step index (0-based): 0 is the first step. */
 export type YearIndex = number;
 
-/** Absolute year (2025-2100) */
+/** Step label — an absolute integer, often a calendar year. */
 export type Year = number;
 
 /**
- * Time series data - array indexed by year (0 = 2025)
+ * Time series data - array indexed by step (0 = first step)
  */
 export type TimeSeries<T> = T[];
 

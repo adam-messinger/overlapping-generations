@@ -7,8 +7,7 @@
  * (weights justified in docs/METHODOLOGY.md from the Japan/Italy evidence);
  * the pillar-level weights are tunable params.
  */
-import { defineModule } from '../../../src/framework/index.js';
-import type { ValidationResult } from '../../../src/framework/index.js';
+import { defineModule, ValidationResult } from 'tsimulation';
 import { PlaceStatics } from '../domain-types.js';
 
 export interface AttractionParams {

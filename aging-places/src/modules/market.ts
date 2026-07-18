@@ -7,8 +7,7 @@
  * prisons, dormitories, barracks, and other group quarters: residents of those
  * facilities are population, but they do not occupy ordinary housing units.
  */
-import { defineModule } from '../../../src/framework/index.js';
-import type { ValidationResult } from '../../../src/framework/index.js';
+import { defineModule, ValidationResult } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort, DEFAULT_HEADSHIP, PlaceStatics } from '../domain-types.js';
 
 export interface MarketParams {

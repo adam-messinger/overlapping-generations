@@ -9,7 +9,7 @@
  *   runAgingSim({epoch: '2023'}) — 2025->2065 forecast
  *   runAgingSim({epoch: '2000'}) — 2000->2025 hindcast (validation)
  */
-import { initAutowired, stepAutowired, LagConfig } from '../../src/framework/index.js';
+import { initAutowired, stepAutowired, LagConfig } from 'tsimulation';
 import { COHORTS, Cohort, DEFAULT_HEADSHIP } from './domain-types.js';
 import { EpochData, loadEpoch } from './data.js';
 import { nationModule, NationParams } from './modules/nation.js';

@@ -14,7 +14,7 @@
  * - YearResult mapping from autowire outputs
  */
 
-import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutput, optionalOutput } from './framework/autowire.js';
+import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutput, optionalOutput } from 'tsimulation';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';

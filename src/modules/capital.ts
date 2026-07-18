@@ -22,8 +22,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { Module } from '../framework/module.js';
-import { validatedMerge } from '../framework/validated-merge.js';
+import { Module, validatedMerge } from 'tsimulation';
 
 // =============================================================================
 // TYPES

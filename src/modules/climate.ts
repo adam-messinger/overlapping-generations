@@ -27,11 +27,9 @@
  * - radiativeForcing: Current radiative forcing (W/m²)
  */
 
-import { defineModule, Module } from '../framework/module.js';
-import { ValidationResult } from '../framework/types.js';
+import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
 import { quadraticDamage, smoothStep } from '../primitives/math.js';
-import { validatedMerge } from '../framework/validated-merge.js';
 
 // =============================================================================
 // PARAMETERS

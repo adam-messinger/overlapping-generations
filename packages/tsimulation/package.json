@@ -1,0 +1,62 @@
+{
+  "name": "tsimulation",
+  "version": "0.1.0",
+  "description": "A tiny, dependency-free TypeScript framework for modular simulations. Declare modules with typed inputs/outputs; the engine resolves execution order topologically and breaks feedback cycles with explicit lags.",
+  "keywords": [
+    "simulation",
+    "modeling",
+    "systems",
+    "dependency-resolution",
+    "topological-sort",
+    "dynamical-systems",
+    "typescript",
+    "sciml",
+    "time-series"
+  ],
+  "license": "MIT",
+  "author": "Adam Messinger",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adam-messinger/overlapping-generations.git",
+    "directory": "packages/tsimulation"
+  },
+  "homepage": "https://github.com/adam-messinger/overlapping-generations/tree/main/packages/tsimulation#readme",
+  "bugs": {
+    "url": "https://github.com/adam-messinger/overlapping-generations/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "prepare": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "example": "node --import tsx examples/predator-prey.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

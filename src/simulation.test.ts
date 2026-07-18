@@ -4,10 +4,9 @@
 
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
-import { buildOutputRegistry } from './framework/autowire.js';
+import { buildOutputRegistry, resolveKey } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
-import { resolveKey } from './framework/collectors.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 

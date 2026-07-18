@@ -90,11 +90,11 @@ export interface AutowireConfig {
    */
   params?: Record<string, any>;
 
-  /** Start year (default: 2025) */
-  startYear?: number;
+  /** First step index (e.g. a start year, or 0 for a generic horizon) */
+  startYear: number;
 
-  /** End year (default: 2100) */
-  endYear?: number;
+  /** Last step index, inclusive */
+  endYear: number;
 
   /** Enable dev-mode transform read tracking via Proxy (default: false) */
   trackReads?: boolean;
@@ -534,8 +534,8 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     transforms = {},
     lags = {},
     params = {},
-    startYear = 2025,
-    endYear = 2100,
+    startYear,
+    endYear,
     trackReads = false,
   } = config;
 

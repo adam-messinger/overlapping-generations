@@ -78,7 +78,7 @@ export interface Module<
   mergeParams(partial: Partial<TParams>): TParams;
 
   /**
-   * Initialize state for year 0 (2025)
+   * Initialize state for the first step
    * Called once at simulation start
    */
   init(params: TParams): TState;
@@ -92,8 +92,8 @@ export interface Module<
    * @param state - Current state (from previous year or init)
    * @param inputs - Values from other modules for this year
    * @param params - Module parameters (immutable)
-   * @param year - Absolute year (2025-2100)
-   * @param yearIndex - Year index (0-75)
+   * @param year - Absolute step label (often a calendar year)
+   * @param yearIndex - Step index (0-based)
    */
   step(
     state: TState,
