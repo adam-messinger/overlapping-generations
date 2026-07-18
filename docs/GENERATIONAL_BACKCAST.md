@@ -101,15 +101,21 @@ npx tsx scripts/generational-backcast.ts \
   --world-bank-dir=/tmp \
   --nta=/path/to/nta-us-transposed.csv \
   --sloos=/tmp/sloos.csv \
-  --calibrate-debt-profile
+  --calibrate-debt-profile \
+  --calibrate-asset-profile
 ```
 
-Omit either data-comparison argument to skip it. Omit
-`--calibrate-debt-profile` to score the checked-in default debt-age curve. The
-calibration flag estimates relative weights for ages 20–39, 40–54, 55–69, and
-70+, with ages 40–54 normalized to one. It fits 1989–2012 and reports 2013–2025
-separately as a chronological transport check. An explicit candidate can be
-scored with `--debt-profile=0.579,1,0.487,0.198`.
+Omit either data-comparison argument to skip it. Omit the calibration flags to
+score the checked-in default age curves. Each calibration flag estimates
+relative weights for ages 20–39, 40–54, 55–69, and 70+, with ages 40–54
+normalized to one; the asset flag additionally estimates
+`newCapitalFunderShare`, the fraction of new investment owned by its current
+cohort funders rather than incumbent owners. Both fit 1989–2012 and report
+2013–2025 separately as a chronological transport check. Explicit candidates
+can be scored with `--debt-profile=0.579,1,0.487,0.198`,
+`--asset-profile=0.241,1,1.182,1.202`, and `--funder-share=0.255`. Debt
+resolves before assets because the asset replay reads cohort borrowing
+headroom.
 
 ## Metrics
 
@@ -120,9 +126,9 @@ scored with `--debt-profile=0.579,1,0.487,0.198`.
   identical and one is disjoint.
 - Constraint sensitivity reports results at several desired-capital-growth and
   borrowing-limit assumptions.
-- Debt-profile calibration minimizes an equal-weight average of pre-2013
-  stand-alone cross-sectional MAE and pre-2013 conditional-replay MAE. It does
-  not use the 2013–2025 temporal check to choose the weights.
+- Profile calibration (either side) minimizes an equal-weight average of
+  pre-2013 stand-alone cross-sectional MAE and pre-2013 conditional-replay MAE.
+  It does not use the 2013–2025 temporal check to choose the weights.
 
 ## Current scorecard
 
@@ -131,8 +137,9 @@ holdout score is:
 
 | Measure | MAE | R-squared | Correlation |
 |---|---:|---:|---:|
-| Asset shares by age | 9.6 percentage points | 0.13 | 0.54 |
+| Asset shares by age | 3.8 percentage points | 0.85 | 0.93 |
 | Liability shares by age | 4.3 percentage points | 0.83 | 0.91 |
+| Asset replay transport, 2019–2025 | 5.2 percentage points | 0.75 | 0.87 |
 | Liability snapshot transport, 2013–2025 | 5.8 percentage points | 0.60 | 0.92 |
 
 The liability result includes both the July 2026 debt-persistence correction
@@ -150,6 +157,20 @@ the current cross-section is older. A fixed age curve cannot fit both regimes
 perfectly. The calibrated defaults are the pre-2013 joint-fit compromise; the
 2013–2025 results remain out of sample and point toward a future time-varying
 or cohort-specific debt mechanism.
+
+The asset result received the same two-part treatment in July 2026. Calibrating
+the initial asset age curve alone barely moved the replay (9.6 to 9.5 points):
+the asset error was dominated by ownership dynamics, because every year the
+module handed all new gross asset formation to under-65 funders, draining old
+cohorts at rates the DFA rejects — the 2025 replay put 6.4% of assets with ages
+70+ against an observed 30.0%. Jointly calibrating the initial curve with
+`newCapitalFunderShare` selects a funder share of 0.255 — three quarters of
+measured asset formation accrues to incumbent owners through retained earnings,
+pension claims, and revaluations — and cuts holdout MAE from 9.6 to 3.8
+percentage points with the 2019–2025 replay held out (transport MAE 5.2 points,
+against 13.5 for the curve-only calibration). The largest remaining errors are
+an overweight of ages 40–54 (+8.8 points in 2025) mirrored by an underweight of
+70+, the same aging-regime drift documented for liabilities.
 
 ## Interpretation limits
 

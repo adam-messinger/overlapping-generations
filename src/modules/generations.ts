@@ -32,6 +32,11 @@ export interface GenerationsParams {
   constraintTolerance: number;          // Relative gap below which a cohort is treated as unconstrained
   bequestRecipientMinAge: number;       // Youngest typical heir
   bequestRecipientMaxAge: number;       // Oldest typical heir
+  assetAgeWeight20to39: number;         // Initial asset ownership, relative to ages 40-54
+  assetAgeWeight40to54: number;         // Initial asset ownership normalization
+  assetAgeWeight55to69: number;         // Initial asset ownership, relative to ages 40-54
+  assetAgeWeight70plus: number;         // Initial asset ownership, relative to ages 40-54
+  newCapitalFunderShare: number;        // Share of new capital owned by current funders vs incumbents
   debtAgeWeight20to39: number;          // Initial debt exposure, relative to ages 40-54
   debtAgeWeight40to54: number;          // Initial debt exposure normalization
   debtAgeWeight55to69: number;          // Initial debt exposure, relative to ages 40-54
@@ -184,7 +189,14 @@ export const generationsDefaults: GenerationsParams = {
   bequestRecipientMinAge: 30,
   bequestRecipientMaxAge: 54,
   // Scale-free DFA calibration on 1989-2012 U.S. age shares, with ages 40-54
-  // normalized to one. See scripts/generational-backcast.ts.
+  // normalized to one. Asset weights and the funder share are calibrated
+  // jointly (Fed DFA July 2026 release, 2013-2025 held out as a temporal
+  // check). See scripts/generational-backcast.ts --calibrate-asset-profile.
+  assetAgeWeight20to39: 0.241,
+  assetAgeWeight40to54: 1.00,
+  assetAgeWeight55to69: 1.182,
+  assetAgeWeight70plus: 1.202,
+  newCapitalFunderShare: 0.255,
   debtAgeWeight20to39: 0.579,
   debtAgeWeight40to54: 1.00,
   debtAgeWeight55to69: 0.487,
@@ -333,23 +345,19 @@ function buildPopulationSlices(
   return result;
 }
 
-function assetAgeWeight(age: number): number {
+/** DFA age bands shared by the initial asset and debt distributions. */
+function ageBandWeight(
+  age: number,
+  weight20to39: number,
+  weight40to54: number,
+  weight55to69: number,
+  weight70plus: number,
+): number {
   if (age < 20) return 0;
-  if (age < 30) return 0.20;
-  if (age < 40) return 0.60;
-  if (age < 50) return 1.20;
-  if (age < 65) return 2.00;
-  if (age < 75) return 2.50;
-  if (age < 85) return 1.80;
-  return 1.00;
-}
-
-function debtAgeWeight(age: number, params: GenerationsParams): number {
-  if (age < 20) return 0;
-  if (age < 40) return params.debtAgeWeight20to39;
-  if (age < 55) return params.debtAgeWeight40to54;
-  if (age < 70) return params.debtAgeWeight55to69;
-  return params.debtAgeWeight70plus;
+  if (age < 40) return weight20to39;
+  if (age < 55) return weight40to54;
+  if (age < 70) return weight55to69;
+  return weight70plus;
 }
 
 function savingAgeWeight(age: number): number {
@@ -557,6 +565,36 @@ export const generationsModule: Module<
       range: { min: 0.4, max: 0.85, default: 0.67 },
       tier: 2 as const,
     },
+    assetAgeWeight20to39: {
+      description: 'Initial per-person asset ownership for ages 20-39, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 0.241 },
+      tier: 2 as const,
+    },
+    assetAgeWeight40to54: {
+      description: 'Initial per-person asset ownership for ages 40-54 (normalization band).',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.00 },
+      tier: 2 as const,
+    },
+    assetAgeWeight55to69: {
+      description: 'Initial per-person asset ownership for ages 55-69, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.182 },
+      tier: 2 as const,
+    },
+    assetAgeWeight70plus: {
+      description: 'Initial per-person asset ownership for ages 70+, relative to ages 40-54.',
+      unit: 'relative weight',
+      range: { min: 0, max: 5, default: 1.202 },
+      tier: 2 as const,
+    },
+    newCapitalFunderShare: {
+      description: 'Share of new productive investment owned by its current cohort funders; the rest accrues pro rata to incumbent owners.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.255 },
+      tier: 2 as const,
+    },
     debtAgeWeight20to39: {
       description: 'Initial per-person debt exposure for ages 20-39, relative to ages 40-54.',
       unit: 'relative weight',
@@ -647,17 +685,33 @@ export const generationsModule: Module<
         (partial.constraintTolerance < 0 || partial.constraintTolerance > 1)) {
       errors.push('constraintTolerance must be between 0 and 1');
     }
-    const debtAgeWeights = [
+    const ageWeightErrors = (label: string, weights: Array<number | undefined>): string[] => {
+      const provided = weights.filter((value): value is number => value !== undefined);
+      const result: string[] = [];
+      if (provided.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
+        result.push(`${label} age weights must be finite numbers between 0 and 10`);
+      }
+      if (provided.length === 4 && provided.every(value => value === 0)) {
+        result.push(`at least one ${label} age weight must be positive`);
+      }
+      return result;
+    };
+    errors.push(...ageWeightErrors('asset', [
+      partial.assetAgeWeight20to39,
+      partial.assetAgeWeight40to54,
+      partial.assetAgeWeight55to69,
+      partial.assetAgeWeight70plus,
+    ]));
+    errors.push(...ageWeightErrors('debt', [
       partial.debtAgeWeight20to39,
       partial.debtAgeWeight40to54,
       partial.debtAgeWeight55to69,
       partial.debtAgeWeight70plus,
-    ].filter((value): value is number => value !== undefined);
-    if (debtAgeWeights.some(value => !Number.isFinite(value) || value < 0 || value > 10)) {
-      errors.push('debt age weights must be finite numbers between 0 and 10');
-    }
-    if (debtAgeWeights.length === 4 && debtAgeWeights.every(value => value === 0)) {
-      errors.push('at least one debt age weight must be positive');
+    ]));
+    if (partial.newCapitalFunderShare !== undefined &&
+        (!Number.isFinite(partial.newCapitalFunderShare) ||
+          partial.newCapitalFunderShare < 0 || partial.newCapitalFunderShare > 1)) {
+      errors.push('newCapitalFunderShare must be between 0 and 1');
     }
     const minAge = partial.bequestRecipientMinAge ?? generationsDefaults.bequestRecipientMinAge;
     const maxAge = partial.bequestRecipientMaxAge ?? generationsDefaults.bequestRecipientMaxAge;
@@ -722,15 +776,26 @@ export const generationsModule: Module<
       const slice = slices[key];
       const regionPop = Math.max(1, inputs.regionalPopulation[slice.region]);
       const incomePerCapita = Math.max(0, inputs.regionalGdp[slice.region]) / regionPop;
-      assetScores[key] = slice.population * assetAgeWeight(slice.representativeAge) * incomePerCapita;
+      assetScores[key] = slice.population * incomePerCapita * ageBandWeight(
+        slice.representativeAge,
+        params.assetAgeWeight20to39,
+        params.assetAgeWeight40to54,
+        params.assetAgeWeight55to69,
+        params.assetAgeWeight70plus,
+      );
       // Outstanding liabilities persist after labor income stops. Using current
       // labor income here assigned retirees exactly zero debt, despite mortgages
       // and other balances commonly extending into retirement. Population ×
       // regional income per capita supplies a scale-neutral exposure base; the
       // age profile determines its allocation. New credit remains restricted
       // separately below to cohorts with capital demand and borrowing headroom.
-      debtScores[key] = slice.population * incomePerCapita *
-        debtAgeWeight(slice.representativeAge, params);
+      debtScores[key] = slice.population * incomePerCapita * ageBandWeight(
+        slice.representativeAge,
+        params.debtAgeWeight20to39,
+        params.debtAgeWeight40to54,
+        params.debtAgeWeight55to69,
+        params.debtAgeWeight70plus,
+      );
     }
 
     // Initialize the 2025 ownership/debt distribution, or carry prior cohort
@@ -851,15 +916,22 @@ export const generationsModule: Module<
     }
 
     // End-of-period productive asset ownership. Existing owners retain the
-    // post-depreciation stock; current funders own the new general investment.
-    const retainedCapital = Math.max(0, inputs.nextCapitalStock - inputs.generalInvestment);
-    scaleLedgerField(ledgers, 'assets', retainedCapital, assetScores);
+    // post-depreciation stock. Only newCapitalFunderShare of new general
+    // investment is owned by its current cohort funders; the remainder accrues
+    // pro rata to incumbent owners. Households mostly hold new capital through
+    // retained corporate earnings, pension claims, and revalued existing
+    // assets rather than by directly purchasing it from labor income, so
+    // funder-only ownership drained old cohorts of assets at rates the DFA
+    // replay rejects.
+    const funderOwnedInvestment = inputs.generalInvestment * params.newCapitalFunderShare;
+    const incumbentCapital = Math.max(0, inputs.nextCapitalStock - funderOwnedInvestment);
+    scaleLedgerField(ledgers, 'assets', incumbentCapital, assetScores);
     const ownershipScores: Record<string, number> = {};
     for (const key of keys) {
       ownershipScores[key] = flows[key].ownFunds + flows[key].creditAllocated;
       if (ownershipScores[key] <= 0) ownershipScores[key] = savingScores[key] + desiredScores[key];
     }
-    const newAssetOwnership = allocatePool(inputs.generalInvestment, ownershipScores, keys);
+    const newAssetOwnership = allocatePool(funderOwnedInvestment, ownershipScores, keys);
     for (const key of keys) ledgers[key].assets += newAssetOwnership[key];
 
     // End-of-period private liabilities: retain the post-amortization base and

@@ -52,20 +52,24 @@ and global flows.
 
 ## Productive assets, debt, and bequests
 
-Initial productive-capital ownership follows a lifecycle profile: little at
-labor-market entry, rising through prime saving ages, peaking around retirement,
-and declining at advanced ages. Initial private liabilities use four explicit,
-scale-free age weights calibrated against pre-2013 Federal Reserve DFA data:
-`0.579` for ages 20–39, `1.000` for 40–54, `0.487` for 55–69, and `0.198` for
-70+. Both distributions are also scaled by regional income. The four debt
-weights are scenario parameters; their common scale is irrelevant because they
-allocate a fixed aggregate stock.
+Initial productive-capital ownership and initial private liabilities each use
+four explicit, scale-free age weights calibrated against pre-2013 Federal
+Reserve DFA data, with ages 40–54 normalized to one. Assets: `0.241` for ages
+20–39, `1.000` for 40–54, `1.182` for 55–69, and `1.202` for 70+. Liabilities:
+`0.579`, `1.000`, `0.487`, and `0.198` on the same bands. Both distributions
+are also scaled by regional income. All eight weights are scenario parameters;
+each side's common scale is irrelevant because it allocates a fixed aggregate
+stock.
 
 Thereafter, ownership shares persist. Every step reconciles cohort assets and
 liabilities to the capital module's exact beginning stocks. Mortality transfers
-productive assets to working-age heirs, primarily ages 30-54. New general
-investment is allocated to its cohort funders, and end-of-period ledgers
-reconcile exactly to `nextCapitalStock` and `nextPrivateDebtStock`.
+productive assets to working-age heirs, primarily ages 30-54. Only
+`newCapitalFunderShare` (calibrated to `0.255`) of new general investment is
+owned by its current cohort funders; the remainder accrues pro rata to
+incumbent owners, reflecting ownership through retained corporate earnings,
+pension claims, and revalued existing assets rather than direct purchase from
+labor income. End-of-period ledgers reconcile exactly to `nextCapitalStock`
+and `nextPrivateDebtStock`.
 The capital module's aggregate debt transition applies amortization once.
 Retained liabilities then preserve existing cohort shares, while newly issued
 credit is allocated separately to cohorts with demand and borrowing headroom.

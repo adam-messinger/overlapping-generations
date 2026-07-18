@@ -43,6 +43,19 @@ function runOne(paramOverrides: Record<string, any> = {}, inputOverrides: Record
   return generationsModule.step(state, makeInputs(inputOverrides), params, 2025, 0);
 }
 
+function shareAtOrAbove(
+  accounts: Record<string, { ageStart: number; assets: number; liabilities: number }>,
+  minAge: number,
+  field: 'assets' | 'liabilities',
+): number {
+  const values = Object.values(accounts);
+  const total = values.reduce((sum, account) => sum + account[field], 0);
+  const above = values
+    .filter(account => account.ageStart >= minAge)
+    .reduce((sum, account) => sum + account[field], 0);
+  return above / total;
+}
+
 console.log('\n=== Generations Module Tests ===\n');
 
 test('uses five-year birth cohorts and reconciles population', () => {
@@ -90,15 +103,50 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
     creditImpulse: 0,
     nextPrivateDebtStock: 256 * 0.95,
   }).outputs.regionalCohortAccounts.oecd;
-  const oldShare = (accounts: typeof old) => {
-    const values = Object.values(accounts);
-    const total = values.reduce((sum, account) => sum + account.liabilities, 0);
-    const age70plus = values
-      .filter(account => account.ageStart >= 70)
-      .reduce((sum, account) => sum + account.liabilities, 0);
-    return age70plus / total;
-  };
-  expect(oldShare(old)).toBeGreaterThan(oldShare(young));
+  expect(shareAtOrAbove(old, 70, 'liabilities'))
+    .toBeGreaterThan(shareAtOrAbove(young, 70, 'liabilities'));
+});
+
+test('scenario asset-age weights shift the initial asset allocation', () => {
+  const young = runOne({
+    assetAgeWeight20to39: 1,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 0,
+  }, {
+    generalInvestment: 0,
+    investment: 0,
+    nextCapitalStock: 553 * 0.95,
+  }).outputs.regionalCohortAccounts.oecd;
+  const old = runOne({
+    assetAgeWeight20to39: 0,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 1,
+  }, {
+    generalInvestment: 0,
+    investment: 0,
+    nextCapitalStock: 553 * 0.95,
+  }).outputs.regionalCohortAccounts.oecd;
+  expect(shareAtOrAbove(old, 70, 'assets'))
+    .toBeGreaterThan(shareAtOrAbove(young, 70, 'assets'));
+});
+
+test('a lower funder share leaves more new-capital ownership with incumbent owners', () => {
+  const retiredShare = (funderShare: number): number => shareAtOrAbove(
+    runOne({ newCapitalFunderShare: funderShare }).outputs.regionalCohortAccounts.oecd,
+    65,
+    'assets',
+  );
+  expect(retiredShare(0)).toBeGreaterThan(retiredShare(1));
+});
+
+test('cohort assets reconcile to the macro stock at any funder share', () => {
+  const inputs = makeInputs();
+  for (const funderShare of [0, 0.25, 1]) {
+    const { outputs } = runOne({ newCapitalFunderShare: funderShare });
+    expect(outputs.cohortAssets).toBeCloseTo(inputs.nextCapitalStock, 6);
+  }
 });
 
 test('cohort debt is amortized once by the macro debt transition', () => {
@@ -201,6 +249,15 @@ test('validation rejects invalid cohort and borrowing parameters', () => {
     debtAgeWeight55to69: 0,
     debtAgeWeight70plus: 0,
   }).valid).toBeFalse();
+  expect(generationsModule.validate({ assetAgeWeight70plus: -1 }).valid).toBeFalse();
+  expect(generationsModule.validate({
+    assetAgeWeight20to39: 0,
+    assetAgeWeight40to54: 0,
+    assetAgeWeight55to69: 0,
+    assetAgeWeight70plus: 0,
+  }).valid).toBeFalse();
+  expect(generationsModule.validate({ newCapitalFunderShare: 1.5 }).valid).toBeFalse();
+  expect(generationsModule.validate({ newCapitalFunderShare: -0.1 }).valid).toBeFalse();
 });
 
 printSummary();
