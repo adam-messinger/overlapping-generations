@@ -28,6 +28,11 @@ npm install tsimulation
 
 Requires Node.js ≥ 20 (or any ESM runtime with `structuredClone`).
 
+**ESM-only.** This package ships as ES modules — `import` it. There is no
+CommonJS build; `require('tsimulation')` works only on Node versions with
+`require(esm)` support (≥ 20.19 / ≥ 22.12) and throws `ERR_REQUIRE_ESM` on
+older ones. Use a dynamic `import()` from CommonJS if you need to.
+
 ## Concepts
 
 | Concept | What it is |

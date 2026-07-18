@@ -7,6 +7,35 @@ onward. Before 1.0, minor versions may include breaking changes.
 
 ## [Unreleased]
 
+### Changed (behavior)
+- The engine now runs each module's `validate()` at load time, throwing on
+  invalid params and warning on warnings. Previously `validate()` was never
+  called by the engine — a module relying on it for enforcement would have let
+  invalid params through.
+- A transform whose key equals a module output name is now a wiring error
+  (previously the transform silently shadowed the output for consumers). Rename
+  the transform, or drop it if it only passed the output through.
+- Lag `delay` must be an integer ≥ 1; invalid delays are now a wiring error
+  instead of silently producing `undefined`/mis-sized buffers.
+
+### Fixed
+- The NaN/Infinity output guard now descends into array outputs and nesting
+  deeper than 3 levels (was silently skipping both).
+- `topologicalSort` no longer mutates its input graph, so it is safe to call
+  more than once (a second call previously returned wrong order).
+- `ComponentParams.get()` deep-clones object subtrees (immutability); `set()`
+  no longer throws when a path passes through a `null` node.
+- Collector `max`/`min`/`peak` return `undefined` (not `±Infinity`) on an empty
+  or all-non-numeric series; `max`/`min` use a reduce (no stack overflow on long
+  series). `collectResults` validates metric configs up front (unknown source
+  key, or neither source nor transform, now throw).
+
+### Packaging
+- Added a `default` export condition so `require('tsimulation')` resolves on
+  Node with `require(esm)` support; documented the package as ESM-only.
+- Ship `src/` so the bundled source maps / declaration maps resolve to real
+  sources for debugging and go-to-definition.
+
 ## [0.1.0] — 2026-07-18
 
 Initial public release. Extracted, unchanged in behavior, from the
