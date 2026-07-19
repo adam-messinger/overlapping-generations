@@ -42,19 +42,19 @@ export interface ProductionParams {
   thermalExergy: number;      // Exergy factor for direct fuel use (0.35)
   foodStressElasticity: number; // GDP reduction per unit food stress (0.3)
 
-  // End-use efficiency (Wright's Law on cumulative useful work)
+  // End-use (second-law) efficiency: single coupled series with demand's
+  // autonomous intensity decline (two views of one physical process)
   endUseEfficiency0: number;        // η₀: second-law efficiency at run start (0.23)
   endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
-  endUseLearningExponent: number;   // λ: Wright's Law exponent (0.21, backcast-calibrated)
-  cumulativeWorkHistory: number;    // Years of prior useful work experience (42)
+  serviceEfficiencyGrowth: number;  // η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
 
   // Organizational efficiency (education-driven)
   orgEfficiencySensitivity: number;    // φ: sensitivity to college share gain (0.35)
   orgEfficiencyMaxCollegeGain: number; // max college share improvement (0.40)
 
-  // Automation payoff: robots/AI augment effective labor. Both default 0
-  // (automation is a pure energy sink), preserving the backcast-calibrated
-  // baseline; the ai-energy-boom scenario turns them on. See scenario notes.
+  // Automation payoff: robots/AI augment effective labor — the only channel
+  // by which automation affects output (its electricity is subtracted from
+  // E as intermediate consumption).
   robotLaborEquivalent: number;     // worker-equivalents per robot (Acemoglu & Restrepo 2020 find 1 robot displaces ~3-6 workers; output equivalent lower)
   aiWorkerEquivalentPerTWh: number; // worker-equivalents per TWh/yr of datacenter compute
 }
@@ -68,12 +68,15 @@ export const productionDefaults: ProductionParams = {
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
   foodStressElasticity: 0.3,  // 30% GDP hit at full food stress
   // End-use (second-law) efficiency: level anchors from the exergy-economics
-  // literature, speed calibrated to the 1990-2025 growth backcast
-  // (scripts/growth-backcast.ts; pinned in production.test.ts).
-  endUseEfficiency0: 0.23,          // world second-law efficiency 2025, Brockway et al. (2018) ~0.20-0.25; backcast from 1990's 0.15 (De Stercke 2014) lands at 0.234
+  // literature; growth coupled to the demand module's autonomous intensity
+  // decline — improving devices simultaneously cut final energy per service
+  // (demand side) and raise useful work per final energy (production side).
+  // One parameter, two views; consistency pinned in simulation.test.ts.
+  // Empirical check: 0.15 x 1.0129^35 = 0.235, matching Brockway's measured
+  // 2020s level — the assumed rate reproduces the measured eta path.
+  endUseEfficiency0: 0.23,          // world second-law efficiency 2025, Brockway et al. (2018) ~0.20-0.25; backcast from 1990's 0.15 (De Stercke 2014) lands at 0.235
   endUseEfficiencyMax: 0.60,        // practical thermodynamic potential, Cullen & Allwood (2010)
-  endUseLearningExponent: 0.21,     // solved so the 1990-anchored backcast reproduces observed 2025 GDP ($158T WDI)
-  cumulativeWorkHistory: 42,        // 1990 base (30yr) + observed 1990-2024 useful work, in 2025 units — derived in growth-backcast.md
+  serviceEfficiencyGrowth: 0.0129,  // GDP-weighted average of demand regional intensityDecline defaults (IEA Energy Efficiency 2024 history)
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
   robotLaborEquivalent: 2,      // worker-equivalents per robot: Acemoglu & Restrepo (2020) find 1 robot displaces ~3-6 workers; 2 is a conservative output-equivalent. This is now the ONLY channel robots affect output (their energy is subtracted from E).
@@ -88,7 +91,6 @@ export interface ProductionState {
   initialCapital: number;       // K₀, captured in year 0
   initialLabor: number;         // L₀, captured in year 0
   initialUsefulEnergy: number;  // E₀, captured in year 0
-  cumulativeUsefulWork: number; // Running sum of useful energy (TWh)
   initialCollegeShare: number;  // Captured in year 0
   initialDamageFactor: number;  // Combined damage factor at anchor, captured in year 0
 }
@@ -250,8 +252,9 @@ export const productionModule: Module<
         errors.push('endUseEfficiency0 must be less than endUseEfficiencyMax');
       }
     }
-    if (params.endUseLearningExponent !== undefined && params.endUseLearningExponent < 0) {
-      errors.push('endUseLearningExponent must be non-negative');
+    if (params.serviceEfficiencyGrowth !== undefined &&
+        (params.serviceEfficiencyGrowth < 0 || params.serviceEfficiencyGrowth > 0.04)) {
+      errors.push('serviceEfficiencyGrowth must be between 0 and 4%/year');
     }
     if (params.robotLaborEquivalent !== undefined &&
         (params.robotLaborEquivalent < 0 || params.robotLaborEquivalent > 20)) {
@@ -277,7 +280,6 @@ export const productionModule: Module<
       initialCapital: 0,
       initialLabor: 0,
       initialUsefulEnergy: 0,
-      cumulativeUsefulWork: 0,
       initialCollegeShare: 0,
       initialDamageFactor: 1,
     };
@@ -334,20 +336,13 @@ export const productionModule: Module<
     let initialCapital = state.initialCapital;
     let initialLabor = state.initialLabor;
     let initialUsefulEnergy = state.initialUsefulEnergy;
-    let cumulativeUsefulWork = state.cumulativeUsefulWork;
     let initialCollegeShare = state.initialCollegeShare;
 
     if (yearIndex === 0) {
       initialCapital = capitalStock;
       initialLabor = augmentedWorkers;
       initialUsefulEnergy = productionUsefulEnergy;
-      // Historical baseline: prior useful-work experience (cumulativeWorkHistory
-      // years at the anchor-year rate) damps the early learning rate
-      // (prevents front-loading where the cumulative ratio doubles in year 1)
-      cumulativeUsefulWork = productionUsefulEnergy * params.cumulativeWorkHistory;
       initialCollegeShare = collegeShare;
-    } else {
-      cumulativeUsefulWork += productionUsefulEnergy;
     }
 
     // Guard against zero division
@@ -364,16 +359,19 @@ export const productionModule: Module<
     // Endogenous efficiency (replaces exogenous TFP)
     // =========================================================================
 
-    // 1. End-use efficiency (Wright's Law on cumulative useful work)
-    //    As humanity accumulates useful work experience, device efficiency improves
-    //    (motors, LEDs, heat pumps, industrial processes). Bounded by thermodynamic ceiling.
-    // Ratio of cumulative work to initial baseline (initial baseline = history × year0_production)
-    const safeBaseline = initialUsefulEnergy * params.cumulativeWorkHistory;
-    const safeCumInit = safeBaseline > 0 ? safeBaseline : 1;
-    const cumulativeRatio = cumulativeUsefulWork / safeCumInit;
-    const learningFraction = 1 - Math.pow(Math.max(1, cumulativeRatio), -params.endUseLearningExponent);
-    const eta = params.endUseEfficiency0 +
-      learningFraction * (params.endUseEfficiencyMax - params.endUseEfficiency0);
+    // 1. End-use efficiency: coupled to the demand module's autonomous
+    //    intensity decline — the SAME physical improvements (motors, LEDs,
+    //    heat pumps, industrial processes) that cut final energy per service
+    //    on the demand side raise useful work per final energy here. Without
+    //    this coupling, intensity decline was a pure GDP destroyer: demand
+    //    removed the energy while production booked it as lost input
+    //    (GDP ~ Intensity^1.2 through the gamma loop). Bounded by the
+    //    thermodynamic ceiling; the assumed rate reproduces the measured
+    //    world eta path 1990-2025 (0.15 -> ~0.235, De Stercke/Brockway).
+    const eta = Math.min(
+      params.endUseEfficiencyMax,
+      params.endUseEfficiency0 * Math.pow(1 + params.serviceEfficiencyGrowth, yearIndex)
+    );
     const endUseEfficiency = eta / params.endUseEfficiency0;
 
     // 2. Organizational efficiency (education-driven, diminishing returns)
@@ -413,7 +411,6 @@ export const productionModule: Module<
         initialCapital,
         initialLabor,
         initialUsefulEnergy,
-        cumulativeUsefulWork,
         initialCollegeShare,
         initialDamageFactor,
       },

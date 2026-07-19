@@ -129,11 +129,10 @@ test('1990-2025 growth backcast reproduces observed world GDP', () => {
   // measured ~0.20-0.25 band (started from De Stercke's 0.15 in 1990).
   expect(r.final.eta).toBeBetween(0.19, 0.27);
 
-  // The forward defaults are DERIVED from this backcast; enforce the
+  // The forward default eta0 is DERIVED from this backcast; enforce the
   // derivation, not just the prose: the 2025-anchored run must start where
-  // the 1990-anchored run ends (same eta, same point on the learning curve).
+  // the 1990-anchored run ends.
   expect(Math.abs(productionDefaults.endUseEfficiency0 - r.final.eta)).toBeLessThan(0.01);
-  expect(Math.abs(productionDefaults.cumulativeWorkHistory - r.impliedHistory2025)).toBeLessThan(1);
 });
 
 test('year 0 normalizes GDP to initialGDP with unit contributions', () => {
