@@ -835,20 +835,27 @@ test('module declares regionalGdp input', () => {
 
 
 test('realized spends are debited from capital formation (one ledger)', () => {
-  // The audit found three unlinked "energy investment" numbers: debited,
-  // budgeted, and actually spent. Capital now debits REALIZED spends.
+  // One ledger: money debited from capital formation is money actually
+  // spent (realized energy/CDR/robot capex), not an internal estimate.
   const params = capitalModule.mergeParams({});
   const state = capitalModule.init(params);
-  const base = { ...getCapitalInputs(0) };
-  const noSpend = capitalModule.step(state, base as any, params, 2025, 0);
+  const base = getCapitalInputs(0);
+  const noSpend = capitalModule.step(state, base, params, 2025, 0);
   const withSpend = capitalModule.step(state, {
     ...base, energyCapexSpend: 3, cdrSpend: 1, robotCapexSpend: 2,
-  } as any, params, 2025, 0);
-  const debited = noSpend.outputs.generalInvestment - withSpend.outputs.generalInvestment;
-  // noSpend falls back to the internal energy estimate; withSpend debits 3+1+2
+  }, params, 2025, 0);
+  // withSpend debits exactly 3+1+2 from the pool
   expect(withSpend.outputs.investment - withSpend.outputs.generalInvestment)
     .toBeCloseTo(6, 6);
-  expect(debited !== 0).toBeTrue();
+  // unwired, energy falls back to the internal estimate (nonzero debit)
+  expect(noSpend.outputs.investment - noSpend.outputs.generalInvestment)
+    .toBeGreaterThan(0);
+  // floor-binding path: spends beyond the pool are exposed, not hidden
+  const overflow = capitalModule.step(state, {
+    ...base, energyCapexSpend: 1e6, cdrSpend: 0, robotCapexSpend: 0,
+  }, params, 2025, 0);
+  expect(overflow.outputs.generalInvestment).toBe(0);
+  expect(overflow.outputs.unfundedRealizedSpend).toBeGreaterThan(0);
 });
 
 printSummary();

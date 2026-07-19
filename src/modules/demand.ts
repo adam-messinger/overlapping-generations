@@ -176,7 +176,7 @@ interface DemandState {
   previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;
-  robotFleet: number;             // absolute robot-units, for capex additions                 // Current robot adoption level
+  robotFleet: number;             // absolute robot-units, for capex additions
   dataCenterLoadTWh: number;             // Current datacenter electricity load (TWh)
   fossilVehicleFleet: number;            // TWh of annual fossil transport energy
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
@@ -537,7 +537,7 @@ export const demandDefaults: DemandParams = {
   // anything downstream of it) as conditional on this choice.
   robotSaturation: 600,
   energyPerRobotMWh: 10,        // MWh per robot-unit per year
-  robotUnitCost: 80000,         // $ installed per robot-unit: IFR avg unit price ~$27k + integration/peripherals ~2-3x (2025)
+  robotUnitCost: 80000,         // $ installed per robot-unit: IFR avg unit price ~$27k + integration ~2-3x (2025). INDUSTRIAL-robot anchor: at humanoid-scale densities (ai-energy-boom, 3000/1000) this is an unanchored ~5x extrapolation
   robotCostDecline: 0.03,       // real cost decline ~3%/yr (robotics price indices, conservative vs Wright's-law fits)
   robotEnergySensitivity: 0.5,   // LCOE elasticity
   robotWageSensitivity: 0.3,     // Wage elasticity
@@ -1020,6 +1020,14 @@ export const demandModule: Module<
       }
     }
 
+    if (params.robotUnitCost !== undefined && params.robotUnitCost < 0) {
+      errors.push('robotUnitCost must be non-negative');
+    }
+    if (params.robotCostDecline !== undefined &&
+        (params.robotCostDecline < 0 || params.robotCostDecline >= 1)) {
+      errors.push('robotCostDecline must be in [0, 1)');
+    }
+
     // Validate fuel price-path params
     if (params.fuels) {
       for (const fuel of FUEL_KEYS) {
@@ -1119,6 +1127,8 @@ export const demandModule: Module<
       if (p.robotBaseGrowth !== undefined) merged.robotBaseGrowth = p.robotBaseGrowth;
       if (p.robotSaturation !== undefined) merged.robotSaturation = p.robotSaturation;
       if (p.energyPerRobotMWh !== undefined) merged.energyPerRobotMWh = p.energyPerRobotMWh;
+      if (p.robotUnitCost !== undefined) merged.robotUnitCost = p.robotUnitCost;
+      if (p.robotCostDecline !== undefined) merged.robotCostDecline = p.robotCostDecline;
       if (p.robotEnergySensitivity !== undefined) merged.robotEnergySensitivity = p.robotEnergySensitivity;
       if (p.robotWageSensitivity !== undefined) merged.robotWageSensitivity = p.robotWageSensitivity;
       if (p.robotReferenceLCOE !== undefined) merged.robotReferenceLCOE = p.robotReferenceLCOE;
@@ -1413,11 +1423,11 @@ export const demandModule: Module<
     const robotsPer1000 = prevRobots + effectiveRate * prevRobots * (1 - prevRobots / params.robotSaturation);
 
     const totalRobots = (robotsPer1000 / 1000) * inputs.working;
-    // Fleet capex: net additions x declining unit cost. The audit found
-    // robots multiplied labor with no investment asked to buy a single one
-    // (free lunch); capital now debits this spend (lagged).
+    // Fleet capex: net additions x declining unit cost, debited by capital
+    // (lagged). Replacement capex is omitted (net additions only) — mature
+    // fleets are maintained free, a known simplification.
     const robotAdditions = yearIndex === 0 ? 0 : Math.max(0, totalRobots - state.robotFleet);
-    const robotUnitCostNow = params.robotUnitCost * Math.pow(1 - params.robotCostDecline, yearIndex);
+    const robotUnitCostNow = compound(params.robotUnitCost, -params.robotCostDecline, yearIndex);
     const robotCapexSpend = (robotAdditions * robotUnitCostNow) / 1e12; // $T
     const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
     globalElec += robotLoadTWh;

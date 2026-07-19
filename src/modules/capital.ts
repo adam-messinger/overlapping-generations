@@ -110,11 +110,11 @@ interface CapitalState {
 }
 
 interface CapitalInputs {
-  /** Realized energy capex $T (from energy, lagged); replaces the internal estimate in the K debit */
+  /** Realized energy capex $T (from energy, lagged). Unwired fallback: the internal burden-driven estimate (pre-ledger behavior) */
   energyCapexSpend?: number;
-  /** Realized CDR spend $T (from cdr, lagged); previously display-only */
+  /** Realized CDR spend $T (from cdr, lagged). Unwired fallback: 0 (free CDR — pre-ledger behavior) */
   cdrSpend?: number;
-  /** Realized robot fleet capex $T (from demand, lagged) */
+  /** Realized robot fleet capex $T (from demand, lagged). Unwired fallback: 0 (free robots — pre-ledger behavior) */
   robotCapexSpend?: number;
   // From demographics (per region)
   regionalYoung: Record<Region, number>;
@@ -166,8 +166,9 @@ interface CapitalOutputs {
   capitalGrowthRate: number;  // Annual growth rate of capital stock
 
   // Investment split
-  energyInvestment: number;         // $ trillions to energy sector
+  energyInvestment: number;         // $T BUDGET signal to energy (availableInvestment fallback); the K debit uses realized spends (energyCapexSpend)
   generalInvestment: number;        // $ trillions to general economy
+  unfundedRealizedSpend: number;    // $T of realized spends exceeding the investment pool (floor binding)
   energyShareOfInvestment: number;  // Fraction going to energy
 
   // Intergenerational transfers
@@ -481,6 +482,7 @@ export const capitalModule: Module<
     'capitalGrowthRate',
     'energyInvestment',
     'generalInvestment',
+    'unfundedRealizedSpend',
     'energyShareOfInvestment',
     'retireeCost',
     'childCost',
@@ -839,17 +841,21 @@ export const capitalModule: Module<
     ));
     // BUDGET signal (burden-driven share) — used as the standalone-mode
     // fallback for energy's investment constraint. The K-stock DEBIT below
-    // uses REALIZED spends (lagged, from the energy/cdr/demand modules)
-    // when wired: one ledger, money that is debited is money that was
-    // actually spent (the audit found three unlinked numbers here).
+    // uses REALIZED spends (lagged one year, from the energy/cdr/demand
+    // modules) when wired: one ledger, money debited is money spent.
+    // Lag caveat: the debit trails the build by a year, so K is
+    // over-credited during fast capex growth and the final horizon year is
+    // never debited.
     const energyInvestment = investment * energyShare;
     const realizedEnergyCapex = inputs.energyCapexSpend ?? energyInvestment;
     const realizedCdrSpend = inputs.cdrSpend ?? 0;
     const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
-    const generalInvestment = Math.max(
-      0,
-      investment - realizedEnergyCapex - realizedCdrSpend - realizedRobotCapex
-    );
+    const totalRealizedSpend = realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex;
+    // When spends exceed the pool, generalInvestment floors at 0 and the
+    // overflow is implicitly unfinanced — exposed as an output so runs can
+    // detect a silently binding floor instead of hiding it.
+    const unfundedRealizedSpend = Math.max(0, totalRealizedSpend - investment);
+    const generalInvestment = Math.max(0, investment - totalRealizedSpend);
 
     // Calculate automation share (grows but is capped)
     const rawShare = params.automationShare2025 * Math.pow(1 + params.automationGrowth, t);
@@ -883,10 +889,10 @@ export const capitalModule: Module<
     // claim in the GDP identity (GDP = consumption + investment + transfers
     // + publicDebtService), so capitalizing r-g interest here would
     // double-count it and (with the debt risk premium feeding back into r)
-    // explode without bound. The audit flagged that the module ADVERTISED
-    // d' = d x r/(1+g) + deficit while implementing tax-financed interest;
-    // the advertisement was wrong, not the ledger. Consequence to keep in
-    // mind: debt spirals via interest capitalization are deliberately
+    // explode without bound. (The module once
+    // advertised d' = d x r/(1+g) + deficit while implementing tax-financed
+    // interest; the advertisement was wrong, not the ledger.) Consequence:
+    // debt spirals via interest capitalization are deliberately
     // outside this model — debt stress shows up as a rising
     // publicDebtService claim on GDP and the debtRiskPremium channel, not
     // as runaway debt stocks. debt-populism results understate true
@@ -920,6 +926,7 @@ export const capitalModule: Module<
         capitalGrowthRate,
         energyInvestment,
         generalInvestment,
+        unfundedRealizedSpend,
         energyShareOfInvestment: energyShare,
         retireeCost,
         childCost,

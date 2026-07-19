@@ -189,8 +189,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
 - **Debt/credit channel**: Investment = max(0, grossSavings + creditImpulse)
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
-- Public debt: interest is tax-financed by construction (publicDebtService is a GDP claim); interest-capitalization spirals are deliberately out of scope
-- Public debt: primary deficit accumulates (interest paid from tax revenue, not capitalized)
+- Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
 - Private debt: credit impulse dampened by r-g spread and leverage ratio
 - **Risk premium**: high total debt/GDP → higher interest rate → self-limiting
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity

@@ -442,7 +442,9 @@ function buildLags(params: SimulationParams) {
     },
 
     // Capital debits REALIZED spends (one financing ledger): energy capex
-    // from energy, CDR spend from cdr, robot fleet capex from demand
+    // from energy, CDR spend from cdr, robot fleet capex from demand.
+    // Delay-1 caveat: the debit trails the build by one year (over-credits
+    // K during fast capex growth; final horizon year never debited)
     energyCapexSpend: {
       source: 'energyCapexSpend',
       delay: 1,
