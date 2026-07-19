@@ -173,7 +173,8 @@ Do this before committing. Most fix-up commits in project history would have bee
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
-- GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; the spread is now ~1.35x (and higher γ mildly *lowers* GDP) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; the spread is now ~1.3x (and higher γ mildly *lowers* GDP) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- The endogenous-efficiency engine (TFP replacement) is calibrated to reproduce observed 1990-2025 world growth — see `scripts/growth-backcast.md`; pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 
