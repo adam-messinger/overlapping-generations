@@ -340,6 +340,43 @@ test('lower investment reduces additions', () => {
   expect(resultLow.outputs.additions.solar).toBeLessThan(resultHigh.outputs.additions.solar + 1);
 });
 
+test('cleanShareFlex expands the capex budget when desired build is rationed', () => {
+  // With a small investment pool the ramp budget rations additions; flex
+  // lets energy capex compete for more of the pool, so funded additions rise.
+  const paramsRigid = energyModule.mergeParams({});
+  const paramsFlex = energyModule.mergeParams({ cleanShareFlex: 1, cleanShareMax: 0.6 });
+
+  const inputs = createInputs(40000, 8); // tight investment: $8T
+  const rigid = energyModule.step(energyModule.init(paramsRigid), inputs, paramsRigid, 2025, 0);
+  const flex = energyModule.step(energyModule.init(paramsFlex), inputs, paramsFlex, 2025, 0);
+
+  const total = (r: any) =>
+    ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
+  expect(total(flex)).toBeGreaterThan(total(rigid));
+});
+
+test('cleanShareFlex defaults to off: zero flex reproduces the exogenous ramp', () => {
+  const paramsDefault = energyModule.mergeParams({});
+  const paramsExplicit = energyModule.mergeParams({ cleanShareFlex: 0, cleanShareMax: 0.9 });
+  const inputs = createInputs(40000, 8);
+  const a = energyModule.step(energyModule.init(paramsDefault), inputs, paramsDefault, 2025, 0);
+  const b = energyModule.step(energyModule.init(paramsExplicit), inputs, paramsExplicit, 2025, 0);
+  for (const s of ['solar', 'wind', 'battery'] as const) {
+    expect(a.outputs.additions[s]).toBeCloseTo(b.outputs.additions[s], 9);
+  }
+});
+
+test('cleanShareMax caps the expanded budget', () => {
+  const paramsLow = energyModule.mergeParams({ cleanShareFlex: 1, cleanShareMax: 0.31 });
+  const paramsHigh = energyModule.mergeParams({ cleanShareFlex: 1, cleanShareMax: 0.6 });
+  const inputs = createInputs(40000, 8);
+  const low = energyModule.step(energyModule.init(paramsLow), inputs, paramsLow, 2025, 0);
+  const high = energyModule.step(energyModule.init(paramsHigh), inputs, paramsHigh, 2025, 0);
+  const total = (r: any) =>
+    ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
+  expect(total(low)).toBeLessThan(total(high) + 1e-9);
+});
+
 test('investment constraint calculated from CAPEX', () => {
   const params = energyModule.mergeParams({});
   let state = energyModule.init(params);
