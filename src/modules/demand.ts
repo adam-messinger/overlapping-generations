@@ -484,6 +484,11 @@ export const demandDefaults: DemandParams = {
     inertiaRate: 0.08,           // α = ~9yr half-life for fleet turnover
   },
 
+  // Scales autonomous intensity decline (demand-side ONLY): production's
+  // serviceEfficiencyGrowth stays at its default, so scenarios overriding
+  // this partially re-split the coupled efficiency series (known
+  // limitation — see production.ts and the consistency pin in
+  // simulation.test.ts, which checks defaults only).
   efficiencyMultiplier: 1.0,    // Default: no adjustment
 
   // Energy cost → GDP share feedback
@@ -696,6 +701,26 @@ function sectorFinalFactors(
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
+
+/**
+ * GDP-weighted average of the regional autonomous intensity-decline rates.
+ * This is the single source for production's serviceEfficiencyGrowth default
+ * (one efficiency series, two views — see production.ts); the consistency
+ * pin in simulation.test.ts asserts they match, so recalibrating regional
+ * intensityDecline without updating production breaks a test instead of
+ * silently re-splitting the series into the old GDP-destroyer pair.
+ */
+export function gdpWeightedIntensityDecline(
+  regions: DemandParams['regions'] = demandDefaults.regions
+): number {
+  let weighted = 0;
+  let weight = 0;
+  for (const region of REGIONS) {
+    weighted += regions[region].gdp2025 * regions[region].intensityDecline;
+    weight += regions[region].gdp2025;
+  }
+  return weight > 0 ? weighted / weight : 0;
+}
 
 export const demandModule: Module<
   DemandParams,

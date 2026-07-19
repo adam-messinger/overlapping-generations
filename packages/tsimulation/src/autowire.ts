@@ -72,7 +72,9 @@ export interface LagConfig {
    * should be consistent with the anchor year itself. Leave false for STOCK
    * quantities (capital, temperature) whose initial is a calibrated
    * end-of-previous-year level: bootstrapping those would inject a
-   * one-year-forward bias.
+   * one-year-forward bias. Note: honored only by the runAutowired
+   * convenience wrapper (which owns the warm-up loop); callers driving
+   * initAutowired/stepAutowired directly must run their own warm-up.
    */
   bootstrap?: boolean;
 }

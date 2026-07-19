@@ -112,19 +112,18 @@ test('calibrated Ayres-Warr exponents are pinned', () => {
 });
 
 test('1990-2025 growth backcast reproduces observed world GDP', () => {
-  // The efficiency engine (eta0/etaMax/lambda) is calibrated so that the
-  // production structure, anchored in 1990 and driven with observed world
-  // inputs, reproduces observed 2025 GDP ($158T WDI PPP) — see
-  // scripts/growth-backcast.md. This pins the calibration across all
-  // production params AND the historical data: changing elasticities,
-  // efficiency params, or the observed series without re-solving lambda
-  // breaks this test rather than silently decalibrating the model.
+  // The efficiency series (eta0/etaMax/serviceEfficiencyGrowth) must let
+  // the production structure, anchored in 1990 and driven with observed
+  // world inputs, reproduce observed 2025 GDP ($158T WDI PPP) — see
+  // scripts/growth-backcast.md. Changing elasticities, efficiency params,
+  // or the observed series breaks this pin rather than silently
+  // decalibrating the model.
   const r = runGrowthBackcast();
   const predicted2025 = r.gdpPath[r.gdpPath.length - 1];
   const observed2025 = r.gdpObserved[r.gdpObserved.length - 1];
   expect(Math.abs(predicted2025 / observed2025 - 1)).toBeLessThan(0.05);
 
-  // Independent check the solver was not fitted to: the backcast's implied
+  // Independent check the assumed rate was not fitted to: the backcast's implied
   // 2025 second-law efficiency must land in Brockway et al. (2018)'s
   // measured ~0.20-0.25 band (started from De Stercke's 0.15 in 1990).
   expect(r.final.eta).toBeBetween(0.19, 0.27);

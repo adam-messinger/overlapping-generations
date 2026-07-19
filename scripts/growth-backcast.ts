@@ -17,8 +17,7 @@
 import { writeFileSync } from 'fs';
 import { runGrowthBackcast, ETA_1990 } from '../src/historical-backcast.js';
 import { productionDefaults } from '../src/modules/production.js';
-import { demandModule } from '../src/modules/demand.js';
-import { REGIONS } from '../src/domain-types.js';
+import { demandModule, gdpWeightedIntensityDecline } from '../src/modules/demand.js';
 import { runSimulation } from '../src/index.js';
 
 const cagr = (a: number, b: number, years: number) => Math.log(b / a) / years;
@@ -36,10 +35,6 @@ const defCagr = cagr(def.gdpPath[0], def.gdpPath[N - 1], N - 1);
 const gammaGrid = [0.08, 0.25, 0.40, 0.55, 0.70];
 const gammaRuns = gammaGrid.map((g) => ({ g, r: runGrowthBackcast({ gamma: g }) }));
 
-// The pre-calibration parameterization (unsourced η₀=0.35 near the ceiling,
-// so the coupled series has almost no headroom — reproduces the legacy
-// under-prediction for the report narrative)
-const legacy = runGrowthBackcast({ endUseEfficiency0: 0.35 });
 
 // ---------------------------------------------------------------------------
 // Demand-side check: energy-GDP relationship over the same window
@@ -53,15 +48,8 @@ const gTfc = cagr(tfcObs[0], tfcObs[N - 1], N - 1);
 // (computed here so the report tracks recalibrations automatically).
 const observedIntensityDecline = obsCagr - gTfc;
 const observedElasticity = gTfc / obsCagr;
-const demandDefaults = demandModule.mergeParams({});
-let intensityWeighted = 0;
-let gdpWeight = 0;
-for (const region of REGIONS) {
-  const r = demandDefaults.regions[region];
-  intensityWeighted += r.gdp2025 * r.intensityDecline;
-  gdpWeight += r.gdp2025;
-}
-const MODEL_INTENSITY_DECLINE = intensityWeighted / gdpWeight;
+const MODEL_INTENSITY_DECLINE =
+  gdpWeightedIntensityDecline(demandModule.mergeParams({}).regions);
 
 // ---------------------------------------------------------------------------
 // Forward contrast
@@ -101,20 +89,18 @@ p();
 
 p('## Calibration this backcast forces');
 p();
-p('The original efficiency parameterization (η₀=0.35, unsourced) under-');
-p('predicted history by a steady ~0.6-0.9 pp/yr — a missing');
-p(`multiplicative residual (backcast 2025 GDP: $${legacy.gdpPath[N - 1].toFixed(0)}T, ` +
-  `${(100 * (1 - legacy.gdpPath[N - 1] / gdpObs[N - 1])).toFixed(0)}% under observed).`);
-p('η₀=0.35 claimed 1990’s efficiency was already near the 0.60 ceiling,');
-p('strangling the learning headroom. The exergy-economics literature');
-p('measures world second-law efficiency far lower. Recalibration:');
+p('History: the original Wright\'s-law parameterization (unsourced η₀=0.35,');
+p('guessed λ=0.25) under-predicted 1990-2025 by a steady ~0.6-0.9 pp/yr (26%');
+p('under observed 2025 GDP), and its solved λ sat on a ridge with an');
+p('unsourced history parameter. The current mechanism replaces the solver');
+p('entirely:');
 p();
 p(`- **η(1990) = ${ETA_1990}** — De Stercke (2014) world exergy efficiency`);
 p(`- **η_max = ${productionDefaults.endUseEfficiencyMax}** — Cullen & Allwood (2010) practical potential`);
 p(`- **η growth = ${(productionDefaults.serviceEfficiencyGrowth * 100).toFixed(2)}%/yr** — the SAME series as demand's GDP-weighted autonomous`);
 p('  intensity decline (one physical process, two views; consistency-pinned)');
 p(`- **Implied η(2025) = ${def.final.eta.toFixed(3)}** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an`);
-p('  independent check the solver was not fitted to');
+p('  independent check the assumed rate was not fitted to');
 p();
 p('The assumed rate is not fitted to GDP: it is demand\'s intensity-decline');
 p('parameter (IEA history), and compounding it from De Stercke\'s 1990 level');

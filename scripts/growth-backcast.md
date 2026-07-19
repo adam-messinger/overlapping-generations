@@ -16,19 +16,18 @@ through 2025 (data + runner: `src/historical-backcast.ts`).
 
 ## Calibration this backcast forces
 
-The original efficiency parameterization (η₀=0.35, unsourced) under-
-predicted history by a steady ~0.6-0.9 pp/yr — a missing
-multiplicative residual (backcast 2025 GDP: $159T, -1% under observed).
-η₀=0.35 claimed 1990’s efficiency was already near the 0.60 ceiling,
-strangling the learning headroom. The exergy-economics literature
-measures world second-law efficiency far lower. Recalibration:
+History: the original Wright's-law parameterization (unsourced η₀=0.35,
+guessed λ=0.25) under-predicted 1990-2025 by a steady ~0.6-0.9 pp/yr (26%
+under observed 2025 GDP), and its solved λ sat on a ridge with an
+unsourced history parameter. The current mechanism replaces the solver
+entirely:
 
 - **η(1990) = 0.15** — De Stercke (2014) world exergy efficiency
 - **η_max = 0.6** — Cullen & Allwood (2010) practical potential
 - **η growth = 1.29%/yr** — the SAME series as demand's GDP-weighted autonomous
   intensity decline (one physical process, two views; consistency-pinned)
 - **Implied η(2025) = 0.235** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
-  independent check the solver was not fitted to
+  independent check the assumed rate was not fitted to
 
 The assumed rate is not fitted to GDP: it is demand's intensity-decline
 parameter (IEA history), and compounding it from De Stercke's 1990 level

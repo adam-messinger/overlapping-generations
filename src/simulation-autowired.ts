@@ -284,6 +284,17 @@ const FOSSIL_SOURCES: EnergySource[] = ['gas', 'coal'];
 
 /**
  * Build lag configurations, deriving initial values from params where possible.
+ *
+ * Three categories of lag initialization:
+ * 1. STOCKS (capitalStock, temperature, laggedGdp, robotsPer1000): calibrated
+ *    end-of-2024 levels — never bootstrap (a warm-up value would inject a
+ *    one-year-forward bias).
+ * 2. FLOWS with a calibrated 2025 observable (dataCenterLoadTWh): keep the
+ *    observed anchor as initial; bootstrap optional but the anchor is better.
+ * 3. FLOWS without a reliable hand value (generation, non-electric energy,
+ *    overheads, damages, prices, rates): bootstrap: true — the warm-up pass
+ *    (bootstrapLags below) replaces the initial with the year-0
+ *    self-consistent value, so the listed initial is only a warm-up seed.
  */
 function buildLags(params: SimulationParams) {
   const mergedClimate = climateModule.mergeParams(params.climate ?? {});
@@ -416,8 +427,8 @@ function buildLags(params: SimulationParams) {
     },
 
     // Production needs lagged automation levels for the labor-augmentation
-    // payoff (demand runs after production; both default to a no-op via
-    // robotLaborEquivalent/aiWorkerEquivalentPerTWh = 0)
+    // payoff and the intermediate-consumption energy subtraction (demand
+    // runs after production)
     robotsPer1000: {
       source: 'robotsPer1000',
       delay: 1,
@@ -439,7 +450,7 @@ function buildLags(params: SimulationParams) {
     mineralConstraint: {
       source: 'mineralConstraint',
       delay: 1,
-      initial: 1.0,  // No constraint in year 0
+      initial: 1.0,  // warm-up seed (bootstrapped)
       bootstrap: true,
     },
 
@@ -447,7 +458,7 @@ function buildLags(params: SimulationParams) {
     laggedCurtailmentRate: {
       source: 'curtailmentRate',
       delay: 1,
-      initial: 0,  // No curtailment in year 0
+      initial: 0,  // warm-up seed (bootstrapped)
       bootstrap: true,
     },
 

@@ -7,6 +7,8 @@ import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulat
 import { buildOutputRegistry, resolveKey } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
+import { productionDefaults } from './modules/production.js';
+import { gdpWeightedIntensityDecline } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 
@@ -54,6 +56,16 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
 // Shared default-params run for the two calibration-band tests below
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
+
+test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity decline', () => {
+  // One efficiency series, two views: demand removes final energy at the
+  // regional intensityDecline rates; production credits eta growth at
+  // serviceEfficiencyGrowth. If these drift apart (e.g. an IEA
+  // recalibration of regional intensityDecline without updating
+  // production), the intensity-decline-as-GDP-destroyer bug returns.
+  const derived = gdpWeightedIntensityDecline();
+  expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
+});
 
 test('no initialization discontinuity: first simulated years are smooth', () => {
   // The lag warm-up (bootstrapLags) must hold: with hand-guessed lag

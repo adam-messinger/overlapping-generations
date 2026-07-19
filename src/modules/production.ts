@@ -8,7 +8,7 @@
  *   GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × (1 - damages)
  *
  * Efficiency replaces exogenous TFP with two physical factors:
- *   1. End-use efficiency (Wright's Law on cumulative useful work): η₀ → η_max
+ *   1. End-use efficiency: compound growth coupled to demand's autonomous intensity decline, capped at η_max
  *   2. Organizational efficiency (education-driven, diminishing returns)
  *
  * Ayres-Warr elasticities:
@@ -28,6 +28,7 @@
  */
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { compound } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -71,7 +72,8 @@ export const productionDefaults: ProductionParams = {
   // literature; growth coupled to the demand module's autonomous intensity
   // decline — improving devices simultaneously cut final energy per service
   // (demand side) and raise useful work per final energy (production side).
-  // One parameter, two views; consistency pinned in simulation.test.ts.
+  // One parameter, two views; the pin in simulation.test.ts asserts this
+  // default equals demand's gdpWeightedIntensityDecline().
   // Empirical check: 0.15 x 1.0129^35 = 0.235, matching Brockway's measured
   // 2020s level — the assumed rate reproduces the measured eta path.
   endUseEfficiency0: 0.23,          // world second-law efficiency 2025, Brockway et al. (2018) ~0.20-0.25; backcast from 1990's 0.15 (De Stercke 2014) lands at 0.235
@@ -256,6 +258,9 @@ export const productionModule: Module<
         (params.serviceEfficiencyGrowth < 0 || params.serviceEfficiencyGrowth > 0.04)) {
       errors.push('serviceEfficiencyGrowth must be between 0 and 4%/year');
     }
+    if (params.serviceEfficiencyGrowth !== undefined && params.serviceEfficiencyGrowth > 0.02) {
+      warnings.push('serviceEfficiencyGrowth > 2%/yr hits the eta ceiling mid-horizon (hard kink: efficiency growth stops while demand intensity keeps declining — the coupled series diverge from that year on)');
+    }
     if (params.robotLaborEquivalent !== undefined &&
         (params.robotLaborEquivalent < 0 || params.robotLaborEquivalent > 20)) {
       errors.push('robotLaborEquivalent must be between 0 and 20 worker-equivalents per robot');
@@ -322,10 +327,9 @@ export const productionModule: Module<
     const productionUsefulEnergy = Math.max(0, grossUsefulEnergy - systemOverhead);
 
     // Automation-augmented labor: robots add physical worker-equivalents,
-    // datacenter compute adds cognitive worker-equivalents. Defaults are 0
-    // (automation is a pure energy sink); the year-0 anchor captures the
-    // augmented value, so only relative growth in automation moves GDP, not
-    // its 2025 level.
+    // datacenter compute adds cognitive worker-equivalents. The year-0
+    // anchor captures the augmented value, so only relative growth in
+    // automation moves GDP, not its 2025 level.
     const robotsPer1000 = inputs.robotsPer1000 ?? 0;
     const dataCenterLoadTWh = inputs.dataCenterLoadTWh ?? 0;
     const augmentedWorkers = effectiveWorkers
@@ -370,7 +374,7 @@ export const productionModule: Module<
     //    world eta path 1990-2025 (0.15 -> ~0.235, De Stercke/Brockway).
     const eta = Math.min(
       params.endUseEfficiencyMax,
-      params.endUseEfficiency0 * Math.pow(1 + params.serviceEfficiencyGrowth, yearIndex)
+      compound(params.endUseEfficiency0, params.serviceEfficiencyGrowth, yearIndex)
     );
     const endUseEfficiency = eta / params.endUseEfficiency0;
 
