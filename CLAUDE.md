@@ -219,6 +219,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 | `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
+| `ai-energy-boom` | No demand cap on energy: AI/robot demand ceilings lifted, automation production payoff on, energy capex competes for savings — financing is the binding constraint |
 
 ## Agent Introspection
 

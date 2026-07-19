@@ -789,7 +789,7 @@ export const demandModule: Module<
     robotSaturation: {
       description: 'Robot carrying capacity (per 1000 workers). SPECULATIVE scenario assumption — no literature anchor exists for long-run robot density; the default implies ~26,000 TWh/yr of robot load by 2100 and dominates late-century demand growth.',
       unit: 'robots per 1000 workers',
-      range: { min: 50, max: 2000, default: 600 },
+      range: { min: 50, max: 5000, default: 600 },
       tier: 1 as const,
     },
     robotEnergySensitivity: {
@@ -813,7 +813,7 @@ export const demandModule: Module<
     dataCenterSaturation: {
       description: 'Datacenter electricity carrying capacity (TWh). ASSUMPTION beyond ~2030: IEA projects ~945 TWh by 2030; the default ceiling and the model\'s ~5,500 TWh by 2050 sit above nearly all published projections.',
       unit: 'TWh',
-      range: { min: 1000, max: 15000, default: 6000 },
+      range: { min: 1000, max: 100000, default: 6000 },
       tier: 1 as const,
     },
     dataCenterEnergySensitivity: {
