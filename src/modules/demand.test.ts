@@ -103,6 +103,17 @@ test('step year 0 returns correct global GDP', () => {
   expect(outputs.gdp).toBeBetween(115, 125);
 });
 
+test('sector shares sum to one and reproduce the 2025 electrification anchor', () => {
+  // IEA WEB final-consumption weights (other/non-energy folded into industry).
+  const s = demandDefaults.sectors;
+  expect(s.transport.share + s.buildings.share + s.industry.share).toBeCloseTo(1.0, 9);
+  // Weighted 2025 electrification ~21-23% of final energy (IEA: ~20-22%)
+  const weighted = s.transport.share * s.transport.electrification2025 +
+    s.buildings.share * s.buildings.electrification2025 +
+    s.industry.share * s.industry.electrification2025;
+  expect(weighted).toBeBetween(0.19, 0.24);
+});
+
 test('step year 0 returns correct electricity demand', () => {
   const { outputs } = runYears(1);
   // Observed 2025 final electricity consumption ~26-28k TWh (IEA). The

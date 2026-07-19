@@ -349,7 +349,9 @@ export const demandDefaults: DemandParams = {
   // Industry: Electric arc furnaces, hydrogen steel
   sectors: {
     transport: {
-      share: 0.45,                    // 45% of final energy (IEA)
+      // IEA World Energy Balances: transport ~28-29% of final consumption.
+      // (The prior 0.45 was miscited and nearly doubled the oil-displacement lever.)
+      share: 0.29,
       electrification2025: 0.02,      // 2% (mostly rail)
       costEscalationThreshold: 0.60,  // EVs easy up to 60%, then aviation/shipping get hard
       costEscalationRate: 3.0,        // Quadratic cost escalation strength (aviation/shipping very hard)
@@ -360,7 +362,7 @@ export const demandDefaults: DemandParams = {
       primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
     },
     buildings: {
-      share: 0.30,                    // 30% of final energy
+      share: 0.31,                    // ~30-31% of final consumption (IEA WEB, residential + commercial)
       electrification2025: 0.35,      // 35% (heating, appliances)
       costEscalationThreshold: 0.85,  // Heat pumps easy to 85%, then edge cases
       costEscalationRate: 1.5,        // Lighter escalation (most things can electrify)
@@ -371,9 +373,16 @@ export const demandDefaults: DemandParams = {
       primaryFuel: 'gas',             // Competes with gas (heating)
     },
     industry: {
-      share: 0.25,                    // 25% of final energy
-      electrification2025: 0.30,      // 30% (motors, EAFs)
-      costEscalationThreshold: 0.55,  // EAFs/motors easy to 55%, high-temp very hard
+      // IEA WEB: industry ~29% of final consumption, plus the ~11%
+      // other/non-energy bucket (feedstocks, agriculture) folded in here as
+      // the conservative hard-to-electrify home.
+      share: 0.40,
+      // Industry proper is ~30% electric (motors, EAFs); diluted to ~0.22 by
+      // the folded non-energy uses, which are effectively non-electrifiable.
+      electrification2025: 0.22,
+      // Ceiling similarly diluted: feedstocks cannot electrify, so the
+      // escalation threshold falls from 0.55 (industry proper) to ~0.42.
+      costEscalationThreshold: 0.42,
       costEscalationRate: 3.5,        // Strongest escalation (cement, glass, steel)
       costSensitivity: 0.10,          // Most cost-sensitive sector
       basePressure: 0.008,            // Slower baseline (heavy equipment)
@@ -387,7 +396,10 @@ export const demandDefaults: DemandParams = {
   // Carbon intensities from IEA/IPCC, prices calibrated to IEA
   fuels: {
     oil: {
-      share2025: 0.50,           // Dominates transport
+      // Re-derived after the sector reweighting: oil is ~40% of TOTAL final
+      // consumption (IEA WEB), i.e. ~50% of the non-electric share — transport
+      // fuel plus petrochemical feedstocks (now inside industry's 0.40).
+      share2025: 0.50,
       carbonIntensity: 267,      // kg CO2/MWh (gasoline/diesel)
       price: 50,                 // $/MWh (~$80/barrel equivalent)
     },
