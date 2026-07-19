@@ -17,7 +17,7 @@ console.log('\n=== Climate Module Tests (Two-Layer Model) ===\n');
 
 test('init returns correct initial state', () => {
   const state = climateModule.init(climateDefaults);
-  expect(state.cumulativeEmissions).toBe(2400);
+  expect(state.cumulativeEmissions).toBe(climateDefaults.cumulativeCO2_2025);
   expect(state.temperature).toBe(climateDefaults.currentTemp);
   // Deep temp should be derived from energy balance (< surface temp)
   expect(state.deepTemp).toBeGreaterThan(0);
@@ -29,7 +29,7 @@ test('init deep temp consistent with energy balance', () => {
   // Verify: C₁ × warmingRate ≈ F - λ·T₁ - γ·(T₁ - T₂)
   // F includes the non-CO2 overlay at its 2025 value.
   const T1 = climateDefaults.currentTemp;
-  const co2ppm = 280 + 2400 * 0.45 * 0.128;
+  const co2ppm = climateDefaults.preindustrialCO2 + climateDefaults.cumulativeCO2_2025 * climateDefaults.airborneFraction * climateDefaults.ppmPerGt;
   const forcing = 3.7 * Math.log2(co2ppm / 280) + climateDefaults.nonCO2Forcing2025;
   const lambda = 3.7 / 3.0;
   const lhs = 7.3 * 0.02;
@@ -371,8 +371,8 @@ test('validation catches invalid two-layer params', () => {
 });
 
 test('CO2 ppm calculation matches calibration', () => {
-  // 2025: cumulative 2400 Gt, airborne 45%, ppmPerGt 0.128
-  // Expected: 280 + (2400 * 0.45 * 0.128) = 280 + 138.24 ≈ 418 ppm
+  // 2025: cumulative 2680 Gt (GCB 2024), airborne 0.42 (observed ratio),
+  // ppmPerGt 0.128 -> 280 + 144 = 424 ppm, matching NOAA 2025 (~424)
   const state = climateModule.init(climateDefaults);
   const { outputs } = climateModule.step(
     state,
@@ -382,7 +382,7 @@ test('CO2 ppm calculation matches calibration', () => {
     0
   );
 
-  expect(outputs.co2ppm).toBeCloseTo(418, 0); // Within 1 ppm
+  expect(outputs.co2ppm).toBeCloseTo(424, 0); // Within 1 ppm of NOAA 2025
 });
 
 // =============================================================================
@@ -439,10 +439,10 @@ test('ocean pH decreases with higher CO2', () => {
 
 test('ocean pH at 560 ppm (2×CO2) ≈ 7.86', () => {
   // At 2×CO2 (560 ppm): pH = 8.18 - 0.32 × log2(560/280) = 8.18 - 0.32 = 7.86
-  // Construct state with cumulative emissions that give ~560 ppm
-  // 560 = 280 + cumulative × 0.45 × 0.128 → cumulative = 280 / (0.45 × 0.128) ≈ 4861
+  // Construct state with cumulative emissions that give ~560 ppm:
+  // 560 = 280 + cumulative × airborneFraction × ppmPerGt
   const doubleCO2State = {
-    cumulativeEmissions: 4861,
+    cumulativeEmissions: climateDefaults.preindustrialCO2 / (climateDefaults.airborneFraction * climateDefaults.ppmPerGt),
     temperature: 2.0,
     deepTemp: 1.0,
   };

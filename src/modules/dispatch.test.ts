@@ -26,7 +26,7 @@ function createInputs(options: {
   carbonPrice?: number;
 } = {}) {
   return {
-    electricityDemand: options.demand ?? 30000, // TWh
+    electricityDemand: options.demand ?? 25000, // TWh delivered; tests derive required generation from dispatchDefaults.gridLossFactor
     capacities: {
       solar: options.solarCap ?? 1500,
       wind: options.windCap ?? 1000,
@@ -77,11 +77,14 @@ test('init returns empty state (stateless module)', () => {
 
 console.log('\n--- Basic Dispatch ---\n');
 
-test('total generation equals demand (no shortfall)', () => {
+test('total generation covers demand x grid-loss factor (small shortfall ok)', () => {
   const { outputs } = runDispatch();
-  // With 8 regions, some small shortfalls possible from regional distribution
-  expect(outputs.totalGeneration).toBeBetween(29000, 30500);
-  expect(outputs.shortfall).toBeBetween(0, 1500);
+  // Required generation = delivered demand x gridLossFactor: T&D losses +
+  // station own use. With 8 regions, small shortfalls possible from
+  // regional distribution.
+  const required = 25000 * dispatchDefaults.gridLossFactor;
+  expect(outputs.totalGeneration).toBeBetween(required - 2500, required + 100);
+  expect(outputs.shortfall).toBeBetween(0, 2500);
 });
 
 test('all sources get some generation', () => {

@@ -52,7 +52,14 @@ export function annualize(points: number[]): number[] {
   return out;
 }
 
-/** Delivered electricity ≈ generation less ~8% grid losses and own use */
+/**
+ * Delivered final electricity ≈ generation x 0.92 is the T&D-loss-only view
+ * used to split the HISTORICAL non-electric series (TFC minus delivered
+ * electricity). The forward model's dispatch/energy gridLossFactor (1.25)
+ * additionally includes station own use and other transformation, so the
+ * two constants describe different scopes of the delivered<->generation
+ * gap; they are not the same number and should not be unified blindly.
+ */
 export const DELIVERY_FACTOR = 0.92;
 
 /**
