@@ -47,13 +47,13 @@ const y30 = g(2030);
 const checks: Check[] = [
   {
     name: 'Electricity generation 2025',
-    model: y25.electricityDemand / 1000,
+    model: y25.totalGeneration / 1000,
     low: 29, high: 33, unit: 'k TWh',
-    source: 'IEA/Ember ~31.5k TWh',
+    source: 'IEA/Ember ~31.5k TWh (generation basis)',
   },
   {
-    name: 'Electricity demand growth 2025-2030',
-    model: cagr(y25.electricityDemand, y30.electricityDemand, 5),
+    name: 'Electricity generation growth 2025-2030',
+    model: cagr(y25.totalGeneration, y30.totalGeneration, 5),
     low: 2.5, high: 5.0, unit: '%/yr',
     source: 'IEA ~3.5-4%/yr',
   },

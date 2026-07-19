@@ -51,6 +51,15 @@ export interface DispatchParams {
   /** Hours per year (for capacity -> energy conversion) */
   hoursPerYear: number;
 
+  /**
+   * Generation required per unit of delivered demand: T&D losses (~8%,
+   * IEA world average) plus station own-use and other transformation
+   * (~12%). Demand-side electricityDemand is delivered/final-energy basis
+   * (IEA TFC); generation, emissions, and grid intensity are
+   * generation-basis, matching IEA/Ember statistics.
+   */
+  gridLossFactor: number;
+
   /** Battery storage duration (hours) for solar firming calculation */
   batteryDuration: number;
 
@@ -122,6 +131,7 @@ export const dispatchDefaults: DispatchParams = {
     battery: 5,
   },
   hoursPerYear: 8760,
+  gridLossFactor: 1.20,     // generation/delivered: IEA WEB 2022 ~29.9k TWh generated vs ~24.4k delivered
   batteryDuration: 4,
 
   // Storage-based VRE limits
@@ -597,8 +607,14 @@ export const dispatchModule: Module<
       carbonPrice,
     } = inputs;
 
-    // Get regional inputs (or distribute by GDP share)
-    const regionalDemand = inputs.regionalElectricityDemand ?? distributeByGDP(electricityDemand);
+    // Convert delivered demand to required generation (losses + own use),
+    // then get regional inputs (or distribute by GDP share)
+    const generationRequired = electricityDemand * params.gridLossFactor;
+    const regionalDemand = inputs.regionalElectricityDemand
+      ? Object.fromEntries(REGIONS.map(r =>
+          [r, inputs.regionalElectricityDemand![r] * params.gridLossFactor]
+        )) as Record<Region, number>
+      : distributeByGDP(generationRequired);
     const regionalCapacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(capacities);
     const regionalCarbonPrice = inputs.regionalCarbonPrice ??
       Object.fromEntries(REGIONS.map(r => [r, carbonPrice])) as Record<Region, number>;

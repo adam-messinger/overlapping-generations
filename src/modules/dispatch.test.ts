@@ -77,11 +77,13 @@ test('init returns empty state (stateless module)', () => {
 
 console.log('\n--- Basic Dispatch ---\n');
 
-test('total generation equals demand (no shortfall)', () => {
+test('total generation covers demand x grid-loss factor (small shortfall ok)', () => {
   const { outputs } = runDispatch();
-  // With 8 regions, some small shortfalls possible from regional distribution
-  expect(outputs.totalGeneration).toBeBetween(29000, 30500);
-  expect(outputs.shortfall).toBeBetween(0, 1500);
+  // Required generation = delivered demand x gridLossFactor (1.20): T&D
+  // losses + station own use. With 8 regions, small shortfalls possible
+  // from regional distribution.
+  expect(outputs.totalGeneration).toBeBetween(29000 * 1.15, 30500 * 1.25);
+  expect(outputs.shortfall).toBeBetween(0, 2500);
 });
 
 test('all sources get some generation', () => {
