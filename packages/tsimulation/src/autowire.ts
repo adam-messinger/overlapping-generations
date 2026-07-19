@@ -64,6 +64,17 @@ export interface LagConfig {
   delay: number;
   /** Initial value for year 0 */
   initial: any;
+  /**
+   * When true and the run uses bootstrapLags > 0, this lag's initial is
+   * replaced by the value its source actually produces in a warm-up pass of
+   * year 0 — a fixed-point (steady-state) initialization. Use for FLOW
+   * quantities (prices, rates, per-year energy) whose "previous year" value
+   * should be consistent with the anchor year itself. Leave false for STOCK
+   * quantities (capital, temperature) whose initial is a calibrated
+   * end-of-previous-year level: bootstrapping those would inject a
+   * one-year-forward bias.
+   */
+  bootstrap?: boolean;
 }
 
 /**
@@ -99,6 +110,16 @@ export interface AutowireConfig {
 
   /** Enable dev-mode transform read tracking via Proxy (default: false) */
   trackReads?: boolean;
+
+  /**
+   * Fixed-point warm-up iterations for lags marked bootstrap: true.
+   * Each iteration runs year 0 once and replaces those lags' initials with
+   * the values their sources actually produced, so the anchor year sees
+   * self-consistent "previous year" flows instead of hand-guessed constants
+   * (which otherwise produce a spurious step change in year 1). Default 0
+   * (off). 2 is enough in practice — convergence is geometric.
+   */
+  bootstrapLags?: number;
 }
 
 /**
@@ -766,7 +787,32 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
  * Create and run an auto-wired simulation (convenience wrapper).
  */
 export function runAutowired(config: AutowireConfig): AutowireResult {
-  const state = initAutowired(config);
+  let cfg = config;
+
+  // Fixed-point warm-up: run year 0 and feed bootstrap-flagged lags their
+  // sources' actual year-0 values as initials, so the anchor year is
+  // self-consistent (see AutowireConfig.bootstrapLags).
+  const iterations = config.bootstrapLags ?? 0;
+  const hasBootstrapLags = Object.values(config.lags ?? {}).some(l => l.bootstrap);
+  if (iterations > 0 && hasBootstrapLags) {
+    for (let i = 0; i < iterations; i++) {
+      const warm = initAutowired(cfg);
+      stepAutowired(warm);
+      const newLags: Record<string, LagConfig> = {};
+      for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
+        if (lag.bootstrap) {
+          const history = warm.lagHistory.get(name)!;
+          // After one step, the newest sample is the year-0 source value
+          newLags[name] = { ...lag, initial: history[history.length - 1] };
+        } else {
+          newLags[name] = lag;
+        }
+      }
+      cfg = { ...cfg, lags: newLags };
+    }
+  }
+
+  const state = initAutowired(cfg);
 
   while (state.currentYear <= state.endYear) {
     stepAutowired(state);

@@ -974,3 +974,94 @@ test('validateWiring allows dependsOn:[] transform that is not a lag source (par
     endYear: 2025,
   });
 });
+
+// =============================================================================
+// BOOTSTRAP LAGS (fixed-point warm-up initialization)
+// =============================================================================
+
+test('bootstrapLags replaces flagged lag initials with year-0 source values', () => {
+  // Module emits a constant flow; a second module consumes it lagged.
+  // With a wrong hand-guessed initial, year 0 sees the guess and year 1 sees
+  // the true value — a spurious step. Bootstrap must eliminate the step.
+  const flowSource = defineModule({
+    name: 'flowSource',
+    description: 'Emits a constant flow',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['flow'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { flow: 100 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'flowConsumer',
+    description: 'Consumes lagged flow',
+    defaults: {},
+    inputs: ['laggedFlow'] as const,
+    outputs: ['seen'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { seen: inputs.laggedFlow } }),
+  });
+
+  const config = {
+    modules: [flowSource, consumer],
+    lags: {
+      laggedFlow: { source: 'flow', delay: 1, initial: 55, bootstrap: true },
+    },
+    startYear: 2025,
+    endYear: 2026,
+  };
+
+  // Without bootstrap: year 0 sees the wrong guess (55), year 1 the truth
+  const cold = runAutowired({ ...config });
+  assert.equal(getOutputsAtYear(cold, 0).seen, 55);
+  assert.equal(getOutputsAtYear(cold, 1).seen, 100);
+
+  // With bootstrap: year 0 already sees the self-consistent value
+  const warm = runAutowired({ ...config, bootstrapLags: 2 });
+  assert.equal(getOutputsAtYear(warm, 0).seen, 100);
+  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
+});
+
+test('bootstrapLags leaves unflagged (stock) lags at their calibrated initials', () => {
+  const flowSource = defineModule({
+    name: 'stockSource',
+    description: 'Emits a value',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['level'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { level: 100 } }),
+  });
+
+  const consumer = defineModule({
+    name: 'stockConsumer',
+    description: 'Consumes lagged level',
+    defaults: {},
+    inputs: ['laggedLevel'] as const,
+    outputs: ['seen'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { seen: inputs.laggedLevel } }),
+  });
+
+  const warm = runAutowired({
+    modules: [flowSource, consumer],
+    lags: {
+      laggedLevel: { source: 'level', delay: 1, initial: 55 }, // no bootstrap flag
+    },
+    startYear: 2025,
+    endYear: 2026,
+    bootstrapLags: 2,
+  });
+  // Calibrated initial preserved in year 0
+  assert.equal(getOutputsAtYear(warm, 0).seen, 55);
+  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
+});

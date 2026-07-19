@@ -90,6 +90,7 @@ export interface ProductionState {
   initialUsefulEnergy: number;  // E₀, captured in year 0
   cumulativeUsefulWork: number; // Running sum of useful energy (TWh)
   initialCollegeShare: number;  // Captured in year 0
+  initialDamageFactor: number;  // Combined damage factor at anchor, captured in year 0
 }
 
 // =============================================================================
@@ -275,6 +276,7 @@ export const productionModule: Module<
       initialUsefulEnergy: 0,
       cumulativeUsefulWork: 0,
       initialCollegeShare: 0,
+      initialDamageFactor: 1,
     };
   },
 
@@ -374,10 +376,19 @@ export const productionModule: Module<
     // Combined efficiency level
     const efficiencyLevel = endUseEfficiency * organizationalEfficiency;
 
-    // Damage factors (all lagged, so year 0 damages = 0)
+    // Damage factors, normalized to the anchor year like every other input:
+    // observed 2025 GDP already includes 2025's prevailing damages, so only
+    // CHANGES in damages relative to the anchor move GDP. (With bootstrapped
+    // lags, year 0 sees real 2025 damages rather than zero.)
     const damageFactor = 1 - damages;
     const burdenFactor = 1 - energyBurdenDamage;
     const foodFactor = 1 - params.foodStressElasticity * Math.max(0, Math.min(1, foodStress));
+    const combinedDamageFactor = damageFactor * burdenFactor * foodFactor;
+    let initialDamageFactor = state.initialDamageFactor;
+    if (yearIndex === 0) {
+      initialDamageFactor = combinedDamageFactor > 0 ? combinedDamageFactor : 1;
+    }
+    const relativeDamageFactor = combinedDamageFactor / initialDamageFactor;
 
     // GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × damage factors
     const gdp = params.initialGDP
@@ -385,9 +396,7 @@ export const productionModule: Module<
       * laborContribution
       * energyContribution
       * efficiencyLevel
-      * damageFactor
-      * burdenFactor
-      * foodFactor;
+      * relativeDamageFactor;
 
     return {
       state: {
@@ -396,6 +405,7 @@ export const productionModule: Module<
         initialUsefulEnergy,
         cumulativeUsefulWork,
         initialCollegeShare,
+        initialDamageFactor,
       },
       outputs: {
         gdp,

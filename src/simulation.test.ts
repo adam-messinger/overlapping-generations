@@ -55,6 +55,20 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
+test('no initialization discontinuity: first simulated years are smooth', () => {
+  // The lag warm-up (bootstrapLags) must hold: with hand-guessed lag
+  // initials the model produced a spurious -5.5% global recession in 2026
+  // (E0 anchored on potential rather than served generation, overhead
+  // subtractions switching on after year 0). Guard against regressions:
+  // year-over-year GDP change in the first three years stays in a band no
+  // real global economy leaves in the absence of a shock.
+  for (let i = 1; i <= 3; i++) {
+    const growth = to2050.results[i].gdp / to2050.results[i - 1].gdp - 1;
+    expect(growth).toBeGreaterThan(-0.01);
+    expect(growth).toBeLessThan(0.04);
+  }
+});
+
 test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
   // IEA WEO 2024 STEPS: ~55k TWh global electricity demand in 2050. The
   // model's endogenous path lands near ~40k (≈0.7x STEPS) — before the 2026
