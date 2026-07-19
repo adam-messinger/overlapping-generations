@@ -76,8 +76,8 @@ export const productionDefaults: ProductionParams = {
   cumulativeWorkHistory: 42,        // 1990 base (30yr) + observed 1990-2024 useful work, in 2025 units — derived in growth-backcast.md
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
-  robotLaborEquivalent: 0,      // default off: no automation payoff in the calibrated baseline
-  aiWorkerEquivalentPerTWh: 0,  // default off: compute is a pure energy sink in the baseline
+  robotLaborEquivalent: 2,      // worker-equivalents per robot: Acemoglu & Restrepo (2020) find 1 robot displaces ~3-6 workers; 2 is a conservative output-equivalent. This is now the ONLY channel robots affect output (their energy is subtracted from E).
+  aiWorkerEquivalentPerTWh: 0,  // no literature referent for an output equivalent; datacenter services' value is embedded in the measured GDP of the sectors buying them, so 0 is the conservative default — the ai-energy-boom scenario explores >0
 };
 
 // =============================================================================
@@ -122,6 +122,8 @@ export interface ProductionInputs {
   cdrEnergy: number;
   /** Robots per 1000 workers (from demand, lagged); optional for standalone use */
   robotsPer1000?: number;
+  /** Robot fleet electricity TWh (from demand, lagged); optional for standalone use */
+  robotLoadTWh?: number;
   /** Datacenter compute load TWh (from demand, lagged); optional for standalone use */
   dataCenterLoadTWh?: number;
 }
@@ -180,9 +182,9 @@ export const productionModule: Module<
       tier: 1 as const,
     },
     robotLaborEquivalent: {
-      description: 'Worker-equivalents each robot adds to effective labor. 0 = automation is a pure energy sink (calibrated baseline). Acemoglu & Restrepo (2020) find one industrial robot displaces ~3-6 workers; net output equivalent is lower. Used by the ai-energy-boom scenario.',
+      description: 'Worker-equivalents each robot adds to effective labor — the ONLY channel robots affect output (their electricity is subtracted from productive useful energy as intermediate consumption). Default 2: Acemoglu & Restrepo (2020) find one industrial robot displaces ~3-6 workers; 2 is a conservative output-equivalent. 0 makes robots a pure parasitic load.',
       unit: 'worker-equivalents/robot',
-      range: { min: 0, max: 20, default: 0 },
+      range: { min: 0, max: 20, default: 2 },
       tier: 1 as const,
     },
     aiWorkerEquivalentPerTWh: {
@@ -206,6 +208,7 @@ export const productionModule: Module<
     'collegeShare',
     'cdrEnergy',
     'robotsPer1000',
+    'robotLoadTWh',
     'dataCenterLoadTWh',
   ] as const,
 
@@ -299,14 +302,21 @@ export const productionModule: Module<
     // Subtract energy consumed by the system itself (not available for productive GDP):
     //   - resourceEnergy: mining + farming operations
     //   - energySystemOverhead: embodied energy of new capacity + operating energy
+    //   - cdrEnergy: carbon removal
+    //   - robot/datacenter loads: automation is INTERMEDIATE consumption —
+    //     its output enters solely through the labor-augmentation terms
+    //     below. Counting its electricity in E as well was a
+    //     perpetual-motion channel (any pure consumption load raised GDP
+    //     through E^gamma) and, with the payoff on, double counting.
     const grossUsefulEnergy = totalGeneration * params.electricExergy
       + nonElectricEnergy * params.thermalExergy;
     // Assumption: overhead is roughly half electric (0.95) / half thermal
     // (0.35) exergy, giving ~0.65 — no direct source
     const OVERHEAD_EXERGY = 0.65;
+    const automationEnergy = (inputs.robotLoadTWh ?? 0) + (inputs.dataCenterLoadTWh ?? 0);
     const systemOverhead = resourceEnergy * params.thermalExergy
       + energySystemOverhead * OVERHEAD_EXERGY
-      + cdrEnergy * params.electricExergy; // CDR is purely electric
+      + (cdrEnergy + automationEnergy) * params.electricExergy; // CDR + automation are purely electric
     const productionUsefulEnergy = Math.max(0, grossUsefulEnergy - systemOverhead);
 
     // Automation-augmented labor: robots add physical worker-equivalents,

@@ -423,6 +423,12 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: mergedDemand.robotBaseline2025,
     },
+    robotLoadTWh: {
+      source: 'robotLoadTWh',
+      delay: 1,
+      initial: 0,
+      bootstrap: true, // flow: warm-up sets the 2025-consistent fleet load
+    },
     dataCenterLoadTWh: {
       source: 'dataCenterLoadTWh',
       delay: 1,
