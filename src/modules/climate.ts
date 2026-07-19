@@ -29,7 +29,7 @@
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
-import { quadraticDamage, smoothStep } from '../primitives/math.js';
+import { lerp, quadraticDamage, smoothStep } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -75,6 +75,11 @@ export interface ClimateParams {
   // Ocean acidification (Caldeira & Wickett 2003, Jacobson 2005)
   preindustrialPH: number;       // Surface ocean pH at 280 ppm (8.18)
   phSensitivity: number;         // pH drop per CO2 doubling (0.32)
+
+  // Exogenous non-CO2 forcing overlay (CH4, N2O, halogens, ozone, aerosols),
+  // W/m^2, linearly interpolated 2025 -> 2100 and constant after
+  nonCO2Forcing2025: number;
+  nonCO2Forcing2100: number;
 }
 
 export const climateDefaults: ClimateParams = {
@@ -111,6 +116,16 @@ export const climateDefaults: ClimateParams = {
   },
   preindustrialPH: 8.18,        // Jacobson (2005), surface ocean at 280 ppm
   phSensitivity: 0.32,          // Caldeira & Wickett (2003), pH drop per CO2 doubling
+  // AR6 WG1 Ch.7 2019 effective radiative forcing: CO2 2.16 W/m^2 of 2.72
+  // total anthropogenic; CH4 0.54 + N2O 0.21 + halogens 0.41 + ozone 0.47
+  // + aerosols/cloud ~-1.1 => net non-CO2 ~ +0.5. The model previously forced
+  // with CO2 only, biasing future warming low.
+  nonCO2Forcing2025: 0.5,
+  // Rises as aerosol cooling declines with air-quality cleanup while CH4/N2O
+  // stay roughly flat: ~+0.85 by 2100 on a middle-of-road (SSP2-4.5-like)
+  // non-CO2 trajectory (AR6 WG1 Fig 7.7 / Annex III). Scenario-overridable:
+  // strong-mitigation pathways cut CH4 and land near +0.2-0.4.
+  nonCO2Forcing2100: 0.85,
 };
 
 // =============================================================================
@@ -178,6 +193,12 @@ export const climateModule: Module<
       description: 'Equilibrium climate sensitivity. IPCC AR6 range is 2.5-4.0°C, with 3.0°C as best estimate.',
       unit: '°C per CO₂ doubling',
       range: { min: 2.0, max: 5.0, default: 3.0 },
+      tier: 1 as const,
+    },
+    nonCO2Forcing2100: {
+      description: 'Exogenous non-CO2 forcing (CH4, N2O, halogens, ozone, aerosols) in 2100; linearly interpolated from the 2025 value. AR6 SSP range roughly +0.2 (strong CH4 mitigation) to +1.3 W/m² (SSP3/5).',
+      unit: 'W/m²',
+      range: { min: -0.5, max: 2.0, default: 0.85 },
       tier: 1 as const,
     },
     damageCoeff: {
@@ -261,6 +282,16 @@ export const climateModule: Module<
       );
     }
 
+    // Non-CO2 forcing overlay
+    for (const [name, value] of [
+      ['nonCO2Forcing2025', p.nonCO2Forcing2025],
+      ['nonCO2Forcing2100', p.nonCO2Forcing2100],
+    ] as const) {
+      if (!Number.isFinite(value) || value < -1 || value > 2) {
+        errors.push(`${name} must be between -1 and 2 W/m²`);
+      }
+    }
+
     // Damage coefficient
     if (p.damageCoeff < 0) {
       errors.push('damageCoeff cannot be negative');
@@ -334,13 +365,16 @@ export const climateModule: Module<
   },
 
   init(params: ClimateParams): ClimateState {
-    // Compute initial CO2 and forcing for deep ocean temperature derivation
+    // Compute initial CO2 and forcing for deep ocean temperature derivation.
+    // Non-CO2 forcing is included so the 2025 energy balance (and therefore
+    // the derived deep-ocean temperature) stays anchored at currentTemp.
     const atmosphericCO2 =
       params.cumulativeCO2_2025 * params.airborneFraction * params.ppmPerGt;
     const co2ppm = params.preindustrialCO2 + atmosphericCO2;
     const forcing =
       params.forcingPerDoubling *
-      Math.log2(co2ppm / params.preindustrialCO2);
+        Math.log2(co2ppm / params.preindustrialCO2) +
+      params.nonCO2Forcing2025;
     const lambda = params.forcingPerDoubling / params.sensitivity;
 
     // Solve for initial deep ocean temperature from energy balance:
@@ -373,10 +407,18 @@ export const climateModule: Module<
     const oceanPH = params.preindustrialPH -
       params.phSensitivity * Math.log2(co2ppm / params.preindustrialCO2);
 
-    // Radiative forcing
+    // Radiative forcing: CO2 (from cumulative emissions) plus the exogenous
+    // non-CO2 overlay, linearly interpolated between its calendar-anchored
+    // endpoints (lerp clamps, so it is constant after 2100).
+    const nonCO2Forcing = lerp(
+      params.nonCO2Forcing2025,
+      params.nonCO2Forcing2100,
+      (year - 2025) / 75,
+    );
     const forcing =
       params.forcingPerDoubling *
-      Math.log2(co2ppm / params.preindustrialCO2);
+        Math.log2(co2ppm / params.preindustrialCO2) +
+      nonCO2Forcing;
 
     // Feedback parameter (λ = F₂ₓ / ECS)
     const lambda = params.forcingPerDoubling / params.sensitivity;

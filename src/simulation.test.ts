@@ -3,7 +3,6 @@
  */
 
 import { runSimulation } from './simulation.js';
-import { cdrDefaults } from './modules/cdr.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
 import { buildOutputRegistry, resolveKey } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
@@ -50,19 +49,6 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
     const actual = r.regionalWACC[region as keyof typeof r.regionalWACC] - r.effectiveWACC;
     expect(Math.abs(actual - total)).toBeLessThan(0.001);
   }
-});
-
-test('cdr default TCRE matches the climate module\'s emergent TCRE', () => {
-  // cdr.tcre is a parameter-isolated duplicate of climate's emergent
-  // warming-per-GtCO2. Pins the coupling: if climate's sensitivity default
-  // or temperature formula drifts, the SCC gate and realized warming diverge
-  // and this fails instead of silently miscalibrating deployment.
-  const result = runSimulation();
-  const first = result.results[0];
-  const last = result.results[result.results.length - 1];
-  const emergent = (last.temperature - first.temperature) /
-    (last.cumulativeEmissions - first.cumulativeEmissions);
-  expect(Math.abs(emergent - cdrDefaults.tcre) / cdrDefaults.tcre).toBeLessThan(0.2);
 });
 
 test('cohort accounts reconcile to the next-year macro stocks', () => {

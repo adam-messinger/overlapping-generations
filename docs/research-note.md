@@ -3,6 +3,16 @@
 **Adam Messinger**
 *Research Note, February 2026*
 
+> **Staleness note (July 2026):** the model has changed materially since this
+> note's runs — a full-codebase bug-fix pass, GDP-weighted savings
+> aggregation, regional financing spreads, R/P-calibrated fossil depletion,
+> non-CO2 forcing, and a reformed CDR deployment gate. Quantitative results
+> below (especially the scenario table in §3 and all warming/GDP/CDR figures)
+> describe the February 2026 model and should be regenerated before being
+> cited. The qualitative mechanisms remain as described except where flagged.
+> `docs/SENSITIVITY.md` documents which conclusions are robust to the two
+> most consequential parameter choices.
+
 ---
 
 ## Abstract
@@ -76,7 +86,7 @@ Population is modeled as three cohorts (young 0--19, working 20--64, old 65+) ac
 
 Global population peaks at 8.9 billion around 2057 and declines to 8.35 billion by 2100. Education tracks tertiary enrollment (logistic convergence to regional targets), producing an effective-worker measure that rises even as headcount falls.
 
-Outdoor labor productivity is reduced by wet-bulb temperature exceeding survivability thresholds (Zhao et al. 2021), applied to non-college workers in heat-exposed regions -- an interaction between climate and demographics that standard models miss.
+Outdoor labor productivity is reduced by wet-bulb temperature exceeding survivability thresholds (Dunne et al. 2013; Sherwood and Huber 2010), applied to non-college workers in heat-exposed regions -- an interaction between climate and demographics that standard models miss.
 
 ### 2.5 Capital and Intergenerational Transfers
 
@@ -96,7 +106,7 @@ Savings rates respond to demographics: longer life expectancy increases the savi
 
 ### 2.6 Carbon Dioxide Removal
 
-CDR (direct air capture) deploys endogenously when the NPV-adjusted social cost of carbon exceeds the all-in cost of removal. Capital costs follow Wright's Law ($\$400$/ton in 2025, learning exponent 0.15); energy costs track the grid-average LCOE ($2{,}500$ kWh per ton CO$_2$). The social discount rate is endogenous: half the market interest rate from the capital module.
+CDR (direct air capture) deploys endogenously when the NPV-adjusted social cost of carbon exceeds the all-in cost of removal. Capital costs follow Wright's Law ($\$400$/ton in 2025, learning exponent 0.15); energy costs track the grid-average LCOE ($2{,}500$ kWh per ton CO$_2$). The social discount rate is endogenous: half the market interest rate from the capital module. *(July 2026 update: the SCC is now the NPV of a growing damage annuity over a 100-year horizon — damages scale with GDP, so the flow grows with realized GDP growth — replacing an earlier perpetuity of the current-year flow that ignored growth. Under the reformed gate, baseline deployment begins around 2050 and reaches the 15 Gt/yr cap by the 2070s.)*
 
 This creates a natural synergy: cheap solar drives down both electricity costs and CDR costs, while rising temperatures raise the SCC, making deployment self-reinforcing once it begins. Capacity is capped at 15 Gt/yr and spending at 0.5% of GDP.
 
@@ -204,14 +214,14 @@ Ayres, R.U. and Warr, B. (2009). *The Economic Growth Engine: How Energy and Wor
 
 Chen, J. and Galbraith, J.K. (2012). "Auctioning the Environment." UTIP Working Paper No. 62.
 
-Fernandez-Villaverde, J. and Jones, C.I. (2023). "Estimating and Simulating a SIRD Model of COVID-19 for Many Countries, States, and Cities." *Journal of Economic Dynamics and Control*, 140.
+Fernandez-Villaverde, J. (2021). "The Demographic Future of Humanity: Facts and Consequences." Working paper / NBER lectures on global fertility decline. (Earlier editions of this note mis-cited an unrelated Fernandez-Villaverde & Jones COVID-19 paper.)
 
 Geoffroy, O. et al. (2013). "Transient Climate Response in a Two-Layer Energy-Balance Model." *Journal of Climate*, 26, 1841--1857.
 
-Nordhaus, W.D. (2023). "The Spirit of Green: DICE-2023." *American Economic Review*, forthcoming.
+Barrage, L. and Nordhaus, W.D. (2024). "Policies, Projections, and the Social Cost of Carbon: Results from the DICE-2023 Model." *PNAS*, 121(13). (Earlier editions of this note cited an incorrect title and venue.)
 
 Schlenker, W. and Roberts, M.J. (2009). "Nonlinear Temperature Effects Indicate Severe Damages to U.S. Crop Yields under Climate Change." *PNAS*, 106(37), 15594--15598.
 
 Wright, T.P. (1936). "Factors Affecting the Cost of Airplanes." *Journal of the Aeronautical Sciences*, 3(4), 122--128.
 
-Zhao, C. et al. (2021). "Global Multi-Model Projections of Local Urban Climates." *Nature Climate Change*, 11, 152--157.
+Dunne, J.P., Stouffer, R.J. and John, J.G. (2013). "Reductions in Labour Capacity from Heat Stress under Climate Warming." *Nature Climate Change*, 3, 563--566. (The heat-stress labor mechanism anchor; earlier editions cited an unrelated urban-climates paper.)

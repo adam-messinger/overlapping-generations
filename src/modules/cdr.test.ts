@@ -41,18 +41,33 @@ function runYears(years: number, inputs: Partial<CDRInputs> = {}, params = cdrDe
 console.log('\n=== CDR Module Tests ===\n');
 
 test('SCC is in $/ton: matches hand-computed value', () => {
-  // SCC = 2 × damageCoeff × T × tcre × GDP($) / discount / 1e9 tons-per-Gt
-  // With T=1.45, GDP=$110T, r=0.05, socialDiscountFactor=0.5:
-  //   2 × 0.00536 × 1.45 × 0.00045 × 110e12 / 0.025 / 1e9 ≈ $30.8/ton
-  // (a unit slip of 1e9 here is exactly the bug this test guards against)
-  const expectedSCC = 2 * 0.00536 * 1.45 * 0.00045 * 110e12 / 0.025 / 1e9;
-  expect(expectedSCC).toBeBetween(25, 40);
+  // Marginal damage flow = 2 × damageCoeff × T × tcre × GDP($) / 1e9 tons-per-Gt,
+  // discounted as a growing annuity over sccHorizonYears.
+  // With T=1.45, GDP=$110T, r=0.05, socialDiscountFactor=0.5 (ρ=0.025),
+  // year-0 growth fallback g=0.02:
+  //   flow = 2 × 0.00536 × 1.45 × 0.00045 × 110e12 / 1e9 ≈ $0.77/ton/yr
+  //   x = 1.02/1.025, annuity over 100 yr ≈ 79 → SCC ≈ $61/ton
+  // (a unit slip of 1e9 in the flow is exactly the bug this guards against)
+  const flow = 2 * 0.00536 * 1.45 * 0.00045 * 110e12 / 1e9;
+  const x = 1.02 / 1.025;
+  const annuity = x * (1 - Math.pow(x, 100)) / (1 - x);
+  expect(flow * annuity).toBeBetween(45, 75);
 
-  // 2025 cost is ~$400 capital + $125 energy ≫ $31 SCC → gate stays closed,
+  // 2025 cost is ~$400 capital + $125 energy ≫ ~$61 SCC → gate stays closed,
   // so capacity (and removal) must remain at zero
   const { outputs } = runYears(1);
   expect(outputs.cdrRemovalGtCO2).toBe(0);
   expect(outputs.cdrCapacity).toBe(0);
+});
+
+test('SCC rises with the NPV horizon and with damage-flow growth', () => {
+  // Longer horizon → more discounted damage-years → earlier deployment
+  // becomes justified at lower temperature/GDP. Compare the gate at a
+  // marginal case: same inputs, horizons 30 vs 300.
+  const marginal = { temperature: 3, gdp: 300, laggedAvgLCOE: 30, laggedInterestRate: 0.04 };
+  const short = runYears(10, marginal, cdrModule.mergeParams({ sccHorizonYears: 30 }));
+  const long = runYears(10, marginal, cdrModule.mergeParams({ sccHorizonYears: 300 }));
+  expect(long.outputs.cdrRemovalGtCO2).toBeGreaterThan(short.outputs.cdrRemovalGtCO2);
 });
 
 test('no deployment at current temperature and cost', () => {
@@ -118,11 +133,15 @@ test('energy demand: kWh/ton equals TWh/Gt', () => {
 
 test('discountRate param is the fallback when interest rate is unwired', () => {
   // With laggedInterestRate undefined, the social discount is params.discountRate.
-  // discountRate=0.001 inflates the SCC ~30x vs the wired case → forces deployment
-  // at conditions where the wired case stays shut.
-  const params = { ...cdrDefaults, discountRate: 0.001 };
-  const { outputs } = runYears(3, { laggedInterestRate: undefined }, params);
-  expect(outputs.cdrRemovalGtCO2).toBeGreaterThan(0);
+  // Under the horizon-bounded annuity a tiny rate no longer explodes the SCC,
+  // so discriminate the fallback path with a pair: at T=4/GDP=$400T a 0.1%
+  // fallback rate opens the gate (annuity ~100-300 years of flow) while a 10%
+  // rate keeps it shut (annuity ~10).
+  const inputs = { temperature: 4, gdp: 400, laggedInterestRate: undefined };
+  const cheap = runYears(3, inputs, { ...cdrDefaults, discountRate: 0.001 });
+  const dear = runYears(3, inputs, { ...cdrDefaults, discountRate: 0.10 });
+  expect(cheap.outputs.cdrRemovalGtCO2).toBeGreaterThan(0);
+  expect(dear.outputs.cdrRemovalGtCO2).toBe(0);
 });
 
 test('removal capped by maxDeployRate', () => {

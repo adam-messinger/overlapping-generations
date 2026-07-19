@@ -17,6 +17,7 @@
  */
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { clamp } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -48,6 +49,9 @@ export interface CDRParams {
   /** Fraction of market interest rate used for social discount (CDR NPV) */
   socialDiscountFactor: number;
 
+  /** Horizon (years) for the SCC's growing-annuity NPV */
+  sccHorizonYears: number;
+
   /** Damage coefficient (mirrors climate module) */
   damageCoeff: number;
   /** Transient climate response to cumulative emissions, C per Gt CO2 */
@@ -68,6 +72,7 @@ export const cdrDefaults: CDRParams = {
 
   discountRate: 0.03,     // 3% social discount rate (fallback)
   socialDiscountFactor: 0.5, // Social rate = 50% of market rate
+  sccHorizonYears: 100,   // NPV horizon; rationale and source in paramMeta
 
   damageCoeff: 0.00536,   // Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate module default
   // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt). Duplicated here because
@@ -103,6 +108,10 @@ export interface CDRInputs {
   /** Lagged real interest rate (from capital previous year) for endogenous
    *  discount rate. Optional: when unwired, params.discountRate is used. */
   laggedInterestRate?: number;
+
+  /** Lagged GDP $T (previous year) for damage-flow growth in the SCC annuity.
+   *  Optional: when unwired, a 2% trend growth fallback is used. */
+  laggedGdp?: number;
 }
 
 export interface CDROutputs {
@@ -164,6 +173,12 @@ export const cdrModule: Module<
       range: { min: 0.001, max: 0.02, default: 0.005 },
       tier: 1 as const,
     },
+    sccHorizonYears: {
+      description: 'Horizon for the SCC growing-annuity NPV. EPA (2023) uses ~280 years; 100 is a conservative truncation. Longer horizons raise the SCC and pull CDR deployment earlier.',
+      unit: 'years',
+      range: { min: 10, max: 300, default: 100 },
+      tier: 2 as const,
+    },
   },
 
   inputs: [
@@ -171,6 +186,7 @@ export const cdrModule: Module<
     'gdp',
     'laggedAvgLCOE',
     'laggedInterestRate',
+    'laggedGdp',
   ] as const,
 
   outputs: [
@@ -207,6 +223,11 @@ export const cdrModule: Module<
     if (params.discountRate !== undefined && params.discountRate <= 0) {
       errors.push('discountRate must be positive');
     }
+    if (params.sccHorizonYears !== undefined &&
+        (!Number.isFinite(params.sccHorizonYears) ||
+          params.sccHorizonYears < 10 || params.sccHorizonYears > 300)) {
+      errors.push('sccHorizonYears must be between 10 and 300');
+    }
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -241,9 +262,14 @@ export const cdrModule: Module<
     const cdrCostPerTon = capitalCostPerTon + energyCostPerTon;
 
     // =========================================================================
-    // 2. Effective social cost of carbon (NPV of permanent damage reduction)
-    //    SCC = d(Damages)/d(Emission) / discountRate
-    //        = 2 × damageCoeff × T × TCRE × GDP($) / discountRate
+    // 2. Effective social cost of carbon: NPV of the marginal damage stream.
+    //    A marginal ton causes a damage flow of 2·damageCoeff·T·TCRE·GDP per
+    //    year; damages scale with GDP, so the flow grows with the economy.
+    //    Discounted as a growing annuity over sccHorizonYears (EPA 2023 SCC
+    //    methodology and DICE compute the SCC as an NPV over a multi-century
+    //    horizon). The previous perpetuity of the current-year flow ignored
+    //    growth entirely, understating the SCC whenever growth approached the
+    //    discount rate.
     // =========================================================================
 
     // Endogenous discount rate: social rate = fraction of market rate,
@@ -257,9 +283,21 @@ export const cdrModule: Module<
 
     const gdpDollars = gdp * 1e12; // Convert $T to $
     // tcre is °C per Gt CO2, so the damage derivative is $ per Gt; divide by
-    // 1e9 tons/Gt to express the SCC in $ per ton (comparable to cdrCostPerTon)
-    const effectiveSCC = 2 * params.damageCoeff * Math.max(0, temperature)
-      * params.tcre * gdpDollars / effectiveDiscount / 1e9;
+    // 1e9 tons/Gt to express the flow in $ per ton per year
+    const marginalDamageFlow = 2 * params.damageCoeff * Math.max(0, temperature)
+      * params.tcre * gdpDollars / 1e9;
+    // Growing-annuity factor: closed form of sum over H years of
+    // ((1+g)/(1+rho))^t, with the g -> rho limit equal to H. Growth is the
+    // realized GDP growth, clamped to [0, 6%]; 2% trend fallback when the
+    // lagged GDP is unwired.
+    const gdpGrowth = inputs.laggedGdp != null && inputs.laggedGdp > 0
+      ? clamp(gdp / inputs.laggedGdp - 1, 0, 0.06)
+      : 0.02;
+    const x = (1 + gdpGrowth) / (1 + effectiveDiscount);
+    const annuityFactor = Math.abs(1 - x) < 1e-6
+      ? params.sccHorizonYears
+      : x * (1 - Math.pow(x, params.sccHorizonYears)) / (1 - x);
+    const effectiveSCC = marginalDamageFlow * annuityFactor;
 
     // =========================================================================
     // 3. Deployment decision: deploy when SCC > CDR cost
