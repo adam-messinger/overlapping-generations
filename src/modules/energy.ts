@@ -585,6 +585,8 @@ export interface RegionalEnergyOutputs {
 }
 
 export interface EnergyOutputs {
+  /** Realized capex spend this year, all sources incl. fossil/storage ($T) */
+  energyCapexSpend: number;
   /** Current LCOE by source ($/MWh) - GLOBAL (from learning curves) */
   lcoes: Record<EnergySource, number>;
 
@@ -887,6 +889,7 @@ export const energyModule: Module<
     'netEnergyFraction',
     'solarPlusBatteryLCOE',
     'capacities',
+    'energyCapexSpend',
     'regionalCapacities',
     'cumulativeCapacity',
     'additions',
@@ -1267,6 +1270,8 @@ export const energyModule: Module<
       effectiveCapex[source] = capex;
     }
 
+    let realizedCapexB = 0; // $B, summed across regions
+
     for (const region of REGIONS) {
       const regionParams = params.regional[region];
       // Plan capacity on the GENERATION basis dispatch will request
@@ -1472,6 +1477,13 @@ export const energyModule: Module<
         }
       }
 
+      // Realized capex this region actually spends ($B): ALL sources —
+      // fossil and storage additions cost capital too, not only the
+      // clean-budget sources (the audit found fossil buildout was free)
+      for (const source of ENERGY_SOURCES) {
+        realizedCapexB += (fundedAdditions[source] * effectiveCapex[source]) / 1000;
+      }
+
       // Calculate retirements and update regional state
       for (const source of ENERGY_SOURCES) {
         const regionState = state.regional[region][source];
@@ -1662,6 +1674,7 @@ export const energyModule: Module<
         lcoes,
         netEnergyFraction,
         solarPlusBatteryLCOE,
+        energyCapexSpend: realizedCapexB / 1000, // $T realized (all sources)
         capacities: globalCapacities,
         regionalCapacities,
         cumulativeCapacity,

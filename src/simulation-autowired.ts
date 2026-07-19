@@ -440,6 +440,27 @@ function buildLags(params: SimulationParams) {
       initial: 0,
       bootstrap: true, // flow: warm-up sets the 2025-consistent fleet load
     },
+
+    // Capital debits REALIZED spends (one financing ledger): energy capex
+    // from energy, CDR spend from cdr, robot fleet capex from demand
+    energyCapexSpend: {
+      source: 'energyCapexSpend',
+      delay: 1,
+      initial: 0,
+      bootstrap: true,
+    },
+    cdrSpend: {
+      source: 'cdrAnnualSpend',
+      delay: 1,
+      initial: 0,
+      bootstrap: true,
+    },
+    robotCapexSpend: {
+      source: 'robotCapexSpend',
+      delay: 1,
+      initial: 0,
+      bootstrap: true,
+    },
     dataCenterLoadTWh: {
       source: 'dataCenterLoadTWh',
       delay: 1,

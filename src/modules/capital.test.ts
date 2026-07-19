@@ -833,4 +833,22 @@ test('module declares regionalGdp input', () => {
 // SUMMARY
 // =============================================================================
 
+
+test('realized spends are debited from capital formation (one ledger)', () => {
+  // The audit found three unlinked "energy investment" numbers: debited,
+  // budgeted, and actually spent. Capital now debits REALIZED spends.
+  const params = capitalModule.mergeParams({});
+  const state = capitalModule.init(params);
+  const base = { ...getCapitalInputs(0) };
+  const noSpend = capitalModule.step(state, base as any, params, 2025, 0);
+  const withSpend = capitalModule.step(state, {
+    ...base, energyCapexSpend: 3, cdrSpend: 1, robotCapexSpend: 2,
+  } as any, params, 2025, 0);
+  const debited = noSpend.outputs.generalInvestment - withSpend.outputs.generalInvestment;
+  // noSpend falls back to the internal energy estimate; withSpend debits 3+1+2
+  expect(withSpend.outputs.investment - withSpend.outputs.generalInvestment)
+    .toBeCloseTo(6, 6);
+  expect(debited !== 0).toBeTrue();
+});
+
 printSummary();

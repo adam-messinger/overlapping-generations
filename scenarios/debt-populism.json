@@ -1,32 +1,40 @@
 {
   "name": "Debt-Accident Populism",
-  "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition.",
-
+  "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition. NOTE: interest is tax-financed by construction (a GDP claim, not new borrowing), so interest-capitalization debt spirals are structurally outside this model — debt stress appears as rising publicDebtService and the risk-premium channel. This scenario understates true spiral risk.",
   "energy": {
     "carbonPrice": 10,
     "sources": {
-      "solar": { "alpha": 0.32, "growthRate": 0.18 }
+      "solar": {
+        "alpha": 0.32,
+        "growthRate": 0.18
+      }
     },
     "maxGrowthRate": {
       "solar": 0.15,
-      "wind": 0.10,
-      "battery": 0.20
+      "wind": 0.1,
+      "battery": 0.2
     }
   },
-
   "demand": {
     "efficiencyMultiplier": 0.85,
     "sectors": {
-      "transport": { "costEscalationThreshold": 0.40, "costEscalationRate": 3.0 },
-      "buildings": { "costEscalationThreshold": 0.65, "costEscalationRate": 2.0 },
-      "industry": { "costEscalationThreshold": 0.35, "costEscalationRate": 3.0 }
+      "transport": {
+        "costEscalationThreshold": 0.4,
+        "costEscalationRate": 3.0
+      },
+      "buildings": {
+        "costEscalationThreshold": 0.65,
+        "costEscalationRate": 2.0
+      },
+      "industry": {
+        "costEscalationThreshold": 0.35,
+        "costEscalationRate": 3.0
+      }
     }
   },
-
   "climate": {
     "sensitivity": 3.0
   },
-
   "capital": {
     "stabilityLambda": 4.0,
     "savingsWorking": 0.35,
@@ -34,22 +42,29 @@
     "fiscalReactionCoeff": 0.01,
     "savingsPremium": {
       "oecd": -0.05,
-      "china": 0.10,
+      "china": 0.1,
       "india": -0.05,
-      "latam": -0.10,
+      "latam": -0.1,
       "seasia": -0.08,
-      "russia": -0.10,
+      "russia": -0.1,
       "mena": -0.05,
       "ssa": -0.12
     }
   },
-
   "resources": {
     "minerals": {
-      "copper": { "learningRate": 0.016 },
-      "lithium": { "learningRate": 0.024 },
-      "rareEarths": { "learningRate": 0.008 },
-      "steel": { "learningRate": 0.008 }
+      "copper": {
+        "learningRate": 0.016
+      },
+      "lithium": {
+        "learningRate": 0.024
+      },
+      "rareEarths": {
+        "learningRate": 0.008
+      },
+      "steel": {
+        "learningRate": 0.008
+      }
     }
   }
 }
