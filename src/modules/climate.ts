@@ -84,8 +84,8 @@ export interface ClimateParams {
 
 export const climateDefaults: ClimateParams = {
   preindustrialCO2: 280,
-  cumulativeCO2_2025: 2400,
-  airborneFraction: 0.45,
+  cumulativeCO2_2025: 2680,      // Gt CO2 fossil+industry+LUC since 1750 (Global Carbon Budget 2024: ~1810 fossil + ~870 land-use)
+  airborneFraction: 0.42,        // observed: (424-280) ppm x 7.81 Gt/ppm / 2680 Gt = 0.42 (AR6 ~0.44 of fossil-only)
   ppmPerGt: 0.128,
   sensitivity: 3.0,
   upperHeatCapacity: 7.3,

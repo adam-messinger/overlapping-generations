@@ -113,8 +113,8 @@ export const dispatchDefaults: DispatchParams = {
     wind: 0,
     hydro: 0,
     nuclear: 0,
-    gas: 400,
-    coal: 900,
+    gas: 440,   // world fleet average incl. open-cycle and older CCGT (Ember 2024 ~443 kg/MWh)
+    coal: 970,  // world fleet average, subcritical-heavy (IEA/Ember ~950-1000 kg/MWh; 900 was modern-plant, not fleet)
     battery: 0,
   },
   // Marginal cost = fuel + variable O&M (no capital), $/MWh.
@@ -131,7 +131,7 @@ export const dispatchDefaults: DispatchParams = {
     battery: 5,
   },
   hoursPerYear: 8760,
-  gridLossFactor: 1.20,     // generation/delivered: IEA WEB 2022 ~29.9k TWh generated vs ~24.4k delivered
+  gridLossFactor: 1.25,     // generation/delivered: IEA ~31.5k TWh generated (2025) vs ~25k delivered final electricity
   batteryDuration: 4,
 
   // Storage-based VRE limits

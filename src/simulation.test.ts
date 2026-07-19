@@ -81,6 +81,21 @@ test('no initialization discontinuity: first simulated years are smooth', () => 
   }
 });
 
+test('near-term observables stay in validation bands (2025-2030)', () => {
+  // Slightly loosened versions of scripts/nearterm-validation.ts (the
+  // report has the full 9-check set with sources). These four are the
+  // load-bearing ones: they anchor the model's first five forward years
+  // to IEA/Ember/GCB observables so recalibrations cannot silently drift
+  // the near-term path away from the world again.
+  const y25 = to2050.results[0];
+  const y30 = to2050.results[5];
+  expect(y25.totalGeneration / 1000).toBeBetween(28, 34);        // IEA ~31.5k TWh
+  expect(y25.electricityEmissions + y25.nonElectricEmissions)
+    .toBeBetween(34, 41);                                         // GCB ~37.4 Gt
+  expect(y25.gridIntensity).toBeBetween(400, 520);               // Ember ~445-480
+  expect(y30.transportElectrification).toBeBetween(0.02, 0.12);  // ~4-5% aggressive
+});
+
 test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
   // IEA WEO 2024 STEPS: ~55k TWh global electricity demand in 2050. The
   // model's endogenous path lands near ~40k (≈0.7x STEPS) — before the 2026

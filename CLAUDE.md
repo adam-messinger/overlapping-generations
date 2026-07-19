@@ -169,6 +169,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Fernández-Villaverde**: Fertility convergence to regional floors
 - **3-cohort model**: Young (0-19), Working (20-64), Old (65+)
 - **Education**: College share affects effective workers
+- **NOTE**: the resulting world path (peak ~8.95B in 2059, 8.5B in 2100) tracks the UN WPP 2024 *low* variant, ~18% below the medium variant by 2100 — a deliberate low-fertility-convergence choice that conditions labor, savings, capital, and demand throughout
 
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**

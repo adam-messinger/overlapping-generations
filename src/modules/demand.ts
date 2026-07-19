@@ -33,6 +33,15 @@ interface RegionalEconomicParams {
   tfpDecay: number;          // Rate at which catch-up growth fades
   energyIntensity: number;   // MWh per $1000 GDP (total energy)
   intensityDecline: number;  // Annual efficiency improvement rate
+  /**
+   * Region's 2025 electrification of final energy relative to the global
+   * share (1 = at global). Grid access and industrial structure differ
+   * hugely by region (SSA ~600M people without electricity); the previous
+   * uniform global share over-assigned SSA ~4x its observed electricity.
+   * Converges linearly to 1 by 2100 (access catch-up). Calibrated to
+   * Ember/IEA 2024 regional generation.
+   */
+  elecShareMultiplier2025: number;
 }
 
 // Sector parameters
@@ -313,6 +322,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.63,    // MWh per $1000 GDP PPP (preserves ~39k TWh)
       intensityDecline: 0.013,  // 1.3%/year (advanced economies ~1.5-2%/yr historical)
+      elecShareMultiplier2025: 1.07,  // OECD elec ~10.5k TWh gen 2024 (Ember); all multipliers scaled +5% so regional sums reconcile to the ~31.5k TWh world total
     },
     china: {
       gdp2025: 33,              // $33T PPP
@@ -320,6 +330,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.015,          // Converging toward OECD
       energyIntensity: 1.11,    // PPP-adjusted (preserves ~37k TWh)
       intensityDecline: 0.015,  // 1.5%/year
+      elecShareMultiplier2025: 1.07,  // China elec ~9.5k TWh gen 2024 (Ember) ~= uniform share
     },
     india: {
       gdp2025: 16,              // $16T PPP (India + South Asia)
@@ -327,6 +338,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.012,          // Gradual convergence
       energyIntensity: 0.65,    // PPP-adjusted (preserves ~10k TWh)
       intensityDecline: 0.014,  // 1.4%/year
+      elecShareMultiplier2025: 0.84,  // India elec ~2.0k TWh gen 2024 vs ~2.5k uniform
     },
     latam: {
       gdp2025: 12,              // $12T PPP (Latin America)
@@ -334,6 +346,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.50,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.012,  // 1.2%/year
+      elecShareMultiplier2025: 1.09,  // LatAm elec ~1.7k TWh gen 2024, hydro-heavy grid
     },
     seasia: {
       gdp2025: 12,              // $12T PPP (SE Asia + Pacific)
@@ -341,6 +354,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.008,          // Gradual convergence
       energyIntensity: 0.53,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.013,  // 1.3%/year
+      elecShareMultiplier2025: 0.89,  // SE Asia elec ~1.3k TWh gen 2024 vs ~1.6k uniform
     },
     russia: {
       gdp2025: 7,               // $7T PPP (Russia + CIS)
@@ -348,6 +362,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.003,          // Very slow convergence
       energyIntensity: 1.03,    // PPP-adjusted (preserves ~7k TWh)
       intensityDecline: 0.012,  // 1.2%/year
+      elecShareMultiplier2025: 0.76,  // Russia+CIS elec ~1.2k TWh gen 2024; gas-heavy direct fuel use
     },
     mena: {
       gdp2025: 9,               // $9T PPP (MENA)
@@ -355,6 +370,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.67,    // PPP-adjusted (preserves ~6k TWh)
       intensityDecline: 0.012,  // 1.2%/year
+      elecShareMultiplier2025: 1.03,  // MENA elec ~1.4k TWh gen 2024
     },
     ssa: {
       gdp2025: 7,               // $7T PPP (Sub-Saharan Africa, unchanged)
@@ -362,6 +378,7 @@ export const demandDefaults: DemandParams = {
       tfpDecay: 0.010,          // Gradual convergence
       energyIntensity: 1.50,    // Unchanged (already PPP-like)
       intensityDecline: 0.012,  // 1.2%/year
+      elecShareMultiplier2025: 0.23,  // SSA elec ~0.55k TWh gen 2024 vs ~2.5k uniform; ~600M without access
     },
   },
 
@@ -927,6 +944,10 @@ export const demandModule: Module<
         if (r.intensityDecline !== undefined && r.intensityDecline > 0.05) {
           warnings.push(`${region}: Energy intensity decline >5%/year is unusually high`);
         }
+        if (r.elecShareMultiplier2025 !== undefined &&
+            (r.elecShareMultiplier2025 < 0.1 || r.elecShareMultiplier2025 > 1.5)) {
+          errors.push(`${region}: elecShareMultiplier2025 must be between 0.1 and 1.5`);
+        }
       }
     }
 
@@ -1270,8 +1291,13 @@ export const demandModule: Module<
       // energy at the 2025 mix); the efficiency-corrected factors convert it
       // to actual final energy, which shrinks as electrification proceeds.
       const totalEnergy = newGdp * newIntensity * 1000; // TWh, service base
-      const elecDemand = totalEnergy * elecFinalFactor;
-      const nonElecEnergy = totalEnergy * nonElecFinalFactor;
+      // Regional electrification differs from the global share (grid access,
+      // industrial structure); unelectrified service is met by fuels instead.
+      // Multiplier converges to 1 by 2100 (access catch-up).
+      const elecMult = params.regions[region].elecShareMultiplier2025
+        + (1 - params.regions[region].elecShareMultiplier2025) * Math.min(1, yearIndex / 75);
+      const elecDemand = totalEnergy * elecFinalFactor * elecMult;
+      const nonElecEnergy = totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
       const finalEnergy = elecDemand + nonElecEnergy;
 
       // Per working-age adult metrics
@@ -1310,6 +1336,11 @@ export const demandModule: Module<
     // are 100% electric add-ons and must not be split by sector rates
     // (doing so reclassified most of them as phantom non-electric energy).
     const sectorEnergyBase = globalServiceBase;
+    // Regional electrification multipliers make realized global electricity
+    // differ from the uniform-share prediction; scale the sector split by the
+    // realized ratio so sector totals reconcile with the regional sums
+    const uniformElec = globalServiceBase * elecFinalFactor;
+    const elecRealization = uniformElec > 0 ? globalElec / uniformElec : 1;
 
     // Endogenous robot adoption (logistic + energy/wage drivers)
     const prevRobots = state.robotsPer1000;
@@ -1389,8 +1420,8 @@ export const demandModule: Module<
       // shared helper, so sector final energy shrinks with electrification.
       const sectorService = sectorEnergyBase * sectorParams.share;
       const f = sectorFinalFactors(sectorParams, sectorElecRate);
-      const sectorElectric = sectorService * f.elec;
-      const sectorNonElectric = sectorService * f.nonElec;
+      const sectorElectric = sectorService * f.elec * elecRealization;
+      const sectorNonElectric = sectorService * (f.nonElec + f.elec * (1 - elecRealization));
 
       sectors[sectorKey] = {
         total: sectorElectric + sectorNonElectric,
