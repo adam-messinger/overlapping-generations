@@ -1,19 +1,16 @@
 {
   "name": "AI Energy Boom",
-  "description": "Hypothesis scenario: no effective demand cap on energy — AI compute and robotics have near-unbounded appetite, and the binding constraint is financing, not saturation. Datacenter and robot ceilings are lifted an order of magnitude (60,000 TWh / 3,000 per 1000 workers) so they never bind within the horizon; automation gains a production payoff (robots ~2 worker-equivalents each per Acemoglu-Restrepo 2020 magnitudes; compute ~100k worker-equivalents/TWh, i.e. today's ~500 TWh augments ~1% of the workforce); and the energy-capex share of investment is endogenous (competes for the savings pool up to 60%, vs the baseline's fixed 30% ramp). What limits growth here is savings, WACC, and regional financing spreads — the model's financing machinery — rather than assumed demand ceilings. The baseline retains all ceilings and zero payoff; this scenario is the explicit alternative hypothesis, not a calibrated forecast.",
-
+  "description": "Hypothesis scenario: no effective demand cap on energy — AI compute and robotics have near-unbounded appetite, and the binding constraint is financing, not saturation. Datacenter and robot ceilings are lifted an order of magnitude (60,000 TWh / 3,000 per 1000 workers) so they never bind within the horizon, and compute gains a cognitive labor payoff (aiWorkerEquivalentPerTWh 1e5: today's ~500 TWh augments ~1% of the workforce; the baseline default is 0). Since the 2026 accounting reconciliation, automation energy is intermediate consumption in ALL scenarios and robots carry the Acemoglu-Restrepo payoff (2 worker-equivalents) by default, so this scenario's distinct levers are the lifted ceilings, the AI payoff, and the endogenous energy-capex share (cleanShareFlex 1, up to 60% of investment). Whether AI compute growth nets positive GDP depends on the payoff magnitude vs its energy cost — that tension is the point of the scenario. Uncalibrated hypothesis, not a forecast.",
   "demand": {
     "dataCenterSaturation": 60000,
     "dataCenterBaseGrowth": 0.15,
     "robotSaturation": 3000,
     "robotBaseGrowth": 0.15
   },
-
   "production": {
     "robotLaborEquivalent": 2,
     "aiWorkerEquivalentPerTWh": 100000
   },
-
   "energy": {
     "cleanShareFlex": 1,
     "cleanShareMax": 0.6

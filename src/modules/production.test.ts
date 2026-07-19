@@ -33,15 +33,32 @@ function yearZero(params = productionModule.mergeParams({})) {
 
 console.log('\n=== Production Module Tests ===\n');
 
-test('automation payoff defaults to off: robot/DC inputs do not move GDP', () => {
-  const params = productionModule.mergeParams({});
-  const base = productionModule.step(
+test('automation energy is intermediate consumption: subtracted from E', () => {
+  // Robot/DC electricity must NOT count as productive useful energy — a
+  // pure consumption load raising GDP through E^gamma was a
+  // perpetual-motion channel. Year 1 with a large parasitic load (payoff
+  // channels zeroed) must produce less GDP than without it.
+  const params = productionModule.mergeParams({
+    robotLaborEquivalent: 0, aiWorkerEquivalentPerTWh: 0,
+  });
+  const y0 = productionModule.step(
     productionModule.init(params), makeInputs(), params, 2025, 0);
-  const withAutomation = productionModule.step(
-    productionModule.init(params),
-    makeInputs({ robotsPer1000: 500, dataCenterLoadTWh: 50000 }),
-    params, 2025, 0);
-  expect(withAutomation.outputs.gdp).toBeCloseTo(base.outputs.gdp, 9);
+  const clean = productionModule.step(
+    y0.state, makeInputs(), params, 2026, 1);
+  const parasitic = productionModule.step(
+    y0.state, makeInputs({ robotLoadTWh: 5000, dataCenterLoadTWh: 5000 }),
+    params, 2026, 1);
+  expect(parasitic.outputs.gdp).toBeLessThan(clean.outputs.gdp);
+  expect(parasitic.outputs.productionUsefulEnergy)
+    .toBeLessThan(clean.outputs.productionUsefulEnergy);
+});
+
+test('robot payoff default is the Acemoglu-Restrepo-grounded 2', () => {
+  // With automation energy subtracted from E, the labor term is the ONLY
+  // channel robots affect output — a zero default would make the baseline
+  // build a large fleet of pure parasitic machines.
+  expect(productionDefaults.robotLaborEquivalent).toBe(2);
+  expect(productionDefaults.aiWorkerEquivalentPerTWh).toBe(0);
 });
 
 test('robot labor equivalent raises GDP with automation growth', () => {
@@ -62,15 +79,21 @@ test('robot labor equivalent raises GDP with automation growth', () => {
   expect(y0.outputs.gdp).toBeCloseTo(y0Off.outputs.gdp, 9);
 });
 
-test('AI compute worker-equivalents raise GDP with compute growth', () => {
-  const params = productionModule.mergeParams({ aiWorkerEquivalentPerTWh: 1e5 });
-  const y0 = productionModule.step(
-    productionModule.init(params), makeInputs({ dataCenterLoadTWh: 500 }), params, 2025, 0);
-  const flat = productionModule.step(
-    y0.state, makeInputs({ dataCenterLoadTWh: 500 }), params, 2026, 1);
-  const growing = productionModule.step(
-    y0.state, makeInputs({ dataCenterLoadTWh: 5000 }), params, 2026, 1);
-  expect(growing.outputs.gdp).toBeGreaterThan(flat.outputs.gdp);
+test('AI compute payoff flows through the labor channel', () => {
+  // Compute growth both consumes energy (subtracted from E) and, with
+  // aiWorkerEquivalentPerTWh > 0, augments labor. Isolate the payoff:
+  // identical compute growth with and without the payoff — the payoff run
+  // must produce more GDP. (Whether growth NETS positive depends on the
+  // payoff magnitude vs the energy cost, which is scenario territory.)
+  const paramsOn = productionModule.mergeParams({ aiWorkerEquivalentPerTWh: 1e5 });
+  const paramsOff = productionModule.mergeParams({ aiWorkerEquivalentPerTWh: 0 });
+  const run = (params: typeof paramsOn) => {
+    const y0 = productionModule.step(
+      productionModule.init(params), makeInputs({ dataCenterLoadTWh: 500 }), params, 2025, 0);
+    return productionModule.step(
+      y0.state, makeInputs({ dataCenterLoadTWh: 5000 }), params, 2026, 1);
+  };
+  expect(run(paramsOn).outputs.gdp).toBeGreaterThan(run(paramsOff).outputs.gdp);
 });
 
 test('automation payoff validation rejects out-of-range values', () => {
@@ -89,28 +112,26 @@ test('calibrated Ayres-Warr exponents are pinned', () => {
 });
 
 test('1990-2025 growth backcast reproduces observed world GDP', () => {
-  // The efficiency engine (eta0/etaMax/lambda) is calibrated so that the
-  // production structure, anchored in 1990 and driven with observed world
-  // inputs, reproduces observed 2025 GDP ($158T WDI PPP) — see
-  // scripts/growth-backcast.md. This pins the calibration across all
-  // production params AND the historical data: changing elasticities,
-  // efficiency params, or the observed series without re-solving lambda
-  // breaks this test rather than silently decalibrating the model.
+  // The efficiency series (eta0/etaMax/serviceEfficiencyGrowth) must let
+  // the production structure, anchored in 1990 and driven with observed
+  // world inputs, reproduce observed 2025 GDP ($158T WDI PPP) — see
+  // scripts/growth-backcast.md. Changing elasticities, efficiency params,
+  // or the observed series breaks this pin rather than silently
+  // decalibrating the model.
   const r = runGrowthBackcast();
   const predicted2025 = r.gdpPath[r.gdpPath.length - 1];
   const observed2025 = r.gdpObserved[r.gdpObserved.length - 1];
   expect(Math.abs(predicted2025 / observed2025 - 1)).toBeLessThan(0.05);
 
-  // Independent check the solver was not fitted to: the backcast's implied
+  // Independent check the assumed rate was not fitted to: the backcast's implied
   // 2025 second-law efficiency must land in Brockway et al. (2018)'s
   // measured ~0.20-0.25 band (started from De Stercke's 0.15 in 1990).
   expect(r.final.eta).toBeBetween(0.19, 0.27);
 
-  // The forward defaults are DERIVED from this backcast; enforce the
+  // The forward default eta0 is DERIVED from this backcast; enforce the
   // derivation, not just the prose: the 2025-anchored run must start where
-  // the 1990-anchored run ends (same eta, same point on the learning curve).
+  // the 1990-anchored run ends.
   expect(Math.abs(productionDefaults.endUseEfficiency0 - r.final.eta)).toBeLessThan(0.01);
-  expect(Math.abs(productionDefaults.cumulativeWorkHistory - r.impliedHistory2025)).toBeLessThan(1);
 });
 
 test('year 0 normalizes GDP to initialGDP with unit contributions', () => {

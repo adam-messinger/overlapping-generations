@@ -284,6 +284,17 @@ const FOSSIL_SOURCES: EnergySource[] = ['gas', 'coal'];
 
 /**
  * Build lag configurations, deriving initial values from params where possible.
+ *
+ * Three categories of lag initialization:
+ * 1. STOCKS (capitalStock, temperature, laggedGdp, robotsPer1000): calibrated
+ *    end-of-2024 levels — never bootstrap (a warm-up value would inject a
+ *    one-year-forward bias).
+ * 2. FLOWS with a calibrated 2025 observable (dataCenterLoadTWh): keep the
+ *    observed anchor as initial; bootstrap optional but the anchor is better.
+ * 3. FLOWS without a reliable hand value (generation, non-electric energy,
+ *    overheads, damages, prices, rates): bootstrap: true — the warm-up pass
+ *    (bootstrapLags below) replaces the initial with the year-0
+ *    self-consistent value, so the listed initial is only a warm-up seed.
  */
 function buildLags(params: SimulationParams) {
   const mergedClimate = climateModule.mergeParams(params.climate ?? {});
@@ -316,6 +327,7 @@ function buildLags(params: SimulationParams) {
       source: 'regionalDamages',
       delay: 1,
       initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      bootstrap: true,
     },
 
     // Production needs lagged energy burden damage (from demand.burdenDamage)
@@ -323,6 +335,7 @@ function buildLags(params: SimulationParams) {
       source: 'burdenDamage',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Capital needs lagged GDP-weighted damages (matches manual path)
@@ -330,6 +343,7 @@ function buildLags(params: SimulationParams) {
       source: 'gdpWeightedDamages',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Resources needs lagged temperature
@@ -344,6 +358,7 @@ function buildLags(params: SimulationParams) {
       source: 'weightedAverageLCOE',
       delay: 1,
       initial: 50,  // No direct param source; 50 $/MWh is reasonable default
+      bootstrap: true,
     },
 
     // Capital needs lagged net energy factor (from computed transform)
@@ -351,6 +366,7 @@ function buildLags(params: SimulationParams) {
       source: 'netEnergyFactorComputed',
       delay: 1,
       initial: 1,
+      bootstrap: true,
     },
 
     // Production needs lagged capital stock
@@ -367,6 +383,7 @@ function buildLags(params: SimulationParams) {
       source: 'totalGeneration',
       delay: 1,
       initial: totalGen,
+      bootstrap: true,
     },
 
     // Production needs lagged non-electric energy
@@ -374,6 +391,7 @@ function buildLags(params: SimulationParams) {
       source: 'nonElectricEnergy',
       delay: 1,
       initial: 92000,  // ~92,000 TWh in 2025 (IEA); no direct param source
+      bootstrap: true,
     },
 
     // Production needs lagged food stress
@@ -381,6 +399,7 @@ function buildLags(params: SimulationParams) {
       source: 'foodStress',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Production needs lagged resource energy
@@ -388,6 +407,7 @@ function buildLags(params: SimulationParams) {
       source: 'totalResourceEnergy',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Production needs lagged energy system overhead (embodied + operating)
@@ -395,6 +415,7 @@ function buildLags(params: SimulationParams) {
       source: 'energySystemOverheadComputed',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Production needs lagged CDR energy consumption (CDR competes for electricity)
@@ -402,15 +423,22 @@ function buildLags(params: SimulationParams) {
       source: 'cdrEnergyTWh',
       delay: 1,
       initial: 0,
+      bootstrap: true,
     },
 
     // Production needs lagged automation levels for the labor-augmentation
-    // payoff (demand runs after production; both default to a no-op via
-    // robotLaborEquivalent/aiWorkerEquivalentPerTWh = 0)
+    // payoff and the intermediate-consumption energy subtraction (demand
+    // runs after production)
     robotsPer1000: {
       source: 'robotsPer1000',
       delay: 1,
       initial: mergedDemand.robotBaseline2025,
+    },
+    robotLoadTWh: {
+      source: 'robotLoadTWh',
+      delay: 1,
+      initial: 0,
+      bootstrap: true, // flow: warm-up sets the 2025-consistent fleet load
     },
     dataCenterLoadTWh: {
       source: 'dataCenterLoadTWh',
@@ -422,14 +450,16 @@ function buildLags(params: SimulationParams) {
     mineralConstraint: {
       source: 'mineralConstraint',
       delay: 1,
-      initial: 1.0,  // No constraint in year 0
+      initial: 1.0,  // warm-up seed (bootstrapped)
+      bootstrap: true,
     },
 
     // Energy needs lagged curtailment rate (dispatch runs after energy)
     laggedCurtailmentRate: {
       source: 'curtailmentRate',
       delay: 1,
-      initial: 0,  // No curtailment in year 0
+      initial: 0,  // warm-up seed (bootstrapped)
+      bootstrap: true,
     },
 
     // Energy + CDR need lagged interest rate (capital runs before energy)
@@ -437,6 +467,7 @@ function buildLags(params: SimulationParams) {
       source: 'interestRate',
       delay: 1,
       initial: 0.05,  // ~5% initial real rate
+      bootstrap: true,
     },
 
     // CDR needs lagged GDP for damage-flow growth in the SCC annuity
@@ -451,6 +482,7 @@ function buildLags(params: SimulationParams) {
       source: 'regionalFossilShare',
       delay: 1,
       initial: regionalFossilShareInit as Record<Region, number>,
+      bootstrap: true,
     },
   };
 }
@@ -491,6 +523,11 @@ export function runAutowiredSimulation(
     startYear: params.startYear ?? 2025,
     endYear: params.endYear ?? 2100,
     trackReads: options?.trackReads,
+    // Fixed-point warm-up: flow lags (generation, non-electric energy,
+    // overheads, damages, prices) get their year-0 self-consistent values
+    // instead of hand-guessed constants — kills the spurious -5.5% GDP step
+    // the old initials produced in the first simulated year.
+    bootstrapLags: 2,
   });
 }
 

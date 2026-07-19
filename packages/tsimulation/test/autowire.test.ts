@@ -974,3 +974,62 @@ test('validateWiring allows dependsOn:[] transform that is not a lag source (par
     endYear: 2025,
   });
 });
+
+// =============================================================================
+// BOOTSTRAP LAGS (fixed-point warm-up initialization)
+// =============================================================================
+
+// Shared fixtures: a constant-flow emitter and a lagged consumer. With a
+// wrong hand-guessed lag initial, year 0 sees the guess and year 1 the true
+// value — a spurious step the warm-up must (only when flagged) eliminate.
+const constantFlowModule = defineModule({
+  name: 'constantFlow',
+  description: 'Emits a constant flow',
+  defaults: {},
+  inputs: [] as const,
+  outputs: ['flow'] as const,
+  validate: okValidate,
+  mergeParams: (p) => p,
+  init: () => ({}),
+  step: () => ({ state: {}, outputs: { flow: 100 } }),
+});
+
+const laggedEchoModule = defineModule({
+  name: 'laggedEcho',
+  description: 'Echoes its lagged input',
+  defaults: {},
+  inputs: ['laggedFlow'] as const,
+  outputs: ['seen'] as const,
+  validate: okValidate,
+  mergeParams: (p) => p,
+  init: () => ({}),
+  step: (_s, inputs) => ({ state: {}, outputs: { seen: inputs.laggedFlow } }),
+});
+
+const bootstrapFixtureConfig = (bootstrap: boolean) => ({
+  modules: [constantFlowModule, laggedEchoModule],
+  lags: {
+    laggedFlow: { source: 'flow', delay: 1, initial: 55, bootstrap },
+  },
+  startYear: 2025,
+  endYear: 2026,
+});
+
+test('bootstrapLags replaces flagged lag initials with year-0 source values', () => {
+  // Without bootstrap iterations: year 0 sees the wrong guess (55)
+  const cold = runAutowired(bootstrapFixtureConfig(true));
+  assert.equal(getOutputsAtYear(cold, 0).seen, 55);
+  assert.equal(getOutputsAtYear(cold, 1).seen, 100);
+
+  // With bootstrap: year 0 already sees the self-consistent value
+  const warm = runAutowired({ ...bootstrapFixtureConfig(true), bootstrapLags: 2 });
+  assert.equal(getOutputsAtYear(warm, 0).seen, 100);
+  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
+});
+
+test('bootstrapLags leaves unflagged (stock) lags at their calibrated initials', () => {
+  const warm = runAutowired({ ...bootstrapFixtureConfig(false), bootstrapLags: 2 });
+  // Calibrated initial preserved in year 0
+  assert.equal(getOutputsAtYear(warm, 0).seen, 55);
+  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
+});

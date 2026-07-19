@@ -3,12 +3,11 @@
  *
  * Used by scripts/growth-backcast.ts (diagnostic report) and by the
  * calibration-pinning test in production.test.ts. The production module's
- * endogenous-efficiency parameters (endUseEfficiency0 at the 1990 anchor,
- * endUseLearningExponent) are calibrated so that this backcast reproduces
- * observed 2025 GDP — see the "Calibration" section of
- * scripts/growth-backcast.md. Changing production elasticities, efficiency
- * params, or this data without re-running the calibration breaks the pin
- * rather than silently decalibrating the model.
+ * efficiency series (endUseEfficiency0 at the 1990 anchor, growing at
+ * serviceEfficiencyGrowth — the same rate as demand's autonomous intensity
+ * decline) must reproduce observed 2025 GDP when driven with observed
+ * inputs. Changing production elasticities, efficiency params, or this
+ * data breaks the pin rather than silently decalibrating the model.
  *
  * All values approximate (±5-10%); the backcast conclusions rest on
  * growth-rate gaps several times that uncertainty. Sources:
@@ -63,14 +62,6 @@ export const DELIVERY_FACTOR = 0.92;
  */
 export const ETA_1990 = 0.15;
 
-/**
- * Prior useful-work experience at the 1990 anchor, in years of 1990-level
- * consumption (~30 years of modern energy use, matching the forward run's
- * original convention; the forward default cumulativeWorkHistory is this
- * base plus observed 1990-2024 consumption, expressed in 2025 units).
- */
-export const HISTORY_1990 = 30;
-
 export interface GrowthBackcastResult {
   /** Predicted GDP $T for each year 1990..2025 */
   gdpPath: number[];
@@ -78,12 +69,6 @@ export interface GrowthBackcastResult {
   gdpObserved: number[];
   /** Final-year (2025) production outputs */
   final: ProductionOutputs;
-  /**
-   * Cumulative useful work at end of backcast, in years of 2025-level
-   * consumption — the value the forward default cumulativeWorkHistory must
-   * equal for the 2025-anchored run to sit on the same learning curve.
-   */
-  impliedHistory2025: number;
   /** Annualized driving series */
   series: {
     electricity: number[];
@@ -114,7 +99,6 @@ export function runGrowthBackcast(
   const params = productionModule.mergeParams({
     initialGDP: OBSERVED_WORLD.gdp[0],
     endUseEfficiency0: ETA_1990,
-    cumulativeWorkHistory: HISTORY_1990,
     ...overrides,
   });
 
@@ -151,9 +135,6 @@ export function runGrowthBackcast(
     gdpPath,
     gdpObserved,
     final,
-    impliedHistory2025: final.productionUsefulEnergy > 0
-      ? state.cumulativeUsefulWork / final.productionUsefulEnergy
-      : 0,
     series: { electricity, nonElectric, totalFinal, capital, workingAge, college },
   };
 }
