@@ -43,10 +43,10 @@ export interface ProductionParams {
   foodStressElasticity: number; // GDP reduction per unit food stress (0.3)
 
   // End-use efficiency (Wright's Law on cumulative useful work)
-  endUseEfficiency0: number;        // η₀: initial second-law efficiency (0.35)
+  endUseEfficiency0: number;        // η₀: second-law efficiency at run start (0.23)
   endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
-  endUseLearningExponent: number;   // λ: Wright's Law exponent (0.25)
-  cumulativeWorkHistory: number;    // Years of prior useful work experience (30)
+  endUseLearningExponent: number;   // λ: Wright's Law exponent (0.21, backcast-calibrated)
+  cumulativeWorkHistory: number;    // Years of prior useful work experience (42)
 
   // Organizational efficiency (education-driven)
   orgEfficiencySensitivity: number;    // φ: sensitivity to college share gain (0.35)
@@ -61,10 +61,13 @@ export const productionDefaults: ProductionParams = {
   electricExergy: 0.95,       // Electricity is nearly pure useful work
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
   foodStressElasticity: 0.3,  // 30% GDP hit at full food stress
-  endUseEfficiency0: 0.35,
-  endUseEfficiencyMax: 0.60,
-  endUseLearningExponent: 0.25,
-  cumulativeWorkHistory: 30,        // ~30yr of modern energy use before 2025
+  // End-use (second-law) efficiency: level anchors from the exergy-economics
+  // literature, speed calibrated to the 1990-2025 growth backcast
+  // (scripts/growth-backcast.ts; pinned in production.test.ts).
+  endUseEfficiency0: 0.23,          // world second-law efficiency 2025, Brockway et al. (2018) ~0.20-0.25; backcast from 1990's 0.15 (De Stercke 2014) lands at 0.234
+  endUseEfficiencyMax: 0.60,        // practical thermodynamic potential, Cullen & Allwood (2010)
+  endUseLearningExponent: 0.21,     // solved so the 1990-anchored backcast reproduces observed 2025 GDP ($158T WDI)
+  cumulativeWorkHistory: 42,        // 1990 base (30yr) + observed 1990-2024 useful work, in 2025 units — derived in growth-backcast.md
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
 };
@@ -281,8 +284,9 @@ export const productionModule: Module<
       initialCapital = capitalStock;
       initialLabor = effectiveWorkers;
       initialUsefulEnergy = productionUsefulEnergy;
-      // Historical baseline: humanity has ~30 years of modern useful work experience
-      // This damps the early learning rate (prevents front-loading where ratio doubles in year 1)
+      // Historical baseline: prior useful-work experience (cumulativeWorkHistory
+      // years at the anchor-year rate) damps the early learning rate
+      // (prevents front-loading where the cumulative ratio doubles in year 1)
       cumulativeUsefulWork = productionUsefulEnergy * params.cumulativeWorkHistory;
       initialCollegeShare = collegeShare;
     } else {
