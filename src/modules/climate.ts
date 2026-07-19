@@ -29,7 +29,7 @@
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
-import { quadraticDamage, smoothStep } from '../primitives/math.js';
+import { lerp, quadraticDamage, smoothStep } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -408,10 +408,13 @@ export const climateModule: Module<
       params.phSensitivity * Math.log2(co2ppm / params.preindustrialCO2);
 
     // Radiative forcing: CO2 (from cumulative emissions) plus the exogenous
-    // non-CO2 overlay, linearly interpolated 2025 -> 2100, constant after.
-    const nonCO2Fraction = Math.min(1, Math.max(0, yearIndex / 75));
-    const nonCO2Forcing = params.nonCO2Forcing2025 +
-      nonCO2Fraction * (params.nonCO2Forcing2100 - params.nonCO2Forcing2025);
+    // non-CO2 overlay, linearly interpolated between its calendar-anchored
+    // endpoints (lerp clamps, so it is constant after 2100).
+    const nonCO2Forcing = lerp(
+      params.nonCO2Forcing2025,
+      params.nonCO2Forcing2100,
+      (year - 2025) / 75,
+    );
     const forcing =
       params.forcingPerDoubling *
         Math.log2(co2ppm / params.preindustrialCO2) +

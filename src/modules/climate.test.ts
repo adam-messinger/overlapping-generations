@@ -6,6 +6,7 @@
  */
 
 import { climateModule, climateDefaults } from './climate.js';
+import { cdrDefaults } from './cdr.js';
 import { test, expect, printSummary } from '../test-utils.js';
 
 // =============================================================================
@@ -188,6 +189,26 @@ test('damage function reproduces its documented calibration quantitatively', () 
   const state = climateModule.init(climateDefaults);
   const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
   expect(outputs.damages).toBeBetween(0.011, 0.013);
+});
+
+test('cdr default TCRE matches climate\'s emergent warming per GtCO2', () => {
+  // cdr.tcre is a parameter-isolated duplicate of climate's emergent
+  // warming-per-GtCO2. Measured module-only — constant emissions, non-CO2
+  // overlay held at its 2025 level — so the delta is the CO2 response alone,
+  // with no cross-module couplings to neutralize. If climate's sensitivity
+  // default or temperature formula drifts, this fails instead of the SCC
+  // gate silently miscalibrating.
+  const params = climateModule.mergeParams({
+    nonCO2Forcing2100: climateDefaults.nonCO2Forcing2025,
+  });
+  let state = climateModule.init(params);
+  const T0 = state.temperature;
+  const E0 = state.cumulativeEmissions;
+  for (let i = 0; i < 75; i++) {
+    state = climateModule.step(state, { emissions: 30 }, params, 2025 + i, i).state;
+  }
+  const emergent = (state.temperature - T0) / (state.cumulativeEmissions - E0);
+  expect(Math.abs(emergent - cdrDefaults.tcre) / cdrDefaults.tcre).toBeLessThan(0.2);
 });
 
 test('rising non-CO2 forcing adds warming over the century', () => {

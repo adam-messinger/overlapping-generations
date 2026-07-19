@@ -424,6 +424,13 @@ function buildLags(params: SimulationParams) {
       initial: 0.05,  // ~5% initial real rate
     },
 
+    // CDR needs lagged GDP for damage-flow growth in the SCC annuity
+    laggedGdp: {
+      source: 'gdp',
+      delay: 1,
+      initial: 155,  // ~2024 GDP ($T), consistent with ~2% trend into the 2025 anchor
+    },
+
     // Demand needs lagged regional fossil share (for energy cost → GDP share feedback)
     regionalFossilShare: {
       source: 'regionalFossilShare',
