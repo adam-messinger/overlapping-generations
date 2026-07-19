@@ -22,12 +22,12 @@ under observed 2025 GDP), and its solved λ sat on a ridge with an
 unsourced history parameter. The current mechanism replaces the solver
 entirely:
 
-- **η(1990) = 0.15** — De Stercke (2014) world exergy efficiency
+- **η(1990) = 0.15** — effective-index start (De Stercke lineage; measured 1990 second-law eta ~0.18, see methodology below)
 - **η_max = 0.6** — Cullen & Allwood (2010) practical potential
 - **η growth = 1.29%/yr** — the SAME series as demand's GDP-weighted autonomous
   intensity decline (one physical process, two views; consistency-pinned)
 - **Implied η(2025) = 0.235** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
-  independent check the assumed rate was not fitted to
+  consistency check on the bundle (see methodology below), not an identity
 
 The assumed rate is not fitted to GDP: it is demand's intensity-decline
 parameter (IEA history). Methodology (per the calibration review): the
@@ -100,9 +100,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 1.92%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 1.63%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.85%/yr |
+| Capital growth | 3.54%/yr | 1.81%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 1.41%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.69%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking

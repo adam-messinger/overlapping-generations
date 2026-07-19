@@ -43,9 +43,9 @@ export interface ProductionParams {
   thermalExergy: number;      // Exergy factor for direct fuel use (0.35)
   foodStressElasticity: number; // GDP reduction per unit food stress (0.3)
 
-  // End-use (second-law) efficiency: single coupled series with demand's
-  // autonomous intensity decline (two views of one physical process)
-  endUseEfficiency0: number;        // η₀: second-law efficiency at run start (0.23)
+  // Effective service-efficiency index: single coupled series with demand's
+  // autonomous intensity decline (see methodology note in the defaults)
+  endUseEfficiency0: number;        // η₀: effective index at run start (0.23)
   endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
   serviceEfficiencyGrowth: number;  // η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
 
@@ -153,7 +153,7 @@ export interface ProductionOutputs {
   efficiencyLevel: number;
   /** End-use efficiency multiplier (η/η₀) */
   endUseEfficiency: number;
-  /** Current second-law efficiency η(t) */
+  /** Current effective service-efficiency index η(t) */
   eta: number;
 }
 

@@ -123,9 +123,9 @@ test('1990-2025 growth backcast reproduces observed world GDP', () => {
   const observed2025 = r.gdpObserved[r.gdpObserved.length - 1];
   expect(Math.abs(predicted2025 / observed2025 - 1)).toBeLessThan(0.05);
 
-  // Independent check the assumed rate was not fitted to: the backcast's implied
-  // 2025 second-law efficiency must land in Brockway et al. (2018)'s
-  // measured ~0.20-0.25 band (started from De Stercke's 0.15 in 1990).
+  // Consistency check on the effective-index bundle (see the methodology
+  // note in production.ts): the backcast's implied 2025 eta must land in
+  // Brockway et al. (2018)'s measured ~0.20-0.25 band.
   expect(r.final.eta).toBeBetween(0.19, 0.27);
 
   // The forward default eta0 is DERIVED from this backcast; enforce the

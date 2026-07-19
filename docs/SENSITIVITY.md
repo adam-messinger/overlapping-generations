@@ -34,7 +34,11 @@ emissions release valve (signed electrification pressure with reversal
 hysteresis) and the rising airborne fraction, the scenario space spans
 ~1.55C (ssp1-19) to ~3.3C (ssp5-85) — a genuine tail exists. The
 gamma x damage grid's narrow band reflects those parameters specifically;
-scenario-level warming uncertainty is much wider.
+scenario-level warming uncertainty is much wider. The tail still stops
+~1.1 °C short of the literature SSP markers (ssp5-85 achieves 3.3 °C vs
+the nominal 4.4 °C), so damage stress-tests at literature SSP
+temperatures still require climate-sensitivity overrides, not emissions
+alone.
 
 The fast transition is driven by Wright's-Law solar economics flipping the
 competitiveness gate — not by the biophysical production function. Doubting

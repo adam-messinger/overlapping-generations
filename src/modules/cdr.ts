@@ -75,12 +75,15 @@ export const cdrDefaults: CDRParams = {
   sccHorizonYears: 100,   // NPV horizon; rationale and source in paramMeta
 
   damageCoeff: 0.00536,   // Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate module default
-  // °C per Gt CO2 (IPCC AR6: ~0.45°C per 1000 Gt). Duplicated here because
-  // modules are parameter-isolated: this approximates the climate module's
-  // EMERGENT TCRE (~0.00044 at default sensitivity 3.0). Scenarios that change
-  // climate sensitivity should override this to match, or the SCC gate and
-  // realized warming silently diverge.
-  tcre: 0.00058,  // mirrors climate's 75-yr emergent warming/GtCO2 with the rising airborne fraction (consistency-pinned in climate.test.ts); AR6 central 0.00045 is the 30-yr marginal
+  // Mirrors the climate module's 75-yr EMERGENT warming/GtCO2 (0.00058 at
+  // default sensitivity 3.0 and airborneFractionSlope 0.05) — the emergent
+  // average rather than the 30-yr marginal (0.00045, AR6 central) because
+  // the SCC annuity integrates damages over the full deployment horizon.
+  // Duplicated here because modules are parameter-isolated; pinned to
+  // climate's emergent value in climate.test.ts. Scenarios overriding
+  // climate sensitivity OR airborneFractionSlope should override this to
+  // match, or the SCC gate and realized warming silently diverge.
+  tcre: 0.00058,
 };
 
 // =============================================================================

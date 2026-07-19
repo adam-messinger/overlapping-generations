@@ -184,12 +184,21 @@ export interface ClimateOutputs {
  * capped at 0.6. At the 2025 anchor this reduces to af0 exactly, so the
  * 424-ppm calibration is unchanged.
  */
+/**
+ * Ceiling on the airborne fraction under extreme cumulative emissions —
+ * AR6 projects the fraction rising toward ~0.55-0.6 under high-emission
+ * pathways as ocean/land sinks saturate. At default slope this binds at
+ * ~6,300 Gt cumulative, which ssp5-85 (~142 Gt/yr late-century) crosses
+ * around the 2080s: the saturation feedback flattens there.
+ */
+const MAX_AIRBORNE_FRACTION = 0.6;
+
 function effectiveAirborneFraction(
   cumulative: number,
   params: ClimateParams
 ): number {
   return Math.min(
-    0.6,
+    MAX_AIRBORNE_FRACTION,
     params.airborneFraction +
       params.airborneFractionSlope * Math.max(0, cumulative - params.cumulativeCO2_2025) / 1000
   );
@@ -286,6 +295,11 @@ export const climateModule: Module<
   validate(params: Partial<ClimateParams>): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
+
+    if (params.airborneFractionSlope !== undefined &&
+        (params.airborneFractionSlope < 0 || params.airborneFractionSlope > 0.15)) {
+      errors.push('airborneFractionSlope must be between 0 and 0.15 per 1000 Gt');
+    }
 
     const p = { ...climateDefaults, ...params };
 
