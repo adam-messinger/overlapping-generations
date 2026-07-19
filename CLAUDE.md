@@ -284,11 +284,13 @@ Full output list available via `describeOutputs()`.
 
 ## Academic Sources
 
-See `sources/` for detailed references:
-- **Galbraith/Chen**: Entropy economics, energy transitions
-- **Odum**: Maximum Power Principle
-- **Schlenker/Roberts**: Climate-yield relationships
-- **DICE-2023**: Climate damage functions
-- **Fernández-Villaverde**: Demographic projections
-- **Reinhart/Sbrancia**: Financial repression, debt erosion via negative real rates
-- **Ayres/Warr**: Useful energy as production factor (biophysical economics)
+See `sources/` for detailed references. Sources listed here are implemented in
+code; background reading that inspired the project but has no code referent
+(Odum's Maximum Power Principle, Reinhart-Sbrancia financial repression, the
+Weber sellers'-inflation papers) lives in `sources/` without being claimed
+here.
+- **Ayres/Warr**: Useful energy as production factor (biophysical economics) — the production function
+- **Fernández-Villaverde**: Demographic projections — fertility convergence
+- **DICE-2023/Howard-Sterner**: Climate damage function (quadratic midpoint)
+- **Schlenker/Roberts**: Climate-yield relationships (stylized transfer)
+- **Galbraith/Chen**: a single uncertainty-damping factor on savings (`stabilityLambda`); the full entropy-economics framework is NOT implemented

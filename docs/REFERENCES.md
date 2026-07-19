@@ -183,12 +183,12 @@ Adds wet-bulb temperature effects on outdoor labor productivity, with severe imp
 
    Quantifies labor capacity reduction as a function of wet-bulb globe temperature. Projects 2-12% peak-month labor capacity loss by 2050 under RCP scenarios. Provides the transfer function we implement.
 
+### Supporting References
+
 3. **Burke, Hsiang & Miguel (2015)** `[PDF: burke-hsiang-miguel-2015.pdf]`
    Burke, M., Hsiang, S.M., & Miguel, E. (2015). "Global non-linear effect of temperature on economic production." *Nature*, 527(7577), 235-239. DOI: 10.1038/nature15725
 
-   Economic productivity peaks at 13C annual average temperature and declines strongly at higher temperatures. Non-linear relationship is globally generalizable across 166 countries.
-
-### Supporting References
+   Economic productivity peaks at 13C annual average temperature and declines strongly at higher temperatures. NOT implemented: the model's damage function is DICE-quadratic and the labor channel follows Dunne et al. above. BHM motivates the growth-effects damage anchor in the `docs/SENSITIVITY.md` sweep, nothing more — listed as supporting, not primary.
 
 4. **Coffel, Horton & de Sherbinin (2018)**
    Coffel, E.D., Horton, R., & de Sherbinin, A. (2018). "Temperature and humidity based projections of a rapid rise in global heat stress exposure during the 21st century." *Environmental Research Letters*, 13(1), 014001. DOI: 10.1088/1748-9326/aaa00e

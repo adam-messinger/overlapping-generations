@@ -7,8 +7,6 @@
  *
  * Theoretical basis:
  * - Fernández-Villaverde: GDP per working-age adult as key metric
- * - Ole Peters: Ergodicity economics (time-average vs ensemble-average)
- * - Odum: Energy as basis of real wealth
  *
  * GDP growth equation (Ayres/Warr):
  *   growthRate = residualTFP + ε·usefulWorkGrowth + α·capitalGrowth + (1-α)·laborGrowth + demographicAdj
