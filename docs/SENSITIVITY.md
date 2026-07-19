@@ -18,16 +18,18 @@ constrained parameters:
 `scripts/gamma-damage-sensitivity.ts` runs the full simulation over the 4×4
 grid and regenerates `scripts/gamma-damage-sensitivity.md` — **that generated
 file is the source of truth for all exact figures**; numbers quoted below are
-illustrative, from the July 2026 run, and are not updated automatically when
+illustrative, from the July 2026 run *after* the demand-side corrections
+(efficiency-corrected electricity accounting, IEA sector shares, historical
+intensity decline, retail pricing), and are not updated automatically when
 the model changes. Qualitative summary:
 
 ## What is robust across the entire grid
 
 The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
-damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in single digits
-(3.5–6.7% in the July 2026 run), electrification moves by less than two
-percentage points, warming 2100 varies by ~0.15 °C, and the peak energy
-burden stays near 4% of GDP.
+damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in a narrow band
+(13.5–15.9% in the July 2026 run, reaching ~0 by 2075), electrification 2050
+is pinned at ~62%, warming 2100 varies by only ~0.03 °C, and the peak energy
+burden stays at ~6.7% of GDP.
 
 The fast transition is driven by Wright's-Law solar economics flipping the
 competitiveness gate — not by the biophysical production function. Doubting
@@ -35,31 +37,38 @@ Ayres-Warr is not a reason to doubt the transition trajectory. (The same
 robustness was found when the fossil depletion clock was removed: the
 transition survives its assumptions being individually knocked out.)
 
-## What is an artifact of the defaults
+## What changed with the demand-side corrections
 
-**GDP levels are almost entirely a bet on γ.** GDP 2100 spans roughly **5×
-across the grid** (≈$225T–$1,220T in the July 2026 run), nearly all of it
-from γ — see the "GDP 2100 by γ" table in the generated report for current
-values. At the mainstream γ the model produces an SSP2-like world (~$245T
-in 2100, ≈0.6%/yr growth); at the Ayres-Warr default it produces an
-energy-abundance boom (~2.7%/yr) far above any SSP marker. Any claim about
-absolute GDP, per-capita wealth, or the size of mid-century
-interest-rate/funding effects inherits this choice. Claims about *relative*
-effects (scenario deltas, regional comparisons, timing of the WACC peak)
-are much less exposed.
+Before the 2026 demand-side fixes, **GDP levels were almost entirely a bet
+on γ**: GDP 2100 spanned roughly 5× across the grid (≈$225T–$1,220T), with
+the Ayres-Warr default producing an energy-abundance boom (~2.7%/yr growth).
+That spread was substantially an accounting artifact — previously-electrified
+demand was counted at fuel-scale TWh, inflating useful-energy growth that γ
+then amplified into GDP.
 
-**The damage coefficient matters little — but only because warming stays
-low.** Even 6× DICE damages cut 2100 GDP by only ~10–20%, because the
-model's endogenous transition holds warming near 2 °C where any quadratic is
-small. This is conditional robustness: in high-sensitivity/tipping scenarios
-where warming runs higher, the damage-coefficient choice becomes
+After the corrections the grid collapses to **$148T–$200T (~1.35×)**, and
+the γ ordering *reverses*: higher γ now gives slightly *lower* GDP, because
+useful energy per worker stagnates or declines under realistic final-energy
+accounting (efficiency gains shrink final energy as electrification
+proceeds), so γ amplifies a mild decline instead of a boom. The default
+trajectory is near-flat GDP (~0.1%/yr to 2100) — an energy-constrained
+stagnation, not an energy-abundance boom. Absolute GDP levels remain the
+model's weakest output, but they are no longer hostage to a single
+elasticity.
+
+**The damage coefficient still matters little — but only because warming
+stays low.** Even 6× DICE damages cut 2100 GDP by only ~15%, because the
+model's endogenous transition holds warming near 2.3 °C where any quadratic
+is small. This is conditional robustness: in high-sensitivity/tipping
+scenarios where warming runs higher, the damage-coefficient choice becomes
 first-order. Damage-side conclusions should always be checked against the
 `high-sensitivity` and `climate-cascade` scenarios, not just the baseline.
 
 ## Guidance
 
-- Report GDP-level results with γ stated, or bracket them with the γ=0.25
-  row as a conservative bound.
+- Report GDP-level results with γ stated; the γ spread is now modest but the
+  *level* inherits the demand-side calibration (intensity decline, sector
+  efficiency multipliers) more than any single elasticity.
 - Transition-shape results (shares, timing, capacity mix) may be reported
   without γ caveats.
 - The pinning tests in `production.test.ts` and `climate.test.ts` guard the

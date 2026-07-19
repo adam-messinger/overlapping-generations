@@ -51,6 +51,35 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
   }
 });
 
+test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
+  // IEA WEO 2024 STEPS: ~55k TWh global electricity demand in 2050. The
+  // model's endogenous path lands near ~38k (≈0.7x STEPS) — before the 2026
+  // demand-accounting fixes it was ~245k (4.4x), an artifact of counting
+  // previously-electrified demand at fuel-scale TWh. The band is deliberately
+  // wide: it pins order-of-magnitude agreement with STEPS, not replication,
+  // and catches a regression to either the old inflation or a collapsed grid.
+  const result = runSimulation({ startYear: 2025, endYear: 2050 });
+  const y2050 = result.results[result.results.length - 1];
+  expect(y2050.electricityDemand).toBeGreaterThan(30_000);
+  expect(y2050.electricityDemand).toBeLessThan(65_000);
+});
+
+test('near-term electrification pace is fast but bounded', () => {
+  // Historical check: world electrification of final energy rose ~13% (1990)
+  // to ~20% (2023, IEA WEB) — ~0.22 pp/yr, fastest decade ~0.35 pp/yr. The
+  // model runs ~1.9 pp/yr over 2025-2035, ~5x faster than any historical
+  // decade, driven by the solar-storage cost crossover (which has no
+  // historical precedent). This test documents and bounds that divergence:
+  // the lower bound catches an accidentally-killed transition, the upper
+  // bound catches runaway electrification beyond even the model's thesis.
+  const result = runSimulation({ startYear: 2025, endYear: 2035 });
+  const first = result.results[0];
+  const last = result.results[result.results.length - 1];
+  const pacePerYear = (last.electrificationRate - first.electrificationRate) / 10;
+  expect(pacePerYear).toBeGreaterThan(0.005);
+  expect(pacePerYear).toBeLessThan(0.03);
+});
+
 test('cohort accounts reconcile to the next-year macro stocks', () => {
   const result = runSimulation({ startYear: 2025, endYear: 2026 });
   const first = result.results[0];
