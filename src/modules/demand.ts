@@ -47,13 +47,25 @@ interface SectorParams {
   efficiencyMultiplier: number;   // EV=3.5x, heat pump=3.0x, industry=1.1x
   maxAnnualChange: number;        // Infrastructure constraint (0.04/0.03/0.025)
   primaryFuel: 'oil' | 'gas';     // Which fuel sector competes with
+  // Retail electricity delivery adder $/MWh (T&D + retail margin over
+  // wholesale LCOE) for this sector's electrification decision
+  electricityDeliveryCost: number;
 }
 
 // Fuel parameters for non-electric energy
 interface FuelParams {
   share2025: number;              // Share of non-electric in 2025
   carbonIntensity: number;        // kg CO2 per MWh thermal
-  price: number;                  // Base fuel price $/MWh thermal
+  price: number;                  // Wholesale fuel price $/MWh thermal, 2025
+  // Real price path: price(year) = price x (1+priceEscalation)^yearIndex.
+  // Defaults 0 (flat real, IEA WEO STEPS-like); scenarios override (NZE-style
+  // demand-collapse pricing goes negative).
+  priceEscalation: number;
+  // Retail delivery margin $/MWh (refining/distribution/retail over
+  // wholesale). Enters the electrification comparison and household cost
+  // accounting; deliberately EXCLUDED from the fuel-mix logit, whose
+  // priceSensitivity is calibrated on wholesale relative prices.
+  deliveryMargin: number;
 }
 
 // Fuel mix evolution parameters
@@ -367,6 +379,7 @@ export const demandDefaults: DemandParams = {
       efficiencyMultiplier: 3.5,      // EVs 3.5x more efficient than ICE
       maxAnnualChange: 0.04,          // 4%/year max (infrastructure)
       primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
+      electricityDeliveryCost: 50,    // $/MWh: public/home charging blend over wholesale (EIA retail gaps)
     },
     buildings: {
       share: 0.31,                    // ~30-31% of final consumption (IEA WEB, residential + commercial)
@@ -378,6 +391,7 @@ export const demandDefaults: DemandParams = {
       efficiencyMultiplier: 3.0,      // Heat pump COP ~3
       maxAnnualChange: 0.03,          // 3%/year max
       primaryFuel: 'gas',             // Competes with gas (heating)
+      electricityDeliveryCost: 80,    // $/MWh: residential/commercial retail-wholesale gap (EIA ~\$80-110 res.)
     },
     industry: {
       // IEA WEB: industry ~29% of final consumption, plus the ~11%
@@ -396,6 +410,7 @@ export const demandDefaults: DemandParams = {
       efficiencyMultiplier: 1.1,      // Motors ~10% more efficient
       maxAnnualChange: 0.025,         // 2.5%/year max (long-lived equipment)
       primaryFuel: 'gas',             // Competes with gas (process heat)
+      electricityDeliveryCost: 40,    // $/MWh: industrial retail-wholesale gap (EIA ~\$30-50)
     },
   },
 
@@ -409,31 +424,46 @@ export const demandDefaults: DemandParams = {
       share2025: 0.50,
       carbonIntensity: 267,      // kg CO2/MWh (gasoline/diesel)
       price: 50,                 // $/MWh (~$80/barrel equivalent)
+      priceEscalation: 0,        // Flat real (IEA WEO STEPS oil roughly flat to 2050)
+      deliveryMargin: 45,        // $/MWh: refining + distribution + retail, ex-heavy-tax global blend
     },
     gas: {
       share2025: 0.30,           // Heating, industry
       carbonIntensity: 202,      // kg CO2/MWh
       price: 25,                 // $/MWh (US/global blend)
+      priceEscalation: 0,        // Flat real (WEO STEPS)
+      deliveryMargin: 20,        // $/MWh: transmission + local distribution
     },
     coal: {
       share2025: 0.12,           // Industrial heat, developing countries
       carbonIntensity: 341,      // kg CO2/MWh
       price: 15,                 // $/MWh (before carbon pricing)
+      priceEscalation: 0,
+      deliveryMargin: 5,         // $/MWh: mostly delivered at industrial scale
     },
     biomass: {
       share2025: 0.06,           // Traditional biomass
       carbonIntensity: 100,      // kg CO2/MWh (net with regrowth)
       price: 30,                 // $/MWh
+      priceEscalation: 0,
+      deliveryMargin: 10,
     },
     hydrogen: {
       share2025: 0.01,           // Negligible today
       carbonIntensity: 0,        // Green hydrogen (assume clean)
-      price: 150,                // $/MWh (2025, will decline)
+      // Static deliberately: hydrogen has NO supply side in this model (no
+      // electrolysis electricity demand), so a declining price path would be
+      // a free-decarbonization channel. Deferred until supply is modeled.
+      price: 150,
+      priceEscalation: 0,
+      deliveryMargin: 20,
     },
     biofuel: {
       share2025: 0.01,           // Aviation, blends
       carbonIntensity: 50,       // kg CO2/MWh (lifecycle)
       price: 80,                 // $/MWh
+      priceEscalation: 0,
+      deliveryMargin: 20,
     },
   },
 
@@ -492,41 +522,11 @@ export const demandDefaults: DemandParams = {
 // =============================================================================
 
 /**
- * Calculate weighted average fuel cost for non-electric energy.
- * Used for cost-driven electrification.
- *
- * @param fuels Fuel parameters (price, carbon intensity)
- * @param fuelShares Current evolved fuel shares (sums to ~1)
- * @param carbonPrice Carbon price ($/tonne)
- * @returns Weighted average fuel cost ($/MWh)
- */
-function calculateWeightedFuelCost(
-  fuels: DemandParams['fuels'],
-  fuelShares: Record<FuelType, number>,
-  carbonPrice: number
-): number {
-  const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
-  let totalCost = 0;
-  let totalShare = 0;
-
-  for (const fuel of fuelKeys) {
-    const f = fuels[fuel];
-    const share = fuelShares[fuel];
-    // Effective price = base price + carbon cost
-    const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
-    const effectivePrice = f.price + carbonCost;
-    totalCost += effectivePrice * share;
-    totalShare += share;
-  }
-
-  return totalShare > 0 ? totalCost / totalShare : 50; // Default to $50/MWh
-}
-
-/**
  * Calculate logit-based fuel shares with inertia.
- * Fuel shares respond to effective prices (base + carbon cost).
+ * Fuel shares respond to effective prices (escalated wholesale + carbon cost).
  *
- * @param fuels Fuel parameters (price, carbon intensity)
+ * @param fuels Fuel parameters (carbon intensity)
+ * @param wholesalePrices This year's escalated wholesale prices ($/MWh, no margins)
  * @param prevShares Previous year's fuel shares
  * @param carbonPrice Carbon price ($/tonne)
  * @param priceSensitivity β in logit model
@@ -535,6 +535,7 @@ function calculateWeightedFuelCost(
  */
 function calculateLogitFuelShares(
   fuels: DemandParams['fuels'],
+  wholesalePrices: Record<FuelType, number>,
   prevShares: Record<FuelType, number>,
   carbonPrice: number,
   priceSensitivity: number,
@@ -542,12 +543,14 @@ function calculateLogitFuelShares(
 ): Record<FuelType, number> {
   const fuelKeys: FuelType[] = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'];
 
-  // Calculate effective prices for each fuel
+  // Effective prices: escalated WHOLESALE + carbon. Delivery margins are
+  // deliberately excluded — priceSensitivity is calibrated on the wholesale
+  // scale, and margins would skew the mix toward low-margin coal.
   const effectivePrices: Record<FuelType, number> = {} as Record<FuelType, number>;
   for (const fuel of fuelKeys) {
     const f = fuels[fuel];
     const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
-    effectivePrices[fuel] = f.price + carbonCost;
+    effectivePrices[fuel] = wholesalePrices[fuel] + carbonCost;
   }
 
   // Calculate logit shares: exp(-β × price) / Σ exp(-β × price)
@@ -609,12 +612,15 @@ function calculateSectorElectrification(
   sectorParams: SectorParams,
   yearIndex: number
 ): number {
-  // Calculate effective fuel cost with carbon pricing
+  // Calculate effective fuel cost with carbon pricing (fuelPrice arrives
+  // retail: escalated wholesale + delivery margin)
   const fuelCarbonCost = (fuelCarbonIntensity * carbonPrice) / 1000; // $/MWh
   const effectiveFuelCost = fuelPrice + fuelCarbonCost;
 
-  // Adjust electricity cost for efficiency (EVs use 1/3.5 the energy of ICE)
-  const effectiveElecCost = electricityPrice / sectorParams.efficiencyMultiplier;
+  // Retail electricity (wholesale LCOE + sector delivery adder), adjusted for
+  // efficiency (EVs use 1/3.5 the energy of ICE)
+  const effectiveElecCost =
+    (electricityPrice + sectorParams.electricityDeliveryCost) / sectorParams.efficiencyMultiplier;
 
   // Infrastructure score builds with adoption and time (0-1)
   // Higher adoption → better charging/grid infrastructure → lower effective cost
@@ -880,6 +886,29 @@ export const demandModule: Module<
             errors.push(`${sector}: costEscalationRate must be non-negative`);
           }
         }
+        if (s.electricityDeliveryCost !== undefined) {
+          if (s.electricityDeliveryCost < 0 || s.electricityDeliveryCost > 200) {
+            errors.push(`${sector}: electricityDeliveryCost must be between 0 and 200 $/MWh`);
+          }
+        }
+      }
+    }
+
+    // Validate fuel price-path params
+    if (params.fuels) {
+      for (const fuel of ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const) {
+        const f = params.fuels[fuel];
+        if (!f) continue;
+        if (f.priceEscalation !== undefined) {
+          if (f.priceEscalation < -0.05 || f.priceEscalation > 0.05) {
+            errors.push(`${fuel}: priceEscalation must be between -5% and +5%/year`);
+          }
+        }
+        if (f.deliveryMargin !== undefined) {
+          if (f.deliveryMargin < 0 || f.deliveryMargin > 150) {
+            errors.push(`${fuel}: deliveryMargin must be between 0 and 150 $/MWh`);
+          }
+        }
       }
     }
 
@@ -1058,13 +1087,19 @@ export const demandModule: Module<
     const sectorKeys = ['transport', 'buildings', 'industry'] as const;
     const newSectorElectrification = { ...state.sectorElectrification };
 
+    // Escalated wholesale fuel prices for this year (real paths; flat at
+    // defaults). Margins are added per consumer below, not here.
+    const wholesaleFuelPrice = (fuel: FuelType): number =>
+      params.fuels[fuel].price * Math.pow(1 + params.fuels[fuel].priceEscalation, yearIndex);
+
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
       const prevSectorRate = state.sectorElectrification[sectorKey];
 
-      // Get primary fuel price for this sector
+      // Retail price of the sector's competing fuel: escalated wholesale +
+      // delivery margin (electricity's symmetric adder is applied inside)
       const primaryFuel = sectorParams.primaryFuel;
-      const fuelPrice = params.fuels[primaryFuel].price;
+      const fuelPrice = wholesaleFuelPrice(primaryFuel) + params.fuels[primaryFuel].deliveryMargin;
       const fuelCarbonIntensity = params.fuels[primaryFuel].carbonIntensity;
 
       newSectorElectrification[sectorKey] = calculateSectorElectrification(
@@ -1396,8 +1431,13 @@ export const demandModule: Module<
     const fuelKeys = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const;
 
     // Calculate evolved fuel shares using logit model with inertia
+    const wholesalePrices = {} as Record<FuelType, number>;
+    for (const fuel of fuelKeys) {
+      wholesalePrices[fuel] = wholesaleFuelPrice(fuel);
+    }
     const evolvedShares = calculateLogitFuelShares(
       params.fuels,
+      wholesalePrices,
       state.fuelShares,
       carbonPrice,
       params.fuelMix.priceSensitivity,
@@ -1429,10 +1469,13 @@ export const demandModule: Module<
       const emissions = (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
       nonElectricEmissions += emissions;
 
-      // Fuel cost with carbon pricing
-      // Base price + (carbonIntensity kg/MWh × carbonPrice $/t / 1000 kg/t)
+      // Fuel cost at delivered (retail) prices: escalated wholesale +
+      // delivery margin + carbon cost. Burden threshold (8% of GDP) is
+      // calibrated on retail expenditure (1970s EIA), so costs here must be
+      // retail-scale too.
       const carbonCost = (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-      const effectivePrice = params.fuels[fuel].price + carbonCost;
+      const effectivePrice =
+        wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin + carbonCost;
 
       // Cost: TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
       fuelCost += (fuelConsumption * effectivePrice) / 1e6;
@@ -1449,7 +1492,19 @@ export const demandModule: Module<
     // Falls back to demand when unwired (standalone module use).
     const electricityGeneration = inputs.totalGeneration ?? globalElec;
     const avgLCOE = inputs.laggedAvgLCOE ?? 50; // Lagged weighted-average LCOE
-    const electricityTotalCost = (electricityGeneration * avgLCOE) / 1e6;
+    // Retail electricity = wholesale LCOE + delivery adder, weighted by where
+    // the electricity goes (sector share × electrification rate). Keeps the
+    // burden on the same retail scale as its 8%-of-GDP threshold.
+    let deliveryWeight = 0;
+    let deliveryCostSum = 0;
+    for (const sectorKey of sectorKeys) {
+      const w = params.sectors[sectorKey].share * newSectorElectrification[sectorKey];
+      deliveryWeight += w;
+      deliveryCostSum += w * params.sectors[sectorKey].electricityDeliveryCost;
+    }
+    const weightedDeliveryCost = deliveryWeight > 0 ? deliveryCostSum / deliveryWeight : 0;
+    const electricityTotalCost =
+      (electricityGeneration * (avgLCOE + weightedDeliveryCost)) / 1e6;
 
     const totalEnergyCost = electricityTotalCost + fuelCost;
     const energyBurden = totalEnergyCost / globalGdp;

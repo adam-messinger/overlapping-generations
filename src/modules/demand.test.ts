@@ -404,8 +404,101 @@ test('industry is most cost-sensitive sector', () => {
     (highCarbon.outputs.sectors.industry.electrificationRate - lowCarbon.outputs.sectors.industry.electrificationRate) /
     lowCarbon.outputs.sectors.industry.electrificationRate;
 
-  // Industry should have higher relative sensitivity (costSensitivity: 0.10 vs 0.08)
-  expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.5); // At least half as responsive
+  // Industry has the highest costSensitivity (0.10 vs 0.08) but retail
+  // pricing narrows its relative carbon response: oil's $45/MWh delivery
+  // margin gives transport more absolute fuel-cost leverage per $ of carbon
+  // than coal's $5 margin gives industry. Require a meaningful positive
+  // response, not dominance.
+  expect(industryIncrease).toBeGreaterThan(transportIncrease * 0.3);
+  expect(industryIncrease).toBeGreaterThan(0);
+});
+
+// --- Retail Pricing (delivery adders + fuel price paths) ---
+
+console.log('\n--- Retail Pricing ---\n');
+
+const zeroDeliveryOverrides = {
+  sectors: {
+    transport: { electricityDeliveryCost: 0 },
+    buildings: { electricityDeliveryCost: 0 },
+    industry: { electricityDeliveryCost: 0 },
+  },
+  fuels: {
+    oil: { deliveryMargin: 0 },
+    gas: { deliveryMargin: 0 },
+    coal: { deliveryMargin: 0 },
+    biomass: { deliveryMargin: 0 },
+    hydrogen: { deliveryMargin: 0 },
+    biofuel: { deliveryMargin: 0 },
+  },
+} as Partial<typeof demandDefaults>;
+
+test('electricity delivery adder slows electrification vs bare wholesale', () => {
+  const withAdders = runYearsWithParams(25, {}, {});
+  // Zero out only the electricity-side adder; keep fuel margins so the
+  // comparison isolates the electricity retail penalty
+  const noElecAdder = runYearsWithParams(25, {
+    sectors: {
+      transport: { electricityDeliveryCost: 0 },
+      buildings: { electricityDeliveryCost: 0 },
+      industry: { electricityDeliveryCost: 0 },
+    },
+  } as Partial<typeof demandDefaults>, {});
+
+  expect(withAdders.outputs.electrificationRate)
+    .toBeLessThan(noElecAdder.outputs.electrificationRate);
+});
+
+test('fuel delivery margins do not perturb the logit fuel mix', () => {
+  // priceSensitivity is calibrated on the wholesale scale; margins must be
+  // excluded from share competition or coal (margin $5) gains spuriously
+  const base = runYearsWithParams(25, {}, {});
+  const highMargins = runYearsWithParams(25, {
+    fuels: {
+      oil: { deliveryMargin: 100 },
+      gas: { deliveryMargin: 100 },
+      coal: { deliveryMargin: 0 },
+    },
+  } as Partial<typeof demandDefaults>, {});
+
+  const baseShare = base.outputs.fuels.coal / base.outputs.nonElectricEnergy;
+  const marginShare = highMargins.outputs.fuels.coal / highMargins.outputs.nonElectricEnergy;
+  expect(Math.abs(baseShare - marginShare)).toBeLessThan(1e-9);
+});
+
+test('rising oil price path shifts fuel mix away from oil', () => {
+  const flat = runYearsWithParams(25, {}, {});
+  const risingOil = runYearsWithParams(25, {
+    fuels: { oil: { priceEscalation: 0.03 } },
+  } as Partial<typeof demandDefaults>, {});
+
+  const flatOilShare = flat.outputs.fuels.oil / flat.outputs.nonElectricEnergy;
+  const risingOilShare = risingOil.outputs.fuels.oil / risingOil.outputs.nonElectricEnergy;
+  expect(risingOilShare).toBeLessThan(flatOilShare);
+});
+
+test('energy burden includes delivery costs (retail scale)', () => {
+  const retail = runYearsWithParams(10, {}, {});
+  const wholesale = runYearsWithParams(10, zeroDeliveryOverrides, {});
+
+  expect(retail.outputs.energyBurden).toBeGreaterThan(wholesale.outputs.energyBurden);
+});
+
+test('validation catches out-of-range delivery and escalation params', () => {
+  const badAdder = demandModule.validate({
+    sectors: { buildings: { electricityDeliveryCost: 500 } },
+  } as Partial<typeof demandDefaults>);
+  expect(badAdder.valid).toBe(false);
+
+  const badEscalation = demandModule.validate({
+    fuels: { oil: { priceEscalation: 0.2 } },
+  } as Partial<typeof demandDefaults>);
+  expect(badEscalation.valid).toBe(false);
+
+  const badMargin = demandModule.validate({
+    fuels: { gas: { deliveryMargin: -5 } },
+  } as Partial<typeof demandDefaults>);
+  expect(badMargin.valid).toBe(false);
 });
 
 // --- Datacenter / AI Compute ---

@@ -1,6 +1,6 @@
 {
   "name": "Net Zero 2050",
-  "description": "IEA Net Zero pathway. High carbon pricing, accelerated renewables deployment, rapid electrification across all sectors.",
+  "description": "IEA Net Zero pathway. High carbon pricing, accelerated renewables deployment, rapid electrification across all sectors. Real fossil prices fall as demand collapses (IEA NZE: oil to ~$25/bbl by 2050).",
 
   "energy": {
     "carbonPrice": 150,
@@ -18,6 +18,11 @@
       "transport": { "costEscalationThreshold": 0.75, "costEscalationRate": 1.5 },
       "buildings": { "costEscalationThreshold": 0.90, "costEscalationRate": 1.0 },
       "industry": { "costEscalationThreshold": 0.65, "costEscalationRate": 2.0 }
+    },
+    "fuels": {
+      "oil": { "priceEscalation": -0.02 },
+      "gas": { "priceEscalation": -0.015 },
+      "coal": { "priceEscalation": -0.015 }
     }
   },
 
