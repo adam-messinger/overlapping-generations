@@ -658,10 +658,19 @@ function calculateSectorElectrification(
   const gapToCeiling = PHYSICAL_ELEC_CEILING - prevRate;
   const desiredChange = totalPressure * gapToCeiling;
 
-  // Clamp annual change (infrastructure takes time to build)
+  // Clamp annual change. Two caps: the absolute infrastructure cap
+  // (maxAnnualChange), and a relative diffusion cap — adoption cannot jump
+  // 4pp in a year from a 2% base; fleets/stock turn over multiplicatively.
+  // 0.28/yr relative: observed EV electricity-consumption growth ran
+  // ~30-35%/yr 2019-2024 (IEA Global EV Outlook) and is decelerating; a
+  // sustained cap slightly below the recent peak keeps 2030 transport
+  // electrification inside the aggressive-forecast band. Only binds at low
+  // adoption (above ~15% adoption the absolute cap binds first).
+  const RELATIVE_DIFFUSION_CAP = 0.28;
+  const maxUp = Math.min(sectorParams.maxAnnualChange, prevRate * RELATIVE_DIFFUSION_CAP);
   const clampedChange = Math.max(
     -sectorParams.maxAnnualChange,
-    Math.min(sectorParams.maxAnnualChange, desiredChange)
+    Math.min(maxUp, desiredChange)
   );
 
   // New rate with floor at starting value and physical ceiling
