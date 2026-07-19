@@ -417,12 +417,14 @@ test('industry is most cost-sensitive sector', () => {
 
 console.log('\n--- Retail Pricing ---\n');
 
+const zeroElecAdderSectors = {
+  transport: { electricityDeliveryCost: 0 },
+  buildings: { electricityDeliveryCost: 0 },
+  industry: { electricityDeliveryCost: 0 },
+};
+
 const zeroDeliveryOverrides = {
-  sectors: {
-    transport: { electricityDeliveryCost: 0 },
-    buildings: { electricityDeliveryCost: 0 },
-    industry: { electricityDeliveryCost: 0 },
-  },
+  sectors: zeroElecAdderSectors,
   fuels: {
     oil: { deliveryMargin: 0 },
     gas: { deliveryMargin: 0 },
@@ -433,26 +435,23 @@ const zeroDeliveryOverrides = {
   },
 } as Partial<typeof demandDefaults>;
 
+// Shared default-params 25-year run — the "base" side of the A/B tests below
+const retailBase25 = runYearsWithParams(25, {}, {});
+
 test('electricity delivery adder slows electrification vs bare wholesale', () => {
-  const withAdders = runYearsWithParams(25, {}, {});
   // Zero out only the electricity-side adder; keep fuel margins so the
   // comparison isolates the electricity retail penalty
   const noElecAdder = runYearsWithParams(25, {
-    sectors: {
-      transport: { electricityDeliveryCost: 0 },
-      buildings: { electricityDeliveryCost: 0 },
-      industry: { electricityDeliveryCost: 0 },
-    },
+    sectors: zeroElecAdderSectors,
   } as Partial<typeof demandDefaults>, {});
 
-  expect(withAdders.outputs.electrificationRate)
+  expect(retailBase25.outputs.electrificationRate)
     .toBeLessThan(noElecAdder.outputs.electrificationRate);
 });
 
 test('fuel delivery margins do not perturb the logit fuel mix', () => {
   // priceSensitivity is calibrated on the wholesale scale; margins must be
   // excluded from share competition or coal (margin $5) gains spuriously
-  const base = runYearsWithParams(25, {}, {});
   const highMargins = runYearsWithParams(25, {
     fuels: {
       oil: { deliveryMargin: 100 },
@@ -461,18 +460,17 @@ test('fuel delivery margins do not perturb the logit fuel mix', () => {
     },
   } as Partial<typeof demandDefaults>, {});
 
-  const baseShare = base.outputs.fuels.coal / base.outputs.nonElectricEnergy;
+  const baseShare = retailBase25.outputs.fuels.coal / retailBase25.outputs.nonElectricEnergy;
   const marginShare = highMargins.outputs.fuels.coal / highMargins.outputs.nonElectricEnergy;
   expect(Math.abs(baseShare - marginShare)).toBeLessThan(1e-9);
 });
 
 test('rising oil price path shifts fuel mix away from oil', () => {
-  const flat = runYearsWithParams(25, {}, {});
   const risingOil = runYearsWithParams(25, {
     fuels: { oil: { priceEscalation: 0.03 } },
   } as Partial<typeof demandDefaults>, {});
 
-  const flatOilShare = flat.outputs.fuels.oil / flat.outputs.nonElectricEnergy;
+  const flatOilShare = retailBase25.outputs.fuels.oil / retailBase25.outputs.nonElectricEnergy;
   const risingOilShare = risingOil.outputs.fuels.oil / risingOil.outputs.nonElectricEnergy;
   expect(risingOilShare).toBeLessThan(flatOilShare);
 });

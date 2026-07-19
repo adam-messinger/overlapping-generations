@@ -51,6 +51,10 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
   }
 });
 
+// Shared default-params run for the two calibration-band tests below
+// (deterministic model, so the 2035 slice is a strict prefix of this run)
+const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
+
 test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
   // IEA WEO 2024 STEPS: ~55k TWh global electricity demand in 2050. The
   // model's endogenous path lands near ~38k (≈0.7x STEPS) — before the 2026
@@ -58,8 +62,7 @@ test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
   // previously-electrified demand at fuel-scale TWh. The band is deliberately
   // wide: it pins order-of-magnitude agreement with STEPS, not replication,
   // and catches a regression to either the old inflation or a collapsed grid.
-  const result = runSimulation({ startYear: 2025, endYear: 2050 });
-  const y2050 = result.results[result.results.length - 1];
+  const y2050 = to2050.results[to2050.results.length - 1];
   expect(y2050.electricityDemand).toBeGreaterThan(30_000);
   expect(y2050.electricityDemand).toBeLessThan(65_000);
 });
@@ -72,10 +75,9 @@ test('near-term electrification pace is fast but bounded', () => {
   // historical precedent). This test documents and bounds that divergence:
   // the lower bound catches an accidentally-killed transition, the upper
   // bound catches runaway electrification beyond even the model's thesis.
-  const result = runSimulation({ startYear: 2025, endYear: 2035 });
-  const first = result.results[0];
-  const last = result.results[result.results.length - 1];
-  const pacePerYear = (last.electrificationRate - first.electrificationRate) / 10;
+  const first = to2050.results[0];
+  const y2035 = to2050.results[10];
+  const pacePerYear = (y2035.electrificationRate - first.electrificationRate) / 10;
   expect(pacePerYear).toBeGreaterThan(0.005);
   expect(pacePerYear).toBeLessThan(0.03);
 });
