@@ -26,7 +26,7 @@ function createInputs(options: {
   carbonPrice?: number;
 } = {}) {
   return {
-    electricityDemand: options.demand ?? 30000, // TWh
+    electricityDemand: options.demand ?? 25000, // TWh DELIVERED (x1.20 gridLossFactor = 30k generation required)
     capacities: {
       solar: options.solarCap ?? 1500,
       wind: options.windCap ?? 1000,
@@ -82,7 +82,7 @@ test('total generation covers demand x grid-loss factor (small shortfall ok)', (
   // Required generation = delivered demand x gridLossFactor (1.20): T&D
   // losses + station own use. With 8 regions, small shortfalls possible
   // from regional distribution.
-  expect(outputs.totalGeneration).toBeBetween(29000 * 1.15, 30500 * 1.25);
+  expect(outputs.totalGeneration).toBeBetween(28000, 31000);
   expect(outputs.shortfall).toBeBetween(0, 2500);
 });
 
