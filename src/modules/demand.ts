@@ -20,7 +20,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { compound } from '../primitives/math.js';
+import { compound, lerp } from '../primitives/math.js';
 import { Module, validatedMerge } from 'tsimulation';
 
 // =============================================================================
@@ -48,6 +48,7 @@ interface RegionalEconomicParams {
 interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
+  relativeDiffusionCap: number;   // Max annual increase as fraction of current level (S-curve diffusion; binds at low adoption)
   // Cost escalation replaces hard ceilings
   costEscalationThreshold: number; // Rate above which costs escalate (0.60/0.85/0.55)
   costEscalationRate: number;      // Quadratic escalation strength (2.0/1.5/2.5)
@@ -242,6 +243,9 @@ export type SectorType = 'transport' | 'buildings' | 'industry';
 
 const FUEL_KEYS: readonly FuelType[] = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'];
 
+/** Regional grid-access catch-up horizon: elecShareMultiplier2025 -> 1 by 2100 */
+const ELEC_ACCESS_CONVERGENCE_YEARS = 75;
+
 interface DemandOutputs {
   // Regional outputs
   regional: Record<Region, RegionalOutputs>;
@@ -398,6 +402,7 @@ export const demandDefaults: DemandParams = {
       basePressure: 0.015,            // Background electrification pressure
       efficiencyMultiplier: 3.5,      // EVs 3.5x more efficient than ICE
       maxAnnualChange: 0.04,          // 4%/year max (infrastructure)
+      relativeDiffusionCap: 0.28,     // observed EV electricity-consumption growth ~30-35%/yr 2019-2024 (IEA Global EV Outlook), decelerating
       primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
       electricityDeliveryCost: 50,    // $/MWh: public/home charging blend over wholesale (EIA retail gaps)
     },
@@ -410,6 +415,7 @@ export const demandDefaults: DemandParams = {
       basePressure: 0.02,             // Higher baseline (heat pump momentum)
       efficiencyMultiplier: 3.0,      // Heat pump COP ~3
       maxAnnualChange: 0.03,          // 3%/year max
+      relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 35%)
       primaryFuel: 'gas',             // Competes with gas (heating)
       electricityDeliveryCost: 80,    // $/MWh: residential/commercial retail-wholesale gap (EIA ~\$80-110 res.)
     },
@@ -429,6 +435,7 @@ export const demandDefaults: DemandParams = {
       basePressure: 0.008,            // Slower baseline (heavy equipment)
       efficiencyMultiplier: 1.1,      // Motors ~10% more efficient
       maxAnnualChange: 0.025,         // 2.5%/year max (long-lived equipment)
+      relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 22%)
       primaryFuel: 'gas',             // Competes with gas (process heat)
       electricityDeliveryCost: 40,    // $/MWh: industrial retail-wholesale gap (EIA ~\$30-50)
     },
@@ -678,13 +685,11 @@ function calculateSectorElectrification(
   // Clamp annual change. Two caps: the absolute infrastructure cap
   // (maxAnnualChange), and a relative diffusion cap — adoption cannot jump
   // 4pp in a year from a 2% base; fleets/stock turn over multiplicatively.
-  // 0.28/yr relative: observed EV electricity-consumption growth ran
-  // ~30-35%/yr 2019-2024 (IEA Global EV Outlook) and is decelerating; a
-  // sustained cap slightly below the recent peak keeps 2030 transport
-  // electrification inside the aggressive-forecast band. Only binds at low
-  // adoption (above ~15% adoption the absolute cap binds first).
-  const RELATIVE_DIFFUSION_CAP = 0.28;
-  const maxUp = Math.min(sectorParams.maxAnnualChange, prevRate * RELATIVE_DIFFUSION_CAP);
+  // Only binds at low adoption (above ~15% the absolute cap binds first).
+  const maxUp = Math.min(
+    sectorParams.maxAnnualChange,
+    prevRate * sectorParams.relativeDiffusionCap
+  );
   const clampedChange = Math.max(
     -sectorParams.maxAnnualChange,
     Math.min(maxUp, desiredChange)
@@ -969,6 +974,11 @@ export const demandModule: Module<
         if (s.electricityDeliveryCost !== undefined) {
           if (s.electricityDeliveryCost < 0 || s.electricityDeliveryCost > 200) {
             errors.push(`${sector}: electricityDeliveryCost must be between 0 and 200 $/MWh`);
+          }
+        }
+        if (s.relativeDiffusionCap !== undefined) {
+          if (s.relativeDiffusionCap < 0.05 || s.relativeDiffusionCap > 1) {
+            errors.push(`${sector}: relativeDiffusionCap must be between 0.05 and 1 per year`);
           }
         }
       }
@@ -1294,8 +1304,10 @@ export const demandModule: Module<
       // Regional electrification differs from the global share (grid access,
       // industrial structure); unelectrified service is met by fuels instead.
       // Multiplier converges to 1 by 2100 (access catch-up).
-      const elecMult = params.regions[region].elecShareMultiplier2025
-        + (1 - params.regions[region].elecShareMultiplier2025) * Math.min(1, yearIndex / 75);
+      const elecMult = lerp(
+        params.regions[region].elecShareMultiplier2025, 1,
+        yearIndex / ELEC_ACCESS_CONVERGENCE_YEARS
+      );
       const elecDemand = totalEnergy * elecFinalFactor * elecMult;
       const nonElecEnergy = totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
       const finalEnergy = elecDemand + nonElecEnergy;
@@ -1338,9 +1350,13 @@ export const demandModule: Module<
     const sectorEnergyBase = globalServiceBase;
     // Regional electrification multipliers make realized global electricity
     // differ from the uniform-share prediction; scale the sector split by the
-    // realized ratio so sector totals reconcile with the regional sums
+    // realized ratio so sector totals reconcile with the regional sums.
+    // Snapshot NOW: globalElec still holds only the regional service-base
+    // electricity — robot/DC add-on loads are added below and must be
+    // excluded from the realization ratio.
+    const serviceBasisElec = globalElec;
     const uniformElec = globalServiceBase * elecFinalFactor;
-    const elecRealization = uniformElec > 0 ? globalElec / uniformElec : 1;
+    const elecRealization = uniformElec > 0 ? serviceBasisElec / uniformElec : 1;
 
     // Endogenous robot adoption (logistic + energy/wage drivers)
     const prevRobots = state.robotsPer1000;

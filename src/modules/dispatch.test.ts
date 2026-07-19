@@ -26,7 +26,7 @@ function createInputs(options: {
   carbonPrice?: number;
 } = {}) {
   return {
-    electricityDemand: options.demand ?? 25000, // TWh DELIVERED (x1.20 gridLossFactor = 30k generation required)
+    electricityDemand: options.demand ?? 25000, // TWh delivered; tests derive required generation from dispatchDefaults.gridLossFactor
     capacities: {
       solar: options.solarCap ?? 1500,
       wind: options.windCap ?? 1000,

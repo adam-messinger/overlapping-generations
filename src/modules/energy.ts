@@ -101,6 +101,13 @@ export interface EnergyParams {
   cleanEnergyShareGrowth: number;
 
   /**
+   * Generation required per unit of delivered demand — MUST equal
+   * dispatch's gridLossFactor (consistency-pinned in energy.test.ts):
+   * capacity is sized for the generation dispatch will actually request.
+   */
+  gridLossFactor: number;
+
+  /**
    * Endogenous capex share: when desired clean build exceeds the ramp
    * budget, energy investment can compete for more of the savings pool.
    * flex = fraction of the unmet desired spend the share expands to cover
@@ -424,6 +431,7 @@ export const energyDefaults: EnergyParams = {
   // Investment constraint parameters
   cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
+  gridLossFactor: 1.25,           // = dispatch gridLossFactor (pinned); capacity planned on generation basis
   cleanShareFlex: 0,              // default off: exogenous ramp only (calibrated baseline)
   cleanShareMax: 0.30,            // matches the ramp's own 2050 endpoint when flex is off
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
@@ -1261,7 +1269,10 @@ export const energyModule: Module<
 
     for (const region of REGIONS) {
       const regionParams = params.regional[region];
-      const regionDemand = regionalDemand[region];
+      // Plan capacity on the GENERATION basis dispatch will request
+      // (delivered demand x grid losses/own use) — without this the fleet
+      // is sized ~25% under what dispatch asks it to run
+      const regionDemand = regionalDemand[region] * params.gridLossFactor;
       const regionInvestment = regionalInvestment[region];
 
       // Regional effective LCOE (regional financing cost + carbon cost + site quality)

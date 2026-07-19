@@ -8,6 +8,7 @@
 import { energyModule, energyDefaults } from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
+import { dispatchDefaults } from './dispatch.js';
 import { test, expect, printSummary } from '../test-utils.js';
 
 // Helper to build a constant-filled per-region record
@@ -343,6 +344,13 @@ test('lower investment reduces additions', () => {
 // Sum of funded clean additions (gas/coal are unconstrained by the budget)
 const totalCleanAdditions = (r: any) =>
   ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
+
+test('gridLossFactor matches dispatch (capacity planned on generation basis)', () => {
+  // Energy sizes the fleet; dispatch runs it. Both must use the same
+  // delivered->generation conversion or the fleet is systematically
+  // undersized and shortfall grows without bound.
+  expect(energyDefaults.gridLossFactor).toBe(dispatchDefaults.gridLossFactor);
+});
 
 test('cleanShareFlex expands the capex budget when desired build is rationed', () => {
   // With a small investment pool the ramp budget rations additions; flex

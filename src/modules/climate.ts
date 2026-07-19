@@ -38,10 +38,10 @@ import { lerp, quadraticDamage, smoothStep } from '../primitives/math.js';
 export interface ClimateParams {
   // CO2 baseline
   preindustrialCO2: number;      // ppm (280)
-  cumulativeCO2_2025: number;    // Gt cumulative since preindustrial (2400)
+  cumulativeCO2_2025: number;    // Gt cumulative since preindustrial
 
   // Carbon cycle
-  airborneFraction: number;      // Fraction staying in atmosphere (0.45)
+  airborneFraction: number;      // Fraction staying in atmosphere; also sets FUTURE marginal retention (see defaults)
   ppmPerGt: number;              // ppm per Gt in atmosphere (0.128)
 
   // Two-layer energy balance (Geoffroy et al. 2013)
@@ -85,7 +85,7 @@ export interface ClimateParams {
 export const climateDefaults: ClimateParams = {
   preindustrialCO2: 280,
   cumulativeCO2_2025: 2680,      // Gt CO2 fossil+industry+LUC since 1750 (Global Carbon Budget 2024: ~1810 fossil + ~870 land-use)
-  airborneFraction: 0.42,        // observed: (424-280) ppm x 7.81 Gt/ppm / 2680 Gt = 0.42 (AR6 ~0.44 of fossil-only)
+  airborneFraction: 0.42,        // DERIVED, not independently sourced: (424-280) ppm x 7.81 Gt/ppm / 2680 Gt. Also governs future marginal retention — deliberately ~5% below AR6's ~0.44; a rising-fraction treatment is a known TODO (audit fix 6)
   ppmPerGt: 0.128,
   sensitivity: 3.0,
   upperHeatCapacity: 7.3,

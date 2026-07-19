@@ -29,7 +29,7 @@ test('init deep temp consistent with energy balance', () => {
   // Verify: C₁ × warmingRate ≈ F - λ·T₁ - γ·(T₁ - T₂)
   // F includes the non-CO2 overlay at its 2025 value.
   const T1 = climateDefaults.currentTemp;
-  const co2ppm = 280 + climateDefaults.cumulativeCO2_2025 * climateDefaults.airborneFraction * climateDefaults.ppmPerGt;
+  const co2ppm = climateDefaults.preindustrialCO2 + climateDefaults.cumulativeCO2_2025 * climateDefaults.airborneFraction * climateDefaults.ppmPerGt;
   const forcing = 3.7 * Math.log2(co2ppm / 280) + climateDefaults.nonCO2Forcing2025;
   const lambda = 3.7 / 3.0;
   const lhs = 7.3 * 0.02;
@@ -442,7 +442,7 @@ test('ocean pH at 560 ppm (2×CO2) ≈ 7.86', () => {
   // Construct state with cumulative emissions that give ~560 ppm:
   // 560 = 280 + cumulative × airborneFraction × ppmPerGt
   const doubleCO2State = {
-    cumulativeEmissions: 280 / (climateDefaults.airborneFraction * climateDefaults.ppmPerGt),
+    cumulativeEmissions: climateDefaults.preindustrialCO2 / (climateDefaults.airborneFraction * climateDefaults.ppmPerGt),
     temperature: 2.0,
     deepTemp: 1.0,
   };

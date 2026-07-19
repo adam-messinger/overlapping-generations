@@ -22,8 +22,7 @@
  * - World GDP growth ~3%/yr PPP (IMF WEO)
  *
  * Run: npx tsx scripts/nearterm-validation.ts
- * The same bands are enforced (more loosely) in simulation.test.ts once
- * initialization passes them.
+ * Four of these bands are enforced (more loosely) in simulation.test.ts.
  */
 
 import { runSimulation } from '../src/index.js';
@@ -37,7 +36,7 @@ interface Check {
   source: string;
 }
 
-const r: any = runSimulation({ startYear: 2025, endYear: 2031 });
+const r = runSimulation({ startYear: 2025, endYear: 2031 });
 const g = (y: number) => r.results[y - 2025];
 const cagr = (a: number, b: number, yrs: number) => (Math.pow(b / a, 1 / yrs) - 1) * 100;
 
@@ -78,13 +77,13 @@ const checks: Check[] = [
   {
     name: 'Transport electrification 2025',
     model: y25.transportElectrification * 100,
-    low: 1, high: 4, unit: '% of transport final energy',
+    low: 1, high: 4, unit: '% transport FE',
     source: 'IEA EV Outlook ~1.5-2%',
   },
   {
     name: 'Transport electrification 2030',
     model: y30.transportElectrification * 100,
-    low: 3, high: 10, unit: '% of transport final energy',
+    low: 3, high: 10, unit: '% transport FE',
     source: 'aggressive forecasts ~4-5%',
   },
   {
@@ -102,18 +101,22 @@ const checks: Check[] = [
 ];
 
 console.log('Near-term validation: model vs observed 2025-2030\n');
-console.log('CHECK'.padEnd(42) + 'MODEL'.padStart(9) + '   BAND'.padEnd(16) + 'SOURCE');
+const NAME_W = 40;
+const MODEL_W = 8;
+const bandStrings = checks.map((c) => `[${c.low}-${c.high}] ${c.unit}`);
+const BAND_W = Math.max(...bandStrings.map((b) => b.length)) + 2;
+console.log('    ' + 'CHECK'.padEnd(NAME_W) + 'MODEL'.padStart(MODEL_W) + '  ' + 'BAND'.padEnd(BAND_W) + 'SOURCE');
 let failures = 0;
-for (const c of checks) {
+checks.forEach((c, i) => {
   const pass = c.model >= c.low && c.model <= c.high;
   if (!pass) failures++;
   const flag = pass ? ' ok ' : ' ⚠  ';
   console.log(
-    flag + c.name.padEnd(40)
-    + c.model.toFixed(1).padStart(8)
-    + `  [${c.low}-${c.high}] ${c.unit}`.padEnd(30)
+    flag + c.name.padEnd(NAME_W)
+    + c.model.toFixed(1).padStart(MODEL_W)
+    + '  ' + bandStrings[i].padEnd(BAND_W)
     + c.source
   );
-}
+});
 console.log(`\n${checks.length - failures}/${checks.length} within band`);
 if (failures > 0) process.exitCode = 1;
