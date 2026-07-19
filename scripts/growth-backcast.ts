@@ -103,10 +103,15 @@ p(`- **Implied η(2025) = ${def.final.eta.toFixed(3)}** — inside Brockway et a
 p('  independent check the assumed rate was not fitted to');
 p();
 p('The assumed rate is not fitted to GDP: it is demand\'s intensity-decline');
-p('parameter (IEA history), and compounding it from De Stercke\'s 1990 level');
-p('independently reproduces Brockway\'s measured 2020s eta. Pinned in');
-p('`production.test.ts` (GDP within 5%, eta in the measured band, forward');
-p('eta0 = backcast endpoint).');
+p('parameter (IEA history). Methodology (per the calibration review): the');
+p('rate BUNDLES measured device efficiency (~0.87%/yr, CL-PFU 1971-2020:');
+p('15% -> 23%) with value-preserving structural change (~0.4%/yr residual).');
+p('Two equivalent decompositions reach the same measured 2020s endpoint:');
+p('measured-only (0.18 in 1990 x 0.87%/yr) and effective-index (0.15 x');
+p('1.29%/yr, used here). eta is therefore an effective service-efficiency');
+p('index, not measured second-law efficiency. Pinned in');
+p('`production.test.ts` (GDP within 5%, eta endpoint in the measured band,');
+p('forward eta0 = backcast endpoint).');
 p();
 
 p('## Factor decomposition at calibrated defaults (2025 level, 1990 = 1)');
