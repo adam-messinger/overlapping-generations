@@ -289,6 +289,7 @@ function buildLags(params: SimulationParams) {
   const mergedClimate = climateModule.mergeParams(params.climate ?? {});
   const mergedCapital = capitalModule.mergeParams(params.capital ?? {});
   const mergedEnergy = energyModule.mergeParams(params.energy ?? {});
+  const mergedDemand = demandModule.mergeParams(params.demand ?? {});
 
   // Derive totalGeneration from capacity2025 × CF × 8760 / 1000
   let totalGen = 0;
@@ -401,6 +402,20 @@ function buildLags(params: SimulationParams) {
       source: 'cdrEnergyTWh',
       delay: 1,
       initial: 0,
+    },
+
+    // Production needs lagged automation levels for the labor-augmentation
+    // payoff (demand runs after production; both default to a no-op via
+    // robotLaborEquivalent/aiWorkerEquivalentPerTWh = 0)
+    robotsPer1000: {
+      source: 'robotsPer1000',
+      delay: 1,
+      initial: mergedDemand.robotBaseline2025,
+    },
+    dataCenterLoadTWh: {
+      source: 'dataCenterLoadTWh',
+      delay: 1,
+      initial: mergedDemand.dataCenterBaseline2025,
     },
 
     // Energy needs lagged mineral constraint (resources runs after energy in topo order)

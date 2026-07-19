@@ -27,7 +27,7 @@ the model changes. Qualitative summary:
 
 The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
 damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in a narrow band
-(13.5–15.9% in the July 2026 run, reaching ~0 by 2075), electrification 2050
+(13.0–15.3% in the July 2026 run, reaching ~0 by 2075), electrification 2050
 is pinned at ~62%, warming 2100 varies by only ~0.03 °C, and the peak energy
 burden stays at ~6.7% of GDP.
 
@@ -46,15 +46,21 @@ That spread was substantially an accounting artifact — previously-electrified
 demand was counted at fuel-scale TWh, inflating useful-energy growth that γ
 then amplified into GDP.
 
-After the corrections the grid collapses to **$148T–$200T (~1.35×)**, and
+After the corrections the grid collapses to **$177T–$227T (~1.3×)**, and
 the γ ordering *reverses*: higher γ now gives slightly *lower* GDP, because
 useful energy per worker stagnates or declines under realistic final-energy
 accounting (efficiency gains shrink final energy as electrification
-proceeds), so γ amplifies a mild decline instead of a boom. The default
-trajectory is near-flat GDP (~0.1%/yr to 2100) — an energy-constrained
-stagnation, not an energy-abundance boom. Absolute GDP levels remain the
-model's weakest output, but they are no longer hostage to a single
-elasticity.
+proceeds), so γ amplifies a mild decline instead of a boom. After the
+1990-2025 growth-backcast calibration of the efficiency engine
+(`scripts/growth-backcast.md` — the production structure now reproduces
+observed 1990-2025 growth, pinned in `production.test.ts`), the default
+trajectory is slow growth (~0.7%/yr to 2050, ~0.4%/yr to 2100) — an
+energy-and-demographics-constrained deceleration, not an energy-abundance
+boom. Absolute GDP levels remain the model's weakest output, but they are
+no longer hostage to a single elasticity, and the growth engine is no
+longer missing a residual against history: the forward slowdown is
+input-driven (S-curve learning deceleration, shrinking final energy,
+demographic capital slowdown).
 
 **The damage coefficient still matters little — but only because warming
 stays low.** Even 6× DICE damages cut 2100 GDP by only ~15%, because the

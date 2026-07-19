@@ -101,6 +101,16 @@ export interface EnergyParams {
   cleanEnergyShareGrowth: number;
 
   /**
+   * Endogenous capex share: when desired clean build exceeds the ramp
+   * budget, energy investment can compete for more of the savings pool.
+   * flex = fraction of the unmet desired spend the share expands to cover
+   * (0 = exogenous ramp only, current behavior); cleanShareMax caps the
+   * total share of investment energy capex may claim.
+   */
+  cleanShareFlex: number;
+  cleanShareMax: number;
+
+  /**
    * CAPEX learning rate (annual decline for solar/wind/battery)
    */
   capexLearningRate: number;
@@ -414,6 +424,8 @@ export const energyDefaults: EnergyParams = {
   // Investment constraint parameters
   cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
+  cleanShareFlex: 0,              // default off: exogenous ramp only (calibrated baseline)
+  cleanShareMax: 0.30,            // matches the ramp's own 2050 endpoint when flex is off
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
 
   // Demand-driven capacity
@@ -742,6 +754,18 @@ export const energyModule: Module<
       range: { min: 0, max: 300, default: 35 },
       tier: 1 as const,
     },
+    cleanShareFlex: {
+      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). One-sided: expanded energy capex is not debited from other capital formation, so crowding-out is understated. Used by the ai-energy-boom scenario.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0 },
+      tier: 1 as const,
+    },
+    cleanShareMax: {
+      description: 'Ceiling on the share of total investment that energy capex may claim when cleanShareFlex > 0.',
+      unit: 'fraction',
+      range: { min: 0.05, max: 0.9, default: 0.30 },
+      tier: 1 as const,
+    },
     sources: {
       solar: {
         alpha: {
@@ -901,6 +925,18 @@ export const energyModule: Module<
     }
     if (p.carbonPrice > 500) {
       warnings.push(`carbonPrice ${p.carbonPrice} unusually high`);
+    }
+
+    // Endogenous capex share
+    if (p.cleanShareFlex < 0 || p.cleanShareFlex > 1) {
+      errors.push('cleanShareFlex must be between 0 and 1');
+    }
+    if (p.cleanShareMax < 0.05 || p.cleanShareMax > 0.9) {
+      errors.push('cleanShareMax must be between 0.05 and 0.9');
+    }
+    if (p.cleanShareFlex > 0 &&
+        p.cleanShareMax < p.cleanEnergyShare2025 + p.cleanEnergyShareGrowth) {
+      warnings.push('cleanShareMax below the exogenous ramp endpoint — flex will never expand the budget');
     }
 
     for (const source of ENERGY_SOURCES) {
@@ -1259,8 +1295,8 @@ export const energyModule: Module<
       const cleanShare = params.cleanEnergyShare2025 +
         params.cleanEnergyShareGrowth * Math.min(1, yearIndex / 25);
 
-      // Regional clean energy budget ($B)
-      const cleanBudget = regionInvestment * cleanShare * 1000;
+      // Regional clean energy budget ($B); may expand below if cleanShareFlex > 0
+      let cleanBudget = regionInvestment * cleanShare * 1000;
 
       // Calculate desired additions for this region
       const desiredAdditions: Record<EnergySource, number> = {} as any;
@@ -1373,19 +1409,41 @@ export const energyModule: Module<
       const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
       cleanSources.sort((a, b) => rankingLCOE[a] - rankingLCOE[b]);
 
+      // Per-source desired spend ($B) — single cost formula shared by the
+      // flex budget expansion and the funding loop below
+      const desiredCost: Record<EnergySource, number> = {} as any;
+      for (const source of cleanSources) {
+        desiredCost[source] = (desiredAdditions[source] * effectiveCapex[source]) / 1000;
+      }
+
+      // Endogenous capex share: when desired build exceeds the ramp budget,
+      // energy investment competes for more of the savings pool — the share
+      // expands to cover cleanShareFlex of the unmet spend, capped at
+      // cleanShareMax of regional investment. flex = 0 (default) preserves
+      // the exogenous ramp exactly. One-sided: expanded energy capex is not
+      // debited from other capital formation (no crowding-out feedback yet).
+      if (params.cleanShareFlex > 0) {
+        const totalDesiredCost = cleanSources.reduce((s, src) => s + desiredCost[src], 0);
+        if (totalDesiredCost > cleanBudget) {
+          const maxBudget = regionInvestment * params.cleanShareMax * 1000;
+          cleanBudget = Math.min(
+            maxBudget,
+            cleanBudget + params.cleanShareFlex * (totalDesiredCost - cleanBudget)
+          );
+        }
+      }
+
       let remainingBudget = cleanBudget;
       const fundedAdditions: Record<EnergySource, number> = {} as any;
 
       for (const source of cleanSources) {
-        const desired = desiredAdditions[source];
-        const capex = effectiveCapex[source];
-        const cost = (desired * capex) / 1000;
+        const cost = desiredCost[source];
 
         if (cost <= remainingBudget) {
-          fundedAdditions[source] = desired;
+          fundedAdditions[source] = desiredAdditions[source];
           remainingBudget -= cost;
         } else {
-          const affordable = (remainingBudget / capex) * 1000;
+          const affordable = (remainingBudget / effectiveCapex[source]) * 1000;
           fundedAdditions[source] = affordable;
           remainingBudget = 0;
         }

@@ -57,7 +57,7 @@ const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
 test('2050 electricity demand lands in the IEA STEPS comparison band', () => {
   // IEA WEO 2024 STEPS: ~55k TWh global electricity demand in 2050. The
-  // model's endogenous path lands near ~38k (≈0.7x STEPS) — before the 2026
+  // model's endogenous path lands near ~40k (≈0.7x STEPS) — before the 2026
   // demand-accounting fixes it was ~245k (4.4x), an artifact of counting
   // previously-electrified demand at fuel-scale TWh. The band is deliberately
   // wide: it pins order-of-magnitude agreement with STEPS, not replication,

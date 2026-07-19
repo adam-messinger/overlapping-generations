@@ -7,6 +7,7 @@
  */
 
 import { productionModule, productionDefaults } from './production.js';
+import { runGrowthBackcast } from '../historical-backcast.js';
 import { test, expect, printSummary } from '../test-utils.js';
 
 function makeInputs(overrides: Record<string, number> = {}) {
@@ -32,12 +33,84 @@ function yearZero(params = productionModule.mergeParams({})) {
 
 console.log('\n=== Production Module Tests ===\n');
 
+test('automation payoff defaults to off: robot/DC inputs do not move GDP', () => {
+  const params = productionModule.mergeParams({});
+  const base = productionModule.step(
+    productionModule.init(params), makeInputs(), params, 2025, 0);
+  const withAutomation = productionModule.step(
+    productionModule.init(params),
+    makeInputs({ robotsPer1000: 500, dataCenterLoadTWh: 50000 }),
+    params, 2025, 0);
+  expect(withAutomation.outputs.gdp).toBeCloseTo(base.outputs.gdp, 9);
+});
+
+test('robot labor equivalent raises GDP with automation growth', () => {
+  const params = productionModule.mergeParams({ robotLaborEquivalent: 2 });
+  // Year 0 anchors on the initial automation level; year 1 with more robots
+  // must out-produce year 1 with flat robots
+  const y0 = productionModule.step(
+    productionModule.init(params), makeInputs({ robotsPer1000: 10 }), params, 2025, 0);
+  const flat = productionModule.step(
+    y0.state, makeInputs({ robotsPer1000: 10 }), params, 2026, 1);
+  const growing = productionModule.step(
+    y0.state, makeInputs({ robotsPer1000: 100 }), params, 2026, 1);
+  expect(growing.outputs.gdp).toBeGreaterThan(flat.outputs.gdp);
+  // Year-0 level itself is unchanged by the payoff (anchor absorbs it)
+  const paramsOff = productionModule.mergeParams({});
+  const y0Off = productionModule.step(
+    productionModule.init(paramsOff), makeInputs({ robotsPer1000: 10 }), paramsOff, 2025, 0);
+  expect(y0.outputs.gdp).toBeCloseTo(y0Off.outputs.gdp, 9);
+});
+
+test('AI compute worker-equivalents raise GDP with compute growth', () => {
+  const params = productionModule.mergeParams({ aiWorkerEquivalentPerTWh: 1e5 });
+  const y0 = productionModule.step(
+    productionModule.init(params), makeInputs({ dataCenterLoadTWh: 500 }), params, 2025, 0);
+  const flat = productionModule.step(
+    y0.state, makeInputs({ dataCenterLoadTWh: 500 }), params, 2026, 1);
+  const growing = productionModule.step(
+    y0.state, makeInputs({ dataCenterLoadTWh: 5000 }), params, 2026, 1);
+  expect(growing.outputs.gdp).toBeGreaterThan(flat.outputs.gdp);
+});
+
+test('automation payoff validation rejects out-of-range values', () => {
+  expect(productionModule.validate({ robotLaborEquivalent: -1 }).valid).toBe(false);
+  expect(productionModule.validate({ robotLaborEquivalent: 50 }).valid).toBe(false);
+  expect(productionModule.validate({ aiWorkerEquivalentPerTWh: 2e7 }).valid).toBe(false);
+  expect(productionModule.validate({ robotLaborEquivalent: 2, aiWorkerEquivalentPerTWh: 1e5 }).valid).toBe(true);
+});
+
 test('calibrated Ayres-Warr exponents are pinned', () => {
   // gamma = 0.55: Ayres & Warr (2009), within Kuemmel et al. (2010) 0.40-0.60.
   // Changing the growth engine's core elasticities must be deliberate.
   expect(productionDefaults.gamma).toBe(0.55);
   expect(productionDefaults.alpha).toBe(0.25);
   expect(productionDefaults.beta).toBe(0.15);
+});
+
+test('1990-2025 growth backcast reproduces observed world GDP', () => {
+  // The efficiency engine (eta0/etaMax/lambda) is calibrated so that the
+  // production structure, anchored in 1990 and driven with observed world
+  // inputs, reproduces observed 2025 GDP ($158T WDI PPP) — see
+  // scripts/growth-backcast.md. This pins the calibration across all
+  // production params AND the historical data: changing elasticities,
+  // efficiency params, or the observed series without re-solving lambda
+  // breaks this test rather than silently decalibrating the model.
+  const r = runGrowthBackcast();
+  const predicted2025 = r.gdpPath[r.gdpPath.length - 1];
+  const observed2025 = r.gdpObserved[r.gdpObserved.length - 1];
+  expect(Math.abs(predicted2025 / observed2025 - 1)).toBeLessThan(0.05);
+
+  // Independent check the solver was not fitted to: the backcast's implied
+  // 2025 second-law efficiency must land in Brockway et al. (2018)'s
+  // measured ~0.20-0.25 band (started from De Stercke's 0.15 in 1990).
+  expect(r.final.eta).toBeBetween(0.19, 0.27);
+
+  // The forward defaults are DERIVED from this backcast; enforce the
+  // derivation, not just the prose: the 2025-anchored run must start where
+  // the 1990-anchored run ends (same eta, same point on the learning curve).
+  expect(Math.abs(productionDefaults.endUseEfficiency0 - r.final.eta)).toBeLessThan(0.01);
+  expect(Math.abs(productionDefaults.cumulativeWorkHistory - r.impliedHistory2025)).toBeLessThan(1);
 });
 
 test('year 0 normalizes GDP to initialGDP with unit contributions', () => {

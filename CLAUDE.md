@@ -173,7 +173,8 @@ Do this before committing. Most fix-up commits in project history would have bee
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
-- GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; the spread is now ~1.35x (and higher γ mildly *lowers* GDP) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; the spread is now ~1.3x (and higher γ mildly *lowers* GDP) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- The endogenous-efficiency engine (TFP replacement) is calibrated to reproduce observed 1990-2025 world growth — see `scripts/growth-backcast.md`; pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 
@@ -218,6 +219,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 | `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
+| `ai-energy-boom` | No demand cap on energy: AI/robot demand ceilings lifted, automation production payoff on, energy capex competes for savings — financing is the binding constraint |
 
 ## Agent Introspection
 
