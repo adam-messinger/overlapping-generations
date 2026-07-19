@@ -45,6 +45,7 @@
   },
 
   "climate": {
+    "nonCO2Forcing2100": 1.3,
     "sensitivity": 3.0,
     "tippingMultiplier": 1.8
   }

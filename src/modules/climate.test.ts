@@ -26,9 +26,10 @@ test('init returns correct initial state', () => {
 test('init deep temp consistent with energy balance', () => {
   const state = climateModule.init(climateDefaults);
   // Verify: C₁ × warmingRate ≈ F - λ·T₁ - γ·(T₁ - T₂)
+  // F includes the non-CO2 overlay at its 2025 value.
   const T1 = climateDefaults.currentTemp;
   const co2ppm = 280 + 2400 * 0.45 * 0.128;
-  const forcing = 3.7 * Math.log2(co2ppm / 280);
+  const forcing = 3.7 * Math.log2(co2ppm / 280) + climateDefaults.nonCO2Forcing2025;
   const lambda = 3.7 / 3.0;
   const lhs = 7.3 * 0.02;
   const rhs = forcing - lambda * T1 - 0.73 * (T1 - state.deepTemp);
@@ -187,6 +188,22 @@ test('damage function reproduces its documented calibration quantitatively', () 
   const state = climateModule.init(climateDefaults);
   const { outputs } = climateModule.step(state, { emissions: 0 }, climateDefaults, 2025, 0);
   expect(outputs.damages).toBeBetween(0.011, 0.013);
+});
+
+test('rising non-CO2 forcing adds warming over the century', () => {
+  const run = (nonCO2Forcing2100: number) => {
+    const params = climateModule.mergeParams({ nonCO2Forcing2100 });
+    let state = climateModule.init(params);
+    for (let i = 0; i < 75; i++) {
+      state = climateModule.step(state, { emissions: 20 }, params, 2025 + i, i).state;
+    }
+    return state.temperature;
+  };
+  // Aerosol-cleanup path (+0.85 by 2100) vs strong CH4 mitigation (+0.2):
+  // the difference of 0.65 W/m^2 sustained should be worth a few tenths of a degree
+  const spread = run(0.85) - run(0.2);
+  expect(spread).toBeGreaterThan(0.1);
+  expect(spread).toBeLessThan(0.5);
 });
 
 test('damages are capped at maxDamage under extreme warming', () => {

@@ -57,7 +57,11 @@ test('cdr default TCRE matches the climate module\'s emergent TCRE', () => {
   // warming-per-GtCO2. Pins the coupling: if climate's sensitivity default
   // or temperature formula drifts, the SCC gate and realized warming diverge
   // and this fails instead of silently miscalibrating deployment.
-  const result = runSimulation();
+  // Non-CO2 forcing is held at its 2025 level so the measured warming delta
+  // is the CO2 response alone — the marginal that cdr.tcre represents.
+  const result = runSimulation({
+    climate: { nonCO2Forcing2100: 0.5 },
+  });
   const first = result.results[0];
   const last = result.results[result.results.length - 1];
   const emergent = (last.temperature - first.temperature) /
