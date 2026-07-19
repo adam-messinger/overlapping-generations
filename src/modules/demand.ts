@@ -440,9 +440,15 @@ export const demandDefaults: DemandParams = {
   energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
 
   // Robot/automation (endogenous logistic adoption)
-  robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025
-  robotBaseGrowth: 0.12,         // Base logistic growth rate
-  robotSaturation: 600,          // Carrying capacity
+  robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (IFR World Robotics 2024: ~4.3M industrial robots ≈ 1/1000 of all workers)
+  robotBaseGrowth: 0.12,         // Base logistic growth rate (IFR installations grew ~10-14%/yr 2015-2024)
+  // SPECULATIVE — no literature anchor exists for 2100 robot density. 600/1000
+  // workers at 10 MWh each implies ~26,000 TWh/yr by 2100 (comparable to
+  // total world electricity today) and dominates late-century demand growth.
+  // Only the 2025 baseline and near-term growth rate are data-anchored; the
+  // ceiling is a scenario assumption. Treat late-century absolute demand (and
+  // anything downstream of it) as conditional on this choice.
+  robotSaturation: 600,
   energyPerRobotMWh: 10,        // MWh per robot-unit per year
   robotEnergySensitivity: 0.5,   // LCOE elasticity
   robotWageSensitivity: 0.3,     // Wage elasticity
@@ -452,7 +458,12 @@ export const demandDefaults: DemandParams = {
   // Datacenter/AI compute (endogenous, distributed by regional GDP)
   dataCenterBaseline2025: 500,        // TWh, IEA/EPRI 2024: datacenters ~1.5% of global elec (~460 TWh); AI inference boost → ~500
   dataCenterBaseGrowth: 0.12,         // Logistic rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
-  dataCenterSaturation: 6000,         // TWh ceiling; physical grid interconnect + chip-supply + cooling-water constraints
+  // ASSUMPTION beyond ~2030: IEA (2024) projects ~945 TWh by 2030; published
+  // projections thin out beyond that (2050 studies span roughly 1,500-4,000+
+  // TWh). The 6,000 ceiling (~1% of 2100 useful energy) is an asserted
+  // grid/chip/cooling constraint, not a sourced value; the model reaches
+  // ~5,500 TWh by 2050 — above nearly all published projections.
+  dataCenterSaturation: 6000,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
@@ -728,9 +739,9 @@ export const demandModule: Module<
       tier: 1 as const,
     },
     robotSaturation: {
-      description: 'Robot carrying capacity (per 1000 workers). Logistic ceiling.',
+      description: 'Robot carrying capacity (per 1000 workers). SPECULATIVE scenario assumption — no literature anchor exists for long-run robot density; the default implies ~26,000 TWh/yr of robot load by 2100 and dominates late-century demand growth.',
       unit: 'robots per 1000 workers',
-      range: { min: 200, max: 2000, default: 600 },
+      range: { min: 50, max: 2000, default: 600 },
       tier: 1 as const,
     },
     robotEnergySensitivity: {
@@ -752,9 +763,9 @@ export const demandModule: Module<
       tier: 1 as const,
     },
     dataCenterSaturation: {
-      description: 'Datacenter electricity carrying capacity (TWh). Physical grid/chip/cooling constraint.',
+      description: 'Datacenter electricity carrying capacity (TWh). ASSUMPTION beyond ~2030: IEA projects ~945 TWh by 2030; the default ceiling and the model\'s ~5,500 TWh by 2050 sit above nearly all published projections.',
       unit: 'TWh',
-      range: { min: 2000, max: 15000, default: 6000 },
+      range: { min: 1000, max: 15000, default: 6000 },
       tier: 1 as const,
     },
     dataCenterEnergySensitivity: {
