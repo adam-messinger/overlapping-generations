@@ -2,7 +2,7 @@
  * Capital Module
  *
  * Savings, investment, and automation dynamics based on OLG lifecycle theory.
- * Implements Galbraith/Chen uncertainty premium for investment stability.
+ * Includes an uncertainty-damping factor on savings (see Key equations).
  *
  * Key equations:
  * - Savings rate: Demographic-weighted average of cohort savings rates
@@ -18,7 +18,9 @@
  * Sources:
  * - Penn World Table: K/Y ratio ~3.5, global capital stock ~$420T
  * - OLG theory: Lifecycle savings rates by age cohort
- * - Galbraith/Chen (2021): Uncertainty premium on investment
+ * - Uncertainty damping Φ = 1/(1+λu²): an ad-hoc form inspired by
+ *   Galbraith/Chen entropy economics; only this factor is implemented, and
+ *   the framework's emphasized Jevons/rebound dynamics are absent
  */
 
 import { Region, REGIONS } from '../domain-types.js';
@@ -53,8 +55,7 @@ export interface CapitalParams {
   transfers: TransferParams;
   transferPremium: Record<Region, Partial<TransferParams>>;
 
-  // Galbraith/Chen uncertainty premium
-  stabilityLambda: number;    // Sensitivity to uncertainty
+  stabilityLambda: number;    // Sensitivity to uncertainty (see Key equations)
 
   // Automation
   automationShare2025: number;    // Initial fraction of capital as "robots"
@@ -337,8 +338,8 @@ function calculateSavingsRate(
 }
 
 /**
- * Galbraith/Chen stability factor
- * Φ = 1 / (1 + λ × uncertainty²)
+ * Uncertainty damping on savings: Φ = 1 / (1 + λ × uncertainty²).
+ * Provenance and scope in the module header's Key equations block.
  */
 function calculateStability(uncertainty: number, lambda: number): number {
   return 1 / (1 + lambda * uncertainty * uncertainty);
