@@ -80,7 +80,7 @@ export const cdrDefaults: CDRParams = {
   // EMERGENT TCRE (~0.00044 at default sensitivity 3.0). Scenarios that change
   // climate sensitivity should override this to match, or the SCC gate and
   // realized warming silently diverge.
-  tcre: 0.00045,
+  tcre: 0.00058,  // mirrors climate's 75-yr emergent warming/GtCO2 with the rising airborne fraction (consistency-pinned in climate.test.ts); AR6 central 0.00045 is the 30-yr marginal
 };
 
 // =============================================================================

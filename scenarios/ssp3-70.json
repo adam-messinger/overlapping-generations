@@ -1,20 +1,29 @@
 {
   "name": "SSP3-7.0 (Regional Rivalry)",
-  "description": "IPCC SSP3-7.0 aligned. Regional competition, nationalist policies, slow tech transfer. Target: 3.6°C by 2100.",
-
+  "description": "IPCC SSP3-7.0 aligned. Regional competition, nationalist policies, slow tech transfer. ACHIEVED (2026 model): ~3.0C by 2100 (nominal target 3.6C) — closer than the pre-valve 2.5C but still cool for the same reason as ssp5-85; see that scenario's note.",
   "energy": {
     "carbonPrice": 10,
     "sources": {
-      "solar": { "alpha": 0.28, "growthRate": 0.12 },
-      "wind": { "alpha": 0.18, "growthRate": 0.08 },
-      "battery": { "alpha": 0.20, "growthRate": 0.10 },
-      "coal": { "growthRate": 0.02 }
+      "solar": {
+        "alpha": 0.28,
+        "growthRate": 0.12
+      },
+      "wind": {
+        "alpha": 0.18,
+        "growthRate": 0.08
+      },
+      "battery": {
+        "alpha": 0.2,
+        "growthRate": 0.1
+      },
+      "coal": {
+        "growthRate": 0.02
+      }
     },
     "maxGrowthRate": {
       "coal": 0.02
     }
   },
-
   "demand": {
     "efficiencyMultiplier": 0.8,
     "fuelMix": {
@@ -23,16 +32,16 @@
     },
     "sectors": {
       "transport": {
-        "costEscalationThreshold": 0.40,
+        "costEscalationThreshold": 0.4,
         "costEscalationRate": 3.0,
         "costSensitivity": 0.04,
         "basePressure": 0.008
       },
       "buildings": {
-        "costEscalationThreshold": 0.60,
+        "costEscalationThreshold": 0.6,
         "costEscalationRate": 2.0,
         "costSensitivity": 0.03,
-        "basePressure": 0.010
+        "basePressure": 0.01
       },
       "industry": {
         "costEscalationThreshold": 0.35,
@@ -42,7 +51,6 @@
       }
     }
   },
-
   "climate": {
     "nonCO2Forcing2100": 1.2,
     "sensitivity": 3.0

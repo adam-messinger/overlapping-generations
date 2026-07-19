@@ -432,7 +432,7 @@ export const demandDefaults: DemandParams = {
       costEscalationThreshold: 0.42,
       costEscalationRate: 3.5,        // Strongest escalation (cement, glass, steel)
       costSensitivity: 0.10,          // Most cost-sensitive sector
-      basePressure: 0.008,            // Slower baseline (heavy equipment)
+      basePressure: 0.019,            // Calibrated so industry electrification keeps rising ~0.15pp/yr against adverse retail economics (IEA WEB: 21.9% 2015 -> ~23% 2023) — policy mandates + onsite generation bypass retail adders; the signed cost pressure alone would pin it at the 2025 floor
       efficiencyMultiplier: 1.1,      // Motors ~10% more efficient
       maxAnnualChange: 0.025,         // 2.5%/year max (long-lived equipment)
       relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 22%)
@@ -673,9 +673,23 @@ function calculateSectorElectrification(
   // When ratio > 1, electricity is cheaper → pressure to electrify
   const costRatio = effectiveFuelCost / adjustedElecCost;
 
-  // Pressure = base + sensitivity × log(max(1, ratio))
-  // log(1) = 0, so no bonus when costs are equal
-  const costPressure = sectorParams.costSensitivity * Math.log(Math.max(1, costRatio));
+  // Pressure = base + sensitivity × log(ratio). The log is SIGNED: when
+  // electricity is expensive relative to the fuel (ratio < 1), pressure can
+  // go negative and electrification REVERSES toward the 2025 floor — the
+  // emissions release valve the adversarial review found missing (the old
+  // max(1, ratio) clamp meant expensive clean energy could only make the
+  // world poorer, never dirtier; reality's revealed alternative is burning
+  // more fuel). Ratio sanity-clamped to [0.2, 5] so extreme transients
+  // cannot swing pressure unboundedly.
+  const rawCostPressure = sectorParams.costSensitivity
+    * Math.log(Math.max(0.2, Math.min(5, costRatio)));
+  // Hysteresis: reversal is ~3x stickier than adoption — installed electric
+  // stock (heat pumps, EV fleets, electrified process heat) is not scrapped
+  // when fuel gets cheap; it reverts only through replacement cycles.
+  const REVERSAL_STICKINESS = 0.3;
+  const costPressure = rawCostPressure >= 0
+    ? rawCostPressure
+    : rawCostPressure * REVERSAL_STICKINESS;
   const totalPressure = sectorParams.basePressure + costPressure;
 
   // Apply pressure to gap-to-ceiling (physical ceiling, not normative)
