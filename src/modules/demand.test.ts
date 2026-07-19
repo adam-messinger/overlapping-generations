@@ -105,8 +105,10 @@ test('step year 0 returns correct global GDP', () => {
 
 test('step year 0 returns correct electricity demand', () => {
   const { outputs } = runYears(1);
-  // ~30,000 TWh in 2025 (IEA)
-  expect(outputs.electricityDemand / 1000).toBeBetween(25, 35);
+  // Observed 2025 final electricity consumption ~26-28k TWh (IEA). The
+  // efficiency-corrected accounting initializes at the low end (~25k):
+  // year-0 electrified increments draw 1/multiplier the displaced fuel.
+  expect(outputs.electricityDemand / 1000).toBeBetween(24, 32);
 });
 
 test('step year 0 returns correct electrification rate', () => {
@@ -219,9 +221,12 @@ test('electricity demand 2050 higher than 2025', () => {
   expect(year26).toBeGreaterThan(year1 * 1.5);
 });
 
-test('final energy per capita ~50-65 kWh/day by 2050 (Twin-Engine)', () => {
+test('final energy per capita ~35-60 kWh/day by 2050 (Twin-Engine)', () => {
+  // Efficiency-corrected accounting: final energy shrinks as electrification
+  // proceeds (an EV draws ~1/3.5 the final energy of the ICE it displaces),
+  // so 2050 per-capita final energy sits below the old fuel-scale band.
   const year26 = runYears(26).outputs.finalEnergyPerCapitaDay;
-  expect(year26).toBeBetween(45, 70);
+  expect(year26).toBeBetween(35, 60);
 });
 
 test('Asia-Pacific share >40% by 2050', () => {

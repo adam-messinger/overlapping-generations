@@ -1065,6 +1065,25 @@ export const demandModule: Module<
       newSectorElectrification.buildings * params.sectors.buildings.share +
       newSectorElectrification.industry * params.sectors.industry.share;
 
+    // Efficiency-corrected final-energy factors. GDP x intensity is final
+    // energy at the 2025 electrification mix, so only the INCREMENT of
+    // electrification beyond 2025 converts at 1/efficiencyMultiplier (an EV
+    // draws ~1/3.5 the final energy of the ICE it displaces); the 2025
+    // electric baseload (lights, appliances) has no fuel counterfactual and
+    // keeps its measured final energy. Previously electrified demand consumed
+    // fuel-scale TWh as electricity — ~3x physical reality — inflating
+    // generation and, through it, the useful-energy GDP channel.
+    let elecFinalFactor = 0;     // electricity share of service base, final-energy basis
+    let nonElecFinalFactor = 0;  // fuel share of service base
+    for (const sectorKey of sectorKeys) {
+      const s = params.sectors[sectorKey];
+      const rate = newSectorElectrification[sectorKey];
+      const increment = Math.max(0, rate - s.electrification2025);
+      const baseElec = Math.min(rate, s.electrification2025);
+      elecFinalFactor += s.share * (baseElec + increment / s.efficiencyMultiplier);
+      nonElecFinalFactor += s.share * (1 - rate);
+    }
+
     // Global GDP comes from production module
     const globalGdp = inputs.gdp;
 
@@ -1076,6 +1095,7 @@ export const demandModule: Module<
     let globalWorking = 0;
     let globalTotalFinal = 0;
     let globalNonElec = 0;
+    let globalServiceBase = 0;
 
     // First pass: compute share adjustments
     const shareAdjustments: Record<Region, number> = {} as Record<Region, number>;
@@ -1139,10 +1159,13 @@ export const demandModule: Module<
           (1 - regionParams.intensityDecline * params.efficiencyMultiplier);
       }
 
-      // Calculate energy demand
-      const totalEnergy = newGdp * newIntensity * 1000; // TWh
-      const elecDemand = totalEnergy * electrificationRate;
-      const nonElecEnergy = totalEnergy - elecDemand;
+      // Calculate energy demand. totalEnergy is the service base (final
+      // energy at the 2025 mix); the efficiency-corrected factors convert it
+      // to actual final energy, which shrinks as electrification proceeds.
+      const totalEnergy = newGdp * newIntensity * 1000; // TWh, service base
+      const elecDemand = totalEnergy * elecFinalFactor;
+      const nonElecEnergy = totalEnergy * nonElecFinalFactor;
+      const finalEnergy = elecDemand + nonElecEnergy;
 
       // Per working-age adult metrics
       const gdpPerWorking = (newGdp * 1e12) / working;
@@ -1159,7 +1182,7 @@ export const demandModule: Module<
         gdp: newGdp,
         growthRate,
         energyIntensity: newIntensity,
-        totalFinalEnergy: totalEnergy,
+        totalFinalEnergy: finalEnergy,
         electricityDemand: elecDemand,
         nonElectricEnergy: nonElecEnergy,
         gdpPerWorking,
@@ -1169,14 +1192,17 @@ export const demandModule: Module<
       // Accumulate globals
       globalElec += elecDemand;
       globalWorking += working;
-      globalTotalFinal += totalEnergy;
+      globalTotalFinal += finalEnergy;
       globalNonElec += nonElecEnergy;
+      globalServiceBase += totalEnergy;
     }
 
-    // Sector breakdown base: robot/datacenter loads added below are 100%
-    // electric and must not be split by sector electrification rates
-    // (doing so reclassified most of them as phantom non-electric energy)
-    const sectorEnergyBase = globalTotalFinal;
+    // Sector breakdown base is the SERVICE base (2025-mix final energy), so
+    // per-sector electrified/fuel splits use the same efficiency-corrected
+    // conversion as the regional totals. Robot/datacenter loads added below
+    // are 100% electric add-ons and must not be split by sector rates
+    // (doing so reclassified most of them as phantom non-electric energy).
+    const sectorEnergyBase = globalServiceBase;
 
     // Endogenous robot adoption (logistic + energy/wage drivers)
     const prevRobots = state.robotsPer1000;
@@ -1251,13 +1277,20 @@ export const demandModule: Module<
       const sectorParams = params.sectors[sectorKey];
       const sectorElecRate = newSectorElectrification[sectorKey];
 
-      // Sector total energy (excludes robot/DC loads — pure electric add-ons)
-      const sectorTotal = sectorEnergyBase * sectorParams.share;
-      const sectorElectric = sectorTotal * sectorElecRate;
-      const sectorNonElectric = sectorTotal - sectorElectric;
+      // Sector service base (excludes robot/DC loads — pure electric add-ons).
+      // Electrified increments beyond 2025 draw 1/efficiencyMultiplier the
+      // final energy of the fuel they displace (same convention as the
+      // regional factors above), so sector final energy shrinks with
+      // electrification.
+      const sectorService = sectorEnergyBase * sectorParams.share;
+      const increment = Math.max(0, sectorElecRate - sectorParams.electrification2025);
+      const baseElec = Math.min(sectorElecRate, sectorParams.electrification2025);
+      const sectorElectric = sectorService *
+        (baseElec + increment / sectorParams.efficiencyMultiplier);
+      const sectorNonElectric = sectorService * (1 - sectorElecRate);
 
       sectors[sectorKey] = {
-        total: sectorTotal,
+        total: sectorElectric + sectorNonElectric,
         electric: sectorElectric,
         nonElectric: sectorNonElectric,
         electrificationRate: sectorElecRate,
@@ -1314,17 +1347,15 @@ export const demandModule: Module<
 
     const fossilStockTWh = newFossilVehicleFleet + newFossilHeatingStock + newFossilIndustrialStock;
 
-    // Useful energy = electrified energy * efficiency multiplier + non-electric energy
-    let usefulEnergy = 0;
-    for (const sectorKey of sectorKeys) {
-      const sectorParams = params.sectors[sectorKey];
-      const sectorOutput = sectors[sectorKey];
-      usefulEnergy += sectorOutput.electric * sectorParams.efficiencyMultiplier;
-      usefulEnergy += sectorOutput.nonElectric;
-    }
-    // Robot/DC loads are direct electricity end-uses with no fuel
-    // counterfactual, so they count at 1x (no efficiency multiplier)
-    usefulEnergy += robotLoadTWh + dataCenterLoadTWh;
+    // Useful energy proxy at service level. Electrified increments deliver
+    // the same service from less final energy, so efficiency gains show up
+    // as final energy falling — not as useful energy rising. Service base +
+    // lock-in extra fuel + the pure-electric add-on loads. Electricity's
+    // quality (exergy) advantage enters GDP via the production module's
+    // exergy weighting, not here — the old formula multiplied electrified
+    // energy by the efficiency multiplier on top of fuel-scale electricity
+    // demand, double-crediting electrification.
+    const usefulEnergy = sectorEnergyBase + lockInAdjustment + robotLoadTWh + dataCenterLoadTWh;
     const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
 
     // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP
