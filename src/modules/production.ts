@@ -51,6 +51,12 @@ export interface ProductionParams {
   // Organizational efficiency (education-driven)
   orgEfficiencySensitivity: number;    // φ: sensitivity to college share gain (0.35)
   orgEfficiencyMaxCollegeGain: number; // max college share improvement (0.40)
+
+  // Automation payoff: robots/AI augment effective labor. Both default 0
+  // (automation is a pure energy sink), preserving the backcast-calibrated
+  // baseline; the ai-energy-boom scenario turns them on. See scenario notes.
+  robotLaborEquivalent: number;     // worker-equivalents per robot (Acemoglu & Restrepo 2020 find 1 robot displaces ~3-6 workers; output equivalent lower)
+  aiWorkerEquivalentPerTWh: number; // worker-equivalents per TWh/yr of datacenter compute
 }
 
 export const productionDefaults: ProductionParams = {
@@ -70,6 +76,8 @@ export const productionDefaults: ProductionParams = {
   cumulativeWorkHistory: 42,        // 1990 base (30yr) + observed 1990-2024 useful work, in 2025 units — derived in growth-backcast.md
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
+  robotLaborEquivalent: 0,      // default off: no automation payoff in the calibrated baseline
+  aiWorkerEquivalentPerTWh: 0,  // default off: compute is a pure energy sink in the baseline
 };
 
 // =============================================================================
@@ -111,6 +119,10 @@ export interface ProductionInputs {
   collegeShare: number;
   /** CDR energy consumption TWh (from cdr, lagged) */
   cdrEnergy: number;
+  /** Robots per 1000 workers (from demand, lagged); optional for standalone use */
+  robotsPer1000?: number;
+  /** Datacenter compute load TWh (from demand, lagged); optional for standalone use */
+  dataCenterLoadTWh?: number;
 }
 
 export interface ProductionOutputs {
@@ -166,6 +178,18 @@ export const productionModule: Module<
       range: { min: 0.05, max: 0.70, default: 0.55 },
       tier: 1 as const,
     },
+    robotLaborEquivalent: {
+      description: 'Worker-equivalents each robot adds to effective labor. 0 = automation is a pure energy sink (calibrated baseline). Acemoglu & Restrepo (2020) find one industrial robot displaces ~3-6 workers; net output equivalent is lower. Used by the ai-energy-boom scenario.',
+      unit: 'worker-equivalents/robot',
+      range: { min: 0, max: 20, default: 0 },
+      tier: 1 as const,
+    },
+    aiWorkerEquivalentPerTWh: {
+      description: 'Cognitive worker-equivalents per TWh/yr of datacenter compute added to effective labor. 0 = compute is a pure energy sink (calibrated baseline). Used by the ai-energy-boom scenario.',
+      unit: 'worker-equivalents/TWh',
+      range: { min: 0, max: 1e7, default: 0 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -180,6 +204,8 @@ export const productionModule: Module<
     'energySystemOverhead',
     'collegeShare',
     'cdrEnergy',
+    'robotsPer1000',
+    'dataCenterLoadTWh',
   ] as const,
 
   outputs: [
@@ -222,6 +248,14 @@ export const productionModule: Module<
     }
     if (params.endUseLearningExponent !== undefined && params.endUseLearningExponent < 0) {
       errors.push('endUseLearningExponent must be non-negative');
+    }
+    if (params.robotLaborEquivalent !== undefined &&
+        (params.robotLaborEquivalent < 0 || params.robotLaborEquivalent > 20)) {
+      errors.push('robotLaborEquivalent must be between 0 and 20 worker-equivalents per robot');
+    }
+    if (params.aiWorkerEquivalentPerTWh !== undefined &&
+        (params.aiWorkerEquivalentPerTWh < 0 || params.aiWorkerEquivalentPerTWh > 1e7)) {
+      errors.push('aiWorkerEquivalentPerTWh must be between 0 and 1e7 worker-equivalents per TWh');
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -273,6 +307,17 @@ export const productionModule: Module<
       + cdrEnergy * params.electricExergy; // CDR is purely electric
     const productionUsefulEnergy = Math.max(0, grossUsefulEnergy - systemOverhead);
 
+    // Automation-augmented labor: robots add physical worker-equivalents,
+    // datacenter compute adds cognitive worker-equivalents. Defaults are 0
+    // (automation is a pure energy sink); the year-0 anchor captures the
+    // augmented value, so only relative growth in automation moves GDP, not
+    // its 2025 level.
+    const robotsPer1000 = inputs.robotsPer1000 ?? 0;
+    const dataCenterLoadTWh = inputs.dataCenterLoadTWh ?? 0;
+    const augmentedWorkers = effectiveWorkers
+      * (1 + params.robotLaborEquivalent * robotsPer1000 / 1000)
+      + params.aiWorkerEquivalentPerTWh * dataCenterLoadTWh;
+
     // Year 0: capture initial values for normalization
     let initialCapital = state.initialCapital;
     let initialLabor = state.initialLabor;
@@ -282,7 +327,7 @@ export const productionModule: Module<
 
     if (yearIndex === 0) {
       initialCapital = capitalStock;
-      initialLabor = effectiveWorkers;
+      initialLabor = augmentedWorkers;
       initialUsefulEnergy = productionUsefulEnergy;
       // Historical baseline: prior useful-work experience (cumulativeWorkHistory
       // years at the anchor-year rate) damps the early learning rate
@@ -300,7 +345,7 @@ export const productionModule: Module<
 
     // Production function components (normalized)
     const capitalContribution = Math.pow(capitalStock / safeK0, params.alpha);
-    const laborContribution = Math.pow(effectiveWorkers / safeL0, params.beta);
+    const laborContribution = Math.pow(augmentedWorkers / safeL0, params.beta);
     const energyContribution = Math.pow(Math.max(0.01, productionUsefulEnergy / safeE0), params.gamma);
 
     // =========================================================================

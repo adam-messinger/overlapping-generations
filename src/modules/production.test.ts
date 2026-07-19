@@ -33,6 +33,53 @@ function yearZero(params = productionModule.mergeParams({})) {
 
 console.log('\n=== Production Module Tests ===\n');
 
+test('automation payoff defaults to off: robot/DC inputs do not move GDP', () => {
+  const params = productionModule.mergeParams({});
+  const base = productionModule.step(
+    productionModule.init(params), makeInputs(), params, 2025, 0);
+  const withAutomation = productionModule.step(
+    productionModule.init(params),
+    makeInputs({ robotsPer1000: 500, dataCenterLoadTWh: 50000 }),
+    params, 2025, 0);
+  expect(withAutomation.outputs.gdp).toBeCloseTo(base.outputs.gdp, 9);
+});
+
+test('robot labor equivalent raises GDP with automation growth', () => {
+  const params = productionModule.mergeParams({ robotLaborEquivalent: 2 });
+  // Year 0 anchors on the initial automation level; year 1 with more robots
+  // must out-produce year 1 with flat robots
+  const y0 = productionModule.step(
+    productionModule.init(params), makeInputs({ robotsPer1000: 10 }), params, 2025, 0);
+  const flat = productionModule.step(
+    y0.state, makeInputs({ robotsPer1000: 10 }), params, 2026, 1);
+  const growing = productionModule.step(
+    y0.state, makeInputs({ robotsPer1000: 100 }), params, 2026, 1);
+  expect(growing.outputs.gdp).toBeGreaterThan(flat.outputs.gdp);
+  // Year-0 level itself is unchanged by the payoff (anchor absorbs it)
+  const paramsOff = productionModule.mergeParams({});
+  const y0Off = productionModule.step(
+    productionModule.init(paramsOff), makeInputs({ robotsPer1000: 10 }), paramsOff, 2025, 0);
+  expect(y0.outputs.gdp).toBeCloseTo(y0Off.outputs.gdp, 9);
+});
+
+test('AI compute worker-equivalents raise GDP with compute growth', () => {
+  const params = productionModule.mergeParams({ aiWorkerEquivalentPerTWh: 1e5 });
+  const y0 = productionModule.step(
+    productionModule.init(params), makeInputs({ dataCenterLoadTWh: 500 }), params, 2025, 0);
+  const flat = productionModule.step(
+    y0.state, makeInputs({ dataCenterLoadTWh: 500 }), params, 2026, 1);
+  const growing = productionModule.step(
+    y0.state, makeInputs({ dataCenterLoadTWh: 5000 }), params, 2026, 1);
+  expect(growing.outputs.gdp).toBeGreaterThan(flat.outputs.gdp);
+});
+
+test('automation payoff validation rejects out-of-range values', () => {
+  expect(productionModule.validate({ robotLaborEquivalent: -1 }).valid).toBe(false);
+  expect(productionModule.validate({ robotLaborEquivalent: 50 }).valid).toBe(false);
+  expect(productionModule.validate({ aiWorkerEquivalentPerTWh: 2e7 }).valid).toBe(false);
+  expect(productionModule.validate({ robotLaborEquivalent: 2, aiWorkerEquivalentPerTWh: 1e5 }).valid).toBe(true);
+});
+
 test('calibrated Ayres-Warr exponents are pinned', () => {
   // gamma = 0.55: Ayres & Warr (2009), within Kuemmel et al. (2010) 0.40-0.60.
   // Changing the growth engine's core elasticities must be deliberate.
