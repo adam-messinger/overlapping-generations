@@ -585,6 +585,8 @@ export interface RegionalEnergyOutputs {
 }
 
 export interface EnergyOutputs {
+  /** Realized capex spend this year, all sources incl. fossil/storage ($T) */
+  energyCapexSpend: number;
   /** Current LCOE by source ($/MWh) - GLOBAL (from learning curves) */
   lcoes: Record<EnergySource, number>;
 
@@ -763,7 +765,7 @@ export const energyModule: Module<
       tier: 1 as const,
     },
     cleanShareFlex: {
-      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). One-sided: expanded energy capex is not debited from other capital formation, so crowding-out is understated. Used by the ai-energy-boom scenario.',
+      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). Expanded spend is debited from general capital formation via the lagged energyCapexSpend ledger (crowding-out is real). Used by the ai-energy-boom scenario.',
       unit: 'fraction',
       range: { min: 0, max: 1, default: 0 },
       tier: 1 as const,
@@ -887,6 +889,7 @@ export const energyModule: Module<
     'netEnergyFraction',
     'solarPlusBatteryLCOE',
     'capacities',
+    'energyCapexSpend',
     'regionalCapacities',
     'cumulativeCapacity',
     'additions',
@@ -1267,6 +1270,8 @@ export const energyModule: Module<
       effectiveCapex[source] = capex;
     }
 
+    let realizedCapexB = 0; // $B, summed across regions
+
     for (const region of REGIONS) {
       const regionParams = params.regional[region];
       // Plan capacity on the GENERATION basis dispatch will request
@@ -1420,8 +1425,8 @@ export const energyModule: Module<
       const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
       cleanSources.sort((a, b) => rankingLCOE[a] - rankingLCOE[b]);
 
-      // Per-source desired spend ($B) — single cost formula shared by the
-      // flex budget expansion and the funding loop below
+      // Per-source desired spend ($B) — same cost formula as the funding
+      // loop below and the realized-capex accumulation (funded x capex)
       const desiredCost: Record<EnergySource, number> = {} as any;
       for (const source of cleanSources) {
         desiredCost[source] = (desiredAdditions[source] * effectiveCapex[source]) / 1000;
@@ -1470,6 +1475,13 @@ export const energyModule: Module<
         for (const source of ['solar', 'wind', 'battery', 'nuclear'] as EnergySource[]) {
           fundedAdditions[source] *= mc;
         }
+      }
+
+      // Realized capex this region actually spends ($B): ALL sources —
+      // fossil and storage additions cost capital too, not only the
+      // clean-budget sources
+      for (const source of ENERGY_SOURCES) {
+        realizedCapexB += (fundedAdditions[source] * effectiveCapex[source]) / 1000;
       }
 
       // Calculate retirements and update regional state
@@ -1662,6 +1674,7 @@ export const energyModule: Module<
         lcoes,
         netEnergyFraction,
         solarPlusBatteryLCOE,
+        energyCapexSpend: realizedCapexB / 1000, // $T realized (all sources)
         capacities: globalCapacities,
         regionalCapacities,
         cumulativeCapacity,
