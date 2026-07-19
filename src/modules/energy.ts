@@ -755,7 +755,7 @@ export const energyModule: Module<
       tier: 1 as const,
     },
     cleanShareFlex: {
-      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). Used by the ai-energy-boom scenario.',
+      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). One-sided: expanded energy capex is not debited from other capital formation, so crowding-out is understated. Used by the ai-energy-boom scenario.',
       unit: 'fraction',
       range: { min: 0, max: 1, default: 0 },
       tier: 1 as const,
@@ -1409,21 +1409,26 @@ export const energyModule: Module<
       const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
       cleanSources.sort((a, b) => rankingLCOE[a] - rankingLCOE[b]);
 
+      // Per-source desired spend ($B) — single cost formula shared by the
+      // flex budget expansion and the funding loop below
+      const desiredCost: Record<EnergySource, number> = {} as any;
+      for (const source of cleanSources) {
+        desiredCost[source] = (desiredAdditions[source] * effectiveCapex[source]) / 1000;
+      }
+
       // Endogenous capex share: when desired build exceeds the ramp budget,
       // energy investment competes for more of the savings pool — the share
       // expands to cover cleanShareFlex of the unmet spend, capped at
       // cleanShareMax of regional investment. flex = 0 (default) preserves
-      // the exogenous ramp exactly.
+      // the exogenous ramp exactly. One-sided: expanded energy capex is not
+      // debited from other capital formation (no crowding-out feedback yet).
       if (params.cleanShareFlex > 0) {
-        let desiredCost = 0;
-        for (const source of cleanSources) {
-          desiredCost += (desiredAdditions[source] * effectiveCapex[source]) / 1000;
-        }
-        if (desiredCost > cleanBudget) {
+        const totalDesiredCost = cleanSources.reduce((s, src) => s + desiredCost[src], 0);
+        if (totalDesiredCost > cleanBudget) {
           const maxBudget = regionInvestment * params.cleanShareMax * 1000;
           cleanBudget = Math.min(
             maxBudget,
-            cleanBudget + params.cleanShareFlex * (desiredCost - cleanBudget)
+            cleanBudget + params.cleanShareFlex * (totalDesiredCost - cleanBudget)
           );
         }
       }
@@ -1432,15 +1437,13 @@ export const energyModule: Module<
       const fundedAdditions: Record<EnergySource, number> = {} as any;
 
       for (const source of cleanSources) {
-        const desired = desiredAdditions[source];
-        const capex = effectiveCapex[source];
-        const cost = (desired * capex) / 1000;
+        const cost = desiredCost[source];
 
         if (cost <= remainingBudget) {
-          fundedAdditions[source] = desired;
+          fundedAdditions[source] = desiredAdditions[source];
           remainingBudget -= cost;
         } else {
-          const affordable = (remainingBudget / capex) * 1000;
+          const affordable = (remainingBudget / effectiveCapex[source]) * 1000;
           fundedAdditions[source] = affordable;
           remainingBudget = 0;
         }

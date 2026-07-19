@@ -22,7 +22,7 @@
  * - College share of workforce: Barro-Lee attainment, interpolated
  */
 
-import { productionModule, ProductionParams } from './modules/production.js';
+import { productionModule, ProductionParams, ProductionOutputs } from './modules/production.js';
 
 /** 5-year observation points, 1990-2025 */
 export const BACKCAST_YEARS = [1990, 1995, 2000, 2005, 2010, 2015, 2020, 2025];
@@ -77,18 +77,18 @@ export interface GrowthBackcastResult {
   /** Observed GDP $T for each year 1990..2025 */
   gdpObserved: number[];
   /** Final-year (2025) production outputs */
-  final: {
-    gdp: number;
-    eta: number;
-    efficiencyLevel: number;
-    capitalContribution: number;
-    laborContribution: number;
-    energyContribution: number;
-  };
+  final: ProductionOutputs;
+  /**
+   * Cumulative useful work at end of backcast, in years of 2025-level
+   * consumption — the value the forward default cumulativeWorkHistory must
+   * equal for the 2025-anchored run to sit on the same learning curve.
+   */
+  impliedHistory2025: number;
   /** Annualized driving series */
   series: {
     electricity: number[];
     nonElectric: number[];
+    totalFinal: number[];
     capital: number[];
     workingAge: number[];
     college: number[];
@@ -120,7 +120,7 @@ export function runGrowthBackcast(
 
   let state = productionModule.init(params);
   const gdpPath: number[] = [];
-  let final: any;
+  let final!: ProductionOutputs;
 
   for (let i = 0; i < gdpObserved.length; i++) {
     const r = productionModule.step(
@@ -150,14 +150,10 @@ export function runGrowthBackcast(
   return {
     gdpPath,
     gdpObserved,
-    final: {
-      gdp: final.gdp,
-      eta: final.eta,
-      efficiencyLevel: final.efficiencyLevel,
-      capitalContribution: final.capitalContribution,
-      laborContribution: final.laborContribution,
-      energyContribution: final.energyContribution,
-    },
-    series: { electricity, nonElectric, capital, workingAge, college },
+    final,
+    impliedHistory2025: final.productionUsefulEnergy > 0
+      ? state.cumulativeUsefulWork / final.productionUsefulEnergy
+      : 0,
+    series: { electricity, nonElectric, totalFinal, capital, workingAge, college },
   };
 }

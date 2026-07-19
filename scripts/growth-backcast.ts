@@ -15,15 +15,10 @@
  */
 
 import { writeFileSync } from 'fs';
-import {
-  runGrowthBackcast,
-  OBSERVED_WORLD,
-  annualize,
-  DELIVERY_FACTOR,
-  ETA_1990,
-  HISTORY_1990,
-} from '../src/historical-backcast.js';
+import { runGrowthBackcast, ETA_1990, HISTORY_1990 } from '../src/historical-backcast.js';
 import { productionDefaults } from '../src/modules/production.js';
+import { demandModule } from '../src/modules/demand.js';
+import { REGIONS } from '../src/domain-types.js';
 import { runSimulation } from '../src/index.js';
 
 const cagr = (a: number, b: number, years: number) => Math.log(b / a) / years;
@@ -52,15 +47,22 @@ const legacy = runGrowthBackcast({
 // ---------------------------------------------------------------------------
 
 const gdpObs = def.gdpObserved;
-const tfcObs = annualize(OBSERVED_WORLD.totalFinal);
-const gGdp = obsCagr;
+const tfcObs = def.series.totalFinal;
 const gTfc = cagr(tfcObs[0], tfcObs[N - 1], N - 1);
 // Model's demand structure: final energy ≈ GDP × intensity, intensity
-// declining at the GDP-weighted regional average (~1.3%/yr after the 2026
-// recalibration). Observed decomposition for comparison:
-const observedIntensityDecline = gGdp - gTfc;
-const observedElasticity = gTfc / gGdp;
-const MODEL_INTENSITY_DECLINE = 0.013; // GDP-weighted average of regional intensityDecline defaults
+// declining at the GDP-weighted regional average of the demand defaults
+// (computed here so the report tracks recalibrations automatically).
+const observedIntensityDecline = obsCagr - gTfc;
+const observedElasticity = gTfc / obsCagr;
+const demandDefaults = demandModule.mergeParams({});
+let intensityWeighted = 0;
+let gdpWeight = 0;
+for (const region of REGIONS) {
+  const r = demandDefaults.regions[region];
+  intensityWeighted += r.gdp2025 * r.intensityDecline;
+  gdpWeight += r.gdp2025;
+}
+const MODEL_INTENSITY_DECLINE = intensityWeighted / gdpWeight;
 
 // ---------------------------------------------------------------------------
 // Forward contrast
@@ -68,9 +70,10 @@ const MODEL_INTENSITY_DECLINE = 0.013; // GDP-weighted average of regional inten
 
 const fwd: any = runSimulation();
 const f = (y: number) => fwd.results[y - 2025];
-const fwdE = (row: any) =>
-  row.productionUsefulEnergy ??
-  0.95 * row.electricityDemand + 0.35 * row.nonElectricEnergy;
+const fwdE = (row: any) => row.productionUsefulEnergy;
+// Exergy weighting for the historical series, using the model's own factors
+const exergyE = (electricity: number, nonElectric: number) =>
+  productionDefaults.electricExergy * electricity + productionDefaults.thermalExergy * nonElectric;
 
 // ---------------------------------------------------------------------------
 // Report
@@ -154,7 +157,7 @@ p('## Per-decade check (calibrated defaults)');
 p();
 p('| Period | Observed %/yr | Model %/yr | Gap pp/yr |');
 p('|---|---:|---:|---:|');
-for (let i = 0; i + 10 <= N - 1 || i === 30; i += 10) {
+for (let i = 0; i < N - 1; i += 10) {
   const j = Math.min(i + 10, N - 1);
   const o = cagr(gdpObs[i], gdpObs[j], j - i);
   const m = cagr(def.gdpPath[i], def.gdpPath[j], j - i);
@@ -167,9 +170,9 @@ p();
 p('The demand module ties energy services to GDP (unit income elasticity)');
 p('minus autonomous intensity decline. Observed 1990-2025:');
 p();
-p(`- GDP ${pct(gGdp)}%/yr, final energy ${pct(gTfc)}%/yr → observed intensity`);
+p(`- GDP ${pct(obsCagr)}%/yr, final energy ${pct(gTfc)}%/yr → observed intensity`);
 p(`  decline ${pct(observedIntensityDecline)}%/yr; long-run energy-GDP elasticity ${observedElasticity.toFixed(2)}`);
-p(`- Model structure at observed GDP growth: final energy ≈ ${pct(gGdp - MODEL_INTENSITY_DECLINE)}%/yr`);
+p(`- Model structure at observed GDP growth: final energy ≈ ${pct(obsCagr - MODEL_INTENSITY_DECLINE)}%/yr`);
 p(`  (${pct(MODEL_INTENSITY_DECLINE)}%/yr GDP-weighted intensity decline) vs ${pct(gTfc)}%/yr observed —`);
 p('  the model over-predicts energy demand growth at high GDP growth.');
 p();
@@ -191,7 +194,7 @@ const gE = cagr(fwdE(y25), fwdE(y50), 25);
 const gY = cagr(y25.gdp, y50.gdp, 25);
 const elObs = def.series.electricity;
 const neObs = def.series.nonElectric;
-const gEhist = cagr(0.95 * elObs[0] + 0.35 * neObs[0], 0.95 * elObs[N - 1] + 0.35 * neObs[N - 1], N - 1);
+const gEhist = cagr(exergyE(elObs[0], neObs[0]), exergyE(elObs[N - 1], neObs[N - 1]), N - 1);
 p('| | 1990-2025 (observed inputs) | 2025-2050 (model forward) |');
 p('|---|---:|---:|');
 p(`| Capital growth | ${pct(cagr(def.series.capital[0], def.series.capital[N - 1], N - 1))}%/yr | ${pct(gK)}%/yr |`);

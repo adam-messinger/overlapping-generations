@@ -79,8 +79,8 @@ minus autonomous intensity decline. Observed 1990-2025:
 
 - GDP 3.43%/yr, final energy 1.41%/yr → observed intensity
   decline 2.02%/yr; long-run energy-GDP elasticity 0.41
-- Model structure at observed GDP growth: final energy ≈ 2.13%/yr
-  (1.30%/yr GDP-weighted intensity decline) vs 1.41%/yr observed —
+- Model structure at observed GDP growth: final energy ≈ 2.10%/yr
+  (1.33%/yr GDP-weighted intensity decline) vs 1.41%/yr observed —
   the model over-predicts energy demand growth at high GDP growth.
 
 At moderate GDP growth (~2%/yr) the two decompositions nearly agree

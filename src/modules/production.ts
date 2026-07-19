@@ -185,7 +185,7 @@ export const productionModule: Module<
       tier: 1 as const,
     },
     aiWorkerEquivalentPerTWh: {
-      description: 'Cognitive worker-equivalents per TWh/yr of datacenter compute added to effective labor. 0 = compute is a pure energy sink (calibrated baseline). Used by the ai-energy-boom scenario.',
+      description: 'Cognitive worker-equivalents per TWh/yr of datacenter compute added to effective labor. 0 = compute is a pure energy sink (calibrated baseline). Magnitude anchor: 1e5 means today\'s ~500 TWh of datacenter load augments ~50M workers (~1% of the global workforce) — the ai-energy-boom scenario value. 1e6 would mean today\'s compute already matches ~10% of the workforce.',
       unit: 'worker-equivalents/TWh',
       range: { min: 0, max: 1e7, default: 0 },
       tier: 1 as const,

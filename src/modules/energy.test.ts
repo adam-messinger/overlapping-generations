@@ -340,6 +340,10 @@ test('lower investment reduces additions', () => {
   expect(resultLow.outputs.additions.solar).toBeLessThan(resultHigh.outputs.additions.solar + 1);
 });
 
+// Sum of funded clean additions (gas/coal are unconstrained by the budget)
+const totalCleanAdditions = (r: any) =>
+  ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
+
 test('cleanShareFlex expands the capex budget when desired build is rationed', () => {
   // With a small investment pool the ramp budget rations additions; flex
   // lets energy capex compete for more of the pool, so funded additions rise.
@@ -350,9 +354,7 @@ test('cleanShareFlex expands the capex budget when desired build is rationed', (
   const rigid = energyModule.step(energyModule.init(paramsRigid), inputs, paramsRigid, 2025, 0);
   const flex = energyModule.step(energyModule.init(paramsFlex), inputs, paramsFlex, 2025, 0);
 
-  const total = (r: any) =>
-    ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
-  expect(total(flex)).toBeGreaterThan(total(rigid));
+  expect(totalCleanAdditions(flex)).toBeGreaterThan(totalCleanAdditions(rigid));
 });
 
 test('cleanShareFlex defaults to off: zero flex reproduces the exogenous ramp', () => {
@@ -372,9 +374,7 @@ test('cleanShareMax caps the expanded budget', () => {
   const inputs = createInputs(40000, 8);
   const low = energyModule.step(energyModule.init(paramsLow), inputs, paramsLow, 2025, 0);
   const high = energyModule.step(energyModule.init(paramsHigh), inputs, paramsHigh, 2025, 0);
-  const total = (r: any) =>
-    ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
-  expect(total(low)).toBeLessThan(total(high) + 1e-9);
+  expect(totalCleanAdditions(low)).toBeLessThan(totalCleanAdditions(high) + 1e-9);
 });
 
 test('investment constraint calculated from CAPEX', () => {
