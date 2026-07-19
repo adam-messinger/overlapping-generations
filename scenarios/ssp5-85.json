@@ -1,6 +1,6 @@
 {
   "name": "SSP5-8.5 (Fossil Development)",
-  "description": "IPCC SSP5-8.5 aligned. Fossil-fueled development, high growth, no climate policy. Target: 4.4°C by 2100.",
+  "description": "IPCC SSP5-8.5 aligned. Fossil-fueled development, high growth, no climate policy. ACHIEVED (2026 model): ~3.3C by 2100 with emissions rising to ~142 Gt/yr (SSP5 marker ~130) — the release valve (signed electrification pressure + rising airborne fraction) lets this world exist, but the model still runs ~1.1C cool of the nominal 4.4C target because endogenous solar economics erode fossil electricity even here. Treat as the model's fossil-development world, not an SSP5-8.5 replication.",
 
   "energy": {
     "carbonPrice": 0,

@@ -29,12 +29,16 @@ The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
 damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in a narrow band
 (9.8–12.1% in the July 2026 post-reconciliation run, reaching ~0 by 2075),
 electrification 2050 is pinned at ~62%, warming 2100 varies by only
-~0.04 °C, and the peak energy burden stays at ~6.7% of GDP. NOTE (from the
-adversarial model review): this warming robustness is partly structural —
-the scenario space cannot express a high-emissions world (no fossil
-reversion release valve), so treat the narrow warming band as conditional
-on the demand structure, not as evidence that climate outcomes are
-insensitive to assumptions.
+~0.04 °C, and the peak energy burden stays at ~6.7% of GDP. NOTE: after the 2026
+emissions release valve (signed electrification pressure with reversal
+hysteresis) and the rising airborne fraction, the scenario space spans
+~1.55C (ssp1-19) to ~3.3C (ssp5-85) — a genuine tail exists. The
+gamma x damage grid's narrow band reflects those parameters specifically;
+scenario-level warming uncertainty is much wider. The tail still stops
+~1.1 °C short of the literature SSP markers (ssp5-85 achieves 3.3 °C vs
+the nominal 4.4 °C), so damage stress-tests at literature SSP
+temperatures still require climate-sensitivity overrides, not emissions
+alone.
 
 The fast transition is driven by Wright's-Law solar economics flipping the
 competitiveness gate — not by the biophysical production function. Doubting

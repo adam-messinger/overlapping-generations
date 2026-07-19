@@ -43,9 +43,9 @@ export interface ProductionParams {
   thermalExergy: number;      // Exergy factor for direct fuel use (0.35)
   foodStressElasticity: number; // GDP reduction per unit food stress (0.3)
 
-  // End-use (second-law) efficiency: single coupled series with demand's
-  // autonomous intensity decline (two views of one physical process)
-  endUseEfficiency0: number;        // η₀: second-law efficiency at run start (0.23)
+  // Effective service-efficiency index: single coupled series with demand's
+  // autonomous intensity decline (see methodology note in the defaults)
+  endUseEfficiency0: number;        // η₀: effective index at run start (0.23)
   endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
   serviceEfficiencyGrowth: number;  // η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
 
@@ -68,16 +68,22 @@ export const productionDefaults: ProductionParams = {
   electricExergy: 0.95,       // Electricity is nearly pure useful work
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
   foodStressElasticity: 0.3,  // 30% GDP hit at full food stress
-  // End-use (second-law) efficiency: level anchors from the exergy-economics
-  // literature; growth coupled to the demand module's autonomous intensity
-  // decline — improving devices simultaneously cut final energy per service
-  // (demand side) and raise useful work per final energy (production side).
-  // One parameter, two views; the pin in simulation.test.ts asserts this
-  // default equals demand's gdpWeightedIntensityDecline().
-  // Empirical check: 0.15 x 1.0129^35 = 0.235, matching Brockway's measured
-  // 2020s level — the assumed rate reproduces the measured eta path.
-  endUseEfficiency0: 0.23,          // world second-law efficiency 2025, Brockway et al. (2018) ~0.20-0.25; backcast from 1990's 0.15 (De Stercke 2014) lands at 0.235
-  endUseEfficiencyMax: 0.60,        // practical thermodynamic potential, Cullen & Allwood (2010)
+  // Effective service-efficiency index: growth coupled to the demand
+  // module's autonomous intensity decline (one parameter, two views; the
+  // pin in simulation.test.ts asserts this default equals demand's
+  // gdpWeightedIntensityDecline()). METHODOLOGY NOTE (calibration review):
+  // this 1.29%/yr BUNDLES two service-preserving components — measured
+  // device (second-law) efficiency, ~0.85-0.9%/yr in the CL-PFU database
+  // (Brockway group: world 15% in 1971 -> 23% in 2020), plus
+  // value-preserving structural change (~0.4%/yr residual: sectoral shift
+  // produces the same GDP from fewer energy services). eta here is
+  // therefore an effective index, not the measured second-law efficiency;
+  // that 0.15 x 1.0129^35 = 0.235 lands on Brockway's measured 2020s level
+  // is a consistency check on the bundle (the structural component roughly
+  // offsets starting from 1990's measured ~0.18 rather than 0.15), not an
+  // identity.
+  endUseEfficiency0: 0.23,          // effective index 2025; numerically in Brockway et al.'s measured ~0.20-0.25 band (see methodology note above)
+  endUseEfficiencyMax: 0.60,        // practical thermodynamic potential, Cullen & Allwood (2010) — strictly applies to the device component; structural change is not thermodynamically capped, so the ceiling is conservative for the bundled index
   serviceEfficiencyGrowth: 0.0129,  // GDP-weighted average of demand regional intensityDecline defaults (IEA Energy Efficiency 2024 history)
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
@@ -147,7 +153,7 @@ export interface ProductionOutputs {
   efficiencyLevel: number;
   /** End-use efficiency multiplier (η/η₀) */
   endUseEfficiency: number;
-  /** Current second-law efficiency η(t) */
+  /** Current effective service-efficiency index η(t) */
   eta: number;
 }
 

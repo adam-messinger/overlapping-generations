@@ -1,6 +1,6 @@
 {
   "name": "SSP3-7.0 (Regional Rivalry)",
-  "description": "IPCC SSP3-7.0 aligned. Regional competition, nationalist policies, slow tech transfer. Target: 3.6°C by 2100.",
+  "description": "IPCC SSP3-7.0 aligned. Regional competition, nationalist policies, slow tech transfer. ACHIEVED (2026 model): ~3.0C by 2100 (nominal target 3.6C) — closer than the pre-valve 2.5C but still cool for the same reason as ssp5-85; see that scenario's note.",
 
   "energy": {
     "carbonPrice": 10,

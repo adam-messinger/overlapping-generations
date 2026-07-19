@@ -63,9 +63,14 @@ export function annualize(points: number[]): number[] {
 export const DELIVERY_FACTOR = 0.92;
 
 /**
- * The 1990 world second-law efficiency anchor (De Stercke 2014; Brockway
- * et al. 2018 place the recent level at ~0.20-0.25, which the calibrated
- * backcast reproduces endogenously — see growth-backcast.md).
+ * The 1990 anchor for the EFFECTIVE service-efficiency index (see the
+ * methodology note in production.ts). Measured second-law efficiency in
+ * 1990 was ~0.18 (CL-PFU database, Brockway group: 15% in 1971 -> 23% in
+ * 2020, ~0.87%/yr); the effective index starts lower (0.15, the De Stercke
+ * 1971-lineage value) and grows faster (1.29%/yr, bundling structural
+ * change), reaching the same measured 2020s endpoint (~0.235). The
+ * endpoint agreement is the consistency check; the two decompositions are
+ * documented in growth-backcast.md.
  */
 export const ETA_1990 = 0.15;
 

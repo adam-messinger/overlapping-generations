@@ -41,7 +41,8 @@ export interface ClimateParams {
   cumulativeCO2_2025: number;    // Gt cumulative since preindustrial
 
   // Carbon cycle
-  airborneFraction: number;      // Fraction staying in atmosphere; also sets FUTURE marginal retention (see defaults)
+  airborneFraction: number;      // Fraction staying in atmosphere at the 2025 stock (see defaults)
+  airborneFractionSlope: number; // Rise per 1000 Gt cumulative beyond 2025 (sink saturation)
   ppmPerGt: number;              // ppm per Gt in atmosphere (0.128)
 
   // Two-layer energy balance (Geoffroy et al. 2013)
@@ -85,7 +86,8 @@ export interface ClimateParams {
 export const climateDefaults: ClimateParams = {
   preindustrialCO2: 280,
   cumulativeCO2_2025: 2680,      // Gt CO2 fossil+industry+LUC since 1750 (Global Carbon Budget 2024: ~1810 fossil + ~870 land-use)
-  airborneFraction: 0.42,        // DERIVED, not independently sourced: (424-280) ppm x 7.81 Gt/ppm / 2680 Gt. Also governs future marginal retention — deliberately ~5% below AR6's ~0.44; a rising-fraction treatment is a known TODO (audit fix 6)
+  airborneFraction: 0.42,        // DERIVED, not independently sourced: (424-280) ppm x 7.81 Gt/ppm / 2680 Gt at the 2025 stock
+  airborneFractionSlope: 0.05,   // per 1000 Gt beyond 2025 (sink saturation): 30-yr marginal TCRE 0.42, 75-yr emergent 0.58 C/TtCO2 — both inside AR6's likely 0.27-0.63 (central 0.45); a constant fraction under log forcing understated the marginal response ~30%
   ppmPerGt: 0.128,
   sensitivity: 3.0,
   upperHeatCapacity: 7.3,
@@ -175,6 +177,32 @@ export interface ClimateOutputs {
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
+
+/**
+ * Airborne fraction rises with cumulative emissions beyond the 2025 stock
+ * (ocean/land sink saturation): af(cum) = af0 + slope x (cum - cum2025)/1000,
+ * capped at 0.6. At the 2025 anchor this reduces to af0 exactly, so the
+ * 424-ppm calibration is unchanged.
+ */
+/**
+ * Ceiling on the airborne fraction under extreme cumulative emissions —
+ * AR6 projects the fraction rising toward ~0.55-0.6 under high-emission
+ * pathways as ocean/land sinks saturate. At default slope this binds at
+ * ~6,300 Gt cumulative, which ssp5-85 (~142 Gt/yr late-century) crosses
+ * around the 2080s: the saturation feedback flattens there.
+ */
+const MAX_AIRBORNE_FRACTION = 0.6;
+
+function effectiveAirborneFraction(
+  cumulative: number,
+  params: ClimateParams
+): number {
+  return Math.min(
+    MAX_AIRBORNE_FRACTION,
+    params.airborneFraction +
+      params.airborneFractionSlope * Math.max(0, cumulative - params.cumulativeCO2_2025) / 1000
+  );
+}
 
 export const climateModule: Module<
   ClimateParams,
@@ -267,6 +295,11 @@ export const climateModule: Module<
   validate(params: Partial<ClimateParams>): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
+
+    if (params.airborneFractionSlope !== undefined &&
+        (params.airborneFractionSlope < 0 || params.airborneFractionSlope > 0.15)) {
+      errors.push('airborneFractionSlope must be between 0 and 0.15 per 1000 Gt');
+    }
 
     const p = { ...climateDefaults, ...params };
 
@@ -400,7 +433,7 @@ export const climateModule: Module<
 
     // Calculate atmospheric CO2 from cumulative emissions
     const atmosphericCO2 =
-      newCumulative * params.airborneFraction * params.ppmPerGt;
+      newCumulative * effectiveAirborneFraction(newCumulative, params) * params.ppmPerGt;
     const co2ppm = params.preindustrialCO2 + atmosphericCO2;
 
     // Ocean surface pH (Caldeira & Wickett 2003)

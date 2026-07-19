@@ -20,7 +20,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { compound, lerp } from '../primitives/math.js';
+import { compound, lerp, clamp } from '../primitives/math.js';
 import { Module, validatedMerge } from 'tsimulation';
 
 // =============================================================================
@@ -49,6 +49,7 @@ interface SectorParams {
   share: number;                  // Share of total final energy (sums to 1)
   electrification2025: number;    // Current sector electrification rate
   relativeDiffusionCap: number;   // Max annual increase as fraction of current level (S-curve diffusion; binds at low adoption)
+  reversalStickiness: number;     // Fraction of adverse cost pressure applied to REVERSAL (installed stock reverts via replacement cycles, not scrappage)
   // Cost escalation replaces hard ceilings
   costEscalationThreshold: number; // Rate above which costs escalate (0.60/0.85/0.55)
   costEscalationRate: number;      // Quadratic escalation strength (2.0/1.5/2.5)
@@ -403,6 +404,7 @@ export const demandDefaults: DemandParams = {
       efficiencyMultiplier: 3.5,      // EVs 3.5x more efficient than ICE
       maxAnnualChange: 0.04,          // 4%/year max (infrastructure)
       relativeDiffusionCap: 0.28,     // observed EV electricity-consumption growth ~30-35%/yr 2019-2024 (IEA Global EV Outlook), decelerating
+      reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (vehicle fleet ~15yr turnover) — reversal ~3x slower than adoption
       primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
       electricityDeliveryCost: 50,    // $/MWh: public/home charging blend over wholesale (EIA retail gaps)
     },
@@ -416,6 +418,7 @@ export const demandDefaults: DemandParams = {
       efficiencyMultiplier: 3.0,      // Heat pump COP ~3
       maxAnnualChange: 0.03,          // 3%/year max
       relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 35%)
+      reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (heating stock ~20yr) — reversal ~3x slower than adoption
       primaryFuel: 'gas',             // Competes with gas (heating)
       electricityDeliveryCost: 80,    // $/MWh: residential/commercial retail-wholesale gap (EIA ~\$80-110 res.)
     },
@@ -432,10 +435,11 @@ export const demandDefaults: DemandParams = {
       costEscalationThreshold: 0.42,
       costEscalationRate: 3.5,        // Strongest escalation (cement, glass, steel)
       costSensitivity: 0.10,          // Most cost-sensitive sector
-      basePressure: 0.008,            // Slower baseline (heavy equipment)
+      basePressure: 0.019,            // Calibrated so industry electrification keeps rising ~0.15pp/yr against adverse retail economics (IEA WEB: 21.9% 2015 -> ~23% 2023) — policy mandates + onsite generation bypass retail adders; the signed cost pressure alone would pin it at the 2025 floor
       efficiencyMultiplier: 1.1,      // Motors ~10% more efficient
       maxAnnualChange: 0.025,         // 2.5%/year max (long-lived equipment)
       relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 22%)
+      reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (industrial equipment ~25yr) — reversal ~3x slower than adoption
       primaryFuel: 'gas',             // Competes with gas (process heat)
       electricityDeliveryCost: 40,    // $/MWh: industrial retail-wholesale gap (EIA ~\$30-50)
     },
@@ -673,9 +677,25 @@ function calculateSectorElectrification(
   // When ratio > 1, electricity is cheaper → pressure to electrify
   const costRatio = effectiveFuelCost / adjustedElecCost;
 
-  // Pressure = base + sensitivity × log(max(1, ratio))
-  // log(1) = 0, so no bonus when costs are equal
-  const costPressure = sectorParams.costSensitivity * Math.log(Math.max(1, costRatio));
+  // Pressure = base + sensitivity × log(ratio). The log is SIGNED: when
+  // electricity is expensive relative to the fuel (ratio < 1), pressure can
+  // go negative and electrification REVERSES toward the 2025 floor — the
+  // emissions release valve the adversarial review found missing (the old
+  // max(1, ratio) clamp meant expensive clean energy could only make the
+  // world poorer, never dirtier; reality's revealed alternative is burning
+  // more fuel). Ratio sanity-clamped to [0.2, 5] so extreme transients
+  // cannot swing pressure unboundedly.
+  const rawCostPressure = sectorParams.costSensitivity
+    * Math.log(clamp(costRatio, 0.2, 5));
+  // Hysteresis: reversal is stickier than adoption — installed electric
+  // stock (heat pumps, EV fleets, electrified process heat) is not scrapped
+  // when fuel gets cheap; it reverts only through replacement cycles.
+  const costPressure = rawCostPressure >= 0
+    ? rawCostPressure
+    : rawCostPressure * sectorParams.reversalStickiness;
+  // NOTE: basePressure and this signed costPressure are JOINTLY calibrated —
+  // industry's basePressure default offsets a persistently negative cost
+  // pressure (see the defaults comment); retune them together.
   const totalPressure = sectorParams.basePressure + costPressure;
 
   // Apply pressure to gap-to-ceiling (physical ceiling, not normative)
@@ -695,7 +715,11 @@ function calculateSectorElectrification(
     Math.min(maxUp, desiredChange)
   );
 
-  // New rate with floor at starting value and physical ceiling
+  // Floor at the 2025 rate: reversal can stall electrification but not push
+  // the share below the 2025 mix — a KNOWN LIMITATION of the release valve
+  // (true de-electrification below today's stock is inexpressible; the
+  // high-emissions tail comes from demand growth on a frozen mix). A
+  // non-substitutable-share floor per sector would be the deeper treatment.
   const newRate = Math.max(
     sectorParams.electrification2025,
     Math.min(PHYSICAL_ELEC_CEILING, prevRate + clampedChange)
@@ -979,6 +1003,11 @@ export const demandModule: Module<
         if (s.relativeDiffusionCap !== undefined) {
           if (s.relativeDiffusionCap < 0.05 || s.relativeDiffusionCap > 1) {
             errors.push(`${sector}: relativeDiffusionCap must be between 0.05 and 1 per year`);
+          }
+        }
+        if (s.reversalStickiness !== undefined) {
+          if (s.reversalStickiness < 0 || s.reversalStickiness > 1) {
+            errors.push(`${sector}: reversalStickiness must be between 0 and 1`);
           }
         }
       }

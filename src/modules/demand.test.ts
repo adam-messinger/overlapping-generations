@@ -413,6 +413,58 @@ test('industry is most cost-sensitive sector', () => {
   expect(industryIncrease).toBeGreaterThan(0);
 });
 
+// --- Emissions Release Valve (signed electrification pressure) ---
+
+console.log('\n--- Release Valve ---\n');
+
+test('adverse electricity economics reverse electrification toward the 2025 floor', () => {
+  // The release valve: with electricity expensive relative to fuel, cost
+  // pressure goes NEGATIVE (was clamped at zero — decarbonization
+  // regardless of economics). Reversal is damped by reversalStickiness and
+  // floored at the 2025 rate (known limitation: no de-electrification
+  // below today's stock).
+  const params = demandModule.mergeParams({});
+  let state = demandModule.init(params);
+  // start buildings above its 2025 anchor so there is room to fall
+  state = { ...state, sectorElectrification: { ...state.sectorElectrification, buildings: 0.45 } };
+  const inputs = {
+    ...getDemographicsInputs(0),
+    gdp: baselineGdp(0),
+    carbonPrice: 0,
+    laggedAvgLCOE: 400, // extremely expensive electricity
+  };
+  const { outputs } = demandModule.step(state, inputs, params, 2025, 0);
+  expect(outputs.sectors.buildings.electrificationRate).toBeLessThan(0.45);
+  // floor holds: cannot fall below the 2025 anchor even under sustained stress
+  let st = demandModule.init(params);
+  for (let i = 0; i < 30; i++) {
+    const r = demandModule.step(st, { ...getDemographicsInputs(0), gdp: baselineGdp(i), carbonPrice: 0, laggedAvgLCOE: 400 }, params, 2025 + i, i);
+    st = r.state;
+  }
+  expect(st.sectorElectrification.buildings)
+    .toBeGreaterThan(params.sectors.buildings.electrification2025 - 1e-9);
+});
+
+test('reversalStickiness damps reversal relative to adoption', () => {
+  const sticky = demandModule.mergeParams({});
+  const unsticky = demandModule.mergeParams({
+    sectors: {
+      transport: { reversalStickiness: 1 },
+      buildings: { reversalStickiness: 1 },
+      industry: { reversalStickiness: 1 },
+    },
+  } as any);
+  const start = (p: any) => {
+    let st = demandModule.init(p);
+    return { ...st, sectorElectrification: { ...st.sectorElectrification, buildings: 0.45 } };
+  };
+  const inputs = { ...getDemographicsInputs(0), gdp: baselineGdp(0), carbonPrice: 0, laggedAvgLCOE: 400 };
+  const s1 = demandModule.step(start(sticky), inputs, sticky, 2025, 0).outputs;
+  const s2 = demandModule.step(start(unsticky), inputs, unsticky, 2025, 0).outputs;
+  expect(s2.sectors.buildings.electrificationRate)
+    .toBeLessThan(s1.sectors.buildings.electrificationRate);
+});
+
 // --- Retail Pricing (delivery adders + fuel price paths) ---
 
 console.log('\n--- Retail Pricing ---\n');

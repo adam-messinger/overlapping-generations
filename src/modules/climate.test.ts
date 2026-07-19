@@ -370,6 +370,24 @@ test('validation catches invalid two-layer params', () => {
   expect(result.errors.length).toBeGreaterThan(0);
 });
 
+test('marginal TCRE matches AR6 best estimate', () => {
+  // Two 30-year constant-emission paths differing by +1000 Gt total. The
+  // rising airborne fraction (sink saturation) restores the near-linear
+  // transient response that a constant fraction under log forcing
+  // understates ~30% (adversarial review finding). AR6: 0.45 (0.27-0.63).
+  const run = (emisPerYr: number) => {
+    let st = climateModule.init(climateDefaults);
+    let temp = 0;
+    for (let i = 0; i < 30; i++) {
+      const r = climateModule.step(st, { emissions: emisPerYr }, climateDefaults, 2025 + i, i);
+      st = r.state; temp = r.outputs.temperature;
+    }
+    return temp;
+  };
+  const marginal = run(38 + 1000 / 30) - run(38);
+  expect(marginal).toBeBetween(0.35, 0.55);
+});
+
 test('CO2 ppm calculation matches calibration', () => {
   // 2025: cumulative 2680 Gt (GCB 2024), airborne 0.42 (observed ratio),
   // ppmPerGt 0.128 -> 280 + 144 = 424 ppm, matching NOAA 2025 (~424)
@@ -439,10 +457,12 @@ test('ocean pH decreases with higher CO2', () => {
 
 test('ocean pH at 560 ppm (2×CO2) ≈ 7.86', () => {
   // At 2×CO2 (560 ppm): pH = 8.18 - 0.32 × log2(560/280) = 8.18 - 0.32 = 7.86
-  // Construct state with cumulative emissions that give ~560 ppm:
-  // 560 = 280 + cumulative × airborneFraction × ppmPerGt
+  // Construct state with cumulative emissions that give ~560 ppm. Use a
+  // zero airborne-fraction slope so the inversion is exact (this test
+  // checks the pH formula, not the carbon cycle).
+  const flatAF = climateModule.mergeParams({ airborneFractionSlope: 0 });
   const doubleCO2State = {
-    cumulativeEmissions: climateDefaults.preindustrialCO2 / (climateDefaults.airborneFraction * climateDefaults.ppmPerGt),
+    cumulativeEmissions: flatAF.preindustrialCO2 / (flatAF.airborneFraction * flatAF.ppmPerGt),
     temperature: 2.0,
     deepTemp: 1.0,
   };
@@ -450,7 +470,7 @@ test('ocean pH at 560 ppm (2×CO2) ≈ 7.86', () => {
   const { outputs } = climateModule.step(
     doubleCO2State,
     { emissions: 0 },
-    climateDefaults,
+    flatAF,
     2060,
     35
   );

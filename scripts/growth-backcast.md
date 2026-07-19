@@ -22,18 +22,23 @@ under observed 2025 GDP), and its solved λ sat on a ridge with an
 unsourced history parameter. The current mechanism replaces the solver
 entirely:
 
-- **η(1990) = 0.15** — De Stercke (2014) world exergy efficiency
+- **η(1990) = 0.15** — effective-index start (De Stercke lineage; measured 1990 second-law eta ~0.18, see methodology below)
 - **η_max = 0.6** — Cullen & Allwood (2010) practical potential
 - **η growth = 1.29%/yr** — the SAME series as demand's GDP-weighted autonomous
   intensity decline (one physical process, two views; consistency-pinned)
 - **Implied η(2025) = 0.235** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
-  independent check the assumed rate was not fitted to
+  consistency check on the bundle (see methodology below), not an identity
 
 The assumed rate is not fitted to GDP: it is demand's intensity-decline
-parameter (IEA history), and compounding it from De Stercke's 1990 level
-independently reproduces Brockway's measured 2020s eta. Pinned in
-`production.test.ts` (GDP within 5%, eta in the measured band, forward
-eta0 = backcast endpoint).
+parameter (IEA history). Methodology (per the calibration review): the
+rate BUNDLES measured device efficiency (~0.87%/yr, CL-PFU 1971-2020:
+15% -> 23%) with value-preserving structural change (~0.4%/yr residual).
+Two equivalent decompositions reach the same measured 2020s endpoint:
+measured-only (0.18 in 1990 x 0.87%/yr) and effective-index (0.15 x
+1.29%/yr, used here). eta is therefore an effective service-efficiency
+index, not measured second-law efficiency. Pinned in
+`production.test.ts` (GDP within 5%, eta endpoint in the measured band,
+forward eta0 = backcast endpoint).
 
 ## Factor decomposition at calibrated defaults (2025 level, 1990 = 1)
 
@@ -95,9 +100,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 1.73%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 0.79%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.34%/yr |
+| Capital growth | 3.54%/yr | 1.81%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 1.41%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.69%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking
