@@ -563,13 +563,6 @@ export interface EnergyInputs {
   regionalSavings?: Record<Region, number>;
 }
 
-/** Regional capacity outputs */
-export interface RegionalEnergyOutputs {
-  capacities: Record<EnergySource, number>;
-  additions: Record<EnergySource, number>;
-  retirements: Record<EnergySource, number>;
-}
-
 export interface EnergyOutputs {
   /** Realized capex spend this year, all sources incl. fossil/storage ($T) */
   energyCapexSpend: number;
@@ -597,20 +590,11 @@ export interface EnergyOutputs {
   /** Regional additions breakdown */
   regionalAdditions: Record<Region, Record<EnergySource, number>>;
 
-  /** Capacity retirements this year (GW; GWh for battery) - SUM of regional */
-  retirements: Record<EnergySource, number>;
-
-  /** Regional retirements breakdown */
-  regionalRetirements: Record<Region, Record<EnergySource, number>>;
-
   /** Battery cost ($/kWh) */
   batteryCost: number;
 
   /** Cheapest LCOE this year ($/MWh) */
   cheapestLCOE: number;
-
-  /** Regional detail for dispatch */
-  energyRegional: Record<Region, RegionalEnergyOutputs>;
 
   /** Effective solar capacity factor (capacity-weighted, after site depletion) */
   effectiveSolarCF: number;
@@ -880,11 +864,8 @@ export const energyModule: Module<
     'cumulativeCapacity',
     'additions',
     'regionalAdditions',
-    'retirements',
-    'regionalRetirements',
     'batteryCost',
     'cheapestLCOE',
-    'energyRegional',
     'effectiveSolarCF',
     'effectiveWindCF',
     'longStorageCost',
@@ -1128,13 +1109,10 @@ export const energyModule: Module<
     const netEnergyFraction: Record<EnergySource, number> = {} as any;
     const globalCapacities: Record<EnergySource, number> = {} as any;
     const globalAdditions: Record<EnergySource, number> = {} as any;
-    const globalRetirements: Record<EnergySource, number> = {} as any;
     const cumulativeCapacity: Record<EnergySource, number> = {} as any;
 
     const regionalCapacities: Record<Region, Record<EnergySource, number>> = {} as any;
     const regionalAdditions: Record<Region, Record<EnergySource, number>> = {} as any;
-    const regionalRetirements: Record<Region, Record<EnergySource, number>> = {} as any;
-    const regionalOutputs: Record<Region, RegionalEnergyOutputs> = {} as any;
 
     // New state
     const newRegional: Record<Region, Record<EnergySource, RegionalCapacityState>> = {} as any;
@@ -1144,12 +1122,10 @@ export const energyModule: Module<
     for (const source of ENERGY_SOURCES) {
       globalCapacities[source] = 0;
       globalAdditions[source] = 0;
-      globalRetirements[source] = 0;
     }
     for (const region of REGIONS) {
       regionalCapacities[region] = {} as any;
       regionalAdditions[region] = {} as any;
-      regionalRetirements[region] = {} as any;
       newRegional[region] = {} as any;
     }
 
@@ -1499,20 +1475,11 @@ export const energyModule: Module<
 
         regionalCapacities[region][source] = newInstalled;
         regionalAdditions[region][source] = addition;
-        regionalRetirements[region][source] = retirement;
 
         // Accumulate global totals
         globalCapacities[source] += newInstalled;
         globalAdditions[source] += addition;
-        globalRetirements[source] += retirement;
       }
-
-      // Store regional outputs
-      regionalOutputs[region] = {
-        capacities: regionalCapacities[region],
-        additions: regionalAdditions[region],
-        retirements: regionalRetirements[region],
-      };
     }
 
     // =========================================================================
@@ -1669,11 +1636,8 @@ export const energyModule: Module<
         cumulativeCapacity,
         additions: globalAdditions,
         regionalAdditions,
-        retirements: globalRetirements,
-        regionalRetirements,
         batteryCost,
         cheapestLCOE,
-        energyRegional: regionalOutputs,
         effectiveSolarCF,
         effectiveWindCF,
         longStorageCost,

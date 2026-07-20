@@ -629,9 +629,12 @@ export function toYearResults(result: AutowireResult): YearResult[] {
       nonElectricEmissions: o.nonElectricEmissions,
 
       // Energy burden
+      electricityCost: o.electricityCost ?? 0,
+      fuelCost: o.fuelCost ?? 0,
       totalEnergyCost: o.totalEnergyCost,
       energyBurden: o.energyBurden,
       burdenDamage: o.burdenDamage,
+      gdpPerWorking: o.gdpPerWorking ?? 0,
 
       // Useful work
       usefulWorkGrowthRate: o.usefulWorkGrowthRate ?? 0,
@@ -752,9 +755,17 @@ export function toYearResults(result: AutowireResult): YearResult[] {
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
+      capitalContribution: o.capitalContribution ?? 1,
+      laborContribution: o.laborContribution ?? 1,
+      energyContribution: o.energyContribution ?? 1,
+      efficiencyLevel: o.efficiencyLevel ?? 1,
       // Compute from energy module outputs (the transform output
       // energySystemOverheadComputed is only available via the lag mechanism)
       energySystemOverhead: computeEnergySystemOverhead(o.additions, o.capacities),
+
+      // Resource energy consumption
+      miningEnergyTWh: o.miningEnergyTWh ?? 0,
+      farmingEnergyTWh: o.farmingEnergyTWh ?? 0,
 
       // Mineral constraint
       mineralConstraint: o.mineralConstraint ?? 1.0,
@@ -771,6 +782,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
 
       // Regional
       regionalPopulation: o.regionalPopulation,
+      regionalFertility: o.regionalFertility,
       regionalGdp: (() => {
         const regional = o.regional;
         if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;

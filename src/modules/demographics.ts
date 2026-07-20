@@ -334,7 +334,6 @@ export interface DemographicsOutputs {
   // Global aggregates
   population: number;
   working: number;
-  old: number;
   dependency: number;
   effectiveWorkers: number;
   collegeShare: number;
@@ -555,7 +554,6 @@ export const demographicsModule: Module<
   outputs: [
     'population',
     'working',
-    'old',
     'dependency',
     'effectiveWorkers',
     'collegeShare',
@@ -843,7 +841,6 @@ export const demographicsModule: Module<
       outputs: {
         population: totalPop,
         working: totalWorking,
-        old: totalOld,
         dependency: totalWorking > 0 ? totalOld / totalWorking : 0,
         effectiveWorkers: totalEffective,
         collegeShare: globalCollegeShare,

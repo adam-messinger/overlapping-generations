@@ -183,9 +183,7 @@ interface CapitalOutputs {
   publicDebtGDP: number;       // ratio
   privateDebtGDP: number;      // ratio
   totalDebtGDP: number;        // ratio
-  publicDebtStock: number;     // Beginning-of-period public debt ($T)
   privateDebtStock: number;    // Beginning-of-period private debt ($T)
-  nextPublicDebtStock: number; // End-of-period public debt ($T)
   nextPrivateDebtStock: number;// End-of-period private debt ($T)
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
@@ -493,9 +491,7 @@ export const capitalModule: Module<
     'publicDebtGDP',
     'privateDebtGDP',
     'totalDebtGDP',
-    'publicDebtStock',
     'privateDebtStock',
-    'nextPublicDebtStock',
     'nextPrivateDebtStock',
     'publicDebtService',
     'creditImpulse',
@@ -942,9 +938,7 @@ export const capitalModule: Module<
         publicDebtGDP,
         privateDebtGDP,
         totalDebtGDP,
-        publicDebtStock: publicDebt,
         privateDebtStock: privateDebt,
-        nextPublicDebtStock: newPublicDebt,
         nextPrivateDebtStock: newPrivateDebt,
         publicDebtService,
         creditImpulse,

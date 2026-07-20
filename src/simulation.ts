@@ -90,9 +90,12 @@ export interface YearResult {
   nonElectricEmissions: number;
 
   // Energy burden
+  electricityCost: number;    // $ trillions
+  fuelCost: number;           // $ trillions
   totalEnergyCost: number;    // $ trillions
   energyBurden: number;       // Fraction of GDP
   burdenDamage: number;       // GDP damage fraction
+  gdpPerWorking: number;      // $ per working-age adult
 
   // Useful work
   usefulWorkGrowthRate: number;
@@ -212,6 +215,14 @@ export interface YearResult {
   // Production (biophysical)
   productionUsefulEnergy: number;
   energySystemOverhead: number;
+  capitalContribution: number;   // (K/K0)^alpha
+  laborContribution: number;     // (L/L0)^beta
+  energyContribution: number;    // (E/E0)^gamma
+  efficiencyLevel: number;       // end-use x organizational efficiency multiplier
+
+  // Resource energy consumption (TWh)
+  miningEnergyTWh: number;
+  farmingEnergyTWh: number;
 
   // Mineral constraint (0-1, 1 = no constraint)
   mineralConstraint: number;
@@ -235,6 +246,7 @@ export interface YearResult {
 
   // Regional
   regionalPopulation: Record<Region, number>;
+  regionalFertility: Record<Region, number>;
   regionalGdp: Record<Region, number>;
 
   // Regional Energy (v2)

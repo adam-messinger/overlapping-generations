@@ -39,8 +39,6 @@ export interface DispatchParams {
   /** Capacity factor by source (fraction of nameplate available) */
   capacityFactor: Record<EnergySource, number>;
 
-  /** Maximum penetration by source (fraction of demand) */
-
   /** Carbon intensity by source (kg CO2/MWh) */
   carbonIntensity: Record<EnergySource, number>;
 
@@ -218,9 +216,6 @@ export interface DispatchOutputs {
   /** Unmet demand, if any (TWh) - GLOBAL */
   shortfall: number;
 
-  /** Cheapest source this year */
-  cheapestSource: EnergySource;
-
   /** Fossil share of generation (fraction) - GLOBAL */
   fossilShare: number;
 
@@ -235,9 +230,6 @@ export interface DispatchOutputs {
 
   /** Regional curtailment (TWh) */
   regionalCurtailment: Record<Region, number>;
-
-  /** Regional detail for other modules */
-  dispatchRegional: Record<Region, RegionalDispatchOutputs>;
 }
 
 // =============================================================================
@@ -491,13 +483,11 @@ export const dispatchModule: Module<
     'electricityEmissions',
     'regionalEmissions',
     'shortfall',
-    'cheapestSource',
     'fossilShare',
     'regionalFossilShare',
     'curtailmentTWh',
     'curtailmentRate',
     'regionalCurtailment',
-    'dispatchRegional',
   ] as const,
 
   paramMeta: {
@@ -541,7 +531,6 @@ export const dispatchModule: Module<
       curtailmentTWh: 'number',
       curtailmentRate: 'number',
       regionalCurtailment: 'record',
-      dispatchRegional: 'nested-record',
     },
   },
 
@@ -674,21 +663,6 @@ export const dispatchModule: Module<
     const fossilGen = globalGeneration.gas + globalGeneration.coal;
     const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;
 
-    // Find cheapest source with non-zero generation (by marginal cost)
-    let cheapestSource: EnergySource = 'solar';
-    let lowestMC = Infinity;
-    for (const source of ENERGY_SOURCES) {
-      if (globalGeneration[source] > 0) {
-        const baseMC = params.marginalCost[source];
-        const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
-        const mc = baseMC + carbonCost;
-        if (mc < lowestMC) {
-          lowestMC = mc;
-          cheapestSource = source;
-        }
-      }
-    }
-
     return {
       state: {},
       outputs: {
@@ -700,13 +674,11 @@ export const dispatchModule: Module<
         electricityEmissions: globalElectricityEmissions,
         regionalEmissions,
         shortfall: globalShortfall,
-        cheapestSource,
         fossilShare: globalFossilShare,
         regionalFossilShare,
         curtailmentTWh: globalCurtailmentTWh,
         curtailmentRate: globalCurtailmentRate,
         regionalCurtailment,
-        dispatchRegional: regionalOutputs,
       },
     };
   },

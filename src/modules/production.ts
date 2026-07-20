@@ -169,8 +169,6 @@ export interface ProductionOutputs {
   energyContribution: number;
   /** Combined efficiency multiplier (replaces TFP) */
   efficiencyLevel: number;
-  /** End-use efficiency multiplier (η/η₀) */
-  endUseEfficiency: number;
   /** Current effective service-efficiency index η(t) */
   eta: number;
 }
@@ -253,7 +251,6 @@ export const productionModule: Module<
     'laborContribution',
     'energyContribution',
     'efficiencyLevel',
-    'endUseEfficiency',
     'eta',
   ] as const,
 
@@ -473,7 +470,6 @@ export const productionModule: Module<
         laborContribution,
         energyContribution,
         efficiencyLevel,
-        endUseEfficiency,
         eta,
       },
     };

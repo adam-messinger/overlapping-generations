@@ -261,13 +261,6 @@ test('GDP per working-age adult increases over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-test('electricity per worker increases over time', () => {
-  const year1 = runYears(1).outputs.electricityPerWorking;
-  const year25 = runYears(25).outputs.electricityPerWorking;
-
-  expect(year25).toBeGreaterThan(year1);
-});
-
 // --- Validation ---
 
 console.log('\n--- Validation ---\n');

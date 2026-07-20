@@ -260,10 +260,7 @@ interface DemandOutputs {
   electrificationRate: number;  // Fraction (0-1)
   totalFinalEnergy: number;     // TWh (global)
   nonElectricEnergy: number;    // TWh (global)
-  usefulEnergy: number;         // TWh (useful, efficiency-adjusted)
-  usefulEnergyFactor: number;   // Useful energy / total final energy
   gdpPerWorking: number;        // $ per person (global)
-  electricityPerWorking: number; // kWh per person (global)
   finalEnergyPerCapitaDay: number; // kWh/person/day
 
   // Sector breakdown
@@ -941,10 +938,7 @@ export const demandModule: Module<
     'electrificationRate',
     'totalFinalEnergy',
     'nonElectricEnergy',
-    'usefulEnergy',
-    'usefulEnergyFactor',
     'gdpPerWorking',
-    'electricityPerWorking',
     'finalEnergyPerCapitaDay',
     'regional',
     'sectors',
@@ -1572,7 +1566,6 @@ export const demandModule: Module<
     // energy by the efficiency multiplier on top of fuel-scale electricity
     // demand, double-crediting electrification.
     const usefulEnergy = sectorEnergyBase + lockInAdjustment + robotLoadTWh + dataCenterLoadTWh;
-    const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
 
     // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP
     const totalEffectiveWorkers = REGIONS.reduce(
@@ -1696,10 +1689,7 @@ export const demandModule: Module<
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,
         nonElectricEnergy: globalNonElec,
-        usefulEnergy,
-        usefulEnergyFactor,
         gdpPerWorking: (globalGdp * 1e12) / globalWorking,
-        electricityPerWorking: (globalElec * 1e9) / globalWorking,
         finalEnergyPerCapitaDay,
         sectors,
         fuels,

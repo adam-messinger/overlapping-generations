@@ -353,7 +353,6 @@ test('regional transfer flows reconcile to global transfer outputs', () => {
 test('end-of-period stock outputs reconcile to returned state', () => {
   const { state, outputs } = runYears(1);
   expect(outputs.nextCapitalStock).toBeCloseTo(state.stock, 6);
-  expect(outputs.nextPublicDebtStock).toBeCloseTo(state.publicDebt, 6);
   expect(outputs.nextPrivateDebtStock).toBeCloseTo(state.privateDebt, 6);
 });
 

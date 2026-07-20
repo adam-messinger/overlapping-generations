@@ -85,9 +85,14 @@ export const standardCollectors: CollectorConfig = {
     { source: 'nonElectricEmissions', unit: 'Gt CO2/year', description: 'Non-electric fuel combustion emissions', module: 'demand' },
 
     // Energy burden
+    { source: 'electricityCost', unit: '$T', description: 'Total electricity expenditure', module: 'demand' },
+    { source: 'fuelCost', unit: '$T', description: 'Total fuel (non-electric) expenditure', module: 'demand' },
     { source: 'totalEnergyCost', unit: '$T', description: 'Total energy cost (electricity + fuel)', module: 'demand' },
     { source: 'energyBurden', unit: 'fraction', description: 'Energy cost as fraction of GDP', module: 'demand' },
     { source: 'burdenDamage', unit: 'fraction', description: 'GDP damage from excess energy burden', module: 'demand' },
+
+    // Per-worker welfare metric
+    { source: 'gdpPerWorking', unit: '$', description: 'GDP per working-age adult (Fernandez-Villaverde welfare metric)', module: 'demand' },
 
     // Useful work
     { source: 'usefulWorkGrowthRate', unit: 'fraction/year', description: 'Growth rate of useful energy per worker (Ayres/Warr)', module: 'demand' },
@@ -170,6 +175,8 @@ export const standardCollectors: CollectorConfig = {
     { source: 'minerals', as: 'copperCumulative', path: 'copper.cumulative', unit: 'Mt', description: 'Cumulative copper extracted', module: 'resources' },
     { source: 'minerals', as: 'lithiumCumulative', path: 'lithium.cumulative', unit: 'Mt', description: 'Cumulative lithium extracted', module: 'resources' },
     { source: 'mineralConstraint', unit: '0-1 factor', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
+    { source: 'miningEnergyTWh', unit: 'TWh', description: 'Energy consumed by mining', module: 'resources' },
+    { source: 'farmingEnergyTWh', unit: 'TWh', description: 'Energy consumed by farming/agriculture', module: 'resources' },
 
     // Resources - Land
     { source: 'land', as: 'farmland', path: 'farmland', unit: 'Mha', description: 'Global cropland area', module: 'resources' },
@@ -200,6 +207,10 @@ export const standardCollectors: CollectorConfig = {
 
     // Production
     { source: 'productionUsefulEnergy', unit: 'TWh', description: 'Exergy-weighted useful energy for production', module: 'production' },
+    { source: 'capitalContribution', unit: 'index', description: 'Capital contribution to GDP, (K/K0)^alpha', module: 'production' },
+    { source: 'laborContribution', unit: 'index', description: 'Labor contribution to GDP, (L/L0)^beta', module: 'production' },
+    { source: 'energyContribution', unit: 'index', description: 'Useful-energy contribution to GDP, (E/E0)^gamma — the dominant heterodox growth channel', module: 'production' },
+    { source: 'efficiencyLevel', unit: 'index', description: 'TFP-replacement efficiency multiplier (end-use x organizational)', module: 'production' },
 
     // Energy system overhead (computed from additions + capacities)
     {
@@ -224,6 +235,7 @@ export const standardCollectors: CollectorConfig = {
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },
+    { source: 'regionalFertility', unit: 'TFR', description: 'Total fertility rate by region (births per woman)', module: 'demographics' },
     {
       source: 'regional',
       as: 'regionalGdp',
