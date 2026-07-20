@@ -531,12 +531,18 @@ export const demandDefaults: DemandParams = {
   // Robot/automation (endogenous logistic adoption)
   robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (IFR World Robotics 2024: ~4.3M industrial robots ≈ 1/1000 of all workers)
   robotBaseGrowth: 0.12,         // Base logistic growth rate (IFR installations grew ~10-14%/yr 2015-2024)
-  // SPECULATIVE — no literature anchor exists for 2100 robot density. 600/1000
-  // workers at 10 MWh each implies ~26,000 TWh/yr by 2100 (comparable to
-  // total world electricity today) and dominates late-century demand growth.
-  // Only the 2025 baseline and near-term growth rate are data-anchored; the
-  // ceiling is a scenario assumption. Treat late-century absolute demand (and
-  // anything downstream of it) as conditional on this choice.
+  // SPECULATIVE — no fleet forecast survives scrutiny (Goldman/Morgan Stanley/
+  // ARK/Tesla humanoid projections were all too hype-prone to verify; see
+  // sources/ai-robotics-deployment-ceilings.md). SCALE CHECK against IFR World
+  // Robotics 2024: today ~1 robot/1000 all-workers globally; the frontier
+  // (Korea) is ~1,012/10,000 MANUFACTURING workers ≈ ~15/1000 ALL workers. So
+  // 600/1000 all-workers is ~600x today's global average and ~35x Korea's
+  // current whole-economy frontier — a humanoids-saturate-ALL-sectors world
+  // (services/logistics/care), not just manufacturing. It implies ~26,000 TWh/yr
+  // by 2100 (≈ all world electricity today). This is a top-2 GDP-LEVEL dial
+  // (1.5-2x GDP 2100), so late-century GDP is explicitly conditional on it.
+  // Treat as a scenario assumption with a wide band (~100-1000); see
+  // docs/SENSITIVITY.md. Only the 2025 baseline and near-term growth are anchored.
   robotSaturation: 600,
   energyPerRobotMWh: 10,        // MWh per robot-unit per year
   robotUnitCost: 80000,         // $ installed per robot-unit: IFR avg unit price ~$27k + integration ~2-3x (2025). INDUSTRIAL-robot anchor: at humanoid-scale densities (ai-energy-boom, 3000/1000) this is an unanchored ~5x extrapolation
@@ -549,11 +555,15 @@ export const demandDefaults: DemandParams = {
   // Datacenter/AI compute (endogenous, distributed by regional GDP)
   dataCenterBaseline2025: 500,        // TWh, IEA/EPRI 2024: datacenters ~1.5% of global elec (~460 TWh); AI inference boost → ~500
   dataCenterBaseGrowth: 0.12,         // Logistic rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
-  // ASSUMPTION beyond ~2030: IEA (2024) projects ~945 TWh by 2030; published
-  // projections thin out beyond that (2050 studies span roughly 1,500-4,000+
-  // TWh). The 6,000 ceiling (~1% of 2100 useful energy) is an asserted
-  // grid/chip/cooling constraint, not a sourced value; the model reaches
-  // ~5,500 TWh by 2050 — above nearly all published projections.
+  // ANCHORED near-term, SPECULATIVE long-term. IEA Energy and AI (2025): ~415
+  // TWh in 2024 (~1.5% of global elec) → Base Case ~945 TWh by 2030 → 700-1,700
+  // TWh by 2035. But 2030 forecasts diverge ~40x (200 to ~8,000 TWh) on whether
+  // exponential chip-supply growth persists — a supply/economics question, not
+  // demand saturation. The 6,000 ceiling is ~4x the 2035 IEA-high case: a
+  // plausible-HIGH 2050+ backstop, not a forecast — read with the 40x band.
+  // LOW STAKES: this load is GDP-NEUTRAL in the model (a pure electricity sink;
+  // lifting it raises generation/WACC, not GDP). No single physical bottleneck
+  // (grid-power-as-hard-limit was refuted). See sources/ai-robotics-deployment-ceilings.md
   dataCenterSaturation: 6000,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)

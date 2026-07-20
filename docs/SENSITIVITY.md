@@ -14,6 +14,13 @@
 > the coupling — higher efficiency used to *destroy* GDP through an
 > uncoupled η ceiling) but did not remove it: with loop gain ≈ α+γ ≈ 0.8, any
 > growth-side residual is amplified ~5× into the level.
+>
+> **A co-equal second dial is `robotSaturation`** (the automation ceiling;
+> default 600/1,000 workers), which swings GDP 2100 ~1.6–2.2× over its plausible
+> range and is even *less* anchored — no fleet forecast supports it (see the
+> `robotSaturation` section below and `sources/ai-robotics-deployment-ceilings.md`).
+> The two together, not `serviceEfficiencyGrowth` alone, set the late-century
+> GDP band.
 
 The γ×damage grid below (a separate, smaller axis) identified two further
 consequential, least-constrained parameters:
@@ -136,3 +143,37 @@ Two honest takeaways:
 2. **Direction robust, terminal cost soft.** Report the transition shape without
    floor caveats, but treat the *terminal clean-energy price* as a band, biased
    toward the cheaper end. The default $12 is more likely too high than too low.
+
+## `robotSaturation`: a top GDP dial with no empirical anchor
+
+The robot-density ceiling (`demand.robotSaturation`, default **600 per 1,000
+workers**) is — with `serviceEfficiencyGrowth` — one of the two largest
+GDP-level dials in the model, and it is the *least* anchored. No humanoid/
+general-purpose fleet forecast survives scrutiny (see
+`sources/ai-robotics-deployment-ceilings.md`), and the default is **~600× today's
+global average robot density (~1/1,000 all workers) and ~35× Korea's current
+whole-economy frontier (~15/1,000 all workers)** — a humanoids-in-every-sector
+world, not manufacturing.
+
+Sweep (baseline):
+
+| `robotSaturation` | GDP 2100 | Gen 2100 (TWh) | WACC 2075 | Warming 2100 |
+|---|---|---|---|---|
+| 300 | 950 | 199,482 | 0.101 | 2.60 |
+| **600 (default)** | **1,151** | 250,952 | 0.109 | 2.62 |
+| 1,200 | 1,483 | 340,507 | 0.119 | 2.64 |
+| 2,400 | 2,047 | 503,786 | 0.127 | 2.67 |
+
+- **GDP 2100 swings ~1.6× across a defensible range (300→1,200)** and ~2.2× to
+  2,400 — a self-labeled speculative parameter with leverage comparable to the
+  sourced structural dials. The effect is almost entirely post-2050 (via the
+  robot labor-augmentation term), so it is specifically an end-of-century
+  phenomenon.
+- The rising WACC column shows the *economic* ceiling that should really bind:
+  more robots → more energy + capital demand → higher cost of capital (the
+  `ai-energy-boom` scenario self-limits at WACC ~15%). The hard `robotSaturation`
+  number is standing in for what should be an endogenous value-vs-cost limit.
+- **Report late-century GDP as explicitly conditional on `robotSaturation`**;
+  treat it as a wide band (~100–1,000), not a forecast. (The companion
+  `dataCenterSaturation` is GDP-neutral — a pure electricity sink — so it needs
+  no such GDP caveat; it matters only for the generation/emissions ledger.)
