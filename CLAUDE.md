@@ -175,7 +175,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
 - GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
-- The efficiency engine (TFP replacement) is a single series shared with demand's autonomous intensity decline, anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s) and reproducing observed 1990-2025 growth — see `scripts/growth-backcast.md`; pinned in `production.test.ts`
+- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (coupled at runtime through the multiplier and the structural-decay shape — a mismatch collapses GDP; pinned in `simulation.test.ts`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 

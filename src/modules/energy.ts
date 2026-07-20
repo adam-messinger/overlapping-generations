@@ -1436,8 +1436,11 @@ export const energyModule: Module<
       // energy investment competes for more of the savings pool — the share
       // expands to cover cleanShareFlex of the unmet spend, capped at
       // cleanShareMax of regional investment. flex = 0 (default) preserves
-      // the exogenous ramp exactly. One-sided: expanded energy capex is not
-      // debited from other capital formation (no crowding-out feedback yet).
+      // the exogenous ramp exactly. Expanded spend IS debited from general
+      // capital formation via the lagged energyCapexSpend ledger (crowding-
+      // out is real). NB: in practice the diffusion/penetration ceilings
+      // usually bind before this budget does, so flex rarely changes the
+      // build — see the ai-energy-boom scenario notes.
       if (params.cleanShareFlex > 0) {
         const totalDesiredCost = cleanSources.reduce((s, src) => s + desiredCost[src], 0);
         if (totalDesiredCost > cleanBudget) {

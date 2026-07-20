@@ -8,7 +8,7 @@
  *   GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × (1 - damages)
  *
  * Efficiency replaces exogenous TFP with two physical factors:
- *   1. End-use efficiency: compound growth coupled to demand's autonomous intensity decline, capped at η_max
+ *   1. End-use efficiency: an effective service-efficiency index coupled to demand's intensity decline, with its structural component decaying post-2025
  *   2. Organizational efficiency (education-driven, diminishing returns)
  *
  * Ayres-Warr elasticities:
@@ -28,7 +28,6 @@
  */
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
-import { compound } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -46,8 +45,10 @@ export interface ProductionParams {
   // Effective service-efficiency index: single coupled series with demand's
   // autonomous intensity decline (see methodology note in the defaults)
   endUseEfficiency0: number;        // η₀: effective index at run start (0.23)
-  endUseEfficiencyMax: number;      // η_max: thermodynamic ceiling (0.60)
-  serviceEfficiencyGrowth: number;  // η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
+  endUseEfficiencyMax: number;      // η_max: soft runaway bound on the effective index (0.90)
+  serviceEfficiencyGrowth: number;  // near-term η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
+  structuralEfficiencyShare: number;      // fraction of serviceEfficiencyGrowth that is decaying structural change (rest is persistent device efficiency)
+  structuralDecayHalfLife: number;        // years for the structural component to halve post-2025 (0 = no decay)
 
   // Organizational efficiency (education-driven)
   orgEfficiencySensitivity: number;    // φ: sensitivity to college share gain (0.35)
@@ -83,8 +84,17 @@ export const productionDefaults: ProductionParams = {
   // offsets starting from 1990's measured ~0.18 rather than 0.15), not an
   // identity.
   endUseEfficiency0: 0.23,          // effective index 2025; numerically in Brockway et al.'s measured ~0.20-0.25 band (see methodology note above)
-  endUseEfficiencyMax: 0.60,        // practical thermodynamic potential, Cullen & Allwood (2010) — strictly applies to the device component; structural change is not thermodynamically capped, so the ceiling is conservative for the bundled index
+  endUseEfficiencyMax: 0.90,        // soft runaway bound on the EFFECTIVE index (bundles uncapped structural change). NOT the device second-law ceiling (~0.60, Cullen & Allwood 2010) — a hard 0.60 froze eta mid-century and collapsed GDP in high-efficiency scenarios. Barely binds for baseline (eta reaches ~0.60 at 2100); prevents runaway only
   serviceEfficiencyGrowth: 0.0129,  // GDP-weighted average of demand regional intensityDecline defaults (IEA Energy Efficiency 2024 history)
+  // The 1.29%/yr near-term rate does not persist 75 years: ~1/3 of it is
+  // structural change (sectoral shift toward services, China/India catch-up)
+  // that matures and decays post-2025, while the ~0.87%/yr measured device
+  // component persists. Without this forward decay the baseline compounded to
+  // ~$1.4Q by 2100 — above the SSP5 marker while labeled "no policy." The
+  // 1990-2025 backcast is unaffected (decay is anchored at 2025; pre-2025
+  // years keep the full historical rate — structural change was strong then).
+  structuralEfficiencyShare: 0.33,  // 0.0042 of 0.0129/yr (bonus over the CL-PFU device rate)
+  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025; catch-up largely done by mid-century
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
   robotLaborEquivalent: 2,      // worker-equivalents per robot: Acemoglu & Restrepo (2020) find 1 robot displaces ~3-6 workers; 2 is a conservative output-equivalent. This is now the ONLY channel robots affect output (their energy is subtracted from E).
@@ -191,6 +201,12 @@ export const productionModule: Module<
       range: { min: 0.05, max: 0.70, default: 0.55 },
       tier: 1 as const,
     },
+    serviceEfficiencyGrowth: {
+      description: 'Near-term growth rate of the effective service-efficiency index (= demand GDP-weighted intensity decline; coupled at runtime). THE dominant GDP-level dial — a +-0.5pp change swings GDP 2100 ~2x, more than gamma. Structural share decays post-2025. See docs/SENSITIVITY.md.',
+      unit: 'fraction/year',
+      range: { min: 0.005, max: 0.03, default: 0.0129 },
+      tier: 1 as const,
+    },
     robotLaborEquivalent: {
       description: 'Worker-equivalents each robot adds to effective labor — the ONLY channel robots affect output (their electricity is subtracted from productive useful energy as intermediate consumption). Default 2: Acemoglu & Restrepo (2020) find one industrial robot displaces ~3-6 workers; 2 is a conservative output-equivalent. 0 makes robots a pure parasitic load.',
       unit: 'worker-equivalents/robot',
@@ -264,8 +280,15 @@ export const productionModule: Module<
         (params.serviceEfficiencyGrowth < 0 || params.serviceEfficiencyGrowth > 0.04)) {
       errors.push('serviceEfficiencyGrowth must be between 0 and 4%/year');
     }
-    if (params.serviceEfficiencyGrowth !== undefined && params.serviceEfficiencyGrowth > 0.02) {
-      warnings.push('serviceEfficiencyGrowth > 2%/yr hits the eta ceiling mid-horizon (hard kink: efficiency growth stops while demand intensity keeps declining — the coupled series diverge from that year on)');
+    if (params.structuralEfficiencyShare !== undefined &&
+        (params.structuralEfficiencyShare < 0 || params.structuralEfficiencyShare > 1)) {
+      errors.push('structuralEfficiencyShare must be between 0 and 1');
+    }
+    if (params.structuralDecayHalfLife !== undefined && params.structuralDecayHalfLife < 0) {
+      errors.push('structuralDecayHalfLife must be non-negative (0 = no decay)');
+    }
+    if (params.serviceEfficiencyGrowth !== undefined && params.serviceEfficiencyGrowth > 0.03) {
+      warnings.push('serviceEfficiencyGrowth > 3%/yr approaches the effective-index soft cap (0.90) within the horizon');
     }
     if (params.robotLaborEquivalent !== undefined &&
         (params.robotLaborEquivalent < 0 || params.robotLaborEquivalent > 20)) {
@@ -296,7 +319,7 @@ export const productionModule: Module<
     };
   },
 
-  step(state, inputs, params, _year, yearIndex) {
+  step(state, inputs, params, year, yearIndex) {
     const {
       capitalStock,
       effectiveWorkers,
@@ -375,13 +398,31 @@ export const productionModule: Module<
     //    on the demand side raise useful work per final energy here. Without
     //    this coupling, intensity decline was a pure GDP destroyer: demand
     //    removed the energy while production booked it as lost input
-    //    (GDP ~ Intensity^1.2 through the gamma loop). Bounded by the
-    //    thermodynamic ceiling; the assumed rate reproduces the measured
-    //    world eta path 1990-2025 (0.15 -> ~0.235, De Stercke/Brockway).
-    const eta = Math.min(
-      params.endUseEfficiencyMax,
-      compound(params.endUseEfficiency0, params.serviceEfficiencyGrowth, yearIndex)
-    );
+    //    (GDP ~ Intensity^1.2 through the gamma loop). The cap is a soft
+    //    runaway bound on the EFFECTIVE index (which bundles structural
+    //    change, not thermodynamically limited), NOT the device second-law
+    //    ceiling — a hard cap at the device 0.60 froze eta mid-century in
+    //    high-efficiencyMultiplier scenarios while demand kept decaying
+    //    energy, re-splitting the coupled series and COLLAPSING GDP (a
+    //    non-monotone artifact: more efficiency -> less GDP). The device
+    //    component alone stays under Cullen & Allwood's ~0.60.
+    // Cumulative log-efficiency growth from the run's anchor year to `year`,
+    // with the structural component decaying in CALENDAR time past 2025 (so
+    // the 1990-anchored backcast, which ends at 2025, keeps the full rate
+    // throughout and its pin is unchanged, while the 2025-anchored forward
+    // run sees the structural bonus fade). rate(s) = g x [(1-share) +
+    // share x 0.5^(max(0,s-2025)/halfLife)].
+    const anchorYear = year - yearIndex;
+    const g = params.serviceEfficiencyGrowth;
+    const share = params.structuralEfficiencyShare;
+    const hl = params.structuralDecayHalfLife;
+    const flatYears = Math.max(0, Math.min(year, 2025) - anchorYear);   // pre-2025: full structural bonus
+    const decayYears = Math.max(0, year - Math.max(anchorYear, 2025));  // post-2025: decaying
+    const decayIntegral = hl > 0
+      ? (hl / Math.LN2) * (1 - Math.pow(0.5, decayYears / hl))
+      : decayYears;
+    const cumLogGrowth = g * ((1 - share) * yearIndex + share * (flatYears + decayIntegral));
+    const eta = Math.min(params.endUseEfficiencyMax, params.endUseEfficiency0 * Math.exp(cumLogGrowth));
     const endUseEfficiency = eta / params.endUseEfficiency0;
 
     // 2. Organizational efficiency (education-driven, diminishing returns)

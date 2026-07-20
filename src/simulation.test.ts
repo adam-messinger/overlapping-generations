@@ -8,7 +8,7 @@ import { buildOutputRegistry, resolveKey } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
-import { gdpWeightedIntensityDecline } from './modules/demand.js';
+import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 
@@ -57,6 +57,21 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
+test('GDP is monotonic in efficiencyMultiplier (coupled efficiency series)', () => {
+  // Demand decays energy at intensityDecline x efficiencyMultiplier; the
+  // runner couples production's eta growth to the same effective rate. If
+  // they decouple (the pre-fix bug, or a re-introduced hard eta ceiling),
+  // higher efficiency DESTROYS GDP through E^gamma — a 3.6x non-monotone
+  // artifact across the 8 scenarios that set the multiplier. Guard it.
+  const gdp2100 = (m: number) =>
+    runSimulation({ demand: { efficiencyMultiplier: m } }).results[75].gdp;
+  const lo = gdp2100(0.8);
+  const mid = gdp2100(1.0);
+  const hi = gdp2100(1.3);
+  expect(mid).toBeGreaterThan(lo);   // more efficiency -> more GDP
+  expect(hi).toBeGreaterThan(mid);
+});
+
 test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity decline', () => {
   // One efficiency series, two views: demand removes final energy at the
   // regional intensityDecline rates; production credits eta growth at
@@ -65,6 +80,16 @@ test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity de
   // production), the intensity-decline-as-GDP-destroyer bug returns.
   const derived = gdpWeightedIntensityDecline();
   expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
+});
+
+test('production and demand share the same structural-decay shape', () => {
+  // The forward structural decay must apply identically to demand's
+  // intensity decline and production's eta growth, or the coupled series
+  // re-split under efficiencyMultiplier and GDP collapses at the high end.
+  expect(productionDefaults.structuralEfficiencyShare)
+    .toBe(demandDefaults.structuralEfficiencyShare);
+  expect(productionDefaults.structuralDecayHalfLife)
+    .toBe(demandDefaults.structuralDecayHalfLife);
 });
 
 test('no initialization discontinuity: first simulated years are smooth', () => {

@@ -18,7 +18,7 @@ import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutpu
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
-import { demandModule } from './modules/demand.js';
+import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
 import { generationsModule } from './modules/generations.js';
 import { energyModule } from './modules/energy.js';
@@ -527,20 +527,57 @@ export function runAutowiredSimulation(
   const transforms = buildTransforms(mergedEnergyParams);
   const lags = buildLags(params);
 
+  // Couple production's efficiency-index growth to demand's EFFECTIVE
+  // autonomous intensity decline: the GDP-weighted regional rate times the
+  // top-level efficiencyMultiplier that scenarios use. Demand decays final
+  // energy at intensityDecline x efficiencyMultiplier; production's eta must
+  // rise at the same rate or the "one efficiency series, two views" invariant
+  // silently re-splits when efficiencyMultiplier != 1 — an artifact worth a
+  // ~3.6x GDP swing across the 8 scenarios that set it (higher efficiency
+  // would otherwise DESTROY GDP through E^gamma with no offsetting eta gain).
+  // An explicit production.serviceEfficiencyGrowth override still wins.
+  const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
+  const coupledProduction = { ...(params.production ?? {}) };
+  if (coupledProduction.serviceEfficiencyGrowth === undefined) {
+    coupledProduction.serviceEfficiencyGrowth =
+      gdpWeightedIntensityDecline(mergedDemandParams.regions) * mergedDemandParams.efficiencyMultiplier;
+  }
+  // The structural-decay shape must match demand's so the two views of the
+  // one efficiency series decay together (a mismatch re-splits them and
+  // collapses GDP at high efficiencyMultiplier). Injected unless overridden.
+  if (coupledProduction.structuralEfficiencyShare === undefined) {
+    coupledProduction.structuralEfficiencyShare = mergedDemandParams.structuralEfficiencyShare;
+  }
+  if (coupledProduction.structuralDecayHalfLife === undefined) {
+    coupledProduction.structuralDecayHalfLife = mergedDemandParams.structuralDecayHalfLife;
+  }
+
+  // Couple CDR's TCRE (the warming/GtCO2 its SCC gate values) to climate's
+  // sensitivity: the emergent 75-yr TCRE scales ~linearly with sensitivity
+  // (0.00058 at 3.0, 0.00088 at 4.5). Without this, high-sensitivity /
+  // climate-cascade ran the SCC gate at the 3.0-sensitivity damage while
+  // realized warming was 4.5 — silently under-valuing CDR ~50%. Explicit
+  // cdr.tcre overrides still win.
+  const mergedClimateParams = climateModule.mergeParams(params.climate ?? {});
+  const coupledCdr = { ...(params.cdr ?? {}) };
+  if (coupledCdr.tcre === undefined) {
+    coupledCdr.tcre = cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
+  }
+
   return runAutowired({
     modules: ALL_MODULES,
     transforms,
     lags,
     params: {
       demographics: params.demographics,
-      production: params.production,
+      production: coupledProduction,
       demand: params.demand,
       capital: params.capital,
       generations: params.generations,
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
-      cdr: params.cdr,
+      cdr: coupledCdr,
       climate: params.climate,
     },
     startYear: params.startYear ?? 2025,

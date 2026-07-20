@@ -158,6 +158,25 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Structural-decay multiplier on an efficiency/intensity-decline rate.
+ * A `structuralShare` fraction of the rate is transitional structural change
+ * (sectoral shift, catch-up) that halves every `halfLife` years after 2025;
+ * the rest is persistent device efficiency. Returns 1 before 2025 and when
+ * halfLife = 0 (no decay), so backcasts and no-decay runs are unaffected.
+ * Used by BOTH demand (intensity decline) and production (eta growth) so the
+ * "one efficiency series, two views" invariant holds through the decay.
+ */
+export function structuralDecayFactor(
+  year: number,
+  structuralShare: number,
+  halfLife: number
+): number {
+  const tau = Math.max(0, year - 2025);
+  const decayed = halfLife > 0 ? Math.pow(0.5, tau / halfLife) : 1;
+  return (1 - structuralShare) + structuralShare * decayed;
+}
+
+/**
  * Poisson shock probability
  *
  * P(at least one event) = 1 - e^(-λ)

@@ -7,6 +7,30 @@
 
 import { readFile } from 'fs/promises';
 import { SimulationParams } from './simulation.js';
+import { demographicsDefaults } from './modules/demographics.js';
+import { productionDefaults } from './modules/production.js';
+import { demandDefaults } from './modules/demand.js';
+import { capitalDefaults } from './modules/capital.js';
+import { generationsDefaults } from './modules/generations.js';
+import { energyDefaults } from './modules/energy.js';
+import { dispatchDefaults } from './modules/dispatch.js';
+import { resourcesDefaults } from './modules/resources.js';
+import { cdrDefaults } from './modules/cdr.js';
+import { climateDefaults } from './modules/climate.js';
+
+/** Known param keys per module, for catching fat-fingered scenario keys */
+const MODULE_PARAM_KEYS: Record<string, Set<string>> = {
+  demographics: new Set(Object.keys(demographicsDefaults)),
+  production: new Set(Object.keys(productionDefaults)),
+  demand: new Set(Object.keys(demandDefaults)),
+  capital: new Set(Object.keys(capitalDefaults)),
+  generations: new Set(Object.keys(generationsDefaults)),
+  energy: new Set(Object.keys(energyDefaults)),
+  dispatch: new Set(Object.keys(dispatchDefaults)),
+  resources: new Set(Object.keys(resourcesDefaults)),
+  cdr: new Set(Object.keys(cdrDefaults)),
+  climate: new Set(Object.keys(climateDefaults)),
+};
 
 // =============================================================================
 // TYPES
@@ -81,6 +105,19 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   for (const key of Object.keys(scenario)) {
     if (!knownKeys.has(key)) {
       console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
+      continue;
+    }
+    // Validate inner param keys against the module's known params, so a
+    // fat-fingered override (energy: { carbonPriceTYPO: ... }) is flagged
+    // instead of silently dropped by the module's spread-based mergeParams.
+    const knownParams = MODULE_PARAM_KEYS[key];
+    const section = (scenario as unknown as Record<string, unknown>)[key];
+    if (knownParams && section && typeof section === 'object' && !Array.isArray(section)) {
+      for (const paramKey of Object.keys(section)) {
+        if (!knownParams.has(paramKey)) {
+          console.warn(`Warning: Unrecognized ${key} param "${paramKey}" will be ignored`);
+        }
+      }
     }
   }
 

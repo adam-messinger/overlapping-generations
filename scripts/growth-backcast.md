@@ -12,7 +12,7 @@ through 2025 (data + runner: `src/historical-backcast.ts`).
 | | 1990→2025 CAGR | GDP 2025 (1990=$47.6T) |
 |---|---:|---:|
 | Observed (WDI) | 3.43%/yr | $158T |
-| Model backcast | 3.44%/yr | $159T |
+| Model backcast | 3.45%/yr | $159T |
 
 ## Calibration this backcast forces
 
@@ -23,10 +23,10 @@ unsourced history parameter. The current mechanism replaces the solver
 entirely:
 
 - **η(1990) = 0.15** — effective-index start (De Stercke lineage; measured 1990 second-law eta ~0.18, see methodology below)
-- **η_max = 0.6** — Cullen & Allwood (2010) practical potential
+- **η_max = 0.9** — Cullen & Allwood (2010) practical potential
 - **η growth = 1.29%/yr** — the SAME series as demand's GDP-weighted autonomous
   intensity decline (one physical process, two views; consistency-pinned)
-- **Implied η(2025) = 0.235** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
+- **Implied η(2025) = 0.236** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
   consistency check on the bundle (see methodology below), not an identity
 
 The assumed rate is not fitted to GDP: it is demand's intensity-decline
@@ -48,18 +48,18 @@ forward eta0 = backcast endpoint).
 | Labor (L/L₀)^0.15 | 1.08 | 0.22 |
 | Useful energy (E/E₀)^0.55 | 1.41 | 0.98 |
 | Endogenous efficiency | 1.61 | 1.36 |
-| **Model total** | 3.34 | **3.44** |
+| **Model total** | 3.35 | **3.45** |
 | Observed | 3.32 | 3.43 |
 
 ## γ sweep (with calibrated efficiency)
 
 | γ | Predicted CAGR | Gap vs observed |
 |---|---:|---:|
-| 0.08 | 2.60%/yr | 0.82 pp/yr |
-| 0.25 | 2.91%/yr | 0.52 pp/yr |
-| 0.40 | 3.17%/yr | 0.25 pp/yr |
-| 0.55 (default) | 3.44%/yr | -0.01 pp/yr |
-| 0.70 | 3.71%/yr | -0.28 pp/yr |
+| 0.08 | 2.61%/yr | 0.82 pp/yr |
+| 0.25 | 2.91%/yr | 0.51 pp/yr |
+| 0.40 | 3.18%/yr | 0.25 pp/yr |
+| 0.55 (default) | 3.45%/yr | -0.02 pp/yr |
+| 0.70 | 3.72%/yr | -0.29 pp/yr |
 
 The efficiency series is fixed by its own anchors (not solved per γ), so
 this sweep is a genuine out-of-sample test of γ: low γ under-predicts
@@ -71,10 +71,10 @@ conditional on the exergy anchors — it does not pinpoint 0.55.
 
 | Period | Observed %/yr | Model %/yr | Gap pp/yr |
 |---|---:|---:|---:|
-| 1990-2000 | 3.18 | 3.26 | -0.08 |
-| 2000-2010 | 3.69 | 3.97 | -0.28 |
-| 2010-2020 | 2.94 | 3.24 | -0.30 |
-| 2020-2025 | 4.38 | 3.16 | 1.23 |
+| 1990-2000 | 3.18 | 3.27 | -0.09 |
+| 2000-2010 | 3.69 | 3.98 | -0.29 |
+| 2010-2020 | 2.94 | 3.25 | -0.31 |
+| 2020-2025 | 4.38 | 3.16 | 1.22 |
 
 ## Demand-side check: the energy-GDP relationship
 
@@ -100,9 +100,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 2.11%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 1.58%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.86%/yr |
+| Capital growth | 3.54%/yr | 2.10%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 1.68%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.45%/yr (model) | 2.80%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking
