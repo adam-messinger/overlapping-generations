@@ -39,9 +39,6 @@ export interface DispatchParams {
   /** Capacity factor by source (fraction of nameplate available) */
   capacityFactor: Record<EnergySource, number>;
 
-  /** Maximum penetration by source (fraction of demand) */
-  maxPenetration: Record<EnergySource, number>;
-
   /** Carbon intensity by source (kg CO2/MWh) */
   carbonIntensity: Record<EnergySource, number>;
 
@@ -66,7 +63,6 @@ export interface DispatchParams {
   /** Storage-based VRE limits */
   baseVRELimit: number;              // VRE limit with 0h storage (default 0.30)
   storageBonusPerHour: number;       // Additional VRE share per storage hour (0.08)
-  maxVRECeiling: number;             // Physical max VRE share (0.95)
 
   /** Soft curtailment parameters */
   curtailmentOnset: number;          // VRE share where curtailment begins (default 0.30)
@@ -94,17 +90,6 @@ export const dispatchDefaults: DispatchParams = {
     gas: 0.50,
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)
-  },
-  // Penetration ceilings: modeling assumptions consistent with grid
-  // integration studies (e.g., NREL LA100/Seams) — not sourced point values
-  maxPenetration: {
-    solar: 0.40,     // Bare solar limited by intermittency
-    wind: 0.35,
-    hydro: 0.20,     // Site-limited
-    nuclear: 0.30,   // Baseload
-    gas: 1.0,        // Dispatchable, no limit
-    coal: 1.0,
-    battery: 0.80,   // Solar+battery can reach 80%
   },
   // Combustion intensity kg CO2/MWh: gas CCGT ~350-450, coal ~800-1000
   // (IPCC AR5 Annex III combustion values; lifecycle excluded)
@@ -137,7 +122,6 @@ export const dispatchDefaults: DispatchParams = {
   // Storage-based VRE limits
   baseVRELimit: 0.30,                // Grid handles 30% VRE with no storage
   storageBonusPerHour: 0.08,         // Each storage hour adds 8% VRE capacity
-  maxVRECeiling: 0.95,               // Physical max (need some dispatchable)
 
   // Soft curtailment
   curtailmentOnset: 0.30,            // VRE curtailment begins at 30% share
@@ -232,9 +216,6 @@ export interface DispatchOutputs {
   /** Unmet demand, if any (TWh) - GLOBAL */
   shortfall: number;
 
-  /** Cheapest source this year */
-  cheapestSource: EnergySource;
-
   /** Fossil share of generation (fraction) - GLOBAL */
   fossilShare: number;
 
@@ -249,9 +230,6 @@ export interface DispatchOutputs {
 
   /** Regional curtailment (TWh) */
   regionalCurtailment: Record<Region, number>;
-
-  /** Regional detail for other modules */
-  dispatchRegional: Record<Region, RegionalDispatchOutputs>;
 }
 
 // =============================================================================
@@ -352,18 +330,22 @@ function dispatchRegion(
   const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * PEAK_TO_AVERAGE_RATIO;
   const shortStorageHours = batteryGWh / Math.max(1, peakDemandGW);
   const longStorageHours = longStorageGWh / Math.max(1, peakDemandGW);
-  const maxVREPenetration = Math.min(
-    params.maxVRECeiling,
-    params.baseVRELimit
-      + shortStorageHours * params.storageBonusPerHour
-      + longStorageHours * params.longStorageBonusPerHour
-  );
-  const maxBareSolarPen = Math.min(maxVREPenetration * params.vreSolarFraction, params.maxPenetration.solar);
-  const maxTotalSolarPen = Math.min(maxVREPenetration * params.vreTotalSolarFraction, params.maxPenetration.solar + params.maxPenetration.battery);
-  const maxWindPen = Math.min(maxVREPenetration * params.vreWindFraction, params.maxPenetration.wind);
+  // VRE penetration limit = storage-based headroom. No separate ceiling: the
+  // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
+  // demand limit clamp VRE first), and it made maxVREPenetration a redundant
+  // copy of this same expression — verified byte-identical across all scenarios.
   const maxCombinedVRE = params.baseVRELimit
     + shortStorageHours * params.storageBonusPerHour
     + longStorageHours * params.longStorageBonusPerHour;
+  // VRE headroom split by sub-fraction. The old per-source maxPenetration caps
+  // (solar 0.40, wind 0.35, battery 0.80) are removed: the storage-headroom
+  // fractions sit below them on every path, so they clipped at most ~0.1% of
+  // GDP in the high-sensitivity tail and nothing elsewhere. The four non-VRE
+  // entries (hydro/nuclear/gas/coal) were never read. Curtailment + the demand
+  // limit remain the real VRE constraints.
+  const maxBareSolarPen = maxCombinedVRE * params.vreSolarFraction;
+  const maxTotalSolarPen = maxCombinedVRE * params.vreTotalSolarFraction;
+  const maxWindPen = maxCombinedVRE * params.vreWindFraction;
 
   for (const source of sources) {
     if (remaining <= 0) break;
@@ -378,12 +360,12 @@ function dispatchRegion(
       } else {
         maxAllocation = Math.min(maxAllocation, totalSolarRoom);
       }
-      const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+      const combinedRoom = maxCombinedVRE * demandTWh - totalVREAllocated;
       maxAllocation = Math.min(maxAllocation, combinedRoom);
     } else if (source.name === 'wind') {
       const windRoom = maxWindPen * demandTWh - totalWindAllocated;
       maxAllocation = Math.min(maxAllocation, windRoom);
-      const combinedRoom = Math.min(params.maxVRECeiling, maxCombinedVRE) * demandTWh - totalVREAllocated;
+      const combinedRoom = maxCombinedVRE * demandTWh - totalVREAllocated;
       maxAllocation = Math.min(maxAllocation, combinedRoom);
     }
 
@@ -501,13 +483,11 @@ export const dispatchModule: Module<
     'electricityEmissions',
     'regionalEmissions',
     'shortfall',
-    'cheapestSource',
     'fossilShare',
     'regionalFossilShare',
     'curtailmentTWh',
     'curtailmentRate',
     'regionalCurtailment',
-    'dispatchRegional',
   ] as const,
 
   paramMeta: {
@@ -551,7 +531,6 @@ export const dispatchModule: Module<
       curtailmentTWh: 'number',
       curtailmentRate: 'number',
       regionalCurtailment: 'record',
-      dispatchRegional: 'nested-record',
     },
   },
 
@@ -564,11 +543,6 @@ export const dispatchModule: Module<
       const cf = p.capacityFactor[source];
       if (cf < 0 || cf > 1) {
         errors.push(`capacityFactor.${source} must be 0-1, got ${cf}`);
-      }
-
-      const mp = p.maxPenetration[source];
-      if (mp < 0 || mp > 1) {
-        errors.push(`maxPenetration.${source} must be 0-1, got ${mp}`);
       }
 
       const ci = p.carbonIntensity[source];
@@ -590,7 +564,6 @@ export const dispatchModule: Module<
       ...dispatchDefaults,
       ...p,
       capacityFactor: { ...dispatchDefaults.capacityFactor, ...p.capacityFactor },
-      maxPenetration: { ...dispatchDefaults.maxPenetration, ...p.maxPenetration },
       carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...p.carbonIntensity },
       marginalCost: { ...dispatchDefaults.marginalCost, ...p.marginalCost },
     }), partial);
@@ -690,21 +663,6 @@ export const dispatchModule: Module<
     const fossilGen = globalGeneration.gas + globalGeneration.coal;
     const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;
 
-    // Find cheapest source with non-zero generation (by marginal cost)
-    let cheapestSource: EnergySource = 'solar';
-    let lowestMC = Infinity;
-    for (const source of ENERGY_SOURCES) {
-      if (globalGeneration[source] > 0) {
-        const baseMC = params.marginalCost[source];
-        const carbonCost = (params.carbonIntensity[source] * carbonPrice) / 1000;
-        const mc = baseMC + carbonCost;
-        if (mc < lowestMC) {
-          lowestMC = mc;
-          cheapestSource = source;
-        }
-      }
-    }
-
     return {
       state: {},
       outputs: {
@@ -716,13 +674,11 @@ export const dispatchModule: Module<
         electricityEmissions: globalElectricityEmissions,
         regionalEmissions,
         shortfall: globalShortfall,
-        cheapestSource,
         fossilShare: globalFossilShare,
         regionalFossilShare,
         curtailmentTWh: globalCurtailmentTWh,
         curtailmentRate: globalCurtailmentRate,
         regionalCurtailment,
-        dispatchRegional: regionalOutputs,
       },
     };
   },

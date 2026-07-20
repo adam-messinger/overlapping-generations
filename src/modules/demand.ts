@@ -90,7 +90,6 @@ interface FuelMixParams {
 interface EnergyBurdenParams {
   threshold: number;              // Burden threshold (fraction of GDP, default 0.08)
   elasticity: number;             // GDP damage per % excess burden (default 1.5)
-  maxDamage: number;              // Maximum GDP damage (fraction, default 0.30)
   maxBurden: number;              // Historical max burden (fraction, default 0.14)
 }
 
@@ -261,10 +260,7 @@ interface DemandOutputs {
   electrificationRate: number;  // Fraction (0-1)
   totalFinalEnergy: number;     // TWh (global)
   nonElectricEnergy: number;    // TWh (global)
-  usefulEnergy: number;         // TWh (useful, efficiency-adjusted)
-  usefulEnergyFactor: number;   // Useful energy / total final energy
   gdpPerWorking: number;        // $ per person (global)
-  electricityPerWorking: number; // kWh per person (global)
   finalEnergyPerCapitaDay: number; // kWh/person/day
 
   // Sector breakdown
@@ -508,7 +504,6 @@ export const demandDefaults: DemandParams = {
   energyBurden: {
     threshold: 0.08,             // 8% of GDP is threshold (normal cheap energy)
     elasticity: 1.5,             // GDP damage per % excess burden
-    maxDamage: 0.30,             // Max 30% GDP reduction
     maxBurden: 0.14,             // 1970s crisis peak
   },
 
@@ -943,10 +938,7 @@ export const demandModule: Module<
     'electrificationRate',
     'totalFinalEnergy',
     'nonElectricEnergy',
-    'usefulEnergy',
-    'usefulEnergyFactor',
     'gdpPerWorking',
-    'electricityPerWorking',
     'finalEnergyPerCapitaDay',
     'regional',
     'sectors',
@@ -1574,7 +1566,6 @@ export const demandModule: Module<
     // energy by the efficiency multiplier on top of fuel-scale electricity
     // demand, double-crediting electrification.
     const usefulEnergy = sectorEnergyBase + lockInAdjustment + robotLoadTWh + dataCenterLoadTWh;
-    const usefulEnergyFactor = globalTotalFinal > 0 ? usefulEnergy / globalTotalFinal : 1;
 
     // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP
     const totalEffectiveWorkers = REGIONS.reduce(
@@ -1671,11 +1662,10 @@ export const demandModule: Module<
     let burdenDamage = 0;
     if (cappedBurden > params.energyBurden.threshold) {
       const excessBurden = cappedBurden - params.energyBurden.threshold;
-      // Linear damage up to max
-      burdenDamage = Math.min(
-        excessBurden * params.energyBurden.elasticity,
-        params.energyBurden.maxDamage
-      );
+      // Linear damage. No maxDamage clamp: burden is already capped at
+      // maxBurden (0.14) upstream, so damage <= (0.14 - threshold) * elasticity
+      // = ~0.09 at defaults — the old 0.30 cap was structurally unreachable.
+      burdenDamage = excessBurden * params.energyBurden.elasticity;
     }
 
     return {
@@ -1699,10 +1689,7 @@ export const demandModule: Module<
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,
         nonElectricEnergy: globalNonElec,
-        usefulEnergy,
-        usefulEnergyFactor,
         gdpPerWorking: (globalGdp * 1e12) / globalWorking,
-        electricityPerWorking: (globalElec * 1e9) / globalWorking,
         finalEnergyPerCapitaDay,
         sectors,
         fuels,

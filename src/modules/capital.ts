@@ -183,9 +183,7 @@ interface CapitalOutputs {
   publicDebtGDP: number;       // ratio
   privateDebtGDP: number;      // ratio
   totalDebtGDP: number;        // ratio
-  publicDebtStock: number;     // Beginning-of-period public debt ($T)
   privateDebtStock: number;    // Beginning-of-period private debt ($T)
-  nextPublicDebtStock: number; // End-of-period public debt ($T)
   nextPrivateDebtStock: number;// End-of-period private debt ($T)
   publicDebtService: number;   // $T (interest on public debt)
   creditImpulse: number;       // $T (net new private credit)
@@ -493,9 +491,7 @@ export const capitalModule: Module<
     'publicDebtGDP',
     'privateDebtGDP',
     'totalDebtGDP',
-    'publicDebtStock',
     'privateDebtStock',
-    'nextPublicDebtStock',
     'nextPrivateDebtStock',
     'publicDebtService',
     'creditImpulse',
@@ -690,7 +686,6 @@ export const capitalModule: Module<
     // Intergenerational transfers: pension + healthcare (old), education (young)
     // With retirement age adjustment + wage indexation
     // ==========================================================================
-    const MAX_TRANSFER_BURDEN = 0.50;
     let retireeCost = 0;
     let childCost = 0;
     const regionalRetireeCost = Object.fromEntries(
@@ -766,7 +761,9 @@ export const capitalModule: Module<
       childCost += regionChildCost;
     }
 
-    const transferBurden = Math.min(MAX_TRANSFER_BURDEN, inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0);
+    // Uncapped: raw transfer share of GDP (peaks ~0.28 even in aging/high-debt
+    // stress runs, so the old 0.50 cap never bound — removed as dead headroom).
+    const transferBurden = inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0;
 
     // ==========================================================================
     // Debt/credit channel
@@ -809,8 +806,12 @@ export const capitalModule: Module<
 
     // --- Private debt / credit channel ---
     const gdpGrowth = previousGdp > 0 ? (inputs.gdp - previousGdp) / previousGdp : 0;
-    const spreadFactor = Math.max(0.2, 1 - params.creditSensitivity * Math.max(0, interestRate - gdpGrowth));
-    const leverageFactor = Math.max(0.1, 1 - params.leverageDamping * Math.max(0, privateDebtGDP - params.leverageThreshold));
+    // Floors at 0 (credit fully damped, never reversed) — definitional, not a
+    // chosen bound. The old 0.2/0.1 magic floors never bound: spreadFactor
+    // stays >=0.77 and leverageFactor =1.0 across every scenario (private debt
+    // amortizes below the damping threshold), so the specific values were dead.
+    const spreadFactor = Math.max(0, 1 - params.creditSensitivity * Math.max(0, interestRate - gdpGrowth));
+    const leverageFactor = Math.max(0, 1 - params.leverageDamping * Math.max(0, privateDebtGDP - params.leverageThreshold));
     const creditImpulse = params.baseCreditGrowth * inputs.gdp * spreadFactor * leverageFactor;
     const amortization = privateDebt * params.privateAmortization;
 
@@ -937,9 +938,7 @@ export const capitalModule: Module<
         publicDebtGDP,
         privateDebtGDP,
         totalDebtGDP,
-        publicDebtStock: publicDebt,
         privateDebtStock: privateDebt,
-        nextPublicDebtStock: newPublicDebt,
         nextPrivateDebtStock: newPrivateDebt,
         publicDebtService,
         creditImpulse,

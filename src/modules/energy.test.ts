@@ -493,7 +493,6 @@ test('module declares correct outputs', () => {
   expect(energyModule.outputs.includes('lcoes')).toBeTrue();
   expect(energyModule.outputs.includes('capacities')).toBeTrue();
   expect(energyModule.outputs.includes('regionalCapacities')).toBeTrue();
-  expect(energyModule.outputs.includes('energyRegional')).toBeTrue();
 });
 
 // --- Curtailment Feedback ---

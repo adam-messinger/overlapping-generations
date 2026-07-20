@@ -40,7 +40,6 @@ export interface EnergySourceParams {
   alpha: number;           // Wright's Law exponent (0 = no learning)
   softFloor: number;       // $/MWh irreducible non-learning costs (labor, land, permitting, O&M)
   referenceCF: number;     // Base CF for LCOE calculation (0 = no CF adjustment)
-  growthRate: number;      // Annual capacity growth rate (default, can be overridden regionally)
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
   eroei0?: number;         // Initial EROEI
@@ -170,9 +169,6 @@ export interface EnergyParams {
     alpha: number;             // Wright's Law learning exponent
     growthRate: number;        // Max annual capacity growth rate
     duration: number;          // Hours of storage duration (100h)
-    efficiency: number;        // Round-trip efficiency (0.50)
-    lifetime: number;          // Years
-    capex: number;             // $M/GWh CAPEX
     capacity2025: Record<Region, number>;  // GWh per region
   };
 
@@ -285,7 +281,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 12,         // $/MWh irreducible: installation labor, land, permitting, O&M
       referenceCF: 0.20,     // CF adjustment: worse sites → higher effective LCOE
       capacity2025: REGIONAL_CAPACITY_2025.solar,
-      growthRate: 0.25,
       carbonIntensity: 0,
     },
     wind: {
@@ -295,7 +290,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 15,         // Higher than solar: offshore maintenance, complex installation
       referenceCF: 0.30,     // CF adjustment for site quality degradation
       capacity2025: REGIONAL_CAPACITY_2025.wind,
-      growthRate: 0.18,
       carbonIntensity: 0,
     },
     gas: {
@@ -305,7 +299,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 0,
       referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.gas,
-      growthRate: 0.02,
       carbonIntensity: 400,
       eroei0: 30,
       // 2025 fleet (sum of capacity2025) x 0.01/yr exhausts this budget on
@@ -321,7 +314,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 0,
       referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.coal,
-      growthRate: -0.02,
       carbonIntensity: 900,
       eroei0: 25,
       // 2025 fleet x 0.01/yr exhausts this budget on the ~125-year
@@ -337,7 +329,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 0,
       referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.nuclear,
-      growthRate: 0.02,
       carbonIntensity: 0,
     },
     hydro: {
@@ -347,7 +338,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 0,
       referenceCF: 0,
       capacity2025: REGIONAL_CAPACITY_2025.hydro,
-      growthRate: 0.01,
       carbonIntensity: 0,
     },
     battery: {
@@ -357,7 +347,6 @@ export const energyDefaults: EnergyParams = {
       softFloor: 20,         // $/kWh: BMS, pack assembly, installation
       referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.battery,
-      growthRate: 0.35,
       carbonIntensity: 0,
     },
   },
@@ -488,9 +477,6 @@ export const energyDefaults: EnergyParams = {
     alpha: 0.15,               // Slower learning than Li-ion
     growthRate: 0.25,          // Max annual growth rate
     duration: 100,             // 100 hours
-    efficiency: 0.50,          // 50% round-trip
-    lifetime: 25,              // Years
-    capex: 200,                // $M/GWh
     capacity2025: {
       oecd: 5, china: 3, india: 1, latam: 1,
       seasia: 0.5, russia: 0.5, mena: 0.5, ssa: 0.5,
@@ -577,13 +563,6 @@ export interface EnergyInputs {
   regionalSavings?: Record<Region, number>;
 }
 
-/** Regional capacity outputs */
-export interface RegionalEnergyOutputs {
-  capacities: Record<EnergySource, number>;
-  additions: Record<EnergySource, number>;
-  retirements: Record<EnergySource, number>;
-}
-
 export interface EnergyOutputs {
   /** Realized capex spend this year, all sources incl. fossil/storage ($T) */
   energyCapexSpend: number;
@@ -611,20 +590,11 @@ export interface EnergyOutputs {
   /** Regional additions breakdown */
   regionalAdditions: Record<Region, Record<EnergySource, number>>;
 
-  /** Capacity retirements this year (GW; GWh for battery) - SUM of regional */
-  retirements: Record<EnergySource, number>;
-
-  /** Regional retirements breakdown */
-  regionalRetirements: Record<Region, Record<EnergySource, number>>;
-
   /** Battery cost ($/kWh) */
   batteryCost: number;
 
   /** Cheapest LCOE this year ($/MWh) */
   cheapestLCOE: number;
-
-  /** Regional detail for dispatch */
-  energyRegional: Record<Region, RegionalEnergyOutputs>;
 
   /** Effective solar capacity factor (capacity-weighted, after site depletion) */
   effectiveSolarCF: number;
@@ -894,11 +864,8 @@ export const energyModule: Module<
     'cumulativeCapacity',
     'additions',
     'regionalAdditions',
-    'retirements',
-    'regionalRetirements',
     'batteryCost',
     'cheapestLCOE',
-    'energyRegional',
     'effectiveSolarCF',
     'effectiveWindCF',
     'longStorageCost',
@@ -1142,13 +1109,10 @@ export const energyModule: Module<
     const netEnergyFraction: Record<EnergySource, number> = {} as any;
     const globalCapacities: Record<EnergySource, number> = {} as any;
     const globalAdditions: Record<EnergySource, number> = {} as any;
-    const globalRetirements: Record<EnergySource, number> = {} as any;
     const cumulativeCapacity: Record<EnergySource, number> = {} as any;
 
     const regionalCapacities: Record<Region, Record<EnergySource, number>> = {} as any;
     const regionalAdditions: Record<Region, Record<EnergySource, number>> = {} as any;
-    const regionalRetirements: Record<Region, Record<EnergySource, number>> = {} as any;
-    const regionalOutputs: Record<Region, RegionalEnergyOutputs> = {} as any;
 
     // New state
     const newRegional: Record<Region, Record<EnergySource, RegionalCapacityState>> = {} as any;
@@ -1158,12 +1122,10 @@ export const energyModule: Module<
     for (const source of ENERGY_SOURCES) {
       globalCapacities[source] = 0;
       globalAdditions[source] = 0;
-      globalRetirements[source] = 0;
     }
     for (const region of REGIONS) {
       regionalCapacities[region] = {} as any;
       regionalAdditions[region] = {} as any;
-      regionalRetirements[region] = {} as any;
       newRegional[region] = {} as any;
     }
 
@@ -1513,20 +1475,11 @@ export const energyModule: Module<
 
         regionalCapacities[region][source] = newInstalled;
         regionalAdditions[region][source] = addition;
-        regionalRetirements[region][source] = retirement;
 
         // Accumulate global totals
         globalCapacities[source] += newInstalled;
         globalAdditions[source] += addition;
-        globalRetirements[source] += retirement;
       }
-
-      // Store regional outputs
-      regionalOutputs[region] = {
-        capacities: regionalCapacities[region],
-        additions: regionalAdditions[region],
-        retirements: regionalRetirements[region],
-      };
     }
 
     // =========================================================================
@@ -1683,11 +1636,8 @@ export const energyModule: Module<
         cumulativeCapacity,
         additions: globalAdditions,
         regionalAdditions,
-        retirements: globalRetirements,
-        regionalRetirements,
         batteryCost,
         cheapestLCOE,
-        energyRegional: regionalOutputs,
         effectiveSolarCF,
         effectiveWindCF,
         longStorageCost,

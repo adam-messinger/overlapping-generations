@@ -133,12 +133,6 @@ test('shortfall release cannot exceed physical solar panel output', () => {
 
 console.log('\n--- Merit Order ---\n');
 
-test('cheapest source dispatched first', () => {
-  // With solar at $20 and gas at $80, solar should be cheapest
-  const { outputs } = runDispatch({ solarLCOE: 20, gasLCOE: 80 });
-  expect(outputs.cheapestSource).toBe('solar');
-});
-
 test('cheaper sources get more generation', () => {
   // Solar is cheaper than coal, should get more
   const { outputs } = runDispatch({ solarLCOE: 25, coalLCOE: 100 });

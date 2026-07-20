@@ -7,13 +7,19 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
-import { buildOutputRegistry, resolveKey } from 'tsimulation';
+import { buildOutputRegistry, resolveKey, getOutputsAtYear } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
+
+/** Load a scenario's params synchronously (the test framework's test() is sync). */
+function loadScenarioParamsSync(name: string) {
+  const path = join(dirname(fileURLToPath(import.meta.url)), `../scenarios/${name}.json`);
+  return scenarioToParams(JSON.parse(readFileSync(path, 'utf-8')));
+}
 
 console.log('\n=== Simulation Integration Tests ===\n');
 
@@ -166,8 +172,7 @@ test('ai-energy-boom financing binds through cost of capital, not the capex budg
   // capital materially above baseline. Pins the honest mechanism so the
   // scenario's relabel stays truthful. Driven from the real scenario file so
   // the pin tracks the shipped levers rather than a hand-copied subset.
-  const scenarioPath = join(dirname(fileURLToPath(import.meta.url)), '../scenarios/ai-energy-boom.json');
-  const boomParams = scenarioToParams(JSON.parse(readFileSync(scenarioPath, 'utf-8')));
+  const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const base = runSimulation();
   const boom = runSimulation(boomParams);
   const i2075 = 2075 - 2025;
@@ -201,6 +206,25 @@ test('cohort constraint assumptions do not feed back into the macro path', () =>
   expect(tightFinal.cohortBorrowingLimitGap).toBeGreaterThan(
     looseFinal.cohortBorrowingLimitGap,
   );
+});
+
+// Invariant: the financing floor never binds. unfundedRealizedSpend =
+// max(0, realized capex+CDR+robot spend - investment pool). It is a
+// correctness invariant (0 in every scenario), not a diagnostic: a non-zero
+// value would mean realized spends silently exceeded the funded pool and the
+// floor absorbed the excess. Pin it for baseline AND the most capital-hungry
+// scenario (ai-energy-boom lifts the demand caps and turns on automation
+// payoff). Read from the autowire outputs since it is not a YearResult field.
+test('unfundedRealizedSpend stays zero across baseline and ai-energy-boom', () => {
+  const boomParams = loadScenarioParamsSync('ai-energy-boom');
+
+  for (const params of [{}, boomParams]) {
+    const result = runAutowiredSimulation(params);
+    for (let i = 0; i < result.years.length; i++) {
+      const o = getOutputsAtYear(result, i);
+      expect(o.unfundedRealizedSpend as number).toBeLessThan(1e-9);
+    }
+  }
 });
 
 // Cross-check: standardCollectors covers all toYearResults fields

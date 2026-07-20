@@ -334,7 +334,6 @@ export interface DemographicsOutputs {
   // Global aggregates
   population: number;
   working: number;
-  old: number;
   dependency: number;
   effectiveWorkers: number;
   collegeShare: number;
@@ -396,15 +395,6 @@ function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number)
   return (tfr * womenOfChildbearingAge * 0.5) / 32;
 }
 
-function deathRate(youngShare: number, workingShare: number, oldShare: number, lifeExpectancy: number): number {
-  const youngMortality = 0.001;  // 0.1% per year
-  const workingMortality = 0.003; // 0.3% per year
-  // Remaining life expectancy at 65 is about LE - 65 + 10 (selection effects)
-  const remainingLEat65 = Math.max(15, lifeExpectancy - 55);
-  const oldMortality = 1 / remainingLEat65;
-
-  return youngShare * youngMortality + workingShare * workingMortality + oldShare * oldMortality;
-}
 
 function ageCohorts(
   state: RegionState,
@@ -417,11 +407,9 @@ function ageCohorts(
   const pop = state.population;
   const youngShare = state.young / pop;
   const workingShare = state.working / pop;
-  const oldShare = state.old / pop;
 
-  // Calculate births and deaths
+  // Calculate births (deaths are computed per-cohort below)
   const births = birthRateFromTFR(tfr, workingShare, youngShare) * pop;
-  const deaths = deathRate(youngShare, workingShare, oldShare, state.lifeExpectancy) * pop;
 
   // Aging transitions - KEY: use correct cohort lengths
   // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
@@ -432,7 +420,6 @@ function ageCohorts(
   // Deaths by cohort (proportional to mortality rates)
   const youngDeaths = state.young * 0.001;
   const workingDeaths = state.working * 0.003;
-  const oldDeaths = deaths - youngDeaths - workingDeaths;
 
   // === EDUCATION TRACKING ===
   // Split new workers by enrollment rate (determined at age 18-22)
@@ -566,7 +553,6 @@ export const demographicsModule: Module<
   outputs: [
     'population',
     'working',
-    'old',
     'dependency',
     'effectiveWorkers',
     'collegeShare',
@@ -854,7 +840,6 @@ export const demographicsModule: Module<
       outputs: {
         population: totalPop,
         working: totalWorking,
-        old: totalOld,
         dependency: totalWorking > 0 ? totalOld / totalWorking : 0,
         effectiveWorkers: totalEffective,
         collegeShare: globalCollegeShare,

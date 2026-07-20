@@ -5,8 +5,7 @@
     "carbonPrice": 10,
     "sources": {
       "solar": {
-        "alpha": 0.32,
-        "growthRate": 0.18
+        "alpha": 0.32
       }
     },
     "maxGrowthRate": {

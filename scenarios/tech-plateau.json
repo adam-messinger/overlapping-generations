@@ -5,22 +5,14 @@
   "energy": {
     "carbonPrice": 35,
     "sources": {
-      "solar": { "alpha": 0.25, "growthRate": 0.15 },
-      "wind": { "alpha": 0.18, "growthRate": 0.10 },
-      "battery": { "alpha": 0.12 },
-      "nuclear": { "growthRate": 0.02 }
-    },
+      "solar": { "alpha": 0.25 },
+      "wind": { "alpha": 0.18 },
+      "battery": { "alpha": 0.12 }
+      },
     "maxGrowthRate": {
       "solar": 0.20,
       "wind": 0.12,
       "battery": 0.25
-    }
-  },
-
-  "dispatch": {
-    "maxPenetration": {
-      "solar": 0.60,
-      "wind": 0.30
     }
   },
 

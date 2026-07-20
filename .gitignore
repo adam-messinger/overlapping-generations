@@ -6,3 +6,8 @@ aging-places/raw/
 
 # Regenerated on every regression run; reference.json is the checked-in blessed baseline
 baselines/current.json
+
+# Transient agent artifacts: isolated worktrees and throwaway sweep scripts
+.claude/worktrees/
+_sweep_*.ts
+_probe*.ts

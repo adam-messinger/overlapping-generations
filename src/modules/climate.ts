@@ -489,11 +489,6 @@ export const climateModule: Module<
     const tippingMult =
       1 + (params.tippingMultiplier - 1) * tippingTransition;
 
-    const globalDamages = Math.min(
-      baseDamage * tippingMult,
-      params.maxDamage
-    );
-
     // Regional adaptation and damages
     const regionalDamages: Record<Region, number> = {} as Record<Region, number>;
     const regionalAdaptation: Record<Region, number> = {} as Record<Region, number>;
