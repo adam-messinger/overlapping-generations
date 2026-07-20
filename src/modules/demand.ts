@@ -148,10 +148,10 @@ export interface DemandParams {
   robotUnitCost: number;         // $ per robot-unit installed (2025)
   robotCostDecline: number;      // Annual real cost decline (fraction/yr)
 
-  // Datacenter/AI compute (endogenous logistic adoption, distributed by regional GDP)
+  // Datacenter/AI compute (endogenous demand with willingness-to-pay brake)
   dataCenterBaseline2025: number;      // Initial datacenter electricity load (TWh)
-  dataCenterBaseGrowth: number;        // Base logistic growth rate
-  dataCenterSaturation: number;        // Carrying capacity (TWh), grid/chip-supply ceiling
+  dataCenterBaseGrowth: number;        // Base growth rate
+  dataCenterPowerSpendCeiling: number; // WTP ceiling on the DC ELECTRICITY-BILL share of GDP (fraction)
   dataCenterEnergySensitivity: number; // LCOE elasticity (cheap energy → more compute)
   dataCenterGDPSensitivity: number;    // GDP-per-capita elasticity (wealth → more compute)
   dataCenterReferenceLCOE: number;     // Reference LCOE $/MWh
@@ -300,6 +300,7 @@ interface DemandOutputs {
 
   // Datacenter/AI compute
   dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
+  dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
 }
 
 // =============================================================================
@@ -555,17 +556,19 @@ export const demandDefaults: DemandParams = {
 
   // Datacenter/AI compute (endogenous, distributed by regional GDP)
   dataCenterBaseline2025: 500,        // TWh, IEA/EPRI 2024: datacenters ~1.5% of global elec (~460 TWh); AI inference boost → ~500
-  dataCenterBaseGrowth: 0.12,         // Logistic rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
-  // ANCHORED near-term, SPECULATIVE long-term. IEA Energy and AI (2025): ~415
-  // TWh in 2024 (~1.5% of global elec) → Base Case ~945 TWh by 2030 → 700-1,700
-  // TWh by 2035. But 2030 forecasts diverge ~40x (200 to ~8,000 TWh) on whether
-  // exponential chip-supply growth persists — a supply/economics question, not
-  // demand saturation. The 6,000 ceiling is ~4x the 2035 IEA-high case: a
-  // plausible-HIGH 2050+ backstop, not a forecast — read with the 40x band.
-  // LOW STAKES: this load is GDP-NEUTRAL in the model (a pure electricity sink;
-  // lifting it raises generation/WACC, not GDP). No single physical bottleneck
-  // (grid-power-as-hard-limit was refuted). See sources/ai-robotics-deployment-ceilings.md
-  dataCenterSaturation: 6000,
+  dataCenterBaseGrowth: 0.12,         // Base growth rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
+  // Replaces the hard 6,000-TWh dataCenterSaturation cap (an asserted number
+  // ~4x the 2035 IEA-high case, with 2030 forecasts diverging ~40x — see
+  // sources/ai-robotics-deployment-ceilings.md). The brake is now economic: a
+  // willingness-to-pay ceiling on the DC ELECTRICITY-BILL share of GDP (the
+  // power bill only — total DC spend incl. chips/capex is ~10x this). Default
+  // 0.05% of GDP ≈ 3x the 2025 revealed share (~0.015%: 500 TWh x ~$48/MWh /
+  // $158T). A GDP-indexed demand ceiling, not a forecast: equilibrium load =
+  // ceiling x GDP / LCOE, so richer + cheaper-power worlds host more compute.
+  // An LCOE spike collapses the brake (buildout halts, stock persists) —
+  // correct physics for long-lived assets. GDP-NEUTRAL: the load is a pure
+  // electricity sink (aiWorkerEquivalentPerTWh=0 by default).
+  dataCenterPowerSpendCeiling: 0.0005,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
@@ -909,10 +912,10 @@ export const demandModule: Module<
       range: { min: 0.04, max: 0.25, default: 0.12 },
       tier: 1 as const,
     },
-    dataCenterSaturation: {
-      description: 'Datacenter electricity carrying capacity (TWh). ASSUMPTION beyond ~2030: IEA projects ~945 TWh by 2030; the default ceiling and the model\'s ~5,500 TWh by 2050 sit above nearly all published projections.',
-      unit: 'TWh',
-      range: { min: 1000, max: 100000, default: 6000 },
+    dataCenterPowerSpendCeiling: {
+      description: 'Willingness-to-pay ceiling on the datacenter ELECTRICITY-BILL share of GDP (power bill only; total DC spend is ~10x). Default 0.05% ≈ 3x the 2025 revealed share. Replaces the hard TWh saturation cap: equilibrium load = ceiling x GDP / LCOE, a GDP-indexed demand ceiling, not a forecast.',
+      unit: 'fraction of GDP',
+      range: { min: 0.0001, max: 0.005, default: 0.0005 },
       tier: 1 as const,
     },
     dataCenterEnergySensitivity: {
@@ -970,6 +973,7 @@ export const demandModule: Module<
     'robotProfitability',
     'fossilStockTWh',
     'dataCenterLoadTWh',
+    'dataCenterPowerSpendShare',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -1059,6 +1063,10 @@ export const demandModule: Module<
     if (params.robotDisplacementShare !== undefined &&
         (params.robotDisplacementShare <= 0 || params.robotDisplacementShare > 1)) {
       errors.push('robotDisplacementShare must be in (0, 1]');
+    }
+    if (params.dataCenterPowerSpendCeiling !== undefined &&
+        (params.dataCenterPowerSpendCeiling <= 0 || params.dataCenterPowerSpendCeiling > 0.05)) {
+      errors.push('dataCenterPowerSpendCeiling must be in (0, 0.05]');
     }
 
     // Validate fuel price-path params
@@ -1170,7 +1178,7 @@ export const demandModule: Module<
       // Datacenter/AI compute params
       if (p.dataCenterBaseline2025 !== undefined) merged.dataCenterBaseline2025 = p.dataCenterBaseline2025;
       if (p.dataCenterBaseGrowth !== undefined) merged.dataCenterBaseGrowth = p.dataCenterBaseGrowth;
-      if (p.dataCenterSaturation !== undefined) merged.dataCenterSaturation = p.dataCenterSaturation;
+      if (p.dataCenterPowerSpendCeiling !== undefined) merged.dataCenterPowerSpendCeiling = p.dataCenterPowerSpendCeiling;
       if (p.dataCenterEnergySensitivity !== undefined) merged.dataCenterEnergySensitivity = p.dataCenterEnergySensitivity;
       if (p.dataCenterGDPSensitivity !== undefined) merged.dataCenterGDPSensitivity = p.dataCenterGDPSensitivity;
       if (p.dataCenterReferenceLCOE !== undefined) merged.dataCenterReferenceLCOE = p.dataCenterReferenceLCOE;
@@ -1513,7 +1521,14 @@ export const demandModule: Module<
       regionalOutputs[region].totalFinalEnergy += regionRobotLoad;
     }
 
-    // Endogenous datacenter/AI compute adoption (logistic + LCOE/GDP-per-capita drivers)
+    // Endogenous datacenter/AI compute adoption: LCOE/GDP-per-capita demand
+    // drivers with a willingness-to-pay brake on the ELECTRICITY-BILL share
+    // of GDP (replaces the hard TWh saturation cap — the ceiling is economic).
+    // Quadratic brake: negligible drag at today's spend share (~0.3x ceiling),
+    // hard stop as the share approaches the ceiling. Equilibrium load =
+    // ceiling x GDP / LCOE — a GDP-indexed soft cap. An LCOE spike collapses
+    // the brake (buildout halts, the stock persists): correct for long-lived
+    // assets.
     const prevDataCenter = state.dataCenterLoadTWh;
     const gdpPerCapita = (inputs.gdp * 1e12) / inputs.population;
 
@@ -1526,9 +1541,16 @@ export const demandModule: Module<
       params.dataCenterGDPSensitivity
     );
 
-    const dcEffectiveRate = params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor;
-    const dataCenterLoadTWh = prevDataCenter +
-      dcEffectiveRate * prevDataCenter * (1 - prevDataCenter / params.dataCenterSaturation);
+    // DC electricity bill as share of GDP: TWh -> MWh (x1e6) at $/MWh, over $ GDP
+    const dataCenterPowerSpendShare =
+      (prevDataCenter * 1e6 * currentLCOE) / (inputs.gdp * 1e12);
+    const dcBrake = Math.max(
+      0,
+      1 - Math.pow(dataCenterPowerSpendShare / params.dataCenterPowerSpendCeiling, 2)
+    );
+    const dcEffectiveRate =
+      params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor * dcBrake;
+    const dataCenterLoadTWh = prevDataCenter * (1 + dcEffectiveRate);
 
     globalElec += dataCenterLoadTWh;
     globalTotalFinal += dataCenterLoadTWh;
@@ -1790,6 +1812,7 @@ export const demandModule: Module<
         robotProfitability,
         fossilStockTWh,
         dataCenterLoadTWh,
+        dataCenterPowerSpendShare,
       },
     };
   },

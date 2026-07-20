@@ -643,9 +643,22 @@ test('datacenter load grows over time', () => {
   expect(year25).toBeGreaterThan(year1 * 2);
 });
 
-test('datacenter load saturates below cap by 2100', () => {
-  const year76 = runYears(76).outputs.dataCenterLoadTWh;
-  expect(year76).toBeLessThan(demandDefaults.dataCenterSaturation);
+test('datacenter power-spend share equilibrates at the WTP ceiling', () => {
+  // The brake replaces the hard TWh cap: load grows until the DC electricity
+  // bill approaches the ceiling share of GDP, then rides it (never exceeds
+  // it materially; reaches at least half of it by 2100 in the test harness).
+  const { outputs } = runYears(76);
+  const share = outputs.dataCenterPowerSpendShare;
+  expect(share).toBeLessThan(demandDefaults.dataCenterPowerSpendCeiling * 1.05);
+  expect(share).toBeGreaterThan(demandDefaults.dataCenterPowerSpendCeiling * 0.5);
+});
+
+test('datacenter ceiling param round-trips and validates', () => {
+  const merged = demandModule.mergeParams({ dataCenterPowerSpendCeiling: 0.001 });
+  expect(merged.dataCenterPowerSpendCeiling).toBe(0.001);
+  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.1 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.0005 }).valid).toBeTrue();
 });
 
 test('datacenter load responds to LCOE (cheap power → more compute)', () => {
