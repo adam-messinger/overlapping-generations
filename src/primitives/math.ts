@@ -6,6 +6,14 @@
  */
 
 /**
+ * Calendar year at which the structural (catch-up/sectoral-shift) component of
+ * the efficiency series begins to decay. Anchored to the last historical year
+ * so the 1990-2025 backcast is untouched; shared by production's eta integral
+ * and demand's intensity decline so the two views stay coupled.
+ */
+export const STRUCTURAL_ANCHOR_YEAR = 2025;
+
+/**
  * Compound growth: start × (1 + rate)^years
  */
 export function compound(start: number, rate: number, years: number): number {
@@ -171,7 +179,7 @@ export function structuralDecayFactor(
   structuralShare: number,
   halfLife: number
 ): number {
-  const tau = Math.max(0, year - 2025);
+  const tau = Math.max(0, year - STRUCTURAL_ANCHOR_YEAR);
   const decayed = halfLife > 0 ? Math.pow(0.5, tau / halfLife) : 1;
   return (1 - structuralShare) + structuralShare * decayed;
 }

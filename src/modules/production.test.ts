@@ -202,15 +202,20 @@ test('system overhead energy is subtracted from productive useful energy', () =>
   expect(heavier).toBeLessThan(base);
 });
 
-test('end-use efficiency rises with cumulative useful work and is bounded', () => {
+test('end-use efficiency rises monotonically and stays finite (uncapped index)', () => {
   const params = productionModule.mergeParams({});
   let state = productionModule.init(params);
   let eta0 = 0;
+  let prev = 0;
   for (let i = 0; i < 50; i++) {
     const r = productionModule.step(state, makeInputs(), params, 2025 + i, i);
     state = r.state;
     if (i === 0) eta0 = r.outputs.eta;
-    expect(r.outputs.eta).toBeLessThan(params.endUseEfficiencyMax + 1e-9);
+    // eta is an effective-productivity index, not a thermodynamic ratio — it
+    // has no ceiling, but it must stay finite and non-decreasing.
+    expect(Number.isFinite(r.outputs.eta)).toBeTrue();
+    expect(r.outputs.eta + 1e-12).toBeGreaterThan(prev);
+    prev = r.outputs.eta;
   }
   const final = productionModule.step(state, makeInputs(), params, 2075, 50);
   expect(final.outputs.eta).toBeGreaterThan(eta0);

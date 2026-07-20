@@ -8,7 +8,7 @@
  *   GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × (1 - damages)
  *
  * Efficiency replaces exogenous TFP with two physical factors:
- *   1. End-use efficiency: an effective service-efficiency index coupled to demand's intensity decline, with its structural component decaying post-2025
+ *   1. End-use efficiency: an effective (uncapped) service-productivity index coupled to demand's intensity decline, structural component decaying post-2025
  *   2. Organizational efficiency (education-driven, diminishing returns)
  *
  * Ayres-Warr elasticities:
@@ -28,6 +28,7 @@
  */
 
 import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { STRUCTURAL_ANCHOR_YEAR } from '../primitives/math.js';
 
 // =============================================================================
 // PARAMETERS
@@ -44,8 +45,7 @@ export interface ProductionParams {
 
   // Effective service-efficiency index: single coupled series with demand's
   // autonomous intensity decline (see methodology note in the defaults)
-  endUseEfficiency0: number;        // η₀: effective index at run start (0.23)
-  endUseEfficiencyMax: number;      // η_max: soft runaway bound on the effective index (0.90)
+  endUseEfficiency0: number;        // η₀: effective productivity index at run start (0.23)
   serviceEfficiencyGrowth: number;  // near-term η growth rate/yr = GDP-weighted demand intensityDecline (0.0129)
   structuralEfficiencyShare: number;      // fraction of serviceEfficiencyGrowth that is decaying structural change (rest is persistent device efficiency)
   structuralDecayHalfLife: number;        // years for the structural component to halve post-2025 (0 = no decay)
@@ -84,7 +84,6 @@ export const productionDefaults: ProductionParams = {
   // offsets starting from 1990's measured ~0.18 rather than 0.15), not an
   // identity.
   endUseEfficiency0: 0.23,          // effective index 2025; numerically in Brockway et al.'s measured ~0.20-0.25 band (see methodology note above)
-  endUseEfficiencyMax: 0.90,        // soft runaway bound on the EFFECTIVE index (bundles uncapped structural change). NOT the device second-law ceiling (~0.60, Cullen & Allwood 2010) — a hard 0.60 froze eta mid-century and collapsed GDP in high-efficiency scenarios. Barely binds for baseline (eta reaches ~0.60 at 2100); prevents runaway only
   serviceEfficiencyGrowth: 0.0129,  // GDP-weighted average of demand regional intensityDecline defaults (IEA Energy Efficiency 2024 history)
   // The 1.29%/yr near-term rate does not persist 75 years: ~1/3 of it is
   // structural change (sectoral shift toward services, China/India catch-up)
@@ -93,8 +92,17 @@ export const productionDefaults: ProductionParams = {
   // ~$1.4Q by 2100 — above the SSP5 marker while labeled "no policy." The
   // 1990-2025 backcast is unaffected (decay is anchored at 2025; pre-2025
   // years keep the full historical rate — structural change was strong then).
-  structuralEfficiencyShare: 0.33,  // 0.0042 of 0.0129/yr (bonus over the CL-PFU device rate)
-  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025; catch-up largely done by mid-century
+  // Both parameters below are a JUDGMENT split of a soft residual, not
+  // independently sourced: the 1.29%/yr near-term rate is decomposed into a
+  // ~0.87%/yr persistent device component (the CL-PFU measured rate) and the
+  // ~0.42%/yr remainder attributed to transitional structural change. The
+  // share (0.33) and half-life (18yr) are chosen so the structural bonus is
+  // mostly spent by ~2050-2060 (consistent with China/India intensity
+  // convergence maturing mid-century), NOT calibrated to a specific study.
+  // This is the dominant GDP-level lever's least-pinned degree of freedom —
+  // see docs/SENSITIVITY.md; treat GDP 2100 as a band, not a point.
+  structuralEfficiencyShare: 0.33,  // ~0.42 of 1.29 pp/yr is structural (bonus over the CL-PFU device rate)
+  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025 (judgment, not sourced)
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
   robotLaborEquivalent: 2,      // worker-equivalents per robot: Acemoglu & Restrepo (2020) find 1 robot displaces ~3-6 workers; 2 is a conservative output-equivalent. This is now the ONLY channel robots affect output (their energy is subtracted from E).
@@ -271,11 +279,6 @@ export const productionModule: Module<
     if (params.initialGDP !== undefined && params.initialGDP <= 0) {
       errors.push('initialGDP must be positive');
     }
-    if (params.endUseEfficiency0 !== undefined && params.endUseEfficiencyMax !== undefined) {
-      if (params.endUseEfficiency0 >= params.endUseEfficiencyMax) {
-        errors.push('endUseEfficiency0 must be less than endUseEfficiencyMax');
-      }
-    }
     if (params.serviceEfficiencyGrowth !== undefined &&
         (params.serviceEfficiencyGrowth < 0 || params.serviceEfficiencyGrowth > 0.04)) {
       errors.push('serviceEfficiencyGrowth must be between 0 and 4%/year');
@@ -287,9 +290,7 @@ export const productionModule: Module<
     if (params.structuralDecayHalfLife !== undefined && params.structuralDecayHalfLife < 0) {
       errors.push('structuralDecayHalfLife must be non-negative (0 = no decay)');
     }
-    if (params.serviceEfficiencyGrowth !== undefined && params.serviceEfficiencyGrowth > 0.03) {
-      warnings.push('serviceEfficiencyGrowth > 3%/yr approaches the effective-index soft cap (0.90) within the horizon');
-    }
+
     if (params.robotLaborEquivalent !== undefined &&
         (params.robotLaborEquivalent < 0 || params.robotLaborEquivalent > 20)) {
       errors.push('robotLaborEquivalent must be between 0 and 20 worker-equivalents per robot');
@@ -398,14 +399,7 @@ export const productionModule: Module<
     //    on the demand side raise useful work per final energy here. Without
     //    this coupling, intensity decline was a pure GDP destroyer: demand
     //    removed the energy while production booked it as lost input
-    //    (GDP ~ Intensity^1.2 through the gamma loop). The cap is a soft
-    //    runaway bound on the EFFECTIVE index (which bundles structural
-    //    change, not thermodynamically limited), NOT the device second-law
-    //    ceiling — a hard cap at the device 0.60 froze eta mid-century in
-    //    high-efficiencyMultiplier scenarios while demand kept decaying
-    //    energy, re-splitting the coupled series and COLLAPSING GDP (a
-    //    non-monotone artifact: more efficiency -> less GDP). The device
-    //    component alone stays under Cullen & Allwood's ~0.60.
+    //    (GDP ~ Intensity^1.2 through the gamma loop).
     // Cumulative log-efficiency growth from the run's anchor year to `year`,
     // with the structural component decaying in CALENDAR time past 2025 (so
     // the 1990-anchored backcast, which ends at 2025, keeps the full rate
@@ -416,13 +410,20 @@ export const productionModule: Module<
     const g = params.serviceEfficiencyGrowth;
     const share = params.structuralEfficiencyShare;
     const hl = params.structuralDecayHalfLife;
-    const flatYears = Math.max(0, Math.min(year, 2025) - anchorYear);   // pre-2025: full structural bonus
-    const decayYears = Math.max(0, year - Math.max(anchorYear, 2025));  // post-2025: decaying
+    const flatYears = Math.max(0, Math.min(year, STRUCTURAL_ANCHOR_YEAR) - anchorYear);   // pre-anchor: full structural bonus
+    const decayYears = Math.max(0, year - Math.max(anchorYear, STRUCTURAL_ANCHOR_YEAR));  // post-anchor: decaying
     const decayIntegral = hl > 0
       ? (hl / Math.LN2) * (1 - Math.pow(0.5, decayYears / hl))
       : decayYears;
     const cumLogGrowth = g * ((1 - share) * yearIndex + share * (flatYears + decayIntegral));
-    const eta = Math.min(params.endUseEfficiencyMax, params.endUseEfficiency0 * Math.exp(cumLogGrowth));
+    // No hard cap: eta is an EFFECTIVE productivity index (bundles uncapped
+    // structural change), not a thermodynamic efficiency. A finite cap
+    // re-split the coupled series above it (demand keeps stripping energy
+    // while eta freezes -> GDP collapses at high efficiencyMultiplier); the
+    // structural decay bounds growth without a cliff. For realistic
+    // multipliers (<=1.5) eta stays ~0.71, well within the device ~0.60-0.90
+    // second-law range; only implausible (>2x) efficiency pushes it past 1.
+    const eta = params.endUseEfficiency0 * Math.exp(cumLogGrowth);
     const endUseEfficiency = eta / params.endUseEfficiency0;
 
     // 2. Organizational efficiency (education-driven, diminishing returns)
