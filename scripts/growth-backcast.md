@@ -100,9 +100,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 1.81%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 1.41%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.69%/yr |
+| Capital growth | 3.54%/yr | 2.11%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 1.58%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.44%/yr (model) | 2.86%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking
