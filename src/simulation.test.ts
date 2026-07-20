@@ -151,6 +151,22 @@ test('near-term electrification pace is fast but bounded', () => {
   expect(pacePerYear).toBeLessThan(0.03);
 });
 
+test('ai-energy-boom financing binds through cost of capital, not the capex budget', () => {
+  // The round-2 review found cleanShareFlex inert in the boom (the savings
+  // pool dwarfs energy capex). The REAL financing signal is WACC: heavy
+  // automation + energy + CDR competing for savings raises the cost of
+  // capital materially above baseline. Pins the honest mechanism so the
+  // scenario's relabel stays truthful.
+  const boomDemand = { dataCenterSaturation: 60000, robotSaturation: 3000,
+    dataCenterBaseGrowth: 0.15, robotBaseGrowth: 0.15 };
+  const boomProd = { aiWorkerEquivalentPerTWh: 1e5 };
+  const base = runSimulation();
+  const boom = runSimulation({ demand: boomDemand, production: boomProd });
+  const i2075 = 2075 - 2025;
+  expect(boom.results[i2075].effectiveWACC)
+    .toBeGreaterThan(base.results[i2075].effectiveWACC + 0.02);
+});
+
 test('cohort accounts reconcile to the next-year macro stocks', () => {
   const result = runSimulation({ startYear: 2025, endYear: 2026 });
   const first = result.results[0];

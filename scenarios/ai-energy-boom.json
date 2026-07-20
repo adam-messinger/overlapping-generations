@@ -1,6 +1,6 @@
 {
   "name": "AI Energy Boom",
-  "description": "Hypothesis scenario: no effective demand cap on energy — AI compute and robotics have near-unbounded appetite, and the binding constraint is financing, not saturation. Levers vs baseline: datacenter/robot ceilings lifted an order of magnitude (60,000 TWh / 3,000 per 1000 workers), AI cognitive payoff on (aiWorkerEquivalentPerTWh 1e5), endogenous energy-capex share (cleanShareFlex 1, up to 60% of investment). Since the unified financing ledger, robot fleets, energy buildout, and CDR all debit the SAME savings pool, so the financing constraint genuinely binds: WACC peaks ~15.6% around 2075 with K/Y compressed to ~1.8 before re-equilibrating (2026-model run: GDP 2100 ~$3,500T vs baseline ~$1,300T, generation ~740k TWh, warming ~2.7C). Sustained real rates >12% and K/Y <2 are outside anything observed — read the financing dynamics as qualitative. Uncalibrated hypothesis, not a forecast.",
+  "description": "Hypothesis scenario: no effective demand cap on energy — AI compute and robotics have near-unbounded appetite. Levers vs baseline: datacenter/robot ceilings lifted an order of magnitude (60,000 TWh / 3,000 per 1000 workers) and the AI cognitive labor payoff on (aiWorkerEquivalentPerTWh 1e5). FINDING (round-2 review): in this model the binding constraint is NOT the capex-budget share — the savings pool (~$600T/yr) dwarfs energy capex (~$10-30T/yr), so cleanShareFlex is inert and was removed from this scenario. Financing binds instead through the COST OF CAPITAL: WACC rises to ~15% by 2075 as automation, energy buildout, and CDR compete for savings (K/Y compressed to ~1.8), raising LCOE and slowing the transition. The remaining ~4k TWh shortfall reflects physical diffusion/penetration ceilings, not money. Result (2026-model): GDP 2100 ~$2,800T, generation ~740k TWh, warming ~2.7C. Sustained real rates >12% and K/Y <2 are outside anything observed — read the financing dynamics as qualitative. Uncalibrated hypothesis, not a forecast.",
   "demand": {
     "dataCenterSaturation": 60000,
     "dataCenterBaseGrowth": 0.15,
@@ -10,9 +10,5 @@
   "production": {
     "robotLaborEquivalent": 2,
     "aiWorkerEquivalentPerTWh": 100000
-  },
-  "energy": {
-    "cleanShareFlex": 1,
-    "cleanShareMax": 0.6
   }
 }
