@@ -43,6 +43,30 @@ test('scenarioToParams passes through startYear/endYear', () => {
   expect(params.endYear).toBe(2032);
 });
 
+test('scenarioToParams warns on dead NESTED keys but not on valid Partial optionals', () => {
+  const warnings: string[] = [];
+  const orig = console.warn;
+  console.warn = (m: string) => { warnings.push(m); };
+  try {
+    scenarioToParams({
+      name: 'Nested key validation', description: '',
+      // dead nested key (the sources.<x>.growthRate class) + a top-level typo
+      energy: {
+        sources: { solar: { growthRate: 0.3 } },
+        carbonPriceTYPO: 1,
+        // valid Partial optional absent from defaults — must NOT warn
+        regional: { oecd: { maxGrowthRate: { solar: 0.1 } } },
+      },
+    } as never);
+  } finally {
+    console.warn = orig;
+  }
+  const joined = warnings.join('\n');
+  expect(joined.includes('energy.sources.solar') && joined.includes('growthRate')).toBeTrue();
+  expect(joined.includes('carbonPriceTYPO')).toBeTrue();
+  expect(joined.includes('maxGrowthRate')).toBeFalse();  // valid optional, no false positive
+});
+
 test('2025 regional financing spreads reproduce the IEA-observed calibration', () => {
   // Total spread = static residual (energy defaults) + financingHomeBias ×
   // 2025 savings gap (capital outputs). The residuals were derived by hand

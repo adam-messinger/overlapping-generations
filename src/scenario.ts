@@ -9,12 +9,42 @@ import { readFile } from 'fs/promises';
 import { SimulationParams } from './simulation.js';
 import { ALL_MODULES } from './simulation-autowired.js';
 
-/** Known param keys per module, for catching fat-fingered scenario keys.
- * Derived from each module's own defaults so it can never drift from the
- * modules themselves (a new param is covered automatically). */
-const MODULE_PARAM_KEYS: Record<string, Set<string>> = Object.fromEntries(
-  ALL_MODULES.map((m) => [m.name, new Set(Object.keys(m.defaults as object))]),
+/** Each module's default param object, keyed by module name. Used to validate
+ * scenario overrides against the real default SHAPE — recursively, so dead or
+ * fat-fingered NESTED keys are caught too (e.g. energy.sources.solar.growthRate,
+ * which the module's spread-merge would otherwise silently ignore — exactly the
+ * bug that let a dead growthRate sit in a dozen scenarios). Derived from the
+ * modules themselves so it can never drift. */
+const MODULE_DEFAULTS: Record<string, Record<string, unknown>> = Object.fromEntries(
+  ALL_MODULES.map((m) => [m.name, m.defaults as Record<string, unknown>]),
 );
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Interface fields that are optional / `Partial<Record<...>>` — declared in a
+ * module's TS interface but not instantiated in its defaults object, so the
+ * defaults-shape walk can't see them. These are valid overrides (e.g. the
+ * per-region `maxGrowthRate`/`capacityFactor` policy overrides on
+ * RegionalEnergyParams), so we neither warn when they're absent from defaults
+ * nor recurse into their open key space. */
+const OPEN_PARTIAL_KEYS = new Set(['maxGrowthRate', 'capacityFactor']);
+
+/** Recursively warn about override keys absent from the default shape. Recurses
+ * only where BOTH sides are plain objects (records-of-records like sources /
+ * regional / sectors); stops at leaves, numeric maps, and open Partial records. */
+function validateOverrideKeys(override: unknown, defaults: unknown, path: string): void {
+  if (!isPlainObject(override) || !isPlainObject(defaults)) return;
+  for (const key of Object.keys(override)) {
+    if (OPEN_PARTIAL_KEYS.has(key)) continue;  // valid optional/Partial — don't warn or descend
+    if (!(key in defaults)) {
+      console.warn(`Warning: Unrecognized ${path} param "${key}" will be ignored`);
+      continue;
+    }
+    validateOverrideKeys(override[key], defaults[key], `${path}.${key}`);
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -91,17 +121,14 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
       console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
       continue;
     }
-    // Validate inner param keys against the module's known params, so a
-    // fat-fingered override (energy: { carbonPriceTYPO: ... }) is flagged
-    // instead of silently dropped by the module's spread-based mergeParams.
-    const knownParams = MODULE_PARAM_KEYS[key];
+    // Validate override keys against the module's default shape — recursively,
+    // so a fat-fingered or dead NESTED override (energy.sources.solar.growthRate,
+    // energy: { carbonPriceTYPO: ... }) is flagged instead of silently dropped
+    // by the module's spread-based mergeParams.
+    const defaults = MODULE_DEFAULTS[key];
     const section = (scenario as unknown as Record<string, unknown>)[key];
-    if (knownParams && section && typeof section === 'object' && !Array.isArray(section)) {
-      for (const paramKey of Object.keys(section)) {
-        if (!knownParams.has(paramKey)) {
-          console.warn(`Warning: Unrecognized ${key} param "${paramKey}" will be ignored`);
-        }
-      }
+    if (defaults && isPlainObject(section)) {
+      validateOverrideKeys(section, defaults, key);
     }
   }
 
