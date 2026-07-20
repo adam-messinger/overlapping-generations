@@ -38,7 +38,17 @@ export interface EnergySourceParams {
   name: string;
   cost0: number;           // $/MWh baseline (2025); battery is $/kWh
   alpha: number;           // Wright's Law exponent (0 = no learning)
-  softFloor: number;       // $/MWh irreducible non-learning costs (labor, land, permitting, O&M)
+  // $/MWh (solar/wind) or $/kWh (battery) irreducible non-learning cost: the
+  // balance-of-system / soft-cost component Wright's Law is NOT applied to.
+  // CONTESTED: Farmer et al. (2022) find "no good empirical evidence supporting
+  // floor costs" and impose none (past IAM floors were "repeatedly violated");
+  // the OIES camp says a floor is real but lives in slow-learning BOS/soft costs
+  // (module is now only ~13% of installed solar cost) at an undetermined level.
+  // For solar this sets the terminal 2100 LCOE ~1:1, so treat it as a WIDE band
+  // biased HIGH (i.e. the transition may be even cheaper than modeled) and
+  // sensitivity-test downward. See sources/wrights-law-empirics-and-floors.md
+  // and docs/SENSITIVITY.md.
+  softFloor: number;
   referenceCF: number;     // Base CF for LCOE calculation (0 = no CF adjustment)
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
@@ -278,7 +288,7 @@ export const energyDefaults: EnergyParams = {
       name: 'Solar PV',
       cost0: 35,             // $/MWh unsubsidized utility PV, Lazard LCOE+ 2024 low end; hardware $23 + soft $12
       alpha: 0.36,           // 22% learning/doubling; Way et al. 2022, OWID 1976-2019 (~20%) — see sources/energy-learning-rates.md
-      softFloor: 12,         // $/MWh irreducible: installation labor, land, permitting, O&M
+      softFloor: 12,         // $/MWh BOS/soft-cost floor; SETS terminal 2100 LCOE ~1:1. Contested & likely biased high — wide band ~$6-18, test downward. See interface note + sources/wrights-law-empirics-and-floors.md
       referenceCF: 0.20,     // CF adjustment: worse sites → higher effective LCOE
       capacity2025: REGIONAL_CAPACITY_2025.solar,
       carbonIntensity: 0,
@@ -287,7 +297,7 @@ export const energyDefaults: EnergyParams = {
       name: 'Wind',
       cost0: 35,             // $/MWh unsubsidized onshore, Lazard LCOE+ 2024 low-mid; hardware $20 + soft $15
       alpha: 0.23,           // ~15% learning/doubling; lit. range 10-19% — see sources/energy-learning-rates.md
-      softFloor: 15,         // Higher than solar: offshore maintenance, complex installation
+      softFloor: 15,         // $/MWh BOS/soft-cost floor (> solar: complex install, maintenance). Contested — wide band. See interface note.
       referenceCF: 0.30,     // CF adjustment for site quality degradation
       capacity2025: REGIONAL_CAPACITY_2025.wind,
       carbonIntensity: 0,
@@ -344,7 +354,7 @@ export const energyDefaults: EnergyParams = {
       name: 'Battery Storage',
       cost0: 140,            // $/kWh pack, BNEF battery price survey 2023 ($139/kWh); hardware $120 + soft $20
       alpha: 0.26,           // ~17% learning/doubling; Ziegler & Trancik 2021 find ~24% at cell level, pack lower
-      softFloor: 20,         // $/kWh: BMS, pack assembly, installation
+      softFloor: 20,         // $/kWh BOS floor (BMS, pack assembly, install). INERT on the baseline transition — never binds (sweep: 10/20/40 identical). See interface note.
       referenceCF: 0,        // No CF adjustment (dispatchable)
       capacity2025: REGIONAL_CAPACITY_2025.battery,
       carbonIntensity: 0,

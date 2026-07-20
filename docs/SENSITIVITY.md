@@ -103,3 +103,36 @@ first-order. Damage-side conclusions should always be checked against the
   *parameter defaults* (γ, α, β, damageCoeff) against silent drift; the
   output figures above are pinned by nothing and must be regenerated with
   the sweep after model changes.
+
+## The solar `softFloor`: the terminal clean-energy price dial
+
+Wright's Law is applied only to `cost0 − softFloor`, so by 2100 the learning
+term has decayed to ~0 and **the solar `softFloor` ($12/MWh) sets the terminal
+solar LCOE almost 1:1.** It is a balance-of-system / soft-cost floor whose level
+is *contested and probably biased high* — Farmer et al. (2022) find no empirical
+basis for cost floors at all, and the floors IAMs did impose were repeatedly
+beaten (see `sources/wrights-law-empirics-and-floors.md`).
+
+Sweep (baseline, battery floor held at 20; the battery floor is **inert** —
+10/20/40 give identical outputs):
+
+| solar `softFloor` | Solar LCOE 2100 | Gen 2100 (TWh) | Fossil 2075 | Warming 2100 | GDP 2100 |
+|---|---|---|---|---|---|
+| **6** (aggressive) | **11.8** | 252,284 | 0.001 | 2.585 | 1,135 |
+| 9 | 14.8 | 249,320 | 0.001 | 2.595 | 1,129 |
+| **12 (default)** | **18.0** | 250,952 | 0.001 | 2.616 | 1,151 |
+| 18 | 24.2 | 241,974 | 0.001 | 2.626 | 1,126 |
+| **24** (high) | **30.1** | 244,211 | **0.006** | 2.648 | 1,142 |
+
+Two honest takeaways:
+
+1. **The floor governs the reported *price*, not the *transition*.** Terminal
+   solar LCOE tracks the floor 1:1 (11.8 → 30.1 across the band), but generation,
+   GDP, and warming barely move — the transition completes below the floor either
+   way (fossil ≈ 0 by 2075). Lowering the floor (which the evidence favors)
+   barely helps because clean is already dominant; *raising* it grows the
+   residual fossil tail (fossil 2075 rises to 0.6% at floor 24) and nudges
+   warming up ~0.03°C.
+2. **Direction robust, terminal cost soft.** Report the transition shape without
+   floor caveats, but treat the *terminal clean-energy price* as a band, biased
+   toward the cheaper end. The default $12 is more likely too high than too low.
