@@ -90,7 +90,6 @@ interface FuelMixParams {
 interface EnergyBurdenParams {
   threshold: number;              // Burden threshold (fraction of GDP, default 0.08)
   elasticity: number;             // GDP damage per % excess burden (default 1.5)
-  maxDamage: number;              // Maximum GDP damage (fraction, default 0.30)
   maxBurden: number;              // Historical max burden (fraction, default 0.14)
 }
 
@@ -508,7 +507,6 @@ export const demandDefaults: DemandParams = {
   energyBurden: {
     threshold: 0.08,             // 8% of GDP is threshold (normal cheap energy)
     elasticity: 1.5,             // GDP damage per % excess burden
-    maxDamage: 0.30,             // Max 30% GDP reduction
     maxBurden: 0.14,             // 1970s crisis peak
   },
 
@@ -1671,11 +1669,10 @@ export const demandModule: Module<
     let burdenDamage = 0;
     if (cappedBurden > params.energyBurden.threshold) {
       const excessBurden = cappedBurden - params.energyBurden.threshold;
-      // Linear damage up to max
-      burdenDamage = Math.min(
-        excessBurden * params.energyBurden.elasticity,
-        params.energyBurden.maxDamage
-      );
+      // Linear damage. No maxDamage clamp: burden is already capped at
+      // maxBurden (0.14) upstream, so damage <= (0.14 - threshold) * elasticity
+      // = ~0.09 at defaults — the old 0.30 cap was structurally unreachable.
+      burdenDamage = excessBurden * params.energyBurden.elasticity;
     }
 
     return {
