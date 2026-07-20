@@ -56,7 +56,7 @@ export const ALL_MODULES: AnyModule[] = [
  * Build transforms with proper parameter access.
  * Closure captures merged energy params for carbonPrice/regionalCarbonPrice.
  */
-function buildTransforms(mergedEnergyParams: any) {
+function buildTransforms(mergedEnergyParams: any, mergedProductionParams?: any) {
   // Mutable closure: captures gdpPerCapita2025 on first year
   let capturedGdpPerCapita2025 = 0;
 
@@ -106,6 +106,14 @@ function buildTransforms(mergedEnergyParams: any) {
     // Dispatch needs carbonPrice (from energy params)
     carbonPrice: {
       fn: () => mergedEnergyParams.carbonPrice,
+      dependsOn: [],
+    },
+
+    // Demand's robot deployment rule needs the production-side payoff
+    // (worker-equivalents per robot) to price the displacement business case.
+    // Param injection, same pattern as carbonPrice.
+    robotLaborEquivalent: {
+      fn: () => mergedProductionParams?.robotLaborEquivalent ?? 2,
       dependsOn: [],
     },
 
@@ -523,8 +531,13 @@ export function runAutowiredSimulation(
 ): AutowireResult {
   // Merge energy params to read carbon prices
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
+  // Merge production params to inject robotLaborEquivalent into demand's
+  // deployment rule (one source of truth: a scenario overriding production's
+  // payoff automatically changes the business case too). Safe before the
+  // efficiency-coupling below — the coupled keys don't touch this param.
+  const mergedProductionParams = productionModule.mergeParams(params.production ?? {});
 
-  const transforms = buildTransforms(mergedEnergyParams);
+  const transforms = buildTransforms(mergedEnergyParams, mergedProductionParams);
   const lags = buildLags(params);
 
   // Couple production's efficiency-index growth to demand's EFFECTIVE

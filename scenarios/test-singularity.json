@@ -3,13 +3,17 @@
   "description": "Massive AI boom and renewable breakthroughs.",
   "energy": {
     "sources": {
-      "solar": { "alpha": 0.45 },
-      "battery": { "alpha": 0.40 }
+      "solar": {
+        "alpha": 0.45
+      },
+      "battery": {
+        "alpha": 0.4
+      }
     }
   },
   "demand": {
-    "robotBaseGrowth": 0.25,
-    "robotSaturation": 2000
+    "robotDiffusionRate": 0.5,
+    "robotIntegrationExponent": 0.55
   },
   "capital": {
     "automationGrowth": 0.15

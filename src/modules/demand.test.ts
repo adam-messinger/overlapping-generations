@@ -308,7 +308,7 @@ console.log('\n--- Endogenous Fuel Mix ---\n');
 function runYearsWithParams(
   years: number,
   paramOverrides: Partial<typeof demandDefaults>,
-  inputOverrides?: { carbonPrice?: number; laggedAvgLCOE?: number }
+  inputOverrides?: { carbonPrice?: number; laggedAvgLCOE?: number; laggedInterestRate?: number }
 ) {
   const demandParams = demandModule.mergeParams(paramOverrides);
   let demandState = demandModule.init(demandParams);
@@ -320,6 +320,7 @@ function runYearsWithParams(
       gdp: baselineGdp(i),
       carbonPrice: inputOverrides?.carbonPrice ?? 35,
       ...(inputOverrides?.laggedAvgLCOE !== undefined && { laggedAvgLCOE: inputOverrides.laggedAvgLCOE }),
+      ...(inputOverrides?.laggedInterestRate !== undefined && { laggedInterestRate: inputOverrides.laggedInterestRate }),
     };
     const result = demandModule.step(demandState, inputs, demandParams, 2025 + i, i);
     demandState = result.state;
@@ -542,6 +543,89 @@ test('validation catches out-of-range delivery and escalation params', () => {
     fuels: { gas: { deliveryMargin: -5 } },
   } as Partial<typeof demandDefaults>);
   expect(badMargin.valid).toBe(false);
+});
+
+// --- Robot value-vs-cost adoption ---
+
+console.log('\n--- Robot value-vs-cost adoption ---\n');
+
+test('robot profitability starts in the calibrated band (pi 2025 in [2, 3.5])', () => {
+  // The cliff-edge pin: robotDisplacementShare is LOAD-BEARING — a
+  // recalibration that pushes pi(2025) below 1 silently freezes deployment
+  // forever (the rule only decays unprofitable fleets). Guard the band.
+  const { outputs } = runYears(1);
+  expect(outputs.robotProfitability).toBeBetween(2, 3.5);
+});
+
+test('near-term robot adoption matches IFR-observed pace (~10-16%/yr)', () => {
+  const year1 = runYears(1).outputs.robotsPer1000;
+  const year6 = runYears(6).outputs.robotsPer1000;
+  const annualGrowth = Math.pow(year6 / year1, 1 / 5) - 1;
+  expect(annualGrowth).toBeBetween(0.10, 0.16);
+});
+
+test('unprofitable fleets are not replaced: halt and decay at high interest rates', () => {
+  // At laggedInterestRate=0.8, MC ~ 80k*0.9 = $72k >> MV ~ $36k -> pi < 1 for
+  // the whole decade (unit-cost decline at -3%/yr cannot close the gap):
+  // fleet decays at robotDepreciation each step and replacement capex stops.
+  const { outputs } = runYearsWithParams(10, {}, { laggedInterestRate: 0.8 });
+  expect(outputs.robotProfitability).toBeLessThan(1);
+  const expected = demandDefaults.robotBaseline2025 *
+    Math.pow(1 - demandDefaults.robotDepreciation, 10);
+  expect(outputs.robotsPer1000).toBeCloseTo(expected, 3);
+  expect(outputs.robotCapexSpend).toBeCloseTo(0, 9);
+});
+
+test('adoption slows with the cost of capital (r=0.03 vs r=0.10)', () => {
+  const cheap = runYearsWithParams(25, {}, { laggedInterestRate: 0.03 }).outputs.robotsPer1000;
+  const dear = runYearsWithParams(25, {}, { laggedInterestRate: 0.10 }).outputs.robotsPer1000;
+  expect(dear).toBeLessThan(cheap);
+});
+
+test('integration-cost exponent brakes long-run density (theta 0.9 vs 0.6)', () => {
+  const high = runYearsWithParams(75, { robotIntegrationExponent: 0.9 }, {}).outputs.robotsPer1000;
+  const low = runYearsWithParams(75, { robotIntegrationExponent: 0.6 }, {}).outputs.robotsPer1000;
+  expect(high).toBeLessThan(low);
+});
+
+test('fleet capex includes replacement of the depreciating fleet when profitable', () => {
+  // At year 40 the fleet is large and profitable: capex must be at least the
+  // replacement bill (depreciation x fleet x unit cost), on top of additions.
+  const { state, outputs } = runYears(40);
+  expect(outputs.robotProfitability).toBeGreaterThan(1);
+  const unitCostNow = demandDefaults.robotUnitCost *
+    Math.pow(1 - demandDefaults.robotCostDecline, 39);
+  // state.robotFleet is end-of-year-40; the replacement term used the prior
+  // fleet, which is strictly smaller than end-of-year -> a 0.85x lower bound
+  // on the prior fleet is safe.
+  const replacementFloor =
+    (demandDefaults.robotDepreciation * state.robotFleet * 0.85 * unitCostNow) / 1e12;
+  expect(outputs.robotCapexSpend).toBeGreaterThan(replacementFloor);
+});
+
+test('robot rule params round-trip through mergeParams (silent-no-op trap)', () => {
+  const merged = demandModule.mergeParams({
+    robotDiffusionRate: 0.33,
+    robotIntegrationExponent: 0.9,
+    robotDepreciation: 0.12,
+    robotDisplacementShare: 0.4,
+  });
+  expect(merged.robotDiffusionRate).toBe(0.33);
+  expect(merged.robotIntegrationExponent).toBe(0.9);
+  expect(merged.robotDepreciation).toBe(0.12);
+  expect(merged.robotDisplacementShare).toBe(0.4);
+});
+
+test('robot rule validation rejects out-of-range params', () => {
+  expect(demandModule.validate({ robotBaseline2025: 0 }).valid).toBeFalse();
+  expect(demandModule.validate({ robotDiffusionRate: 0.7 }).valid).toBeFalse();
+  expect(demandModule.validate({ robotIntegrationExponent: 2.5 }).valid).toBeFalse();
+  expect(demandModule.validate({ robotDepreciation: 0 }).valid).toBeFalse();
+  expect(demandModule.validate({ robotDisplacementShare: 1.5 }).valid).toBeFalse();
+  expect(demandModule.validate({
+    robotDiffusionRate: 0.3, robotIntegrationExponent: 0.8,
+    robotDepreciation: 0.1, robotDisplacementShare: 0.5,
+  }).valid).toBeTrue();
 });
 
 // --- Datacenter / AI Compute ---
