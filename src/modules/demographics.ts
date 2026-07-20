@@ -407,7 +407,6 @@ function ageCohorts(
   const pop = state.population;
   const youngShare = state.young / pop;
   const workingShare = state.working / pop;
-  const oldShare = state.old / pop;
 
   // Calculate births (deaths are computed per-cohort below)
   const births = birthRateFromTFR(tfr, workingShare, youngShare) * pop;

@@ -3,8 +3,8 @@
   "description": "Massive AI boom and renewable breakthroughs.",
   "energy": {
     "sources": {
-      "solar": { "alpha": 0.45, "growthRate": 0.40 },
-      "battery": { "alpha": 0.40, "growthRate": 0.40 }
+      "solar": { "alpha": 0.45 },
+      "battery": { "alpha": 0.40 }
     }
   },
   "demand": {

@@ -15,6 +15,12 @@ import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 
+/** Load a scenario's params synchronously (the test framework's test() is sync). */
+function loadScenarioParamsSync(name: string) {
+  const path = join(dirname(fileURLToPath(import.meta.url)), `../scenarios/${name}.json`);
+  return scenarioToParams(JSON.parse(readFileSync(path, 'utf-8')));
+}
+
 console.log('\n=== Simulation Integration Tests ===\n');
 
 test('runSimulation respects startYear/endYear', () => {
@@ -166,8 +172,7 @@ test('ai-energy-boom financing binds through cost of capital, not the capex budg
   // capital materially above baseline. Pins the honest mechanism so the
   // scenario's relabel stays truthful. Driven from the real scenario file so
   // the pin tracks the shipped levers rather than a hand-copied subset.
-  const scenarioPath = join(dirname(fileURLToPath(import.meta.url)), '../scenarios/ai-energy-boom.json');
-  const boomParams = scenarioToParams(JSON.parse(readFileSync(scenarioPath, 'utf-8')));
+  const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const base = runSimulation();
   const boom = runSimulation(boomParams);
   const i2075 = 2075 - 2025;
@@ -211,8 +216,7 @@ test('cohort constraint assumptions do not feed back into the macro path', () =>
 // scenario (ai-energy-boom lifts the demand caps and turns on automation
 // payoff). Read from the autowire outputs since it is not a YearResult field.
 test('unfundedRealizedSpend stays zero across baseline and ai-energy-boom', () => {
-  const boomPath = join(dirname(fileURLToPath(import.meta.url)), '../scenarios/ai-energy-boom.json');
-  const boomParams = scenarioToParams(JSON.parse(readFileSync(boomPath, 'utf-8')));
+  const boomParams = loadScenarioParamsSync('ai-energy-boom');
 
   for (const params of [{}, boomParams]) {
     const result = runAutowiredSimulation(params);
