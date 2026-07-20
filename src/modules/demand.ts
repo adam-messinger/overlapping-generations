@@ -210,6 +210,9 @@ interface DemandInputs {
   // For cost-driven electrification
   laggedAvgLCOE?: number;                // $/MWh from previous year
 
+  // CDR electricity demand (delay-1 lag on cdr.cdrEnergyTWh, shared with production)
+  cdrEnergy?: number;                    // TWh
+
   // For energy cost → GDP share feedback (from dispatch, lagged)
   regionalFossilShare?: Record<Region, number>;
 }
@@ -940,6 +943,7 @@ export const demandModule: Module<
     'totalGeneration',
     'carbonPrice',
     'laggedAvgLCOE',
+    'cdrEnergy',
     'regionalFossilShare',
   ] as const,
 
@@ -1486,6 +1490,27 @@ export const demandModule: Module<
       const regionDcLoad = dataCenterLoadTWh * gdpShare;
       regionalOutputs[region].electricityDemand += regionDcLoad;
       regionalOutputs[region].totalFinalEnergy += regionDcLoad;
+    }
+
+    // CDR electricity is REAL demand: generation must be built for it and it
+    // must pay the going LCOE (which feeds back into cdrCostPerTon and the
+    // SCC-vs-cost deployment gate, making CDR self-limiting through price).
+    // Previously CDR energy was only subtracted from productive useful energy
+    // in production — a phantom load the energy system neither served nor
+    // priced. At cheap LCOE that let CDR silently consume >1/3 of generation
+    // and starve the economy (an absolute GDP collapse at efficiencyMultiplier
+    // ~1.3). Same treatment as robot/DC loads: add to demand here, production
+    // still nets it out of E as intermediate consumption. Lagged one year
+    // (CDR runs after demand in the yearly DAG).
+    const cdrLoadTWh = Math.max(0, inputs.cdrEnergy ?? 0);
+    globalElec += cdrLoadTWh;
+    globalTotalFinal += cdrLoadTWh;
+    // Distribute like datacenters: CDR plants concentrate with investment/GDP
+    for (const region of REGIONS) {
+      const gdpShare = newRegions[region].gdpShare;
+      const regionCdrLoad = cdrLoadTWh * gdpShare;
+      regionalOutputs[region].electricityDemand += regionCdrLoad;
+      regionalOutputs[region].totalFinalEnergy += regionCdrLoad;
     }
 
     // Calculate final energy per capita per day
