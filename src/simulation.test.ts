@@ -2,13 +2,16 @@
  * Simulation Integration Tests
  */
 
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
 import { buildOutputRegistry, resolveKey } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
-import { gdpWeightedIntensityDecline } from './modules/demand.js';
+import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 
@@ -57,6 +60,26 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
+test('GDP is monotonic in efficiencyMultiplier (coupled efficiency series)', () => {
+  // Demand decays energy at intensityDecline x efficiencyMultiplier; the
+  // runner couples production's eta growth to the same effective rate. If
+  // they decouple (the pre-fix bug, or a re-introduced hard eta ceiling),
+  // higher efficiency DESTROYS GDP through E^gamma — a 3.6x non-monotone
+  // artifact across the 8 scenarios that set the multiplier. Guard it.
+  const gdp2100 = (m: number) =>
+    runSimulation({ demand: { efficiencyMultiplier: m } }).results[75].gdp;
+  // Sweep past 1.5 too: the removed eta ceiling used to relocate the collapse
+  // cliff to multiplier ~1.8-2.5, so the range must extend beyond any scenario
+  // value to catch a re-introduced cap.
+  const multipliers = [0.7, 0.8, 1.0, 1.3, 1.6, 2.0];
+  let prev = gdp2100(multipliers[0]);
+  for (const m of multipliers.slice(1)) {
+    const g = gdp2100(m);
+    expect(g).toBeGreaterThan(prev);   // more efficiency -> more GDP, everywhere
+    prev = g;
+  }
+});
+
 test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity decline', () => {
   // One efficiency series, two views: demand removes final energy at the
   // regional intensityDecline rates; production credits eta growth at
@@ -65,6 +88,16 @@ test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity de
   // production), the intensity-decline-as-GDP-destroyer bug returns.
   const derived = gdpWeightedIntensityDecline();
   expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
+});
+
+test('production and demand share the same structural-decay shape', () => {
+  // The forward structural decay must apply identically to demand's
+  // intensity decline and production's eta growth, or the coupled series
+  // re-split under efficiencyMultiplier and GDP collapses at the high end.
+  expect(productionDefaults.structuralEfficiencyShare)
+    .toBe(demandDefaults.structuralEfficiencyShare);
+  expect(productionDefaults.structuralDecayHalfLife)
+    .toBe(demandDefaults.structuralDecayHalfLife);
 });
 
 test('no initialization discontinuity: first simulated years are smooth', () => {
@@ -124,6 +157,22 @@ test('near-term electrification pace is fast but bounded', () => {
   const pacePerYear = (y2035.electrificationRate - first.electrificationRate) / 10;
   expect(pacePerYear).toBeGreaterThan(0.005);
   expect(pacePerYear).toBeLessThan(0.03);
+});
+
+test('ai-energy-boom financing binds through cost of capital, not the capex budget', () => {
+  // The round-2 review found cleanShareFlex inert in the boom (the savings
+  // pool dwarfs energy capex). The REAL financing signal is WACC: heavy
+  // automation + energy + CDR competing for savings raises the cost of
+  // capital materially above baseline. Pins the honest mechanism so the
+  // scenario's relabel stays truthful. Driven from the real scenario file so
+  // the pin tracks the shipped levers rather than a hand-copied subset.
+  const scenarioPath = join(dirname(fileURLToPath(import.meta.url)), '../scenarios/ai-energy-boom.json');
+  const boomParams = scenarioToParams(JSON.parse(readFileSync(scenarioPath, 'utf-8')));
+  const base = runSimulation();
+  const boom = runSimulation(boomParams);
+  const i2075 = 2075 - 2025;
+  expect(boom.results[i2075].effectiveWACC)
+    .toBeGreaterThan(base.results[i2075].effectiveWACC + 0.02);
 });
 
 test('cohort accounts reconcile to the next-year macro stocks', () => {

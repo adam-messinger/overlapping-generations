@@ -23,6 +23,14 @@
  *
  * Run: npx tsx scripts/nearterm-validation.ts
  * Four of these bands are enforced (more loosely) in simulation.test.ts.
+ *
+ * HONESTY NOTE: these bands DETECT DRIFT, they do not CERTIFY CENTERING. A
+ * few are wider than the tight observed range and the model sits at an edge
+ * (not the center) of them, always in the low-emissions direction: 2025-2030
+ * generation growth is at the low edge, grid intensity at the low edge, and
+ * transport electrification runs ~2x the aggressive real-world 2030 figure.
+ * "9/9" means "no observable is grossly wrong", not "the model is centered on
+ * the data". Treat the near-term as order-of-magnitude-right, not calibrated.
  */
 
 import { runSimulation } from '../src/index.js';
@@ -84,7 +92,7 @@ const checks: Check[] = [
     name: 'Transport electrification 2030',
     model: y30.transportElectrification * 100,
     low: 3, high: 10, unit: '% transport FE',
-    source: 'aggressive forecasts ~4-5%',
+    source: 'aggressive fc ~4-5%; MODEL RUNS ~2x HIGH',
   },
   {
     name: 'Datacenter load 2030',

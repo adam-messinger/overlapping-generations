@@ -20,7 +20,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { compound, lerp, clamp } from '../primitives/math.js';
+import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
 import { Module, validatedMerge } from 'tsimulation';
 
 // =============================================================================
@@ -133,6 +133,8 @@ export interface DemandParams {
 
   // Optional efficiency multiplier (slider)
   efficiencyMultiplier: number;
+  structuralEfficiencyShare: number;   // fraction of intensity decline that is decaying structural change (must match production)
+  structuralDecayHalfLife: number;     // years to halve the structural component post-2025 (must match production)
 
   // Energy cost → GDP share feedback
   energyCostSensitivity: number;  // GDP share boost per 1.0 fossil share advantage (default 0.3)
@@ -522,6 +524,11 @@ export const demandDefaults: DemandParams = {
   // limitation — see production.ts and the consistency pin in
   // simulation.test.ts, which checks defaults only).
   efficiencyMultiplier: 1.0,    // Default: no adjustment
+  // Forward decay of the structural (catch-up/sectoral-shift) component of
+  // intensity decline — MUST match production's values (the same physical
+  // series; consistency-pinned in simulation.test.ts). See production.ts.
+  structuralEfficiencyShare: 0.33,
+  structuralDecayHalfLife: 18,
 
   // Energy cost → GDP share feedback
   energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
@@ -1094,6 +1101,8 @@ export const demandModule: Module<
 
       // Merge scalar params
       if (p.efficiencyMultiplier !== undefined) merged.efficiencyMultiplier = p.efficiencyMultiplier;
+      if (p.structuralEfficiencyShare !== undefined) merged.structuralEfficiencyShare = p.structuralEfficiencyShare;
+      if (p.structuralDecayHalfLife !== undefined) merged.structuralDecayHalfLife = p.structuralDecayHalfLife;
 
       // Merge fuelMix params
       if (p.fuelMix) {
@@ -1337,11 +1346,17 @@ export const demandModule: Module<
       const prevGdp = currentState.gdpShare * (yearIndex > 0 ? globalGdp / (1 + 0.02) : globalGdp);
       const growthRate = prevGdp > 0 ? (newGdp - prevGdp) / prevGdp : 0;
 
-      // Update energy intensity
+      // Update energy intensity. The structural component of the decline
+      // decays post-2025 (same series as production's eta growth — see
+      // structuralDecayFactor), so a high efficiencyMultiplier can't strip
+      // energy faster than production's eta compensates.
       let newIntensity = currentState.intensity;
       if (yearIndex > 0) {
+        const decayFactor = structuralDecayFactor(
+          year, params.structuralEfficiencyShare, params.structuralDecayHalfLife
+        );
         newIntensity = currentState.intensity *
-          (1 - regionParams.intensityDecline * params.efficiencyMultiplier);
+          (1 - regionParams.intensityDecline * params.efficiencyMultiplier * decayFactor);
       }
 
       // Calculate energy demand. totalEnergy is the service base (final

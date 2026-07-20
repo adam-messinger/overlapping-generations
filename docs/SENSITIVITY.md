@@ -1,7 +1,22 @@
-# Sensitivity of headline conclusions to γ and the damage coefficient
+# Sensitivity of headline conclusions to the efficiency dial, γ, and damages
 
-The assumption audit identified the model's two most consequential and least
-constrained parameters:
+> **The dominant GDP-level dial is `serviceEfficiencyGrowth`** (the effective
+> service-efficiency growth rate, coupled at runtime to demand's GDP-weighted
+> intensity decline; default 1.29%/yr). It contributes more to GDP growth
+> than any single production elasticity, and it is a soft residual — ~1/3 of
+> it is "structural change" not independently pinned. Sweeping the effective
+> rate 0.77 → 1.29 → 1.81%/yr swings GDP 2100 **$794T → $1,151T → $1,423T**
+> (~1.8×). This is a genuine multiple-equilibria exposure: the model supports
+> a wide range of self-consistent 2100 GDP worlds selected by a rate that no
+> observable pins to better than a few tenths of a pp/yr. **Report GDP 2100
+> as a band (~$0.8–1.4Q), not a point.** The 2026 accounting reconciliation
+> and the efficiency-series coupling reduced this exposure (it was ~5× before
+> the coupling — higher efficiency used to *destroy* GDP through an
+> uncoupled η ceiling) but did not remove it: with loop gain ≈ α+γ ≈ 0.8, any
+> growth-side residual is amplified ~5× into the level.
+
+The γ×damage grid below (a separate, smaller axis) identified two further
+consequential, least-constrained parameters:
 
 - **γ (useful-energy output elasticity)**, default 0.55 — the Ayres-Warr
   (2009) value, within Kümmel et al. (2010)'s defended 0.40–0.60 range. The
@@ -27,7 +42,7 @@ the model changes. Qualitative summary:
 
 The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
 damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in a narrow band
-(9.8–12.1% in the July 2026 post-reconciliation run, reaching ~0 by 2075),
+(8.1–10.6% in the July 2026 post-round-2 run, reaching ~0 by 2075),
 electrification 2050 is pinned at ~62%, warming 2100 varies by only
 ~0.04 °C, and the peak energy burden stays at ~6.7% of GDP. NOTE: after the 2026
 emissions release valve (signed electrification pressure with reversal
@@ -58,19 +73,20 @@ then amplified into GDP.
 After the 2026 accounting reconciliation (automation energy as
 intermediate consumption; one efficiency series shared between demand's
 intensity decline and production's η — see the reconciliation commit and
-`scripts/growth-backcast.md`), the grid spans **$609T–$1,042T (~1.7×)**,
-with the default cell at $1,026T (~2.3%/yr to 2050, ~2.5%/yr after). The
+`scripts/growth-backcast.md`), the γ×damage grid spans **$499T–$1,183T**,
+with the default cell at $1,151T (~2.8%/yr to 2050, ~2.6%/yr after). The
 earlier "stagnation baseline" (~0.7%/yr) was the net of two opposing
 accounting artifacts (automation electricity booked as productive exergy;
 intensity decline booked as lost input). GDP levels remain the model's
 weakest output — the growth loop amplifies residual dials ~5× (loop gain
-α+γ ≈ 0.8) and honest uncertainty spans roughly $600T–$1,100T across the
-grid alone, wider still with demographic and intensity-decline
-uncertainty. Treat point GDP values as path illustrations, not forecasts.
+α+γ ≈ 0.8) and honest uncertainty spans roughly $499T–$1,183T across the
+grid alone, wider still once serviceEfficiencyGrowth (the dominant dial,
+top of this doc), demographics, and the intensity-decline residual are
+varied. Treat point GDP values as path illustrations, not forecasts.
 
 **The damage coefficient still matters little — but only because warming
 stays low.** Even 6× DICE damages cut 2100 GDP by only ~15%, because the
-model's endogenous transition holds warming near 2.3 °C where any quadratic
+model's endogenous transition holds warming near 2.6 °C where any quadratic
 is small. This is conditional robustness: in high-sensitivity/tipping
 scenarios where warming runs higher, the damage-coefficient choice becomes
 first-order. Damage-side conclusions should always be checked against the

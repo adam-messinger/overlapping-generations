@@ -6,6 +6,14 @@
  */
 
 /**
+ * Calendar year at which the structural (catch-up/sectoral-shift) component of
+ * the efficiency series begins to decay. Anchored to the last historical year
+ * so the 1990-2025 backcast is untouched; shared by production's eta integral
+ * and demand's intensity decline so the two views stay coupled.
+ */
+export const STRUCTURAL_ANCHOR_YEAR = 2025;
+
+/**
  * Compound growth: start × (1 + rate)^years
  */
 export function compound(start: number, rate: number, years: number): number {
@@ -155,6 +163,25 @@ export function lerp(a: number, b: number, t: number): number {
  */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Structural-decay multiplier on an efficiency/intensity-decline rate.
+ * A `structuralShare` fraction of the rate is transitional structural change
+ * (sectoral shift, catch-up) that halves every `halfLife` years after 2025;
+ * the rest is persistent device efficiency. Returns 1 before 2025 and when
+ * halfLife = 0 (no decay), so backcasts and no-decay runs are unaffected.
+ * Used by BOTH demand (intensity decline) and production (eta growth) so the
+ * "one efficiency series, two views" invariant holds through the decay.
+ */
+export function structuralDecayFactor(
+  year: number,
+  structuralShare: number,
+  halfLife: number
+): number {
+  const tau = Math.max(0, year - STRUCTURAL_ANCHOR_YEAR);
+  const decayed = halfLife > 0 ? Math.pow(0.5, tau / halfLife) : 1;
+  return (1 - structuralShare) + structuralShare * decayed;
 }
 
 /**

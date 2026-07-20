@@ -7,6 +7,14 @@
 
 import { readFile } from 'fs/promises';
 import { SimulationParams } from './simulation.js';
+import { ALL_MODULES } from './simulation-autowired.js';
+
+/** Known param keys per module, for catching fat-fingered scenario keys.
+ * Derived from each module's own defaults so it can never drift from the
+ * modules themselves (a new param is covered automatically). */
+const MODULE_PARAM_KEYS: Record<string, Set<string>> = Object.fromEntries(
+  ALL_MODULES.map((m) => [m.name, new Set(Object.keys(m.defaults as object))]),
+);
 
 // =============================================================================
 // TYPES
@@ -81,6 +89,19 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
   for (const key of Object.keys(scenario)) {
     if (!knownKeys.has(key)) {
       console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
+      continue;
+    }
+    // Validate inner param keys against the module's known params, so a
+    // fat-fingered override (energy: { carbonPriceTYPO: ... }) is flagged
+    // instead of silently dropped by the module's spread-based mergeParams.
+    const knownParams = MODULE_PARAM_KEYS[key];
+    const section = (scenario as unknown as Record<string, unknown>)[key];
+    if (knownParams && section && typeof section === 'object' && !Array.isArray(section)) {
+      for (const paramKey of Object.keys(section)) {
+        if (!knownParams.has(paramKey)) {
+          console.warn(`Warning: Unrecognized ${key} param "${paramKey}" will be ignored`);
+        }
+      }
     }
   }
 
