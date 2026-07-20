@@ -18,14 +18,6 @@
     }
   },
 
-  "dispatch": {
-    "maxPenetration": {
-      "solar": 0.90,
-      "wind": 0.45,
-      "nuclear": 0.35
-    }
-  },
-
   "demand": {
     "efficiencyMultiplier": 1.2,
     "sectors": {

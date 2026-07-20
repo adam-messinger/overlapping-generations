@@ -40,7 +40,6 @@ export interface DispatchParams {
   capacityFactor: Record<EnergySource, number>;
 
   /** Maximum penetration by source (fraction of demand) */
-  maxPenetration: Record<EnergySource, number>;
 
   /** Carbon intensity by source (kg CO2/MWh) */
   carbonIntensity: Record<EnergySource, number>;
@@ -93,17 +92,6 @@ export const dispatchDefaults: DispatchParams = {
     gas: 0.50,
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)
-  },
-  // Penetration ceilings: modeling assumptions consistent with grid
-  // integration studies (e.g., NREL LA100/Seams) — not sourced point values
-  maxPenetration: {
-    solar: 0.40,     // Bare solar limited by intermittency
-    wind: 0.35,
-    hydro: 0.20,     // Site-limited
-    nuclear: 0.30,   // Baseload
-    gas: 1.0,        // Dispatchable, no limit
-    coal: 1.0,
-    battery: 0.80,   // Solar+battery can reach 80%
   },
   // Combustion intensity kg CO2/MWh: gas CCGT ~350-450, coal ~800-1000
   // (IPCC AR5 Annex III combustion values; lifecycle excluded)
@@ -357,9 +345,15 @@ function dispatchRegion(
   const maxCombinedVRE = params.baseVRELimit
     + shortStorageHours * params.storageBonusPerHour
     + longStorageHours * params.longStorageBonusPerHour;
-  const maxBareSolarPen = Math.min(maxCombinedVRE * params.vreSolarFraction, params.maxPenetration.solar);
-  const maxTotalSolarPen = Math.min(maxCombinedVRE * params.vreTotalSolarFraction, params.maxPenetration.solar + params.maxPenetration.battery);
-  const maxWindPen = Math.min(maxCombinedVRE * params.vreWindFraction, params.maxPenetration.wind);
+  // VRE headroom split by sub-fraction. The old per-source maxPenetration caps
+  // (solar 0.40, wind 0.35, battery 0.80) are removed: the storage-headroom
+  // fractions sit below them on every path, so they clipped at most ~0.1% of
+  // GDP in the high-sensitivity tail and nothing elsewhere. The four non-VRE
+  // entries (hydro/nuclear/gas/coal) were never read. Curtailment + the demand
+  // limit remain the real VRE constraints.
+  const maxBareSolarPen = maxCombinedVRE * params.vreSolarFraction;
+  const maxTotalSolarPen = maxCombinedVRE * params.vreTotalSolarFraction;
+  const maxWindPen = maxCombinedVRE * params.vreWindFraction;
 
   for (const source of sources) {
     if (remaining <= 0) break;
@@ -562,11 +556,6 @@ export const dispatchModule: Module<
         errors.push(`capacityFactor.${source} must be 0-1, got ${cf}`);
       }
 
-      const mp = p.maxPenetration[source];
-      if (mp < 0 || mp > 1) {
-        errors.push(`maxPenetration.${source} must be 0-1, got ${mp}`);
-      }
-
       const ci = p.carbonIntensity[source];
       if (ci < 0) {
         errors.push(`carbonIntensity.${source} cannot be negative`);
@@ -586,7 +575,6 @@ export const dispatchModule: Module<
       ...dispatchDefaults,
       ...p,
       capacityFactor: { ...dispatchDefaults.capacityFactor, ...p.capacityFactor },
-      maxPenetration: { ...dispatchDefaults.maxPenetration, ...p.maxPenetration },
       carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...p.carbonIntensity },
       marginalCost: { ...dispatchDefaults.marginalCost, ...p.marginalCost },
     }), partial);
