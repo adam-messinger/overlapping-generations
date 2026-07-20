@@ -2,6 +2,9 @@
  * Simulation Integration Tests
  */
 
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
 import { buildOutputRegistry, resolveKey } from 'tsimulation';
@@ -65,11 +68,16 @@ test('GDP is monotonic in efficiencyMultiplier (coupled efficiency series)', () 
   // artifact across the 8 scenarios that set the multiplier. Guard it.
   const gdp2100 = (m: number) =>
     runSimulation({ demand: { efficiencyMultiplier: m } }).results[75].gdp;
-  const lo = gdp2100(0.8);
-  const mid = gdp2100(1.0);
-  const hi = gdp2100(1.3);
-  expect(mid).toBeGreaterThan(lo);   // more efficiency -> more GDP
-  expect(hi).toBeGreaterThan(mid);
+  // Sweep past 1.5 too: the removed eta ceiling used to relocate the collapse
+  // cliff to multiplier ~1.8-2.5, so the range must extend beyond any scenario
+  // value to catch a re-introduced cap.
+  const multipliers = [0.7, 0.8, 1.0, 1.3, 1.6, 2.0];
+  let prev = gdp2100(multipliers[0]);
+  for (const m of multipliers.slice(1)) {
+    const g = gdp2100(m);
+    expect(g).toBeGreaterThan(prev);   // more efficiency -> more GDP, everywhere
+    prev = g;
+  }
 });
 
 test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity decline', () => {
@@ -156,12 +164,12 @@ test('ai-energy-boom financing binds through cost of capital, not the capex budg
   // pool dwarfs energy capex). The REAL financing signal is WACC: heavy
   // automation + energy + CDR competing for savings raises the cost of
   // capital materially above baseline. Pins the honest mechanism so the
-  // scenario's relabel stays truthful.
-  const boomDemand = { dataCenterSaturation: 60000, robotSaturation: 3000,
-    dataCenterBaseGrowth: 0.15, robotBaseGrowth: 0.15 };
-  const boomProd = { aiWorkerEquivalentPerTWh: 1e5 };
+  // scenario's relabel stays truthful. Driven from the real scenario file so
+  // the pin tracks the shipped levers rather than a hand-copied subset.
+  const scenarioPath = join(dirname(fileURLToPath(import.meta.url)), '../scenarios/ai-energy-boom.json');
+  const boomParams = scenarioToParams(JSON.parse(readFileSync(scenarioPath, 'utf-8')));
   const base = runSimulation();
-  const boom = runSimulation({ demand: boomDemand, production: boomProd });
+  const boom = runSimulation(boomParams);
   const i2075 = 2075 - 2025;
   expect(boom.results[i2075].effectiveWACC)
     .toBeGreaterThan(base.results[i2075].effectiveWACC + 0.02);

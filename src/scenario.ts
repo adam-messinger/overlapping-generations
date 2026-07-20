@@ -7,30 +7,14 @@
 
 import { readFile } from 'fs/promises';
 import { SimulationParams } from './simulation.js';
-import { demographicsDefaults } from './modules/demographics.js';
-import { productionDefaults } from './modules/production.js';
-import { demandDefaults } from './modules/demand.js';
-import { capitalDefaults } from './modules/capital.js';
-import { generationsDefaults } from './modules/generations.js';
-import { energyDefaults } from './modules/energy.js';
-import { dispatchDefaults } from './modules/dispatch.js';
-import { resourcesDefaults } from './modules/resources.js';
-import { cdrDefaults } from './modules/cdr.js';
-import { climateDefaults } from './modules/climate.js';
+import { ALL_MODULES } from './simulation-autowired.js';
 
-/** Known param keys per module, for catching fat-fingered scenario keys */
-const MODULE_PARAM_KEYS: Record<string, Set<string>> = {
-  demographics: new Set(Object.keys(demographicsDefaults)),
-  production: new Set(Object.keys(productionDefaults)),
-  demand: new Set(Object.keys(demandDefaults)),
-  capital: new Set(Object.keys(capitalDefaults)),
-  generations: new Set(Object.keys(generationsDefaults)),
-  energy: new Set(Object.keys(energyDefaults)),
-  dispatch: new Set(Object.keys(dispatchDefaults)),
-  resources: new Set(Object.keys(resourcesDefaults)),
-  cdr: new Set(Object.keys(cdrDefaults)),
-  climate: new Set(Object.keys(climateDefaults)),
-};
+/** Known param keys per module, for catching fat-fingered scenario keys.
+ * Derived from each module's own defaults so it can never drift from the
+ * modules themselves (a new param is covered automatically). */
+const MODULE_PARAM_KEYS: Record<string, Set<string>> = Object.fromEntries(
+  ALL_MODULES.map((m) => [m.name, new Set(Object.keys(m.defaults as object))]),
+);
 
 // =============================================================================
 // TYPES

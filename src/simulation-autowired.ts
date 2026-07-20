@@ -538,19 +538,13 @@ export function runAutowiredSimulation(
   // An explicit production.serviceEfficiencyGrowth override still wins.
   const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
   const coupledProduction = { ...(params.production ?? {}) };
-  if (coupledProduction.serviceEfficiencyGrowth === undefined) {
-    coupledProduction.serviceEfficiencyGrowth =
-      gdpWeightedIntensityDecline(mergedDemandParams.regions) * mergedDemandParams.efficiencyMultiplier;
-  }
+  coupledProduction.serviceEfficiencyGrowth ??=
+    gdpWeightedIntensityDecline(mergedDemandParams.regions) * mergedDemandParams.efficiencyMultiplier;
   // The structural-decay shape must match demand's so the two views of the
   // one efficiency series decay together (a mismatch re-splits them and
   // collapses GDP at high efficiencyMultiplier). Injected unless overridden.
-  if (coupledProduction.structuralEfficiencyShare === undefined) {
-    coupledProduction.structuralEfficiencyShare = mergedDemandParams.structuralEfficiencyShare;
-  }
-  if (coupledProduction.structuralDecayHalfLife === undefined) {
-    coupledProduction.structuralDecayHalfLife = mergedDemandParams.structuralDecayHalfLife;
-  }
+  coupledProduction.structuralEfficiencyShare ??= mergedDemandParams.structuralEfficiencyShare;
+  coupledProduction.structuralDecayHalfLife ??= mergedDemandParams.structuralDecayHalfLife;
 
   // Couple CDR's TCRE (the warming/GtCO2 its SCC gate values) to climate's
   // sensitivity: the emergent 75-yr TCRE scales ~linearly with sensitivity
@@ -560,9 +554,7 @@ export function runAutowiredSimulation(
   // cdr.tcre overrides still win.
   const mergedClimateParams = climateModule.mergeParams(params.climate ?? {});
   const coupledCdr = { ...(params.cdr ?? {}) };
-  if (coupledCdr.tcre === undefined) {
-    coupledCdr.tcre = cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
-  }
+  coupledCdr.tcre ??= cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
 
   return runAutowired({
     modules: ALL_MODULES,
