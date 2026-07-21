@@ -138,22 +138,20 @@ export interface DemandParams {
   // Energy cost → GDP share feedback
   energyCostSensitivity: number;  // GDP share boost per 1.0 fossil share advantage (default 0.3)
 
-  // Robot/automation (endogenous logistic adoption)
-  robotBaseline2025: number;      // Initial robots per 1000 workers
-  robotBaseGrowth: number;        // Base logistic growth rate
-  robotSaturation: number;        // Carrying capacity (robots per 1000 workers)
+  // Robot/automation (endogenous value-vs-cost adoption; no hard ceiling)
+  robotBaseline2025: number;      // Initial robots per 1000 workers (must be > 0)
+  robotDiffusionRate: number;     // Max adoption rate/yr when profitability >> 1
+  robotIntegrationExponent: number; // Integration-cost exponent theta: MC scales with (N/anchor)^theta
+  robotDepreciation: number;      // Robot fleet depreciation (fraction/yr)
+  robotDisplacementShare: number; // Wage share used to value displaced labor (labour income share)
   energyPerRobotMWh: number;     // MWh per robot-unit per year
   robotUnitCost: number;         // $ per robot-unit installed (2025)
   robotCostDecline: number;      // Annual real cost decline (fraction/yr)
-  robotEnergySensitivity: number; // LCOE elasticity (cheap energy → more robots)
-  robotWageSensitivity: number;   // Wage elasticity (high wages → more robots)
-  robotReferenceLCOE: number;     // Reference LCOE $/MWh
-  robotReferenceWage: number;     // Reference GDP/worker $/yr
 
-  // Datacenter/AI compute (endogenous logistic adoption, distributed by regional GDP)
+  // Datacenter/AI compute (endogenous demand with willingness-to-pay brake)
   dataCenterBaseline2025: number;      // Initial datacenter electricity load (TWh)
-  dataCenterBaseGrowth: number;        // Base logistic growth rate
-  dataCenterSaturation: number;        // Carrying capacity (TWh), grid/chip-supply ceiling
+  dataCenterBaseGrowth: number;        // Base growth rate
+  dataCenterPowerSpendCeiling: number; // WTP ceiling on the DC ELECTRICITY-BILL share of GDP (fraction)
   dataCenterEnergySensitivity: number; // LCOE elasticity (cheap energy → more compute)
   dataCenterGDPSensitivity: number;    // GDP-per-capita elasticity (wealth → more compute)
   dataCenterReferenceLCOE: number;     // Reference LCOE $/MWh
@@ -209,6 +207,13 @@ interface DemandInputs {
 
   // For cost-driven electrification
   laggedAvgLCOE?: number;                // $/MWh from previous year
+
+  // For the robot value-vs-cost deployment rule
+  laggedInterestRate?: number;           // economy-wide rate from capital (delay-1 lag, shared with energy/cdr)
+  robotLaborEquivalent?: number;         // worker-equivalents per robot, injected from production params
+
+  // CDR electricity demand (delay-1 lag on cdr.cdrEnergyTWh, shared with production)
+  cdrEnergy?: number;                    // TWh
 
   // For energy cost → GDP share feedback (from dispatch, lagged)
   regionalFossilShare?: Record<Region, number>;
@@ -290,10 +295,12 @@ interface DemandOutputs {
   robotLoadTWh: number;       // Automation energy load (TWh)
   robotCapexSpend: number;    // Robot fleet capex this year ($T)
   robotsPer1000: number;      // Robots per 1000 workers
+  robotProfitability: number; // Marginal value / marginal cost of the next robot (pi)
   fossilStockTWh: number;    // Total fossil end-use equipment stock (TWh)
 
   // Datacenter/AI compute
   dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
+  dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
 }
 
 // =============================================================================
@@ -528,43 +535,40 @@ export const demandDefaults: DemandParams = {
   // Energy cost → GDP share feedback
   energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
 
-  // Robot/automation (endogenous logistic adoption)
-  robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (IFR World Robotics 2024: ~4.3M industrial robots ≈ 1/1000 of all workers)
-  robotBaseGrowth: 0.12,         // Base logistic growth rate (IFR installations grew ~10-14%/yr 2015-2024)
-  // SPECULATIVE — no fleet forecast survives scrutiny (Goldman/Morgan Stanley/
-  // ARK/Tesla humanoid projections were all too hype-prone to verify; see
-  // sources/ai-robotics-deployment-ceilings.md). SCALE CHECK against IFR World
-  // Robotics 2024: today ~1 robot/1000 all-workers globally; the frontier
-  // (Korea) is ~1,012/10,000 MANUFACTURING workers ≈ ~15/1000 ALL workers. So
-  // 600/1000 all-workers is ~600x today's global average and ~35x Korea's
-  // current whole-economy frontier — a humanoids-saturate-ALL-sectors world
-  // (services/logistics/care), not just manufacturing. It implies ~26,000 TWh/yr
-  // by 2100 (≈ all world electricity today). This is a top-2 GDP-LEVEL dial
-  // (1.5-2x GDP 2100), so late-century GDP is explicitly conditional on it.
-  // Treat as a scenario assumption with a wide band (~100-1000); see
-  // docs/SENSITIVITY.md. Only the 2025 baseline and near-term growth are anchored.
-  robotSaturation: 600,
+  // Robot/automation — ENDOGENOUS value-vs-cost adoption (no hard ceiling).
+  // Replaces the old robotSaturation logistic cap (a speculative carrying
+  // capacity with no literature anchor — see sources/ai-robotics-deployment-
+  // ceilings.md). Robots deploy while the marginal unit's value exceeds its
+  // cost; the ceiling is economic (integration costs rising with density +
+  // capital competition via the interest rate + energy price), not a number.
+  robotBaseline2025: 1,          // 1 robot per 1000 workers in 2025 (IFR World Robotics 2024: ~4.3M industrial robots ≈ 1/1000 of all workers). Must be > 0.
+  robotDiffusionRate: 0.22,      // max adoption rate/yr at high profitability; calibrated so 2025 growth ≈ 14%/yr, inside IFR's observed 10-14%/yr (2015-2024)
+  // JUDGMENT parameter (like production's structuralDecayHalfLife): the
+  // integration-cost exponent theta is not independently sourced; it is
+  // calibrated so baseline 2100 density lands near the old default (~600/1000).
+  // THE dominant late-century automation dial — see docs/SENSITIVITY.md.
+  robotIntegrationExponent: 0.75,
+  robotDepreciation: 0.10,       // ~10-12yr robot service life (IFR World Robotics book-depreciation convention)
+  robotDisplacementShare: 0.55,  // labour income share: ILO Global Wage Report 2024 ~52-55%; PWT 10.x labsh ~0.53. LOAD-BEARING: firms value displacement at full salaries (wage share x GDP/worker), not at the fitted production beta — same accounts-vs-fitted split as capital.ts's alpha=0.33 vs production 0.25. Pinned by the pi(2025) test.
   energyPerRobotMWh: 10,        // MWh per robot-unit per year
-  robotUnitCost: 80000,         // $ installed per robot-unit: IFR avg unit price ~$27k + integration ~2-3x (2025). INDUSTRIAL-robot anchor: at humanoid-scale densities (ai-energy-boom, 3000/1000) this is an unanchored ~5x extrapolation
+  robotUnitCost: 80000,         // $ installed per robot-unit: IFR avg unit price ~$27k + integration ~2-3x (2025). INDUSTRIAL-robot anchor: at humanoid-scale densities (ai-energy-boom) this is an unanchored ~5x extrapolation
   robotCostDecline: 0.03,       // real cost decline ~3%/yr (robotics price indices, conservative vs Wright's-law fits)
-  robotEnergySensitivity: 0.5,   // LCOE elasticity
-  robotWageSensitivity: 0.3,     // Wage elasticity
-  robotReferenceLCOE: 50,        // Reference LCOE $/MWh
-  robotReferenceWage: 46000,     // Reference GDP/worker $/yr (PPP-adjusted)
 
   // Datacenter/AI compute (endogenous, distributed by regional GDP)
   dataCenterBaseline2025: 500,        // TWh, IEA/EPRI 2024: datacenters ~1.5% of global elec (~460 TWh); AI inference boost → ~500
-  dataCenterBaseGrowth: 0.12,         // Logistic rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
-  // ANCHORED near-term, SPECULATIVE long-term. IEA Energy and AI (2025): ~415
-  // TWh in 2024 (~1.5% of global elec) → Base Case ~945 TWh by 2030 → 700-1,700
-  // TWh by 2035. But 2030 forecasts diverge ~40x (200 to ~8,000 TWh) on whether
-  // exponential chip-supply growth persists — a supply/economics question, not
-  // demand saturation. The 6,000 ceiling is ~4x the 2035 IEA-high case: a
-  // plausible-HIGH 2050+ backstop, not a forecast — read with the 40x band.
-  // LOW STAKES: this load is GDP-NEUTRAL in the model (a pure electricity sink;
-  // lifting it raises generation/WACC, not GDP). No single physical bottleneck
-  // (grid-power-as-hard-limit was refuted). See sources/ai-robotics-deployment-ceilings.md
-  dataCenterSaturation: 6000,
+  dataCenterBaseGrowth: 0.12,         // Base growth rate; pace matches 2022–2025 hyperscale buildout (~doubling/6yr)
+  // Replaces the hard 6,000-TWh dataCenterSaturation cap (an asserted number
+  // ~4x the 2035 IEA-high case, with 2030 forecasts diverging ~40x — see
+  // sources/ai-robotics-deployment-ceilings.md). The brake is now economic: a
+  // willingness-to-pay ceiling on the DC ELECTRICITY-BILL share of GDP (the
+  // power bill only — total DC spend incl. chips/capex is ~10x this). Default
+  // 0.05% of GDP ≈ 3x the 2025 revealed share (~0.015%: 500 TWh x ~$48/MWh /
+  // $158T). A GDP-indexed demand ceiling, not a forecast: equilibrium load =
+  // ceiling x GDP / LCOE, so richer + cheaper-power worlds host more compute.
+  // An LCOE spike collapses the brake (buildout halts, stock persists) —
+  // correct physics for long-lived assets. GDP-NEUTRAL: the load is a pure
+  // electricity sink (aiWorkerEquivalentPerTWh=0 by default).
+  dataCenterPowerSpendCeiling: 0.0005,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
@@ -878,28 +882,28 @@ export const demandModule: Module<
       range: { min: 0, max: 1.0, default: 0.3 },
       tier: 1 as const,
     },
-    robotBaseGrowth: {
-      description: 'Base logistic growth rate for robot adoption. Higher = faster S-curve.',
+    robotDiffusionRate: {
+      description: 'Max robot adoption rate per year at high profitability (diffusion/manufacturing-ramp limit). Calibrated so 2025 growth ~14%/yr, inside IFR observed 10-14%/yr.',
       unit: 'fraction/year',
-      range: { min: 0.05, max: 0.30, default: 0.12 },
+      range: { min: 0.05, max: 0.5, default: 0.22 },
       tier: 1 as const,
     },
-    robotSaturation: {
-      description: 'Robot carrying capacity (per 1000 workers). SPECULATIVE scenario assumption — no literature anchor exists for long-run robot density; the default implies ~26,000 TWh/yr of robot load by 2100 and dominates late-century demand growth.',
-      unit: 'robots per 1000 workers',
-      range: { min: 50, max: 5000, default: 600 },
-      tier: 1 as const,
-    },
-    robotEnergySensitivity: {
-      description: 'LCOE elasticity for robot adoption. Cheap energy accelerates automation.',
+    robotIntegrationExponent: {
+      description: 'Integration-cost exponent theta: robot marginal cost scales with (density/anchor)^theta (installation, workflow redesign, scarce integrator labor). JUDGMENT parameter calibrated so baseline 2100 density lands near the old 600/1000 default — THE dominant late-century automation/GDP dial. See docs/SENSITIVITY.md.',
       unit: 'elasticity',
-      range: { min: 0, max: 1.0, default: 0.5 },
+      range: { min: 0.3, max: 1.2, default: 0.75 },
       tier: 1 as const,
     },
-    robotWageSensitivity: {
-      description: 'Wage elasticity for robot adoption. High wages incentivize automation.',
-      unit: 'elasticity',
-      range: { min: 0, max: 1.0, default: 0.3 },
+    robotDepreciation: {
+      description: 'Robot fleet depreciation rate (~10-12yr service life, IFR). Enters marginal cost as capital service and drives replacement capex; unprofitable fleets decay at this rate.',
+      unit: 'fraction/year',
+      range: { min: 0.05, max: 0.2, default: 0.10 },
+      tier: 1 as const,
+    },
+    robotDisplacementShare: {
+      description: 'Wage share used to value displaced labor in the robot business case (labour income share: ILO ~52-55%, PWT labsh ~0.53). LOAD-BEARING: scales profitability linearly; pinned by the pi(2025) test.',
+      unit: 'fraction',
+      range: { min: 0.3, max: 0.7, default: 0.55 },
       tier: 1 as const,
     },
     dataCenterBaseGrowth: {
@@ -908,10 +912,10 @@ export const demandModule: Module<
       range: { min: 0.04, max: 0.25, default: 0.12 },
       tier: 1 as const,
     },
-    dataCenterSaturation: {
-      description: 'Datacenter electricity carrying capacity (TWh). ASSUMPTION beyond ~2030: IEA projects ~945 TWh by 2030; the default ceiling and the model\'s ~5,500 TWh by 2050 sit above nearly all published projections.',
-      unit: 'TWh',
-      range: { min: 1000, max: 100000, default: 6000 },
+    dataCenterPowerSpendCeiling: {
+      description: 'Willingness-to-pay ceiling on the datacenter ELECTRICITY-BILL share of GDP (power bill only; total DC spend is ~10x). Default 0.05% ≈ 3x the 2025 revealed share. Replaces the hard TWh saturation cap: equilibrium load = ceiling x GDP / LCOE, a GDP-indexed demand ceiling, not a forecast.',
+      unit: 'fraction of GDP',
+      range: { min: 0.0001, max: 0.005, default: 0.0005 },
       tier: 1 as const,
     },
     dataCenterEnergySensitivity: {
@@ -940,6 +944,9 @@ export const demandModule: Module<
     'totalGeneration',
     'carbonPrice',
     'laggedAvgLCOE',
+    'laggedInterestRate',
+    'robotLaborEquivalent',
+    'cdrEnergy',
     'regionalFossilShare',
   ] as const,
 
@@ -963,8 +970,10 @@ export const demandModule: Module<
     'robotLoadTWh',
     'robotCapexSpend',
     'robotsPer1000',
+    'robotProfitability',
     'fossilStockTWh',
     'dataCenterLoadTWh',
+    'dataCenterPowerSpendShare',
   ] as const,
 
   validate(params: Partial<DemandParams>) {
@@ -1035,6 +1044,29 @@ export const demandModule: Module<
     if (params.robotCostDecline !== undefined &&
         (params.robotCostDecline < 0 || params.robotCostDecline >= 1)) {
       errors.push('robotCostDecline must be in [0, 1)');
+    }
+    if (params.robotBaseline2025 !== undefined && params.robotBaseline2025 <= 0) {
+      errors.push('robotBaseline2025 must be > 0');
+    }
+    if (params.robotDiffusionRate !== undefined &&
+        (params.robotDiffusionRate < 0 || params.robotDiffusionRate > 0.6)) {
+      errors.push('robotDiffusionRate must be in [0, 0.6]');
+    }
+    if (params.robotIntegrationExponent !== undefined &&
+        (params.robotIntegrationExponent < 0 || params.robotIntegrationExponent > 2)) {
+      errors.push('robotIntegrationExponent must be in [0, 2]');
+    }
+    if (params.robotDepreciation !== undefined &&
+        (params.robotDepreciation <= 0 || params.robotDepreciation > 0.5)) {
+      errors.push('robotDepreciation must be in (0, 0.5]');
+    }
+    if (params.robotDisplacementShare !== undefined &&
+        (params.robotDisplacementShare <= 0 || params.robotDisplacementShare > 1)) {
+      errors.push('robotDisplacementShare must be in (0, 1]');
+    }
+    if (params.dataCenterPowerSpendCeiling !== undefined &&
+        (params.dataCenterPowerSpendCeiling <= 0 || params.dataCenterPowerSpendCeiling > 0.05)) {
+      errors.push('dataCenterPowerSpendCeiling must be in (0, 0.05]');
     }
 
     // Validate fuel price-path params
@@ -1135,20 +1167,18 @@ export const demandModule: Module<
 
       // Robot/automation params
       if (p.robotBaseline2025 !== undefined) merged.robotBaseline2025 = p.robotBaseline2025;
-      if (p.robotBaseGrowth !== undefined) merged.robotBaseGrowth = p.robotBaseGrowth;
-      if (p.robotSaturation !== undefined) merged.robotSaturation = p.robotSaturation;
+      if (p.robotDiffusionRate !== undefined) merged.robotDiffusionRate = p.robotDiffusionRate;
+      if (p.robotIntegrationExponent !== undefined) merged.robotIntegrationExponent = p.robotIntegrationExponent;
+      if (p.robotDepreciation !== undefined) merged.robotDepreciation = p.robotDepreciation;
+      if (p.robotDisplacementShare !== undefined) merged.robotDisplacementShare = p.robotDisplacementShare;
       if (p.energyPerRobotMWh !== undefined) merged.energyPerRobotMWh = p.energyPerRobotMWh;
       if (p.robotUnitCost !== undefined) merged.robotUnitCost = p.robotUnitCost;
       if (p.robotCostDecline !== undefined) merged.robotCostDecline = p.robotCostDecline;
-      if (p.robotEnergySensitivity !== undefined) merged.robotEnergySensitivity = p.robotEnergySensitivity;
-      if (p.robotWageSensitivity !== undefined) merged.robotWageSensitivity = p.robotWageSensitivity;
-      if (p.robotReferenceLCOE !== undefined) merged.robotReferenceLCOE = p.robotReferenceLCOE;
-      if (p.robotReferenceWage !== undefined) merged.robotReferenceWage = p.robotReferenceWage;
 
       // Datacenter/AI compute params
       if (p.dataCenterBaseline2025 !== undefined) merged.dataCenterBaseline2025 = p.dataCenterBaseline2025;
       if (p.dataCenterBaseGrowth !== undefined) merged.dataCenterBaseGrowth = p.dataCenterBaseGrowth;
-      if (p.dataCenterSaturation !== undefined) merged.dataCenterSaturation = p.dataCenterSaturation;
+      if (p.dataCenterPowerSpendCeiling !== undefined) merged.dataCenterPowerSpendCeiling = p.dataCenterPowerSpendCeiling;
       if (p.dataCenterEnergySensitivity !== undefined) merged.dataCenterEnergySensitivity = p.dataCenterEnergySensitivity;
       if (p.dataCenterGDPSensitivity !== undefined) merged.dataCenterGDPSensitivity = p.dataCenterGDPSensitivity;
       if (p.dataCenterReferenceLCOE !== undefined) merged.dataCenterReferenceLCOE = p.dataCenterReferenceLCOE;
@@ -1422,30 +1452,62 @@ export const demandModule: Module<
     const uniformElec = globalServiceBase * elecFinalFactor;
     const elecRealization = uniformElec > 0 ? serviceBasisElec / uniformElec : 1;
 
-    // Endogenous robot adoption (logistic + energy/wage drivers)
+    // Endogenous robot adoption: deploy while marginal value > marginal cost.
+    // Replaces the old logistic saturation ceiling — the brake is now economic:
+    // integration costs rise with density, capital competition raises the
+    // interest rate (the ai-energy-boom channel, now direct), and energy price
+    // enters operating cost. See sources/ai-robotics-deployment-ceilings.md.
     const prevRobots = state.robotsPer1000;
-    const currentLCOE = inputs.laggedAvgLCOE ?? params.robotReferenceLCOE;
+    const currentLCOE = inputs.laggedAvgLCOE ?? 50; // $/MWh; matches the laggedAvgLCOE lag initial
     const gdpPerWorker = (inputs.gdp * 1e12) / inputs.working;
+    // Economy-wide rate (capital.interestRate, lagged). Bare r by choice:
+    // energy's riskPremium is sector-specific project financing; robots are
+    // ordinary corporate capex at the economy-wide cost of capital.
+    const robotRate = Math.max(0, inputs.laggedInterestRate ?? 0.05);
+    const robotQ = inputs.robotLaborEquivalent ?? 2; // worker-equivalents/robot, injected from production params
 
-    const energyFactor = Math.pow(
-      params.robotReferenceLCOE / Math.max(currentLCOE, 1),
-      params.robotEnergySensitivity
-    );
-    const wageFactor = Math.pow(
-      gdpPerWorker / params.robotReferenceWage,
-      params.robotWageSensitivity
-    );
+    // VALUE of one robot-year: firm-level displacement business case — a robot
+    // replacing q workers saves q full salaries (wage ≈ labour share × GDP per
+    // worker), NOT q aggregate marginal products. Prices from national accounts,
+    // quantities from the fitted production function — the same split capital.ts
+    // uses (r priced off alpha=0.33 while production fits 0.25).
+    const robotMV = robotQ * params.robotDisplacementShare * gdpPerWorker; // $/robot-yr
 
-    const effectiveRate = params.robotBaseGrowth * energyFactor * wageFactor;
-    const robotsPer1000 = prevRobots + effectiveRate * prevRobots * (1 - prevRobots / params.robotSaturation);
+    // COST of one robot-year: annualized capital service + electricity, scaled
+    // by an integration-cost factor rising with density (installation, workflow
+    // redesign, scarce integrator labor — the same logic as the ~3x integration
+    // multiplier inside robotUnitCost). Production's constant q stays untouched;
+    // the density brake lives here on the COST side, honestly labeled.
+    const robotUnitCostNow = compound(params.robotUnitCost, -params.robotCostDecline, yearIndex);
+    const ROBOT_INTEGRATION_ANCHOR = 1; // per-1000 workers; fixed anchor (deliberately NOT robotBaseline2025 — recalibrating the 2025 fleet must not rescale long-run economics)
+    const integrationFactor = Math.pow(
+      Math.max(prevRobots, ROBOT_INTEGRATION_ANCHOR) / ROBOT_INTEGRATION_ANCHOR,
+      params.robotIntegrationExponent
+    );
+    const robotMC =
+      (robotUnitCostNow * (robotRate + params.robotDepreciation) +
+        params.energyPerRobotMWh * currentLCOE) *
+      integrationFactor; // $/robot-yr
+
+    const robotProfitability = robotMC > 0 ? robotMV / robotMC : 0;
+    // Diffusion-limited adoption while profitable; unprofitable fleets are not
+    // replaced and decay at the depreciation rate. Equilibrium is balanced
+    // growth (density settles where integration-cost growth offsets wage growth
+    // + unit-cost decline), not a hard ceiling.
+    const robotsPer1000 =
+      robotProfitability > 1
+        ? prevRobots * (1 + params.robotDiffusionRate * (1 - 1 / robotProfitability))
+        : prevRobots * (1 - params.robotDepreciation);
 
     const totalRobots = (robotsPer1000 / 1000) * inputs.working;
-    // Fleet capex: net additions x declining unit cost, debited by capital
-    // (lagged). Replacement capex is omitted (net additions only) — mature
-    // fleets are maintained free, a known simplification.
+    // Fleet capex: net additions + replacement of the depreciating fleet (the
+    // rule prices depreciation in MC, so the ledger debits it too), at the
+    // declining unit cost; debited by capital (lagged). No replacement spend
+    // when the fleet is unprofitable (firms stop replacing; fleet decays).
     const robotAdditions = yearIndex === 0 ? 0 : Math.max(0, totalRobots - state.robotFleet);
-    const robotUnitCostNow = compound(params.robotUnitCost, -params.robotCostDecline, yearIndex);
-    const robotCapexSpend = (robotAdditions * robotUnitCostNow) / 1e12; // $T
+    const robotReplacement =
+      yearIndex === 0 || robotProfitability <= 1 ? 0 : params.robotDepreciation * state.robotFleet;
+    const robotCapexSpend = ((robotAdditions + robotReplacement) * robotUnitCostNow) / 1e12; // $T
     const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
     globalElec += robotLoadTWh;
     globalTotalFinal += robotLoadTWh;
@@ -1459,7 +1521,14 @@ export const demandModule: Module<
       regionalOutputs[region].totalFinalEnergy += regionRobotLoad;
     }
 
-    // Endogenous datacenter/AI compute adoption (logistic + LCOE/GDP-per-capita drivers)
+    // Endogenous datacenter/AI compute adoption: LCOE/GDP-per-capita demand
+    // drivers with a willingness-to-pay brake on the ELECTRICITY-BILL share
+    // of GDP (replaces the hard TWh saturation cap — the ceiling is economic).
+    // Quadratic brake: negligible drag at today's spend share (~0.3x ceiling),
+    // hard stop as the share approaches the ceiling. Equilibrium load =
+    // ceiling x GDP / LCOE — a GDP-indexed soft cap. An LCOE spike collapses
+    // the brake (buildout halts, the stock persists): correct for long-lived
+    // assets.
     const prevDataCenter = state.dataCenterLoadTWh;
     const gdpPerCapita = (inputs.gdp * 1e12) / inputs.population;
 
@@ -1472,9 +1541,16 @@ export const demandModule: Module<
       params.dataCenterGDPSensitivity
     );
 
-    const dcEffectiveRate = params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor;
-    const dataCenterLoadTWh = prevDataCenter +
-      dcEffectiveRate * prevDataCenter * (1 - prevDataCenter / params.dataCenterSaturation);
+    // DC electricity bill as share of GDP: TWh -> MWh (x1e6) at $/MWh, over $ GDP
+    const dataCenterPowerSpendShare =
+      (prevDataCenter * 1e6 * currentLCOE) / (inputs.gdp * 1e12);
+    const dcBrake = Math.max(
+      0,
+      1 - Math.pow(dataCenterPowerSpendShare / params.dataCenterPowerSpendCeiling, 2)
+    );
+    const dcEffectiveRate =
+      params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor * dcBrake;
+    const dataCenterLoadTWh = prevDataCenter * (1 + dcEffectiveRate);
 
     globalElec += dataCenterLoadTWh;
     globalTotalFinal += dataCenterLoadTWh;
@@ -1486,6 +1562,26 @@ export const demandModule: Module<
       const regionDcLoad = dataCenterLoadTWh * gdpShare;
       regionalOutputs[region].electricityDemand += regionDcLoad;
       regionalOutputs[region].totalFinalEnergy += regionDcLoad;
+    }
+
+    // CDR electricity is REAL demand: generation must be built for it and it
+    // must pay the going LCOE (which feeds back into cdrCostPerTon and the
+    // SCC-vs-cost deployment gate, making CDR self-limiting through price).
+    // Previously CDR energy was only subtracted from productive useful energy
+    // in production — a phantom load the energy system neither served nor
+    // priced. At cheap LCOE that let CDR silently consume >1/3 of generation
+    // and starve the economy (the mult=1.3 GDP collapse). Same treatment as
+    // robot/DC loads: add to demand here, production still nets it out of E
+    // as intermediate consumption. Lagged one year (CDR runs after demand).
+    const cdrLoadTWh = Math.max(0, inputs.cdrEnergy ?? 0);
+    globalElec += cdrLoadTWh;
+    globalTotalFinal += cdrLoadTWh;
+    // Distribute like datacenters: CDR plants concentrate with investment/GDP
+    for (const region of REGIONS) {
+      const gdpShare = newRegions[region].gdpShare;
+      const regionCdrLoad = cdrLoadTWh * gdpShare;
+      regionalOutputs[region].electricityDemand += regionCdrLoad;
+      regionalOutputs[region].totalFinalEnergy += regionCdrLoad;
     }
 
     // Calculate final energy per capita per day
@@ -1713,8 +1809,10 @@ export const demandModule: Module<
         robotLoadTWh,
         robotCapexSpend,
         robotsPer1000,
+        robotProfitability,
         fossilStockTWh,
         dataCenterLoadTWh,
+        dataCenterPowerSpendShare,
       },
     };
   },

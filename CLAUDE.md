@@ -183,7 +183,23 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Wright's Law capital cost learning + LCOE-driven energy cost
 - Deploys when NPV-adjusted social cost of carbon > CDR cost
 - Endogenous discount rate: social rate = fraction of market interest rate
-- Energy demand subtracted from productive useful energy
+- Energy demand subtracted from productive useful energy AND added to
+  electricity demand (generation is built for CDR and it pays LCOE — the
+  phantom-load fix; CDR self-limits through price)
+
+### Automation (endogenous deployment, no hard ceilings)
+- **Robots**: deploy while marginal value > marginal cost. MV = payoff x
+  labour share x GDP/worker (firm displacement business case); MC =
+  annualized capex (laggedInterestRate + depreciation) + energy, scaled by
+  integration costs rising with density ((N/anchor)^theta). Unprofitable
+  fleets decay. `robotIntegrationExponent` (theta, judgment) is the
+  late-century automation/GDP dial — see docs/SENSITIVITY.md
+- **Datacenters**: LCOE/GDP-driven demand braked by a willingness-to-pay
+  ceiling on the electricity-bill share of GDP (`dataCenterPowerSpendCeiling`,
+  0.05%); equilibrium load = ceiling x GDP / LCOE. GDP-neutral electricity
+  sink (AI payoff off by default)
+- Replaced the old hard `robotSaturation`/`dataCenterSaturation` logistic caps
+  (speculative carrying capacities); see sources/ai-robotics-deployment-ceilings.md
 
 ### Capital, Debt & Intergenerational Transfers
 - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
@@ -221,7 +237,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 | `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
-| `ai-energy-boom` | No demand cap on energy: AI/robot ceilings lifted, automation payoff on. Financing binds through the COST OF CAPITAL (WACC ~15%), not the capex budget (the savings pool dwarfs energy capex) |
+| `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. Financing binds through the COST OF CAPITAL (WACC ~15% by 2075), not the capex budget |
 
 ## Agent Introspection
 

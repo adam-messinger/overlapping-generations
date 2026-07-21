@@ -15,12 +15,14 @@
 > uncoupled η ceiling) but did not remove it: with loop gain ≈ α+γ ≈ 0.8, any
 > growth-side residual is amplified ~5× into the level.
 >
-> **A co-equal second dial is `robotSaturation`** (the automation ceiling;
-> default 600/1,000 workers), which swings GDP 2100 ~1.6–2.2× over its plausible
-> range and is even *less* anchored — no fleet forecast supports it (see the
-> `robotSaturation` section below and `sources/ai-robotics-deployment-ceilings.md`).
-> The two together, not `serviceEfficiencyGrowth` alone, set the late-century
-> GDP band.
+> **A co-equal second dial is `robotIntegrationExponent`** (θ, the
+> integration-cost exponent in the endogenous robot deployment rule; default
+> 0.75), which swings GDP 2100 ~1.6× over its plausible range. It replaced the
+> old hard `robotSaturation` ceiling: automation is now deploy-while-profitable
+> (value vs cost), and θ — a JUDGMENT parameter — sets how fast integration
+> costs rise with density (see the θ section below and
+> `sources/ai-robotics-deployment-ceilings.md`). The two dials together, not
+> `serviceEfficiencyGrowth` alone, set the late-century GDP band.
 
 The γ×damage grid below (a separate, smaller axis) identified two further
 consequential, least-constrained parameters:
@@ -144,36 +146,38 @@ Two honest takeaways:
    floor caveats, but treat the *terminal clean-energy price* as a band, biased
    toward the cheaper end. The default $12 is more likely too high than too low.
 
-## `robotSaturation`: a top GDP dial with no empirical anchor
+## `robotIntegrationExponent` (θ): the automation dial, now cost-anchored
 
-The robot-density ceiling (`demand.robotSaturation`, default **600 per 1,000
-workers**) is — with `serviceEfficiencyGrowth` — one of the two largest
-GDP-level dials in the model, and it is the *least* anchored. No humanoid/
-general-purpose fleet forecast survives scrutiny (see
-`sources/ai-robotics-deployment-ceilings.md`), and the default is **~600× today's
-global average robot density (~1/1,000 all workers) and ~35× Korea's current
-whole-economy frontier (~15/1,000 all workers)** — a humanoids-in-every-sector
-world, not manufacturing.
+The old hard robot ceiling (`robotSaturation` 600/1,000, a speculative
+carrying capacity with no fleet forecast behind it) has been replaced by an
+**endogenous deploy-while-profitable rule**: robots deploy while
+`MV = q × robotDisplacementShare × GDP/worker` exceeds
+`MC = (annualized capex + energy) × (N/anchor)^θ`. The economic ceiling —
+integration costs rising with density, capital competition via the interest
+rate, and energy price — replaces the number. θ (default 0.75) is a
+**JUDGMENT parameter** (like `structuralDecayHalfLife`): how fast integration
+costs rise with density is not independently sourced; the default is
+calibrated so baseline 2100 density lands near the old default (~540/1,000).
 
-Sweep (baseline):
+Sweep (baseline, post-endogenization):
 
-| `robotSaturation` | GDP 2100 | Gen 2100 (TWh) | WACC 2075 | Warming 2100 |
-|---|---|---|---|---|
-| 300 | 950 | 199,482 | 0.101 | 2.60 |
-| **600 (default)** | **1,151** | 250,952 | 0.109 | 2.62 |
-| 1,200 | 1,483 | 340,507 | 0.119 | 2.64 |
-| 2,400 | 2,047 | 503,786 | 0.127 | 2.67 |
+| θ | Robots 2100 (/1,000) | GDP 2100 | Gen 2100 (TWh) | WACC 2075 | Warming 2100 |
+|---|---|---|---|---|---|
+| 0.6 | 2,442 | 1,600 | 468,617 | 0.097 | 2.62 |
+| **0.75 (default)** | **541** | **1,134** | 272,487 | 0.092 | 2.60 |
+| 0.9 | 195 | 988 | 223,247 | 0.090 | 2.59 |
 
-- **GDP 2100 swings ~1.6× across a defensible range (300→1,200)** and ~2.2× to
-  2,400 — a self-labeled speculative parameter with leverage comparable to the
-  sourced structural dials. The effect is almost entirely post-2050 (via the
-  robot labor-augmentation term), so it is specifically an end-of-century
-  phenomenon.
-- The rising WACC column shows the *economic* ceiling that should really bind:
-  more robots → more energy + capital demand → higher cost of capital (the
-  `ai-energy-boom` scenario self-limits at WACC ~15%). The hard `robotSaturation`
-  number is standing in for what should be an endogenous value-vs-cost limit.
-- **Report late-century GDP as explicitly conditional on `robotSaturation`**;
-  treat it as a wide band (~100–1,000), not a forecast. (The companion
-  `dataCenterSaturation` is GDP-neutral — a pure electricity sink — so it needs
-  no such GDP caveat; it matters only for the generation/emissions ledger.)
+- **GDP 2100 swings ~1.6× across θ ∈ [0.6, 0.9]** — the same leverage the old
+  ceiling had, but the dial now has an economic interpretation (integration/
+  adjustment-cost curvature) instead of being a bare fleet count, and the
+  *near-term* path is pinned independently (IFR pace + the π(2025) ∈ [2, 3.5]
+  test). The effect is almost entirely post-2050.
+- Two further rule parameters matter: `robotDisplacementShare` (0.55, the
+  labour share — LOAD-BEARING, test-pinned: a value near production's fitted
+  β would freeze deployment entirely) and `robotDiffusionRate` (0.22, sets
+  the near-term pace only).
+- **Report late-century GDP as explicitly conditional on θ**; treat automation
+  density as a band, not a forecast. (The companion datacenter brake
+  `dataCenterPowerSpendCeiling` is GDP-neutral — a pure electricity sink —
+  and needs no GDP caveat; it sets the generation/emissions ledger, with
+  equilibrium DC load = ceiling × GDP / LCOE.)

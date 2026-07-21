@@ -109,14 +109,20 @@ Maximum-Power-Principle intuition:
   **top-2 GDP-level dial (1.5–2× GDP 2100)**, so late-century GDP is explicitly
   conditional on it. Keep as an explicit scenario assumption; band it widely
   (~100–1,000); disclose in `docs/SENSITIVITY.md`.
-- **The right structural fix (not done yet):** replace both hard saturation caps
-  with an **endogenous "deploy until marginal value ≤ marginal cost" rule** —
-  demand *pulled* by labor scarcity from aging (Acemoglu-Restrepo), *bounded* by
-  capital cost (WACC), energy price, and minerals (`mineralConstraint`). The
-  model already has every piece, and `ai-energy-boom` shows the economic ceiling
-  is latent (self-limits at WACC ~15%). This mirrors the eta-ceiling / VRE /
-  softFloor pattern: replace a non-physical hard cap with the mechanism that
-  should set it. (Bigger change — flagged, not built.)
+- **The structural fix — NOW IMPLEMENTED (2026-07):** both hard saturation caps
+  were replaced with endogenous economic rules, exactly as this review
+  recommended. Robots: deploy-while-profitable (MV = payoff × labour share ×
+  GDP/worker vs MC = annualized capex at the lagged interest rate + energy,
+  scaled by integration costs rising with density — `robotIntegrationExponent`);
+  unprofitable fleets decay. Datacenters: LCOE/GDP demand braked by a
+  willingness-to-pay ceiling on the electricity-bill share of GDP
+  (`dataCenterPowerSpendCeiling`; equilibrium load = ceiling × GDP / LCOE).
+  Implementation also surfaced and fixed a phantom-load artifact: CDR
+  electricity was subtracted from productive energy without being demand the
+  energy system served or priced. See `src/modules/demand.ts` (deployment
+  rules), `docs/SENSITIVITY.md` (θ sweep), and the three commits
+  "cdr: CDR electricity is real demand…", "demand: replace robot logistic
+  ceiling…", "demand: replace datacenter TWh ceiling…".
 
 ---
 

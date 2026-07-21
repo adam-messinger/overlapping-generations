@@ -1,11 +1,11 @@
 {
   "name": "AI Energy Boom",
-  "description": "Hypothesis scenario: no effective demand cap on energy — AI compute and robotics have near-unbounded appetite. Levers vs baseline: datacenter/robot ceilings lifted an order of magnitude (60,000 TWh / 3,000 per 1000 workers) and the AI cognitive labor payoff on (aiWorkerEquivalentPerTWh 1e5). FINDING (round-2 review): in this model the binding constraint is NOT the capex-budget share — the savings pool (~$600T/yr) dwarfs energy capex (~$10-30T/yr), so cleanShareFlex is inert and was removed from this scenario. Financing binds instead through the COST OF CAPITAL: WACC rises to ~15% by 2075 as automation, energy buildout, and CDR compete for savings (K/Y compressed to ~1.8), raising LCOE and slowing the transition. The remaining ~4k TWh shortfall reflects physical diffusion/penetration ceilings, not money. Result (2026-model): GDP 2100 ~$2,800T, generation ~740k TWh, warming ~2.7C. Sustained real rates >12% and K/Y <2 are outside anything observed — read the financing dynamics as qualitative. Uncalibrated hypothesis, not a forecast.",
+  "description": "Hypothesis scenario: no effective demand cap on energy \u2014 AI compute and robotics have near-unbounded appetite. Levers vs baseline (endogenous-rule era): AI cognitive labor payoff on (aiWorkerEquivalentPerTWh 1e5), robot integration friction halved (robotIntegrationExponent 0.5, diffusion 0.30), datacenter power-spend ceiling 10x (0.5% of GDP). FINDING (round-2, reconfirmed under the endogenous rules): the binding constraint is NOT the capex budget \u2014 the savings pool funds even ~$200T/yr of robot capex (unfundedRealizedSpend stays 0) \u2014 but the COST OF CAPITAL: WACC rises to ~15% by 2075 as automation, energy buildout, and CDR compete for savings, raising LCOE and entering the robot business case directly through the deployment rule's interest-rate term. Result (2026 model): GDP 2100 ~$3,300T, generation ~3.5M TWh, robots ~55,000/1000 workers, datacenters ~630k TWh riding their spend ceiling, warming ~2.8C. Sustained real rates >12% and densities of ~55 robots/person are outside anything observed \u2014 read as a financing-limited upper-envelope hypothesis, not a forecast.",
   "demand": {
-    "dataCenterSaturation": 60000,
+    "dataCenterPowerSpendCeiling": 0.005,
     "dataCenterBaseGrowth": 0.15,
-    "robotSaturation": 3000,
-    "robotBaseGrowth": 0.15
+    "robotDiffusionRate": 0.3,
+    "robotIntegrationExponent": 0.5
   },
   "production": {
     "robotLaborEquivalent": 2,
