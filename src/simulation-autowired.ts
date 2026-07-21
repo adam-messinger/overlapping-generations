@@ -56,7 +56,7 @@ export const ALL_MODULES: AnyModule[] = [
  * Build transforms with proper parameter access.
  * Closure captures merged energy params for carbonPrice/regionalCarbonPrice.
  */
-function buildTransforms(mergedEnergyParams: any, mergedProductionParams?: any) {
+function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
   // Mutable closure: captures gdpPerCapita2025 on first year
   let capturedGdpPerCapita2025 = 0;
 
@@ -113,7 +113,7 @@ function buildTransforms(mergedEnergyParams: any, mergedProductionParams?: any) 
     // (worker-equivalents per robot) to price the displacement business case.
     // Param injection, same pattern as carbonPrice.
     robotLaborEquivalent: {
-      fn: () => mergedProductionParams?.robotLaborEquivalent ?? 2,
+      fn: () => mergedProductionParams.robotLaborEquivalent,
       dependsOn: [],
     },
 
