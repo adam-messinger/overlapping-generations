@@ -50,6 +50,15 @@ npm run regression
 node --import tsx scripts/outbreak-backtest.ts
 node --import tsx scripts/critical-materials-backtest.ts
 node --import tsx scripts/hormuz-scenario.ts
+
+# News-driven cross-model stress tests (July 2026)
+node --import tsx scripts/news-war-ai.ts
+node --import tsx scripts/multi-chokepoint-scenario.ts
+node --import tsx scripts/defense-sourcing-scenario.ts
+node --import tsx scripts/heat-adaptation-scenario.ts
+node --import tsx scripts/generic-drug-scenario.ts
+node --import tsx scripts/bilateral-tariff-scenario.ts
+node --import tsx scripts/financial-contagion-scenario.ts
 ```
 
 ## Programmatic use
@@ -81,3 +90,6 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
 - `src/simulations/critical-materials/` — Weber-style price propagation, a
   dynamic mineral bottleneck network, and the monthly Hormuz stock-flow bridge
   ([materials](docs/CRITICAL_MATERIALS_NETWORK.md), [Hormuz](docs/HORMUZ_SIMULATION.md))
+- `src/simulations/{news,heat,drug-supply,trade,financial-contagion}/` — small
+  news-driven stress tests with frozen backcasts and explicit scenario inputs
+  ([method, results, and limitations](docs/NEWS_STRESS_TESTS_2026-07-22.md))
