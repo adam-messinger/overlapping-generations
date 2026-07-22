@@ -1,149 +1,227 @@
 # Critical-material input/output network
 
-This toy model asks two different questions that are often conflated:
+This simulation keeps price propagation and physical bottlenecks separate:
 
-1. Which upstream input price can propagate most strongly through a strategic
-   manufacturing basket?
-2. Which physical shortage can stop the most downstream production, after
-   inventories and substitution are considered?
+1. Which upstream price shocks propagate through many downstream costs?
+2. Which physically essential shortages stop output after inventories,
+   alternative supply, and slow substitution are considered?
 
-Run it with:
+Run the full audit with:
 
 ```bash
 node --import tsx scripts/critical-materials-backtest.ts
 ```
 
-## Design and best practice
+## What is empirical now—and what is not
 
-The price side follows Isabella Weber, Jesús Lara Jauregui, Lucas Teixeira, and
-Luiza Nassif Pires: an exogenous price shock enters a Leontief cost-price system,
-propagates through the transposed direct-requirements matrix, and is weighted by
-final consumption. In compact form:
+V3 adds an explicit empirical overlay rather than silently mixing evidence and
+assumptions.
 
-```text
-Δp_endogenous = (I - A'ee)^-1 A'xe Δp_exogenous
-```
+| Layer | Current source/status |
+|---|---|
+| 2025 production, dominant producer, U.S. consumption/import reliance/stocks | Observed USGS Mineral Commodity Summaries 2026 rows |
+| Material per 75 kWh NMC-622 EV | Observed IEA 2021 technology recipe |
+| 2011/2021/2023 U.S. event-window output | Observed current-vintage Federal Reserve G.17 indexes |
+| Event supply paths | Transparent event-envelope assumptions anchored to official narratives |
+| Seven-material/component/final-sector topology | Assumption |
+| Monetary cost shares | Assumption; not yet a BEA/OECD table |
+| Allocation across firms/geographies | Assumption; normalized availability, not tonne-conserving trade flows |
 
-The quantity side follows the lessons from dynamic input/output disaster and
-COVID models: a full Leontief production function is usually too brittle;
-inventories delay shocks; only critical inputs should bind output one-for-one;
-rationing and the assumed direct shock matter enormously; and substitution and
-capacity adjust more slowly than prices.
+Primary data and references:
 
-Primary references and data anchors:
-
+- [USGS Mineral Commodity Summaries 2026 data release](https://doi.org/10.5066/P1WKQ63T)
+- [USGS gallium/germanium restriction model](https://pubs.usgs.gov/publication/ofr20241057/full)
+- [Federal Reserve G.17 industrial production downloads](https://www.federalreserve.gov/Releases/g17/download.htm)
+- [Federal Reserve 2011 Tohoku supply-chain evidence](https://www.federalreserve.gov/monetarypolicy/beigebook/beigebook201107.htm)
+- [Federal Reserve 2021–22 semiconductor-shortage assessment](https://www.federalreserve.gov/monetarypolicy/2022-02-mpr-part1.htm)
+- [IEA vehicle material-intensity chart](https://www.iea.org/data-and-statistics/charts/minerals-used-in-electric-cars-compared-to-conventional-cars)
+- [IEA 2025 export-control retrospective](https://www.iea.org/commentaries/with-new-export-controls-on-critical-minerals-supply-concentration-risks-become-reality)
+- [IEA 2026 rare-earth assessment](https://www.iea.org/reports/rare-earth-elements/executive-summary)
 - [Weber et al. (2024), systemically significant prices](https://doi.org/10.1093/icc/dtad080)
-- [Pichler et al., dynamic input/output lockdown model](https://arxiv.org/abs/2102.09608)
-- [Pichler & Farmer, simultaneous supply and demand constraints](https://doi.org/10.1080/09535314.2021.1926934)
-- [IEA Global Critical Minerals Outlook 2025](https://www.iea.org/reports/global-critical-minerals-outlook-2025/executive-summary)
-- [IEA 2025 rare-earth export-control retrospective](https://www.iea.org/commentaries/with-new-export-controls-on-critical-minerals-supply-concentration-risks-become-reality)
-- [IEA 2026 rare-earth supply-chain assessment](https://www.iea.org/reports/rare-earth-elements/executive-summary)
 
-The committed network is intentionally small: seven upstream materials,
-semiconductors, magnets, batteries, power electronics, motors, and four final
-sectors (EVs, wind, grid equipment, and data-center equipment). Its topology and
-all cost shares are visible in `src/simulations/critical-materials/data.ts`.
-Those coefficients are assumptions, not a disguised empirical global use table.
+## Frozen 2025 material panel
 
-## V1 and retrospective
+“N-1 coverage” here is simply the share left after removing the largest observed
+producer at the specified stage. It is not loss of China as a bloc, not a
+forecast for 2035, and not always a refinery measure. Gallium's denominator sums
+country rows because the displayed USGS world total is rounded.
 
-V1 has two matching simplifications:
+| Material/stage | Dominant producer share | N-1 coverage | U.S. import reliance | Reported U.S. stock months | kg in IEA NMC-622 EV |
+|---|---:|---:|---:|---:|---:|
+| Low-purity gallium | China 99.0% | 1.0% | 100% | 2.15 | — |
+| Natural graphite mine | China 77.8% | 22.2% | 100% | — | 66.3 |
+| Cobalt mine | Congo (Kinshasa) 74.2% | 25.8% | 79% | 1.88 | 13.3 |
+| Broad rare-earth mine | China 69.2% | 30.8% | 67% | — | 0.5 |
+| Nickel mine | Indonesia 66.7% | 33.3% | 41%* | 1.36 | 39.9 |
+| Refined copper | China 48.3% | 51.7% | 57% | 2.45 | 53.2 |
+| Lithium mine | Australia 31.7% | 68.3% | >50% | — | 8.9 |
 
-- Prices: rank an input only by its direct consumer-basket weight, with one
-  fitted global scale.
-- Quantities: use no inventory and no substitution, so a critical-input shock
-  hits downstream output immediately.
+`*` Nickel's 41% includes scrap; USGS says reliance excluding scrap is nearly
+100%. Broad rare-earth mine output understates concentration in separated magnet
+rare earths and finished magnets. Natural graphite mine output is not equivalent
+to battery-grade spherical graphite. These stage mismatches remain in the row
+metadata and must not be optimized away.
 
-That fails in exactly the expected places. Direct exposure misses upstream oil,
-chemicals, utilities, and wholesale trade in Weber's benchmark. In the April
-2025 rare-earth episode it predicts EV curtailment in the first shock month,
-whereas IEA reports exports falling sharply in April and May before some
-automakers cut utilization or stopped plants.
+The IEA recipe is one entire-vehicle design: 75 kWh NMC-622 with a graphite
+anode, excluding steel and aluminium. Manganese (24.5 kg) is retained as an
+unmatched recipe row rather than silently discarded; it does not yet have a
+network node. Because the current N-1 shock is expressed as a fraction of normal
+supply, kilograms cancel out of its fixed-proportion output ratio. The recipe is
+an audited absolute-demand overlay; it will become causal when vehicle counts
+from the global model are converted into tonnes of demand.
 
-V2 adds the total-requirements exposure inferred in the 2000–2019 Weber
-experiment. On quantities it adds input inventories, critical versus
-non-critical recipes, gradual technical substitution, explicit monthly capacity
-paths, and a scarcity-price curve.
+## Model revisions
 
-## Tests against history
+### V1: cost share as quantity importance
 
-### Weber method reproduction
+V1 assumes a missing input reduces output only in proportion to its direct cost
+share. This is useful for prices and badly wrong for tiny essential parts: a
+one-dollar chip can stop a much more valuable vehicle.
 
-The 2000–2019 volatility experiment is the fit set. The 2021-Q4 and 2022-Q2
-shock vectors are held out. These targets are Weber et al.'s published model
-outputs, not observed causal CPI decompositions; this is a useful implementation
-test and out-of-period shock test, but not independent validation of the theory.
+### V2: toy dynamic network
 
-| Held-out shock vector | V1 MAE (CPI pp) | V1 rank rho | V2 MAE (CPI pp) | V2 rank rho |
+V2 introduced critical versus non-critical inputs, normalized inventories,
+monthly supply paths, and slow substitution. It reproduced Weber-style price
+network calculations and the timing envelope of the April 2025 rare-earth
+episode, but every material shared a fitted quarter-month buffer and most supply
+magnitudes were hand set.
+
+### V3: observed overlays and accessible inventory
+
+V3 replaces the N-1 shock magnitudes with current USGS producer shares, overlays
+reported U.S. stock/consumption ratios where available, and commits the IEA EV
+recipe. Event fitting estimates that about 40% of gross reported/event-prior
+stocks behave like inventory accessible to the affected chain.
+
+That 40% is an **effective accessibility parameter**, not a claim that 60% of
+metal is imaginary. Grade/specification, location, contracts, safety stocks,
+and uneven holdings can keep national inventory from serving the marginal plant.
+Where USGS publishes no stock row, the old visible network prior remains and the
+output labels it `assumed`.
+
+This change is motivated by the USGS gallium/germanium model: for complete
+gallium restriction, loss of available quantity drives far more modeled GDP
+damage than higher raw-material prices. The physical constraint therefore binds
+independently of the input's tiny cost share.
+
+## Five-event backtest and retrospective
+
+The development set is 2010 rare-earth quotas, 2011 Tohoku components, and the
+2021 auto-chip shortage. Frozen holdouts are 2023 gallium licensing and the 2025
+heavy-rare-earth/magnet controls.
+
+Targets are ranges because the evidence is heterogeneous:
+
+- USGS reports 2010 exports down 40%, sharply higher prices, and most
+  rare-earth prices peaking in mid-2011.
+- Current G.17 motor-vehicle output fell about 7% in April 2011 versus the
+  January–March mean; Fed contacts reported recovery during Q3.
+- The Fed documents widespread 2021 auto-plant slowdowns. Current G.17 motor
+  vehicle output has an event-window trough about 27% below January and recovery
+  around late 2021/early 2022.
+- China introduced gallium licensing in August 2023, but aggregate U.S.
+  semiconductor-component IP fell less than 2% through September and then rose.
+- IEA reports April/May 2025 rare-earth/magnet export falls, some auto plant
+  curtailment, subsequent volume recovery, and European prices up to six times
+  Chinese prices.
+
+| Model | Fitted accessible inventory | Development interval score | Holdout interval score |
+|---|---:|---:|---:|
+| V1 cost share | 0% | 1.054 | 0.683 |
+| V3 physical bottleneck | **40%** | **0.000** | **0.017** |
+
+| Event | Set | V1 first curtailment | V3 first curtailment | V3 recovery | V3 scored/diagnostic result |
+|---|---|---:|---:|---:|---|
+| 2010 rare-earth quota | Development | None | Month 2 | Month 7 | 5.0x input price; downstream magnitude unscored |
+| 2011 Tohoku | Development | None | Month 1 | Month 3 | 8% trough |
+| 2021 auto chips | Development | None | Month 2 | Month 13 | 24% trough |
+| 2023 gallium licensing | Holdout | None | **None** | None | 0% broad modeled trough, observed range 0–3% |
+| 2025 rare-earth controls | Holdout | None | **Month 1** | **Month 5** | 7.5x price; modeled trough magnitude unscored |
+
+The initial cost-share model misses both positive development curtailments and
+the 2025 holdout. The physical model also passes the useful negative case: about
+2.15 gross months of reported gallium stocks, partly accessible, bridge the
+short licensing episode without predicting a broad semiconductor shutdown.
+
+The zero development score is not precision. Three parameters are selected
+against broad ranges and assumed supply paths. It means the compact mechanism
+can reproduce those event envelopes; it does not identify causality. The input
+supply paths are not independently measured for every product, so this tests the
+buffer/bottleneck mechanism more than it tests shock estimation. The grid also
+selects zero short-horizon technical substitution: these events do not identify
+meaningful redesign inside 15 months. Likewise, the model's 65% firm-level 2025
+rare-earth trough is deliberately **not scored
+or reported as an observed aggregate fact** because IEA supplies no
+representative global output magnitude.
+
+## Empirically anchored N-1 stress
+
+This is a 12-month loss of the largest producer, not a forecast. “Output-months
+lost” sums the shortfall in the normalized EV/wind/grid/data-center basket over
+11 shock months. One unit equals one month of the whole modeled basket. The
+topology and allocation remain assumptions, so ranks are more defensible than
+levels.
+
+| Material | N-1 coverage | Stock basis | Output-months lost | Avoided by 3x modeled buffers | Avoided by +20pp diverse supply |
+|---|---:|---|---:|---:|---:|
+| Gallium | 1.0% | USGS | **8.23** | 2.15 | 2.10 |
+| Refined copper | 51.7% | USGS | **4.06** | 2.15 | 2.27 |
+| Rare earths | 30.8% | Assumed | **3.52** | 0.79 | 1.39 |
+| Natural graphite | 22.2% | Assumed | **3.09** | 0.56 | 0.93 |
+| Cobalt | 25.8% | USGS | **2.32** | 0.85 | 1.31 |
+| Nickel | 33.3% | USGS | **2.04** | 0.64 | 1.22 |
+| Lithium | 68.3% | Assumed | **1.04** | 0.55 | 0.88 |
+
+Relative to the prior hand-set N-1 table, copper moves from fourth to second.
+The reason is not a new copper apocalypse: V3 uses the observed 48.3% Chinese
+share of 2025 refinery production instead of assuming 70% residual coverage,
+and copper touches almost every modeled branch. Gallium remains the clearest
+single-source chokepoint. Rare earths and graphite remain high, but their missing
+inventory data make the stock-policy comparison less secure.
+
+For sustained shocks, diverse operating capacity generally beats more inventory
+because inventory only shifts the onset. For a short licensing interruption,
+inventory can prevent plant stoppage entirely. Policy therefore needs both:
+specification-matched buffers for weeks/months and alternate capacity for
+quarters/years.
+
+## Weber price-network check
+
+The 2000–2019 Weber volatility experiment fits the network exposure; 2021-Q4 and
+2022-Q2 shock vectors are held out. These are published model outputs, not
+observed causal CPI decompositions.
+
+| Held-out vector | V1 direct MAE (CPI pp) | V1 rank rho | V2 network MAE | V2 rank rho |
 |---|---:|---:|---:|---:|
 | 2021-Q4 | 0.198 | 0.190 | 0.009 | 0.976 |
 | 2022-Q2 | 0.205 | 0.667 | 0.007 | 1.000 |
 
-The network term, not the fit scale, supplies nearly all of that gain.
+This validates the implementation of Weber's method, not the current physical
+network or a causal inflation theory.
 
-### 2025 rare-earth event envelope
+## Data access
 
-The fitted targets are the first downstream curtailment month and IEA's reported
-European import-price envelope of up to six times Chinese prices. Recovery month
-is kept as a small holdout.
+No signup is required for the committed USGS, Federal Reserve, CDC/WHO, or IEA
+web-page observations. A free IEA login may be convenient for downloading some
+full report/chart files, but this build does not require it.
 
-| Version | Fitted inventory | First EV curtailment | Recovery | Peak import price |
-|---|---:|---:|---:|---:|
-| V1 static | 0 months | month 1 | month 5 | 6.11x |
-| V2 dynamic | 0.25 months | month 2 | month 5 | 6.11x |
+A free **BEA API key** would materially help the next step: replacing monetary
+cost-share assumptions with current U.S. direct-requirements tables. If obtained,
+set it locally as `BEA_API_KEY`; never paste it into chat or commit it. OECD ICIO
+bulk tables are public and require no account, although automated downloads can
+be blocked by their anti-bot layer. Thus BEA signup is optional, not a blocker.
 
-The fitted quarter-month inventory is about one week of normal use. It should be
-read as an effective chain buffer, not a survey estimate for every firm. The
-recovery result is not discriminating: both versions recover because the
-observed supply recovery is imposed exogenously. A real capacity/licensing model
-must forecast that path.
+## Next limitations to attack
 
-## Initial N-1 stress result
-
-The following is a 12-month stress, not a forecast. IEA's published 2035 N-1
-coverage ratios are used for lithium (60%), nickel (55%), cobalt and graphite
-(27.5%). Rare earth (20%) and gallium (10%) are conservative stresses informed
-by IEA's concentration data; copper (70%) is an explicit exploratory assumption.
-“Output-months lost” sums the shortfall in the four-sector final basket over 11
-shock months, so 1.0 is one month of the whole basket.
-
-| Material | N-1 coverage | Output-months lost | Avoided by 3x stock buffer | Avoided by +20pp diverse supply | Basket price impact of 100% input-price shock |
-|---|---:|---:|---:|---:|---:|
-| Gallium | 10.0% | 7.86 | 0.97 | 2.11 | 0.56% |
-| Magnet rare earths | 20.0% | 4.31 | 0.77 | 1.41 | 0.80% |
-| Battery graphite | 27.5% | 2.92 | 0.40 | 0.93 | 0.86% |
-| Copper | 70.0% | 2.69 | 0.69 | 2.26 | 8.32% |
-| Cobalt | 27.5% | 2.40 | 0.41 | 1.30 | 0.38% |
-| Lithium | 60.0% | 1.49 | 0.40 | 0.89 | 0.76% |
-| Nickel | 55.0% | 0.83 | 0.41 | 0.77 | 0.76% |
-
-Three preliminary conclusions survive the distinction between price and
-quantity networks:
-
-- Gallium/semiconductors and rare-earth magnets are tiny-volume, high-value
-  physical chokepoints. Their low cost shares do not protect downstream output.
-- Copper is less concentrated in this stress but ubiquitous. It is by far the
-  largest price-propagation node and remains a large physical risk.
-- Inventories are bridges, not substitutes for capacity. In a year-long loss of
-  the dominant supplier, +20 percentage points of diverse supply prevents more
-  lost output than tripling the small fitted buffer. For a short licensing or
-  logistics interruption, the stock buffer is exactly what delays plant stops.
-
-## What still needs work
-
-1. Replace toy cost shares with BEA/OECD inter-country input/output tables and
-   physical material-flow coefficients from IEA/USGS, keeping geography and
-   ownership separate.
-2. Fit actual sector inventories and rationing priorities. The current pro-rata
-   normalized supply rule cannot represent contracts, strategic allocation, or
-   firms with no alternate supplier.
-3. Endogenize prices, demand destruction, recycling, capacity investment, mine
-   and refinery lead times, and policy/licensing duration.
-4. Model technology choice explicitly: LFP versus nickel-rich batteries,
-   induction versus permanent-magnet motors, copper/aluminum substitution, and
-   performance penalties.
-5. Backtest more independent events: the 2010 rare-earth shock, 2011 Tohoku
-   component disruptions, 2021 semiconductor shortage, 2022 lithium/nickel
-   shock, and 2025 gallium/rare-earth controls.
-6. Couple the resulting material demands to the global energy, data-center, and
-   regional-capital paths only after those empirical replacements are in place.
+1. Ingest BEA direct requirements and OECD ICIO geography while preserving the
+   separate physical recipe overlay.
+2. Convert normalized supply ratios into tonne-conserving flows by stage:
+   mine → refining → active material/component → final product.
+3. Fit plant/product-specific inventories, contracts, rationing priorities, and
+   qualification delays from microdata.
+4. Archive contemporaneous event data vintages; current G.17 history is revised
+   and event-window movements are not causal attribution.
+5. Add technology choice (LFP vs nickel-rich batteries, induction vs permanent
+   magnets, copper/aluminium), recycling, investment, and capacity lead times.
+6. Only then couple material demand to the global energy, data-center, and
+   regional-capital forecasts.

@@ -4,8 +4,10 @@ import { simulatePriceShock } from './price-network.js';
 export interface DynamicNetworkOptions {
   months: number;
   supplyPaths: Readonly<Record<string, readonly number[]>>;
-  revision: 'v1' | 'v2';
+  revision: 'v1' | 'v2' | 'v3';
   inventoryMonthsOverride?: number;
+  /** Empirical input-specific stocks; takes precedence over the global override. */
+  inventoryMonthsByInput?: Readonly<Record<string, number>>;
   inventoryMultiplier?: number;
   substitutionMultiplier?: number;
   priceElasticity: number;
@@ -39,14 +41,17 @@ export function simulateDynamicNetwork(
 ): DynamicNetworkResult {
   const inventories = new Map<string, number>();
   const shortageDurations = new Map<string, number>();
-  const inventoryTarget = (node: MaterialNode): number => {
+  const inventoryTarget = (node: MaterialNode, inputFrom: string): number => {
     if (options.revision === 'v1') return 0;
-    const base = options.inventoryMonthsOverride ?? node.inventoryMonths;
+    const base =
+      options.inventoryMonthsByInput?.[inputFrom] ??
+      options.inventoryMonthsOverride ??
+      node.inventoryMonths;
     return base * (options.inventoryMultiplier ?? 1);
   };
   for (const node of nodes) {
     for (const input of node.inputs) {
-      inventories.set(`${node.id}:${input.from}`, inventoryTarget(node));
+      inventories.set(`${node.id}:${input.from}`, inventoryTarget(node, input.from));
       shortageDurations.set(`${node.id}:${input.from}`, 0);
     }
   }
@@ -104,7 +109,7 @@ export function simulateDynamicNetwork(
         shortageDurations.set(key, duration);
         const ramp = input.substitutionRampMonths ?? Number.POSITIVE_INFINITY;
         const maxSubstitution =
-          options.revision === 'v2'
+          options.revision !== 'v1'
             ? Math.min(1, (input.maxSubstitution ?? 0) * (options.substitutionMultiplier ?? 1))
             : 0;
         const substitution = Number.isFinite(ramp)
@@ -125,7 +130,11 @@ export function simulateDynamicNetwork(
       outputRatios[node.id] = output;
       for (const state of inputState) {
         const remaining = Math.max(0, state.available - state.requirement * output);
-        inventories.set(state.key, Math.min(inventoryTarget(node), remaining));
+        const inputFrom = state.key.slice(state.key.indexOf(':') + 1);
+        inventories.set(
+          state.key,
+          Math.min(inventoryTarget(node, inputFrom), remaining),
+        );
       }
     }
 

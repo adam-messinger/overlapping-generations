@@ -10,6 +10,11 @@ import {
   fitWeberModels,
   simulatePriceShock,
 } from '../src/simulations/critical-materials/price-network.js';
+import { calibrateDisruptionModel } from '../src/simulations/critical-materials/event-backtest.js';
+import {
+  buildEmpiricalMaterialOverlay,
+  simulateEmpiricalNMinusOne,
+} from '../src/simulations/critical-materials/empirical-network.js';
 
 const fit = fitWeberModels(weberBenchmark);
 console.log('WEBER METHOD REPRODUCTION');
@@ -111,4 +116,76 @@ for (const risk of risks) {
       `${(100 * risk.priceImpact).toFixed(2)}%`,
     ].join('\t'),
   );
+}
+
+const eventV1 = calibrateDisruptionModel('cost-share-v1');
+const eventV3 = calibrateDisruptionModel('physical-v3');
+console.log('\nFIVE-EVENT PHYSICAL BOTTLENECK BACKTEST');
+console.log('Development: 2010 rare earths, 2011 Tohoku, 2021 chips. Holdout: 2023 gallium, 2025 rare earths.');
+console.log('Version\taccessible inventory\tdevelopment score\tholdout score');
+for (const calibration of [eventV1, eventV3]) {
+  console.log([
+    calibration.model,
+    `${(100 * calibration.parameters.accessibleInventoryFraction).toFixed(0)}%`,
+    calibration.development.meanScore.toFixed(3),
+    calibration.holdout.meanScore.toFixed(3),
+  ].join('\t'));
+}
+console.log('\nEvent\tset\tV1 onset\tV3 onset\tV3 recovery\tV3 trough loss\tV3 peak input price');
+const v1Events = new Map(
+  [...eventV1.development.events, ...eventV1.holdout.events].map((row) => [row.eventId, row]),
+);
+for (const row of [...eventV3.development.events, ...eventV3.holdout.events]) {
+  const fitSet = eventV3.development.events.some((candidate) => candidate.eventId === row.eventId)
+    ? 'development'
+    : 'holdout';
+  console.log([
+    row.eventId,
+    fitSet,
+    v1Events.get(row.eventId)?.prediction.firstCurtailmentMonth ?? 'none',
+    row.prediction.firstCurtailmentMonth ?? 'none',
+    row.prediction.recoveryMonth ?? 'none',
+    `${(100 * row.prediction.troughOutputLoss).toFixed(1)}%`,
+    `${row.prediction.peakInputPriceMultiple.toFixed(1)}x`,
+  ].join('\t'));
+}
+
+const overlay = buildEmpiricalMaterialOverlay();
+const empiricalRisks = overlay.overlays.map((row) => {
+  const base = simulateEmpiricalNMinusOne(row.material, {
+    accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
+  });
+  const stock = simulateEmpiricalNMinusOne(row.material, {
+    accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
+    inventoryScale: 3,
+  });
+  const diverse = simulateEmpiricalNMinusOne(row.material, {
+    accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
+    additionalCoverage: 0.2,
+  });
+  return {
+    ...row,
+    inventoryBasis: base.inventoryBasis,
+    loss: base.result.cumulativeWeightedOutputLoss,
+    stockAvoided: base.result.cumulativeWeightedOutputLoss - stock.result.cumulativeWeightedOutputLoss,
+    diversityAvoided: base.result.cumulativeWeightedOutputLoss - diverse.result.cumulativeWeightedOutputLoss,
+  };
+}).sort((a, b) => b.loss - a.loss);
+
+console.log('\nEMPIRICALLY ANCHORED 2025 N-1 STRESS');
+console.log('USGS producer shares/stocks drive the stress; IEA EV kg are an audited absolute-demand overlay.');
+console.log('Material\tdominant share\tN-1 coverage\tstocks months\tEV kg\toutput-months lost\t3x buffers avoids\t+20pp diversity avoids');
+for (const row of empiricalRisks) {
+  console.log([
+    row.material,
+    `${(100 * row.dominantProducerShare).toFixed(1)}%`,
+    `${(100 * row.nMinusOneCoverage).toFixed(1)}%`,
+    row.observedInventoryMonths === null
+      ? 'assumed'
+      : row.observedInventoryMonths.toFixed(2),
+    row.kilogramsPerNmc622Ev === null ? 'n/a' : row.kilogramsPerNmc622Ev.toFixed(1),
+    row.loss.toFixed(2),
+    row.stockAvoided.toFixed(2),
+    row.diversityAvoided.toFixed(2),
+  ].join('\t'));
 }
