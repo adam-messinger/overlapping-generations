@@ -579,6 +579,9 @@ export interface EnergyOutputs {
   /** Current LCOE by source ($/MWh) - GLOBAL (from learning curves) */
   lcoes: Record<EnergySource, number>;
 
+  /** Effective LCOE by source and region ($/MWh; includes financing, carbon, and site quality) */
+  regionalLCOEs: Record<Region, Record<EnergySource, number>>;
+
   /** Net energy fraction by source (1 - 1/EROI) */
   netEnergyFraction: Record<EnergySource, number>;
 
@@ -866,6 +869,7 @@ export const energyModule: Module<
 
   outputs: [
     'lcoes',
+    'regionalLCOEs',
     'netEnergyFraction',
     'solarPlusBatteryLCOE',
     'capacities',
@@ -1243,6 +1247,7 @@ export const energyModule: Module<
     }
 
     let realizedCapexB = 0; // $B, summed across regions
+    const regionalLCOEs = {} as Record<Region, Record<EnergySource, number>>;
 
     for (const region of REGIONS) {
       const regionParams = params.regional[region];
@@ -1271,6 +1276,7 @@ export const energyModule: Module<
         }
         regionalLCOE[source] = lcoe;
       }
+      regionalLCOEs[region] = regionalLCOE;
 
       // Find cheapest LCOE from each side for bilateral competitiveness
       const cheapestFossilLCOE = Math.min(regionalLCOE.gas, regionalLCOE.coal);
@@ -1638,6 +1644,7 @@ export const energyModule: Module<
       },
       outputs: {
         lcoes,
+        regionalLCOEs,
         netEnergyFraction,
         solarPlusBatteryLCOE,
         energyCapexSpend: realizedCapexB / 1000, // $T realized (all sources)
@@ -1663,4 +1670,3 @@ export const energyModule: Module<
 // =============================================================================
 // HELPER: Distribute value by GDP share (fallback when regional not provided)
 // =============================================================================
-

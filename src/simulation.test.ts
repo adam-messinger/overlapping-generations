@@ -86,6 +86,22 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
   }
 });
 
+test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
+  const result = runSimulation({ startYear: 2025, endYear: 2100 });
+  const first = result.results[0];
+  const last = result.results[result.results.length - 1];
+  for (const region of Object.keys(demandDefaults.regions) as Array<keyof typeof demandDefaults.regions>) {
+    expect(first.regionalGdp[region])
+      .toBeCloseTo(demandDefaults.regions[region].gdp2025, 9);
+  }
+  const total = Object.values(last.regionalGdp).reduce((sum, value) => sum + value, 0);
+  for (const value of Object.values(last.regionalGdp)) {
+    expect(value / total).toBeGreaterThan(0.015);
+  }
+  expect(last.regionalGdp.china / total)
+    .toBeGreaterThan(first.regionalGdp.china / 158);
+});
+
 // Shared default-params run for the two calibration-band tests below
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
@@ -189,13 +205,11 @@ test('near-term electrification pace is fast but bounded', () => {
   expect(pacePerYear).toBeLessThan(0.03);
 });
 
-test('ai-energy-boom financing binds through cost of capital, not the capex budget', () => {
-  // The round-2 review found cleanShareFlex inert in the boom (the savings
-  // pool dwarfs energy capex). The REAL financing signal is WACC: heavy
-  // automation + energy + CDR competing for savings raises the cost of
-  // capital materially above baseline. Pins the honest mechanism so the
-  // scenario's relabel stays truthful. Driven from the real scenario file so
-  // the pin tracks the shipped levers rather than a hand-copied subset.
+test('ai-energy-boom raises the cost of capital materially', () => {
+  // Heavy automation + energy + CDR competing for savings raises WACC well
+  // above baseline. The improved regional allocator also makes the extreme
+  // path hit the lagged funding-floor diagnostic late in the century (pinned
+  // separately below), so this is no longer claimed to be its only bound.
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const base = runSimulation();
   const boom = runSimulation(boomParams);
@@ -232,23 +246,38 @@ test('cohort constraint assumptions do not feed back into the macro path', () =>
   );
 });
 
-// Invariant: the financing floor never binds. unfundedRealizedSpend =
-// max(0, realized capex+CDR+robot spend - investment pool). It is a
-// correctness invariant (0 in every scenario), not a diagnostic: a non-zero
-// value would mean realized spends silently exceeded the funded pool and the
-// floor absorbed the excess. Pin it for baseline AND the most capital-hungry
-// scenario (ai-energy-boom lifts the demand caps and turns on automation
-// payoff). Read from the autowire outputs since it is not a YearResult field.
-test('unfundedRealizedSpend stays zero across baseline and ai-energy-boom', () => {
+// Baseline financing must reconcile. Explicit DC capex should also feed back
+// into the deliberately extreme AI boom through the shared capital ledger,
+// lowering the path relative to an otherwise identical free-DC-capex run.
+test('baseline is fully funded and datacenter capex feeds back through the AI boom', () => {
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
-
-  for (const params of [{}, boomParams]) {
-    const result = runAutowiredSimulation(params);
-    for (let i = 0; i < result.years.length; i++) {
-      const o = getOutputsAtYear(result, i);
-      expect(o.unfundedRealizedSpend as number).toBeLessThan(1e-9);
-    }
+  const baseline = runAutowiredSimulation({});
+  for (let i = 0; i < baseline.years.length; i++) {
+    const o = getOutputsAtYear(baseline, i);
+    expect(o.unfundedRealizedSpend as number).toBeLessThan(1e-9);
   }
+
+  const boom = runAutowiredSimulation(boomParams);
+  let maxGap = 0;
+  for (let i = 0; i < boom.years.length; i++) {
+    const o = getOutputsAtYear(boom, i);
+    maxGap = Math.max(maxGap, o.unfundedRealizedSpend as number);
+  }
+  expect(maxGap).toBeLessThan(1e-9);
+
+  const boomWithoutDcCapex = runAutowiredSimulation({
+    ...boomParams,
+    demand: {
+      ...boomParams.demand,
+      dataCenterCapitalCostPerGW: 0,
+    },
+  });
+  const idx2050 = boom.years.indexOf(2050);
+  const withDc = getOutputsAtYear(boom, idx2050);
+  const withoutDc = getOutputsAtYear(boomWithoutDcCapex, idx2050);
+  expect(withDc.dataCenterCapexSpend as number).toBeGreaterThan(0);
+  expect(withDc.stock as number).toBeLessThan(withoutDc.stock as number);
+  expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
 });
 
 // Cross-check: standardCollectors covers all toYearResults fields

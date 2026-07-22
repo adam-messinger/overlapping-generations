@@ -208,7 +208,7 @@ export const productionModule: Module<
       tier: 1 as const,
     },
     serviceEfficiencyGrowth: {
-      description: 'Near-term growth rate of the effective service-efficiency index (= demand GDP-weighted intensity decline; coupled at runtime). THE dominant GDP-level dial — a +-0.5pp change swings GDP 2100 ~2x, more than gamma. Structural share decays post-2025. See docs/SENSITIVITY.md.',
+      description: 'Near-term growth rate of the effective service-efficiency index (= demand GDP-weighted intensity decline; coupled at runtime). THE dominant GDP-level dial: after the allocator and DC-capex corrections a +/-40% sweep spans roughly $0.5Q-$7.9Q in 2100, exposing an uncalibrated growth loop. Structural share decays post-2025. See docs/SENSITIVITY.md.',
       unit: 'fraction/year',
       range: { min: 0.005, max: 0.03, default: 0.0129 },
       tier: 1 as const,

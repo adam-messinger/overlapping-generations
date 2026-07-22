@@ -232,6 +232,7 @@ export const standardCollectors: CollectorConfig = {
 
     // Datacenter / AI compute
     { source: 'dataCenterLoadTWh', unit: 'TWh', description: 'Datacenter/AI electricity load', module: 'demand' },
+    { source: 'dataCenterCapexSpend', unit: '$T', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },

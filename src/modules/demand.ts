@@ -135,9 +135,6 @@ export interface DemandParams {
   structuralEfficiencyShare: number;   // fraction of intensity decline that is decaying structural change (must match production)
   structuralDecayHalfLife: number;     // years to halve the structural component post-2025 (must match production)
 
-  // Energy cost → GDP share feedback
-  energyCostSensitivity: number;  // GDP share boost per 1.0 fossil share advantage (default 0.3)
-
   // Robot/automation (endogenous value-vs-cost adoption; no hard ceiling)
   robotBaseline2025: number;      // Initial robots per 1000 workers (must be > 0)
   robotDiffusionRate: number;     // Max adoption rate/yr when profitability >> 1
@@ -156,6 +153,8 @@ export interface DemandParams {
   dataCenterGDPSensitivity: number;    // GDP-per-capita elasticity (wealth → more compute)
   dataCenterReferenceLCOE: number;     // Reference LCOE $/MWh
   dataCenterReferenceGDPpc: number;    // Reference GDP per capita ($ PPP)
+  dataCenterCapitalCostPerGW: number;  // Composite chips + facility cost ($B per average GW of annual load)
+  dataCenterDepreciation: number;      // Composite chips + facility replacement rate (fraction/yr)
 }
 
 interface RegionalState {
@@ -172,6 +171,9 @@ interface DemandState {
     industry: number;
   };
   previousEffectiveWorkers: Record<Region, number>; // For labor growth calculation
+  /** Previous level factors make climate/energy LEVEL wedges affect growth only when they change. */
+  previousRegionalDamageFactor: Record<Region, number>;
+  previousRegionalEnergyFactor: Record<Region, number>;
   previousUsefulEnergyPerWorker: number; // For Ayres/Warr useful work growth
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;
@@ -215,8 +217,21 @@ interface DemandInputs {
   // CDR electricity demand (delay-1 lag on cdr.cdrEnergyTWh, shared with production)
   cdrEnergy?: number;                    // TWh
 
-  // For energy cost → GDP share feedback (from dispatch, lagged)
-  regionalFossilShare?: Record<Region, number>;
+  // Regional allocator inputs (lagged, self-consistent 2025 bootstrap).
+  // Fossil share is deliberately absent: technology mix is not a cost.
+  regionalEnergyBurden?: Record<Region, number>;
+  regionalReliabilityFactor?: Record<Region, number>;
+  laborOutputElasticity?: number;
+}
+
+export interface RegionalAllocationDiagnostics {
+  tfpFactor: number;
+  laborFactor: number;
+  climateFactorChange: number;
+  energyFactorChange: number;
+  energyBurden: number;
+  reliabilityFactor: number;
+  gdpShare: number;
 }
 
 interface RegionalOutputs {
@@ -259,6 +274,7 @@ const ELEC_ACCESS_CONVERGENCE_YEARS = 75;
 interface DemandOutputs {
   // Regional outputs
   regional: Record<Region, RegionalOutputs>;
+  regionalAllocation: Record<Region, RegionalAllocationDiagnostics>;
 
   // Global aggregates
   electricityDemand: number;    // TWh (global)
@@ -300,6 +316,7 @@ interface DemandOutputs {
 
   // Datacenter/AI compute
   dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
+  dataCenterCapexSpend: number; // Composite chips + datacenter capex this year ($T)
   dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
 }
 
@@ -532,9 +549,6 @@ export const demandDefaults: DemandParams = {
   structuralEfficiencyShare: 0.33,
   structuralDecayHalfLife: 18,
 
-  // Energy cost → GDP share feedback
-  energyCostSensitivity: 0.3,    // GDP share boost per 1.0 fossil share advantage
-
   // Robot/automation — ENDOGENOUS value-vs-cost adoption (no hard ceiling).
   // Replaces the old robotSaturation logistic cap (a speculative carrying
   // capacity with no literature anchor — see sources/ai-robotics-deployment-
@@ -545,7 +559,9 @@ export const demandDefaults: DemandParams = {
   robotDiffusionRate: 0.22,      // max adoption rate/yr at high profitability; calibrated so 2025 growth ≈ 14%/yr, inside IFR's observed 10-14%/yr (2015-2024)
   // JUDGMENT parameter (like production's structuralDecayHalfLife): the
   // integration-cost exponent theta is not independently sourced; it is
-  // calibrated so baseline 2100 density lands near the old default (~600/1000).
+  // originally calibrated so baseline 2100 density landed near the old
+  // default (~600/1000). The regional-allocator rescore raises the untuned
+  // baseline to ~1000/1000; theta is not silently refit to hide that result.
   // THE dominant late-century automation dial — see docs/SENSITIVITY.md.
   robotIntegrationExponent: 0.75,
   robotDepreciation: 0.10,       // ~10-12yr robot service life (IFR World Robotics book-depreciation convention)
@@ -561,18 +577,26 @@ export const demandDefaults: DemandParams = {
   // ~4x the 2035 IEA-high case, with 2030 forecasts diverging ~40x — see
   // sources/ai-robotics-deployment-ceilings.md). The brake is now economic: a
   // willingness-to-pay ceiling on the DC ELECTRICITY-BILL share of GDP (the
-  // power bill only — total DC spend incl. chips/capex is ~10x this). Default
+  // power bill only; the composite capital bill is now explicit below). Default
   // 0.05% of GDP ≈ 3x the 2025 revealed share (~0.015%: 500 TWh x ~$48/MWh /
   // $158T). A GDP-indexed demand ceiling, not a forecast: equilibrium load =
   // ceiling x GDP / LCOE, so richer + cheaper-power worlds host more compute.
   // An LCOE spike collapses the brake (buildout halts, stock persists) —
-  // correct physics for long-lived assets. GDP-NEUTRAL: the load is a pure
-  // electricity sink (aiWorkerEquivalentPerTWh=0 by default).
+  // correct physics for long-lived assets. The load remains a pure electricity
+  // sink in production (aiWorkerEquivalentPerTWh=0 by default), but its
+  // expansion and replacement now compete for the economy's investment pool.
   dataCenterPowerSpendCeiling: 0.0005,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
   dataCenterReferenceGDPpc: 15000,    // $ PPP per capita (global average ~2025)
+  // One composite asset for now: chips, servers, networking, cooling, backup
+  // power, and the datacenter shell. $15B per average GW is a deliberately
+  // simple judgment anchor, not a fitted industry estimate.
+  // A 15% blended replacement rate sits between short-lived accelerators
+  // (~4-6 years) and longer-lived buildings/electrical infrastructure.
+  dataCenterCapitalCostPerGW: 15,     // $B per average GW of annual load
+  dataCenterDepreciation: 0.15,       // fraction/year
 };
 
 // =============================================================================
@@ -775,6 +799,24 @@ function sectorFinalFactors(
   };
 }
 
+/**
+ * Convert an energy-expenditure burden into the same bounded GDP level
+ * damage used by the global production path. A persistent burden is a
+ * persistent level wedge, not a fresh growth penalty every year.
+ */
+function energyBurdenDamage(
+  burden: number,
+  params: EnergyBurdenParams
+): number {
+  const cappedBurden = Math.min(
+    Math.max(0, burden),
+    params.maxBurden
+  );
+  return cappedBurden > params.threshold
+    ? (cappedBurden - params.threshold) * params.elasticity
+    : 0;
+}
+
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
@@ -876,12 +918,6 @@ export const demandModule: Module<
         tier: 1 as const,
       },
     },
-    energyCostSensitivity: {
-      description: 'GDP share boost per unit fossil share advantage. Regions with cleaner grids gain GDP share.',
-      unit: 'fraction',
-      range: { min: 0, max: 1.0, default: 0.3 },
-      tier: 1 as const,
-    },
     robotDiffusionRate: {
       description: 'Max robot adoption rate per year at high profitability (diffusion/manufacturing-ramp limit). Calibrated so 2025 growth ~14%/yr, inside IFR observed 10-14%/yr.',
       unit: 'fraction/year',
@@ -889,7 +925,7 @@ export const demandModule: Module<
       tier: 1 as const,
     },
     robotIntegrationExponent: {
-      description: 'Integration-cost exponent theta: robot marginal cost scales with (density/anchor)^theta (installation, workflow redesign, scarce integrator labor). JUDGMENT parameter calibrated so baseline 2100 density lands near the old 600/1000 default — THE dominant late-century automation/GDP dial. See docs/SENSITIVITY.md.',
+      description: 'Integration-cost exponent theta: robot marginal cost scales with (density/anchor)^theta (installation, workflow redesign, scarce integrator labor). JUDGMENT parameter originally calibrated near the old 600/1000 default; the allocator rescore raises the untuned baseline to about 1000/1000. THE dominant late-century automation/GDP dial. See docs/SENSITIVITY.md.',
       unit: 'elasticity',
       range: { min: 0.3, max: 1.2, default: 0.75 },
       tier: 1 as const,
@@ -930,6 +966,18 @@ export const demandModule: Module<
       range: { min: 0, max: 1.0, default: 0.6 },
       tier: 1 as const,
     },
+    dataCenterCapitalCostPerGW: {
+      description: 'Composite chips, servers, networking, cooling, power, and facility cost per average GW of annual datacenter electricity load.',
+      unit: '$B/average GW',
+      range: { min: 0, max: 100, default: 15 },
+      tier: 1 as const,
+    },
+    dataCenterDepreciation: {
+      description: 'Blended annual replacement rate for the composite datacenter asset (short-lived chips plus longer-lived facilities).',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.5, default: 0.15 },
+      tier: 1 as const,
+    },
   },
 
   inputs: [
@@ -947,7 +995,9 @@ export const demandModule: Module<
     'laggedInterestRate',
     'robotLaborEquivalent',
     'cdrEnergy',
-    'regionalFossilShare',
+    'regionalEnergyBurden',
+    'regionalReliabilityFactor',
+    'laborOutputElasticity',
   ] as const,
 
   outputs: [
@@ -958,6 +1008,7 @@ export const demandModule: Module<
     'gdpPerWorking',
     'finalEnergyPerCapitaDay',
     'regional',
+    'regionalAllocation',
     'sectors',
     'fuels',
     'nonElectricEmissions',
@@ -973,6 +1024,7 @@ export const demandModule: Module<
     'robotProfitability',
     'fossilStockTWh',
     'dataCenterLoadTWh',
+    'dataCenterCapexSpend',
     'dataCenterPowerSpendShare',
   ] as const,
 
@@ -1068,6 +1120,14 @@ export const demandModule: Module<
         (params.dataCenterPowerSpendCeiling <= 0 || params.dataCenterPowerSpendCeiling > 0.05)) {
       errors.push('dataCenterPowerSpendCeiling must be in (0, 0.05]');
     }
+    if (params.dataCenterCapitalCostPerGW !== undefined &&
+        (params.dataCenterCapitalCostPerGW < 0 || params.dataCenterCapitalCostPerGW > 100)) {
+      errors.push('dataCenterCapitalCostPerGW must be in [0, 100]');
+    }
+    if (params.dataCenterDepreciation !== undefined &&
+        (params.dataCenterDepreciation < 0 || params.dataCenterDepreciation > 0.5)) {
+      errors.push('dataCenterDepreciation must be in [0, 0.5]');
+    }
 
     // Validate fuel price-path params
     if (params.fuels) {
@@ -1162,9 +1222,6 @@ export const demandModule: Module<
         };
       }
 
-      // Energy cost sensitivity
-      if (p.energyCostSensitivity !== undefined) merged.energyCostSensitivity = p.energyCostSensitivity;
-
       // Robot/automation params
       if (p.robotBaseline2025 !== undefined) merged.robotBaseline2025 = p.robotBaseline2025;
       if (p.robotDiffusionRate !== undefined) merged.robotDiffusionRate = p.robotDiffusionRate;
@@ -1183,6 +1240,8 @@ export const demandModule: Module<
       if (p.dataCenterGDPSensitivity !== undefined) merged.dataCenterGDPSensitivity = p.dataCenterGDPSensitivity;
       if (p.dataCenterReferenceLCOE !== undefined) merged.dataCenterReferenceLCOE = p.dataCenterReferenceLCOE;
       if (p.dataCenterReferenceGDPpc !== undefined) merged.dataCenterReferenceGDPpc = p.dataCenterReferenceGDPpc;
+      if (p.dataCenterCapitalCostPerGW !== undefined) merged.dataCenterCapitalCostPerGW = p.dataCenterCapitalCostPerGW;
+      if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
 
       return merged;
     }, partial);
@@ -1235,6 +1294,12 @@ export const demandModule: Module<
       fuelShares,
       sectorElectrification,
       previousEffectiveWorkers: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>, // Set on first step
+      previousRegionalDamageFactor: Object.fromEntries(
+        REGIONS.map(r => [r, 1])
+      ) as Record<Region, number>,
+      previousRegionalEnergyFactor: Object.fromEntries(
+        REGIONS.map(r => [r, 1])
+      ) as Record<Region, number>,
       previousUsefulEnergyPerWorker: 0, // Set after first year
       usefulWorkGrowthRate: 0,          // No growth in first year
       robotsPer1000: params.robotBaseline2025, // Initial robot adoption
@@ -1323,46 +1388,82 @@ export const demandModule: Module<
     let globalNonElec = 0;
     let globalServiceBase = 0;
 
-    // First pass: compute share adjustments
-    const shareAdjustments: Record<Region, number> = {} as Record<Region, number>;
-    let avgTfp = 0;
-    for (const region of REGIONS) {
-      const regionParams = params.regions[region];
-      const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
-      avgTfp += tfp * state.regions[region].gdpShare;
-    }
-
-    // GDP-weighted average fossil share (for energy cost feedback)
-    let avgFossilShareRegional = 0;
-    for (const region of REGIONS) {
-      avgFossilShareRegional += (inputs.regionalFossilShare?.[region] ?? 0.5) * state.regions[region].gdpShare;
-    }
-
-    for (const region of REGIONS) {
-      const regionParams = params.regions[region];
-      const effective = inputs.regionalEffectiveWorkers[region];
-      const prevEffective = state.previousEffectiveWorkers[region];
-
-      const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
-      const laborAdj = (yearIndex > 0 && prevEffective > 0)
-        ? 0.1 * ((effective - prevEffective) / prevEffective)
-        : 0;
-      const damageAdj = -(inputs.regionalDamages?.[region] ?? 0) * 0.5;
-
-      // Energy cost advantage: regions with lower fossil share have cheaper marginal energy
-      const fossilAdv = avgFossilShareRegional - (inputs.regionalFossilShare?.[region] ?? 0.5);
-      const energyCostAdj = params.energyCostSensitivity * fossilAdv;
-
-      shareAdjustments[region] = (tfp - avgTfp) + laborAdj + damageAdj + energyCostAdj;
-    }
-
-    // Update shares and normalize
+    // First pass: evolve regional output indices, then normalize them to the
+    // independently produced global GDP total. Each term is an accounting
+    // factor:
+    //   Y_r,t / Y_r,t-1 = TFP x labor^beta x Δclimate-level x Δenergy-level
+    // The old allocator added climate DAMAGE LEVEL and fossil SHARE to the
+    // growth rate every year. That made a dirty-but-cheap grid an annual
+    // productivity loss and compounded persistent damages forever.
     const rawShares: Record<Region, number> = {} as Record<Region, number>;
+    const currentDamageFactors = {} as Record<Region, number>;
+    const currentEnergyFactors = {} as Record<Region, number>;
+    const regionalAllocation = {} as Record<Region, RegionalAllocationDiagnostics>;
+    const laborElasticity = clamp(inputs.laborOutputElasticity ?? 0.15, 0, 1);
     let totalShares = 0;
+
     for (const region of REGIONS) {
-      rawShares[region] = state.regions[region].gdpShare * (1 + shareAdjustments[region]);
-      rawShares[region] = Math.max(0.01, rawShares[region]); // Floor at 1%
+      const regionParams = params.regions[region];
+      const damage = clamp(inputs.regionalDamages?.[region] ?? 0, 0, 0.95);
+      const damageFactor = 1 - damage;
+      const burden = Math.max(0, inputs.regionalEnergyBurden?.[region] ?? 0);
+      const reliabilityFactor = clamp(
+        inputs.regionalReliabilityFactor?.[region] ?? 1,
+        0.25,
+        1
+      );
+      const energyFactor =
+        (1 - energyBurdenDamage(burden, params.energyBurden)) * reliabilityFactor;
+
+      currentDamageFactors[region] = damageFactor;
+      currentEnergyFactors[region] = energyFactor;
+
+      let tfpFactor = 1;
+      let laborFactor = 1;
+      let climateFactorChange = 1;
+      let energyFactorChange = 1;
+
+      // The observed 2025 regional GDP table is an anchor, not a forecast
+      // transition. Capture its prevailing wedges without moving its shares.
+      if (yearIndex > 0) {
+        const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
+        tfpFactor = Math.max(0.01, 1 + tfp);
+
+        const effective = inputs.regionalEffectiveWorkers[region];
+        const prevEffective = state.previousEffectiveWorkers[region];
+        laborFactor = effective > 0 && prevEffective > 0
+          ? Math.pow(effective / prevEffective, laborElasticity)
+          : 1;
+
+        const previousDamageFactor = Math.max(
+          0.01,
+          state.previousRegionalDamageFactor[region] ?? damageFactor
+        );
+        const previousEnergyFactor = Math.max(
+          0.01,
+          state.previousRegionalEnergyFactor[region] ?? energyFactor
+        );
+        climateFactorChange = damageFactor / previousDamageFactor;
+        energyFactorChange = energyFactor / previousEnergyFactor;
+      }
+
+      const growthFactor =
+        tfpFactor * laborFactor * climateFactorChange * energyFactorChange;
+      rawShares[region] = Math.max(
+        Number.EPSILON,
+        state.regions[region].gdpShare * growthFactor
+      );
       totalShares += rawShares[region];
+
+      regionalAllocation[region] = {
+        tfpFactor,
+        laborFactor,
+        climateFactorChange,
+        energyFactorChange,
+        energyBurden: burden,
+        reliabilityFactor,
+        gdpShare: 0,
+      };
     }
 
     // Second pass: compute energy demand from regional GDP
@@ -1372,6 +1473,7 @@ export const demandModule: Module<
       const working = inputs.regionalWorking[region];
 
       const normalizedShare = rawShares[region] / totalShares;
+      regionalAllocation[region].gdpShare = normalizedShare;
       const newGdp = globalGdp * normalizedShare;
 
       // Compute growth rate for diagnostics
@@ -1551,6 +1653,20 @@ export const demandModule: Module<
     const dcEffectiveRate =
       params.dataCenterBaseGrowth * dcEnergyFactor * dcGDPFactor * dcBrake;
     const dataCenterLoadTWh = prevDataCenter * (1 + dcEffectiveRate);
+
+    // Composite datacenter capex: annual electricity load is the capacity
+    // proxy, where 1 average GW produces 8.76 TWh/year. Charge both net new
+    // capacity and replacement of the prior chips-plus-facility fleet. This
+    // does not repurchase the calibrated opening fleet: in 2025 it charges
+    // only that year's replacement plus the net load added during the step.
+    // Capital debits this flow with the same lag convention as robot capex.
+    const TWH_PER_AVERAGE_GW_YEAR = 8.76;
+    const dataCenterAdditionsTWh = Math.max(0, dataCenterLoadTWh - prevDataCenter);
+    const dataCenterReplacementTWh = params.dataCenterDepreciation * prevDataCenter;
+    const dataCenterCapexSpend =
+      ((dataCenterAdditionsTWh + dataCenterReplacementTWh) /
+        TWH_PER_AVERAGE_GW_YEAR) *
+      (params.dataCenterCapitalCostPerGW / 1000); // $B -> $T
 
     globalElec += dataCenterLoadTWh;
     globalTotalFinal += dataCenterLoadTWh;
@@ -1761,18 +1877,8 @@ export const demandModule: Module<
     const totalEnergyCost = electricityTotalCost + fuelCost;
     const energyBurden = totalEnergyCost / globalGdp;
 
-    // Cap burden at historical max (e.g., 1970s oil crisis peak)
-    const cappedBurden = Math.min(energyBurden, params.energyBurden.maxBurden);
-
-    // Energy burden damage: when burden exceeds threshold
-    let burdenDamage = 0;
-    if (cappedBurden > params.energyBurden.threshold) {
-      const excessBurden = cappedBurden - params.energyBurden.threshold;
-      // Linear damage. No maxDamage clamp: burden is already capped at
-      // maxBurden (0.14) upstream, so damage <= (0.14 - threshold) * elasticity
-      // = ~0.09 at defaults — the old 0.30 cap was structurally unreachable.
-      burdenDamage = excessBurden * params.energyBurden.elasticity;
-    }
+    // Same bounded level-damage function used by the regional allocator.
+    const burdenDamage = energyBurdenDamage(energyBurden, params.energyBurden);
 
     return {
       state: {
@@ -1780,6 +1886,8 @@ export const demandModule: Module<
         fuelShares: evolvedShares, // Persist evolved fuel shares
         sectorElectrification: newSectorElectrification, // Persist sector rates
         previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth
+        previousRegionalDamageFactor: currentDamageFactors,
+        previousRegionalEnergyFactor: currentEnergyFactors,
         previousUsefulEnergyPerWorker: usefulEnergyPerWorker, // For Ayres/Warr
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotsPer1000, // Persist for logistic adoption
@@ -1791,6 +1899,7 @@ export const demandModule: Module<
       },
       outputs: {
         regional: regionalOutputs,
+        regionalAllocation,
         electricityDemand: globalElec,
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,
@@ -1812,6 +1921,7 @@ export const demandModule: Module<
         robotProfitability,
         fossilStockTWh,
         dataCenterLoadTWh,
+        dataCenterCapexSpend,
         dataCenterPowerSpendShare,
       },
     };

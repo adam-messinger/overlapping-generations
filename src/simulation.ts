@@ -243,6 +243,7 @@ export interface YearResult {
 
   // Datacenter / AI compute
   dataCenterLoadTWh: number;
+  dataCenterCapexSpend: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
@@ -517,6 +518,9 @@ async function runCLI() {
   console.log(`Datacenter load 2025: ${result.results[idx2025].dataCenterLoadTWh.toFixed(0)} TWh`);
   console.log(`Datacenter load 2050: ${fmt2050(r => r.dataCenterLoadTWh.toFixed(0) + ' TWh')}`);
   console.log(`Datacenter load 2100: ${result.results[idx2100].dataCenterLoadTWh.toFixed(0)} TWh`);
+  console.log(`Datacenter capex 2025: $${result.results[idx2025].dataCenterCapexSpend.toFixed(2)}T`);
+  console.log(`Datacenter capex 2050: ${fmt2050(r => '$' + r.dataCenterCapexSpend.toFixed(2) + 'T')}`);
+  console.log(`Datacenter capex 2100: $${result.results[idx2100].dataCenterCapexSpend.toFixed(2)}T`);
 
   // Sector electrification
   console.log('\n=== Sector Electrification ===\n');

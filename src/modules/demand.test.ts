@@ -162,6 +162,95 @@ test('China GDP grows faster than OECD initially', () => {
   expect(chinaGrowth).toBeGreaterThan(oecdGrowth);
 });
 
+function allocatorInputs(overrides: Record<string, unknown> = {}) {
+  return {
+    ...getDemographicsInputs(0),
+    gdp: 158,
+    regionalDamages: Object.fromEntries(REGIONS.map(r => [r, 0])),
+    regionalEnergyBurden: Object.fromEntries(REGIONS.map(r => [r, 0.05])),
+    regionalReliabilityFactor: Object.fromEntries(REGIONS.map(r => [r, 1])),
+    laborOutputElasticity: 0.15,
+    ...overrides,
+  } as any;
+}
+
+function zeroTfpDemandParams() {
+  return demandModule.mergeParams({
+    regions: Object.fromEntries(REGIONS.map(r => [r, { tfpGrowth: 0 }])) as any,
+  });
+}
+
+test('regional allocator preserves the observed 2025 GDP anchor exactly', () => {
+  const params = demandModule.mergeParams({});
+  const state = demandModule.init(params);
+  const { outputs } = demandModule.step(
+    state,
+    allocatorInputs({
+      // Fossil mix is intentionally ignored by the allocator.
+      regionalFossilShare: Object.fromEntries(REGIONS.map((r, i) => [r, i / 7])),
+    }),
+    params,
+    2025,
+    0,
+  );
+  for (const region of REGIONS) {
+    expect(outputs.regional[region].gdp).toBeCloseTo(params.regions[region].gdp2025, 9);
+  }
+});
+
+test('persistent climate damage is a level wedge, not a repeated growth penalty', () => {
+  const params = zeroTfpDemandParams();
+  let state = demandModule.init(params);
+  const zeroDamage = Object.fromEntries(REGIONS.map(r => [r, 0]));
+  const indiaShock = { ...zeroDamage, india: 0.10 };
+
+  state = demandModule.step(
+    state, allocatorInputs({ regionalDamages: zeroDamage }), params, 2025, 0
+  ).state;
+  const shocked = demandModule.step(
+    state, allocatorInputs({ regionalDamages: indiaShock }), params, 2026, 1
+  );
+  const shockedShare = shocked.outputs.regionalAllocation.india.gdpShare;
+  const held = demandModule.step(
+    shocked.state, allocatorInputs({ regionalDamages: indiaShock }), params, 2027, 2
+  );
+
+  expect(shockedShare).toBeLessThan(params.regions.india.gdp2025 / 158);
+  expect(held.outputs.regionalAllocation.india.gdpShare).toBeCloseTo(shockedShare, 9);
+});
+
+test('regional energy burden changes GDP only when the burden changes', () => {
+  const params = zeroTfpDemandParams();
+  let state = demandModule.init(params);
+  const normal = Object.fromEntries(REGIONS.map(r => [r, 0.05]));
+  const chinaShock = { ...normal, china: 0.12 };
+
+  state = demandModule.step(
+    state, allocatorInputs({ regionalEnergyBurden: normal }), params, 2025, 0
+  ).state;
+  const shocked = demandModule.step(
+    state, allocatorInputs({ regionalEnergyBurden: chinaShock }), params, 2026, 1
+  );
+  const shockedShare = shocked.outputs.regionalAllocation.china.gdpShare;
+  const held = demandModule.step(
+    shocked.state, allocatorInputs({ regionalEnergyBurden: chinaShock }), params, 2027, 2
+  );
+  const recovered = demandModule.step(
+    held.state, allocatorInputs({ regionalEnergyBurden: normal }), params, 2028, 3
+  );
+
+  expect(shockedShare).toBeLessThan(params.regions.china.gdp2025 / 158);
+  expect(held.outputs.regionalAllocation.china.gdpShare).toBeCloseTo(shockedShare, 9);
+  expect(recovered.outputs.regionalAllocation.china.gdpShare)
+    .toBeCloseTo(params.regions.china.gdp2025 / 158, 9);
+});
+
+test('regional fossil share is no longer an allocator input', () => {
+  expect(demandModule.inputs.includes('regionalFossilShare' as any)).toBeFalse();
+  expect(demandModule.inputs.includes('regionalEnergyBurden')).toBeTrue();
+  expect(demandModule.inputs.includes('regionalReliabilityFactor')).toBeTrue();
+});
+
 test('China energy intensity declines faster than OECD (catch-up)', () => {
   const state10 = runYears(10).state;
   const state50 = runYears(50).state;
@@ -635,6 +724,11 @@ console.log('\n--- Datacenter / AI Compute ---\n');
 test('datacenter load initializes near 500 TWh in 2025', () => {
   const { outputs } = runYears(1);
   expect(outputs.dataCenterLoadTWh).toBeBetween(400, 700);
+  const expectedCapex = (
+    (outputs.dataCenterLoadTWh - demandDefaults.dataCenterBaseline2025) +
+    demandDefaults.dataCenterDepreciation * demandDefaults.dataCenterBaseline2025
+  ) / 8.76 * (demandDefaults.dataCenterCapitalCostPerGW / 1000);
+  expect(outputs.dataCenterCapexSpend).toBeCloseTo(expectedCapex, 9);
 });
 
 test('datacenter load grows over time', () => {
@@ -653,11 +747,36 @@ test('datacenter power-spend share equilibrates at the WTP ceiling', () => {
   expect(share).toBeGreaterThan(demandDefaults.dataCenterPowerSpendCeiling * 0.5);
 });
 
-test('datacenter ceiling param round-trips and validates', () => {
-  const merged = demandModule.mergeParams({ dataCenterPowerSpendCeiling: 0.001 });
+test('datacenter capex charges additions plus replacement each year', () => {
+  const first = runYears(1);
+  const second = runYears(2);
+  const additionsTWh = Math.max(
+    0,
+    second.outputs.dataCenterLoadTWh - first.outputs.dataCenterLoadTWh,
+  );
+  const replacementTWh =
+    demandDefaults.dataCenterDepreciation * first.outputs.dataCenterLoadTWh;
+  const expected = ((additionsTWh + replacementTWh) / 8.76) *
+    (demandDefaults.dataCenterCapitalCostPerGW / 1000);
+  expect(second.outputs.dataCenterCapexSpend).toBeCloseTo(expected, 9);
+  expect(second.outputs.dataCenterCapexSpend).toBeGreaterThan(0);
+});
+
+test('datacenter finance params round-trip and validate', () => {
+  const merged = demandModule.mergeParams({
+    dataCenterPowerSpendCeiling: 0.001,
+    dataCenterCapitalCostPerGW: 20,
+    dataCenterDepreciation: 0.2,
+  });
   expect(merged.dataCenterPowerSpendCeiling).toBe(0.001);
+  expect(merged.dataCenterCapitalCostPerGW).toBe(20);
+  expect(merged.dataCenterDepreciation).toBe(0.2);
   expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.1 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterCapitalCostPerGW: -1 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterCapitalCostPerGW: 101 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterDepreciation: -0.01 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterDepreciation: 0.51 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.0005 }).valid).toBeTrue();
 });
 

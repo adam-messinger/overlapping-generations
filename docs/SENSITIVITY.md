@@ -1,23 +1,30 @@
 # Sensitivity of headline conclusions to the efficiency dial, γ, and damages
 
-> **The dominant GDP-level dial is `serviceEfficiencyGrowth`** (the effective
-> service-efficiency growth rate, coupled at runtime to demand's GDP-weighted
-> intensity decline; default 1.29%/yr). It contributes more to GDP growth
-> than any single production elasticity, and it is a soft residual — ~1/3 of
-> it is "structural change" not independently pinned. Sweeping the effective
-> rate 0.77 → 1.29 → 1.81%/yr swings GDP 2100 **$794T → $1,151T → $1,423T**
-> (~1.8×). This is a genuine multiple-equilibria exposure: the model supports
-> a wide range of self-consistent 2100 GDP worlds selected by a rate that no
-> observable pins to better than a few tenths of a pp/yr. **Report GDP 2100
-> as a band (~$0.8–1.4Q), not a point.** The 2026 accounting reconciliation
-> and the efficiency-series coupling reduced this exposure (it was ~5× before
-> the coupling — higher efficiency used to *destroy* GDP through an
-> uncoupled η ceiling) but did not remove it: with loop gain ≈ α+γ ≈ 0.8, any
-> growth-side residual is amplified ~5× into the level.
+> **July 22, 2026 composite-DC-capex rescore:** the earlier **$0.8–1.4Q**
+> headline band and the July 21 allocator-only figures are superseded. The
+> corrected allocator no longer gives clean grids a
+> recurring GDP-share bonus or compounds an unchanged climate-damage level as
+> a new annual growth penalty. Restoring output to more energy-intensive
+> emerging regions strengthens the model's energy→output feedback: baseline
+> GDP in 2100 is now **$1.898Q** after explicitly charging chips and
+> datacenter facilities to the investment pool. The refreshed γ×damage grid
+> spans **$448T–$1.972Q**, and a ±40% sweep around the forward effective
+> service-efficiency rate (0.80% → 1.33% → 1.86%/yr) spans roughly
+> **$500T → $1.90Q → $7.87Q**. That upper path is an unstable growth-loop
+> diagnostic, not a forecast. Absolute late-century GDP must not be reported
+> as a calibrated point or as the former narrow band.
+>
+> **The dominant GDP-level dial remains `serviceEfficiencyGrowth`** (the
+> effective service-efficiency rate, coupled at runtime to demand's
+> GDP-weighted intensity decline). About one-third is structural change that
+> is not independently pinned. With loop gain ≈ α+γ ≈ 0.8, a small
+> growth-side residual is amplified strongly into the level; the allocator
+> correction reveals that exposure instead of suppressing it through regional
+> GDP shares.
 >
 > **A co-equal second dial is `robotIntegrationExponent`** (θ, the
 > integration-cost exponent in the endogenous robot deployment rule; default
-> 0.75), which swings GDP 2100 ~1.6× over its plausible range. It replaced the
+> 0.75), which now swings GDP 2100 ~1.9× over its plausible range. It replaced the
 > old hard `robotSaturation` ceiling: automation is now deploy-while-profitable
 > (value vs cost), and θ — a JUDGMENT parameter — sets how fast integration
 > costs rise with density (see the θ section below and
@@ -41,19 +48,16 @@ consequential, least-constrained parameters:
 
 `scripts/gamma-damage-sensitivity.ts` runs the full simulation over the 4×4
 grid and regenerates `scripts/gamma-damage-sensitivity.md` — **that generated
-file is the source of truth for all exact figures**; numbers quoted below are
-illustrative, from the July 2026 run *after* the demand-side corrections
-(efficiency-corrected electricity accounting, IEA sector shares, historical
-intensity decline, retail pricing), and are not updated automatically when
-the model changes. Qualitative summary:
+file is the source of truth for all exact grid figures**. It was regenerated
+on July 22, 2026 after adding composite datacenter capex. Qualitative summary:
 
 ## What is robust across the entire grid
 
-The **energy transition itself barely moves**. Across γ ∈ [0.08, 0.55] and
-damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share stays in a narrow band
-(8.1–10.6% in the July 2026 post-round-2 run, reaching ~0 by 2075),
-electrification 2050 is pinned at ~62%, warming 2100 varies by only
-~0.04 °C, and the peak energy burden stays at ~6.7% of GDP. NOTE: after the 2026
+The **energy transition itself moves much less than GDP**. Across γ ∈
+[0.08, 0.55] and damages ∈ [DICE-2023, 6× DICE], the 2050 fossil share
+stays in a 9.5–13.2% band, electrification 2050 stays at 60.2–60.5%, warming
+2100 varies by only
+~0.10 °C, and the peak energy burden stays at ~6.7% of GDP. NOTE: after the 2026
 emissions release valve (signed electrification pressure with reversal
 hysteresis) and the rising airborne fraction, the scenario space spans
 ~1.55C (ssp1-19) to ~3.3C (ssp5-85) — a genuine tail exists. The
@@ -79,31 +83,27 @@ That spread was substantially an accounting artifact — previously-electrified
 demand was counted at fuel-scale TWh, inflating useful-energy growth that γ
 then amplified into GDP.
 
-After the 2026 accounting reconciliation (automation energy as
-intermediate consumption; one efficiency series shared between demand's
-intensity decline and production's η — see the reconciliation commit and
-`scripts/growth-backcast.md`), the γ×damage grid spans **$499T–$1,183T**,
-with the default cell at $1,151T (~2.8%/yr to 2050, ~2.6%/yr after). The
-earlier "stagnation baseline" (~0.7%/yr) was the net of two opposing
-accounting artifacts (automation electricity booked as productive exergy;
-intensity decline booked as lost input). GDP levels remain the model's
-weakest output — the growth loop amplifies residual dials ~5× (loop gain
-α+γ ≈ 0.8) and honest uncertainty spans roughly $499T–$1,183T across the
-grid alone, wider still once serviceEfficiencyGrowth (the dominant dial,
-top of this doc), demographics, and the intensity-decline residual are
-varied. Treat point GDP values as path illustrations, not forecasts.
+After the allocator and composite-DC-capex corrections, the γ×damage grid
+spans **$448T–$1,972T**, with the default cell at $1,898T (~3.4%/yr over
+2025–2100). The mainstream cost-share-γ/default-damage cell is $511T. GDP
+levels remain the model's weakest output: restoring regional output changes
+energy demand, which the Ayres-Warr loop then amplifies back into output.
+This is much wider once `serviceEfficiencyGrowth`, demographics, and the
+intensity-decline residual are varied. Treat point GDP values as path
+illustrations, not forecasts.
 
-**The damage coefficient still matters little — but only because warming
-stays low.** Even 6× DICE damages cut 2100 GDP by only ~15%, because the
-model's endogenous transition holds warming near 2.6 °C where any quadratic
-is small. This is conditional robustness: in high-sensitivity/tipping
+**The damage coefficient matters less than γ, but is no longer negligible.**
+At default γ, moving from the default coefficient to ~6× DICE cuts 2100 GDP
+from $1.898Q to $1.247Q (~34%); at mainstream γ the reduction is ~12%.
+This remains conditional on the endogenous transition holding warming near
+2.6 °C. In high-sensitivity/tipping
 scenarios where warming runs higher, the damage-coefficient choice becomes
 first-order. Damage-side conclusions should always be checked against the
 `high-sensitivity` and `climate-cascade` scenarios, not just the baseline.
 
 ## Guidance
 
-- Report GDP-level results with γ stated; the γ spread is now modest but the
+- Report GDP-level results with γ stated; the γ spread is large and the
   *level* inherits the demand-side calibration (intensity decline, sector
   efficiency multipliers) more than any single elasticity.
 - Transition-shape results (shares, timing, capacity mix) may be reported
@@ -127,21 +127,20 @@ Sweep (baseline, battery floor held at 20; the battery floor is **inert** —
 
 | solar `softFloor` | Solar LCOE 2100 | Gen 2100 (TWh) | Fossil 2075 | Warming 2100 | GDP 2100 |
 |---|---|---|---|---|---|
-| **6** (aggressive) | **11.8** | 252,284 | 0.001 | 2.585 | 1,135 |
-| 9 | 14.8 | 249,320 | 0.001 | 2.595 | 1,129 |
-| **12 (default)** | **18.0** | 250,952 | 0.001 | 2.616 | 1,151 |
-| 18 | 24.2 | 241,974 | 0.001 | 2.626 | 1,126 |
-| **24** (high) | **30.1** | 244,211 | **0.006** | 2.648 | 1,142 |
+| **6** (aggressive) | **13.2** | 587,244 | 0.005 | 2.619 | 1,984 |
+| 9 | 16.8 | 567,757 | 0.005 | 2.630 | 1,954 |
+| **12 (default)** | **20.3** | 540,300 | 0.005 | 2.632 | 1,898 |
+| 18 | 27.1 | 511,857 | 0.011 | 2.662 | 1,845 |
+| **24** (high) | **33.8** | 506,500 | **0.025** | 2.725 | 1,856 |
 
 Two honest takeaways:
 
 1. **The floor governs the reported *price*, not the *transition*.** Terminal
-   solar LCOE tracks the floor 1:1 (11.8 → 30.1 across the band), but generation,
-   GDP, and warming barely move — the transition completes below the floor either
-   way (fossil ≈ 0 by 2075). Lowering the floor (which the evidence favors)
-   barely helps because clean is already dominant; *raising* it grows the
-   residual fossil tail (fossil 2075 rises to 0.6% at floor 24) and nudges
-   warming up ~0.03°C.
+   solar LCOE tracks the floor closely (12.8 → 33.3 across the band), but generation,
+   GDP, and warming move much less than the price, but no longer negligibly:
+   generation varies ~16%, GDP ~8%, and warming ~0.11°C across the sweep.
+   Raising the floor grows the residual fossil tail (fossil 2075 rises to
+   2.4% at floor 24).
 2. **Direction robust, terminal cost soft.** Report the transition shape without
    floor caveats, but treat the *terminal clean-energy price* as a band, biased
    toward the cheaper end. The default $12 is more likely too high than too low.
@@ -156,18 +155,21 @@ carrying capacity with no fleet forecast behind it) has been replaced by an
 integration costs rising with density, capital competition via the interest
 rate, and energy price — replaces the number. θ (default 0.75) is a
 **JUDGMENT parameter** (like `structuralDecayHalfLife`): how fast integration
-costs rise with density is not independently sourced; the default is
-calibrated so baseline 2100 density lands near the old default (~540/1,000).
+costs rise with density is not independently sourced; the default was
+originally calibrated so baseline 2100 density landed near the old default
+(~540/1,000). The allocator correction raises the untuned default to
+~998/1,000 before DC capital was charged; the composite-capex rescore yields
+~922/1,000. θ has not been silently refit to offset either correction.
 
 Sweep (baseline, post-endogenization):
 
 | θ | Robots 2100 (/1,000) | GDP 2100 | Gen 2100 (TWh) | WACC 2075 | Warming 2100 |
 |---|---|---|---|---|---|
-| 0.6 | 2,442 | 1,600 | 468,617 | 0.097 | 2.62 |
-| **0.75 (default)** | **541** | **1,134** | 272,487 | 0.092 | 2.60 |
-| 0.9 | 195 | 988 | 223,247 | 0.090 | 2.59 |
+| 0.6 | 4,591 | 2,938 | 937,522 | 0.078 | 2.69 |
+| **0.75 (default)** | **922** | **1,898** | 540,300 | 0.071 | 2.63 |
+| 0.9 | 304 | 1,567 | 437,791 | 0.069 | 2.61 |
 
-- **GDP 2100 swings ~1.6× across θ ∈ [0.6, 0.9]** — the same leverage the old
+- **GDP 2100 swings ~1.9× across θ ∈ [0.6, 0.9]** — the same leverage the old
   ceiling had, but the dial now has an economic interpretation (integration/
   adjustment-cost curvature) instead of being a bare fleet count, and the
   *near-term* path is pinned independently (IFR pace + the π(2025) ∈ [2, 3.5]
@@ -177,7 +179,31 @@ Sweep (baseline, post-endogenization):
   β would freeze deployment entirely) and `robotDiffusionRate` (0.22, sets
   the near-term pace only).
 - **Report late-century GDP as explicitly conditional on θ**; treat automation
-  density as a band, not a forecast. (The companion datacenter brake
-  `dataCenterPowerSpendCeiling` is GDP-neutral — a pure electricity sink —
-  and needs no GDP caveat; it sets the generation/emissions ledger, with
-  equilibrium DC load = ceiling × GDP / LCOE.)
+  density as a band, not a forecast.
+
+Datacenter demand is no longer GDP-neutral. The demand brake still sets load
+through `dataCenterPowerSpendCeiling` (equilibrium load = ceiling × GDP /
+LCOE), but the composite chips-plus-facility fleet now has an explicit gross
+investment flow:
+
+```
+average GW = annual load TWh / 8.76
+DC capex = (net load additions + depreciation × prior load)
+           / 8.76 × dataCenterCapitalCostPerGW
+```
+
+The default `dataCenterCapitalCostPerGW = $15B/average GW` and
+`dataCenterDepreciation = 0.15/year` are **JUDGMENT parameters**. They combine
+accelerators, servers, networking, cooling/electrical plant, and the building
+into one asset; they do not claim that all components have the same life. The
+flow is debited from the same investment pool as energy, CDR, and robots.
+Leases and SPV financing therefore no longer make the real resource cost
+disappear, but their debt ownership and debt-service schedules are not yet
+modeled.
+
+Baseline rescore (July 2026): DC capex is about $0.24T in 2025, $0.42T in
+2030, $1.87T in 2050, and $12.88T in 2100. Relative to setting the composite
+capital cost to zero, GDP is 0.8% lower in 2050 and 5.4% lower in 2100. A
+simple cost sweep at the default 15% replacement rate gives GDP 2100 of
+$1,949T / $1,898T / $1,799T for $7.5B / $15B / $30B per average GW. Report
+late-century output as conditional on these finance assumptions too.

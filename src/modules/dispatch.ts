@@ -216,6 +216,9 @@ export interface DispatchOutputs {
   /** Unmet demand, if any (TWh) - GLOBAL */
   shortfall: number;
 
+  /** Share of required generation left unserved by region (0-1) */
+  regionalShortfallRate: Record<Region, number>;
+
   /** Fossil share of generation (fraction) - GLOBAL */
   fossilShare: number;
 
@@ -483,6 +486,7 @@ export const dispatchModule: Module<
     'electricityEmissions',
     'regionalEmissions',
     'shortfall',
+    'regionalShortfallRate',
     'fossilShare',
     'regionalFossilShare',
     'curtailmentTWh',
@@ -526,6 +530,7 @@ export const dispatchModule: Module<
       electricityEmissions: 'number',
       regionalEmissions: 'record',
       shortfall: 'number',
+      regionalShortfallRate: 'record',
       fossilShare: 'number',
       regionalFossilShare: 'record',
       curtailmentTWh: 'number',
@@ -598,6 +603,7 @@ export const dispatchModule: Module<
     const regionalGridIntensity: Record<Region, number> = {} as any;
     const regionalEmissions: Record<Region, number> = {} as any;
     const regionalFossilShare: Record<Region, number> = {} as any;
+    const regionalShortfallRate: Record<Region, number> = {} as any;
 
     const longStorageRegional = inputs.longStorageRegional ??
       Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
@@ -628,6 +634,10 @@ export const dispatchModule: Module<
       regionalGridIntensity[region] = regionResult.gridIntensity;
       regionalEmissions[region] = regionResult.electricityEmissions;
       regionalFossilShare[region] = regionResult.fossilShare;
+      const requiredGeneration = regionResult.totalGeneration + regionResult.shortfall;
+      regionalShortfallRate[region] = requiredGeneration > 0
+        ? regionResult.shortfall / requiredGeneration
+        : 0;
     }
 
     // Aggregate global totals
@@ -674,6 +684,7 @@ export const dispatchModule: Module<
         electricityEmissions: globalElectricityEmissions,
         regionalEmissions,
         shortfall: globalShortfall,
+        regionalShortfallRate,
         fossilShare: globalFossilShare,
         regionalFossilShare,
         curtailmentTWh: globalCurtailmentTWh,

@@ -131,6 +131,17 @@ test('battery cost calculated correctly', () => {
   expect(outputs.batteryCost).toBeBetween(50, 200);
 });
 
+test('regional LCOE output exposes the prices used for regional investment', () => {
+  const { outputs } = runYears(1);
+  for (const region of REGIONS) {
+    expect(outputs.regionalLCOEs[region].solar).toBeGreaterThan(0);
+    expect(outputs.regionalLCOEs[region].gas).toBeGreaterThan(0);
+  }
+  // Higher financing frictions make SSA solar costlier than OECD solar.
+  expect(outputs.regionalLCOEs.ssa.solar)
+    .toBeGreaterThan(outputs.regionalLCOEs.oecd.solar);
+});
+
 // --- Learning Curves ---
 
 console.log('\n--- Learning Curves ---\n');
@@ -491,6 +502,7 @@ test('module declares correct inputs', () => {
 test('module declares correct outputs', () => {
   expect(energyModule.outputs.length).toBeGreaterThan(0);
   expect(energyModule.outputs.includes('lcoes')).toBeTrue();
+  expect(energyModule.outputs.includes('regionalLCOEs')).toBeTrue();
   expect(energyModule.outputs.includes('capacities')).toBeTrue();
   expect(energyModule.outputs.includes('regionalCapacities')).toBeTrue();
 });

@@ -1,12 +1,14 @@
 # AI Compute & Robotics: What Bounds Deployment Through 2050?
 
-Verified literature review (deep-research pass, 2026). Evidence base for the
-model's two automation ceilings — `robotSaturation` (robots per 1,000 workers)
-and `dataCenterSaturation` (AI/datacenter TWh/yr).
+Verified literature review (deep-research pass, 2026). This began as the
+evidence audit for the model's former hard automation ceilings —
+`robotSaturation` (robots per 1,000 workers) and `dataCenterSaturation`
+(AI/datacenter TWh/yr) — and now documents their endogenous replacements.
 
-Provenance: 23 sources; 22 of 25 extracted claims survived 3-vote adversarial
-verification (3 refuted, noted). **Coverage is deliberately asymmetric** — the
-AI-energy evidence is strong and current; the robotics-fleet and
+Original provenance: 23 sources; 22 of 25 extracted claims survived 3-vote
+adversarial verification (3 refuted, noted). The 2026 financing addendum uses
+primary filings plus Moody's and BIS. **Coverage is deliberately asymmetric**
+— the AI-energy evidence is strong and current; the robotics-fleet and
 value-vs-cost evidence is thin or refuted. Confidence markers throughout.
 
 ---
@@ -97,11 +99,12 @@ Maximum-Power-Principle intuition:
 
 ## 5. Implications for the model
 
-- **`dataCenterSaturation` (6,000 TWh)** — anchor the near term to IEA
-  (415 today → 945 in 2030 → 700–1,700 in 2035-high). 6,000 is ~4× the 2035 high
-  case: a *plausible-high 2050+* backstop, not a forecast — flag the **40×
-  uncertainty**. Low stakes: this output is **GDP-neutral** in the model (a pure
-  electricity sink; lifting it raises generation/WACC, not GDP).
+- **Datacenter demand** — anchor the near term to IEA (415 today → 945 in
+  2030 → 700–1,700 in 2035-high) and flag the **40× uncertainty**. The former
+  6,000-TWh hard ceiling has been replaced by an economic electricity-bill
+  brake. Datacenter load is no longer GDP-neutral: expansion and replacement
+  of the composite chips-plus-facility fleet now draw from the shared capital
+  pool.
 - **`robotSaturation` (600 per 1,000 workers)** — the exposed one. It is
   **~600× today's global average (~1/1,000 all workers) and ~35× Korea's current
   whole-economy frontier (~15/1,000 all workers)** — a humanoids-saturate-all-
@@ -117,12 +120,40 @@ Maximum-Power-Principle intuition:
   unprofitable fleets decay. Datacenters: LCOE/GDP demand braked by a
   willingness-to-pay ceiling on the electricity-bill share of GDP
   (`dataCenterPowerSpendCeiling`; equilibrium load = ceiling × GDP / LCOE).
+  A second implementation pass adds `dataCenterCapexSpend`: annual load is
+  converted to average GW (8.76 TWh/GW-year), and net additions plus blended
+  replacement are priced as one composite asset. The default $15B/average-GW
+  cost and 15% replacement rate are transparent judgment parameters, not a
+  fitted industry estimate.
   Implementation also surfaced and fixed a phantom-load artifact: CDR
   electricity was subtracted from productive energy without being demand the
   energy system served or priced. See `src/modules/demand.ts` (deployment
   rules), `docs/SENSITIVITY.md` (θ sweep), and the three commits
   "cdr: CDR electricity is real demand…", "demand: replace robot logistic
-  ceiling…", "demand: replace datacenter TWh ceiling…".
+  ceiling…", "demand: replace datacenter TWh ceiling…". The capex pass keeps
+  chips and facilities together deliberately; separating accelerators,
+  buildings, utilization, and financing is future work.
+
+## 6. Datacenter financing evidence and accounting boundary
+
+- Hyperscaler infrastructure obligations are much larger than balance-sheet
+  debt alone suggests. Moody's counted about **$969B of undiscounted future
+  lease payments** across the five largest US hyperscalers at year-end 2025,
+  including about **$662B for leases that had not commenced**. It also notes
+  hardware lives around 4–6 years versus traditional datacenter leases around
+  10–15 years. This supports a blended replacement parameter, not one literal
+  asset life.
+- Meta's 2026 Q1 filing illustrates the boundary: it disclosed $182.88B of
+  uncommenced lease obligations and $237.67B of non-cancelable contractual
+  commitments, largely for cloud capacity, servers/networking, and
+  datacenters. The same filing describes a venture with about $27B of expected
+  development cost, leases, and residual-value guarantees.
+- BIS describes SPV/lease structures as a form of shadow borrowing. For the
+  global real-resource model, owned capex, leases, and SPV-funded construction
+  should therefore all consume investable resources. The first-pass line does
+  that. It does **not** yet assign the associated liability to a hyperscaler,
+  bank, private-credit fund, or household balance sheet, and it does not add a
+  dedicated DC interest-service flow.
 
 ---
 
@@ -137,6 +168,13 @@ Maximum-Power-Principle intuition:
 - IEA-4E (2025), *Data Centre Energy Use: Critical Review of Models and
   Results* —
   https://www.iea-4e.org/wp-content/uploads/2025/05/Data-Centre-Energy-Use-Critical-Review-of-Models-and-Results.pdf
+- Moody's Ratings (2026), *Hyperscaler lease commitments surge...* —
+  https://dkf1ato8y5dsg.cloudfront.net/uploads/52/504/1-sector-in-depth-accounting-us-hyperscalers-23feb2026-pbc-1467708.pdf
+- Meta Platforms (2026), Q1 Form 10-Q —
+  https://www.sec.gov/Archives/edgar/data/1326801/000162828026028526/meta-20260331.htm
+- Bank for International Settlements (2026), *AI investment and the rise of
+  shadow borrowing* —
+  https://www.bis.org/publ/qtrpdf/r_qt2603u.htm
 - IFR (2024), *World Robotics 2024* / robot-density release —
   https://ifr.org/ifr-press-releases/news/global-robot-density-in-factories-doubled-in-seven-years
 - Acemoglu & Restrepo (2017), *Secular Stagnation? The Effect of Aging on

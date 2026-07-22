@@ -116,6 +116,8 @@ interface CapitalInputs {
   cdrSpend?: number;
   /** Realized robot fleet capex $T (from demand, lagged). Unwired fallback: 0 (free robots — pre-ledger behavior) */
   robotCapexSpend?: number;
+  /** Realized composite chips + datacenter capex $T (from demand, lagged). Unwired fallback: 0 */
+  dataCenterCapexSpend?: number;
   // From demographics (per region)
   regionalYoung: Record<Region, number>;
   regionalWorking: Record<Region, number>;
@@ -463,6 +465,7 @@ export const capitalModule: Module<
     'energyCapexSpend',
     'cdrSpend',
     'robotCapexSpend',
+    'dataCenterCapexSpend',
   ] as const,
 
   outputs: [
@@ -851,7 +854,9 @@ export const capitalModule: Module<
     const realizedEnergyCapex = inputs.energyCapexSpend ?? energyInvestment;
     const realizedCdrSpend = inputs.cdrSpend ?? 0;
     const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
-    const totalRealizedSpend = realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex;
+    const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
+    const totalRealizedSpend =
+      realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
     // When spends exceed the pool, generalInvestment floors at 0 and the
     // overflow is implicitly unfinanced — exposed as an output so runs can
     // detect a silently binding floor instead of hiding it.

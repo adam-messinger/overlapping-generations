@@ -28,7 +28,6 @@ import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './domain-types.js';
-import { GDP_SHARES } from './primitives/distribute.js';
 import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
 
 // =============================================================================
@@ -56,7 +55,11 @@ export const ALL_MODULES: AnyModule[] = [
  * Build transforms with proper parameter access.
  * Closure captures merged energy params for carbonPrice/regionalCarbonPrice.
  */
-function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
+function buildTransforms(
+  mergedEnergyParams: any,
+  mergedProductionParams: any,
+  mergedDemandParams: any
+) {
   // Mutable closure: captures gdpPerCapita2025 on first year
   let capturedGdpPerCapita2025 = 0;
 
@@ -115,6 +118,125 @@ function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
     robotLaborEquivalent: {
       fn: () => mergedProductionParams.robotLaborEquivalent,
       dependsOn: [],
+    },
+
+    // Regional GDP allocation uses the same labor exponent as aggregate
+    // production rather than a separate heuristic coefficient.
+    laborOutputElasticity: {
+      fn: () => mergedProductionParams.beta,
+      dependsOn: [],
+    },
+
+    // Regional energy expenditure as a share of regional GDP. This uses the
+    // generation actually served, region-specific financing/carbon/resource
+    // LCOEs, retail delivery, and the common delivered-fuel price. It is a
+    // lag source because demand determines regional GDP before energy and
+    // dispatch run; bootstrapLags makes the 2025 anchor self-consistent.
+    regionalEnergyBurdenComputed: {
+      fn: (outputs: Record<string, any>) => {
+        const regional = requireOutput<Record<Region, any>>(
+          outputs, 'regional', 'regionalEnergyBurdenComputed'
+        );
+        const generation = requireOutput<Record<Region, Record<string, number>>>(
+          outputs, 'regionalGeneration', 'regionalEnergyBurdenComputed'
+        );
+        const regionalLCOEs = requireOutput<Record<Region, Record<EnergySource, number>>>(
+          outputs, 'regionalLCOEs', 'regionalEnergyBurdenComputed'
+        );
+        const solarPlusBatteryLCOE = requireOutput<number>(
+          outputs, 'solarPlusBatteryLCOE', 'regionalEnergyBurdenComputed'
+        );
+        const fuelCost = requireOutput<number>(
+          outputs, 'fuelCost', 'regionalEnergyBurdenComputed'
+        );
+        const nonElectricEnergy = requireOutput<number>(
+          outputs, 'nonElectricEnergy', 'regionalEnergyBurdenComputed'
+        );
+        const sectors = requireOutput<Record<string, any>>(
+          outputs, 'sectors', 'regionalEnergyBurdenComputed'
+        );
+
+        let deliveryWeight = 0;
+        let deliveryCostSum = 0;
+        for (const sector of ['transport', 'buildings', 'industry'] as const) {
+          const rate = sectors[sector]?.electrificationRate ?? 0;
+          const weight = mergedDemandParams.sectors[sector].share * rate;
+          deliveryWeight += weight;
+          deliveryCostSum += weight *
+            mergedDemandParams.sectors[sector].electricityDeliveryCost;
+        }
+        const deliveryCost = deliveryWeight > 0
+          ? deliveryCostSum / deliveryWeight
+          : 0;
+        const fuelCostPerTWh = nonElectricEnergy > 0
+          ? fuelCost / nonElectricEnergy
+          : 0;
+
+        const result = {} as Record<Region, number>;
+        for (const region of REGIONS) {
+          const regionGeneration = generation[region] ?? {};
+          let electricityCost = 0;
+          let servedGeneration = 0;
+          for (const source of ENERGY_SOURCES) {
+            // Battery energy is represented by solarPlusBattery; lcoes.battery
+            // is $/kWh of capacity, not a generation LCOE.
+            if (source === 'battery') continue;
+            const generated = regionGeneration[source] ?? 0;
+            servedGeneration += generated;
+            electricityCost += generated * (regionalLCOEs[region]?.[source] ?? 50);
+          }
+          const solarStorageGeneration = regionGeneration.solarPlusBattery ?? 0;
+          servedGeneration += solarStorageGeneration;
+          electricityCost += solarStorageGeneration * solarPlusBatteryLCOE;
+          electricityCost += servedGeneration * deliveryCost;
+
+          const regionalFuelCost =
+            (regional[region]?.nonElectricEnergy ?? 0) * fuelCostPerTWh;
+          const regionalGdp = regional[region]?.gdp ?? 0;
+          result[region] = regionalGdp > 0
+            ? electricityCost / 1e6 / regionalGdp + regionalFuelCost / regionalGdp
+            : 0;
+        }
+        return result;
+      },
+      dependsOn: [
+        'regional', 'regionalGeneration', 'regionalLCOEs',
+        'solarPlusBatteryLCOE', 'fuelCost', 'nonElectricEnergy', 'sectors',
+      ],
+    },
+
+    // Translate unserved regional electricity into a bounded output-level
+    // factor using the aggregate production function's useful-energy
+    // elasticity and exergy weights. A steady shortfall remains a level
+    // loss; only a change in this factor changes regional growth.
+    regionalReliabilityFactorComputed: {
+      fn: (outputs: Record<string, any>) => {
+        const regional = requireOutput<Record<Region, any>>(
+          outputs, 'regional', 'regionalReliabilityFactorComputed'
+        );
+        const shortfallRate = requireOutput<Record<Region, number>>(
+          outputs, 'regionalShortfallRate', 'regionalReliabilityFactorComputed'
+        );
+        const result = {} as Record<Region, number>;
+        for (const region of REGIONS) {
+          const electricity = Math.max(0, regional[region]?.electricityDemand ?? 0);
+          const nonElectric = Math.max(0, regional[region]?.nonElectricEnergy ?? 0);
+          const electricUseful = electricity * mergedProductionParams.electricExergy;
+          const thermalUseful = nonElectric * mergedProductionParams.thermalExergy;
+          const totalUseful = electricUseful + thermalUseful;
+          const electricityUsefulShare = totalUseful > 0 ? electricUseful / totalUseful : 0;
+          const lostUsefulShare = Math.min(
+            0.95,
+            Math.max(0, shortfallRate[region] ?? 0) * electricityUsefulShare
+          );
+          result[region] = Math.max(
+            0.25,
+            Math.pow(1 - lostUsefulShare, mergedProductionParams.gamma)
+          );
+        }
+        return result;
+      },
+      dependsOn: ['regional', 'regionalShortfallRate'],
     },
 
     // Resources needs transport electrification for EV battery mineral demand
@@ -194,11 +316,15 @@ function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
       fn: (outputs: Record<string, any>) => {
         const investment = requireOutput<number>(outputs, 'investment', 'regionalInvestment');
         const regionalSavings = requireOutput<Record<Region, number>>(outputs, 'regionalSavings', 'regionalInvestment');
-        // Weight by savings rate × GDP share (proxy for savings amount)
+        const regional = requireOutput<Record<Region, any>>(
+          outputs, 'regional', 'regionalInvestment'
+        );
+        // Savings are a fraction of income, so investable funds scale with
+        // current regional GDP—not a fixed 2025 market-GDP lookup table.
         let totalWeight = 0;
         const weights: Record<Region, number> = {} as any;
         for (const r of REGIONS) {
-          weights[r] = (regionalSavings[r] ?? 0) * GDP_SHARES[r];
+          weights[r] = (regionalSavings[r] ?? 0) * Math.max(0, regional[r]?.gdp ?? 0);
           totalWeight += weights[r];
         }
         const result: Record<Region, number> = {} as any;
@@ -207,7 +333,7 @@ function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
         }
         return result;
       },
-      dependsOn: ['investment', 'regionalSavings'],
+      dependsOn: ['investment', 'regionalSavings', 'regional'],
     },
 
     // Regional carbon prices from energy params
@@ -280,15 +406,11 @@ function buildTransforms(mergedEnergyParams: any, mergedProductionParams: any) {
   };
 }
 
-/**
- * Default capacity factors for totalGeneration and regionalFossilShare derivation.
- */
+/** Default capacity factors for the initial total-generation lag. */
 const DEFAULT_CAPACITY_FACTORS: Record<EnergySource, number> = {
   solar: 0.20, wind: 0.30, gas: 0.50, coal: 0.50,
   nuclear: 0.83, hydro: 0.38, battery: 0,
 };
-
-const FOSSIL_SOURCES: EnergySource[] = ['gas', 'coal'];
 
 /**
  * Build lag configurations, deriving initial values from params where possible.
@@ -312,10 +434,8 @@ function buildLags(params: SimulationParams) {
 
   // Derive totalGeneration from capacity2025 × CF × 8760 / 1000
   let totalGen = 0;
-  const regionalFossilShareInit: Record<string, number> = {};
   for (const region of REGIONS) {
     let regionTotal = 0;
-    let regionFossil = 0;
     const regionalCFs = mergedEnergy.regional[region].capacityFactor ?? {};
     for (const source of ENERGY_SOURCES) {
       if (source === 'battery') continue;
@@ -323,10 +443,8 @@ function buildLags(params: SimulationParams) {
       const cf = regionalCFs[source] ?? DEFAULT_CAPACITY_FACTORS[source];
       const gen = (cap * cf * 8760) / 1000;
       regionTotal += gen;
-      if (FOSSIL_SOURCES.includes(source)) regionFossil += gen;
     }
     totalGen += regionTotal;
-    regionalFossilShareInit[region] = regionTotal > 0 ? regionFossil / regionTotal : 0.5;
   }
 
   return {
@@ -450,7 +568,7 @@ function buildLags(params: SimulationParams) {
     },
 
     // Capital debits REALIZED spends (one financing ledger): energy capex
-    // from energy, CDR spend from cdr, robot fleet capex from demand.
+    // from energy, CDR spend from cdr, and robot/DC capex from demand.
     // Delay-1 caveat: the debit trails the build by one year (over-credits
     // K during fast capex growth; final horizon year never debited)
     energyCapexSpend: {
@@ -467,6 +585,12 @@ function buildLags(params: SimulationParams) {
     },
     robotCapexSpend: {
       source: 'robotCapexSpend',
+      delay: 1,
+      initial: 0,
+      bootstrap: true,
+    },
+    dataCenterCapexSpend: {
+      source: 'dataCenterCapexSpend',
       delay: 1,
       initial: 0,
       bootstrap: true,
@@ -508,11 +632,19 @@ function buildLags(params: SimulationParams) {
       initial: 155,  // ~2024 GDP ($T), consistent with ~2% trend into the 2025 anchor
     },
 
-    // Demand needs lagged regional fossil share (for energy cost → GDP share feedback)
-    regionalFossilShare: {
-      source: 'regionalFossilShare',
+    // Regional GDP allocation needs the prior year's actual energy burden
+    // and reliability. Both are flow conditions, so bootstrap the observed
+    // 2025 anchor instead of applying a guessed first-year shock.
+    regionalEnergyBurden: {
+      source: 'regionalEnergyBurdenComputed',
       delay: 1,
-      initial: regionalFossilShareInit as Record<Region, number>,
+      initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      bootstrap: true,
+    },
+    regionalReliabilityFactor: {
+      source: 'regionalReliabilityFactorComputed',
+      delay: 1,
+      initial: Object.fromEntries(REGIONS.map(r => [r, 1])) as Record<Region, number>,
       bootstrap: true,
     },
   };
@@ -536,8 +668,13 @@ export function runAutowiredSimulation(
   // payoff automatically changes the business case too). Safe before the
   // efficiency-coupling below — the coupled keys don't touch this param.
   const mergedProductionParams = productionModule.mergeParams(params.production ?? {});
+  const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
 
-  const transforms = buildTransforms(mergedEnergyParams, mergedProductionParams);
+  const transforms = buildTransforms(
+    mergedEnergyParams,
+    mergedProductionParams,
+    mergedDemandParams
+  );
   const lags = buildLags(params);
 
   // Couple production's efficiency-index growth to demand's EFFECTIVE
@@ -549,7 +686,6 @@ export function runAutowiredSimulation(
   // ~3.6x GDP swing across the 8 scenarios that set it (higher efficiency
   // would otherwise DESTROY GDP through E^gamma with no offsetting eta gain).
   // An explicit production.serviceEfficiencyGrowth override still wins.
-  const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
   const coupledProduction = { ...(params.production ?? {}) };
   coupledProduction.serviceEfficiencyGrowth ??=
     gdpWeightedIntensityDecline(mergedDemandParams.regions) * mergedDemandParams.efficiencyMultiplier;
@@ -765,6 +901,7 @@ export function toYearResults(result: AutowireResult): YearResult[] {
 
       // Datacenter / AI compute (from demand)
       dataCenterLoadTWh: o.dataCenterLoadTWh ?? 0,
+      dataCenterCapexSpend: o.dataCenterCapexSpend ?? 0,
 
       // Production (biophysical)
       productionUsefulEnergy: o.productionUsefulEnergy ?? 0,

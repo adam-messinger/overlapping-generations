@@ -6,7 +6,7 @@
  */
 
 import { dispatchModule, dispatchDefaults } from './dispatch.js';
-import { EnergySource, ENERGY_SOURCES } from '../domain-types.js';
+import { EnergySource, ENERGY_SOURCES, REGIONS } from '../domain-types.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
 
@@ -279,6 +279,9 @@ test('handles zero demand', () => {
 test('handles very high demand with shortfall', () => {
   const { outputs } = runDispatch({ demand: 200000 }); // Way more than capacity
   expect(outputs.shortfall).toBeGreaterThan(0);
+  for (const region of REGIONS) {
+    expect(outputs.regionalShortfallRate[region]).toBeBetween(0, 1);
+  }
 });
 
 test('handles zero capacity', () => {
