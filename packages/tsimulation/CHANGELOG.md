@@ -7,6 +7,19 @@ onward. Before 1.0, minor versions may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+- Standalone `defineModel` / `runModel` contracts and a model registry, with
+  finite-value checks, invariants, port metadata, evidence, and validation claims.
+- Development-only calibration selection with sealed validation/holdout scoring
+  and stable split hashes.
+- Scenario, factorial, difference-in-differences, sweep, threshold, parameter
+  effect, seeded ensemble, quantile, Latin-hypercube, and rank-sensitivity APIs.
+- Explicit model adapters carrying source/target model names, units, and time scales.
+- Unit registry/conversion, overlap-aware shock composition, conflict-safe
+  temporal merges, stable serialization/hashing, and reproducible run manifests.
+- Shared validated linear/fixed-point solvers and generic DAG validation/sorting.
+- Deep parameter-read tracking and unread-override diagnostics.
+
 ### Changed (behavior)
 - The engine now runs each module's `validate()` at load time, throwing on
   invalid params and warning on warnings. Previously `validate()` was never
@@ -17,10 +30,17 @@ onward. Before 1.0, minor versions may include breaking changes.
   the transform, or drop it if it only passed the output through.
 - Lag `delay` must be an integer ≥ 1; invalid delays are now a wiring error
   instead of silently producing `undefined`/mis-sized buffers.
+- Duplicate module names, transform/lag ambiguity, direct current-step
+  self-consumption, and transform self-dependencies are now wiring errors.
+- Batch and interactive problem execution share the same lag-bootstrap path.
+- Lag bootstrapping can use convergence tolerance, damping, iteration limits,
+  failure policy, and returned residual diagnostics instead of a fixed pass count.
+- Connector declarations can carry units and value-shape metadata, with an
+  opt-in warning/error contract policy.
 
 ### Fixed
-- The NaN/Infinity output guard now descends into array outputs and nesting
-  deeper than 3 levels (was silently skipping both).
+- The NaN/Infinity output guard now descends into arrays and arbitrarily deep,
+  cycle-safe object output (it previously stopped at a fixed depth).
 - `topologicalSort` no longer mutates its input graph, so it is safe to call
   more than once (a second call previously returned wrong order).
 - `ComponentParams.get()` deep-clones object subtrees (immutability); `set()`

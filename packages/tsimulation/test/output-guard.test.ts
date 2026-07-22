@@ -52,10 +52,9 @@ test('a number at the depth cap (8) is still checked', () => {
   throwsWith(() => run(atCap), 'is NaN at year 0');
 });
 
-test('NaN beyond the depth cap is intentionally not checked (runaway guard)', () => {
-  // NaN sits at depth 9, one past MAX_CHECK_DEPTH — documented as uncaught.
+test('NaN beyond the former depth cap is caught', () => {
   const tooDeep = { L1: { L2: { L3: { L4: { L5: { L6: { L7: { L8: { L9: NaN } } } } } } } } };
-  assert.doesNotThrow(() => run(tooDeep));
+  throwsWith(() => run(tooDeep), 'is NaN at year 0');
 });
 
 test('valid arrays and nested records pass the guard', () => {

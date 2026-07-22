@@ -4,6 +4,7 @@ import {
   type MaritimeNetworkParams,
   type MaritimeScenario,
 } from './shipping-data.js';
+import { assertFiniteDeep, validateNumber } from 'tsimulation';
 
 export interface MaritimeMonthResult {
   year: number;
@@ -87,6 +88,33 @@ export function simulateMaritimeNetwork(
       ...(overrides.regionalTradeExposure ?? {}),
     },
   };
+  assertFiniteDeep({ scenario, params }, 'maritime network input');
+  const errors = [
+    ...validateNumber(scenario.startYear, 'scenario.startYear', { integer: true }),
+    ...validateNumber(scenario.startMonth, 'scenario.startMonth', { integer: true, min: 1, max: 12 }),
+    ...validateNumber(scenario.baselineBabOilMbd, 'scenario.baselineBabOilMbd', { min: 0 }),
+    ...validateNumber(scenario.baselineCapeOilMbd, 'scenario.baselineCapeOilMbd', { min: 0 }),
+    ...validateNumber(params.babHormuzOverlapShare, 'params.babHormuzOverlapShare', { min: 0, max: 1 }),
+    ...validateNumber(params.babCrudeShare, 'params.babCrudeShare', { min: 0, max: 1 }),
+    ...validateNumber(params.sumedCrudeCoverage, 'params.sumedCrudeCoverage', { min: 0, max: 1 }),
+    ...validateNumber(params.oilCapeRerouteShare, 'params.oilCapeRerouteShare', { min: 0, max: 1 }),
+    ...validateNumber(params.capeExtraDays, 'params.capeExtraDays', { min: 0 }),
+    ...validateNumber(params.daysPerMonth, 'params.daysPerMonth', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.containerServiceCycleDays, 'params.containerServiceCycleDays', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.suezContainerTradeShare, 'params.suezContainerTradeShare', { min: 0, max: 1 }),
+    ...validateNumber(params.containerNetworkAmplification, 'params.containerNetworkAmplification', { min: 0 }),
+    ...validateNumber(params.importInflationPpPer100Hours, 'params.importInflationPpPer100Hours', { min: 0 }),
+    ...validateNumber(params.importInflationLagMonths, 'params.importInflationLagMonths', { integer: true, min: 0 }),
+  ];
+  if (
+    scenario.hormuzThroughputPath.length === 0 ||
+    scenario.babThroughputPath.length === 0 ||
+    scenario.suezThroughputPath.length === 0
+  ) errors.push('All maritime throughput paths must contain at least one month');
+  for (const [region, exposure] of Object.entries(params.regionalTradeExposure)) {
+    errors.push(...validateNumber(exposure, `params.regionalTradeExposure.${region}`, { min: 0, max: 1 }));
+  }
+  if (errors.length > 0) throw new Error(`Invalid maritime network input:\n  ${errors.join('\n  ')}`);
   const months = Math.max(
     scenario.hormuzThroughputPath.length,
     scenario.babThroughputPath.length,
@@ -195,5 +223,7 @@ export function simulateMaritimeNetwork(
     };
   });
 
-  return { scenario, params, monthly, annual };
+  const result = { scenario, params, monthly, annual };
+  assertFiniteDeep(result, 'maritime network result');
+  return result;
 }

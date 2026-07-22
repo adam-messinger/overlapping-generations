@@ -27,6 +27,10 @@ export interface MarketParams {
   ptiAnchor: number;
   /** National real household-income growth used to evolve the denominator. */
   realIncomeGrowth: number;
+  /** Optional year-specific path. When present, it supersedes realIncomeGrowth. */
+  realIncomeGrowthPath: Record<number, number> | null;
+  /** Optional year-specific national real house-price drift. */
+  realHousePriceDriftPath: Record<number, number> | null;
   /** Children accompanying each net working-age migrant. */
   childrenPerMover: number;
 }
@@ -87,8 +91,18 @@ const DEFAULTS: MarketParams = {
   ptiReversion: 0.025,
   ptiAnchor: 3.6,
   realIncomeGrowth: 0.01,
+  realIncomeGrowthPath: null,
+  realHousePriceDriftPath: null,
   childrenPerMover: 0.30,
 };
+
+export function annualMarketRate(
+  path: Record<number, number> | null,
+  fallback: number,
+  year: number,
+): number {
+  return path?.[year] ?? fallback;
+}
 
 export function impliedHouseholds(
   cohorts: Record<Cohort, number>, headship: Record<Cohort, number>, scale = 1
@@ -156,6 +170,17 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     if (params.targetOccupancy !== undefined && (params.targetOccupancy < 0.5 || params.targetOccupancy > 1)) {
       errors.push('targetOccupancy out of [0.5,1]');
     }
+    for (const [label, path] of [
+      ['realIncomeGrowthPath', params.realIncomeGrowthPath],
+      ['realHousePriceDriftPath', params.realHousePriceDriftPath],
+    ] as const) {
+      if (path === undefined || path === null) continue;
+      for (const [year, value] of Object.entries(path)) {
+        if (!Number.isFinite(value) || value < -0.2 || value > 0.2) {
+          errors.push(label + '[' + year + '] out of [-0.2,0.2]');
+        }
+      }
+    }
     return { valid: errors.length === 0, errors, warnings: [] };
   },
 
@@ -194,7 +219,7 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     return { cohorts, units, logPrice, income, elasticity, wealthGate, extSupport };
   },
 
-  step(state, inputs, params) {
+  step(state, inputs, params, year) {
     const s = params.statics!;
     const n = s.n;
     const { survival: survival, exit } = COHORT_RATES;
@@ -245,6 +270,16 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     const gapVec = new Float64Array(n);
     const popVec = new Float64Array(n);
     const wealth = Math.pow(inputs.elderlyWealthIndex, params.secondHomeWealthElast);
+    const realIncomeGrowth = annualMarketRate(
+      params.realIncomeGrowthPath,
+      params.realIncomeGrowth,
+      year,
+    );
+    const realHousePriceDrift = annualMarketRate(
+      params.realHousePriceDriftPath,
+      params.drift,
+      year,
+    );
     let meanPriceIndex = 0;
     let declining = 0;
 
@@ -262,9 +297,10 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
         ? params.abandonMax * Math.min(1, (-boundedGap - 0.15) / 0.6)
         : 0;
       nextUnits[i] = Math.max(1, state.units[i] * (1 + build - abandon));
-      nextIncome[i] = Math.max(1, state.income[i] * (1 + params.realIncomeGrowth));
+      nextIncome[i] = Math.max(1, state.income[i] * (1 + realIncomeGrowth));
 
-      nextLogPrice[i] = state.logPrice[i] + params.drift + params.kappaPrice * 0.5 * boundedGap -
+      nextLogPrice[i] = state.logPrice[i] + realHousePriceDrift +
+        params.kappaPrice * 0.5 * boundedGap -
         0.5 * build + priceToIncomeCorrection(
           state.logPrice[i], state.income[i], params.ptiAnchor,
           params.ptiReversion, state.extSupport[i]

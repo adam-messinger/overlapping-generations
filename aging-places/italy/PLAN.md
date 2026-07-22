@@ -1,5 +1,11 @@
 # Step 5 plan: Italy external-regime validation
 
+> **Historical execution plan — primary work complete.** Development was frozen and the
+> 2019–2024 working-age holdout opened and failed on 2026-07-18. Household and OMI outcomes remain
+> secondary work; feature changes now require exploratory labeling or a preregistered v2. See the
+> [canonical live status](../data/international-validation-status.json). The original plan below
+> is preserved as a pre-outcome record.
+
 Goal: repeat the Japan exercise on Italian comuni. Italy is the complementary regime test:
 aging as fast as Japan but with the *lowest* immigration dosage among large rich countries, a
 one-winner metro structure (Milan), and a capital that lost value (Rome). If the demographic

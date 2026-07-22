@@ -41,12 +41,14 @@ Primary data and references:
 
 ## Frozen 2025 material panel
 
-“N-1 coverage” here is simply the share left after removing the largest observed
-producer at the specified stage. It is not loss of China as a bloc, not a
-forecast for 2035, and not always a refinery measure. Gallium's denominator sums
-country rows because the displayed USGS world total is rounded.
+“Residual supply” here is simply the share left after removing the largest
+observed producer at the specified stage while holding demand fixed. It is not
+the IEA's N-1 balance (which also removes that producer's domestic demand), not
+loss of China as a bloc, not a forecast for 2035, and not always a refinery
+measure. Gallium's denominator sums country rows because the displayed USGS
+world total is rounded.
 
-| Material/stage | Dominant producer share | N-1 coverage | U.S. import reliance | Reported U.S. stock months | kg in IEA NMC-622 EV |
+| Material/stage | Dominant producer share | Residual supply | U.S. import reliance | Reported U.S. stock months | kg in IEA NMC-622 EV |
 |---|---:|---:|---:|---:|---:|
 | Low-purity gallium | China 99.0% | 1.0% | 100% | 2.15 | — |
 | Natural graphite mine | China 77.8% | 22.2% | 100% | — | 66.3 |
@@ -65,8 +67,8 @@ metadata and must not be optimized away.
 The IEA recipe is one entire-vehicle design: 75 kWh NMC-622 with a graphite
 anode, excluding steel and aluminium. Manganese (24.5 kg) is retained as an
 unmatched recipe row rather than silently discarded; it does not yet have a
-network node. Because the current N-1 shock is expressed as a fraction of normal
-supply, kilograms cancel out of its fixed-proportion output ratio. The recipe is
+network node. Because the current producer-loss shock is expressed as a fraction
+of normal supply, kilograms cancel out of its fixed-proportion output ratio. The recipe is
 an audited absolute-demand overlay; it will become causal when vehicle counts
 from the global model are converted into tonnes of demand.
 
@@ -154,15 +156,15 @@ rare-earth trough is deliberately **not scored
 or reported as an observed aggregate fact** because IEA supplies no
 representative global output magnitude.
 
-## Empirically anchored N-1 stress
+## Empirically anchored dominant-producer loss
 
-This is a 12-month loss of the largest producer, not a forecast. “Output-months
-lost” sums the shortfall in the normalized EV/wind/grid/data-center basket over
-11 shock months. One unit equals one month of the whole modeled basket. The
-topology and allocation remain assumptions, so ranks are more defensible than
-levels.
+This is a 12-month loss of the largest producer with demand held fixed, not a
+forecast or an IEA N-1 balance. “Output-months lost” sums the shortfall in the
+normalized EV/wind/grid/data-center basket over 11 shock months. One unit equals
+one month of the whole modeled basket. The topology and allocation remain
+assumptions, so ranks are more defensible than levels.
 
-| Material | N-1 coverage | Stock basis | Output-months lost | Avoided by 3x modeled buffers | Avoided by +20pp diverse supply |
+| Material | Residual supply | Stock basis | Output-months lost | Avoided by 3x modeled buffers | Avoided by +20pp diverse supply |
 |---|---:|---|---:|---:|---:|
 | Gallium | 1.0% | USGS | **8.23** | 2.15 | 2.10 |
 | Refined copper | 51.7% | USGS | **4.06** | 2.15 | 2.27 |
@@ -172,7 +174,7 @@ levels.
 | Nickel | 33.3% | USGS | **2.04** | 0.64 | 1.22 |
 | Lithium | 68.3% | Assumed | **1.04** | 0.55 | 0.88 |
 
-Relative to the prior hand-set N-1 table, copper moves from fourth to second.
+Relative to the prior hand-set producer-loss table, copper moves from fourth to second.
 The reason is not a new copper apocalypse: V3 uses the observed 48.3% Chinese
 share of 2025 refinery production instead of assuming 70% residual coverage,
 and copper touches almost every modeled branch. Gallium remains the clearest

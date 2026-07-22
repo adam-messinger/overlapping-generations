@@ -66,7 +66,7 @@ test('all added constructs clear the preregistered 80% coverage threshold', () =
   }
 });
 
-test('source manifest contains only origin-year data and keeps the holdout sealed', () => {
+test('source manifest contains only origin-year data and cannot leak holdout outcomes', () => {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(DATA_DIR, 'origin-feature-sources.json'), 'utf8'),
   ) as { post2020OutcomeIncluded: boolean; sources: Array<{ year: number; statsDataId: string }> };

@@ -1,5 +1,13 @@
 # News-driven stress tests — 22 July 2026
 
+All experiments remain part of the `tsimulation` project. The annual global
+model uses the module kernel; these event/monthly models use its sibling model
+and experiment APIs. Run the complete frozen suite with:
+
+```bash
+npm run sim:new -- --output=/tmp/tsimulation-suite.json --manifests=/tmp/tsimulation-manifests
+```
+
 This suite turns seven questions from the July 2026 news cycle into small,
 auditable simulations.  Each model separates observed inputs from fitted
 parameters and scenario judgments.  Ebola was explicitly removed from scope

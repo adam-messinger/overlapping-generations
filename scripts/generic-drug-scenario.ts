@@ -10,6 +10,8 @@ import {
   simulateCisplatinBackcast,
   simulateGenericDrugEconomics,
 } from '../src/simulations/drug-supply/model.js';
+import { runModel } from 'tsimulation';
+import { genericDrugModel } from '../src/simulations/registry.js';
 
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
 
@@ -31,7 +33,8 @@ console.table([0, 3, 6, 9, 12].map((month) => {
 console.log(`Held-out check: modeled June utilization decline ${pct(calibratedCisplatinBackcast.predictedJuneUtilizationDecline)} vs ${pct(calibratedCisplatinBackcast.observedUtilizationDecline)} observed.`);
 
 console.log('\n2026 India platinum-drug price-cap scenarios');
-const economics = Object.values(genericDrugEconomicsScenarios).map(simulateGenericDrugEconomics);
+const economics = Object.values(genericDrugEconomicsScenarios)
+  .map((scenario) => runModel(genericDrugModel, scenario).output);
 console.table(economics.map((result) => ({
   policy: result.scenario.id,
   'first shortage month': result.firstShortageMonth ?? 'none',

@@ -3,14 +3,17 @@ import {
   brazilJuly2026Tariff,
   canadaJuly2026Tariff,
 } from '../src/simulations/trade/data.js';
-import { simulateBilateralTariff } from '../src/simulations/trade/model.js';
+import { runModel } from 'tsimulation';
+import { bilateralTariffModel } from '../src/simulations/registry.js';
 
 const pct = (value: number): string => `${(100 * value).toFixed(2)}%`;
 const pp = (value: number): string => `${(100 * value).toFixed(3)} pp`;
 const actions = [canadaJuly2026Tariff, brazilJuly2026Tariff];
+const runTariff = (action: typeof canadaJuly2026Tariff, options: { scope?: 'actual' | 'naive-headline'; retaliation?: boolean } = {}) =>
+  runModel(bilateralTariffModel, { action, ...options }).output;
 const results = actions.flatMap((action) => [
-  simulateBilateralTariff(action),
-  simulateBilateralTariff(action, { retaliation: true }),
+  runTariff(action),
+  runTariff(action, { retaliation: true }),
 ]);
 
 console.log('=== Bilateral tariff input-output model ===\n');
@@ -29,8 +32,8 @@ console.table(results.map((result) => ({
 })));
 
 console.log('\nCanada: why product scope dominates the headline');
-const scoped = simulateBilateralTariff(canadaJuly2026Tariff);
-const naive = simulateBilateralTariff(canadaJuly2026Tariff, { scope: 'naive-headline' });
+const scoped = runTariff(canadaJuly2026Tariff);
+const naive = runTariff(canadaJuly2026Tariff, { scope: 'naive-headline' });
 console.table([scoped, naive].map((result) => ({
   scope: result.scope,
   'imports covered $bn': (result.action.totalImportsBillion * result.coveredShareOfPartnerImports).toFixed(0),

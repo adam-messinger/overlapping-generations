@@ -11,9 +11,12 @@
  * - Lags: handle feedback loops with delayed values
  */
 
-import { Module, ConnectorType } from './module.js';
+import { Module, ConnectorDeclaration, ConnectorSpec, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
 import { validatedMerge } from './validated-merge.js';
+import { getUnit } from './units.js';
+import { trackObjectReads, unreadOverridePaths } from './liveness.js';
+import { findNonFiniteValues } from './validation.js';
 
 // =============================================================================
 // TYPES
@@ -113,6 +116,18 @@ export interface AutowireConfig {
   /** Enable dev-mode transform read tracking via Proxy (default: false) */
   trackReads?: boolean;
 
+  /** Runtime connector contract policy (default: warn). */
+  connectorValidation?: 'off' | 'warn' | 'error';
+
+  /** Report or reject scenario parameters that are never read during a full run. */
+  paramLiveness?: 'off' | 'report' | 'warn' | 'error';
+
+  /**
+   * Parameter paths consumed by composition code or transform closures rather
+   * than by a module's proxied init/step functions.
+   */
+  externalParamReads?: Record<string, readonly string[]>;
+
   /**
    * Fixed-point warm-up iterations for lags marked bootstrap: true.
    * Each iteration runs year 0 once and replaces those lags' initials with
@@ -121,7 +136,31 @@ export interface AutowireConfig {
    * (which otherwise produce a spurious step change in year 1). Default 0
    * (off). 2 is enough in practice — convergence is geometric.
    */
-  bootstrapLags?: number;
+  bootstrapLags?: number | BootstrapOptions;
+}
+
+/** Convergence-controlled initialization for lags marked `bootstrap`. */
+export interface BootstrapOptions {
+  /** Maximum warm-up passes. */
+  maxIterations?: number;
+  /** Minimum passes before convergence may be accepted. */
+  minIterations?: number;
+  /** Maximum absolute difference allowed across bootstrapped values. */
+  tolerance?: number;
+  /** Fixed-point damping in (0, 1]; 1 uses the newest value directly. */
+  damping?: number;
+  /** Behavior when maxIterations is reached before tolerance. */
+  onNonConvergence?: 'throw' | 'warn' | 'ignore';
+}
+
+export interface BootstrapDiagnostics {
+  enabled: boolean;
+  converged: boolean;
+  iterations: number;
+  maxIterations: number;
+  residual: number;
+  tolerance?: number;
+  lagNames: string[];
 }
 
 /**
@@ -142,8 +181,13 @@ interface DepNode {
  */
 export function buildOutputRegistry(modules: AnyModule[]): Map<string, string> {
   const registry = new Map<string, string>();
+  const moduleNames = new Set<string>();
 
   for (const mod of modules) {
+    if (moduleNames.has(mod.name)) {
+      throw new Error(`Duplicate module name: '${mod.name}'`);
+    }
+    moduleNames.add(mod.name);
     for (const output of mod.outputs) {
       if (registry.has(output as string)) {
         const existing = registry.get(output as string);
@@ -303,29 +347,54 @@ export function validateConnectorTypes(
   const warnings: string[] = [];
 
   // Build output type registry from modules that declare connectorTypes
-  const outputTypes = new Map<string, { module: string; type: ConnectorType }>();
+  const normalize = (declaration: ConnectorDeclaration): ConnectorSpec =>
+    typeof declaration === 'string' ? { type: declaration } : declaration;
+  const outputTypes = new Map<string, { module: string; spec: ConnectorSpec }>();
   for (const mod of modules) {
     if (!mod.connectorTypes?.outputs) continue;
     for (const [outputName, type] of Object.entries(mod.connectorTypes.outputs)) {
-      outputTypes.set(outputName, { module: mod.name, type: type as ConnectorType });
+      outputTypes.set(outputName, {
+        module: mod.name,
+        spec: normalize(type as ConnectorDeclaration),
+      });
     }
   }
 
   // Check each consumer's declared input types against provider types
   for (const mod of modules) {
     if (!mod.connectorTypes?.inputs) continue;
-    for (const [inputName, expectedType] of Object.entries(mod.connectorTypes.inputs)) {
+    for (const [inputName, declaration] of Object.entries(mod.connectorTypes.inputs)) {
       // Skip transforms and lags (they handle type conversion)
       if (transforms[inputName] || lags[inputName]) continue;
 
       const providerInfo = outputTypes.get(inputName);
       if (!providerInfo) continue; // Provider doesn't declare types - skip
 
-      if (providerInfo.type !== expectedType) {
+      const expected = normalize(declaration as ConnectorDeclaration);
+      if (providerInfo.spec.type !== expected.type) {
         warnings.push(
-          `Type mismatch: ${mod.name}.${inputName} expects '${expectedType}' ` +
-          `but ${providerInfo.module}.${inputName} provides '${providerInfo.type}'`
+          `Type mismatch: ${mod.name}.${inputName} expects '${expected.type}' ` +
+          `but ${providerInfo.module}.${inputName} provides '${providerInfo.spec.type}'`
         );
+      }
+      if (providerInfo.spec.unit || expected.unit) {
+        if (!providerInfo.spec.unit || !expected.unit) {
+          warnings.push(
+            `Incomplete unit contract: ${providerInfo.module}.${inputName} provides ` +
+            `'${providerInfo.spec.unit ?? 'unspecified'}' while ${mod.name}.${inputName} expects ` +
+            `'${expected.unit ?? 'unspecified'}'`,
+          );
+        } else if (!getUnit(providerInfo.spec.unit) || !getUnit(expected.unit)) {
+          warnings.push(
+            `Unknown unit in connector ${providerInfo.module}.${inputName} -> ${mod.name}.${inputName}`,
+          );
+        } else if (providerInfo.spec.unit !== expected.unit) {
+          warnings.push(
+            `Unit mismatch: ${mod.name}.${inputName} expects '${expected.unit}' ` +
+            `but ${providerInfo.module}.${inputName} provides '${providerInfo.spec.unit}'. ` +
+            `Use an explicit conversion transform.`,
+          );
+        }
       }
     }
   }
@@ -357,6 +426,15 @@ export function validateWiring(
   const definedTransforms = Object.fromEntries(
     Object.entries(transforms).filter(([, entry]) => entry !== undefined)
   );
+
+  for (const name of Object.keys(definedTransforms)) {
+    if (lags[name]) {
+      errors.push(
+        `Input '${name}' is configured as both a transform and a lag. ` +
+        `Choose exactly one resolution strategy.`
+      );
+    }
+  }
 
   // A transform must not reuse a module output's name. If it did, a module
   // consuming that name would silently receive the transform's value (module
@@ -396,6 +474,32 @@ export function validateWiring(
         errors.push(
           `Transform '${name}' depends on transform '${dep}'. ` +
           `Transform chaining is not supported — depend on module outputs instead.`
+        );
+      }
+    }
+  }
+
+  // A module cannot consume one of its own current-step outputs, either
+  // directly or through a transform evaluated before the module step. Such a
+  // dependency must be represented as state or an explicit lag.
+  for (const mod of modules) {
+    for (const input of mod.inputs) {
+      const inputName = input as string;
+      if (lags[inputName]) continue;
+      if (definedTransforms[inputName]) {
+        const config = normalizeTransform(definedTransforms[inputName]);
+        for (const dep of config.dependsOn) {
+          if (outputRegistry.get(dep) === mod.name) {
+            errors.push(
+              `Module '${mod.name}' transform input '${inputName}' depends on its own ` +
+              `current-step output '${dep}'. Use module state or a lag.`
+            );
+          }
+        }
+      } else if (outputRegistry.get(inputName) === mod.name) {
+        errors.push(
+          `Module '${mod.name}' directly consumes its own current-step output ` +
+          `'${inputName}'. Use module state or a lag.`
         );
       }
     }
@@ -448,30 +552,6 @@ export function validateWiring(
 // =============================================================================
 
 /**
- * Recursively check a value for NaN/Infinity.
- * Descends into both plain objects (Record<Region, number>,
- * Record<Mineral, {demand, cumulative}>) and arrays (number[] time series,
- * arrays of records). The depth cap is a runaway/cyclic-structure guard, not a
- * semantic limit — set well beyond any realistic output nesting.
- */
-const MAX_CHECK_DEPTH = 8;
-function checkNumeric(val: unknown, path: string, mod: string, year: number, depth = 0): void {
-  if (typeof val === 'number' && (Number.isNaN(val) || !Number.isFinite(val))) {
-    throw new Error(`Module '${mod}' output '${path}' is ${val} at year ${year}`);
-  }
-  if (depth >= MAX_CHECK_DEPTH || typeof val !== 'object' || val === null) return;
-  if (Array.isArray(val)) {
-    for (let i = 0; i < val.length; i++) {
-      checkNumeric(val[i], `${path}[${i}]`, mod, year, depth + 1);
-    }
-  } else {
-    for (const [k, v] of Object.entries(val)) {
-      checkNumeric(v, `${path}.${k}`, mod, year, depth + 1);
-    }
-  }
-}
-
-/**
  * Verify output completeness and check for NaN/Infinity after each module step.
  */
 function validateOutputs(
@@ -487,7 +567,11 @@ function validateOutputs(
         `Module '${mod.name}' declares output '${key}' but step() didn't return it`
       );
     }
-    checkNumeric(val, key, mod.name, year);
+    const invalid = findNonFiniteValues(val, key);
+    if (invalid.length > 0) {
+      const first = invalid[0];
+      throw new Error(`Module '${mod.name}' output '${first.path}' is ${first.value} at year ${year}`);
+    }
   }
 }
 
@@ -565,6 +649,15 @@ export interface AutowireResult {
   years: number[];
   outputs: Record<string, Record<string, any[]>>;  // module -> output -> values[]
   states: Record<string, any[]>;  // module -> state[]
+  diagnostics?: {
+    bootstrap?: BootstrapDiagnostics;
+    parameterLiveness?: Record<string, {
+      overridePaths: string[];
+      readPaths: string[];
+      unreadOverridePaths: string[];
+      completeRun: boolean;
+    }>;
+  };
 }
 
 /**
@@ -585,6 +678,10 @@ export interface AutowireState {
   endYear: number;
   currentYear: number;
   trackReads: boolean;
+  diagnostics?: AutowireResult['diagnostics'];
+  paramReads: Map<string, Set<string>>;
+  paramOverrides: Map<string, unknown>;
+  paramLiveness: NonNullable<AutowireConfig['paramLiveness']>;
 }
 
 /**
@@ -600,15 +697,30 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     startYear,
     endYear,
     trackReads = false,
+    connectorValidation = 'warn',
+    paramLiveness = 'off',
+    externalParamReads = {},
   } = config;
+
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear)) {
+    throw new Error('startYear and endYear must be integers');
+  }
+  if (endYear < startYear) {
+    throw new Error(`endYear (${endYear}) must be >= startYear (${startYear})`);
+  }
 
   // Build registry and graph
   const outputRegistry = buildOutputRegistry(modules);
 
   // Validate connector types (warnings only - incremental adoption)
-  const connectorWarnings = validateConnectorTypes(modules, outputRegistry, transforms, lags);
-  for (const warning of connectorWarnings) {
-    console.warn(`[autowire] ${warning}`);
+  const connectorWarnings = connectorValidation === 'off'
+    ? []
+    : validateConnectorTypes(modules, outputRegistry, transforms, lags);
+  if (connectorWarnings.length > 0 && connectorValidation === 'error') {
+    throw new Error(`Connector contract errors:\n${connectorWarnings.join('\n')}`);
+  }
+  if (connectorValidation === 'warn') {
+    for (const warning of connectorWarnings) console.warn(`[autowire] ${warning}`);
   }
 
   // Validate wiring: catch typos, missing sources, orphaned outputs
@@ -620,6 +732,8 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   // Initialize module states and params
   const stateMap = new Map<string, any>();
   const paramsMap = new Map<string, any>();
+  const paramReads = new Map<string, Set<string>>();
+  const paramOverrides = new Map<string, unknown>();
 
   for (const mod of sortedModules) {
     // Merge + validate at load time: throws on invalid params, warns on
@@ -631,8 +745,19 @@ export function initAutowired(config: AutowireConfig): AutowireState {
       (p) => mod.mergeParams(p),
       params[mod.name] ?? {}
     );
-    paramsMap.set(mod.name, mergedParams);
-    stateMap.set(mod.name, mod.init(mergedParams));
+    const partial = params[mod.name] ?? {};
+    paramOverrides.set(mod.name, partial);
+    if (paramLiveness !== 'off') {
+      const tracked = trackObjectReads(mergedParams as object);
+      paramsMap.set(mod.name, tracked.proxy);
+      for (const path of externalParamReads[mod.name] ?? []) tracked.reads.add(path);
+      paramReads.set(mod.name, tracked.reads);
+      stateMap.set(mod.name, mod.init(tracked.proxy));
+    } else {
+      paramsMap.set(mod.name, mergedParams);
+      paramReads.set(mod.name, new Set());
+      stateMap.set(mod.name, mod.init(mergedParams));
+    }
   }
 
   // Initialize lag history
@@ -672,6 +797,9 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     endYear,
     currentYear: startYear,
     trackReads,
+    paramReads,
+    paramOverrides,
+    paramLiveness,
   };
 }
 
@@ -778,43 +906,226 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
  * Collect accumulated results from a completed (or in-progress) simulation.
  */
 export function finalizeAutowired(state: AutowireState): AutowireResult {
+  const completeRun = state.currentYear > state.endYear;
+  let parameterLiveness: NonNullable<AutowireResult['diagnostics']>['parameterLiveness'];
+  if (state.paramLiveness !== 'off') {
+    parameterLiveness = {};
+    const messages: string[] = [];
+    for (const mod of state.sortedModules) {
+      const reads = state.paramReads.get(mod.name) ?? new Set<string>();
+      const overrides = state.paramOverrides.get(mod.name) ?? {};
+      const unread = completeRun ? unreadOverridePaths(overrides, reads) : [];
+      parameterLiveness[mod.name] = {
+        overridePaths: unreadOverridePaths(overrides, new Set()).sort(),
+        readPaths: [...reads].sort(),
+        unreadOverridePaths: unread.sort(),
+        completeRun,
+      };
+      if (unread.length > 0) messages.push(`${mod.name}: ${unread.join(', ')}`);
+    }
+    if (messages.length > 0 && state.paramLiveness === 'error') {
+      throw new Error(`Unread parameter overrides:\n${messages.join('\n')}`);
+    }
+    if (messages.length > 0 && state.paramLiveness === 'warn') {
+      for (const message of messages) console.warn(`[autowire] Unread parameter overrides: ${message}`);
+    }
+  }
   return {
     years: state.years,
     outputs: state.outputs,
     states: state.states,
+    ...((state.diagnostics || parameterLiveness) ? {
+      diagnostics: {
+        ...(state.diagnostics ?? {}),
+        ...(parameterLiveness ? { parameterLiveness } : {}),
+      },
+    } : {}),
   };
+}
+
+function maxAbsoluteDifference(a: unknown, b: unknown, seen = new WeakSet<object>()): number {
+  if (typeof a === 'number' && typeof b === 'number') {
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY;
+    return Math.abs(a - b);
+  }
+  if (Object.is(a, b)) return 0;
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (seen.has(a)) return 0;
+  seen.add(a);
+  const aArray = Array.isArray(a);
+  const bArray = Array.isArray(b);
+  if (aArray !== bArray) return Number.POSITIVE_INFINITY;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length || aKeys.some((key) => !Object.hasOwn(b, key))) {
+    return Number.POSITIVE_INFINITY;
+  }
+  let maximum = 0;
+  for (const key of aKeys) {
+    maximum = Math.max(
+      maximum,
+      maxAbsoluteDifference(
+        (a as Record<string, unknown>)[key],
+        (b as Record<string, unknown>)[key],
+        seen,
+      ),
+    );
+  }
+  return maximum;
+}
+
+function dampValue(previous: unknown, candidate: unknown, damping: number): unknown {
+  if (damping === 1) return candidate;
+  if (typeof previous === 'number' && typeof candidate === 'number') {
+    return previous + damping * (candidate - previous);
+  }
+  if (
+    typeof previous === 'object' && previous !== null &&
+    typeof candidate === 'object' && candidate !== null &&
+    Array.isArray(previous) === Array.isArray(candidate)
+  ) {
+    if (Array.isArray(previous) && Array.isArray(candidate)) {
+      return candidate.map((value, index) => dampValue(previous[index], value, damping));
+    }
+    return Object.fromEntries(
+      Object.entries(candidate).map(([key, value]) => [
+        key,
+        dampValue((previous as Record<string, unknown>)[key], value, damping),
+      ]),
+    );
+  }
+  return candidate;
+}
+
+/**
+ * Resolve bootstrap-marked lag initials before either batch or interactive
+ * execution. Numeric `bootstrapLags` retains the pre-0.2 fixed-pass behavior;
+ * the object form adds convergence diagnostics and failure policy.
+ */
+export function prepareAutowiredConfig(config: AutowireConfig): {
+  config: AutowireConfig;
+  diagnostics: BootstrapDiagnostics;
+} {
+  const requested = config.bootstrapLags ?? 0;
+  const lagNames = Object.entries(config.lags ?? {})
+    .filter(([, lag]) => lag.bootstrap)
+    .map(([name]) => name);
+  const enabled = lagNames.length > 0 && requested !== 0;
+  const options: Required<Pick<BootstrapOptions, 'maxIterations' | 'minIterations' | 'damping' | 'onNonConvergence'>> &
+    Pick<BootstrapOptions, 'tolerance'> = typeof requested === 'number'
+      ? {
+          maxIterations: requested,
+          minIterations: requested,
+          damping: 1,
+          onNonConvergence: 'ignore',
+          tolerance: undefined,
+        }
+      : {
+          maxIterations: requested.maxIterations ?? 50,
+          minIterations: requested.minIterations ?? 1,
+          damping: requested.damping ?? 1,
+          onNonConvergence: requested.onNonConvergence ?? 'throw',
+          tolerance: requested.tolerance ?? 1e-8,
+        };
+
+  if (!Number.isInteger(options.maxIterations) || options.maxIterations < 0) {
+    throw new Error('bootstrap maxIterations must be an integer >= 0');
+  }
+  if (!Number.isInteger(options.minIterations) || options.minIterations < 0 ||
+      options.minIterations > options.maxIterations) {
+    throw new Error('bootstrap minIterations must be an integer in [0, maxIterations]');
+  }
+  if (!(options.damping > 0 && options.damping <= 1)) {
+    throw new Error('bootstrap damping must be in (0, 1]');
+  }
+  if (options.tolerance !== undefined &&
+      (!Number.isFinite(options.tolerance) || options.tolerance < 0)) {
+    throw new Error('bootstrap tolerance must be finite and >= 0');
+  }
+
+  if (!enabled || options.maxIterations === 0) {
+    return {
+      config,
+      diagnostics: {
+        enabled: false,
+        converged: true,
+        iterations: 0,
+        maxIterations: options.maxIterations,
+        residual: 0,
+        tolerance: options.tolerance,
+        lagNames,
+      },
+    };
+  }
+
+  let cfg = config;
+  let residual = Number.POSITIVE_INFINITY;
+  let converged = options.tolerance === undefined;
+  let iterations = 0;
+
+  for (iterations = 1; iterations <= options.maxIterations; iterations++) {
+    const warm = initAutowired({ ...cfg, bootstrapLags: 0 });
+    stepAutowired(warm);
+    const newLags: Record<string, LagConfig> = {};
+    residual = 0;
+    for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
+      if (lag.bootstrap) {
+        const history = warm.lagHistory.get(name)!;
+        const candidate = history[history.length - 1];
+        residual = Math.max(residual, maxAbsoluteDifference(lag.initial, candidate));
+        newLags[name] = {
+          ...lag,
+          initial: dampValue(lag.initial, candidate, options.damping),
+        };
+      } else {
+        newLags[name] = lag;
+      }
+    }
+    cfg = { ...cfg, lags: newLags };
+    if (
+      options.tolerance !== undefined &&
+      iterations >= options.minIterations &&
+      residual <= options.tolerance
+    ) {
+      converged = true;
+      break;
+    }
+  }
+
+  const diagnostics: BootstrapDiagnostics = {
+    enabled: true,
+    converged,
+    iterations: Math.min(iterations, options.maxIterations),
+    maxIterations: options.maxIterations,
+    residual,
+    tolerance: options.tolerance,
+    lagNames,
+  };
+  if (!converged) {
+    const message =
+      `Lag bootstrap did not converge after ${options.maxIterations} iterations ` +
+      `(residual ${residual}, tolerance ${options.tolerance})`;
+    if (options.onNonConvergence === 'throw') throw new Error(message);
+    if (options.onNonConvergence === 'warn') console.warn(`[autowire] ${message}`);
+  }
+  return { config: cfg, diagnostics };
+}
+
+/** Initialize a run with the same lag preparation used by `runAutowired`. */
+export function initPreparedAutowired(config: AutowireConfig): AutowireState {
+  const prepared = prepareAutowiredConfig(config);
+  const state = initAutowired(prepared.config);
+  state.diagnostics = { bootstrap: prepared.diagnostics };
+  return state;
 }
 
 /**
  * Create and run an auto-wired simulation (convenience wrapper).
  */
 export function runAutowired(config: AutowireConfig): AutowireResult {
-  let cfg = config;
-
-  // Fixed-point warm-up: run year 0 and feed bootstrap-flagged lags their
-  // sources' actual year-0 values as initials, so the anchor year is
-  // self-consistent (see AutowireConfig.bootstrapLags).
-  const iterations = config.bootstrapLags ?? 0;
-  const hasBootstrapLags = Object.values(config.lags ?? {}).some(l => l.bootstrap);
-  if (iterations > 0 && hasBootstrapLags) {
-    for (let i = 0; i < iterations; i++) {
-      const warm = initAutowired(cfg);
-      stepAutowired(warm);
-      const newLags: Record<string, LagConfig> = {};
-      for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
-        if (lag.bootstrap) {
-          const history = warm.lagHistory.get(name)!;
-          // After one step, the newest sample is the year-0 source value
-          newLags[name] = { ...lag, initial: history[history.length - 1] };
-        } else {
-          newLags[name] = lag;
-        }
-      }
-      cfg = { ...cfg, lags: newLags };
-    }
-  }
-
-  const state = initAutowired(cfg);
+  const state = initPreparedAutowired(config);
 
   while (state.currentYear <= state.endYear) {
     stepAutowired(state);

@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-07-19",
+  "authority": "Canonical live status for the Japan and Italy external-regime validation exercises. Frozen protocols and execution plans are historical records, not current-status sources.",
+  "countries": {
+    "japan": {
+      "label": "Japan",
+      "protocol": {
+        "path": "docs/INTERNATIONAL_PANEL.md",
+        "frozenCommit": "ec2869b",
+        "status": "frozen"
+      },
+      "development": {
+        "status": "complete",
+        "modelVersion": "full frozen-US-weight development audit (not japan-model-v1)",
+        "artifact": {
+          "path": "japan/data/development-demography.json",
+          "sha256": "cf97be2ac36f99f98dbcbec8f310d76ac4ffad16b79aa00e837616686c073426"
+        },
+        "verdict": "fail",
+        "summary": "Full extended-channel and household-chain development runs are complete. The full mechanism did not beat the lagged-trend kill comparator with the required certainty, and extended US channels generally reduced transfer."
+      },
+      "holdouts": {
+        "workingAge": {
+          "status": "awaiting_data",
+          "verdict": "pending",
+          "primary": true,
+          "summary": "Still sealed pending the official 2025 municipal age tabulation, announced for September 2026. It must use the already frozen pipeline."
+        },
+        "household": {
+          "status": "opened",
+          "openedOn": "2026-07-17",
+          "verdict": "fail",
+          "primary": true,
+          "artifact": {
+            "path": "japan/data/holdout-2025.json",
+            "sha256": "d0cd770f61c729857202ee719a5d599ca07fca09b7dfcb81890dac2b2bf93830"
+          },
+          "summary": "The mechanism beat no-migration on MAE but lost to the lagged household trend on both MAE and within-basin rank."
+        },
+        "vacancy": {
+          "status": "not_run",
+          "verdict": "pending",
+          "primary": false,
+          "summary": "Secondary outcome; it cannot reverse a primary failure."
+        },
+        "landPrice": {
+          "status": "not_run",
+          "verdict": "pending",
+          "primary": false,
+          "summary": "Secondary outcome; it cannot reverse a primary failure."
+        }
+      },
+      "overall": {
+        "verdict": "fail",
+        "claim": "Scenario tooling; no internationally validated resilience label.",
+        "basis": "The opened household primary failed. The pending working-age primary can add narrower evidence but cannot make all frozen v1 gates pass."
+      },
+      "remainingPermissibleWork": [
+        "Acquire the official 2025 municipal age tabulation and run the frozen working-age holdout without retuning.",
+        "Acquire 2020-origin commuting basins and recompute the already opened household local metrics as logged.",
+        "Run the preregistered secondary vacancy and land-price outcomes, clearly labeled secondary."
+      ],
+      "nextModelRule": "Any feature, coefficient, comparator, or gate change informed by the opened household outcome is exploratory or requires a newly preregistered v2."
+    },
+    "italy": {
+      "label": "Italy",
+      "protocol": {
+        "path": "docs/ITALY_PANEL.md",
+        "frozenCommit": "6849f7e",
+        "status": "frozen"
+      },
+      "development": {
+        "status": "complete",
+        "modelVersion": "frozen demographic-core development audit (not italy-model-v1)",
+        "artifact": {
+          "path": "italy/data/development.json",
+          "sha256": "b4645e5277d53de064576ebbed9040c8d2ba476ee3b7e850cc53beeefae9dc3f"
+        },
+        "verdict": "fail",
+        "summary": "The preregistered demographic-core development run is complete. It trailed lagged trend in both windows and missed the Milano and Roma hierarchy cases."
+      },
+      "holdouts": {
+        "workingAge": {
+          "status": "opened",
+          "openedOn": "2026-07-18",
+          "verdict": "fail",
+          "primary": true,
+          "artifact": {
+            "path": "italy/data/holdout-2024.json",
+            "sha256": "5fb2266f890efadce98cd62585f05c90ec3aab852a873a94719c8016c63a565f"
+          },
+          "summary": "The mechanism lost to no-migration on MAE and did not beat lagged trend with a confidence interval above zero."
+        },
+        "household": {
+          "status": "not_run",
+          "verdict": "pending",
+          "primary": false,
+          "summary": "Secondary 2011-2021 census outcome; it cannot reverse the working-age primary failure."
+        },
+        "vacancy": {
+          "status": "not_run",
+          "verdict": "not_applicable",
+          "primary": false,
+          "summary": "Not specified as an Italy outcome in the frozen protocol."
+        },
+        "landPrice": {
+          "status": "not_run",
+          "verdict": "pending",
+          "primary": false,
+          "summary": "Secondary OMI outcome; it cannot reverse the working-age primary failure."
+        }
+      },
+      "overall": {
+        "verdict": "fail",
+        "claim": "Scenario tooling; not externally validated in Italy.",
+        "basis": "The opened working-age primary failed both preregistered gates."
+      },
+      "remainingPermissibleWork": [
+        "Run the frozen secondary 2011-2021 household outcome.",
+        "Run the frozen secondary OMI land-price outcome.",
+        "Treat acquisition of the previously unavailable full institutional feature set as exploratory unless a v2 is preregistered."
+      ],
+      "nextModelRule": "Because the working-age holdout is open, feature or weight changes are exploratory or require a newly preregistered v2."
+    }
+  }
+}

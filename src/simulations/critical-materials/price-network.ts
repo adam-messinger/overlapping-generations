@@ -1,35 +1,9 @@
 import type { MaterialNode, WeberSectorBenchmark } from './data.js';
+import { assertFiniteDeep, solveLinearSystem, validateNumber } from 'tsimulation';
 
 export interface PriceShockResult {
   nodePriceChanges: Readonly<Record<string, number>>;
   finalBasketPriceChange: number;
-}
-
-function solveLinear(matrix: number[][], vector: number[]): number[] {
-  const n = vector.length;
-  const augmented = matrix.map((row, index) => [...row, vector[index]]);
-  for (let pivot = 0; pivot < n; pivot++) {
-    let best = pivot;
-    for (let row = pivot + 1; row < n; row++) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[best][pivot])) {
-        best = row;
-      }
-    }
-    if (Math.abs(augmented[best][pivot]) < 1e-12) {
-      throw new Error('Singular input-output price system');
-    }
-    [augmented[pivot], augmented[best]] = [augmented[best], augmented[pivot]];
-    const divisor = augmented[pivot][pivot];
-    for (let column = pivot; column <= n; column++) augmented[pivot][column] /= divisor;
-    for (let row = 0; row < n; row++) {
-      if (row === pivot) continue;
-      const factor = augmented[row][pivot];
-      for (let column = pivot; column <= n; column++) {
-        augmented[row][column] -= factor * augmented[pivot][column];
-      }
-    }
-  }
-  return augmented.map((row) => row[n]);
 }
 
 /** Weber-style cost-price propagation with the shocked upstream node exogenous. */
@@ -39,6 +13,25 @@ export function simulatePriceShock(
   shockFraction: number,
   passThrough = 1,
 ): PriceShockResult {
+  assertFiniteDeep({ nodes, shockFraction, passThrough }, 'price network input');
+  const ids = new Set<string>();
+  for (const node of nodes) {
+    if (!node.id) throw new Error('Price network node ID must not be empty');
+    if (ids.has(node.id)) throw new Error(`Duplicate price network node '${node.id}'`);
+    ids.add(node.id);
+  }
+  const errors = [
+    ...validateNumber(shockFraction, 'shockFraction'),
+    ...validateNumber(passThrough, 'passThrough', { min: 0 }),
+  ];
+  for (const node of nodes) {
+    errors.push(...validateNumber(node.finalDemandWeight, `${node.id}.finalDemandWeight`, { min: 0 }));
+    for (const input of node.inputs) {
+      if (!ids.has(input.from)) errors.push(`${node.id} references unknown input '${input.from}'`);
+      errors.push(...validateNumber(input.costShare, `${node.id}.inputs.${input.from}.costShare`, { min: 0 }));
+    }
+  }
+  if (errors.length > 0) throw new Error(`Invalid price network:\n  ${errors.join('\n  ')}`);
   const shockedIndex = nodes.findIndex((node) => node.id === shockedNodeId);
   if (shockedIndex < 0) throw new Error(`Unknown shocked node: ${shockedNodeId}`);
   const endogenous = nodes.map((_, index) => index).filter((index) => index !== shockedIndex);
@@ -60,7 +53,7 @@ export function simulatePriceShock(
     }
   });
 
-  const solution = solveLinear(matrix, rhs);
+  const solution = endogenous.length > 0 ? solveLinearSystem(matrix, rhs).solution : [];
   const nodePriceChanges: Record<string, number> = { [shockedNodeId]: shockFraction };
   endogenous.forEach((nodeIndex, index) => {
     nodePriceChanges[nodes[nodeIndex].id] = solution[index];
@@ -83,6 +76,8 @@ export interface WeberFit {
 export function fitWeberModels(
   rows: readonly WeberSectorBenchmark[],
 ): WeberFit {
+  assertFiniteDeep(rows, 'Weber benchmark');
+  if (rows.length === 0) throw new Error('Weber benchmark must not be empty');
   let numerator = 0;
   let denominator = 0;
   const networkExposure: Record<string, number> = {};
@@ -92,6 +87,7 @@ export function fitWeberModels(
     denominator += direct ** 2;
     networkExposure[row.id] = row.latent.totalCpiImpactPct / row.latent.shockPct;
   }
+  if (!(denominator > 0)) throw new Error('Weber benchmark has no identifying shock variation');
   return {
     directScale: numerator / denominator,
     networkExposure,
@@ -133,6 +129,7 @@ export function evaluateWeberPeriod(
   version: 'v1' | 'v2',
   fit: WeberFit,
 ): WeberEvaluation {
+  if (rows.length < 2) throw new Error('Weber evaluation requires at least two sectors');
   const observed = rows.map((row) => row[period].totalCpiImpactPct);
   const predicted = rows.map((row) => predictWeberImpact(row, period, version, fit));
   const maePctPoints =

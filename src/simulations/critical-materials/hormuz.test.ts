@@ -1,7 +1,7 @@
 import { expect, printSummary, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
-import { compareHormuzGlobalImpact } from './hormuz-bridge.js';
+import { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './hormuz-bridge.js';
 import { hormuzScenarios } from './hormuz-data.js';
 import { simulateHormuzDisruption } from './hormuz-model.js';
 
@@ -85,6 +85,16 @@ test('the annual bridge raises burden and lowers GDP in the disruption year', ()
   expect(impact2026.gdpChangePct).toBeLessThan(-0.1);
   expect(impact2026.energyBurdenChangePctPoints).toBeGreaterThan(0);
   expect(impact2026.foodStressChangePctPoints).toBeGreaterThan(0);
+});
+
+test('the annual bridge rejects an accidental same-year shock overwrite', () => {
+  const result = simulateHormuzDisruption(
+    hormuzScenarios['short-disruption'],
+    calibrated.params,
+  );
+  expect(() => buildHormuzGlobalOverrides(result, {
+    demand: { commodityShocks: [{ year: 2026 }] },
+  })).toThrow('conflicts with existing year 2026');
 });
 
 printSummary();

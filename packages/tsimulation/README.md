@@ -1,10 +1,15 @@
 # tsimulation
 
-A tiny, dependency-free TypeScript framework for building modular, discrete-time
-simulations. You write **modules** — pure units that declare typed inputs and
-outputs and a `step()` function. The engine wires them together automatically:
-it resolves execution order by topological sort, and breaks feedback cycles with
-explicit one-year (one-step) **lags**.
+A dependency-free TypeScript toolkit for simulation work, from small event and
+network experiments to modular, discrete-time systems. Everything remains under
+one `tsimulation` package:
+
+- the **module kernel** wires typed `step()` components into dynamical systems;
+- the **model layer** gives standalone simulations a common validated contract;
+- the **experiment layer** runs scenarios, factorials, sweeps, thresholds, and
+  seeded uncertainty ensembles;
+- calibration, evidence, adapters, shock ledgers, and run manifests make the
+  resulting claims inspectable and reproducible.
 
 The design borrows ideas from Julia's [SciML](https://sciml.ai/) /
 ModelingToolkit ecosystem — problem/solve separation, component-array parameter
@@ -15,6 +20,10 @@ access, co-located parameter metadata — and brings them to TypeScript.
   (uses only `structuredClone` and `console.warn`).
 - **Fail-fast wiring.** Output collisions, unresolved inputs, dependency cycles,
   transform typos, and `NaN`/`Infinity` outputs all throw with clear messages.
+- **One project, multiple time scales.** Annual systems, monthly networks, and
+  event models share APIs without forcing every model into an annual module.
+- **Evidence-aware.** Development, validation, holdout, diagnostic, and scenario
+  evidence roles travel with model definitions and manifests.
 
 > Extracted from the [overlapping-generations](https://github.com/adam-messinger/overlapping-generations)
 > energy–climate–demographics model, where it composes ten modules across a
@@ -42,9 +51,62 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 | **Transform** | A function that derives an input from other modules' outputs (e.g. a ratio). Declares `dependsOn` so the engine can order it. |
 | **Lag** | A delayed value used to break a feedback cycle. Module A can read last step's output of module B even though B reads A this step. |
 | **Collector** | A declarative spec for extracting per-step time series and summary metrics from a completed run. |
+| **Model** | A validated standalone simulation contract with version, ports, evidence, and invariants. |
+| **Experiment** | A scenario set, factorial, sweep, threshold search, or seeded ensemble around a model. |
+| **Adapter** | An explicit unit- and time-scale-aware bridge from one model's output to another's input. |
+| **Manifest** | A stable record of model/code/data versions, hashes, calibration split, inputs, outputs, and diagnostics. |
 
 The engine advances in integer steps (labelled `startYear`..`endYear`, but the
 labels are just integers — use `0..N` for a generic horizon).
+
+## Standalone models and experiments
+
+Event studies and monthly networks do not need to pretend they are annual
+modules. Define a model directly, then put reusable experiment machinery around
+it:
+
+```typescript
+import { defineModel, runFactorial, twoFactorInteraction } from 'tsimulation';
+
+const heat = defineModel({
+  id: 'heat-event',
+  version: '1.0.0',
+  description: 'Toy mortality response to heat and cooling access',
+  run: ({ temperature, cooling }: { temperature: number; cooling: number }) => ({
+    deaths: Math.max(0, temperature - 30) * (1 - cooling),
+  }),
+  inputPorts: { temperature: { unit: '°C' }, cooling: { unit: 'fraction' } },
+  outputPorts: { deaths: { unit: 'people' } },
+});
+
+const experiment = runFactorial({
+  model: heat,
+  baseInput: { temperature: 35, cooling: 0 },
+  factors: {
+    climate: [
+      { id: 'current', apply: x => x },
+      { id: 'hotter', apply: x => ({ ...x, temperature: x.temperature + 2 }) },
+    ],
+    adaptation: [
+      { id: 'none', apply: x => x },
+      { id: 'cooling', apply: x => ({ ...x, cooling: 0.5 }) },
+    ],
+  },
+});
+
+const interaction = twoFactorInteraction({
+  experiment,
+  factorA: 'climate', factorB: 'adaptation',
+  controlA: 'current', treatmentA: 'hotter',
+  controlB: 'none', treatmentB: 'cooling',
+  outcome: output => output.deaths,
+});
+```
+
+Use `calibrate()` to select candidates on development observations before
+holdouts are evaluated; `runEnsemble()` for seeded Monte Carlo/Latin-hypercube
+work; `defineAdapter()` for model-to-model bridges; and `createRunManifest()`
+to serialize the full provenance of a run.
 
 ### Why lags?
 

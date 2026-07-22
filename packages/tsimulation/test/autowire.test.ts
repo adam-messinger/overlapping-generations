@@ -1033,3 +1033,87 @@ test('bootstrapLags leaves unflagged (stock) lags at their calibrated initials',
   assert.equal(getOutputsAtYear(warm, 0).seen, 55);
   assert.equal(getOutputsAtYear(warm, 1).seen, 100);
 });
+
+test('convergence-controlled bootstrap reports failure instead of claiming a fixed point', () => {
+  const slowFeedback = defineModule({
+    name: 'slowFeedback',
+    description: '',
+    defaults: {},
+    inputs: ['previous'] as const,
+    outputs: ['flow'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_state, inputs) => ({
+      state: {},
+      outputs: { flow: 1 + 0.99 * inputs.previous },
+    }),
+  });
+  assert.throws(
+    () => runAutowired({
+      modules: [slowFeedback],
+      lags: { previous: { source: 'flow', delay: 1, initial: 0, bootstrap: true } },
+      bootstrapLags: { maxIterations: 2, tolerance: 1e-8 },
+      startYear: 0,
+      endYear: 0,
+    }),
+    /Lag bootstrap did not converge after 2 iterations/,
+  );
+});
+
+test('convergence-controlled bootstrap exposes residual diagnostics', () => {
+  const result = runAutowired({
+    ...bootstrapFixtureConfig(true),
+    bootstrapLags: { maxIterations: 5, tolerance: 0 },
+  });
+  assert.deepStrictEqual(result.diagnostics?.bootstrap, {
+    enabled: true,
+    converged: true,
+    iterations: 2,
+    maxIterations: 5,
+    residual: 0,
+    tolerance: 0,
+    lagNames: ['laggedFlow'],
+  });
+});
+
+test('parameter liveness rejects an override that no code path reads', () => {
+  const module = defineModule({
+    name: 'liveParams',
+    description: 'reads only one parameter',
+    defaults: { used: 1, unused: 2 },
+    inputs: [] as const,
+    outputs: ['value'] as const,
+    validate: okValidate,
+    mergeParams: (params: Partial<{ used: number; unused: number }>) => ({ used: 1, unused: 2, ...params }),
+    init: () => ({}),
+    step: (_state, _inputs, params) => ({ state: {}, outputs: { value: params.used } }),
+  });
+  assert.throws(() => runAutowired({
+    modules: [module], params: { liveParams: { unused: 9 } },
+    startYear: 0, endYear: 0, paramLiveness: 'error',
+  }), /liveParams: unused/);
+});
+
+test('external parameter reads cover transform/composition closures', () => {
+  const module = defineModule({
+    name: 'externalParams',
+    description: 'parameter is consumed outside step',
+    defaults: { injected: 1 },
+    inputs: [] as const,
+    outputs: ['value'] as const,
+    validate: okValidate,
+    mergeParams: (params: Partial<{ injected: number }>) => ({ injected: 1, ...params }),
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { value: 1 } }),
+  });
+  const result = runAutowired({
+    modules: [module], params: { externalParams: { injected: 9 } },
+    externalParamReads: { externalParams: ['injected'] },
+    startYear: 0, endYear: 0, paramLiveness: 'error',
+  });
+  assert.deepEqual(
+    result.diagnostics?.parameterLiveness?.externalParams.unreadOverridePaths,
+    [],
+  );
+});

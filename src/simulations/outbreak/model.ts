@@ -1,4 +1,5 @@
 import type { OutbreakEpisode } from './data.js';
+import { assertFiniteDeep, validateNumber } from 'tsimulation';
 
 export interface OutbreakSeries {
   weeklyCases: number[];
@@ -65,6 +66,72 @@ export interface EpisodeEvaluation {
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+function validateV1(params: OutbreakV1Params): void {
+  assertFiniteDeep(params, 'outbreak V1 params');
+  const errors = [
+    ...validateNumber(params.population, 'population', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.weeks, 'weeks', { integer: true, min: 1 }),
+    ...validateNumber(params.r0, 'r0', { min: 0 }),
+    ...validateNumber(params.infectiousDays, 'infectiousDays', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.initialInfectious, 'initialInfectious', { min: 0 }),
+    ...validateNumber(params.responseStartDay, 'responseStartDay', { min: 0 }),
+    ...validateNumber(params.responseMultiplier, 'responseMultiplier', { min: 0, max: 2 }),
+    ...validateNumber(params.ascertainment, 'ascertainment', { min: 0, max: 1 }),
+    ...validateNumber(params.infectionFatalityRatio, 'infectionFatalityRatio', { min: 0, max: 1 }),
+    ...validateNumber(params.caseReportDelayDays, 'caseReportDelayDays', { integer: true, min: 0 }),
+    ...validateNumber(params.infectionToDeathDays, 'infectionToDeathDays', { integer: true, min: 0 }),
+  ];
+  if (params.initialInfectious > params.population) errors.push('initialInfectious must not exceed population');
+  if (errors.length > 0) throw new Error(`Invalid outbreak V1 params:\n  ${errors.join('\n  ')}`);
+}
+
+function validateV2(params: OutbreakV2Params): void {
+  const { easingStartDaysAfterResponse, severityHalfLifeDays, ...finite } = params;
+  assertFiniteDeep(finite, 'outbreak V2 params');
+  validateV1({
+    population: params.population,
+    weeks: params.weeks,
+    r0: params.r0,
+    infectiousDays: params.infectiousDays,
+    initialInfectious: params.initialInfectious,
+    responseStartDay: params.responseStartDay,
+    responseMultiplier: params.responseMultiplier,
+    ascertainment: params.ascertainment,
+    infectionFatalityRatio: params.infectionFatalityRatio,
+    caseReportDelayDays: params.caseReportDelayDays,
+    infectionToDeathDays: params.infectionToDeathDays,
+  });
+  const errors = [
+    ...validateNumber(params.incubationDays, 'incubationDays', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.initialExposed, 'initialExposed', { min: 0 }),
+    ...validateNumber(params.responseRampDays, 'responseRampDays', { min: 0, exclusiveMin: true }),
+    ...(!Number.isFinite(easingStartDaysAfterResponse) && easingStartDaysAfterResponse === Number.POSITIVE_INFINITY
+      ? [] : validateNumber(easingStartDaysAfterResponse, 'easingStartDaysAfterResponse', { min: 0 })),
+    ...validateNumber(params.easedResponseMultiplier, 'easedResponseMultiplier', { min: 0, max: 2 }),
+    ...validateNumber(params.easingRampDays, 'easingRampDays', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.importedInfectionsPerMillionPerDay, 'importedInfectionsPerMillionPerDay', { min: 0 }),
+    ...validateNumber(params.hospitalizationRate, 'hospitalizationRate', { min: 0, max: 1 }),
+    ...validateNumber(params.hospitalStayDays, 'hospitalStayDays', { integer: true, min: 1 }),
+    ...validateNumber(params.staffedBedsPer100k, 'staffedBedsPer100k', { min: 0 }),
+    ...validateNumber(params.overflowFatalitySlope, 'overflowFatalitySlope', { min: 0 }),
+    ...validateNumber(params.severityDeclineStartDaysAfterResponse, 'severityDeclineStartDaysAfterResponse', { min: 0 }),
+    ...(!Number.isFinite(severityHalfLifeDays) && severityHalfLifeDays === Number.POSITIVE_INFINITY
+      ? [] : validateNumber(severityHalfLifeDays, 'severityHalfLifeDays', { min: 0, exclusiveMin: true })),
+    ...validateNumber(params.severityFloor, 'severityFloor', { min: 0, max: 1 }),
+  ];
+  if (params.initialInfectious + params.initialExposed > params.population) {
+    errors.push('initialInfectious + initialExposed must not exceed population');
+  }
+  if (params.countermeasure) {
+    errors.push(
+      ...validateNumber(params.countermeasure.startDay, 'countermeasure.startDay', { min: 0 }),
+      ...validateNumber(params.countermeasure.coursesPerThousandPerDay, 'countermeasure.coursesPerThousandPerDay', { min: 0 }),
+      ...validateNumber(params.countermeasure.effectivenessAgainstInfection, 'countermeasure.effectivenessAgainstInfection', { min: 0, max: 1 }),
+    );
+  }
+  if (errors.length > 0) throw new Error(`Invalid outbreak V2 params:\n  ${errors.join('\n  ')}`);
+}
+
 function aggregateWeeks(daily: readonly number[], weeks: number): number[] {
   const weekly = Array.from({ length: weeks }, () => 0);
   for (let day = 0; day < daily.length; day++) {
@@ -94,6 +161,7 @@ function delayedValue(
 
 /** V1: homogeneous SIR, a single instantaneous response step, fixed delays. */
 export function simulateOutbreakV1(params: OutbreakV1Params): OutbreakSeries {
+  validateV1(params);
   const days = params.weeks * 7;
   let susceptible = params.population - params.initialInfectious;
   let infectious = params.initialInfectious;
@@ -128,7 +196,7 @@ export function simulateOutbreakV1(params: OutbreakV1Params): OutbreakSeries {
   void removed;
   const weeklyCases = aggregateWeeks(cases, params.weeks);
   const weeklyDeaths = aggregateWeeks(deaths, params.weeks);
-  return {
+  const result = {
     weeklyCases,
     weeklyDeaths,
     weeklyInfections: aggregateWeeks(infections, params.weeks),
@@ -136,6 +204,8 @@ export function simulateOutbreakV1(params: OutbreakV1Params): OutbreakSeries {
     totalInfections: infections.reduce((a, b) => a + b, 0),
     totalDeaths: weeklyDeaths.reduce((a, b) => a + b, 0),
   };
+  assertFiniteDeep(result, 'outbreak V1 result');
+  return result;
 }
 
 function contactMultiplier(day: number, params: OutbreakV2Params): number {
@@ -167,6 +237,7 @@ function contactMultiplier(day: number, params: OutbreakV2Params): number {
  * a simple staffed-bed overflow channel.
  */
 export function simulateOutbreakV2(params: OutbreakV2Params): OutbreakSeries {
+  validateV2(params);
   const days = params.weeks * 7;
   let susceptible =
     params.population - params.initialInfectious - params.initialExposed;
@@ -252,7 +323,7 @@ export function simulateOutbreakV2(params: OutbreakV2Params): OutbreakSeries {
   void removed;
   const weeklyCases = aggregateWeeks(cases, params.weeks);
   const weeklyDeaths = aggregateWeeks(deaths, params.weeks);
-  return {
+  const result = {
     weeklyCases,
     weeklyDeaths,
     weeklyInfections: aggregateWeeks(infections, params.weeks),
@@ -260,6 +331,8 @@ export function simulateOutbreakV2(params: OutbreakV2Params): OutbreakSeries {
     totalInfections: infections.reduce((a, b) => a + b, 0),
     totalDeaths: weeklyDeaths.reduce((a, b) => a + b, 0),
   };
+  assertFiniteDeep(result, 'outbreak V2 result');
+  return result;
 }
 
 function peakIndex(values: readonly number[]): number {

@@ -8,15 +8,14 @@ import {
   france2035HotterEvent,
   heatAdaptationPackages,
 } from '../src/simulations/heat/data.js';
-import { simulateHeatEvent } from '../src/simulations/heat/model.js';
+import { runModel } from 'tsimulation';
+import { heatEventModel } from '../src/simulations/registry.js';
 
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
 const packages = ['none', 'current', 'outreach', 'targeted-cooling', 'passive-food', 'combined'];
-const results = packages.map((id) => simulateHeatEvent(
-  france2026HeatEvent,
-  heatAdaptationPackages[id],
-  calibratedHeatMortalityScale,
-));
+const runHeat = (event: typeof france2026HeatEvent, adaptation: typeof heatAdaptationPackages[string]) =>
+  runModel(heatEventModel, { event, adaptation, mortalityScale: calibratedHeatMortalityScale }).output;
+const results = packages.map((id) => runHeat(france2026HeatEvent, heatAdaptationPackages[id]));
 const baseline = results.find((row) => row.adaptation.id === 'current')!;
 
 console.log('=== Acute heat: mortality × food × electricity ===\n');
@@ -52,16 +51,8 @@ console.table(heatTemperatureSensitivity(france2026HeatEvent, heatAdaptationPack
   'reserve GW': row.reserveMarginGw.toFixed(1),
 })));
 
-const futureCurrent = simulateHeatEvent(
-  france2035HotterEvent,
-  heatAdaptationPackages.current,
-  calibratedHeatMortalityScale,
-);
-const futureCombined = simulateHeatEvent(
-  france2035HotterEvent,
-  heatAdaptationPackages.combined,
-  calibratedHeatMortalityScale,
-);
+const futureCurrent = runHeat(france2035HotterEvent, heatAdaptationPackages.current);
+const futureCombined = runHeat(france2035HotterEvent, heatAdaptationPackages.combined);
 console.log('\nIllustrative 2035 repeat: older population, +1.3 C days / +1.5 C nights');
 console.table([futureCurrent, futureCombined].map((result) => ({
   package: result.adaptation.id,

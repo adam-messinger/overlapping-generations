@@ -34,15 +34,22 @@ const OPEN_PARTIAL_KEYS = new Set(['maxGrowthRate', 'capacityFactor']);
 /** Recursively warn about override keys absent from the default shape. Recurses
  * only where BOTH sides are plain objects (records-of-records like sources /
  * regional / sectors); stops at leaves, numeric maps, and open Partial records. */
-function validateOverrideKeys(override: unknown, defaults: unknown, path: string): void {
+function validateOverrideKeys(
+  override: unknown,
+  defaults: unknown,
+  path: string,
+  unknownKeys: 'warn' | 'error' | 'ignore',
+): void {
   if (!isPlainObject(override) || !isPlainObject(defaults)) return;
   for (const key of Object.keys(override)) {
     if (OPEN_PARTIAL_KEYS.has(key)) continue;  // valid optional/Partial — don't warn or descend
     if (!(key in defaults)) {
-      console.warn(`Warning: Unrecognized ${path} param "${key}" will be ignored`);
+      const message = `Unrecognized ${path} param "${key}" will be ignored`;
+      if (unknownKeys === 'error') throw new Error(message);
+      if (unknownKeys === 'warn') console.warn(`Warning: ${message}`);
       continue;
     }
-    validateOverrideKeys(override[key], defaults[key], `${path}.${key}`);
+    validateOverrideKeys(override[key], defaults[key], `${path}.${key}`, unknownKeys);
   }
 }
 
@@ -103,10 +110,15 @@ export async function loadScenario(path: string): Promise<Scenario> {
 }
 
 /**
- * Convert scenario to SimulationParams, warning about unrecognized keys
+ * Convert scenario to SimulationParams. Standard runs reject unrecognized
+ * keys; callers importing legacy files can explicitly request warning mode.
  */
-export function scenarioToParams(scenario: Scenario): SimulationParams {
+export function scenarioToParams(
+  scenario: Scenario,
+  options: { unknownKeys?: 'warn' | 'error' | 'ignore' } = {},
+): SimulationParams {
   const params: SimulationParams = {};
+  const unknownKeys = options.unknownKeys ?? 'error';
 
   // Known top-level keys
   const knownKeys = new Set([
@@ -118,7 +130,9 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
 
   for (const key of Object.keys(scenario)) {
     if (!knownKeys.has(key)) {
-      console.warn(`Warning: Unrecognized scenario key "${key}" will be ignored`);
+      const message = `Unrecognized scenario key "${key}" will be ignored`;
+      if (unknownKeys === 'error') throw new Error(message);
+      if (unknownKeys === 'warn') console.warn(`Warning: ${message}`);
       continue;
     }
     // Validate override keys against the module's default shape — recursively,
@@ -128,7 +142,7 @@ export function scenarioToParams(scenario: Scenario): SimulationParams {
     const defaults = MODULE_DEFAULTS[key];
     const section = (scenario as unknown as Record<string, unknown>)[key];
     if (defaults && isPlainObject(section)) {
-      validateOverrideKeys(section, defaults, key);
+      validateOverrideKeys(section, defaults, key, unknownKeys);
     }
   }
 

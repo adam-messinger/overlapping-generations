@@ -14,11 +14,28 @@ validated aging-resilience score.
 
 Start with [REPORT.md](docs/REPORT.md), then read [METHODOLOGY.md](docs/METHODOLOGY.md) and
 [BACKTEST.md](docs/BACKTEST.md). Data provenance is in [REFERENCES.md](docs/REFERENCES.md).
-The pre-registered external test is documented in
+Experimental global-simulation coupling is documented in
+[GLOBAL_INTEGRATION.md](docs/GLOBAL_INTEGRATION.md).
+The pre-registered external tests are documented in
 [INTERNATIONAL_PANEL.md](docs/INTERNATIONAL_PANEL.md), the
-[Japan pipeline](japan/README.md), and the preregistered Italy replication
-([ITALY_PANEL.md](docs/ITALY_PANEL.md), `italy/`): neither regime validates the mechanism
-beyond scenario tooling (BACKTEST.md §5-7).
+[Japan pipeline](japan/README.md), and the Italy protocol
+([ITALY_PANEL.md](docs/ITALY_PANEL.md), `italy/`). The generated table below is the canonical
+live status; neither completed test validates the mechanism beyond scenario tooling
+(BACKTEST.md §5-7).
+
+<!-- INTERNATIONAL_STATUS:START -->
+## International validation status
+
+_Live status as of **2026-07-19**. Generated from [the canonical status manifest](data/international-validation-status.json); frozen protocols and plans are historical records, not live-status sources._
+
+| Country | Development | Working-age holdout | Household holdout | Secondary outcomes | Overall |
+|---|---|---|---|---|---|
+| Japan | [Complete](japan/data/development-demography.json) — fail | Awaiting official data — pending | [Opened 2026-07-17](japan/data/holdout-2025.json) — **fail** | Vacancy: Not run — pending; land price: Not run — pending | **fail** |
+| Italy | [Complete](italy/data/development.json) — fail | [Opened 2026-07-18](italy/data/holdout-2024.json) — **fail** | Not run — pending | Vacancy: Not run — not applicable; land price: Not run — pending | **fail** |
+
+- **Japan:** The opened household primary failed. The pending working-age primary can add narrower evidence but cannot make all frozen v1 gates pass. Any feature, coefficient, comparator, or gate change informed by the opened household outcome is exploratory or requires a newly preregistered v2.
+- **Italy:** The opened working-age primary failed both preregistered gates. Because the working-age holdout is open, feature or weight changes are exploratory or require a newly preregistered v2.
+<!-- INTERNATIONAL_STATUS:END -->
 
 ## Layout
 
@@ -26,8 +43,9 @@ beyond scenario tooling (BACKTEST.md §5-7).
 aging-places/
 ├── data/       committed derived snapshots and fitted model metadata
 ├── docs/       theory, methods, validation, and interpretation
+├── italy/      frozen-protocol external-regime development and holdout results
 ├── outputs/    full forecast and filtered ranking tables
-├── japan/      frozen-boundary external-regime development panel and tests
+├── japan/      frozen-boundary external-regime development and holdout results
 ├── raw/        ignored source downloads
 ├── scripts/    fetch, feature, validation, hindcast, and forecast pipeline
 └── src/        nation, attraction, migration, and housing-market modules
@@ -48,6 +66,7 @@ npx tsx aging-places/scripts/forecast.ts
 npx tsx aging-places/scripts/market-rankings.ts
 npx tsx aging-places/scripts/flow-validation.ts
 npx tsx aging-places/scripts/scenario-ensemble.ts
+npm run aging:global-city
 npm test
 ```
 
@@ -124,3 +143,18 @@ import { runAgingSim } from './aging-places/src/simulation.js';
 
 const result = runAgingSim({ epoch: '2023', years: 40 });
 ```
+
+Opt-in global coupling:
+
+```ts
+import { runGlobalCitySimulation } from './aging-places/src/global-bridge.js';
+
+const { global, macroPath, city } = runGlobalCitySimulation({ years: 40 });
+```
+
+This currently maps the global model's OECD real GDP-per-capita path into municipal income growth
+and national real house-price drift. The current OECD path contains a large, unvalidated modeled
+GDP-share reallocation, so coupled absolute price and income levels are integration diagnostics,
+not forecasts. The OECD proxy and all unconsumed capital, WACC, energy, and climate fields remain
+explicit in `macroPath`; see
+[GLOBAL_INTEGRATION.md](docs/GLOBAL_INTEGRATION.md).

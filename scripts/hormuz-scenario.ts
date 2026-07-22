@@ -5,7 +5,8 @@ import {
   hormuzScenarios,
   type HormuzScenarioId,
 } from '../src/simulations/critical-materials/hormuz-data.js';
-import { simulateHormuzDisruption } from '../src/simulations/critical-materials/hormuz-model.js';
+import { runModel } from 'tsimulation';
+import { hormuzDisruptionModel } from '../src/simulations/registry.js';
 
 function scenarioArg(): HormuzScenarioId {
   const raw = process.argv.find((arg) => arg.startsWith('--scenario='))
@@ -25,7 +26,7 @@ const signed = (value: number, digits = 2): string =>
 
 const calibrated = calibrateHormuzModel();
 const scenario = hormuzScenarios[scenarioArg()];
-const physical = simulateHormuzDisruption(scenario, calibrated.params);
+const physical = runModel(hormuzDisruptionModel, { scenario, params: calibrated.params }).output;
 const macro = compareHormuzGlobalImpact(physical);
 
 console.log('=== Hormuz 2026 stock-flow backcast ===\n');

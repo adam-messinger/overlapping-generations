@@ -60,3 +60,40 @@ test('stepper result() collects all steps taken so far', () => {
   const result = sim.result();
   assert.deepStrictEqual(result.outputs.counter.n, [1, 2, 3, 4]);
 });
+
+test('batch and stepper use the same bootstrap-prepared lag initials', () => {
+  const flow = defineModule({
+    name: 'flow',
+    description: '',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['flow'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { flow: 10 } }),
+  });
+  const reader = defineModule({
+    name: 'reader',
+    description: '',
+    defaults: {},
+    inputs: ['previous'] as const,
+    outputs: ['seen'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_state, inputs) => ({ state: {}, outputs: { seen: inputs.previous } }),
+  });
+  const problem = defineSimulation({
+    modules: [flow, reader],
+    lags: { previous: { source: 'flow', delay: 1, initial: 0, bootstrap: true } },
+    bootstrapLags: { maxIterations: 2, tolerance: 0 },
+    startYear: 0,
+    endYear: 0,
+  });
+  const batch = solve(problem);
+  const stepper = init(problem);
+  stepper.step();
+  assert.strictEqual(batch.outputs.reader.seen[0], 10);
+  assert.strictEqual(stepper.result().outputs.reader.seen[0], 10);
+});

@@ -117,6 +117,10 @@ function compute(before: BaselineData, after: BaselineData, beforePath: string, 
   const beforeScenarios = new Set(Object.keys(before.scenarios));
   const scenariosOnlyInAfter = [...afterScenarios].filter(s => !beforeScenarios.has(s));
   const scenariosOnlyInBefore = [...beforeScenarios].filter(s => !afterScenarios.has(s));
+  // A missing scenario is a regression failure in strict mode, not a cosmetic
+  // warning: otherwise a failed capture can compare only the surviving rows
+  // and report a false green build.
+  warnings += scenariosOnlyInAfter.length + scenariosOnlyInBefore.length;
   const common = [...afterScenarios].filter(s => beforeScenarios.has(s));
 
   for (const scenario of common) {

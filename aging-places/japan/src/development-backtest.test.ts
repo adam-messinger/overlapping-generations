@@ -13,10 +13,11 @@ const report = JSON.parse(
   developmentGate: {
     status: string;
     windows: Record<string, {
-      beatsNoMigrationWorkingAgeMae: boolean;
-      beatsLaggedPopulationWithinMarketWithCiAboveZero: boolean;
-      householdMechanismAndLaggedHouseholdGateAvailable: boolean;
-      passesAvailableWorkingAgeGates: boolean;
+      partialBeatsNoMigrationWorkingAgeMae: boolean;
+      partialBeatsLaggedPopulationWithinMarketWithCiAboveZero: boolean;
+      fullBeatsLaggedPopulationWithinMarketWithCiAboveZero: boolean;
+      fullHouseholdAndLaggedHouseholdGateAvailable: boolean;
+      fullHouseholdBeatsLaggedOnMaeAndRank: boolean | null;
     }>;
   };
   windows: Array<{
@@ -35,8 +36,9 @@ const report = JSON.parse(
   }>;
 };
 
-test('development report keeps the post-2020 holdout sealed', () => {
-  expect(report.holdoutStatus.includes('sealed')).toBeTrue();
+test('development report distinguishes its input boundary from live holdout status', () => {
+  expect(report.holdoutStatus.includes('this script reads no outcome after 2020')).toBeTrue();
+  expect(report.holdoutStatus.includes('live split-holdout state')).toBeTrue();
 });
 
 test('partial mechanism improves absolute working-age error in both windows', () => {
@@ -58,10 +60,16 @@ test('international-validation gate fails honestly against lagged population', (
       .partialMechanismMinusLaggedPopulation.ci95[0];
     expect(lower).toBeLessThan(0);
     const gate = report.developmentGate.windows[window.window];
-    expect(gate.beatsNoMigrationWorkingAgeMae).toBeTrue();
-    expect(gate.beatsLaggedPopulationWithinMarketWithCiAboveZero).toBeFalse();
-    expect(gate.householdMechanismAndLaggedHouseholdGateAvailable).toBeFalse();
-    expect(gate.passesAvailableWorkingAgeGates).toBeFalse();
+    expect(gate.partialBeatsNoMigrationWorkingAgeMae).toBeTrue();
+    expect(gate.partialBeatsLaggedPopulationWithinMarketWithCiAboveZero).toBeFalse();
+    expect(gate.fullBeatsLaggedPopulationWithinMarketWithCiAboveZero).toBeFalse();
+    if (window.window === '2015-2020') {
+      expect(gate.fullHouseholdAndLaggedHouseholdGateAvailable).toBeTrue();
+      expect(gate.fullHouseholdBeatsLaggedOnMaeAndRank).toBeFalse();
+    } else {
+      expect(gate.fullHouseholdAndLaggedHouseholdGateAvailable).toBeFalse();
+      expect(gate.fullHouseholdBeatsLaggedOnMaeAndRank).toBe(null);
+    }
   }
 });
 

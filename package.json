@@ -13,13 +13,17 @@
     "start": "npx tsx src/simulation.ts",
     "test:framework": "npm test --workspace tsimulation",
     "test:core": "npx tsc --noEmit && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
-    "test:aging": "npx tsc --noEmit -p aging-places/tsconfig.json && find aging-places -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
+    "aging:status": "node --import tsx aging-places/scripts/international-status.ts",
+    "preaging:global-city": "npm run build:framework",
+    "aging:global-city": "node --import tsx aging-places/scripts/global-city.ts",
+    "test:aging": "npm run aging:status && npx tsc --noEmit -p aging-places/tsconfig.json && find aging-places -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
     "pretest": "npm run build:framework",
     "test": "npm run test:framework && npm run test:core && npm run test:aging",
     "precapture-baseline": "npm run build:framework",
     "capture-baseline": "npx tsx scripts/baseline.ts --output=baselines/current.json",
     "regression": "npm run capture-baseline && npx tsx scripts/compare-baselines.ts --strict baselines/reference.json baselines/current.json",
-    "bless-baseline": "npx tsx scripts/bless-baseline.ts"
+    "bless-baseline": "npx tsx scripts/bless-baseline.ts",
+    "sim:new": "node --import tsx scripts/new-simulations-suite.ts"
   },
   "engines": {
     "node": ">=20"

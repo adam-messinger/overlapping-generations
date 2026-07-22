@@ -3,6 +3,7 @@ import {
   type CisplatinBackcastParams,
   type GenericDrugEconomicsScenario,
 } from './data.js';
+import { assertFiniteDeep, validateNumber } from 'tsimulation';
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -33,6 +34,22 @@ export interface CisplatinBackcastResult {
 export function simulateCisplatinBackcast(
   params: CisplatinBackcastParams,
 ): CisplatinBackcastResult {
+  assertFiniteDeep(params, 'cisplatin backcast params');
+  const errors = [
+    ...validateNumber(params.months, 'months', { integer: true, min: 1 }),
+    ...validateNumber(params.primaryShare, 'primaryShare', { min: 0, max: 1 }),
+    ...validateNumber(params.primaryRemainingOutput, 'primaryRemainingOutput', { min: 0 }),
+    ...validateNumber(params.otherBaselineShare, 'otherBaselineShare', { min: 0 }),
+    ...validateNumber(params.otherSurgeCapacity, 'otherSurgeCapacity', { min: 0 }),
+    ...validateNumber(params.otherSurgeRampMonths, 'otherSurgeRampMonths', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.emergencyImportCapacity, 'emergencyImportCapacity', { min: 0 }),
+    ...validateNumber(params.emergencyImportStartMonth, 'emergencyImportStartMonth', { min: 0 }),
+    ...validateNumber(params.emergencyImportRampMonths, 'emergencyImportRampMonths', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.allocationMismatchInitial, 'allocationMismatchInitial', { min: 0, max: 1 }),
+    ...validateNumber(params.allocationMismatchDecay, 'allocationMismatchDecay', { min: 0 }),
+    ...validateNumber(params.accessFrictionDoseElasticity, 'accessFrictionDoseElasticity', { min: 0, max: 1 }),
+  ];
+  if (errors.length > 0) throw new Error(`Invalid cisplatin backcast params:\n  ${errors.join('\n  ')}`);
   const months: CisplatinBackcastMonth[] = [];
   for (let month = 0; month < params.months; month++) {
     const primarySupply = params.primaryShare * params.primaryRemainingOutput;
@@ -61,7 +78,9 @@ export function simulateCisplatinBackcast(
       estimatedDoseServiceLevel,
     });
   }
-  return { params, months };
+  const result = { params, months };
+  assertFiniteDeep(result, 'cisplatin backcast result');
+  return result;
 }
 
 export interface GenericDrugEconomicsMonth {
@@ -107,6 +126,24 @@ function utilizationSupportedByMargin(operatingMargin: number): number {
 export function simulateGenericDrugEconomics(
   scenario: GenericDrugEconomicsScenario,
 ): GenericDrugEconomicsResult {
+  assertFiniteDeep(scenario, 'generic drug scenario');
+  const errors = [
+    ...validateNumber(scenario.months, 'months', { integer: true, min: 1 }),
+    ...validateNumber(scenario.ratedCapacity, 'ratedCapacity', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.initialUtilization, 'initialUtilization', { min: 0, max: 1.5 }),
+    ...validateNumber(scenario.initialInventoryMonths, 'initialInventoryMonths', { min: 0 }),
+    ...validateNumber(scenario.targetInventoryMonths, 'targetInventoryMonths', { min: 0 }),
+    ...validateNumber(scenario.rawMaterialCostMultiplier, 'rawMaterialCostMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.laterRawMaterialCostMultiplier, 'laterRawMaterialCostMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.rawMaterialReliefMonth, 'rawMaterialReliefMonth', { min: 0 }),
+    ...validateNumber(scenario.priceMultiplier, 'priceMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.priceChangeDelayMonths, 'priceChangeDelayMonths', { min: 0 }),
+    ...validateNumber(scenario.demandMultiplier, 'demandMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.qualityAvailability, 'qualityAvailability', { min: 0, max: 1 }),
+    ...validateNumber(scenario.adjustmentHalfLifeMonths, 'adjustmentHalfLifeMonths', { min: 0, exclusiveMin: true }),
+    ...validateNumber(scenario.resiliencePayment, 'resiliencePayment', { min: 0 }),
+  ];
+  if (errors.length > 0) throw new Error(`Invalid generic drug scenario:\n  ${errors.join('\n  ')}`);
   let utilization = scenario.initialUtilization;
   let inventory = scenario.initialInventoryMonths;
   const months: GenericDrugEconomicsMonth[] = [];
@@ -149,7 +186,7 @@ export function simulateGenericDrugEconomics(
   }
 
   const firstShortage = months.find((row) => row.serviceLevel < 0.98);
-  return {
+  const result: GenericDrugEconomicsResult = {
     scenario,
     months,
     firstShortageMonth: firstShortage?.month ?? null,
@@ -167,4 +204,6 @@ export function simulateGenericDrugEconomics(
     averageOperatingMargin: months.reduce((sum, row) => sum + row.operatingMargin, 0) /
       months.length,
   };
+  assertFiniteDeep(result, 'generic drug result');
+  return result;
 }

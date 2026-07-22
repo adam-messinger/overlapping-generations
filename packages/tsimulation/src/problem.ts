@@ -23,7 +23,7 @@ import {
   AutowireConfig,
   AutowireResult,
   AutowireState,
-  initAutowired,
+  initPreparedAutowired,
   stepAutowired,
   finalizeAutowired,
   runAutowired,
@@ -97,7 +97,7 @@ export function solve(problem: SimulationProblem): AutowireResult {
  * Initialize a step-by-step simulation runner.
  */
 export function init(problem: SimulationProblem): Stepper {
-  const state: AutowireState = initAutowired(problem.config);
+  const state: AutowireState = initPreparedAutowired(problem.config);
 
   return {
     step(): StepperResult {

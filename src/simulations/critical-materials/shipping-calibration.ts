@@ -5,6 +5,7 @@ import {
   type MaritimeNetworkParams,
 } from './shipping-data.js';
 import { simulateMaritimeNetwork } from './shipping-network.js';
+import { calibrate, type CalibrationObservation } from 'tsimulation';
 
 export interface MaritimeCalibrationResult {
   params: MaritimeNetworkParams;
@@ -17,24 +18,43 @@ export interface MaritimeCalibrationResult {
 
 /** Fit only oilCapeRerouteShare to the 2024 EIA Cape-flow increment. */
 export function calibrateMaritimeNetwork(): MaritimeCalibrationResult {
-  let bestShare = maritimeDefaults.oilCapeRerouteShare;
-  let bestError = Number.POSITIVE_INFINITY;
-  for (let share = 0.40; share <= 0.80 + 1e-9; share += 0.005) {
-    const result = simulateMaritimeNetwork(
-      maritimeScenarios['red-sea-2024-development'],
-      { oilCapeRerouteShare: share },
-    );
-    const modeled = result.annual[0].averageCapeOilFlowMbd;
-    const error = Math.abs(modeled - maritimeObserved.capeOil2024Mbd);
-    if (error < bestError) {
-      bestError = error;
-      bestShare = share;
-    }
-  }
+  type Observation = { scenario: keyof typeof maritimeScenarios; capeOilMbd: number };
+  const observations: CalibrationObservation<Observation>[] = [
+    {
+      id: 'eia-cape-oil-2024',
+      role: 'development',
+      value: {
+        scenario: 'red-sea-2024-development',
+        capeOilMbd: maritimeObserved.capeOil2024Mbd,
+      },
+    },
+    {
+      id: 'eia-cape-oil-1h25',
+      role: 'holdout',
+      value: {
+        scenario: 'red-sea-1h25-holdout',
+        capeOilMbd: maritimeObserved.capeOil1h25Mbd,
+      },
+    },
+  ];
+  const calibration = calibrate({
+    id: 'maritime-cape-reroute-v1',
+    candidates: function* () {
+      for (let step = 0; step <= 80; step++) {
+        yield { oilCapeRerouteShare: 0.40 + 0.005 * step };
+      }
+    },
+    observations,
+    predict: (candidate, observation) => simulateMaritimeNetwork(
+      maritimeScenarios[observation.value.scenario],
+      candidate,
+    ).annual[0].averageCapeOilFlowMbd,
+    loss: (prediction, observation) => Math.abs(prediction - observation.value.capeOilMbd),
+  });
 
   const params: MaritimeNetworkParams = {
     ...maritimeDefaults,
-    oilCapeRerouteShare: bestShare,
+    oilCapeRerouteShare: calibration.params.oilCapeRerouteShare,
   };
   const development = simulateMaritimeNetwork(
     maritimeScenarios['red-sea-2024-development'],

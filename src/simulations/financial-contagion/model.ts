@@ -6,6 +6,7 @@ import {
   type SovereignMarketId,
   type SovereignShockScenario,
 } from './data.js';
+import { assertFiniteDeep, solveFixedPoint, validateNumber, validateShares } from 'tsimulation';
 
 export interface FundStressResult {
   fund: string;
@@ -31,6 +32,8 @@ export interface FinancialContagionResult {
   policy: ContagionPolicy;
   converged: boolean;
   iterations: number;
+  residualBps: number;
+  termination: 'converged' | 'max-iterations' | 'non-finite';
   markets: readonly SovereignMarketStressResult[];
   funds: readonly FundStressResult[];
   totalForcedSalesBillion: number;
@@ -86,16 +89,45 @@ export function simulateFinancialContagion(
   const maxIterations = options.maxIterations ?? 2_000;
   const toleranceBps = options.toleranceBps ?? 1e-6;
   const bankTier1Billion = options.bankTier1Billion ?? 2_500;
-  let yields = { ...scenario.fundamentalYieldShockBps };
-  let fundResults = funds.map((fund) => calculateFundStress(fund, yields, policy));
-  let converged = false;
-  let iterations = 0;
+  assertFiniteDeep({ scenario, policy, markets, funds, options: { maxIterations, toleranceBps, bankTier1Billion } }, 'financial contagion input');
+  const errors = [
+    ...validateNumber(maxIterations, 'maxIterations', { integer: true, min: 1 }),
+    ...validateNumber(toleranceBps, 'toleranceBps', { min: 0 }),
+    ...validateNumber(bankTier1Billion, 'bankTier1Billion', { min: 0, exclusiveMin: true }),
+  ];
+  const marketIds = markets.map((market) => market.id);
+  if (new Set(marketIds).size !== marketIds.length) errors.push('Market IDs must be unique');
+  for (const market of markets) {
+    errors.push(
+      ...validateNumber(market.baseMarketImpactBpsPerBillion, `${market.id}.baseMarketImpactBpsPerBillion`, { min: 0 }),
+      ...validateNumber(market.dealerCapacityBillion, `${market.id}.dealerCapacityBillion`, { min: 0, exclusiveMin: true }),
+      ...validateNumber(market.nonlinearImpact, `${market.id}.nonlinearImpact`, { min: 0 }),
+      ...validateNumber(market.bankExposureShareOfTier1, `${market.id}.bankExposureShareOfTier1`, { min: 0 }),
+      ...validateNumber(market.bankPortfolioDuration, `${market.id}.bankPortfolioDuration`, { min: 0 }),
+      ...validateNumber(market.recognizedMarkToMarketShare, `${market.id}.recognizedMarkToMarketShare`, { min: 0, max: 1 }),
+    );
+  }
+  for (const fund of funds) {
+    errors.push(...validateShares(fund.liquidationWeights, `${fund.id}.liquidationWeights`));
+    errors.push(
+      ...validateNumber(fund.exogenousFundingCallBillion, `${fund.id}.exogenousFundingCallBillion`, { min: 0 }),
+      ...validateNumber(fund.cashAndEligibleCollateralBillion, `${fund.id}.cashAndEligibleCollateralBillion`, { min: 0 }),
+      ...validateNumber(fund.maxLiquidationBillion, `${fund.id}.maxLiquidationBillion`, { min: 0 }),
+      ...validateNumber(fund.bankGapLossShare, `${fund.id}.bankGapLossShare`, { min: 0, max: 1 }),
+    );
+  }
+  if (errors.length > 0) throw new Error(`Invalid financial-contagion input:\n  ${errors.join('\n  ')}`);
 
-  for (iterations = 1; iterations <= maxIterations; iterations++) {
-    fundResults = funds.map((fund) => calculateFundStress(fund, yields, policy));
-    const next = emptyMarketRecord();
+  const solved = solveFixedPoint(
+    SOVEREIGN_MARKETS.map((market) => scenario.fundamentalYieldShockBps[market]),
+    (values) => {
+      const currentYields = Object.fromEntries(
+        SOVEREIGN_MARKETS.map((market, index) => [market, values[index]]),
+      ) as Record<SovereignMarketId, number>;
+      const currentFunds = funds.map((fund) => calculateFundStress(fund, currentYields, policy));
+      const next = { ...scenario.fundamentalYieldShockBps };
     for (const market of markets) {
-      const grossSales = fundResults.reduce(
+      const grossSales = currentFunds.reduce(
         (sum, fund) => sum + fund.salesByMarket[market.id],
         0,
       );
@@ -107,19 +139,15 @@ export function simulateFinancialContagion(
         policy.marketImpactMultiplier * netSales * liquidityPenalty;
       next[market.id] = scenario.fundamentalYieldShockBps[market.id] + amplification;
     }
-    const maxDifference = Math.max(
-      ...SOVEREIGN_MARKETS.map((market) => Math.abs(next[market] - yields[market])),
-    );
-    // Damping avoids numerical oscillation around collateral thresholds.
-    for (const market of SOVEREIGN_MARKETS) yields[market] = 0.5 * yields[market] + 0.5 * next[market];
-    if (maxDifference < toleranceBps) {
-      yields = next;
-      converged = true;
-      break;
-    }
-  }
+      return SOVEREIGN_MARKETS.map((market) => next[market]);
+    },
+    { maxIterations, tolerance: toleranceBps, damping: 0.5 },
+  );
+  const yields = Object.fromEntries(
+    SOVEREIGN_MARKETS.map((market, index) => [market, solved.value[index]]),
+  ) as Record<SovereignMarketId, number>;
 
-  fundResults = funds.map((fund) => calculateFundStress(fund, yields, policy));
+  const fundResults = funds.map((fund) => calculateFundStress(fund, yields, policy));
   const marketResults: SovereignMarketStressResult[] = markets.map((market) => {
     const grossForcedSalesBillion = fundResults.reduce(
       (sum, fund) => sum + fund.salesByMarket[market.id],
@@ -159,11 +187,13 @@ export function simulateFinancialContagion(
     .filter((row) => row.fundamentalShockBps === 0)
     .reduce((sum, row) => sum + row.amplificationBps, 0);
 
-  return {
+  const result: FinancialContagionResult = {
     scenario,
     policy,
-    converged,
-    iterations,
+    converged: solved.converged,
+    iterations: solved.iterations,
+    residualBps: solved.residualInfinityNorm,
+    termination: solved.termination,
     markets: marketResults,
     funds: fundResults,
     totalForcedSalesBillion,
@@ -176,4 +206,6 @@ export function simulateFinancialContagion(
     crossMarketSpilloverBps,
     liquidationCapacityExhausted: fundResults.some((fund) => fund.exhaustedLiquidationCapacity),
   };
+  assertFiniteDeep(result, 'financial contagion result');
+  return result;
 }

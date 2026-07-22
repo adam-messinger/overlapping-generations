@@ -61,4 +61,31 @@ test('a larger stockpile reduces a sustained rare-earth shock loss', () => {
   );
 });
 
+test('price network rejects typoed suppliers instead of silently dropping them', () => {
+  expect(() => simulatePriceShock([
+    { id: 'ore', label: 'Ore', kind: 'material', inputs: [], inventoryMonths: 0, finalDemandWeight: 0 },
+    {
+      id: 'product', label: 'Product', kind: 'final', inventoryMonths: 0, finalDemandWeight: 1,
+      inputs: [{ from: 'orre', costShare: 0.2, critical: true }],
+    },
+  ], 'ore', 1)).toThrow("references unknown input 'orre'");
+});
+
+test('single-node price network has a well-defined result', () => {
+  const result = simulatePriceShock([
+    { id: 'ore', label: 'Ore', kind: 'material', inputs: [], inventoryMonths: 0, finalDemandWeight: 1 },
+  ], 'ore', 0.5);
+  expect(result.finalBasketPriceChange).toBe(0.5);
+});
+
+test('empty dynamic supply paths are rejected rather than treated as normal supply', () => {
+  expect(() => simulateDynamicNetwork(criticalMaterialNetwork, {
+    months: 2,
+    supplyPaths: { 'rare-earths': [] },
+    revision: 'v2',
+    priceElasticity: 2,
+    pricePassThrough: 0.8,
+  })).toThrow("Supply path 'rare-earths' must not be empty");
+});
+
 printSummary();

@@ -5,6 +5,7 @@ import {
   type HeatAgeGroup,
   type HeatEvent,
 } from './data.js';
+import { assertFiniteDeep, validateNumber, validateShares } from 'tsimulation';
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -55,17 +56,38 @@ export interface HeatSimulationResult {
 }
 
 function validateInputs(event: HeatEvent, adaptation: HeatAdaptation): void {
-  const ageShare = HEAT_AGE_GROUPS.reduce((sum, age) => sum + event.ageShares[age], 0);
-  if (Math.abs(ageShare - 1) > 1e-6) throw new Error('Heat-event age shares must sum to one');
-  if (event.populationMillions <= 0 || event.heatDays <= 0) {
-    throw new Error('Heat-event population and duration must be positive');
-  }
+  assertFiniteDeep({ event, adaptation }, 'heat input');
+  const errors = [
+    ...validateShares(event.ageShares, 'event.ageShares', 1e-6),
+    ...validateNumber(event.populationMillions, 'event.populationMillions', { min: 0, exclusiveMin: true }),
+    ...validateNumber(event.heatDays, 'event.heatDays', { integer: true, min: 1 }),
+    ...validateNumber(event.compoundHotNightShare, 'event.compoundHotNightShare', { min: 0, max: 1 }),
+    ...validateNumber(event.humidityRiskMultiplier, 'event.humidityRiskMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(event.cropHotHoursShare, 'event.cropHotHoursShare', { min: 0, max: 1 }),
+    ...validateNumber(event.cropSensitiveOutputShare, 'event.cropSensitiveOutputShare', { min: 0, max: 1 }),
+    ...validateNumber(event.baseNonCoolingPeakGw, 'event.baseNonCoolingPeakGw', { min: 0 }),
+    ...validateNumber(event.firmPowerCapacityGw, 'event.firmPowerCapacityGw', { min: 0 }),
+    ...validateNumber(adaptation.structuralMortalityRiskReduction, 'adaptation.structuralMortalityRiskReduction', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.warningCoverage, 'adaptation.warningCoverage', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.warningMortalityEfficacy, 'adaptation.warningMortalityEfficacy', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.outreachMortalityEfficacy, 'adaptation.outreachMortalityEfficacy', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.coolingMortalityEfficacy, 'adaptation.coolingMortalityEfficacy', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.mechanicalGridUptime, 'adaptation.mechanicalGridUptime', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.passiveCoolingC, 'adaptation.passiveCoolingC', { min: 0 }),
+    ...validateNumber(adaptation.coolingEfficiencyMultiplier, 'adaptation.coolingEfficiencyMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(adaptation.demandResponseShare, 'adaptation.demandResponseShare', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.additionalFirmCapacityGw, 'adaptation.additionalFirmCapacityGw', { min: 0 }),
+    ...validateNumber(adaptation.irrigatedCropShare, 'adaptation.irrigatedCropShare', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.irrigationDamageReduction, 'adaptation.irrigationDamageReduction', { min: 0, max: 1 }),
+    ...validateNumber(adaptation.cropHeatToleranceC, 'adaptation.cropHeatToleranceC', { min: 0 }),
+  ];
   for (const age of HEAT_AGE_GROUPS) {
-    if (event.ageShares[age] < 0) throw new Error(`Negative age share for ${age}`);
-    if (adaptation.coolingAccess[age] < 0 || adaptation.coolingAccess[age] > 1) {
-      throw new Error(`Cooling access for ${age} must be between zero and one`);
-    }
+    errors.push(
+      ...validateNumber(adaptation.coolingAccess[age], `adaptation.coolingAccess.${age}`, { min: 0, max: 1 }),
+      ...validateNumber(adaptation.outreachCoverage[age], `adaptation.outreachCoverage.${age}`, { min: 0, max: 1 }),
+    );
   }
+  if (errors.length > 0) throw new Error(`Invalid heat input:\n  ${errors.join('\n  ')}`);
 }
 
 function simulatePower(event: HeatEvent, adaptation: HeatAdaptation): HeatPowerResult {
@@ -196,7 +218,10 @@ export function simulateHeatEvent(
   const power = simulatePower(event, adaptation);
   const food = simulateFood(event, adaptation);
   const mortality = simulateMortality(event, adaptation, power, mortalityScale);
-  return { event, adaptation, mortalityScale, power, food, mortality };
+  const result = { event, adaptation, mortalityScale, power, food, mortality };
+  assertFiniteDeep(result, 'heat result');
+  if (mortality.totalDeaths < 0) throw new Error('Heat result produced negative mortality');
+  return result;
 }
 
 export function fitMortalityScale(

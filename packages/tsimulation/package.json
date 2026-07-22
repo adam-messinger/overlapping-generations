@@ -1,7 +1,7 @@
 {
   "name": "tsimulation",
   "version": "0.1.0",
-  "description": "A tiny, dependency-free TypeScript framework for modular simulations. Declare modules with typed inputs/outputs; the engine resolves execution order topologically and breaks feedback cycles with explicit lags.",
+  "description": "A dependency-free TypeScript toolkit for simulation models, modular dynamical systems, calibrated experiments, ensembles, and reproducible run manifests.",
   "keywords": [
     "simulation",
     "modeling",

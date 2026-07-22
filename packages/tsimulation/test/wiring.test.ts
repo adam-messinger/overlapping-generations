@@ -68,3 +68,43 @@ test('lag delay of 1 and 2 are accepted', () => {
   validateWiring([producer], registry, {}, { lagX: { source: 'x', delay: 1, initial: 0 } });
   validateWiring([producer], registry, {}, { lagX: { source: 'x', delay: 2, initial: 0 } });
 });
+
+test('duplicate module names are rejected before graph construction', () => {
+  const duplicate = defineModule({ ...producer, outputs: ['y'] as const });
+  throwsWith(
+    () => buildOutputRegistry([producer, duplicate]),
+    "Duplicate module name: 'producer'",
+  );
+});
+
+test('an input cannot be configured as both a transform and a lag', () => {
+  const registry = buildOutputRegistry([producer]);
+  throwsWith(
+    () => validateWiring(
+      [producer],
+      registry,
+      { value: () => 1 },
+      { value: { source: 'x', delay: 1, initial: 0 } },
+    ),
+    "Input 'value' is configured as both a transform and a lag",
+  );
+});
+
+test('a module cannot consume its own current-step output', () => {
+  const selfConsumer = defineModule({
+    name: 'self',
+    description: '',
+    defaults: {},
+    inputs: ['x'] as const,
+    outputs: ['x'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_state, inputs) => ({ state: {}, outputs: { x: inputs.x } }),
+  });
+  const registry = buildOutputRegistry([selfConsumer]);
+  throwsWith(
+    () => validateWiring([selfConsumer], registry, {}, {}),
+    "directly consumes its own current-step output 'x'",
+  );
+});

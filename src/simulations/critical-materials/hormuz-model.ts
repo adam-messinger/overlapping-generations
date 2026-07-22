@@ -6,6 +6,7 @@ import {
   type OilMarketParams,
   type TradedCommodityParams,
 } from './hormuz-data.js';
+import { assertFiniteDeep, validateNumber } from 'tsimulation';
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -127,7 +128,13 @@ function stepCommodity(
   const alternativeRamp = disrupted
     ? 1 - Math.exp(-disruptionMonths / Math.max(params.alternativeSupplyRampMonths, 0.1))
     : 0;
-  const alternative = params.alternativeSupplyMaxPerDay * alternativeRamp;
+  // Alternative production can replace blocked barrels, but it cannot create
+  // more market supply than the route actually removed. The old uncapped ramp
+  // briefly produced >100% physical availability during reopening.
+  const alternative = Math.min(
+    Math.max(0, blocked - bypass),
+    params.alternativeSupplyMaxPerDay * alternativeRamp,
+  );
   const supplyBeforeStocks = params.globalDemandPerDay - blocked + bypass + alternative;
   const gapBeforeStocks = Math.max(0, params.globalDemandPerDay - supplyBeforeStocks);
   const inventoryDraw = Math.min(
@@ -422,6 +429,28 @@ export function simulateHormuzDisruption(
   scenario: HormuzScenario,
   params: HormuzModelParams = hormuzDefaults,
 ): HormuzSimulationResult {
+  assertFiniteDeep({ scenario, params }, 'Hormuz input');
+  const errors = [
+    ...validateNumber(scenario.startYear, 'scenario.startYear', { integer: true }),
+    ...validateNumber(scenario.startMonth, 'scenario.startMonth', { integer: true, min: 1, max: 12 }),
+    ...validateNumber(params.oil.globalDemandPerDay, 'oil.globalDemandPerDay', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.lng.globalDemandPerDay, 'lng.globalDemandPerDay', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.oil.hormuzFlowPerDay, 'oil.hormuzFlowPerDay', { min: 0 }),
+    ...validateNumber(params.lng.hormuzFlowPerDay, 'lng.hormuzFlowPerDay', { min: 0 }),
+    ...validateNumber(params.oil.demandElasticity, 'oil.demandElasticity', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.lng.demandElasticity, 'lng.demandElasticity', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.fertilizer.demandElasticity, 'fertilizer.demandElasticity', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.globalLngPricePassThrough, 'globalLngPricePassThrough', { min: 0 }),
+    ...validateNumber(params.regionalScarcityPricePremium, 'regionalScarcityPricePremium', { min: 0 }),
+  ];
+  if (scenario.throughputPath.length === 0) errors.push('scenario.throughputPath must not be empty');
+  if (params.oil.hormuzFlowPerDay > params.oil.globalDemandPerDay) {
+    errors.push('oil.hormuzFlowPerDay must not exceed global demand');
+  }
+  if (params.lng.hormuzFlowPerDay > params.lng.globalDemandPerDay) {
+    errors.push('lng.hormuzFlowPerDay must not exceed global demand');
+  }
+  if (errors.length > 0) throw new Error(`Invalid Hormuz input:\n  ${errors.join('\n  ')}`);
   let oilState: CommodityState = {
     inventory: params.oil.globalDemandPerDay * params.oil.accessibleInventoryDays,
     disruptionMonths: 0,
@@ -499,12 +528,14 @@ export function simulateHormuzDisruption(
     });
   }
 
-  return {
+  const result: HormuzSimulationResult = {
     scenario,
     params,
     months,
     annual: summarizeAnnual(months, params),
   };
+  assertFiniteDeep(result, 'Hormuz result');
+  return result;
 }
 
 export function withHormuzParams(

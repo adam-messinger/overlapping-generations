@@ -11,7 +11,8 @@ export interface EmpiricalMaterialOverlay {
   material: EmpiricalMaterialId;
   networkNodeId: string;
   dominantProducerShare: number;
-  nMinusOneCoverage: number;
+  /** Supply left if the largest producer disappears while all demand remains. */
+  residualSupplyShare: number;
   usNetImportReliance: number;
   observedInventoryMonths: number | null;
   kilogramsPerNmc622Ev: number | null;
@@ -56,7 +57,7 @@ export function buildEmpiricalMaterialOverlay(
       material: profile.id,
       networkNodeId: profile.id,
       dominantProducerShare: profile.dominantProducerShare,
-      nMinusOneCoverage: 1 - profile.dominantProducerShare,
+      residualSupplyShare: 1 - profile.dominantProducerShare,
       usNetImportReliance: profile.usNetImportReliance,
       observedInventoryMonths: profile.observedInventoryMonths,
       kilogramsPerNmc622Ev,
@@ -87,11 +88,13 @@ export interface EmpiricalStressResult {
 }
 
 /**
- * Loss of the largest observed producer for 12 months. USGS stocks are scaled
- * by the accessible fraction fitted on development events; missing stocks fall
- * back to the visibly assumed node inventories in `data.ts`.
+ * Loss of the largest observed producer for 12 months, with demand held fixed.
+ * This deliberately severe export/supply cutoff is not the IEA's N-1 balance,
+ * which also removes the largest producer's domestic demand. USGS stocks are
+ * scaled by the accessible fraction fitted on development events; missing
+ * stocks fall back to the visibly assumed node inventories in `data.ts`.
  */
-export function simulateEmpiricalNMinusOne(
+export function simulateEmpiricalDominantProducerLoss(
   material: EmpiricalMaterialId,
   options: {
     accessibleInventoryFraction?: number;
@@ -110,7 +113,7 @@ export function simulateEmpiricalNMinusOne(
   );
   const coverage = Math.min(
     1,
-    overlay.nMinusOneCoverage + (options.additionalCoverage ?? 0),
+    overlay.residualSupplyShare + (options.additionalCoverage ?? 0),
   );
   const accessibleInventoryFraction = options.accessibleInventoryFraction ?? 0.4;
   const result = simulateDynamicNetwork(criticalMaterialNetwork, {
@@ -131,3 +134,6 @@ export function simulateEmpiricalNMinusOne(
       overlay.observedInventoryMonths === null ? 'network-prior' : 'usgs-observed',
   };
 }
+
+/** @deprecated Use simulateEmpiricalDominantProducerLoss; this is not an IEA N-1 balance. */
+export const simulateEmpiricalNMinusOne = simulateEmpiricalDominantProducerLoss;

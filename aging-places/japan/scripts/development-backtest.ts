@@ -974,23 +974,51 @@ function main(): void {
     const partial = analysis.summary.partialMechanism as Record<string, unknown>;
     const working = partial.workingAge as Record<string, unknown>;
     const mae = working.absoluteMaeAllPartialPrimary as Record<string, number>;
-    const difference = working.partialMechanismMinusLaggedPopulation as {
+    const partialDifference = working.partialMechanismMinusLaggedPopulation as {
       meanDifference: number | null;
       ci95: [number | null, number | null];
     };
-    const beatsNoMigrationMae = mae.conditionalPartialMechanismAllocation
+    const full = analysis.summary.fullMechanism as Record<string, unknown>;
+    const fullWorking = full.workingAge as Record<string, unknown>;
+    const fullDifference = fullWorking.fullMinusLaggedPopulationTrend as {
+      meanDifference: number | null;
+      ci95: [number | null, number | null];
+    };
+    const fullHouseholds = full.households as Record<string, unknown>;
+    const householdDifference = fullHouseholds.fullHouseholdMinusLaggedHousehold as {
+      meanDifference: number | null;
+      ci95: [number | null, number | null];
+    } | null;
+    const householdMae = fullHouseholds.maeAnnualized as {
+      conditionalFullHouseholdAllocation: number;
+      laggedHouseholdTrend: number | null;
+    };
+    const partialBeatsNoMigrationMae = mae.conditionalPartialMechanismAllocation
       < mae.nationallyScaledNoMigrationSameSample;
-    const laggedPopulationCiAboveZero = difference.ci95[0] !== null && difference.ci95[0] > 0;
+    const partialLaggedPopulationCiAboveZero =
+      partialDifference.ci95[0] !== null && partialDifference.ci95[0] > 0;
+    const fullLaggedPopulationCiAboveZero =
+      fullDifference.ci95[0] !== null && fullDifference.ci95[0] > 0;
+    const householdGateAvailable =
+      householdDifference !== null && householdMae.laggedHouseholdTrend !== null;
+    const fullHouseholdBeatsLagged = householdGateAvailable
+      ? householdMae.conditionalFullHouseholdAllocation < householdMae.laggedHouseholdTrend!
+        && householdDifference.meanDifference !== null
+        && householdDifference.meanDifference > 0
+      : null;
     return [window, {
-      beatsNoMigrationWorkingAgeMae: beatsNoMigrationMae,
-      beatsLaggedPopulationWithinMarketWithCiAboveZero: laggedPopulationCiAboveZero,
-      householdMechanismAndLaggedHouseholdGateAvailable: false,
-      passesAvailableWorkingAgeGates: beatsNoMigrationMae && laggedPopulationCiAboveZero,
+      partialBeatsNoMigrationWorkingAgeMae: partialBeatsNoMigrationMae,
+      partialBeatsLaggedPopulationWithinMarketWithCiAboveZero:
+        partialLaggedPopulationCiAboveZero,
+      fullBeatsLaggedPopulationWithinMarketWithCiAboveZero:
+        fullLaggedPopulationCiAboveZero,
+      fullHouseholdAndLaggedHouseholdGateAvailable: householdGateAvailable,
+      fullHouseholdBeatsLaggedOnMaeAndRank: fullHouseholdBeatsLagged,
     }];
   }));
   const result = {
     protocol: 'docs/INTERNATIONAL_PANEL.md committed at ec2869b before post-2020 acquisition',
-    holdoutStatus: 'sealed; this script reads no outcome after 2020',
+    holdoutStatus: 'development artifact scope only: this script reads no outcome after 2020; live split-holdout state is in data/international-validation-status.json',
     scope: {
       included: [
         'frozen US demographic regeneration and young-vitality attraction terms',
@@ -1000,12 +1028,16 @@ function main(): void {
         'frozen US working mover rates and beta',
         'origin-year 10% commuting basins',
         'no-migration, lagged-trend, and demographic-ridge comparators',
+        'full extended constructs: education, resident-student enrollment, radius access, dominance, affordability, and distress vacancy',
+        'origin-anchored full and partial household allocation chains',
       ],
-      stillMissingForJapanModelV1: [
-        'on-site university enrollment throughput', 'resident degree attainment',
-        'radius-based market access', 'housing supply and vacancy', 'land prices',
+      limitationsForJapanModelV1: [
+        'resident-student enrollment substitutes for unavailable municipal campus enrollment',
+        '2015 resident education carries forward the 2010 census value',
+        'municipal distress-vacancy coverage is limited and otherwise median-imputed',
+        'armed-forces share has no municipal Japanese equivalent and contributes zero',
       ],
-      claim: 'partial development diagnostic only; cannot earn the internationally validated label',
+      claim: 'full and partial development diagnostics; the frozen development gate fails and cannot earn the internationally validated label',
     },
     mechanismFormula: {
       standardization: 'centered unit-SD percentile ranks in the origin cross-section',
@@ -1018,7 +1050,7 @@ function main(): void {
     },
     developmentGate: {
       status: 'fail; remain scenario tooling',
-      reason: 'lagged-population confidence intervals cross zero in both windows and the household mechanism is incomplete',
+      reason: 'full-mechanism lagged-population confidence intervals cross zero in both windows; in the comparable household window the full chain loses to lagged household trend on MAE and rank',
       windows: gateWindows,
     },
     adjacentWindowSignStable: {

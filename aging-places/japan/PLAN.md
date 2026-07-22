@@ -1,5 +1,11 @@
 # Step 1 plan: complete the Japan mechanism and adjudicate the holdout
 
+> **Historical execution plan — no longer a live checklist.** The extended development mechanism
+> and household chain were completed, and the household holdout opened and failed on 2026-07-17.
+> The working-age primary still awaits official data. See the
+> [canonical live status](../data/international-validation-status.json); the original plan below
+> is preserved to show what was decided before outcome opening.
+
 Goal (from the frozen protocol, `../docs/INTERNATIONAL_PANEL.md`): move from the *partial*
 mechanism (employment shares + foreign share only) to the *full* frozen-weight mechanism, run the
 household chain, then open the sealed 2020–2025 holdout if and only if the required outcome data

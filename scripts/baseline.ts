@@ -151,6 +151,7 @@ async function main() {
   data.scenarios['default'] = extractMetrics(defaultResult.results);
 
   // Run each scenario
+  const failures: string[] = [];
   for (const scenario of SCENARIOS) {
     console.log(`Running: ${scenario}`);
     try {
@@ -158,8 +159,14 @@ async function main() {
       const { result } = await runWithScenario(scenarioPath);
       data.scenarios[scenario] = extractMetrics(result.results);
     } catch (err) {
-      console.error(`  Error: ${(err as Error).message}`);
+      const message = `${scenario}: ${(err as Error).message}`;
+      failures.push(message);
+      console.error(`  Error: ${message}`);
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Baseline capture failed for ${failures.length} scenario(s):\n${failures.join('\n')}`);
   }
 
   // Ensure output directory exists

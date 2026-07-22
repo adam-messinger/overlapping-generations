@@ -10,7 +10,7 @@ import {
 } from './empirical-data.js';
 import {
   buildEmpiricalMaterialOverlay,
-  simulateEmpiricalNMinusOne,
+  simulateEmpiricalDominantProducerLoss,
 } from './empirical-network.js';
 
 test('USGS concentration and inventory arithmetic is internally consistent', () => {
@@ -61,8 +61,8 @@ test('physical revision separates buffered gallium from rare-earth curtailment',
 });
 
 test('empirical dominant-producer stress ranks gallium above lithium', () => {
-  const gallium = simulateEmpiricalNMinusOne('gallium');
-  const lithium = simulateEmpiricalNMinusOne('lithium');
+  const gallium = simulateEmpiricalDominantProducerLoss('gallium');
+  const lithium = simulateEmpiricalDominantProducerLoss('lithium');
   expect(gallium.result.cumulativeWeightedOutputLoss).toBeGreaterThan(
     lithium.result.cumulativeWeightedOutputLoss,
   );

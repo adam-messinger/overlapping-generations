@@ -88,4 +88,16 @@ test('V2 revision improves mean holdout score on the three-country panel', () =>
   );
 });
 
+test('invalid outbreak horizons and disease clocks fail fast', () => {
+  const valid = calibrateOutbreakV2(outbreakEpisodes[0]).params;
+  expect(() => simulateOutbreakV2({
+    ...valid,
+    weeks: 0,
+  })).toThrow('weeks must be >= 1');
+  expect(() => simulateOutbreakV2({
+    ...valid,
+    incubationDays: 0,
+  })).toThrow('incubationDays must be > 0');
+});
+
 printSummary();

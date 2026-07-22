@@ -1,5 +1,10 @@
 # International municipal panel: frozen protocol
 
+> **Document type: frozen preregistration, not live status.** Time-specific statements below
+> intentionally preserve what was known when choices were frozen. For opened outcomes and the
+> current verdict, use the [canonical status manifest](../data/international-validation-status.json)
+> or the [generated status table](../README.md#international-validation-status).
+
 Status: **pre-registered before acquisition of any post-2020 Japanese municipal outcome file**.
 The repository already contained national-level Japanese facts and qualitative hypotheses. No
 municipality-level Japanese price, vacancy, population, or household outcome after 2020 was opened

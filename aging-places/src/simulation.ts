@@ -16,12 +16,19 @@ import { nationModule, NationParams } from './modules/nation.js';
 import { attractionModule } from './modules/attraction.js';
 import { migrationModule } from './modules/migration.js';
 import { marketModule } from './modules/market.js';
+import {
+  assertNationalMacroPath,
+  type NationalMacroPath,
+} from './macro-path.js';
 
 export interface AgingSimConfig {
   epoch: '2000' | '2023';
   years?: number;
   params?: Record<string, Record<string, unknown>>;
   minPop?: number;
+  /** Optional audited annual macro path. Existing standalone behavior remains
+   * the default when this is absent. */
+  macroPath?: NationalMacroPath;
 }
 
 export interface AgingSimResult {
@@ -31,8 +38,10 @@ export interface AgingSimResult {
   simRealLogGrowth: Float64Array;
   finalPriceIndex: Float64Array;
   finalPop: Float64Array;
+  finalIncome: Float64Array;
   finalYoungShare: Float64Array;
   finalCohorts: Record<Cohort, Float64Array>;
+  macroPath: NationalMacroPath | null;
   national: {
     meanPriceIndex: number[];
     medianPriceIndex: number[];
@@ -69,13 +78,19 @@ const NATION_DYNAMICS: Record<'2000' | '2023', Pick<NationParams,
 };
 
 export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
+  const years = cfg.years ?? (cfg.epoch === '2000' ? 25 : 40);
+  if (!Number.isInteger(years) || years < 1 || years > 100) {
+    throw new Error('aging simulation years out of [1,100]');
+  }
+  const startYear = cfg.epoch === '2000' ? 2000 : 2025;
+  if (cfg.macroPath) {
+    assertNationalMacroPath(cfg.macroPath, startYear, startYear + years - 1);
+  }
   const file = cfg.epoch === '2000' ? 'features2000.csv' : 'features2023.csv';
   const requestedHeadship = cfg.params?.market?.headship as Partial<Record<Cohort, number>> | undefined;
   const headship: Record<Cohort, number> = { ...DEFAULT_HEADSHIP, ...(requestedHeadship ?? {}) };
   const data = loadEpoch(file, cfg.minPop ?? 250, headship);
   const s = data.statics;
-  const years = cfg.years ?? (cfg.epoch === '2000' ? 25 : 40);
-  const startYear = cfg.epoch === '2000' ? 2000 : 2025;
 
   // Initial vectors for lag seeds
   const working0 = new Float64Array(s.n);
@@ -117,6 +132,18 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
       modeled / Math.max(1, NATION_START[cfg.epoch][cohort] * 1e6)
     ));
   }
+  const macroMarketParams: Record<string, unknown> = {};
+  if (cfg.macroPath) {
+    const realIncomeGrowthPath: Record<number, number> = {};
+    const realHousePriceDriftPath: Record<number, number> = {};
+    for (const [year, point] of Object.entries(cfg.macroPath.points)) {
+      const numericYear = Number(year);
+      realIncomeGrowthPath[numericYear] = point.realIncomeGrowth;
+      realHousePriceDriftPath[numericYear] = point.realHousePriceDrift;
+    }
+    macroMarketParams.realIncomeGrowthPath = realIncomeGrowthPath;
+    macroMarketParams.realHousePriceDriftPath = realHousePriceDriftPath;
+  }
 
   const state = initAutowired({
     modules: [nationModule, attractionModule, migrationModule, marketModule],
@@ -129,7 +156,9 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
         childrenPerMover: cfg.params?.market?.childrenPerMover ?? 0.30,
         ...(cfg.params?.migration ?? {}),
       },
-      market: { statics: s, ...(cfg.params?.market ?? {}) },
+      // A supplied macro path owns the two annual macro rates. Other market
+      // overrides remain available through cfg.params.market.
+      market: { statics: s, ...(cfg.params?.market ?? {}), ...macroMarketParams },
     },
     startYear,
     endYear: startYear + years - 1,
@@ -163,6 +192,7 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
 
   const finalPriceIndex = last.priceIndexVec as Float64Array;
   const finalPop = last.popVec as Float64Array;
+  const finalIncome = last.incomeVec as Float64Array;
   const finalYoungShare = last.youngShareVec as Float64Array;
   const simRealLogGrowth = new Float64Array(s.n);
   for (let i = 0; i < s.n; i++) simRealLogGrowth[i] = Math.log(Math.max(1e-9, finalPriceIndex[i]));
@@ -172,6 +202,7 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
 
   return {
     data, years: simYears, simRealLogGrowth, finalPriceIndex, finalPop,
-    finalYoungShare, finalCohorts, national,
+    finalIncome, finalYoungShare, finalCohorts, macroPath: cfg.macroPath ?? null,
+    national,
   };
 }

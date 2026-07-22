@@ -3,9 +3,11 @@
 A TypeScript simulation exploring energy transitions, demographics, debt, and
 climate from 2025 to 2100. Ten pure modules (demographics, production,
 demand, capital, generations, energy, dispatch, resources, CDR, climate) are composed by a
-small domain-independent framework — the [`tsimulation`](packages/tsimulation/)
-package — that resolves dependencies topologically and breaks feedback cycles
-with explicit one-year lags.
+domain-independent simulation toolkit — the [`tsimulation`](packages/tsimulation/)
+package. Its module kernel resolves dependencies topologically and breaks
+feedback cycles with explicit lags; its sibling model/experiment layer supports
+event, monthly-network, calibration, ensemble, adapter, and provenance workflows
+without forcing them into the annual-module abstraction.
 
 This is an npm workspaces monorepo: `packages/tsimulation/` is the standalone,
 MIT-licensed engine (reusable for any discrete-time simulation), and the energy
@@ -59,6 +61,9 @@ node --import tsx scripts/heat-adaptation-scenario.ts
 node --import tsx scripts/generic-drug-scenario.ts
 node --import tsx scripts/bilateral-tariff-scenario.ts
 node --import tsx scripts/financial-contagion-scenario.ts
+
+# Rerun every new model/backtest and optionally emit reproducible manifests
+npm run sim:new -- --output=/tmp/tsimulation-suite.json --manifests=/tmp/tsimulation-manifests
 ```
 
 ## Programmatic use
@@ -78,7 +83,8 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   development conventions, scenario table, key outputs. Start here.
 - `src/modules/` — the ten simulation modules (pure
   `init`/`step`/`validate` interfaces)
-- `packages/tsimulation/` — the generic autowiring/collector/problem framework
+- `packages/tsimulation/` — the generic simulation kernel plus standalone
+  model, experiment, calibration, adapter, solver, evidence, and manifest APIs
   (no domain imports; reusable for other simulations; see its
   [README](packages/tsimulation/README.md))
 - `scenarios/` — scenario JSON files ([format docs](scenarios/README.md))

@@ -3,31 +3,9 @@ import {
   type BilateralTariffAction,
   type TradeSectorId,
 } from './data.js';
+import { assertFiniteDeep, solveLinearSystem, validateNumber } from 'tsimulation';
 
 const US_NOMINAL_GDP_BILLION = 31_000;
-
-function solveLinear(matrix: number[][], vector: number[]): number[] {
-  const n = vector.length;
-  const augmented = matrix.map((row, index) => [...row, vector[index]]);
-  for (let pivot = 0; pivot < n; pivot++) {
-    let best = pivot;
-    for (let row = pivot + 1; row < n; row++) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[best][pivot])) best = row;
-    }
-    if (Math.abs(augmented[best][pivot]) < 1e-12) throw new Error('Singular trade IO system');
-    [augmented[pivot], augmented[best]] = [augmented[best], augmented[pivot]];
-    const divisor = augmented[pivot][pivot];
-    for (let column = pivot; column <= n; column++) augmented[pivot][column] /= divisor;
-    for (let row = 0; row < n; row++) {
-      if (row === pivot) continue;
-      const factor = augmented[row][pivot];
-      for (let column = pivot; column <= n; column++) {
-        augmented[row][column] -= factor * augmented[pivot][column];
-      }
-    }
-  }
-  return augmented.map((row) => row[n]);
-}
 
 export interface TariffSectorResult {
   sector: TradeSectorId;
@@ -66,6 +44,27 @@ export function simulateBilateralTariff(
   action: BilateralTariffAction,
   options: { scope?: 'actual' | 'naive-headline'; retaliation?: boolean } = {},
 ): BilateralTariffResult {
+  assertFiniteDeep(action, 'tariff action');
+  const errors = [
+    ...validateNumber(action.nominalTariff, 'nominalTariff', { min: 0 }),
+    ...validateNumber(action.affectedImportsBillion, 'affectedImportsBillion', { min: 0 }),
+    ...validateNumber(action.totalImportsBillion, 'totalImportsBillion', { min: 0, exclusiveMin: true }),
+    ...validateNumber(action.partnerExportsToUsShareOfGdp, 'partnerExportsToUsShareOfGdp', { min: 0, max: 1 }),
+    ...validateNumber(action.tradeDiversionShare, 'tradeDiversionShare', { min: 0, max: 1 }),
+    ...validateNumber(action.partnerInputOutputMultiplier, 'partnerInputOutputMultiplier', { min: 0 }),
+    ...validateNumber(action.domesticRecaptureShare, 'domesticRecaptureShare', { min: 0, max: 1 }),
+    ...validateNumber(action.domesticValueAddedShare, 'domesticValueAddedShare', { min: 0, max: 1 }),
+  ];
+  if (action.affectedImportsBillion > action.totalImportsBillion) {
+    errors.push('affectedImportsBillion must not exceed totalImportsBillion');
+  }
+  for (const [sector, allocation] of Object.entries(action.affectedImportAllocation)) {
+    if (!tradeSectors.some((candidate) => candidate.id === sector)) {
+      errors.push(`Unknown tariff allocation sector '${sector}'`);
+    }
+    errors.push(...validateNumber(allocation, `affectedImportAllocation.${sector}`, { min: 0, max: 1 }));
+  }
+  if (errors.length > 0) throw new Error(`Invalid tariff action:\n  ${errors.join('\n  ')}`);
   const scope = options.scope ?? 'actual';
   const retaliation = options.retaliation ?? false;
   const affectedTotal = scope === 'actual'
@@ -119,7 +118,7 @@ export function simulateBilateralTariff(
       if (column !== undefined) matrix[row][column] -= coefficient ?? 0;
     }
   });
-  const prices = solveLinear(matrix, rhs);
+  const prices = solveLinearSystem(matrix, rhs).solution;
   const sectors: TariffSectorResult[] = intermediate.map((row, index) => ({
     ...row,
     totalSectorPriceChange: prices[index],
@@ -160,7 +159,7 @@ export function simulateBilateralTariff(
     coveredShareOfPartnerImports * averageQuantityDecline *
     (1 - action.tradeDiversionShare) * action.partnerInputOutputMultiplier;
 
-  return {
+  const result: BilateralTariffResult = {
     action,
     scope,
     retaliation,
@@ -179,4 +178,6 @@ export function simulateBilateralTariff(
     partnerExportRevenueLossBillion,
     sectors,
   };
+  assertFiniteDeep(result, 'tariff result');
+  return result;
 }

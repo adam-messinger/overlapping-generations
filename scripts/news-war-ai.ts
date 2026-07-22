@@ -1,12 +1,13 @@
 import { loadScenario, scenarioToParams } from '../src/scenario.js';
-import { runWarAiExperiment } from '../src/simulations/news/war-ai.js';
+import { runModel } from 'tsimulation';
+import { warAiModel } from '../src/simulations/registry.js';
 
 const aiScenario = await loadScenario('scenarios/ai-energy-boom.json');
-const experiment = runWarAiExperiment({
+const experiment = runModel(warAiModel, {
   aiParams: scenarioToParams(aiScenario),
   hormuzScenario: 'prolonged-closure',
   endYear: 2035,
-});
+}).output;
 
 const signed = (value: number, digits = 2): string =>
   `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;

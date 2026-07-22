@@ -7,27 +7,20 @@ import type {
   AnnualHormuzShock,
   HormuzSimulationResult,
 } from './hormuz-model.js';
+import { defineAdapter, mergeTemporalRecords, runAdapter } from 'tsimulation';
 
 export interface HormuzBridgeOptions {
   /** Near-term shares of non-electric final energy; remaining fuels are unshocked. */
   oilShareOfNonElectricEnergy: number;
   gasShareOfNonElectricEnergy: number;
+  /** Existing annual shocks are protected by default instead of silently overwritten. */
+  conflictPolicy?: 'error' | 'replace';
 }
 
 export const hormuzBridgeDefaults: HormuzBridgeOptions = {
   oilShareOfNonElectricEnergy: 0.50,
   gasShareOfNonElectricEnergy: 0.30,
 };
-
-function mergeByYear<T extends { year: number }>(
-  existing: readonly T[] | undefined,
-  generated: readonly T[],
-): readonly T[] {
-  const merged = new Map<number, T>();
-  for (const row of existing ?? []) merged.set(row.year, row);
-  for (const row of generated) merged.set(row.year, row);
-  return [...merged.values()].sort((a, b) => a.year - b.year);
-}
 
 function weightedRegionalGasAvailability(
   annual: AnnualHormuzShock,
@@ -60,6 +53,10 @@ export function buildHormuzGlobalOverrides(
   base: SimulationParams = {},
   options: HormuzBridgeOptions = hormuzBridgeDefaults,
 ): SimulationParams {
+  if (options.oilShareOfNonElectricEnergy < 0 || options.gasShareOfNonElectricEnergy < 0 ||
+      options.oilShareOfNonElectricEnergy + options.gasShareOfNonElectricEnergy > 1) {
+    throw new Error('Hormuz bridge fuel shares must be non-negative and sum to at most 1');
+  }
   const annual = simulation.annual.filter(isNonTrivial);
   const demandShocks: AnnualCommodityShock[] = annual.map((row) => ({
     year: row.year,
@@ -112,26 +109,65 @@ export function buildHormuzGlobalOverrides(
     ...base,
     demand: {
       ...(base.demand ?? {}),
-      commodityShocks: mergeByYear(
-        base.demand?.commodityShocks,
-        demandShocks,
-      ),
+      commodityShocks: mergeTemporalRecords({
+        existing: base.demand?.commodityShocks,
+        generated: demandShocks,
+        onConflict: options.conflictPolicy,
+        context: 'Hormuz demand shocks',
+      }),
     },
     production: {
       ...(base.production ?? {}),
-      energySupplyShocks: mergeByYear(
-        base.production?.energySupplyShocks,
-        productionShocks,
-      ),
+      energySupplyShocks: mergeTemporalRecords({
+        existing: base.production?.energySupplyShocks,
+        generated: productionShocks,
+        onConflict: options.conflictPolicy,
+        context: 'Hormuz production shocks',
+      }),
     },
     resources: {
       ...(base.resources ?? {}),
-      foodSupplyShocks: mergeByYear(
-        base.resources?.foodSupplyShocks,
-        foodShocks,
-      ),
+      foodSupplyShocks: mergeTemporalRecords({
+        existing: base.resources?.foodSupplyShocks,
+        generated: foodShocks,
+        onConflict: options.conflictPolicy,
+        context: 'Hormuz food shocks',
+      }),
     },
   };
+}
+
+export interface HormuzGlobalAdapterInput {
+  simulation: HormuzSimulationResult;
+  base?: SimulationParams;
+  options?: HormuzBridgeOptions;
+}
+
+/** Machine-readable monthly-network → annual-global bridge contract. */
+export const hormuzGlobalAdapter = defineAdapter<HormuzGlobalAdapterInput, SimulationParams>({
+  id: 'hormuz-to-global-olg',
+  version: '1.0.0',
+  description: 'Aggregate monthly Hormuz physical, price, trade, and food shocks into annual global-model inputs.',
+  sourceModel: 'critical-materials.hormuz',
+  targetModel: 'global-olg',
+  sourceTimeScale: { kind: 'monthly' },
+  targetTimeScale: { kind: 'annual' },
+  sourcePorts: {
+    oilAvailability: { unit: 'fraction', valueType: 'number' },
+    gasAvailability: { unit: 'fraction', valueType: 'number' },
+    oilPriceMultiple: { unit: 'fraction', valueType: 'number' },
+    gasPriceMultiple: { unit: 'fraction', valueType: 'number' },
+  },
+  targetPorts: {
+    nonElectricAvailability: { unit: 'fraction', valueType: 'number' },
+    commodityPriceMultiple: { unit: 'fraction', valueType: 'number' },
+  },
+  adapt: ({ simulation, base = {}, options = hormuzBridgeDefaults }) =>
+    buildHormuzGlobalOverrides(simulation, base, options),
+});
+
+export function runHormuzGlobalAdapter(input: HormuzGlobalAdapterInput): SimulationParams {
+  return runAdapter(hormuzGlobalAdapter, input).target;
 }
 
 export interface HormuzMacroYearImpact {

@@ -1,0 +1,297 @@
+import {
+  ModelRegistry,
+  defineModel,
+  type EvidenceRecord,
+  type ValidationClaim,
+} from 'tsimulation';
+import type { HeatAdaptation, HeatEvent } from './heat/data.js';
+import { heatEvidence } from './heat/data.js';
+import { simulateHeatEvent, type HeatSimulationResult } from './heat/model.js';
+import type { GenericDrugEconomicsScenario } from './drug-supply/data.js';
+import { drugSupplyEvidence } from './drug-supply/data.js';
+import { simulateGenericDrugEconomics, type GenericDrugEconomicsResult } from './drug-supply/model.js';
+import type { BilateralTariffAction } from './trade/data.js';
+import { tariffEvidence } from './trade/data.js';
+import { simulateBilateralTariff, type BilateralTariffResult } from './trade/model.js';
+import type {
+  ContagionPolicy,
+  LeveragedFundGroup,
+  SovereignMarket,
+  SovereignShockScenario,
+} from './financial-contagion/data.js';
+import { financialContagionEvidence } from './financial-contagion/data.js';
+import {
+  simulateFinancialContagion,
+  type FinancialContagionResult,
+} from './financial-contagion/model.js';
+import type { MaritimeNetworkParams, MaritimeScenario } from './critical-materials/shipping-data.js';
+import {
+  simulateMaritimeNetwork,
+  type MaritimeSimulationResult,
+} from './critical-materials/shipping-network.js';
+import type {
+  DefensePolicyId,
+  DefenseSourcingParams,
+} from './critical-materials/defense-sourcing-data.js';
+import {
+  simulateDefenseSourcing,
+  type DefenseSourcingResult,
+} from './critical-materials/defense-sourcing.js';
+import type { HormuzModelParams, HormuzScenario } from './critical-materials/hormuz-data.js';
+import {
+  simulateHormuzDisruption,
+  type HormuzSimulationResult,
+} from './critical-materials/hormuz-model.js';
+import type { OutbreakV2Params, OutbreakSeries } from './outbreak/model.js';
+import { simulateOutbreakV2 } from './outbreak/model.js';
+import {
+  runWarAiExperiment,
+  type WarAiExperiment,
+  type WarAiExperimentOptions,
+} from './news/war-ai.js';
+
+const observed = (id: string, label: string, url: string, role: EvidenceRecord['role']): EvidenceRecord => ({
+  id,
+  label,
+  kind: 'observed',
+  role,
+  source: { title: label, url, accessedAt: '2026-07-22' },
+});
+
+const claim = (
+  grade: ValidationClaim['grade'],
+  label: string,
+  basis: string,
+  evidenceIds: string[],
+): ValidationClaim => ({ grade, label, basis, evidenceIds });
+
+export interface HeatModelInput {
+  event: HeatEvent;
+  adaptation: HeatAdaptation;
+  mortalityScale: number;
+}
+
+const heatEvidenceRecords: EvidenceRecord[] = [
+  observed('heat-france-2026', 'France 2026 preliminary excess mortality', heatEvidence.sources.france2026, 'development'),
+  observed('heat-europe-2022', 'European 2022 age-specific heat mortality', heatEvidence.sources.europe2022, 'validation'),
+  observed('heat-europe-adaptation', 'European heat-adaptation counterfactual', heatEvidence.sources.europe2023Adaptation, 'validation'),
+];
+
+export const heatEventModel = defineModel<HeatModelInput, HeatSimulationResult>({
+  id: 'acute-heat-event',
+  version: '2.0.0',
+  description: 'Coupled acute heat mortality, cooling-power, and crop-stress experiment.',
+  run: ({ event, adaptation, mortalityScale }) => simulateHeatEvent(event, adaptation, mortalityScale),
+  inputPorts: {
+    mortalityScale: { unit: '1', valueType: 'number' },
+    temperature: { unit: '°C', valueType: 'number' },
+  },
+  outputPorts: {
+    coolingElectricity: { unit: 'TWh', valueType: 'number' },
+    coolingPeak: { unit: 'GW', valueType: 'number' },
+    reserveMargin: { unit: 'GW', valueType: 'number' },
+  },
+  invariants: [
+    { id: 'nonnegative-deaths', description: 'Mortality must be non-negative', check: (row) => row.mortality.totalDeaths >= 0 },
+    { id: 'grid-uptime-range', description: 'Grid uptime must be in [0,1]', check: (row) => row.power.effectiveGridUptime >= 0 && row.power.effectiveGridUptime <= 1 },
+  ],
+  evidence: heatEvidenceRecords,
+  validationClaims: [claim('same-event-fit', 'France mortality level', 'Mortality scale is fitted to this event; age gradients and adaptation are external checks.', ['heat-france-2026', 'heat-europe-2022', 'heat-europe-adaptation'])],
+});
+
+export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, GenericDrugEconomicsResult>({
+  id: 'generic-drug-economics',
+  version: '2.0.0',
+  description: 'Monthly sterile-generic margins, utilization, inventories, and patient service.',
+  run: (scenario) => simulateGenericDrugEconomics(scenario),
+  outputPorts: {
+    serviceLevel: { unit: 'fraction', valueType: 'number' },
+    operatingMargin: { unit: 'fraction', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'service-range',
+    description: 'Every monthly service level must be in [0,1]',
+    check: (result) => result.months.every((row) => row.serviceLevel >= 0 && row.serviceLevel <= 1),
+  }],
+  evidence: [
+    observed('drug-india-price', 'India 2026 oncology-drug ceiling-price relief', drugSupplyEvidence.sources.indiaPriceRelief, 'scenario'),
+    observed('drug-cisplatin-utilization', 'Held-out cisplatin utilization response', drugSupplyEvidence.sources.utilization, 'holdout'),
+  ],
+  validationClaims: [claim('mechanism-inherited', 'Margin-to-service scenario', 'Supply dynamics inherit the separately backtested cisplatin inventory/allocation mechanism; manufacturer cost curves remain scenarios.', ['drug-cisplatin-utilization', 'drug-india-price'])],
+});
+
+export interface TariffModelInput {
+  action: BilateralTariffAction;
+  scope?: 'actual' | 'naive-headline';
+  retaliation?: boolean;
+}
+
+export const bilateralTariffModel = defineModel<TariffModelInput, BilateralTariffResult>({
+  id: 'bilateral-tariff-io',
+  version: '2.0.0',
+  description: 'Product-scoped bilateral tariff model with input-output price propagation.',
+  run: ({ action, scope, retaliation }) => simulateBilateralTariff(action, { scope, retaliation }),
+  outputPorts: {
+    consumerPriceChange: { unit: 'fraction', valueType: 'number' },
+    realGdpChange: { unit: 'fraction', valueType: 'number' },
+    tariffRevenue: { unit: '$B', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'coverage-range',
+    description: 'Covered imports must be a valid share',
+    check: (result) => result.coveredShareOfPartnerImports >= 0 && result.coveredShareOfPartnerImports <= 1,
+  }],
+  evidence: [
+    observed('tariff-usitc-2018', 'USITC 2018 steel and aluminum evaluation', tariffEvidence.sources.usitc, 'development'),
+    observed('tariff-canada-order', 'Canada tariff product scope', tariffEvidence.sources.canadaOrder, 'scenario'),
+  ],
+  validationClaims: [claim('same-event-fit', 'Sector pass-through and substitution', 'Pass-through and elasticities are fit to the 2018 steel/aluminum episode; 2026 policy effects are conditional scenarios.', ['tariff-usitc-2018', 'tariff-canada-order'])],
+});
+
+export interface FinancialContagionInput {
+  scenario: SovereignShockScenario;
+  policy: ContagionPolicy;
+  markets: readonly SovereignMarket[];
+  funds: readonly LeveragedFundGroup[];
+  options?: { maxIterations?: number; toleranceBps?: number; bankTier1Billion?: number };
+}
+
+export const financialContagionModel = defineModel<FinancialContagionInput, FinancialContagionResult>({
+  id: 'sovereign-nbfi-contagion',
+  version: '2.0.0',
+  description: 'Nonlinear collateral calls, forced sales, sovereign-market impact, and policy backstops.',
+  run: ({ scenario, policy, markets, funds, options }) =>
+    simulateFinancialContagion(scenario, policy, markets, funds, options),
+  inputPorts: { yieldShock: { unit: 'bp', valueType: 'record' } },
+  outputPorts: {
+    yieldAmplification: { unit: 'bp', valueType: 'record' },
+    forcedSales: { unit: '$B', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'nonnegative-sales',
+    description: 'Forced sales must be non-negative',
+    check: (result) => result.totalForcedSalesBillion >= 0,
+  }],
+  evidence: [
+    observed('finance-uk-ldi-2022', 'Bank of England 2022 LDI evidence', financialContagionEvidence.sources.boe2022, 'development'),
+    observed('finance-bis-2026', 'BIS 2026 sovereign NBFI exposures', financialContagionEvidence.sources.bis2026, 'scenario'),
+  ],
+  validationClaims: [claim('same-event-fit', 'LDI fire-sale feedback', 'The nonlinear feedback is fitted to the 2022 gilt episode; cross-market 2026 exposures are scenario anchored.', ['finance-uk-ldi-2022', 'finance-bis-2026'])],
+});
+
+export interface MaritimeModelInput {
+  scenario: MaritimeScenario;
+  params?: Partial<MaritimeNetworkParams>;
+}
+
+export const maritimeNetworkModel = defineModel<MaritimeModelInput, MaritimeSimulationResult>({
+  id: 'multi-chokepoint-maritime',
+  version: '2.0.0',
+  description: 'Monthly Hormuz–Bab–Suez serial-edge network with Cape rerouting and queues.',
+  run: ({ scenario, params }) => simulateMaritimeNetwork(scenario, params),
+  outputPorts: {
+    oilFlow: { unit: 'mb/d', valueType: 'number' },
+    capacityLoss: { unit: 'fraction', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'availability-range',
+    description: 'Intended-market oil availability must stay in the modeled [0,1.5] range; values above one are delayed-cargo catch-up.',
+    check: (result) => result.monthly.every((row) => row.intendedMarketOilAvailability >= 0 && row.intendedMarketOilAvailability <= 1.5),
+  }],
+  evidence: [],
+  validationClaims: [claim('out-of-sample', 'Cape rerouting persistence', 'The sole rerouting coefficient is fit to 2024 and evaluated against a frozen 1H25 holdout.', [])],
+});
+
+export interface DefenseSourcingInput {
+  policy: DefensePolicyId;
+  overrides?: Partial<DefenseSourcingParams>;
+}
+
+export const defenseSourcingModel = defineModel<DefenseSourcingInput, DefenseSourcingResult>({
+  id: 'defense-magnet-sourcing',
+  version: '2.0.0',
+  description: 'Monthly capacity commissioning, qualification, waivers, stockpiles, and defense output.',
+  run: ({ policy, overrides }) => simulateDefenseSourcing(policy, overrides),
+  outputPorts: {
+    defenseOutput: { unit: 'fraction', valueType: 'number' },
+    procurementCost: { unit: '1', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'output-range',
+    description: 'Defense output must be in [0,1]',
+    check: (result) => result.months.every((row) => row.defenseOutput >= 0 && row.defenseOutput <= 1),
+  }],
+  evidence: [],
+  validationClaims: [claim('mechanism-inherited', 'Qualification bottleneck', 'Inventory and bottleneck dynamics inherit critical-material event validation; project and qualification coefficients are scenarios.', [])],
+});
+
+export interface HormuzModelInput {
+  scenario: HormuzScenario;
+  params?: HormuzModelParams;
+}
+
+export const hormuzDisruptionModel = defineModel<HormuzModelInput, HormuzSimulationResult>({
+  id: 'hormuz-stock-flow',
+  version: '2.0.0',
+  description: 'Monthly oil, LNG, fertilizer, inventory, storage, price, and regional exposure model.',
+  run: ({ scenario, params }) => simulateHormuzDisruption(scenario, params),
+  outputPorts: {
+    availability: { unit: 'fraction', valueType: 'number' },
+    priceMultiple: { unit: '1', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'oil-availability-range',
+    description: 'Monthly oil availability must be in [0,1]',
+    check: (result) => result.months.every((row) => row.oil.physicalSupplyRatio >= 0 && row.oil.physicalSupplyRatio <= 1),
+  }],
+  evidence: [],
+  validationClaims: [claim('out-of-sample', '2026 Hormuz stock-flow response', 'Traffic, loss, price, and shut-in data are development anchors; later oil and fertilizer outcomes are untouched holdouts.', [])],
+});
+
+export const outbreakPreparednessModel = defineModel<OutbreakV2Params, OutbreakSeries>({
+  id: 'outbreak-preparedness',
+  version: '2.0.0',
+  description: 'SEIR outbreak with response, easing, care capacity, severity change, imports, and countermeasures.',
+  run: (params) => simulateOutbreakV2(params),
+  requireFiniteInput: false,
+  outputPorts: {
+    infections: { unit: 'people', valueType: 'number' },
+    deaths: { unit: 'people', valueType: 'number' },
+  },
+  invariants: [
+    { id: 'nonnegative-deaths', description: 'Deaths must be non-negative', check: (result) => result.totalDeaths >= 0 },
+    { id: 'nonnegative-infections', description: 'Infections must be non-negative', check: (result) => result.totalInfections >= 0 },
+  ],
+  evidence: [],
+  validationClaims: [claim('out-of-sample', 'Cross-episode outbreak dynamics', 'Parameters are fitted on early weeks and scored on frozen later-week episode holdouts; generic preparedness paths remain scenarios.', [])],
+});
+
+export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
+  id: 'war-ai-factorial',
+  version: '2.0.0',
+  description: 'Matched 2×2 AI-buildout and Hormuz-disruption macro interaction experiment.',
+  run: (options) => runWarAiExperiment(options),
+  outputPorts: {
+    gdp: { unit: '$T', valueType: 'number' },
+    dataCenterLoad: { unit: 'TWh', valueType: 'number' },
+    capitalFundingGap: { unit: '$T', valueType: 'number' },
+  },
+  invariants: [{
+    id: 'aligned-paths',
+    description: 'The four matched paths must cover the same number of years',
+    check: (result) => new Set(Object.values(result.paths).map((path) => path.results.length)).size === 1,
+  }],
+  evidence: [],
+  validationClaims: [claim('mechanism-inherited', 'War × AI interaction', 'This experiment composes the separately calibrated Hormuz model with the global macro model; the interaction itself has no historical holdout.', [])],
+});
+
+export const simulationModelRegistry = new ModelRegistry()
+  .register(heatEventModel)
+  .register(genericDrugModel)
+  .register(bilateralTariffModel)
+  .register(financialContagionModel)
+  .register(maritimeNetworkModel)
+  .register(defenseSourcingModel)
+  .register(hormuzDisruptionModel)
+  .register(outbreakPreparednessModel)
+  .register(warAiModel);

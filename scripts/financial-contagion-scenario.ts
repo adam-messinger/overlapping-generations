@@ -6,18 +6,26 @@ import {
   sovereignMarkets2026,
   sovereignShockScenarios,
 } from '../src/simulations/financial-contagion/data.js';
-import { simulateFinancialContagion } from '../src/simulations/financial-contagion/model.js';
+import { runModel } from 'tsimulation';
+import { financialContagionModel } from '../src/simulations/registry.js';
 
 const pct = (value: number): string => `${(100 * value).toFixed(2)}%`;
 const shocks = ['uk-100bp', 'global-100bp', 'global-200bp', 'japan-150bp'];
 const policies = ['current', 'safeguards', 'thin-liquidity', 'backstop'];
+const runContagion = (
+  scenario: typeof sovereignShockScenarios[string],
+  policy: typeof contagionPolicies[string],
+) => runModel(financialContagionModel, {
+  scenario,
+  policy,
+  markets: sovereignMarkets2026,
+  funds: leveragedFunds2026,
+}).output;
 
 console.log('=== Sovereign–nonbank financial contagion ===\n');
-const results = shocks.flatMap((shock) => policies.map((policy) => simulateFinancialContagion(
+const results = shocks.flatMap((shock) => policies.map((policy) => runContagion(
   sovereignShockScenarios[shock],
   contagionPolicies[policy],
-  sovereignMarkets2026,
-  leveragedFunds2026,
 )));
 console.table(results.map((result) => ({
   shock: result.scenario.id,
@@ -37,15 +45,13 @@ console.log('\nIllustrative synchronous-shock cliff');
 console.table(['current', 'safeguards', 'thin-liquidity'].map((policy) => {
   let firstResolution: number | null = null;
   for (let bps = 50; bps <= 300; bps += 10) {
-    const result = simulateFinancialContagion(
+    const result = runContagion(
       {
         id: `global-${bps}bp-scan`,
         label: `${bps}bp synchronous scan`,
         fundamentalYieldShockBps: { treasury: bps, gilt: bps, jgb: bps },
       },
       contagionPolicies[policy],
-      sovereignMarkets2026,
-      leveragedFunds2026,
     );
     if (result.liquidationCapacityExhausted) {
       firstResolution = bps;

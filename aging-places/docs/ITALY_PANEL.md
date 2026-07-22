@@ -1,5 +1,10 @@
 # Italian municipal panel: frozen protocol
 
+> **Document type: frozen preregistration, not live status.** Time-specific statements below
+> intentionally preserve what was known when choices were frozen. For opened outcomes and the
+> current verdict, use the [canonical status manifest](../data/international-validation-status.json)
+> or the [generated status table](../README.md#international-validation-status).
+
 Status: **pre-registered before acquisition of any Italian municipal outcome with reference
 year after 2019.** At commit time the repository contains no Istat demographic file, MEF income
 file, or OMI price file for reference years 2020-2024. Changes to a frozen choice below must be

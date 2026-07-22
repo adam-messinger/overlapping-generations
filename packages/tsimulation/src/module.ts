@@ -21,6 +21,12 @@ import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
  */
 /** Connector type for runtime validation of module wiring */
 export type ConnectorType = 'number' | 'record' | 'nested-record';
+export interface ConnectorSpec {
+  type: ConnectorType;
+  /** Runtime unit contract. Different scales require an explicit transform. */
+  unit?: string;
+}
+export type ConnectorDeclaration = ConnectorType | ConnectorSpec;
 
 export interface Module<
   TParams extends object,
@@ -55,8 +61,8 @@ export interface Module<
    * providers and consumers at startup.
    */
   readonly connectorTypes?: {
-    inputs?: Partial<Record<keyof TInputs, ConnectorType>>;
-    outputs?: Partial<Record<keyof TOutputs, ConnectorType>>;
+    inputs?: Partial<Record<keyof TInputs, ConnectorDeclaration>>;
+    outputs?: Partial<Record<keyof TOutputs, ConnectorDeclaration>>;
   };
 
   /**

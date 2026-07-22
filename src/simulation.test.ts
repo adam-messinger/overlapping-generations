@@ -57,7 +57,7 @@ test('scenarioToParams warns on dead NESTED keys but not on valid Partial option
         // valid Partial optional absent from defaults — must NOT warn
         regional: { oecd: { maxGrowthRate: { solar: 0.1 } } },
       },
-    } as never);
+    } as never, { unknownKeys: 'warn' });
   } finally {
     console.warn = orig;
   }
@@ -65,6 +65,15 @@ test('scenarioToParams warns on dead NESTED keys but not on valid Partial option
   expect(joined.includes('energy.sources.solar') && joined.includes('growthRate')).toBeTrue();
   expect(joined.includes('carbonPriceTYPO')).toBeTrue();
   expect(joined.includes('maxGrowthRate')).toBeFalse();  // valid optional, no false positive
+});
+
+test('scenarioToParams strict mode rejects unknown top-level and nested keys', () => {
+  expect(() => scenarioToParams({
+    name: 'Bad top level', description: '', typo: true,
+  } as never, { unknownKeys: 'error' })).toThrow('Unrecognized scenario key "typo"');
+  expect(() => scenarioToParams({
+    name: 'Bad nested key', description: '', demand: { dataCenterBaseGrowt: 0.2 },
+  } as never, { unknownKeys: 'error' })).toThrow('Unrecognized demand param "dataCenterBaseGrowt"');
 });
 
 test('2025 regional financing spreads reproduce the IEA-observed calibration', () => {
@@ -158,6 +167,14 @@ test('no initialization discontinuity: first simulated years are smooth', () => 
     expect(growth).toBeGreaterThan(-0.01);
     expect(growth).toBeLessThan(0.04);
   }
+});
+
+test('baseline lag bootstrap reaches a measured fixed point', () => {
+  const result = runAutowiredSimulation({ startYear: 2025, endYear: 2025 });
+  const bootstrap = result.diagnostics?.bootstrap;
+  expect(bootstrap?.enabled).toBeTrue();
+  expect(bootstrap?.converged).toBeTrue();
+  expect(bootstrap?.residual as number).toBeLessThan(1e-7 + 1e-12);
 });
 
 test('near-term observables stay in validation bands (2025-2030)', () => {

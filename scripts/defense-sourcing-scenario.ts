@@ -3,6 +3,8 @@ import {
   simulateDefenseSourcing,
 } from '../src/simulations/critical-materials/defense-sourcing.js';
 import type { DefensePolicyId } from '../src/simulations/critical-materials/defense-sourcing-data.js';
+import { runModel } from 'tsimulation';
+import { defenseSourcingModel } from '../src/simulations/registry.js';
 
 const policies: readonly DefensePolicyId[] = [
   'continued-waivers',
@@ -12,7 +14,7 @@ const policies: readonly DefensePolicyId[] = [
   'accelerated-qualification',
   'combined-resilience',
 ];
-const results = policies.map((policy) => simulateDefenseSourcing(policy));
+const results = policies.map((policy) => runModel(defenseSourcingModel, { policy }).output);
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
 const calendar = (month: number | null): string => {
   if (month === null) return 'none';

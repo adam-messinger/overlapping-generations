@@ -4,7 +4,8 @@ import {
   maritimeScenarios,
   type MaritimeScenarioId,
 } from '../src/simulations/critical-materials/shipping-data.js';
-import { simulateMaritimeNetwork } from '../src/simulations/critical-materials/shipping-network.js';
+import { runModel } from 'tsimulation';
+import { maritimeNetworkModel } from '../src/simulations/registry.js';
 
 function scenarioArg(): MaritimeScenarioId {
   const value = process.argv.find((arg) => arg.startsWith('--scenario='))
@@ -16,7 +17,7 @@ function scenarioArg(): MaritimeScenarioId {
 
 const calibration = calibrateMaritimeNetwork();
 const scenario = maritimeScenarios[scenarioArg()];
-const result = simulateMaritimeNetwork(scenario, calibration.params);
+const result = runModel(maritimeNetworkModel, { scenario, params: calibration.params }).output;
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
 
 console.log('=== Multi-chokepoint maritime network ===\n');

@@ -6,6 +6,7 @@ import {
   type DefensePolicyId,
   type DefenseSourcingParams,
 } from './defense-sourcing-data.js';
+import { assertFiniteDeep, validateNumber } from 'tsimulation';
 
 const defenseMagnetNetwork: readonly MaterialNode[] = [
   {
@@ -84,6 +85,7 @@ function mergeParams(
   overrides: Partial<DefenseSourcingParams>,
 ): DefenseSourcingParams {
   const policyOverrides = defensePolicies[policy];
+  if (!policyOverrides) throw new Error(`Unknown defense policy '${policy}'`);
   return {
     ...defenseSourcingDefaults,
     ...policyOverrides,
@@ -108,6 +110,29 @@ export function simulateDefenseSourcing(
   overrides: Partial<DefenseSourcingParams> = {},
 ): DefenseSourcingResult {
   const params = mergeParams(policy, overrides);
+  assertFiniteDeep(params, 'defense sourcing params');
+  const errors = [
+    ...validateNumber(params.months, 'months', { integer: true, min: 1 }),
+    ...validateNumber(params.initialQualifiedCapacity, 'initialQualifiedCapacity', { min: 0 }),
+    ...validateNumber(params.initialPhysicalUnqualifiedCapacity, 'initialPhysicalUnqualifiedCapacity', { min: 0 }),
+    ...validateNumber(params.initialUnqualifiedQualificationMonths, 'initialUnqualifiedQualificationMonths', { min: 0 }),
+    ...validateNumber(params.qualificationTimeMultiplier, 'qualificationTimeMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.projectTimeMultiplier, 'projectTimeMultiplier', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.stockpileMonths, 'stockpileMonths', { min: 0 }),
+    ...validateNumber(params.compliantCostPremium, 'compliantCostPremium', { min: 0 }),
+    ...validateNumber(params.emergencySpotPremium, 'emergencySpotPremium', { min: 0 }),
+  ];
+  for (const [index, project] of params.projects.entries()) {
+    errors.push(
+      ...validateNumber(project.commissionMonth, `projects[${index}].commissionMonth`, { min: 0 }),
+      ...validateNumber(project.qualificationMonths, `projects[${index}].qualificationMonths`, { min: 0 }),
+      ...validateNumber(project.capacity, `projects[${index}].capacity`, { min: 0 }),
+    );
+  }
+  params.waiverPath.forEach((value, index) => {
+    errors.push(...validateNumber(value, `waiverPath[${index}]`, { min: 0, max: 1 }));
+  });
+  if (errors.length > 0) throw new Error(`Invalid defense sourcing params:\n  ${errors.join('\n  ')}`);
   let stockpile = params.stockpileMonths;
   let stockpileDepletionMonth: number | null = null;
   const sourcingRows: Omit<DefenseSourcingMonth, 'defenseOutput'>[] = [];
@@ -194,7 +219,7 @@ export function simulateDefenseSourcing(
     defenseOutput: network.months[index].outputRatios['defense-systems'] ?? 1,
   }));
   const outputs = months.map((row) => row.defenseOutput);
-  return {
+  const result: DefenseSourcingResult = {
     policy,
     params,
     months,
@@ -209,6 +234,8 @@ export function simulateDefenseSourcing(
     averageProcurementCostIndex:
       months.reduce((sum, row) => sum + row.procurementCostIndex, 0) / months.length,
   };
+  assertFiniteDeep(result, 'defense sourcing result');
+  return result;
 }
 
 export interface DefenseSensitivityRow {

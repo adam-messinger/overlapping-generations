@@ -1,5 +1,6 @@
 import type { MaterialNode } from './data.js';
 import { simulatePriceShock } from './price-network.js';
+import { assertFiniteDeep, validateAndSortGraph, validateNumber } from 'tsimulation';
 
 export interface DynamicNetworkOptions {
   months: number;
@@ -39,6 +40,55 @@ export function simulateDynamicNetwork(
   nodes: readonly MaterialNode[],
   options: DynamicNetworkOptions,
 ): DynamicNetworkResult {
+  assertFiniteDeep({ nodes, options }, 'dynamic network input');
+  const optionErrors = [
+    ...validateNumber(options.months, 'months', { integer: true, min: 1 }),
+    ...validateNumber(options.priceElasticity, 'priceElasticity', { min: 0 }),
+    ...validateNumber(options.pricePassThrough, 'pricePassThrough', { min: 0 }),
+    ...validateNumber(options.inventoryMonthsOverride ?? 0, 'inventoryMonthsOverride', { min: 0 }),
+    ...validateNumber(options.inventoryMultiplier ?? 1, 'inventoryMultiplier', { min: 0 }),
+    ...validateNumber(options.substitutionMultiplier ?? 1, 'substitutionMultiplier', { min: 0 }),
+    ...validateNumber(options.curtailmentThreshold ?? 0.98, 'curtailmentThreshold', { min: 0, max: 1 }),
+  ];
+  for (const node of nodes) {
+    optionErrors.push(
+      ...validateNumber(node.inventoryMonths, `${node.id}.inventoryMonths`, { min: 0 }),
+      ...validateNumber(node.finalDemandWeight, `${node.id}.finalDemandWeight`, { min: 0 }),
+    );
+    for (const input of node.inputs) {
+      optionErrors.push(
+        ...validateNumber(input.costShare, `${node.id}.inputs.${input.from}.costShare`, { min: 0 }),
+        ...validateNumber(input.maxSubstitution ?? 0, `${node.id}.inputs.${input.from}.maxSubstitution`, { min: 0, max: 1 }),
+        ...validateNumber(input.substitutionRampMonths ?? 1, `${node.id}.inputs.${input.from}.substitutionRampMonths`, { min: 0, exclusiveMin: true }),
+      );
+    }
+  }
+  if (optionErrors.length > 0) throw new Error(`Invalid dynamic network options:\n  ${optionErrors.join('\n  ')}`);
+  const orderedNodes = validateAndSortGraph(
+    nodes,
+    (node) => node.id,
+    (node) => node.inputs.map((input) => input.from),
+    'dynamic material network',
+  ).ordered;
+  const materialIds = new Set(
+    orderedNodes.filter((node) => node.kind === 'material').map((node) => node.id),
+  );
+  for (const key of Object.keys(options.supplyPaths)) {
+    if (!materialIds.has(key)) throw new Error(`Supply path references unknown material '${key}'`);
+    const path = options.supplyPaths[key];
+    if (path.length === 0) throw new Error(`Supply path '${key}' must not be empty`);
+    const errors = path.flatMap((value, index) =>
+      validateNumber(value, `supplyPaths.${key}[${index}]`, { min: 0, max: 1.5 }),
+    );
+    if (errors.length > 0) throw new Error(`Invalid dynamic network supply path:\n  ${errors.join('\n  ')}`);
+  }
+  if (options.curtailmentNodeId && !orderedNodes.some((node) => node.id === options.curtailmentNodeId)) {
+    throw new Error(`Unknown curtailment node '${options.curtailmentNodeId}'`);
+  }
+  for (const [key, value] of Object.entries(options.inventoryMonthsByInput ?? {})) {
+    const errors = validateNumber(value, `inventoryMonthsByInput.${key}`, { min: 0 });
+    if (errors.length > 0) throw new Error(errors.join('; '));
+  }
   const inventories = new Map<string, number>();
   const shortageDurations = new Map<string, number>();
   const inventoryTarget = (node: MaterialNode, inputFrom: string): number => {
@@ -49,14 +99,15 @@ export function simulateDynamicNetwork(
       node.inventoryMonths;
     return base * (options.inventoryMultiplier ?? 1);
   };
-  for (const node of nodes) {
+  for (const node of orderedNodes) {
     for (const input of node.inputs) {
       inventories.set(`${node.id}:${input.from}`, inventoryTarget(node, input.from));
       shortageDurations.set(`${node.id}:${input.from}`, 0);
     }
   }
 
-  const finalWeight = nodes.reduce((sum, node) => sum + node.finalDemandWeight, 0);
+  const finalWeight = orderedNodes.reduce((sum, node) => sum + node.finalDemandWeight, 0);
+  if (!(finalWeight > 0)) throw new Error('Dynamic material network needs positive final-demand weight');
   const results: DynamicMonthResult[] = [];
   let firstCurtailmentMonth: number | null = null;
   let recoveryMonth: number | null = null;
@@ -68,7 +119,7 @@ export function simulateDynamicNetwork(
     const sourcePriceMultiples: Record<string, number> = {};
     let basketPriceChange = 0;
 
-    for (const node of nodes) {
+    for (const node of orderedNodes) {
       if (node.kind === 'material') {
         const path = options.supplyPaths[node.id];
         const capacity = clamp(path?.[month] ?? path?.[path.length - 1] ?? 1, 0, 1.5);
@@ -82,7 +133,7 @@ export function simulateDynamicNetwork(
         peakSourcePriceMultiple = Math.max(peakSourcePriceMultiple, priceMultiple);
         if (priceMultiple > 1) {
           basketPriceChange += simulatePriceShock(
-            nodes,
+            orderedNodes,
             node.id,
             priceMultiple - 1,
             options.pricePassThrough,
@@ -139,7 +190,7 @@ export function simulateDynamicNetwork(
     }
 
     const weightedFinalOutput =
-      nodes.reduce(
+      orderedNodes.reduce(
         (sum, node) => sum + node.finalDemandWeight * (outputRatios[node.id] ?? 1),
         0,
       ) / Math.max(finalWeight, 1e-12);
@@ -168,11 +219,13 @@ export function simulateDynamicNetwork(
     });
   }
 
-  return {
+  const result: DynamicNetworkResult = {
     months: results,
     firstCurtailmentMonth,
     recoveryMonth,
     peakSourcePriceMultiple,
     cumulativeWeightedOutputLoss,
   };
+  assertFiniteDeep(result, 'dynamic network result');
+  return result;
 }

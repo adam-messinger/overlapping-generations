@@ -667,7 +667,10 @@ function buildLags(params: SimulationParams) {
  */
 export function runAutowiredSimulation(
   params: SimulationParams = {},
-  options?: { trackReads?: boolean }
+  options?: {
+    trackReads?: boolean;
+    paramLiveness?: 'off' | 'report' | 'warn' | 'error';
+  }
 ): AutowireResult {
   // Merge energy params to read carbon prices
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
@@ -732,11 +735,39 @@ export function runAutowiredSimulation(
     startYear: params.startYear ?? 2025,
     endYear: params.endYear ?? 2100,
     trackReads: options?.trackReads,
+    // Report pathwise-inert scenario knobs. This is a warning by default
+    // because conditional branches can legitimately leave a parameter unread;
+    // unknown scenario keys are rejected separately by scenarioToParams.
+    paramLiveness: options?.paramLiveness ?? 'warn',
+    externalParamReads: {
+      energy: [
+        'carbonPrice',
+        ...REGIONS.map((region) => `regional.${region}.carbonPrice`),
+      ],
+      production: [
+        'robotLaborEquivalent', 'beta', 'electricExergy', 'thermalExergy', 'gamma',
+      ],
+      demand: [
+        'efficiencyMultiplier', 'structuralEfficiencyShare', 'structuralDecayHalfLife',
+        ...REGIONS.map((region) => `regions.${region}.intensityDecline`),
+        ...(['transport', 'buildings', 'industry'] as const).flatMap((sector) => [
+          `sectors.${sector}.share`,
+          `sectors.${sector}.electricityDeliveryCost`,
+        ]),
+      ],
+      climate: ['sensitivity'],
+    },
     // Fixed-point warm-up: flow lags (generation, non-electric energy,
     // overheads, damages, prices) get their year-0 self-consistent values
     // instead of hand-guessed constants — kills the spurious -5.5% GDP step
     // the old initials produced in the first simulated year.
-    bootstrapLags: 2,
+    bootstrapLags: {
+      maxIterations: 100,
+      minIterations: 2,
+      tolerance: 1e-7,
+      damping: 0.65,
+      onNonConvergence: 'throw',
+    },
   });
 }
 

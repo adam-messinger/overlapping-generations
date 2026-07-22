@@ -2,9 +2,11 @@
 
 This page separates four questions that earlier versions blurred together: held-out-state
 classification, local capture within functional markets, transfer across US outcome windows, and
-external-regime mechanism evidence from Japan. Machine-readable results are in
+external-regime mechanism evidence from Japan and Italy. Machine-readable results are in
 `data/validation.json`, `data/market-validation.json`, `data/window-stability.json`, and
-`japan/data/development-demography.json`.
+the Japan/Italy development and holdout JSON files. The authoritative live state and exact
+artifact hashes for each international outcome are in
+[`data/international-validation-status.json`](../data/international-validation-status.json).
 
 ## 1. Held-out-state historical classification
 
@@ -102,6 +104,11 @@ diagnostics; the model is too smooth and omits national credit, rate, insurance,
 price regimes.
 
 ## 5. Japan development-window mechanism audit
+
+> **Historical development-stage snapshot.** The “holdout remains sealed,” partial-model scope,
+> and missing-construct language in this section describe the earlier audit at that point in git
+> history. Section 6 records the later full-development freeze and opened household result. Use
+> the [canonical status manifest](../data/international-validation-status.json) for live status.
 
 `docs/INTERNATIONAL_PANEL.md` was committed before any post-2020 municipal outcome was acquired.
 The holdout remains sealed. The current Japan result uses official 2010, 2015, and 2020 censuses,

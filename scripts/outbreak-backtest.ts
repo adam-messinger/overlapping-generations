@@ -6,6 +6,8 @@ import { outbreakEpisodes } from '../src/simulations/outbreak/data.js';
 import { simulateOutbreakV2 } from '../src/simulations/outbreak/model.js';
 import { evaluatePanel } from '../src/simulations/outbreak/probabilistic.js';
 import { respiratoryPanel } from '../src/simulations/outbreak/rolling-data.js';
+import { runModel } from 'tsimulation';
+import { outbreakPreparednessModel } from '../src/simulations/registry.js';
 
 const pct = (value: number) => `${(100 * value).toFixed(1)}%`;
 const round = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -117,7 +119,7 @@ const scenarios = [
 console.log('\nGENERIC PREPAREDNESS EXPERIMENT (10m people; scenario, not forecast)');
 console.log('Scenario\tinfections\tdeaths\tpeak staffed-bed load');
 for (const scenario of scenarios) {
-  const result = simulateOutbreakV2({ ...preparednessBase, ...scenario });
+  const result = runModel(outbreakPreparednessModel, { ...preparednessBase, ...scenario }).output;
   console.log(
     [
       scenario.name,

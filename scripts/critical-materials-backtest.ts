@@ -13,7 +13,7 @@ import {
 import { calibrateDisruptionModel } from '../src/simulations/critical-materials/event-backtest.js';
 import {
   buildEmpiricalMaterialOverlay,
-  simulateEmpiricalNMinusOne,
+  simulateEmpiricalDominantProducerLoss,
 } from '../src/simulations/critical-materials/empirical-network.js';
 
 const fit = fitWeberModels(weberBenchmark);
@@ -152,14 +152,14 @@ for (const row of [...eventV3.development.events, ...eventV3.holdout.events]) {
 
 const overlay = buildEmpiricalMaterialOverlay();
 const empiricalRisks = overlay.overlays.map((row) => {
-  const base = simulateEmpiricalNMinusOne(row.material, {
+  const base = simulateEmpiricalDominantProducerLoss(row.material, {
     accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
   });
-  const stock = simulateEmpiricalNMinusOne(row.material, {
+  const stock = simulateEmpiricalDominantProducerLoss(row.material, {
     accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
     inventoryScale: 3,
   });
-  const diverse = simulateEmpiricalNMinusOne(row.material, {
+  const diverse = simulateEmpiricalDominantProducerLoss(row.material, {
     accessibleInventoryFraction: eventV3.parameters.accessibleInventoryFraction,
     additionalCoverage: 0.2,
   });
@@ -172,14 +172,15 @@ const empiricalRisks = overlay.overlays.map((row) => {
   };
 }).sort((a, b) => b.loss - a.loss);
 
-console.log('\nEMPIRICALLY ANCHORED 2025 N-1 STRESS');
+console.log('\nEMPIRICALLY ANCHORED 2025 DOMINANT-PRODUCER LOSS');
+console.log('Demand stays fixed: this is a severe supply/export cutoff, not the IEA N-1 balance.');
 console.log('USGS producer shares/stocks drive the stress; IEA EV kg are an audited absolute-demand overlay.');
-console.log('Material\tdominant share\tN-1 coverage\tstocks months\tEV kg\toutput-months lost\t3x buffers avoids\t+20pp diversity avoids');
+console.log('Material\tdominant share\tresidual supply\tstocks months\tEV kg\toutput-months lost\t3x buffers avoids\t+20pp diversity avoids');
 for (const row of empiricalRisks) {
   console.log([
     row.material,
     `${(100 * row.dominantProducerShare).toFixed(1)}%`,
-    `${(100 * row.nMinusOneCoverage).toFixed(1)}%`,
+    `${(100 * row.residualSupplyShare).toFixed(1)}%`,
     row.observedInventoryMonths === null
       ? 'assumed'
       : row.observedInventoryMonths.toFixed(2),
