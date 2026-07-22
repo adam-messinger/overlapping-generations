@@ -1,62 +1,50 @@
-# Outbreak preparedness toy model
+# Outbreak preparedness and forecast simulation
 
-This is a scenario laboratory for the timing of detection, response, care
-capacity, and countermeasure rollout. It is not an operational epidemic
-forecast and it is not coupled to the macro simulation yet.
+This module now has two deliberately separate jobs:
 
-Run it with:
+1. a mechanistic SEIR scenario laboratory for response timing, care capacity,
+   and countermeasure rollout; and
+2. a rolling probabilistic forecast test that asks whether the short-run signal
+   extraction works across several respiratory pathogen families.
+
+Neither is an operational public-health forecast. Run the complete report with:
 
 ```bash
 node --import tsx scripts/outbreak-backtest.ts
 ```
 
-## What current practice implies
+## Practice translated into the model
 
-The model design follows a deliberately small subset of current practice:
-
-- Separate latent infections from reported observations. CDC emphasizes that
-  early outbreak data often lack a stable case definition or reporting process,
-  and that reporting delays can make a growing outbreak appear to slow. Its
-  response work uses nowcasts, branching processes, compartmental models, and
-  network models according to the decision question.
-- Represent the disease clock. V2 includes exposed and infectious states plus
-  distributed reporting and death delays. The fixed COVID-19 calibration uses
-  a 5.2-day incubation period and 5-day infectious period as coarse first-wave
-  biological anchors rather than fitting every biological parameter.
-- Make response speed explicit. The generic scenario uses the WHO/7-1-7 target:
-  detect within seven days, notify within one, and mount an effective response
-  within seven more.
-- Assess more than cases. WHO's updated Pandemic Influenza Severity Assessment
-  calls for transmissibility, seriousness, morbidity/mortality, and impact on
-  healthcare capacity. V2 therefore reports infections, deaths, and peak
-  staffed-bed load.
-- Freeze holdouts and compare against simple baselines. The first 15 weekly
-  observations are fitted and the remaining 10 are untouched. This is still
-  much weaker than rolling-origin evaluation across many data vintages.
-- Probabilistic forecasts should be scored with a proper score such as weighted
-  interval score. This toy model is deterministic, so it reports a composite of
-  normalized absolute error, cumulative error, and peak-week error. It should
-  gain stochastic parameters and WIS before being used as a forecast system.
+- Latent infections and observations are separate. The mechanistic model has
+  exposed/infectious states and distributed reporting/death delays.
+- Response speed is explicit. The scenario laboratory includes the WHO 7-1-7
+  detect-notify-respond timing target.
+- Severity includes care capacity. Outcomes include infections, deaths, and
+  peak staffed-bed load rather than cases alone.
+- Forecast validation is rolling-origin and baseline-relative. Each 1–4 week
+  forecast can use only observations available at that origin.
+- Forecasts are probabilistic. Central 50% and 95% intervals are scored using
+  weighted interval score (WIS) on `log1p` admissions, matching the broad CDC
+  FluSight approach to scale and proper scoring.
+- Pathogen results are macro-averaged so the long COVID series cannot overwhelm
+  the shorter RSV series merely by contributing more rows.
 
 Primary references:
 
+- [CDC FluSight 2024–25 evaluation](https://www.cdc.gov/flu-forecasting/evaluation/2024-2025-report.html)
 - [CDC outbreak response modeling](https://www.cdc.gov/forecast-outbreak-analytics/our-work/outbreak-response-modeling.html)
-- [WHO 7-1-7 strategy](https://www.who.int/news/item/05-03-2026-who-tests-a-strategy-game-to-improve-outbreak-response-speed)
+- [CDC historic national respiratory admissions](https://data.cdc.gov/Public-Health-Surveillance/Weekly-Hospital-Respiratory-Admission-Levels-and-R/vdzy-6i9v)
+- [Bracher et al., weighted interval score](https://doi.org/10.1371/journal.pcbi.1008618)
 - [WHO Pandemic Influenza Severity Assessment](https://www.who.int/teams/global-influenza-programme/surveillance-and-monitoring/pandemic-influenza-severity-assessment)
-- [Cori et al. on time-varying reproduction numbers](https://doi.org/10.1093/aje/kwt133)
-- [Bracher et al. on weighted interval score](https://doi.org/10.1371/journal.pcbi.1008618)
 - [WHO weekly COVID-19 data and caveats](https://data.who.int/dashboards/covid19/data)
 
-## Frozen backtest
+## Mechanistic first-wave backtest (V1 → V2)
 
-The panel contains WHO weekly reported cases and deaths for the first reported
-waves in Italy, the United Kingdom, and the Republic of Korea. It was downloaded
-on 2026-07-22 and reduced to the exact rows committed in
-`src/simulations/outbreak/data.ts`. WHO explicitly warns that detection,
-definitions, testing, completeness, and reporting delays differ across places
-and time.
-
-The score is dimensionless; lower is better. The split is fixed at week 15.
+The original panel contains frozen WHO weekly reported cases and deaths for the
+first reported waves in Italy, the United Kingdom, and the Republic of Korea.
+The first 15 weeks are fitted and the remaining 10 are untouched. WHO warns that
+detection, definitions, testing, completeness, and reporting delays vary across
+place and time.
 
 | Episode | V1 fit | V1 holdout | V2 fit | V2 holdout |
 |---|---:|---:|---:|---:|
@@ -65,41 +53,91 @@ The score is dimensionless; lower is better. The split is fixed at week 15.
 | Republic of Korea | 0.355 | 0.683 | 0.271 | 0.625 |
 | Mean | — | **0.726** | — | **0.462** |
 
-V2 lowers mean holdout error by 36.4%. That result is not uniform: the Italian
-holdout is slightly worse. With three episodes, this is evidence that the
-revision is useful, not evidence that it generalizes to a novel pathogen.
+V2 lowers mean holdout error 36.4%, but Italy gets slightly worse. It adds an
+exposed compartment, gradual response, distributed delays, continuing
+introductions, a reduced-form severity decline, staffed-bed overflow, and an
+optional countermeasure rollout. Its fitted ascertainment and IFR are nuisance
+observation parameters, not clean epidemiological estimates.
 
-## V1, retrospective, and V2
+The first V2 draft added calendar-based policy easing. It produced artificial
+holdout rebounds, so that mechanism was removed from the fitted first-wave
+horizon. This remains an important lesson: a plausible mechanism with an
+unidentified calendar can reduce forecast validity.
 
-V1 is a homogeneous SIR model with one instantaneous contact-reduction step,
-fixed case/death delays, and constant ascertainment and fatality. It captures
-exponential growth and a policy-induced peak surprisingly well in Italy. It
-does poorly when deaths decline faster than cases, particularly in the UK, and
-every closed-population run decays toward zero too quickly.
+## Rolling multi-pathogen data
 
-The first V2 draft added calendar-based policy easing. It failed badly: an
-arbitrary easing date manufactured large rebound waves in the untouched data
-and could make an earlier response look worse. That mechanism was removed from
-the fitted first-wave horizon.
+`rolling-data.ts` commits the exact USA rows from CDC's harmonized NHSN weekly
+hospital-admissions panel. The snapshot was taken on 2026-07-22 and censored at
+2025-05-31:
 
-The retained V2 adds only mechanisms motivated by residuals and practice:
+| Series | Weeks | First included week | Last included week |
+|---|---:|---:|---:|
+| COVID-19 | 252 | 2020-08-08 | 2025-05-31 |
+| Influenza | 252 | 2020-08-08 | 2025-05-31 |
+| RSV | 87 | 2023-10-07 | 2025-05-31 |
 
-- an exposed compartment and gradual rather than instantaneous response;
-- distributed observation and death delays;
-- a bounded continuing-introduction term, which prevents a closed model from
-  forcing observed summer incidence to zero;
-- a reduced-form decline in first-wave severity, standing in for changing age
-  mix, protection of high-risk settings, and clinical learning;
-- staffed-bed overflow, and an optional countermeasure rollout.
+Blank early RSV cells are missing, not zero. Reported early influenza zeroes are
+retained. The final 52 weeks are frozen as the COVID/influenza holdout and the
+final 26 weeks as the shorter RSV holdout. Earlier origins form the development
+period.
 
-The V2 severity term is important to the UK improvement and is not identified
-cleanly from aggregate cases and deaths. Fitted IFR/ascertainment pairs are
-therefore nuisance observation parameters, not epidemiological estimates.
+This is **pseudo-real-time**, not a vintage archive. Forecasts cannot see future
+weeks, but CDC's current historical file may revise a value after its original
+release. A true operational backtest must archive every weekly vintage.
 
-## Initial preparedness experiment
+## Forecast models and retrospective (V3)
+
+The models forecast log admissions at horizons 1–4:
+
+- **Persistence:** carry the latest observation forward. Historical errors
+  available at the origin generate its quantiles.
+- **Local trend:** extrapolate the median of the latest weekly changes with
+  damping and a growth cap. This was the first V3 attempt.
+- **Adaptive ensemble:** combine persistence, local trend, and a 52-week
+  seasonal analog using horizon-specific inverse recent-error weights, then
+  shrink halfway toward the local trend. Quantiles come from only its prior
+  rolling residuals.
+
+The local trend improved influenza and RSV but was worse than persistence for
+the COVID holdout. Residual review showed that one extrapolator cannot handle
+both a turning epidemic curve and a recurring seasonal curve. The revision
+therefore added the seasonal analog and recent-error weighting while retaining a
+conservative trend anchor. No pathogen-specific coefficient is fitted.
+
+### Frozen holdout results
+
+Lower WIS is better. Coverage is empirical coverage of the adaptive model's
+nominal intervals.
+
+| Pathogen | Persistence WIS | Local-trend WIS | Adaptive WIS | Adaptive 50% coverage | Adaptive 95% coverage |
+|---|---:|---:|---:|---:|---:|
+| COVID-19 | 0.176 | 0.185 | **0.172** | 47.6% | 82.2% |
+| Influenza | 0.298 | **0.225** | 0.230 | 40.9% | 89.4% |
+| RSV | 0.243 | 0.193 | **0.190** | 78.8% | 100.0% |
+| Macro mean | 0.239 | 0.201 | **0.197** | 55.8% | 90.5% |
+
+The adaptive model reduces holdout WIS 17.6% versus persistence and 2.0% versus
+the initial local trend. It beats persistence for each pathogen, but not every
+intermediate model on every pathogen. On the development period, WIS is 0.350,
+0.341, and 0.338 respectively, so the revision also improves the data used for
+retrospective diagnosis.
+
+| Horizon | Adaptive holdout WIS |
+|---|---:|
+| 1 week | 0.098 |
+| 2 weeks | 0.168 |
+| 3 weeks | 0.224 |
+| 4 weeks | 0.298 |
+
+The horizon gradient is the clearest operational result: four-week error is
+roughly three times one-week error. The 95% interval undercovers overall, driven
+especially by COVID (82.2%). Rapid onset and peak reversals remain the hard
+case; the model should not advertise nominal 95% uncertainty as calibrated.
+
+## Preparedness scenario
 
 For a hypothetical respiratory pathogen in 10 million people (`R0 = 3`, base
-IFR 0.7%), holding the response in place over the simulated horizon gives:
+IFR 0.7%), holding response assumptions fixed gives:
 
 | Scenario | Infections | Deaths | Peak staffed-bed load |
 |---|---:|---:|---:|
@@ -108,23 +146,25 @@ IFR 0.7%), holding the response in place over the simulated horizon gives:
 | Response effective day 45 | 793,083 | 3,477 | 2,687 |
 | Day-30 response + countermeasure from day 120 | 95,290 | 470 | 364 |
 
-The central result is convexity: a two-week delay is not two weeks more harm.
-At this parameterization, moving from day 30 to day 45 produces about 4.4 times
-the infections and 5.8 times the deaths because it also drives more overload.
-Rapid response is most valuable as a bridge to countermeasures and care, not as
-a claim that restrictions can remain costless forever.
+The result is convex: moving effective response from day 30 to day 45 produces
+about 4.4 times the infections and 5.8 times the deaths in this scenario because
+growth compounds and overload raises severity. This is a scenario comparison,
+not a prediction for a named pathogen.
 
-## What still needs work
+## Data access
 
-1. Use archived data vintages, rolling forecast origins, a naive baseline, and
-   probabilistic forecasts scored by WIS and coverage.
-2. Add age/risk groups and explicit care homes; constant population-average IFR
-   is the largest first-wave misspecification.
-3. Endogenize surveillance: test sensitivity, lab/report queues, false signals,
-   contact tracing capacity, and the actual 7-1-7 sequence.
-4. Add spatial importation and contact networks for diseases where homogeneous
-   mixing is untenable.
-5. Add behavioral and economic costs so the model can compare sustainable
-   response packages rather than assume a response can stay in place.
-6. Calibrate multiple pathogen families. Three COVID-19 episodes do not test
-   measles, influenza, mpox, Ebola, or a genuinely novel pathogen.
+No account is required for the committed CDC or WHO data. Updating the public
+CDC Socrata snapshot also requires no API key. An account would become relevant
+only for a future commercial feed or a platform with archived weekly vintages;
+the current implementation has no such dependency.
+
+## Next limitations to attack
+
+1. Archive genuine weekly CDC vintages and score revision/nowcast error.
+2. Calibrate intervals or use conformal/ensemble distributions that reach
+   nominal coverage at onsets and peaks.
+3. Add age/risk groups, care homes, and regional observations.
+4. Add non-respiratory families (for example mpox or Ebola); three respiratory
+   viruses are not evidence of novel-pathogen generality.
+5. Endogenize surveillance, lab/report queues, contact tracing, behavior, and
+   economic costs before comparing sustainable response packages.
