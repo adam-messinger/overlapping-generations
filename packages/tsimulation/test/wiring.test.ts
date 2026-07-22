@@ -4,9 +4,12 @@
  */
 
 import { test } from 'node:test';
-import { buildOutputRegistry, validateWiring, runAutowired } from '../src/autowire.js';
+import { buildOutputRegistry, validateWiring, runAutowired as runAutowiredStrict } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
 import { okValidate, throwsWith } from './helpers.js';
+
+const runAutowired = (config: Parameters<typeof runAutowiredStrict>[0]) =>
+  runAutowiredStrict({ ...config, connectorValidation: 'off' });
 
 const producer = defineModule({
   name: 'producer',

@@ -17,6 +17,9 @@ onward. Before 1.0, minor versions may include breaking changes.
 - Explicit model adapters carrying source/target model names, units, and time scales.
 - Unit registry/conversion, overlap-aware shock composition, conflict-safe
   temporal merges, stable serialization/hashing, and reproducible run manifests.
+- Compound-unit algebra (`*`, `/`, powers, and parentheses), complete typed
+  port contracts, explicit opaque-port escape hatches, and CI-friendly graph
+  contract audits.
 - Shared validated linear/fixed-point solvers and generic DAG validation/sorting.
 - Deep parameter-read tracking and unread-override diagnostics.
 
@@ -35,8 +38,12 @@ onward. Before 1.0, minor versions may include breaking changes.
 - Batch and interactive problem execution share the same lag-bootstrap path.
 - Lag bootstrapping can use convergence tolerance, damping, iteration limits,
   failure policy, and returned residual diagnostics instead of a fixed pass count.
-- Connector declarations can carry units and value-shape metadata, with an
-  opt-in warning/error contract policy.
+- Connector declarations now require units and value-shape metadata for every
+  module input/output. Transforms and lags carry explicit signatures, and
+  connector validation defaults to errors rather than warnings.
+- Standalone model input/output contracts are complete at compile time and
+  checked against actual runtime objects. Adapter targets require explicit
+  source mappings, conversion declarations, and aggregation declarations.
 
 ### Fixed
 - The NaN/Infinity output guard now descends into arrays and arbitrarily deep,

@@ -8,7 +8,7 @@
  * International migration is intentionally non-zero-sum and is scaled by the
  * cohort-specific share of the national population covered by modeled places.
  */
-import { defineModule, ValidationResult } from 'tsimulation';
+import { defineModule, ValidationResult, unitConnector } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort } from '../domain-types.js';
 
 export interface MigrationParams {
@@ -210,6 +210,39 @@ export const migrationModule = defineModule<
     'unmetInternalMigrationByCohort', 'unmetInternationalExitByCohort',
     'unmetInternalMigrationTotal', 'unmetInternationalExitTotal',
   ],
+  connectorTypes: {
+    inputs: {
+      attractionWorking: unitConnector('vector', '1'),
+      attractionRetiree: unitConnector('vector', '1'),
+      netImmigrationByCohort: unitConnector('record', 'people/year'),
+      laggedWorkingStock: unitConnector('vector', 'people'),
+      laggedMidlifeStock: unitConnector('vector', 'people'),
+      laggedRetireeStock: unitConnector('vector', 'people'),
+      laggedDestinationUnits: unitConnector('vector', 'housing-unit'),
+      laggedA0_19Stock: unitConnector('vector', 'people'),
+      laggedA20_24Stock: unitConnector('vector', 'people'),
+      laggedA25_44Stock: unitConnector('vector', 'people'),
+      laggedA45_64Stock: unitConnector('vector', 'people'),
+      laggedA65upStock: unitConnector('vector', 'people'),
+      currentTfr: unitConnector('number', '1'),
+    },
+    outputs: {
+      netWorking: unitConnector('vector', 'people/year'),
+      netMidlife: unitConnector('vector', 'people/year'),
+      netRetiree: unitConnector('vector', 'people/year'),
+      internalNetByCohort: unitConnector('nested-record', 'people/year'),
+      localNetImmigrationByCohort: unitConnector('nested-record', 'people/year'),
+      arrivalsWorking: unitConnector('vector', 'people/year'),
+      departuresWorking: unitConnector('vector', 'people/year'),
+      departuresRetiree: unitConnector('vector', 'people/year'),
+      internalNetTotal: unitConnector('number', 'people/year'),
+      internationalNetTotal: unitConnector('number', 'people/year'),
+      unmetInternalMigrationByCohort: unitConnector('record', 'people/year'),
+      unmetInternationalExitByCohort: unitConnector('record', 'people/year'),
+      unmetInternalMigrationTotal: unitConnector('number', 'people/year'),
+      unmetInternationalExitTotal: unitConnector('number', 'people/year'),
+    },
+  },
 
   validate(params): ValidationResult {
     const errors: string[] = [];

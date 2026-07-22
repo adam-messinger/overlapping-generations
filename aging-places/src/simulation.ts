@@ -9,7 +9,7 @@
  *   runAgingSim({epoch: '2023'}) — 2025->2065 forecast
  *   runAgingSim({epoch: '2000'}) — 2000->2025 hindcast (validation)
  */
-import { initAutowired, stepAutowired, LagConfig } from 'tsimulation';
+import { initAutowired, stepAutowired, LagConfig, unitConnector } from 'tsimulation';
 import { COHORTS, Cohort, DEFAULT_HEADSHIP } from './domain-types.js';
 import { EpochData, loadEpoch } from './data.js';
 import { nationModule, NationParams } from './modules/nation.js';
@@ -107,17 +107,17 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   }
 
   const lags: Record<string, LagConfig> = {
-    laggedPriceToIncome: { source: 'priceToIncome', delay: 1, initial: pti0 },
-    laggedYoungShare: { source: 'youngShareVec', delay: 1, initial: young0 },
-    laggedWorkingStock: { source: 'workingStock', delay: 1, initial: working0 },
-    laggedMidlifeStock: { source: 'midlifeStock', delay: 1, initial: midlife0 },
-    laggedRetireeStock: { source: 'retireeStock', delay: 1, initial: retiree0 },
-    laggedDestinationUnits: { source: 'destinationUnits', delay: 1, initial: Float64Array.from(s.units0) },
-    laggedA0_19Stock: { source: 'stockA0_19', delay: 1, initial: Float64Array.from(s.cohorts0.a0_19) },
-    laggedA20_24Stock: { source: 'stockA20_24', delay: 1, initial: Float64Array.from(s.cohorts0.a20_24) },
-    laggedA25_44Stock: { source: 'stockA25_44', delay: 1, initial: Float64Array.from(s.cohorts0.a25_44) },
-    laggedA45_64Stock: { source: 'stockA45_64', delay: 1, initial: Float64Array.from(s.cohorts0.a45_64) },
-    laggedA65upStock: { source: 'stockA65up', delay: 1, initial: Float64Array.from(s.cohorts0.a65up) },
+    laggedPriceToIncome: { source: 'priceToIncome', delay: 1, initial: pti0, contract: unitConnector('vector', 'year') },
+    laggedYoungShare: { source: 'youngShareVec', delay: 1, initial: young0, contract: unitConnector('vector', 'fraction') },
+    laggedWorkingStock: { source: 'workingStock', delay: 1, initial: working0, contract: unitConnector('vector', 'people') },
+    laggedMidlifeStock: { source: 'midlifeStock', delay: 1, initial: midlife0, contract: unitConnector('vector', 'people') },
+    laggedRetireeStock: { source: 'retireeStock', delay: 1, initial: retiree0, contract: unitConnector('vector', 'people') },
+    laggedDestinationUnits: { source: 'destinationUnits', delay: 1, initial: Float64Array.from(s.units0), contract: unitConnector('vector', 'housing-unit') },
+    laggedA0_19Stock: { source: 'stockA0_19', delay: 1, initial: Float64Array.from(s.cohorts0.a0_19), contract: unitConnector('vector', 'people') },
+    laggedA20_24Stock: { source: 'stockA20_24', delay: 1, initial: Float64Array.from(s.cohorts0.a20_24), contract: unitConnector('vector', 'people') },
+    laggedA25_44Stock: { source: 'stockA25_44', delay: 1, initial: Float64Array.from(s.cohorts0.a25_44), contract: unitConnector('vector', 'people') },
+    laggedA45_64Stock: { source: 'stockA45_64', delay: 1, initial: Float64Array.from(s.cohorts0.a45_64), contract: unitConnector('vector', 'people') },
+    laggedA65upStock: { source: 'stockA65up', delay: 1, initial: Float64Array.from(s.cohorts0.a65up), contract: unitConnector('vector', 'people') },
   };
 
   const nationEpoch = {

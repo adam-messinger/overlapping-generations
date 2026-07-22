@@ -27,7 +27,7 @@
  * - radiativeForcing: Current radiative forcing (W/m²)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
 import { lerp, quadraticDamage, smoothStep } from '../primitives/math.js';
 
@@ -275,20 +275,20 @@ export const climateModule: Module<
 
   connectorTypes: {
     inputs: {
-      emissions: 'number',
-      regionalGdpPerCapita: 'record',
+      emissions: unitConnector('number', 'GtCO2/year'),
+      regionalGdpPerCapita: unitConnector('record', '$/people/year'),
     },
     outputs: {
-      temperature: 'number',
-      co2ppm: 'number',
-      equilibriumTemp: 'number',
-      damages: 'number',
-      regionalDamages: 'record',
-      cumulativeEmissions: 'number',
-      deepOceanTemp: 'number',
-      radiativeForcing: 'number',
-      regionalAdaptation: 'record',
-      oceanPH: 'number',
+      temperature: unitConnector('number', '°C'),
+      co2ppm: unitConnector('number', 'ppm'),
+      equilibriumTemp: unitConnector('number', '°C'),
+      damages: unitConnector('number', 'fraction'),
+      regionalDamages: unitConnector('record', 'fraction'),
+      cumulativeEmissions: unitConnector('number', 'GtCO2'),
+      deepOceanTemp: unitConnector('number', '°C'),
+      radiativeForcing: unitConnector('number', 'W/m^2'),
+      regionalAdaptation: unitConnector('record', 'fraction'),
+      oceanPH: unitConnector('number', 'pH'),
     },
   },
 

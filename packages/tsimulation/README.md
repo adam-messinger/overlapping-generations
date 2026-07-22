@@ -20,6 +20,9 @@ access, co-located parameter metadata — and brings them to TypeScript.
   (uses only `structuredClone` and `console.warn`).
 - **Fail-fast wiring.** Output collisions, unresolved inputs, dependency cycles,
   transform typos, and `NaN`/`Infinity` outputs all throw with clear messages.
+- **Strict units by default.** Every model and module boundary declares a unit
+  (or an explicit, explained `opaque` escape hatch), and incompatible wiring
+  fails before the first step runs.
 - **One project, multiple time scales.** Annual systems, monthly networks, and
   event models share APIs without forcing every model into an annual module.
 - **Evidence-aware.** Development, validation, holdout, diagnostic, and scenario
@@ -58,6 +61,27 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 
 The engine advances in integer steps (labelled `startYear`..`endYear`, but the
 labels are just integers — use `0..N` for a generic horizon).
+
+## Unit contracts
+
+Numeric ports use registered atomic units or compound expressions such as
+`$/MWh`, `$T/year`, `TWh/year`, `kgCO2/MWh`, and `people/year`. The parser
+supports `*`, `/`, parentheses, and integer powers. Scale changes are never
+implicit: `$B/year` cannot wire directly into `$T/year`, although
+`convertUnit()` can perform the conversion inside a declared transform.
+Likewise, power and energy remain distinct unless time appears explicitly
+(`GW*hour` is convertible to `GWh`; `GW` is not convertible to `TWh`).
+
+Module `connectorTypes` are complete contracts, and transforms declare both
+`inputTypes` and an `outputType`. Lags carry a contract from source through the
+initial value and history to the consumer. `runAutowired()` validates all of
+these in `error` mode by default. Use `auditConnectorContracts()` in CI for a
+non-running completeness report.
+
+Mixed-unit structures may use `opaqueConnector()` or `opaquePort()`, but must
+include a reason. This escape hatch is intended for scenario trees and records
+that genuinely contain several physical dimensions—not as a substitute for a
+known numeric unit.
 
 ## Standalone models and experiments
 
@@ -123,7 +147,7 @@ Two modules in mutual feedback, with the cycle broken by a one-step lag. See
 (`npm run example`).
 
 ```typescript
-import { defineModule, runAutowired } from 'tsimulation';
+import { defineModule, runAutowired, unitConnector } from 'tsimulation';
 
 // Prey grow logistically and are thinned by (last step's) predators.
 const prey = defineModule({
@@ -132,6 +156,10 @@ const prey = defineModule({
   defaults: { growth: 0.6, capacity: 120, predation: 0.02 },
   inputs: ['laggedPredators'] as const,
   outputs: ['prey'] as const,
+  connectorTypes: {
+    inputs: { laggedPredators: unitConnector('number', 'individual') },
+    outputs: { prey: unitConnector('number', 'individual') },
+  },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ growth: 0.6, capacity: 120, predation: 0.02, ...p }),
   init: () => ({ count: 40 }),
@@ -150,6 +178,10 @@ const predator = defineModule({
   defaults: { efficiency: 0.012, mortality: 0.5 },
   inputs: ['prey'] as const,
   outputs: ['predators'] as const,
+  connectorTypes: {
+    inputs: { prey: unitConnector('number', 'individual') },
+    outputs: { predators: unitConnector('number', 'individual') },
+  },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ efficiency: 0.012, mortality: 0.5, ...p }),
   init: () => ({ count: 9 }),
@@ -165,7 +197,10 @@ const result = runAutowired({
   modules: [predator, prey], // order doesn't matter — the engine sorts
   lags: {
     // 'prey' reads laggedPredators; it resolves to last step's 'predators'
-    laggedPredators: { source: 'predators', delay: 1, initial: 9 },
+    laggedPredators: {
+      source: 'predators', delay: 1, initial: 9,
+      contract: unitConnector('number', 'individual'),
+    },
   },
   startYear: 0,
   endYear: 40,

@@ -24,7 +24,7 @@ const counter = defineModule({
 });
 
 function problem() {
-  return defineSimulation({ modules: [counter], startYear: 0, endYear: 3 });
+  return defineSimulation({ modules: [counter], startYear: 0, endYear: 3, connectorValidation: 'off' });
 }
 
 test('solve runs a problem to completion', () => {
@@ -88,6 +88,7 @@ test('batch and stepper use the same bootstrap-prepared lag initials', () => {
     modules: [flow, reader],
     lags: { previous: { source: 'flow', delay: 1, initial: 0, bootstrap: true } },
     bootstrapLags: { maxIterations: 2, tolerance: 0 },
+    connectorValidation: 'off',
     startYear: 0,
     endYear: 0,
   });

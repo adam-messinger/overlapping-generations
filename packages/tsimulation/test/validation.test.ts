@@ -4,9 +4,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runAutowired, initAutowired } from '../src/autowire.js';
+import { runAutowired as runAutowiredStrict, initAutowired as initAutowiredStrict } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
 import { okValidate, throwsWith } from './helpers.js';
+
+const runAutowired = (config: Parameters<typeof runAutowiredStrict>[0]) =>
+  runAutowiredStrict({ ...config, connectorValidation: 'off' });
+const initAutowired = (config: Parameters<typeof initAutowiredStrict>[0]) =>
+  initAutowiredStrict({ ...config, connectorValidation: 'off' });
 
 /** A module whose validate() rejects when `x < 100`. */
 const guarded = defineModule({

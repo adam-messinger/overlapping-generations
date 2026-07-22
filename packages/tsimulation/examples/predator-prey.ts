@@ -6,7 +6,7 @@
  * count. Run with: `npm run example`.
  */
 
-import { defineModule, runAutowired } from '../src/index.js';
+import { defineModule, runAutowired, unitConnector } from '../src/index.js';
 
 const prey = defineModule({
   name: 'prey',
@@ -14,6 +14,10 @@ const prey = defineModule({
   defaults: { growth: 0.6, capacity: 120, predation: 0.02 },
   inputs: ['laggedPredators'] as const,
   outputs: ['prey'] as const,
+  connectorTypes: {
+    inputs: { laggedPredators: unitConnector('number', 'individual') },
+    outputs: { prey: unitConnector('number', 'individual') },
+  },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ growth: 0.6, capacity: 120, predation: 0.02, ...p }),
   init: () => ({ count: 40 }),
@@ -31,6 +35,10 @@ const predator = defineModule({
   defaults: { efficiency: 0.012, mortality: 0.5 },
   inputs: ['prey'] as const,
   outputs: ['predators'] as const,
+  connectorTypes: {
+    inputs: { prey: unitConnector('number', 'individual') },
+    outputs: { predators: unitConnector('number', 'individual') },
+  },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ efficiency: 0.012, mortality: 0.5, ...p }),
   init: () => ({ count: 9 }),
@@ -45,7 +53,10 @@ const predator = defineModule({
 const result = runAutowired({
   modules: [predator, prey], // order doesn't matter — the engine sorts
   lags: {
-    laggedPredators: { source: 'predators', delay: 1, initial: 9 },
+    laggedPredators: {
+      source: 'predators', delay: 1, initial: 9,
+      contract: unitConnector('number', 'individual'),
+    },
   },
   startYear: 0,
   endYear: 40,

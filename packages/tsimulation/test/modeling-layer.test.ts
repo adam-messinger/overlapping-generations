@@ -27,12 +27,13 @@ const arithmetic = defineModel<{ a: number; b: number }, { y: number }>({
 test('model runner enforces finite values, invariants, and registry uniqueness', () => {
   assert.equal(runModel(arithmetic, { a: 2, b: 3 }).output.y, 11);
   assert.throws(() => runModel(arithmetic, { a: Number.NaN, b: 1 }), /Non-finite/);
-  assert.throws(() => defineModel({
-    id: 'bad-unit', version: '1', description: 'bad', run: (x: number) => x,
-    inputPorts: { x: { unit: 'not-a-unit' } },
+  assert.throws(() => defineModel<{ x: number }, { y: number }>({
+    id: 'bad-unit', version: '1', description: 'bad', run: ({ x }) => ({ y: x }),
+    inputPorts: { x: { unit: 'not-a-unit' } }, outputPorts: { y: { unit: '1' } },
   }), /unknown unit/);
-  assert.throws(() => defineModel({
-    id: 'bad-evidence', version: '1', description: 'bad', run: (x: number) => x,
+  assert.throws(() => defineModel<{ x: number }, { y: number }>({
+    id: 'bad-evidence', version: '1', description: 'bad', run: ({ x }) => ({ y: x }),
+    inputPorts: { x: { unit: '1' } }, outputPorts: { y: { unit: '1' } },
     validationClaims: [{
       grade: 'scenario-only', label: 'Claim', basis: 'Basis', evidenceIds: ['missing'],
     }],

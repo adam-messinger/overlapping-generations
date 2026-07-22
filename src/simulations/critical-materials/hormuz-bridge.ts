@@ -155,13 +155,39 @@ export const hormuzGlobalAdapter = defineAdapter<HormuzGlobalAdapterInput, Simul
   sourcePorts: {
     oilAvailability: { unit: 'fraction', valueType: 'number' },
     gasAvailability: { unit: 'fraction', valueType: 'number' },
-    oilPriceMultiple: { unit: 'fraction', valueType: 'number' },
-    gasPriceMultiple: { unit: 'fraction', valueType: 'number' },
+    oilPriceMultiple: { unit: '1', valueType: 'number' },
+    gasPriceMultiple: { unit: '1', valueType: 'number' },
   },
   targetPorts: {
     nonElectricAvailability: { unit: 'fraction', valueType: 'number' },
-    commodityPriceMultiple: { unit: 'fraction', valueType: 'number' },
+    commodityPriceMultiple: { unit: '1', valueType: 'number' },
   },
+  portMappings: [
+    {
+      source: 'oilAvailability',
+      target: 'nonElectricAvailability',
+      conversion: { kind: 'identity' },
+      aggregation: { kind: 'custom', description: 'Annual consumption-weighted oil and gas availability.' },
+    },
+    {
+      source: 'gasAvailability',
+      target: 'nonElectricAvailability',
+      conversion: { kind: 'identity' },
+      aggregation: { kind: 'custom', description: 'Annual consumption-weighted oil and gas availability.' },
+    },
+    {
+      source: 'oilPriceMultiple',
+      target: 'commodityPriceMultiple',
+      conversion: { kind: 'identity' },
+      aggregation: { kind: 'custom', description: 'Annual duration-weighted commodity price shock.' },
+    },
+    {
+      source: 'gasPriceMultiple',
+      target: 'commodityPriceMultiple',
+      conversion: { kind: 'identity' },
+      aggregation: { kind: 'custom', description: 'Annual duration-weighted commodity price shock.' },
+    },
+  ],
   adapt: ({ simulation, base = {}, options = hormuzBridgeDefaults }) =>
     buildHormuzGlobalOverrides(simulation, base, options),
 });

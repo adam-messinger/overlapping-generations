@@ -58,6 +58,8 @@ test('thresholds, parameter audits, and seeded ensembles are reproducible', () =
   assert.ok(Math.abs(threshold.estimate! - 5) < 1e-5);
   const model = defineModel<{ x: number; inert?: number }, { y: number }>({
     id: 'ensemble-test', version: '1', description: 'test', run: ({ x }) => ({ y: x * x }),
+    inputPorts: { x: { unit: '1' }, inert: { unit: '1', optional: true } },
+    outputPorts: { y: { unit: '1' } },
   });
   const audit = auditParameterEffects({
     model, baseline: { x: 2 },

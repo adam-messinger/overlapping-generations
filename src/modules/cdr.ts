@@ -16,7 +16,7 @@
  * - Lackner (2020): The promise of negative emissions
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
 import { clamp } from '../primitives/math.js';
 
 // =============================================================================
@@ -141,7 +141,7 @@ export const cdrModule: Module<
   CDRState,
   CDRInputs,
   CDROutputs
-> = defineModule({
+> = defineModule<CDRParams, CDRState, CDRInputs, CDROutputs>({
   name: 'cdr',
   description: 'Carbon dioxide removal (DAC + sequestration) with Wright\'s Law learning',
 
@@ -200,6 +200,24 @@ export const cdrModule: Module<
     'cdrCapacity',
     'cdrAnnualSpend',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      temperature: unitConnector('number', '°C'),
+      gdp: unitConnector('number', '$T/year'),
+      laggedAvgLCOE: unitConnector('number', '$/MWh'),
+      laggedInterestRate: unitConnector('number', 'fraction'),
+      laggedGdp: unitConnector('number', '$T/year'),
+    },
+    outputs: {
+      cdrRemovalGtCO2: unitConnector('number', 'GtCO2/year'),
+      cdrEnergyTWh: unitConnector('number', 'TWh/year'),
+      cdrCostPerTon: unitConnector('number', '$/tCO2'),
+      cdrCumulative: unitConnector('number', 'GtCO2'),
+      cdrCapacity: unitConnector('number', 'GtCO2/year'),
+      cdrAnnualSpend: unitConnector('number', '$T/year'),
+    },
+  },
 
   validate(params: Partial<CDRParams>): ValidationResult {
     const errors: string[] = [];

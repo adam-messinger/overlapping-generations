@@ -24,7 +24,7 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
@@ -734,7 +734,7 @@ export const energyModule: Module<
   EnergyState,
   EnergyInputs,
   EnergyOutputs
-> = defineModule({
+> = defineModule<EnergyParams, EnergyState, EnergyInputs, EnergyOutputs>({
   name: 'energy',
   description: 'Regional capacity with global learning curves',
 
@@ -888,6 +888,41 @@ export const energyModule: Module<
     'effectiveWACC',
     'regionalWACC',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      electricityDemand: unitConnector('number', 'TWh/year'),
+      regionalElectricityDemand: unitConnector('record', 'TWh/year'),
+      availableInvestment: unitConnector('number', '$T/year'),
+      regionalInvestment: unitConnector('record', '$T/year'),
+      mineralConstraint: unitConnector('number', 'fraction'),
+      laggedCurtailmentRate: unitConnector('number', 'fraction'),
+      laggedInterestRate: unitConnector('number', 'fraction'),
+      savingsRate: unitConnector('number', 'fraction'),
+      regionalSavings: unitConnector('record', 'fraction'),
+    },
+    outputs: {
+      lcoes: opaqueConnector('record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+      regionalLCOEs: opaqueConnector('nested-record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+      netEnergyFraction: unitConnector('record', 'fraction'),
+      solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
+      capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
+      energyCapexSpend: unitConnector('number', '$T/year'),
+      regionalCapacities: opaqueConnector('nested-record', 'Generator capacity is GW while battery capacity is GWh.'),
+      cumulativeCapacity: opaqueConnector('record', 'Generator deployment is GW while battery deployment is GWh.'),
+      additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+      regionalAdditions: opaqueConnector('nested-record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+      batteryCost: unitConnector('number', '$/kWh'),
+      cheapestLCOE: unitConnector('number', '$/MWh'),
+      effectiveSolarCF: unitConnector('number', 'fraction'),
+      effectiveWindCF: unitConnector('number', 'fraction'),
+      longStorageCost: unitConnector('number', '$/kWh'),
+      longStorageCapacity: unitConnector('number', 'GWh'),
+      longStorageRegional: unitConnector('record', 'GWh'),
+      effectiveWACC: unitConnector('number', 'fraction'),
+      regionalWACC: unitConnector('record', 'fraction'),
+    },
+  },
 
   validate(params: Partial<EnergyParams>): ValidationResult {
     const errors: string[] = [];

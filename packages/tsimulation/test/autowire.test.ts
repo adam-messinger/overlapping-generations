@@ -9,7 +9,7 @@ import {
   buildOutputRegistry,
   buildDependencyGraph,
   topologicalSort,
-  runAutowired,
+  runAutowired as runAutowiredStrict,
   getOutputsAtYear,
   getTimeSeries,
   validateWiring,
@@ -18,6 +18,11 @@ import {
 } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
 import { okValidate, throwsWith } from './helpers.js';
+
+// Most tests in this file predate unit contracts and exercise unrelated
+// graph/runtime behavior. Strict contract behavior has dedicated tests below.
+const runAutowired = (config: Parameters<typeof runAutowiredStrict>[0]) =>
+  runAutowiredStrict({ ...config, connectorValidation: 'off' });
 
 // =============================================================================
 // TEST MODULES

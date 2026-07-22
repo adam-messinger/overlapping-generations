@@ -24,7 +24,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { Module, validatedMerge } from 'tsimulation';
+import { Module, validatedMerge, unitConnector } from 'tsimulation';
 
 // =============================================================================
 // TYPES
@@ -500,6 +500,58 @@ export const capitalModule: Module<
     'creditImpulse',
     'debtRiskPremium',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      regionalYoung: unitConnector('record', 'people'),
+      regionalWorking: unitConnector('record', 'people'),
+      regionalOld: unitConnector('record', 'people'),
+      regionalPopulation: unitConnector('record', 'people'),
+      effectiveWorkers: unitConnector('number', 'people'),
+      gdp: unitConnector('number', '$T/year'),
+      regionalGdp: unitConnector('record', '$T/year'),
+      damages: unitConnector('number', 'fraction'),
+      netEnergyFactor: unitConnector('number', 'fraction'),
+      energyBurden: unitConnector('number', 'fraction'),
+      regionalLifeExpectancy: unitConnector('record', 'year'),
+      energyCapexSpend: unitConnector('number', '$T/year'),
+      cdrSpend: unitConnector('number', '$T/year'),
+      robotCapexSpend: unitConnector('number', '$T/year'),
+      dataCenterCapexSpend: unitConnector('number', '$T/year'),
+    },
+    outputs: {
+      stock: unitConnector('number', '$T'),
+      nextCapitalStock: unitConnector('number', '$T'),
+      investment: unitConnector('number', '$T/year'),
+      savingsRate: unitConnector('number', 'fraction'),
+      regionalSavings: unitConnector('record', 'fraction'),
+      stability: unitConnector('number', 'fraction'),
+      interestRate: unitConnector('number', 'fraction'),
+      robotsDensity: unitConnector('number', 'robot/kpeople'),
+      automationShare: unitConnector('number', 'fraction'),
+      kPerWorker: unitConnector('number', '$k/people'),
+      capitalOutputRatio: unitConnector('number', 'year'),
+      capitalGrowthRate: unitConnector('number', 'fraction/year'),
+      energyInvestment: unitConnector('number', '$T/year'),
+      generalInvestment: unitConnector('number', '$T/year'),
+      unfundedRealizedSpend: unitConnector('number', '$T/year'),
+      energyShareOfInvestment: unitConnector('number', 'fraction'),
+      retireeCost: unitConnector('number', '$T/year'),
+      childCost: unitConnector('number', '$T/year'),
+      regionalRetireeCost: unitConnector('record', '$T/year'),
+      regionalChildCost: unitConnector('record', '$T/year'),
+      transferBurden: unitConnector('number', 'fraction'),
+      workerConsumption: unitConnector('number', '$T/year'),
+      publicDebtGDP: unitConnector('number', 'fraction'),
+      privateDebtGDP: unitConnector('number', 'fraction'),
+      totalDebtGDP: unitConnector('number', 'fraction'),
+      privateDebtStock: unitConnector('number', '$T'),
+      nextPrivateDebtStock: unitConnector('number', '$T'),
+      publicDebtService: unitConnector('number', '$T/year'),
+      creditImpulse: unitConnector('number', '$T/year'),
+      debtRiskPremium: unitConnector('number', 'fraction'),
+    },
+  },
 
   validate(params: Partial<CapitalParams>) {
     const errors: string[] = [];

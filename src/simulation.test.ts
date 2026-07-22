@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
-import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES } from './simulation-autowired.js';
+import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
 import { buildOutputRegistry, resolveKey, getOutputsAtYear } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
@@ -368,6 +368,13 @@ test('standardCollectors sources exist in module outputs', () => {
   if (problems.length > 0) {
     throw new Error(`standardCollectors drift:\n${problems.join('\n')}`);
   }
+});
+
+test('global graph has complete, compatible unit contracts', () => {
+  const audit = auditGlobalUnitContracts();
+  if (!audit.valid) throw new Error(`Unit contract audit failed:\n${audit.errors.join('\n')}`);
+  expect(audit.unitBearingContracts > 100).toBe(true);
+  expect(audit.opaqueContracts > 0).toBe(true);
 });
 
 // trackReads integration: run real simulation and check for undeclared reads

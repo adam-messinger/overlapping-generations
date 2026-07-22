@@ -1,6 +1,6 @@
 import type { ValidationResult } from './types.js';
 import type { PortMeta } from './units.js';
-import { getUnit } from './units.js';
+import { areUnitsConvertible, areUnitsIdentical, isOpaquePort, validatePortMeta } from './units.js';
 import { assertFiniteDeep } from './validation.js';
 
 export type TimeScale =
@@ -29,13 +29,34 @@ export interface AdapterDefinition<TSource, TTarget> {
   targetModel: string;
   sourceTimeScale: TimeScale;
   targetTimeScale: TimeScale;
-  sourcePorts?: Readonly<Record<string, PortMeta>>;
-  targetPorts?: Readonly<Record<string, PortMeta>>;
+  /** Semantic quantities read from the source. All must be declared. */
+  sourcePorts: Readonly<Record<string, PortMeta>>;
+  /** Semantic quantities written into the target. All must be declared. */
+  targetPorts: Readonly<Record<string, PortMeta>>;
+  /** Explicit source-to-target conversion and time-aggregation contracts. */
+  portMappings: readonly AdapterPortMapping[];
   adapt: (source: TSource, context: AdapterContext) => TTarget;
   validateSource?: (source: TSource) => ValidationResult | void;
   validateTarget?: (target: TTarget, source: TSource) => ValidationResult | void;
   requireFiniteSource?: boolean;
   requireFiniteTarget?: boolean;
+}
+
+export type AdapterConversion =
+  | { kind: 'identity' }
+  | { kind: 'unit'; convert: (value: number) => number }
+  | { kind: 'custom'; description: string; convert: (value: unknown) => unknown };
+
+export type AdapterAggregation =
+  | { kind: 'none' }
+  | { kind: 'sum' | 'mean' | 'last' }
+  | { kind: 'custom'; description: string };
+
+export interface AdapterPortMapping {
+  source: string;
+  target: string;
+  conversion: AdapterConversion;
+  aggregation: AdapterAggregation;
 }
 
 export interface AdapterRun<TSource, TTarget> {
@@ -51,7 +72,53 @@ export interface AdapterRun<TSource, TTarget> {
 
 function validatePorts(id: string, side: string, ports: Readonly<Record<string, PortMeta>>): void {
   for (const [name, port] of Object.entries(ports)) {
-    if (!getUnit(port.unit)) throw new Error(`Adapter '${id}' ${side} port '${name}' has unknown unit '${port.unit}'`);
+    validatePortMeta(port, `Adapter '${id}' ${side} port '${name}'`);
+  }
+}
+
+function validateMappings<TSource, TTarget>(definition: AdapterDefinition<TSource, TTarget>): void {
+  const mappedSources = new Set<string>();
+  const mappedTargets = new Set<string>();
+  for (const mapping of definition.portMappings) {
+    const source = definition.sourcePorts[mapping.source];
+    const target = definition.targetPorts[mapping.target];
+    if (!source) throw new Error(`Adapter '${definition.id}' mapping has unknown source port '${mapping.source}'`);
+    if (!target) throw new Error(`Adapter '${definition.id}' mapping has unknown target port '${mapping.target}'`);
+    mappedSources.add(mapping.source);
+    mappedTargets.add(mapping.target);
+    if (mapping.conversion.kind === 'identity') {
+      if (isOpaquePort(source) || isOpaquePort(target)) {
+        if (!(isOpaquePort(source) && isOpaquePort(target))) {
+          throw new Error(`Adapter '${definition.id}' mapping ${mapping.source} -> ${mapping.target} mixes opaque and unit-bearing ports`);
+        }
+      } else if (!areUnitsIdentical(source.unit, target.unit)) {
+        throw new Error(
+          `Adapter '${definition.id}' identity mapping ${mapping.source} -> ${mapping.target} ` +
+          `changes '${source.unit}' to '${target.unit}'`,
+        );
+      }
+    } else if (mapping.conversion.kind === 'unit') {
+      if (isOpaquePort(source) || isOpaquePort(target) || !areUnitsConvertible(source.unit, target.unit)) {
+        throw new Error(
+          `Adapter '${definition.id}' unit mapping ${mapping.source} -> ${mapping.target} has incompatible contracts`,
+        );
+      }
+    } else if (!mapping.conversion.description.trim()) {
+      throw new Error(`Adapter '${definition.id}' custom mapping must describe its conversion`);
+    }
+    if (mapping.aggregation.kind === 'custom' && !mapping.aggregation.description.trim()) {
+      throw new Error(`Adapter '${definition.id}' custom aggregation must have a description`);
+    }
+  }
+  for (const source of Object.keys(definition.sourcePorts)) {
+    if (!mappedSources.has(source)) {
+      throw new Error(`Adapter '${definition.id}' source port '${source}' has no target mapping`);
+    }
+  }
+  for (const target of Object.keys(definition.targetPorts)) {
+    if (!mappedTargets.has(target)) {
+      throw new Error(`Adapter '${definition.id}' target port '${target}' has no source mapping`);
+    }
   }
 }
 
@@ -72,8 +139,13 @@ export function defineAdapter<TSource, TTarget>(
   if (!definition.sourceModel.trim() || !definition.targetModel.trim()) {
     throw new Error(`Adapter '${definition.id}' must name both source and target models`);
   }
-  validatePorts(definition.id, 'source', definition.sourcePorts ?? {});
-  validatePorts(definition.id, 'target', definition.targetPorts ?? {});
+  if (!definition.sourcePorts || !definition.targetPorts) {
+    throw new Error(`Adapter '${definition.id}' must declare source and target port contracts`);
+  }
+  if (!definition.portMappings) throw new Error(`Adapter '${definition.id}' must declare port mappings`);
+  validatePorts(definition.id, 'source', definition.sourcePorts);
+  validatePorts(definition.id, 'target', definition.targetPorts);
+  validateMappings(definition);
   return definition;
 }
 

@@ -14,7 +14,17 @@
  * - YearResult mapping from autowire outputs
  */
 
-import { runAutowired, getOutputsAtYear, AutowireResult, AnyModule, requireOutput, optionalOutput } from 'tsimulation';
+import {
+  runAutowired,
+  getOutputsAtYear,
+  type AutowireResult,
+  type AnyModule,
+  requireOutput,
+  optionalOutput,
+  auditConnectorContracts,
+  opaqueConnector,
+  unitConnector,
+} from 'tsimulation';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
@@ -68,6 +78,8 @@ function buildTransforms(
     availableInvestment: {
       fn: (outputs: Record<string, any>) => requireOutput(outputs, 'energyInvestment', 'availableInvestment'),
       dependsOn: ['energyInvestment'],
+      inputTypes: { energyInvestment: unitConnector('number', '$T/year') },
+      outputType: unitConnector('number', '$T/year'),
     },
 
     // Resources needs gdpPerCapita (derived)
@@ -78,6 +90,11 @@ function buildTransforms(
         return (gdp * 1e12) / pop;
       },
       dependsOn: ['gdp', 'population'],
+      inputTypes: {
+        gdp: unitConnector('number', '$T/year'),
+        population: unitConnector('number', 'people'),
+      },
+      outputType: unitConnector('number', '$/people/year'),
     },
 
     // Resources needs gdpPerCapita2025 (captured from year 0)
@@ -91,6 +108,11 @@ function buildTransforms(
         return capturedGdpPerCapita2025;
       },
       dependsOn: ['gdp', 'population'],
+      inputTypes: {
+        gdp: unitConnector('number', '$T/year'),
+        population: unitConnector('number', 'people'),
+      },
+      outputType: unitConnector('number', '$/people/year'),
     },
 
     // Climate needs total emissions (electricity + non-electric + land use - CDR)
@@ -104,12 +126,21 @@ function buildTransforms(
         return elecEmissions + nonElecEmissions + landUse - cdrRemoval;
       },
       dependsOn: ['electricityEmissions', 'nonElectricEmissions', 'carbon', 'cdrRemovalGtCO2'],
+      inputTypes: {
+        electricityEmissions: unitConnector('number', 'GtCO2/year'),
+        nonElectricEmissions: unitConnector('number', 'GtCO2/year'),
+        carbon: opaqueConnector('record', 'Carbon records mix annual fluxes and cumulative CO2.'),
+        cdrRemovalGtCO2: unitConnector('number', 'GtCO2/year'),
+      },
+      outputType: unitConnector('number', 'GtCO2/year'),
     },
 
     // Dispatch needs carbonPrice (from energy params)
     carbonPrice: {
       fn: () => mergedEnergyParams.carbonPrice,
       dependsOn: [],
+      inputTypes: {},
+      outputType: unitConnector('number', '$/tCO2'),
     },
 
     // Demand's robot deployment rule needs the production-side payoff
@@ -118,6 +149,8 @@ function buildTransforms(
     robotLaborEquivalent: {
       fn: () => mergedProductionParams.robotLaborEquivalent,
       dependsOn: [],
+      inputTypes: {},
+      outputType: unitConnector('number', 'people/robot'),
     },
 
     // Regional GDP allocation uses the same labor exponent as aggregate
@@ -125,6 +158,8 @@ function buildTransforms(
     laborOutputElasticity: {
       fn: () => mergedProductionParams.beta,
       dependsOn: [],
+      inputTypes: {},
+      outputType: unitConnector('number', 'fraction'),
     },
 
     // Regional energy expenditure as a share of regional GDP. This uses the
@@ -195,6 +230,15 @@ function buildTransforms(
         'regional', 'regionalGeneration', 'regionalLCOEs',
         'solarPlusBatteryLCOE', 'regionalFuelCost', 'sectors',
       ],
+      inputTypes: {
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regionalGeneration: unitConnector('nested-record', 'TWh/year'),
+        regionalLCOEs: opaqueConnector('nested-record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+        solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
+        regionalFuelCost: unitConnector('record', '$T/year'),
+        sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+      },
+      outputType: unitConnector('record', 'fraction'),
     },
 
     // Translate unserved regional electricity into a bounded output-level
@@ -243,6 +287,11 @@ function buildTransforms(
         return result;
       },
       dependsOn: ['regional', 'regionalShortfallRate'],
+      inputTypes: {
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regionalShortfallRate: unitConnector('record', 'fraction'),
+      },
+      outputType: unitConnector('record', 'fraction'),
     },
 
     // Resources needs transport electrification for EV battery mineral demand
@@ -252,6 +301,10 @@ function buildTransforms(
         return sectors.transport?.electrificationRate ?? 0;
       },
       dependsOn: ['sectors'],
+      inputTypes: {
+        sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+      },
+      outputType: unitConnector('number', 'fraction'),
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
@@ -280,6 +333,12 @@ function buildTransforms(
         return totalGen > 0 ? weightedSum / totalGen : 50;
       },
       dependsOn: [],
+      inputTypes: {
+        generation: unitConnector('record', 'TWh/year'),
+        lcoes: opaqueConnector('record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+        solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
+      },
+      outputType: unitConnector('number', '$/MWh'),
     },
 
     // Cycle-breaker: reads current-year dispatch+energy outputs that may not exist yet
@@ -304,6 +363,11 @@ function buildTransforms(
           : 1;
       },
       dependsOn: [],  // No deps to avoid cycle - uses current year's outputs
+      inputTypes: {
+        generation: unitConnector('record', 'TWh/year'),
+        netEnergyFraction: unitConnector('record', 'fraction'),
+      },
+      outputType: unitConnector('number', 'fraction'),
     },
 
     // Regional electricity demand from demand module
@@ -315,6 +379,10 @@ function buildTransforms(
         return result;
       },
       dependsOn: ['regional'],
+      inputTypes: {
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+      },
+      outputType: unitConnector('record', 'TWh/year'),
     },
 
     // Regional investment from capital (weighted by savings rate × GDP share)
@@ -340,6 +408,12 @@ function buildTransforms(
         return result;
       },
       dependsOn: ['investment', 'regionalSavings', 'regional'],
+      inputTypes: {
+        investment: unitConnector('number', '$T/year'),
+        regionalSavings: unitConnector('record', 'fraction'),
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+      },
+      outputType: unitConnector('record', '$T/year'),
     },
 
     // Regional carbon prices from energy params
@@ -352,6 +426,8 @@ function buildTransforms(
         return result;
       },
       dependsOn: [],
+      inputTypes: {},
+      outputType: unitConnector('record', '$/tCO2'),
     },
 
     // Cycle-breaker: reads current-year energy outputs that may not exist yet
@@ -362,6 +438,11 @@ function buildTransforms(
         optionalOutput<Record<string, number> | null>(outputs, 'capacities', null),
       ),
       dependsOn: [],
+      inputTypes: {
+        additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+        capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
+      },
+      outputType: unitConnector('number', 'TWh/year'),
     },
 
     // Regional GDP for capital module intergenerational transfers
@@ -373,6 +454,10 @@ function buildTransforms(
         return result;
       },
       dependsOn: ['regional'],
+      inputTypes: {
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+      },
+      outputType: unitConnector('record', '$T/year'),
     },
 
     // Regional GDP per capita for climate adaptation
@@ -389,6 +474,11 @@ function buildTransforms(
         return result;
       },
       dependsOn: ['regional', 'regionalPopulation'],
+      inputTypes: {
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regionalPopulation: unitConnector('record', 'people'),
+      },
+      outputType: unitConnector('record', '$/people/year'),
     },
 
     // Cycle-breaker: reads current-year climate+demand outputs that may not exist yet
@@ -408,6 +498,11 @@ function buildTransforms(
         return totalGdp > 0 ? weightedSum / totalGdp : 0;
       },
       dependsOn: [],
+      inputTypes: {
+        regionalDamages: unitConnector('record', 'fraction'),
+        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+      },
+      outputType: unitConnector('number', 'fraction'),
     },
   };
 }
@@ -459,6 +554,7 @@ function buildLags(params: SimulationParams) {
       source: 'regionalDamages',
       delay: 1,
       initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      contract: unitConnector('record', 'fraction'),
       bootstrap: true,
     },
 
@@ -467,6 +563,7 @@ function buildLags(params: SimulationParams) {
       source: 'burdenDamage',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -475,6 +572,7 @@ function buildLags(params: SimulationParams) {
       source: 'gdpWeightedDamages',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -483,6 +581,7 @@ function buildLags(params: SimulationParams) {
       source: 'temperature',
       delay: 1,
       initial: mergedClimate.currentTemp,
+      contract: unitConnector('number', '°C'),
     },
 
     // Demand needs lagged average LCOE for cost-driven electrification
@@ -490,6 +589,7 @@ function buildLags(params: SimulationParams) {
       source: 'weightedAverageLCOE',
       delay: 1,
       initial: 50,  // No direct param source; 50 $/MWh is reasonable default
+      contract: unitConnector('number', '$/MWh'),
       bootstrap: true,
     },
 
@@ -498,6 +598,7 @@ function buildLags(params: SimulationParams) {
       source: 'netEnergyFactorComputed',
       delay: 1,
       initial: 1,
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -506,6 +607,7 @@ function buildLags(params: SimulationParams) {
       source: 'stock',
       delay: 1,
       initial: mergedCapital.initialCapitalStock,
+      contract: unitConnector('number', '$T'),
     },
 
     // Production and demand both read lagged total generation through this
@@ -515,6 +617,7 @@ function buildLags(params: SimulationParams) {
       source: 'totalGeneration',
       delay: 1,
       initial: totalGen,
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true,
     },
 
@@ -525,6 +628,7 @@ function buildLags(params: SimulationParams) {
       source: 'nonElectricEnergyPotential',
       delay: 1,
       initial: 92000,  // ~92,000 TWh in 2025 (IEA); no direct param source
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true,
     },
 
@@ -533,6 +637,7 @@ function buildLags(params: SimulationParams) {
       source: 'foodStress',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -541,6 +646,7 @@ function buildLags(params: SimulationParams) {
       source: 'totalResourceEnergy',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true,
     },
 
@@ -549,6 +655,7 @@ function buildLags(params: SimulationParams) {
       source: 'energySystemOverheadComputed',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true,
     },
 
@@ -557,6 +664,7 @@ function buildLags(params: SimulationParams) {
       source: 'cdrEnergyTWh',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true,
     },
 
@@ -567,11 +675,13 @@ function buildLags(params: SimulationParams) {
       source: 'robotsPer1000',
       delay: 1,
       initial: mergedDemand.robotBaseline2025,
+      contract: unitConnector('number', 'robot/kpeople'),
     },
     robotLoadTWh: {
       source: 'robotLoadTWh',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', 'TWh/year'),
       bootstrap: true, // flow: warm-up sets the 2025-consistent fleet load
     },
 
@@ -583,30 +693,35 @@ function buildLags(params: SimulationParams) {
       source: 'energyCapexSpend',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', '$T/year'),
       bootstrap: true,
     },
     cdrSpend: {
       source: 'cdrAnnualSpend',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', '$T/year'),
       bootstrap: true,
     },
     robotCapexSpend: {
       source: 'robotCapexSpend',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', '$T/year'),
       bootstrap: true,
     },
     dataCenterCapexSpend: {
       source: 'dataCenterCapexSpend',
       delay: 1,
       initial: 0,
+      contract: unitConnector('number', '$T/year'),
       bootstrap: true,
     },
     dataCenterLoadTWh: {
       source: 'dataCenterLoadTWh',
       delay: 1,
       initial: mergedDemand.dataCenterBaseline2025,
+      contract: unitConnector('number', 'TWh/year'),
     },
 
     // Energy needs lagged mineral constraint (resources runs after energy in topo order)
@@ -614,6 +729,7 @@ function buildLags(params: SimulationParams) {
       source: 'mineralConstraint',
       delay: 1,
       initial: 1.0,  // warm-up seed (bootstrapped)
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -622,6 +738,7 @@ function buildLags(params: SimulationParams) {
       source: 'curtailmentRate',
       delay: 1,
       initial: 0,  // warm-up seed (bootstrapped)
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -630,6 +747,7 @@ function buildLags(params: SimulationParams) {
       source: 'interestRate',
       delay: 1,
       initial: 0.05,  // ~5% initial real rate
+      contract: unitConnector('number', 'fraction'),
       bootstrap: true,
     },
 
@@ -638,6 +756,7 @@ function buildLags(params: SimulationParams) {
       source: 'gdp',
       delay: 1,
       initial: 155,  // ~2024 GDP ($T), consistent with ~2% trend into the 2025 anchor
+      contract: unitConnector('number', '$T/year'),
     },
 
     // Regional GDP allocation needs the prior year's actual energy burden
@@ -647,15 +766,27 @@ function buildLags(params: SimulationParams) {
       source: 'regionalEnergyBurdenComputed',
       delay: 1,
       initial: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      contract: unitConnector('record', 'fraction'),
       bootstrap: true,
     },
     regionalReliabilityFactor: {
       source: 'regionalReliabilityFactorComputed',
       delay: 1,
       initial: Object.fromEntries(REGIONS.map(r => [r, 1])) as Record<Region, number>,
+      contract: unitConnector('record', 'fraction'),
       bootstrap: true,
     },
   };
+}
+
+/** Static, non-running unit/shape completeness report for CI and tooling. */
+export function auditGlobalUnitContracts(params: SimulationParams = {}) {
+  const transforms = buildTransforms(
+    energyModule.mergeParams(params.energy ?? {}),
+    productionModule.mergeParams(params.production ?? {}),
+    demandModule.mergeParams(params.demand ?? {}),
+  );
+  return auditConnectorContracts(ALL_MODULES, transforms, buildLags(params));
 }
 
 // =============================================================================

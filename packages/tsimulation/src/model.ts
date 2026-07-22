@@ -3,8 +3,8 @@ import type { EvidenceRecord, ValidationClaim } from './evidence.js';
 import { validateEvidence, validateValidationClaims } from './evidence.js';
 import type { Invariant, InvariantReport } from './validation.js';
 import { assertFiniteDeep, assertInvariants } from './validation.js';
-import type { PortMeta } from './units.js';
-import { getUnit } from './units.js';
+import type { PortContract, PortMeta } from './units.js';
+import { assertPortContract, validatePortMeta } from './units.js';
 
 export interface ModelContext {
   seed?: number;
@@ -19,8 +19,10 @@ export interface ModelDefinition<TInput, TOutput> {
   validateInput?: (input: TInput) => ValidationResult | void;
   validateOutput?: (output: TOutput, input: TInput) => ValidationResult | void;
   invariants?: readonly Invariant<TOutput>[];
-  inputPorts?: Readonly<Record<string, PortMeta>>;
-  outputPorts?: Readonly<Record<string, PortMeta>>;
+  /** Complete top-level contract. Numeric fields require units; mixed objects must be explicitly opaque. */
+  inputPorts: PortContract<TInput>;
+  /** Complete top-level contract. Numeric fields require units; mixed objects must be explicitly opaque. */
+  outputPorts: PortContract<TOutput>;
   evidence?: readonly EvidenceRecord[];
   validationClaims?: readonly ValidationClaim[];
   /** Disable only for explicit sentinel values such as Infinity-as-no-decay. */
@@ -55,13 +57,16 @@ export function defineModel<TInput, TOutput>(
   if (!definition.version.trim()) throw new Error(`Model '${definition.id}' version must not be empty`);
   if (!definition.description.trim()) throw new Error(`Model '${definition.id}' description must not be empty`);
   for (const [side, ports] of [
-    ['input', definition.inputPorts ?? {}],
-    ['output', definition.outputPorts ?? {}],
+    ['input', definition.inputPorts],
+    ['output', definition.outputPorts],
   ] as const) {
-    for (const [name, port] of Object.entries(ports)) {
-      if (!getUnit(port.unit)) {
-        throw new Error(`Model '${definition.id}' ${side} port '${name}' has unknown unit '${port.unit}'`);
-      }
+    if (!ports) throw new Error(`Model '${definition.id}' is missing its ${side} port contract`);
+    if ('unit' in (ports as PortMeta) || 'opaque' in (ports as PortMeta)) {
+      validatePortMeta(ports as PortMeta, `Model '${definition.id}' ${side} port`);
+      continue;
+    }
+    for (const [name, port] of Object.entries(ports as Readonly<Record<string, PortMeta>>)) {
+      validatePortMeta(port, `Model '${definition.id}' ${side} port '${name}'`);
     }
   }
   validateEvidence(definition.evidence ?? []);
@@ -75,11 +80,13 @@ export function runModel<TInput, TOutput>(
   context: ModelContext = {},
 ): ModelRun<TInput, TOutput> {
   const warnings: string[] = [];
+  assertPortContract(input, model.inputPorts, `Model '${model.id}' input`);
   if (model.requireFiniteInput !== false) assertFiniteDeep(input, `${model.id}.input`);
   applyValidation(model.validateInput?.(input), `${model.id} invalid input`, warnings);
   const started = Date.now();
   const output = model.run(input, context);
   const durationMs = Date.now() - started;
+  assertPortContract(output, model.outputPorts, `Model '${model.id}' output`);
   if (model.requireFiniteOutput !== false) assertFiniteDeep(output, `${model.id}.output`);
   applyValidation(model.validateOutput?.(output, input), `${model.id} invalid output`, warnings);
   const invariantReport = assertInvariants(
@@ -105,7 +112,7 @@ export class ModelRegistry {
 
   register<TInput, TOutput>(model: ModelDefinition<TInput, TOutput>): this {
     if (this.models.has(model.id)) throw new Error(`Model '${model.id}' is already registered`);
-    this.models.set(model.id, model);
+    this.models.set(model.id, model as ModelDefinition<any, any>);
     return this;
   }
 

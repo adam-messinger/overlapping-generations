@@ -14,7 +14,7 @@
 import { Module, ConnectorDeclaration, ConnectorSpec, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
 import { validatedMerge } from './validated-merge.js';
-import { getUnit } from './units.js';
+import { assertPortValue, getUnit, validatePortUnits } from './units.js';
 import { trackObjectReads, unreadOverridePaths } from './liveness.js';
 import { findNonFiniteValues } from './validation.js';
 
@@ -40,6 +40,10 @@ export interface TransformConfig {
   fn: TransformFn;
   /** Output names this transform reads (creates dependency edges) */
   dependsOn: string[];
+  /** Complete unit/shape signature for every output the function may read. */
+  inputTypes: Record<string, ConnectorSpec>;
+  /** Unit/shape signature of the value returned by the transform. */
+  outputType: ConnectorSpec;
 }
 
 /**
@@ -52,7 +56,12 @@ export type TransformEntry = TransformFn | TransformConfig;
  */
 function normalizeTransform(entry: TransformEntry): TransformConfig {
   if (typeof entry === 'function') {
-    return { fn: entry, dependsOn: [] };  // Backwards compat: no deps
+    return {
+      fn: entry,
+      dependsOn: [],
+      inputTypes: {},
+      outputType: undefined as unknown as ConnectorSpec,
+    }; // Runtime backwards compatibility; strict validation rejects this form.
   }
   return entry;
 }
@@ -67,6 +76,8 @@ export interface LagConfig {
   delay: number;
   /** Initial value for year 0 */
   initial: any;
+  /** The lag preserves this unit and shape from source through initial/history to consumer. */
+  contract: ConnectorSpec;
   /**
    * When true and the run uses bootstrapLags > 0, this lag's initial is
    * replaced by the value its source actually produces in a warm-up pass of
@@ -116,7 +127,7 @@ export interface AutowireConfig {
   /** Enable dev-mode transform read tracking via Proxy (default: false) */
   trackReads?: boolean;
 
-  /** Runtime connector contract policy (default: warn). */
+  /** Runtime connector contract policy (default: error). */
   connectorValidation?: 'off' | 'warn' | 'error';
 
   /** Report or reject scenario parameters that are never read during a full run. */
@@ -334,72 +345,193 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
 // CONNECTOR TYPE VALIDATION
 // =============================================================================
 
-/**
- * Validate connector type compatibility between providers and consumers.
- * Only checks modules that declare connectorTypes - others are skipped.
- */
+/** Validate complete shape/unit contracts for modules, transforms, and lags. */
 export function validateConnectorTypes(
   modules: AnyModule[],
-  outputRegistry: Map<string, string>,
+  _outputRegistry: Map<string, string>,
   transforms: Record<string, TransformEntry> = {},
   lags: Record<string, LagConfig> = {}
 ): string[] {
   const warnings: string[] = [];
 
-  // Build output type registry from modules that declare connectorTypes
-  const normalize = (declaration: ConnectorDeclaration): ConnectorSpec =>
-    typeof declaration === 'string' ? { type: declaration } : declaration;
+  const normalize = (
+    declaration: ConnectorDeclaration | undefined,
+    context: string,
+  ): ConnectorSpec | undefined => {
+    if (!declaration) {
+      warnings.push(`Missing connector contract: ${context}`);
+      return undefined;
+    }
+    if (typeof declaration === 'string') {
+      warnings.push(`Incomplete connector contract: ${context} declares type '${declaration}' but no unit or opaque marker`);
+      return undefined;
+    }
+    if ('opaque' in declaration && declaration.opaque) {
+      if (!declaration.description?.trim()) warnings.push(`Opaque connector ${context} must explain why it is opaque`);
+    } else if (!getUnit(declaration.unit)) {
+      warnings.push(`Unknown unit '${declaration.unit}' in connector ${context}`);
+    }
+    return declaration;
+  };
+
+  const compare = (producer: ConnectorSpec, consumer: ConnectorSpec, context: string): void => {
+    if (producer.type !== consumer.type) {
+      warnings.push(`Type mismatch: ${context} provides '${producer.type}' but consumer expects '${consumer.type}'`);
+    }
+    try {
+      validatePortUnits(
+        'opaque' in producer && producer.opaque
+          ? { opaque: true, description: producer.description, valueType: producer.type }
+          : { unit: producer.unit, valueType: producer.type },
+        'opaque' in consumer && consumer.opaque
+          ? { opaque: true, description: consumer.description, valueType: consumer.type }
+          : { unit: consumer.unit, valueType: consumer.type },
+        context,
+      );
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const outputTypes = new Map<string, { module: string; spec: ConnectorSpec }>();
   for (const mod of modules) {
-    if (!mod.connectorTypes?.outputs) continue;
-    for (const [outputName, type] of Object.entries(mod.connectorTypes.outputs)) {
-      outputTypes.set(outputName, {
-        module: mod.name,
-        spec: normalize(type as ConnectorDeclaration),
-      });
+    const inputNames = new Set(mod.inputs.map(String));
+    const outputNames = new Set(mod.outputs.map(String));
+    const inputContracts = mod.connectorTypes?.inputs as Record<string, ConnectorDeclaration> | undefined;
+    const outputContracts = mod.connectorTypes?.outputs as Record<string, ConnectorDeclaration> | undefined;
+    for (const inputName of inputNames) normalize(inputContracts?.[inputName], `${mod.name}.${inputName}`);
+    for (const outputName of outputNames) {
+      const spec = normalize(outputContracts?.[outputName], `${mod.name}.${outputName}`);
+      if (spec) outputTypes.set(outputName, { module: mod.name, spec });
+    }
+    for (const name of Object.keys(inputContracts ?? {})) {
+      if (!inputNames.has(name)) warnings.push(`Extraneous input connector contract: ${mod.name}.${name}`);
+    }
+    for (const name of Object.keys(outputContracts ?? {})) {
+      if (!outputNames.has(name)) warnings.push(`Extraneous output connector contract: ${mod.name}.${name}`);
     }
   }
 
-  // Check each consumer's declared input types against provider types
+  const transformOutputs = new Map<string, ConnectorSpec>();
+  for (const [name, entry] of Object.entries(transforms)) {
+    if (typeof entry === 'function') {
+      warnings.push(`Transform '${name}' uses the legacy bare-function form and has no unit signature`);
+      continue;
+    }
+    const outputType = normalize(entry.outputType, `transform ${name} output`);
+    if (outputType) transformOutputs.set(name, outputType);
+    const declaredReads = new Set(Object.keys(entry.inputTypes ?? {}));
+    for (const dependency of entry.dependsOn) {
+      if (!declaredReads.has(dependency)) {
+        warnings.push(`Transform '${name}' dependency '${dependency}' has no input unit signature`);
+      }
+    }
+    for (const [read, declaration] of Object.entries(entry.inputTypes ?? {})) {
+      const expected = normalize(declaration, `transform ${name} input ${read}`);
+      const provider = outputTypes.get(read);
+      if (!provider) {
+        warnings.push(`Transform '${name}' input signature references unknown module output '${read}'`);
+      } else if (expected) {
+        compare(provider.spec, expected, `${provider.module}.${read} -> transform ${name}.${read}`);
+      }
+    }
+  }
+
   for (const mod of modules) {
-    if (!mod.connectorTypes?.inputs) continue;
-    for (const [inputName, declaration] of Object.entries(mod.connectorTypes.inputs)) {
-      // Skip transforms and lags (they handle type conversion)
-      if (transforms[inputName] || lags[inputName]) continue;
-
-      const providerInfo = outputTypes.get(inputName);
-      if (!providerInfo) continue; // Provider doesn't declare types - skip
-
-      const expected = normalize(declaration as ConnectorDeclaration);
-      if (providerInfo.spec.type !== expected.type) {
-        warnings.push(
-          `Type mismatch: ${mod.name}.${inputName} expects '${expected.type}' ` +
-          `but ${providerInfo.module}.${inputName} provides '${providerInfo.spec.type}'`
-        );
-      }
-      if (providerInfo.spec.unit || expected.unit) {
-        if (!providerInfo.spec.unit || !expected.unit) {
-          warnings.push(
-            `Incomplete unit contract: ${providerInfo.module}.${inputName} provides ` +
-            `'${providerInfo.spec.unit ?? 'unspecified'}' while ${mod.name}.${inputName} expects ` +
-            `'${expected.unit ?? 'unspecified'}'`,
-          );
-        } else if (!getUnit(providerInfo.spec.unit) || !getUnit(expected.unit)) {
-          warnings.push(
-            `Unknown unit in connector ${providerInfo.module}.${inputName} -> ${mod.name}.${inputName}`,
-          );
-        } else if (providerInfo.spec.unit !== expected.unit) {
-          warnings.push(
-            `Unit mismatch: ${mod.name}.${inputName} expects '${expected.unit}' ` +
-            `but ${providerInfo.module}.${inputName} provides '${providerInfo.spec.unit}'. ` +
-            `Use an explicit conversion transform.`,
-          );
+    for (const input of mod.inputs) {
+      const inputName = String(input);
+      const expected = normalize(
+        (mod.connectorTypes?.inputs as Record<string, ConnectorDeclaration> | undefined)?.[inputName],
+        `${mod.name}.${inputName}`,
+      );
+      if (!expected) continue;
+      const transform = transforms[inputName];
+      if (transform) {
+        if (typeof transform !== 'function') {
+          const provided = transformOutputs.get(inputName);
+          if (provided) compare(provided, expected, `transform ${inputName} -> ${mod.name}.${inputName}`);
         }
+        continue;
       }
+      const lag = lags[inputName];
+      if (lag) {
+        const lagContract = normalize(lag.contract, `lag ${inputName}`);
+        const provider = outputTypes.get(lag.source) ?? (
+          transformOutputs.has(lag.source)
+            ? { module: 'transform', spec: transformOutputs.get(lag.source)! }
+            : undefined
+        );
+        if (!provider) {
+          warnings.push(`Lag '${inputName}' source '${lag.source}' has no connector contract`);
+        } else if (lagContract) {
+          compare(provider.spec, lagContract, `${provider.module}.${lag.source} -> lag ${inputName}`);
+          compare(lagContract, expected, `lag ${inputName} -> ${mod.name}.${inputName}`);
+          try {
+            assertConnectorValue(lag.initial, lagContract, `Lag '${inputName}' initial`);
+          } catch (error) {
+            warnings.push(error instanceof Error ? error.message : String(error));
+          }
+        }
+        continue;
+      }
+      const provider = outputTypes.get(inputName);
+      if (provider) compare(provider.spec, expected, `${provider.module}.${inputName} -> ${mod.name}.${inputName}`);
+      else warnings.push(`Input connector ${mod.name}.${inputName} has no contracted provider, transform, or lag`);
     }
   }
 
-  return warnings;
+  return [...new Set(warnings)];
+}
+
+function assertConnectorValue(value: unknown, spec: ConnectorSpec, context: string): void {
+  const meta = 'opaque' in spec && spec.opaque
+    ? { opaque: true as const, description: spec.description, valueType: spec.type }
+    : { unit: spec.unit, valueType: spec.type };
+  assertPortValue(value, meta, context);
+}
+
+export interface ConnectorContractAudit {
+  valid: boolean;
+  errors: string[];
+  unitBearingContracts: number;
+  opaqueContracts: number;
+}
+
+/** CI-friendly completeness audit for an entire composed simulation graph. */
+export function auditConnectorContracts(
+  modules: AnyModule[],
+  transforms: Record<string, TransformEntry> = {},
+  lags: Record<string, LagConfig> = {},
+): ConnectorContractAudit {
+  const outputRegistry = buildOutputRegistry(modules);
+  const declarations: ConnectorDeclaration[] = [];
+  for (const mod of modules) {
+    declarations.push(...Object.values(mod.connectorTypes?.inputs ?? {}));
+    declarations.push(...Object.values(mod.connectorTypes?.outputs ?? {}));
+  }
+  for (const transform of Object.values(transforms)) {
+    if (typeof transform === 'function') continue;
+    declarations.push(...Object.values(transform.inputTypes ?? {}), transform.outputType);
+  }
+  for (const lag of Object.values(lags)) if (lag.contract) declarations.push(lag.contract);
+  const unitBearingContracts = declarations.filter(
+    (declaration) => typeof declaration !== 'string' && !('opaque' in declaration && declaration.opaque),
+  ).length;
+  const opaqueContracts = declarations.filter(
+    (declaration) => typeof declaration !== 'string' && 'opaque' in declaration && declaration.opaque,
+  ).length;
+  const errors = validateConnectorTypes(modules, outputRegistry, transforms, lags);
+  return { valid: errors.length === 0, errors, unitBearingContracts, opaqueContracts };
+}
+
+export function assertConnectorContracts(
+  modules: AnyModule[],
+  transforms: Record<string, TransformEntry> = {},
+  lags: Record<string, LagConfig> = {},
+): ConnectorContractAudit {
+  const audit = auditConnectorContracts(modules, transforms, lags);
+  if (!audit.valid) throw new Error(`Connector contract errors:\n${audit.errors.join('\n')}`);
+  return audit;
 }
 
 // =============================================================================
@@ -678,6 +810,7 @@ export interface AutowireState {
   endYear: number;
   currentYear: number;
   trackReads: boolean;
+  connectorValidation: NonNullable<AutowireConfig['connectorValidation']>;
   diagnostics?: AutowireResult['diagnostics'];
   paramReads: Map<string, Set<string>>;
   paramOverrides: Map<string, unknown>;
@@ -697,7 +830,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     startYear,
     endYear,
     trackReads = false,
-    connectorValidation = 'warn',
+    connectorValidation = 'error',
     paramLiveness = 'off',
     externalParamReads = {},
   } = config;
@@ -712,7 +845,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   // Build registry and graph
   const outputRegistry = buildOutputRegistry(modules);
 
-  // Validate connector types (warnings only - incremental adoption)
+  // Unit contracts are strict by default; callers must explicitly opt out.
   const connectorWarnings = connectorValidation === 'off'
     ? []
     : validateConnectorTypes(modules, outputRegistry, transforms, lags);
@@ -797,6 +930,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     endYear,
     currentYear: startYear,
     trackReads,
+    connectorValidation,
     paramReads,
     paramOverrides,
     paramLiveness,
@@ -829,12 +963,16 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
 
       if (state.transforms[inputName]) {
         const config = normalizeTransform(state.transforms[inputName]);
-        if (state.trackReads && config.dependsOn.length > 0) {
-          // Dev-mode: track which outputs the transform actually reads
+        const checkUnitReads = state.connectorValidation === 'error';
+        const checkDependencyReads = state.trackReads && config.dependsOn.length > 0;
+        if (checkUnitReads || checkDependencyReads) {
           const { proxy, reads } = trackingProxy(state.currentOutputs);
           inputs[inputName] = config.fn(proxy, year, yearIndex);
           for (const read of reads) {
-            if (!config.dependsOn.includes(read)) {
+            if (checkUnitReads && !config.inputTypes[read]) {
+              throw new Error(`Transform '${inputName}' reads '${read}' without an input unit signature`);
+            }
+            if (checkDependencyReads && !config.dependsOn.includes(read)) {
               console.warn(`[autowire] Transform '${inputName}' reads '${read}' but doesn't declare it in dependsOn`);
             }
           }
@@ -860,12 +998,35 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
 
+    if (state.connectorValidation !== 'off') {
+      const contracts = mod.connectorTypes?.inputs as Record<string, ConnectorSpec> | undefined;
+      for (const input of mod.inputs) {
+        const inputName = String(input);
+        if (contracts?.[inputName]) {
+          assertConnectorValue(inputs[inputName], contracts[inputName], `Module '${mod.name}' input '${inputName}' at year ${year}`);
+        }
+      }
+    }
+
     const modState = state.stateMap.get(mod.name)!;
     const modParams = state.paramsMap.get(mod.name)!;
     const result = mod.step(modState, inputs, modParams, year, yearIndex);
 
     // Verify completeness + NaN guard
     validateOutputs(mod, result.outputs as Record<string, any>, year);
+    if (state.connectorValidation !== 'off') {
+      const contracts = mod.connectorTypes?.outputs as Record<string, ConnectorSpec> | undefined;
+      for (const output of mod.outputs) {
+        const outputName = String(output);
+        if (contracts?.[outputName]) {
+          assertConnectorValue(
+            (result.outputs as Record<string, unknown>)[outputName],
+            contracts[outputName],
+            `Module '${mod.name}' output '${outputName}' at year ${year}`,
+          );
+        }
+      }
+    }
 
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);
@@ -886,7 +1047,17 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
     let sourceValue = state.currentOutputs[lagConfig.source];
     if (sourceValue === undefined && state.transforms[lagConfig.source]) {
       const config = normalizeTransform(state.transforms[lagConfig.source]);
-      sourceValue = config.fn(state.currentOutputs, year, yearIndex);
+      if (state.connectorValidation === 'error') {
+        const { proxy, reads } = trackingProxy(state.currentOutputs);
+        sourceValue = config.fn(proxy, year, yearIndex);
+        for (const read of reads) {
+          if (!config.inputTypes[read]) {
+            throw new Error(`Transform '${lagConfig.source}' reads '${read}' without an input unit signature`);
+          }
+        }
+      } else {
+        sourceValue = config.fn(state.currentOutputs, year, yearIndex);
+      }
     }
     if (sourceValue === undefined) {
       throw new Error(

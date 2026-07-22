@@ -17,7 +17,7 @@
  * - minerals, land: Tracking data
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
 import { EnergySource, Region, REGIONS } from '../domain-types.js';
 
 // =============================================================================
@@ -551,7 +551,7 @@ export const resourcesModule: Module<
   ResourcesState,
   ResourcesInputs,
   ResourcesOutputs
-> = defineModule({
+> = defineModule<ResourcesParams, ResourcesState, ResourcesInputs, ResourcesOutputs>({
   name: 'resources',
   description: 'Mineral demand, land use, and forest carbon',
 
@@ -590,6 +590,30 @@ export const resourcesModule: Module<
     'waterStress',
     'waterYieldFactor',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+      population: unitConnector('number', 'people'),
+      gdpPerCapita: unitConnector('number', '$/people/year'),
+      gdpPerCapita2025: unitConnector('number', '$/people/year'),
+      temperature: unitConnector('number', '°C'),
+      transportElectrification: unitConnector('number', 'fraction'),
+    },
+    outputs: {
+      minerals: opaqueConnector('nested-record', 'Mineral records mix annual demand, cumulative stocks, and dimensionless rates.'),
+      land: opaqueConnector('record', 'Land records mix area, yield, and annual change units.'),
+      carbon: opaqueConnector('record', 'Carbon records mix annual fluxes and cumulative CO2.'),
+      food: opaqueConnector('record', 'Food records mix calories, shares, and grain mass flows.'),
+      foodStress: unitConnector('number', 'fraction'),
+      mineralConstraint: unitConnector('number', 'fraction'),
+      miningEnergyTWh: unitConnector('number', 'TWh/year'),
+      farmingEnergyTWh: unitConnector('number', 'TWh/year'),
+      totalResourceEnergy: unitConnector('number', 'TWh/year'),
+      waterStress: unitConnector('record', 'fraction'),
+      waterYieldFactor: unitConnector('number', 'fraction'),
+    },
+  },
 
   validate(params: Partial<ResourcesParams>): ValidationResult {
     const errors: string[] = [];

@@ -20,7 +20,7 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { Module, validatedMerge } from 'tsimulation';
+import { Module, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
 
 export interface GenerationsParams {
   cohortWidth: number;                  // Years per birth cohort (default 5)
@@ -657,6 +657,45 @@ export const generationsModule: Module<
     'cohortAssets',
     'cohortLiabilities',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      regionalYoung: unitConnector('record', 'people'),
+      regionalWorking: unitConnector('record', 'people'),
+      regionalOld: unitConnector('record', 'people'),
+      regionalPopulation: unitConnector('record', 'people'),
+      regionalLifeExpectancy: unitConnector('record', 'year'),
+      regionalGdp: unitConnector('record', '$T/year'),
+      gdp: unitConnector('number', '$T/year'),
+      stock: unitConnector('number', '$T'),
+      nextCapitalStock: unitConnector('number', '$T'),
+      investment: unitConnector('number', '$T/year'),
+      generalInvestment: unitConnector('number', '$T/year'),
+      creditImpulse: unitConnector('number', '$T/year'),
+      privateDebtStock: unitConnector('number', '$T'),
+      nextPrivateDebtStock: unitConnector('number', '$T'),
+      publicDebtService: unitConnector('number', '$T/year'),
+      regionalSavings: unitConnector('record', 'fraction'),
+      regionalRetireeCost: unitConnector('record', '$T/year'),
+      regionalChildCost: unitConnector('record', '$T/year'),
+    },
+    outputs: {
+      cohortAccounts: opaqueConnector('record', 'Cohort ledgers mix populations, stocks, flows, rates, and labels.'),
+      regionalCohortAccounts: opaqueConnector('nested-record', 'Regional cohort ledgers mix populations, stocks, flows, rates, and labels.'),
+      cohortDesiredCapital: unitConnector('number', '$T/year'),
+      cohortFundedCapital: unitConnector('number', '$T/year'),
+      cohortFundingGap: unitConnector('number', '$T/year'),
+      aggregateCapitalFundingGap: unitConnector('number', '$T/year'),
+      aggregateCapitalCoverage: unitConnector('number', 'fraction'),
+      cohortBorrowingLimitGap: unitConnector('number', '$T/year'),
+      cohortCreditRationingGap: unitConnector('number', '$T/year'),
+      constrainedWorkingShare: unitConnector('number', 'fraction'),
+      borrowingConstrainedWorkingShare: unitConnector('number', 'fraction'),
+      cohortBequests: unitConnector('number', '$T/year'),
+      cohortAssets: unitConnector('number', '$T'),
+      cohortLiabilities: unitConnector('number', '$T'),
+    },
+  },
 
   validate(partial: Partial<GenerationsParams>) {
     const errors: string[] = [];

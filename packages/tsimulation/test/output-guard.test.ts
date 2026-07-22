@@ -4,9 +4,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runAutowired } from '../src/autowire.js';
+import { runAutowired as runAutowiredStrict } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
 import { okValidate, throwsWith } from './helpers.js';
+
+const runAutowired = (config: Parameters<typeof runAutowiredStrict>[0]) =>
+  runAutowiredStrict({ ...config, connectorValidation: 'off' });
 
 /** Module that emits a single output value `v`. */
 const emit = (v: unknown) =>

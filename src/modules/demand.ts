@@ -21,7 +21,7 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
-import { Module, validatedMerge } from 'tsimulation';
+import { Module, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
 
 // =============================================================================
 // TYPES
@@ -1054,6 +1054,58 @@ export const demandModule: Module<
     'dataCenterCapexSpend',
     'dataCenterPowerSpendShare',
   ] as const,
+
+  connectorTypes: {
+    inputs: {
+      regionalWorking: unitConnector('record', 'people'),
+      regionalEffectiveWorkers: unitConnector('record', 'people'),
+      regionalDependency: unitConnector('record', 'fraction'),
+      population: unitConnector('number', 'people'),
+      working: unitConnector('number', 'people'),
+      dependency: unitConnector('number', 'fraction'),
+      gdp: unitConnector('number', '$T/year'),
+      regionalDamages: unitConnector('record', 'fraction'),
+      totalGeneration: unitConnector('number', 'TWh/year'),
+      carbonPrice: unitConnector('number', '$/tCO2'),
+      laggedAvgLCOE: unitConnector('number', '$/MWh'),
+      laggedInterestRate: unitConnector('number', 'fraction'),
+      robotLaborEquivalent: unitConnector('number', 'people/robot'),
+      cdrEnergy: unitConnector('number', 'TWh/year'),
+      regionalEnergyBurden: unitConnector('record', 'fraction'),
+      regionalReliabilityFactor: unitConnector('record', 'fraction'),
+      laborOutputElasticity: unitConnector('number', 'fraction'),
+    },
+    outputs: {
+      electricityDemand: unitConnector('number', 'TWh/year'),
+      electrificationRate: unitConnector('number', 'fraction'),
+      totalFinalEnergy: unitConnector('number', 'TWh/year'),
+      nonElectricEnergy: unitConnector('number', 'TWh/year'),
+      nonElectricEnergyPotential: unitConnector('number', 'TWh/year'),
+      gdpPerWorking: unitConnector('number', '$/people/year'),
+      finalEnergyPerCapitaDay: unitConnector('number', 'kWh/people/day'),
+      regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+      regionalAllocation: opaqueConnector('record', 'Regional allocation diagnostics mix factors, rates, and shares.'),
+      sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+      fuels: unitConnector('record', 'TWh/year'),
+      nonElectricEmissions: unitConnector('number', 'GtCO2/year'),
+      electricityCost: unitConnector('number', '$T/year'),
+      fuelCost: unitConnector('number', '$T/year'),
+      totalEnergyCost: unitConnector('number', '$T/year'),
+      energyBurden: unitConnector('number', 'fraction'),
+      burdenDamage: unitConnector('number', 'fraction'),
+      regionalFuelCost: unitConnector('record', '$T/year'),
+      regionalFuelAvailability: unitConnector('record', 'fraction'),
+      usefulWorkGrowthRate: unitConnector('number', 'fraction/year'),
+      robotLoadTWh: unitConnector('number', 'TWh/year'),
+      robotCapexSpend: unitConnector('number', '$T/year'),
+      robotsPer1000: unitConnector('number', 'robot/kpeople'),
+      robotProfitability: unitConnector('number', '1'),
+      fossilStockTWh: unitConnector('number', 'TWh/year'),
+      dataCenterLoadTWh: unitConnector('number', 'TWh/year'),
+      dataCenterCapexSpend: unitConnector('number', '$T/year'),
+      dataCenterPowerSpendShare: unitConnector('number', 'fraction'),
+    },
+  },
 
   validate(params: Partial<DemandParams>) {
     const errors: string[] = [];

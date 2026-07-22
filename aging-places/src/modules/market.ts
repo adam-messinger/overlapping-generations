@@ -7,7 +7,7 @@
  * prisons, dormitories, barracks, and other group quarters: residents of those
  * facilities are population, but they do not occupy ordinary housing units.
  */
-import { defineModule, ValidationResult } from 'tsimulation';
+import { defineModule, ValidationResult, unitConnector } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort, DEFAULT_HEADSHIP, PlaceStatics } from '../domain-types.js';
 
 export interface MarketParams {
@@ -158,6 +158,39 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
     'meanPriceIndex', 'medianPriceIndex', 'p90PriceIndex', 'p10PriceIndex',
     'shareDecliningReal',
   ],
+  connectorTypes: {
+    inputs: {
+      internalNetByCohort: unitConnector('nested-record', 'people/year'),
+      localNetImmigrationByCohort: unitConnector('nested-record', 'people/year'),
+      elderlyWealthIndex: unitConnector('number', '1'),
+      currentTfr: unitConnector('number', '1'),
+    },
+    outputs: {
+      priceIndexVec: unitConnector('vector', '1'),
+      priceToIncome: unitConnector('vector', 'year'),
+      youngShareVec: unitConnector('vector', 'fraction'),
+      workingStock: unitConnector('vector', 'people'),
+      midlifeStock: unitConnector('vector', 'people'),
+      retireeStock: unitConnector('vector', 'people'),
+      stockA0_19: unitConnector('vector', 'people'),
+      stockA20_24: unitConnector('vector', 'people'),
+      stockA25_44: unitConnector('vector', 'people'),
+      stockA45_64: unitConnector('vector', 'people'),
+      stockA65up: unitConnector('vector', 'people'),
+      destinationUnits: unitConnector('vector', 'housing-unit'),
+      unitsVec: unitConnector('vector', 'housing-unit'),
+      householdsVec: unitConnector('vector', 'household'),
+      incomeVec: unitConnector('vector', '$/year'),
+      gapVec: unitConnector('vector', 'housing-unit'),
+      popVec: unitConnector('vector', 'people'),
+      birthsTotal: unitConnector('number', 'people/year'),
+      meanPriceIndex: unitConnector('number', '1'),
+      medianPriceIndex: unitConnector('number', '1'),
+      p90PriceIndex: unitConnector('number', '1'),
+      p10PriceIndex: unitConnector('number', '1'),
+      shareDecliningReal: unitConnector('number', 'fraction'),
+    },
+  },
 
   validate(params): ValidationResult {
     const errors: string[] = [];

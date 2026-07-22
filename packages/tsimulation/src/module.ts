@@ -20,13 +20,40 @@ import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
  * @template TOutputs - What this module provides to other modules
  */
 /** Connector type for runtime validation of module wiring */
-export type ConnectorType = 'number' | 'record' | 'nested-record';
-export interface ConnectorSpec {
+export type ConnectorType = 'number' | 'record' | 'nested-record' | 'vector';
+interface ConnectorSpecBase {
   type: ConnectorType;
-  /** Runtime unit contract. Different scales require an explicit transform. */
-  unit?: string;
 }
+export interface UnitConnectorSpec extends ConnectorSpecBase {
+  /** Runtime unit contract. Different scales require an explicit transform. */
+  unit: string;
+  opaque?: never;
+  description?: string;
+}
+export interface OpaqueConnectorSpec extends ConnectorSpecBase {
+  type: Exclude<ConnectorType, 'number'>;
+  /** Explicit escape hatch for mixed-unit structured data. */
+  opaque: true;
+  description: string;
+  unit?: never;
+}
+export type ConnectorSpec = UnitConnectorSpec | OpaqueConnectorSpec;
+/** String declarations are retained only so strict validation can diagnose legacy callers. */
 export type ConnectorDeclaration = ConnectorType | ConnectorSpec;
+export type ConnectorContract<T extends object> = {
+  readonly [K in keyof T]-?: ConnectorSpec;
+};
+
+export function unitConnector(type: ConnectorType, unit: string, description?: string): UnitConnectorSpec {
+  return { type, unit, ...(description ? { description } : {}) };
+}
+
+export function opaqueConnector(
+  type: Exclude<ConnectorType, 'number'>,
+  description: string,
+): OpaqueConnectorSpec {
+  return { type, opaque: true, description };
+}
 
 export interface Module<
   TParams extends object,
@@ -55,14 +82,10 @@ export interface Module<
    */
   readonly outputs: readonly (keyof TOutputs)[];
 
-  /**
-   * Optional connector type declarations for runtime wiring validation.
-   * When present, the framework validates type compatibility between
-   * providers and consumers at startup.
-   */
-  readonly connectorTypes?: {
-    inputs?: Partial<Record<keyof TInputs, ConnectorDeclaration>>;
-    outputs?: Partial<Record<keyof TOutputs, ConnectorDeclaration>>;
+  /** Complete runtime shape and unit contracts for every input and output. */
+  readonly connectorTypes: {
+    inputs: ConnectorContract<TInputs>;
+    outputs: ConnectorContract<TOutputs>;
   };
 
   /**

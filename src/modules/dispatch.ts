@@ -27,7 +27,7 @@
  * - emissions: Gt CO2 from electricity - GLOBAL
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 
@@ -511,31 +511,31 @@ export const dispatchModule: Module<
 
   connectorTypes: {
     inputs: {
-      electricityDemand: 'number',
-      regionalElectricityDemand: 'record',
-      capacities: 'record',
-      regionalCapacities: 'nested-record',
-      carbonPrice: 'number',
-      regionalCarbonPrice: 'record',
-      longStorageRegional: 'record',
-      effectiveSolarCF: 'number',
-      effectiveWindCF: 'number',
+      electricityDemand: unitConnector('number', 'TWh/year'),
+      regionalElectricityDemand: unitConnector('record', 'TWh/year'),
+      capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
+      regionalCapacities: opaqueConnector('nested-record', 'Generator capacity is GW while battery capacity is GWh.'),
+      carbonPrice: unitConnector('number', '$/tCO2'),
+      regionalCarbonPrice: unitConnector('record', '$/tCO2'),
+      longStorageRegional: unitConnector('record', 'GWh'),
+      effectiveSolarCF: unitConnector('number', 'fraction'),
+      effectiveWindCF: unitConnector('number', 'fraction'),
     },
     outputs: {
-      generation: 'record',
-      regionalGeneration: 'nested-record',
-      gridIntensity: 'number',
-      regionalGridIntensity: 'record',
-      totalGeneration: 'number',
-      electricityEmissions: 'number',
-      regionalEmissions: 'record',
-      shortfall: 'number',
-      regionalShortfallRate: 'record',
-      fossilShare: 'number',
-      regionalFossilShare: 'record',
-      curtailmentTWh: 'number',
-      curtailmentRate: 'number',
-      regionalCurtailment: 'record',
+      generation: unitConnector('record', 'TWh/year'),
+      regionalGeneration: unitConnector('nested-record', 'TWh/year'),
+      gridIntensity: unitConnector('number', 'kgCO2/MWh'),
+      regionalGridIntensity: unitConnector('record', 'kgCO2/MWh'),
+      totalGeneration: unitConnector('number', 'TWh/year'),
+      electricityEmissions: unitConnector('number', 'GtCO2/year'),
+      regionalEmissions: unitConnector('record', 'GtCO2/year'),
+      shortfall: unitConnector('number', 'TWh/year'),
+      regionalShortfallRate: unitConnector('record', 'fraction'),
+      fossilShare: unitConnector('number', 'fraction'),
+      regionalFossilShare: unitConnector('record', 'fraction'),
+      curtailmentTWh: unitConnector('number', 'TWh/year'),
+      curtailmentRate: unitConnector('number', 'fraction'),
+      regionalCurtailment: unitConnector('record', 'TWh/year'),
     },
   },
 
