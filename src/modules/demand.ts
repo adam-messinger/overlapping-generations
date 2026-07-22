@@ -100,6 +100,22 @@ interface FossilStockParams {
   industrialLifetime: number;  // Fossil industrial equipment lifetime (years)
 }
 
+export interface AnnualCommodityShock {
+  year: number;
+  /** Global wholesale multipliers used for fuel switching and aggregate cost. */
+  globalPriceMultipliers?: Partial<Record<'oil' | 'gas', number>>;
+  /** Local wholesale multipliers used in the regional burden calculation. */
+  regionalPriceMultipliers?: Partial<
+    Record<Region, Partial<Record<'oil' | 'gas', number>>>
+  >;
+  /** Fraction of physical fuel demand that can be served in each region. */
+  regionalAvailability?: Partial<
+    Record<Region, Partial<Record<'oil' | 'gas', number>>>
+  >;
+  /** Direct trade-income wedge, e.g. stranded Gulf exports or exporter gains. */
+  regionalOutputFactors?: Partial<Record<Region, number>>;
+}
+
 export interface DemandParams {
   // Fossil end-use stock lifetimes (infrastructure lock-in)
   fossilStock: FossilStockParams;
@@ -155,6 +171,9 @@ export interface DemandParams {
   dataCenterReferenceGDPpc: number;    // Reference GDP per capita ($ PPP)
   dataCenterCapitalCostPerGW: number;  // Composite chips + facility cost ($B per average GW of annual load)
   dataCenterDepreciation: number;      // Composite chips + facility replacement rate (fraction/yr)
+
+  /** Sparse calendar-year shocks from monthly commodity/network simulations. */
+  commodityShocks: readonly AnnualCommodityShock[];
 }
 
 interface RegionalState {
@@ -241,6 +260,7 @@ interface RegionalOutputs {
   totalFinalEnergy: number;     // TWh (total energy)
   electricityDemand: number;    // TWh
   nonElectricEnergy: number;    // TWh
+  nonElectricEnergyPotential: number; // TWh requested before physical rationing
   gdpPerWorking: number;        // $ per working-age person
   electricityPerWorking: number; // kWh per working-age person
 }
@@ -281,6 +301,7 @@ interface DemandOutputs {
   electrificationRate: number;  // Fraction (0-1)
   totalFinalEnergy: number;     // TWh (global)
   nonElectricEnergy: number;    // TWh (global)
+  nonElectricEnergyPotential: number; // TWh requested before physical rationing
   gdpPerWorking: number;        // $ per person (global)
   finalEnergyPerCapitaDay: number; // kWh/person/day
 
@@ -303,6 +324,8 @@ interface DemandOutputs {
   totalEnergyCost: number;   // $ trillions
   energyBurden: number;      // Fraction of GDP (0-1)
   burdenDamage: number;      // GDP damage fraction (0-1)
+  regionalFuelCost: Record<Region, number>; // $T at local shock prices
+  regionalFuelAvailability: Record<Region, number>; // served/potential thermal energy
 
   // Ayres/Warr useful work diagnostics
   usefulWorkGrowthRate: number; // Growth rate of useful energy per worker
@@ -597,6 +620,7 @@ export const demandDefaults: DemandParams = {
   // (~4-6 years) and longer-lived buildings/electrical infrastructure.
   dataCenterCapitalCostPerGW: 15,     // $B per average GW of annual load
   dataCenterDepreciation: 0.15,       // fraction/year
+  commodityShocks: [],
 };
 
 // =============================================================================
@@ -1005,6 +1029,7 @@ export const demandModule: Module<
     'electrificationRate',
     'totalFinalEnergy',
     'nonElectricEnergy',
+    'nonElectricEnergyPotential',
     'gdpPerWorking',
     'finalEnergyPerCapitaDay',
     'regional',
@@ -1017,6 +1042,8 @@ export const demandModule: Module<
     'totalEnergyCost',
     'energyBurden',
     'burdenDamage',
+    'regionalFuelCost',
+    'regionalFuelAvailability',
     'usefulWorkGrowthRate',
     'robotLoadTWh',
     'robotCapexSpend',
@@ -1147,6 +1174,29 @@ export const demandModule: Module<
       }
     }
 
+    for (const shock of params.commodityShocks ?? []) {
+      if (!Number.isInteger(shock.year)) {
+        errors.push('commodityShocks year must be an integer');
+      }
+      for (const multiplier of Object.values(shock.globalPriceMultipliers ?? {})) {
+        if (multiplier !== undefined && multiplier < 0.1) {
+          errors.push('commodityShocks global price multipliers must be at least 0.1');
+        }
+      }
+      for (const regional of Object.values(shock.regionalAvailability ?? {})) {
+        for (const availability of Object.values(regional ?? {})) {
+          if (availability !== undefined && (availability < 0 || availability > 1)) {
+            errors.push('commodityShocks regional availability must be between 0 and 1');
+          }
+        }
+      }
+      for (const factor of Object.values(shock.regionalOutputFactors ?? {})) {
+        if (factor !== undefined && (factor < 0.5 || factor > 1.5)) {
+          errors.push('commodityShocks regional output factors must be between 0.5 and 1.5');
+        }
+      }
+    }
+
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -1242,6 +1292,7 @@ export const demandModule: Module<
       if (p.dataCenterReferenceGDPpc !== undefined) merged.dataCenterReferenceGDPpc = p.dataCenterReferenceGDPpc;
       if (p.dataCenterCapitalCostPerGW !== undefined) merged.dataCenterCapitalCostPerGW = p.dataCenterCapitalCostPerGW;
       if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
+      if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
 
       return merged;
     }, partial);
@@ -1319,6 +1370,9 @@ export const demandModule: Module<
     yearIndex: number
   ): { state: DemandState; outputs: DemandOutputs } {
     const t = yearIndex;
+    const commodityShock = params.commodityShocks.find(
+      (shock) => shock.year === year,
+    );
 
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
@@ -1335,12 +1389,27 @@ export const demandModule: Module<
     // add delivery margins via retailFuelPrice.
     const wholesalePrices = {} as Record<FuelType, number>;
     for (const fuel of FUEL_KEYS) {
+      const shockMultiplier =
+        fuel === 'oil' || fuel === 'gas'
+          ? commodityShock?.globalPriceMultipliers?.[fuel] ?? 1
+          : 1;
       wholesalePrices[fuel] = compound(
         params.fuels[fuel].price, params.fuels[fuel].priceEscalation, yearIndex
-      );
+      ) * shockMultiplier;
     }
     const retailFuelPrice = (fuel: FuelType): number =>
       wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin;
+
+    // Compute the common fuel mix before regional quantity accounting so the
+    // same recipe weights each region's oil/gas physical availability.
+    const evolvedShares = calculateLogitFuelShares(
+      params.fuels,
+      wholesalePrices,
+      state.fuelShares,
+      carbonPrice,
+      params.fuelMix.priceSensitivity,
+      params.fuelMix.inertiaRate,
+    );
 
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
@@ -1386,6 +1455,7 @@ export const demandModule: Module<
     let globalWorking = 0;
     let globalTotalFinal = 0;
     let globalNonElec = 0;
+    let globalNonElecPotential = 0;
     let globalServiceBase = 0;
 
     // First pass: evolve regional output indices, then normalize them to the
@@ -1412,8 +1482,15 @@ export const demandModule: Module<
         0.25,
         1
       );
+      const regionalOutputFactor = clamp(
+        commodityShock?.regionalOutputFactors?.[region] ?? 1,
+        0.5,
+        1.5,
+      );
       const energyFactor =
-        (1 - energyBurdenDamage(burden, params.energyBurden)) * reliabilityFactor;
+        (1 - energyBurdenDamage(burden, params.energyBurden)) *
+        reliabilityFactor *
+        regionalOutputFactor;
 
       currentDamageFactors[region] = damageFactor;
       currentEnergyFactors[region] = energyFactor;
@@ -1505,7 +1582,17 @@ export const demandModule: Module<
         yearIndex / ELEC_ACCESS_CONVERGENCE_YEARS
       );
       const elecDemand = totalEnergy * elecFinalFactor * elecMult;
-      const nonElecEnergy = totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
+      const nonElecEnergyPotential =
+        totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
+      let regionalFuelAvailability = 0;
+      for (const fuel of FUEL_KEYS) {
+        const availability =
+          fuel === 'oil' || fuel === 'gas'
+            ? commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1
+            : 1;
+        regionalFuelAvailability += evolvedShares[fuel] * clamp(availability, 0, 1);
+      }
+      const nonElecEnergy = nonElecEnergyPotential * regionalFuelAvailability;
       const finalEnergy = elecDemand + nonElecEnergy;
 
       // Per working-age adult metrics
@@ -1526,6 +1613,7 @@ export const demandModule: Module<
         totalFinalEnergy: finalEnergy,
         electricityDemand: elecDemand,
         nonElectricEnergy: nonElecEnergy,
+        nonElectricEnergyPotential: nonElecEnergyPotential,
         gdpPerWorking,
         electricityPerWorking: elecPerWorking,
       };
@@ -1535,6 +1623,7 @@ export const demandModule: Module<
       globalWorking += working;
       globalTotalFinal += finalEnergy;
       globalNonElec += nonElecEnergy;
+      globalNonElecPotential += nonElecEnergyPotential;
       globalServiceBase += totalEnergy;
     }
 
@@ -1702,7 +1791,7 @@ export const demandModule: Module<
 
     // Calculate final energy per capita per day
     // TWh × 1e9 kWh/TWh / population / 365 days
-    const finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
+    let finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
     // =========================================================================
     // Sector-level breakdown (rates already computed above)
@@ -1773,9 +1862,17 @@ export const demandModule: Module<
       }
     }
 
-    // Adjust global totals for lock-in floor
-    globalNonElec += lockInAdjustment;
-    globalTotalFinal += lockInAdjustment;
+    // Adjust global totals for the lock-in floor. Regional outputs historically
+    // exclude this global stock-floor reconciliation; preserve that convention
+    // so adding an empty shock path is exactly baseline-neutral.
+    const preLockPotential = globalNonElecPotential;
+    const globalFuelAvailabilityBeforeLock = preLockPotential > 0
+      ? globalNonElec / preLockPotential
+      : 1;
+    const servedLockIn = lockInAdjustment * globalFuelAvailabilityBeforeLock;
+    globalNonElecPotential += lockInAdjustment;
+    globalNonElec += servedLockIn;
+    globalTotalFinal += servedLockIn;
 
     const fossilStockTWh = newFossilVehicleFleet + newFossilHeatingStock + newFossilIndustrialStock;
 
@@ -1787,7 +1884,12 @@ export const demandModule: Module<
     // exergy weighting, not here — the old formula multiplied electrified
     // energy by the efficiency multiplier on top of fuel-scale electricity
     // demand, double-crediting electrification.
-    const usefulEnergy = sectorEnergyBase + lockInAdjustment + robotLoadTWh + dataCenterLoadTWh;
+    const usefulEnergy = Math.max(
+      0,
+      sectorEnergyBase + lockInAdjustment -
+        (globalNonElecPotential - globalNonElec) +
+        robotLoadTWh + dataCenterLoadTWh,
+    );
 
     // Ayres/Warr: compute useful energy per worker growth rate for next year's GDP
     const totalEffectiveWorkers = REGIONS.reduce(
@@ -1805,14 +1907,8 @@ export const demandModule: Module<
     // =========================================================================
     // Fuel shares evolve based on effective prices (wholesale + carbon cost)
     // Uses logit model blended with previous shares for fleet inertia
-    const evolvedShares = calculateLogitFuelShares(
-      params.fuels,
-      wholesalePrices,
-      state.fuelShares,
-      carbonPrice,
-      params.fuelMix.priceSensitivity,
-      params.fuelMix.inertiaRate
-    );
+    // `evolvedShares` was computed before regional quantity accounting so its
+    // weights also determine physical oil/gas availability by region.
 
     // Calculate fuel consumption (TWh) and emissions (Gt CO2/year)
     const fuels: FuelOutput = {
@@ -1829,25 +1925,87 @@ export const demandModule: Module<
     // Calculate fuel costs (with carbon pricing if provided)
     // (carbonPrice already declared above for electrification calculation)
     let fuelCost = 0; // $ trillions
+    const regionalFuelCost = {} as Record<Region, number>;
+    const regionalFuelAvailability = {} as Record<Region, number>;
 
-    for (const fuel of FUEL_KEYS) {
-      const fuelConsumption = globalNonElec * evolvedShares[fuel];
-      fuels[fuel] = fuelConsumption;
+    if (!commodityShock) {
+      // Keep the original aggregate arithmetic byte-for-byte in unshocked
+      // scenarios. This is both faster and makes the new extension opt-in.
+      for (const fuel of FUEL_KEYS) {
+        const fuelConsumption = globalNonElec * evolvedShares[fuel];
+        fuels[fuel] = fuelConsumption;
+        nonElectricEmissions +=
+          (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
+        const carbonCost =
+          (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
+        const effectivePrice = retailFuelPrice(fuel) + carbonCost;
+        fuelCost += (fuelConsumption * effectivePrice) / 1e6;
+      }
+      const fuelCostPerTWh = globalNonElec > 0 ? fuelCost / globalNonElec : 0;
+      for (const region of REGIONS) {
+        regionalFuelCost[region] =
+          regionalOutputs[region].nonElectricEnergy * fuelCostPerTWh;
+        regionalFuelAvailability[region] = 1;
+      }
+    } else {
+      let reconciledNonElectricEnergy = 0;
+      for (const region of REGIONS) {
+        const preLockRegionalPotential =
+          regionalOutputs[region].nonElectricEnergyPotential;
+        const potentialShare = preLockPotential > 0
+          ? preLockRegionalPotential / preLockPotential
+          : newRegions[region].gdpShare;
+        const regionalPotential =
+          preLockRegionalPotential + lockInAdjustment * potentialShare;
+        let regionalServed = 0;
+        let regionCost = 0;
+        for (const fuel of FUEL_KEYS) {
+          const potentialFuelConsumption = regionalPotential * evolvedShares[fuel];
+          const availability =
+            fuel === 'oil' || fuel === 'gas'
+              ? clamp(
+                commodityShock.regionalAvailability?.[region]?.[fuel] ?? 1,
+                0,
+                1,
+              )
+              : 1;
+          const fuelConsumption = potentialFuelConsumption * availability;
+          fuels[fuel] += fuelConsumption;
+          regionalServed += fuelConsumption;
+          nonElectricEmissions +=
+            (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
 
-      // Emissions: TWh × 1e6 MWh/TWh × kg/MWh / 1e12 kg/Gt = Gt CO2
-      // Simplified: TWh × kg/MWh / 1e6 = Gt CO2
-      const emissions = (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
-      nonElectricEmissions += emissions;
-
-      // Fuel cost at delivered (retail) prices + carbon cost. Burden
-      // threshold (8% of GDP) is calibrated on retail expenditure (1970s
-      // EIA), so costs here must be retail-scale too.
-      const carbonCost = (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-      const effectivePrice = retailFuelPrice(fuel) + carbonCost;
-
-      // Cost: TWh × $/MWh × 1e6 MWh/TWh / 1e12 = $ trillions
-      fuelCost += (fuelConsumption * effectivePrice) / 1e6;
+          // Regional price multipliers are absolute relative to the unshocked
+          // annual wholesale path. If absent, use the global shock multiplier.
+          const baseWholesalePrice = compound(
+            params.fuels[fuel].price,
+            params.fuels[fuel].priceEscalation,
+            yearIndex,
+          );
+          const regionalPriceMultiplier =
+            fuel === 'oil' || fuel === 'gas'
+              ? commodityShock.regionalPriceMultipliers?.[region]?.[fuel]
+              : undefined;
+          const regionalWholesalePrice = regionalPriceMultiplier !== undefined
+            ? baseWholesalePrice * regionalPriceMultiplier
+            : wholesalePrices[fuel];
+          const carbonCost =
+            (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
+          const effectivePrice =
+            regionalWholesalePrice + params.fuels[fuel].deliveryMargin + carbonCost;
+          regionCost += (fuelConsumption * effectivePrice) / 1e6;
+        }
+        regionalFuelCost[region] = regionCost;
+        regionalFuelAvailability[region] = regionalPotential > 0
+          ? regionalServed / regionalPotential
+          : 1;
+        reconciledNonElectricEnergy += regionalServed;
+        fuelCost += regionCost;
+      }
+      globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
+      globalNonElec = reconciledNonElectricEnergy;
     }
+    finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
     // =========================================================================
     // Energy Burden Calculation
@@ -1904,6 +2062,7 @@ export const demandModule: Module<
         electrificationRate,
         totalFinalEnergy: globalTotalFinal,
         nonElectricEnergy: globalNonElec,
+        nonElectricEnergyPotential: globalNonElecPotential,
         gdpPerWorking: (globalGdp * 1e12) / globalWorking,
         finalEnergyPerCapitaDay,
         sectors,
@@ -1914,6 +2073,8 @@ export const demandModule: Module<
         totalEnergyCost,
         energyBurden,
         burdenDamage,
+        regionalFuelCost,
+        regionalFuelAvailability,
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotLoadTWh,
         robotCapexSpend,

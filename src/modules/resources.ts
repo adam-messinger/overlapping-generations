@@ -132,6 +132,16 @@ export interface EVBatteryParams {
   vehicleLifetime: number;
 }
 
+export interface AnnualFoodSupplyShock {
+  year: number;
+  /** Agronomic yield after fertilizer/input substitution, before land response. */
+  yieldMultiplier: number;
+  /** Within-year harvest availability after inventory and crop-timing buffers. */
+  foodAvailabilityMultiplier: number;
+  /** Diagnostic only; the monthly network retains the underlying price path. */
+  fertilizerPriceMultiplier?: number;
+}
+
 export interface ResourcesParams {
   minerals: {
     copper: MineralParams;
@@ -144,6 +154,7 @@ export interface ResourcesParams {
   land: LandParams & { energyPerHectare: number };
   food: FoodParams;
   water: WaterParams;
+  foodSupplyShocks: readonly AnnualFoodSupplyShock[];
 }
 
 export const resourcesDefaults: ResourcesParams = {
@@ -316,6 +327,7 @@ export const resourcesDefaults: ResourcesParams = {
     severityGrowth: 0.5,        // 50% more severe per °C above 2.0
     yieldSensitivity: 0.3,      // 30% of water stress → yield loss
   },
+  foodSupplyShocks: [],
 };
 
 // =============================================================================
@@ -602,6 +614,20 @@ export const resourcesModule: Module<
     if (p.land.yield2025 <= 0) {
       errors.push('land.yield2025 must be positive');
     }
+    for (const shock of p.foodSupplyShocks ?? []) {
+      if (!Number.isInteger(shock.year)) {
+        errors.push('foodSupplyShocks year must be an integer');
+      }
+      if (shock.yieldMultiplier <= 0 || shock.yieldMultiplier > 1.5) {
+        errors.push('foodSupplyShocks yieldMultiplier must be in (0, 1.5]');
+      }
+      if (
+        shock.foodAvailabilityMultiplier <= 0 ||
+        shock.foodAvailabilityMultiplier > 1
+      ) {
+        errors.push('foodSupplyShocks foodAvailabilityMultiplier must be in (0, 1]');
+      }
+    }
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -701,6 +727,9 @@ export const resourcesModule: Module<
       transportElectrification,
     } = inputs;
     const { land, food, evBattery } = params;
+    const foodSupplyShock = params.foodSupplyShocks.find(
+      (shock) => shock.year === year,
+    );
 
     // =========================================================================
     // FOOD (Bennett's Law)
@@ -819,7 +848,11 @@ export const resourcesModule: Module<
 
     // Water yield factor compounds with temperature damage
     const waterYieldFactor = Math.max(0, 1 - globalWaterStress * water.yieldSensitivity);
-    const currentYield = techYield * yieldDamageFactor * waterYieldFactor;
+    const currentYield =
+      techYield *
+      yieldDamageFactor *
+      waterYieldFactor *
+      (foodSupplyShock?.yieldMultiplier ?? 1);
 
     // Farmland = grain demand / yield × non-food multiplier
     // grainDemand is in Mt, yield is t/ha → result in Mha
@@ -845,9 +878,12 @@ export const resourcesModule: Module<
     const availableLand = land.totalLandArea - urban - land.minForestArea
       - (land.desert2025 + desertExpansion);
     const farmland = Math.min(uncappedFarmland, availableLand);
-    const foodStress = uncappedFarmland > 0
+    const landFoodStress = uncappedFarmland > 0
       ? Math.max(0, 1 - farmland / uncappedFarmland)
       : 0;
+    const inputFoodStress = 1 - (foodSupplyShock?.foodAvailabilityMultiplier ?? 1);
+    // Independent land and imported-input constraints combine multiplicatively.
+    const foodStress = 1 - (1 - landFoodStress) * (1 - inputFoodStress);
 
     // Forest dynamics. Assumption: when farmland is shrinking (land
     // released), background forest loss halves; when expanding, loss scales

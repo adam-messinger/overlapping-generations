@@ -49,6 +49,7 @@ npm run regression
 # Standalone research simulations and frozen backtests
 node --import tsx scripts/outbreak-backtest.ts
 node --import tsx scripts/critical-materials-backtest.ts
+node --import tsx scripts/hormuz-scenario.ts
 ```
 
 ## Programmatic use
@@ -77,5 +78,6 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
 - `docs/` and `sources/` — academic references and calibration sources
 - `src/simulations/outbreak/` — outbreak preparedness V1/V2, frozen WHO panel,
   calibration and holdout tests ([method and results](docs/OUTBREAK_SIMULATION.md))
-- `src/simulations/critical-materials/` — Weber-style price propagation plus a
-  dynamic physical bottleneck network ([method and results](docs/CRITICAL_MATERIALS_NETWORK.md))
+- `src/simulations/critical-materials/` — Weber-style price propagation, a
+  dynamic mineral bottleneck network, and the monthly Hormuz stock-flow bridge
+  ([materials](docs/CRITICAL_MATERIALS_NETWORK.md), [Hormuz](docs/HORMUZ_SIMULATION.md))

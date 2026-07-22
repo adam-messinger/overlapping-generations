@@ -58,5 +58,13 @@ export { getAtYear, extractTimeSeries } from './helpers.js';
 // Domain types
 export type { Region, EnergySource } from './domain-types.js';
 
+// Hormuz transport/energy bottleneck extension
+export { hormuzDefaults, hormuzScenarios } from './simulations/critical-materials/hormuz-data.js';
+export type { HormuzModelParams, HormuzScenario, HormuzScenarioId } from './simulations/critical-materials/hormuz-data.js';
+export { simulateHormuzDisruption, withHormuzParams } from './simulations/critical-materials/hormuz-model.js';
+export type { HormuzSimulationResult, HormuzMonthResult, AnnualHormuzShock } from './simulations/critical-materials/hormuz-model.js';
+export { calibrateHormuzModel, scoreHormuzBackcast } from './simulations/critical-materials/hormuz-calibration.js';
+export { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './simulations/critical-materials/hormuz-bridge.js';
+
 // Framework types
 export type { ValidationResult } from 'tsimulation';

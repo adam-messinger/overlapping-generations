@@ -146,11 +146,8 @@ function buildTransforms(
         const solarPlusBatteryLCOE = requireOutput<number>(
           outputs, 'solarPlusBatteryLCOE', 'regionalEnergyBurdenComputed'
         );
-        const fuelCost = requireOutput<number>(
-          outputs, 'fuelCost', 'regionalEnergyBurdenComputed'
-        );
-        const nonElectricEnergy = requireOutput<number>(
-          outputs, 'nonElectricEnergy', 'regionalEnergyBurdenComputed'
+        const regionalFuelCost = requireOutput<Record<Region, number>>(
+          outputs, 'regionalFuelCost', 'regionalEnergyBurdenComputed'
         );
         const sectors = requireOutput<Record<string, any>>(
           outputs, 'sectors', 'regionalEnergyBurdenComputed'
@@ -168,10 +165,6 @@ function buildTransforms(
         const deliveryCost = deliveryWeight > 0
           ? deliveryCostSum / deliveryWeight
           : 0;
-        const fuelCostPerTWh = nonElectricEnergy > 0
-          ? fuelCost / nonElectricEnergy
-          : 0;
-
         const result = {} as Record<Region, number>;
         for (const region of REGIONS) {
           const regionGeneration = generation[region] ?? {};
@@ -190,18 +183,17 @@ function buildTransforms(
           electricityCost += solarStorageGeneration * solarPlusBatteryLCOE;
           electricityCost += servedGeneration * deliveryCost;
 
-          const regionalFuelCost =
-            (regional[region]?.nonElectricEnergy ?? 0) * fuelCostPerTWh;
+          const regionFuelCost = regionalFuelCost[region] ?? 0;
           const regionalGdp = regional[region]?.gdp ?? 0;
           result[region] = regionalGdp > 0
-            ? electricityCost / 1e6 / regionalGdp + regionalFuelCost / regionalGdp
+            ? electricityCost / 1e6 / regionalGdp + regionFuelCost / regionalGdp
             : 0;
         }
         return result;
       },
       dependsOn: [
         'regional', 'regionalGeneration', 'regionalLCOEs',
-        'solarPlusBatteryLCOE', 'fuelCost', 'nonElectricEnergy', 'sectors',
+        'solarPlusBatteryLCOE', 'regionalFuelCost', 'sectors',
       ],
     },
 
@@ -221,13 +213,27 @@ function buildTransforms(
         for (const region of REGIONS) {
           const electricity = Math.max(0, regional[region]?.electricityDemand ?? 0);
           const nonElectric = Math.max(0, regional[region]?.nonElectricEnergy ?? 0);
+          const nonElectricPotential = Math.max(
+            nonElectric,
+            regional[region]?.nonElectricEnergyPotential ?? nonElectric,
+          );
           const electricUseful = electricity * mergedProductionParams.electricExergy;
-          const thermalUseful = nonElectric * mergedProductionParams.thermalExergy;
-          const totalUseful = electricUseful + thermalUseful;
+          const thermalUsefulPotential =
+            nonElectricPotential * mergedProductionParams.thermalExergy;
+          const totalUseful = electricUseful + thermalUsefulPotential;
+          const lostThermalUseful =
+            (nonElectricPotential - nonElectric) * mergedProductionParams.thermalExergy;
           const electricityUsefulShare = totalUseful > 0 ? electricUseful / totalUseful : 0;
-          const lostUsefulShare = Math.min(
+          const electricLostUsefulShare = Math.min(
             0.95,
             Math.max(0, shortfallRate[region] ?? 0) * electricityUsefulShare
+          );
+          const thermalLostUsefulShare = totalUseful > 0
+            ? lostThermalUseful / totalUseful
+            : 0;
+          const lostUsefulShare = Math.min(
+            0.95,
+            electricLostUsefulShare + thermalLostUsefulShare,
           );
           result[region] = Math.max(
             0.25,
@@ -512,9 +518,11 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Production needs lagged non-electric energy
+    // Production receives POTENTIAL lagged thermal energy, then applies any
+    // current calendar-year physical shock itself. This prevents the same
+    // one-year disruption from being counted again after it ends.
     nonElectricEnergy: {
-      source: 'nonElectricEnergy',
+      source: 'nonElectricEnergyPotential',
       delay: 1,
       initial: 92000,  // ~92,000 TWh in 2025 (IEA); no direct param source
       bootstrap: true,
