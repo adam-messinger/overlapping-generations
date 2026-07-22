@@ -45,6 +45,10 @@ npm test
 
 # Regression against the blessed baseline
 npm run regression
+
+# Standalone research simulations and frozen backtests
+node --import tsx scripts/outbreak-backtest.ts
+node --import tsx scripts/critical-materials-backtest.ts
 ```
 
 ## Programmatic use
@@ -71,3 +75,7 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
 - `baselines/` + `scripts/` — blessed regression baselines and the
   capture/compare/bless tooling
 - `docs/` and `sources/` — academic references and calibration sources
+- `src/simulations/outbreak/` — outbreak preparedness V1/V2, frozen WHO panel,
+  calibration and holdout tests ([method and results](docs/OUTBREAK_SIMULATION.md))
+- `src/simulations/critical-materials/` — Weber-style price propagation plus a
+  dynamic physical bottleneck network ([method and results](docs/CRITICAL_MATERIALS_NETWORK.md))
