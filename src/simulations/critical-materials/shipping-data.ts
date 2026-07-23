@@ -3,6 +3,7 @@ import type { Region } from '../../domain-types.js';
 export type MaritimeScenarioId =
   | 'red-sea-2024-development'
   | 'red-sea-1h25-holdout'
+  | 'july-23-tanker-attacks'
   | 'july-2026-escalation'
   | 'dual-chokepoint-closure';
 
@@ -103,6 +104,22 @@ export const maritimeScenarios: Readonly<Record<MaritimeScenarioId, MaritimeScen
     baselineBabOilMbd: 9.3,
     baselineCapeOilMbd: 6.2,
   },
+  'july-23-tanker-attacks': {
+    id: 'july-23-tanker-attacks',
+    label: 'July 23 tanker attacks on the post-Hormuz route',
+    description:
+      'Incremental Red Sea scenario conditioned on the already disrupted Hormuz baseline: the observed June-to-July loading decline is followed by two months of wider commercial avoidance and a staged recovery.',
+    startYear: 2026,
+    startMonth: 7,
+    // Hormuz is held at one because this experiment is incremental to the
+    // post-Hormuz 7.4 mb/d Bab baseline. The separate Hormuz stock-flow model
+    // carries the physical Gulf closure; this prevents double-counting it.
+    hormuzThroughputPath: normal(8),
+    babThroughputPath: [6.1 / 7.4, 0.65, 0.65, 0.75, 0.85, 0.95, 1, 1],
+    suezThroughputPath: normal(8),
+    baselineBabOilMbd: 7.4,
+    baselineCapeOilMbd: 9.1,
+  },
   'july-2026-escalation': {
     id: 'july-2026-escalation',
     label: 'July 2026 Hormuz plus Red Sea escalation',
@@ -138,6 +155,8 @@ export interface MaritimeObservedAnchors {
   capeOil2023Mbd: number;
   capeOil2024Mbd: number;
   capeOil1h25Mbd: number;
+  babOilJune26Mbd: number;
+  saudiRedSeaLoadingsJuly26Mbd: number;
   containerCapacityLoss2024: number;
   capeDelayDays2024: number;
 }
@@ -149,6 +168,8 @@ export const maritimeObserved: MaritimeObservedAnchors = {
   capeOil2023Mbd: 6.2,
   capeOil2024Mbd: 9.3,
   capeOil1h25Mbd: 9.1,
+  babOilJune26Mbd: 7.4,
+  saudiRedSeaLoadingsJuly26Mbd: 6.1,
   containerCapacityLoss2024: 0.09,
   capeDelayDays2024: 12,
 };

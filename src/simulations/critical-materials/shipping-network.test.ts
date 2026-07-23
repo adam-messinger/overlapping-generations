@@ -50,6 +50,19 @@ test('2024 oil fit carries into the frozen 1H25 Cape-flow holdout', () => {
   assert.ok(calibration.params.oilCapeRerouteShare < 0.7);
 });
 
+test('July 23 nowcast reproduces the observed loading drop without reapplying Hormuz', () => {
+  const result = simulateMaritimeNetwork(
+    maritimeScenarios['july-23-tanker-attacks'],
+  );
+  assert.ok(Math.abs(result.monthly[0].oilAvailableToRedSeaMbd - 7.4) < 1e-9);
+  assert.ok(Math.abs(result.monthly[0].directOilMbd - 6.1) < 1e-9);
+  assert.equal(result.monthly[0].hormuzThroughput, 1);
+  assert.ok(
+    result.monthly[1].intendedMarketOilAvailability <
+      result.monthly[0].intendedMarketOilAvailability,
+  );
+});
+
 test('full Red Sea avoidance produces finite delay, capacity, and inflation paths', () => {
   const result = simulateMaritimeNetwork(
     maritimeScenarios['dual-chokepoint-closure'],

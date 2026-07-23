@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { auditModelContracts } from 'tsimulation';
 import { france2026HeatEvent, heatAdaptationPackages } from './heat/data.js';
 import { genericDrugEconomicsScenarios } from './drug-supply/data.js';
+import { genericTariffScenarios } from './drug-supply/generic-tariff.js';
+import { dataCenterGridScenarios } from './news/data-center-grid.js';
 import { canadaJuly2026Tariff } from './trade/data.js';
 import {
   contagionPolicies,
@@ -84,6 +86,14 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       mortalityScale: 1,
     }),
     simulationModelRegistry.run('generic-drug-economics', genericDrugEconomicsScenarios['frozen-cap']),
+    simulationModelRegistry.run(
+      'generic-drug-tariff-transition',
+      genericTariffScenarios.announced,
+    ),
+    simulationModelRegistry.run(
+      'data-center-grid-cost-allocation',
+      dataCenterGridScenarios['full-pledge-clean-flex'],
+    ),
     simulationModelRegistry.run('bilateral-tariff-io', { action: canadaJuly2026Tariff }),
     simulationModelRegistry.run('critical-material-price-network', {
       nodes: criticalMaterialNetwork,
@@ -147,7 +157,7 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       horizon: 4,
     }),
   ];
-  assert.equal(runs.length, 11);
+  assert.equal(runs.length, 13);
 });
 
 test('war-AI annual rows satisfy their recursive contract', () => {

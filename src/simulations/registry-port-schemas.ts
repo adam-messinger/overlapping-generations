@@ -17,6 +17,14 @@ import type {
 } from './heat/model.js';
 import type { GenericDrugEconomicsScenario } from './drug-supply/data.js';
 import type { GenericDrugEconomicsMonth } from './drug-supply/model.js';
+import type {
+  GenericTariffMonth,
+  GenericTariffScenario,
+} from './drug-supply/generic-tariff.js';
+import type {
+  DataCenterGridResult,
+  DataCenterGridScenario,
+} from './news/data-center-grid.js';
 import type { BilateralTariffAction, TradeSectorId } from './trade/data.js';
 import type { TariffSectorResult } from './trade/model.js';
 import {
@@ -191,6 +199,105 @@ export const DRUG_MONTH_PORT = objectPort<GenericDrugEconomicsMonth>({
 });
 
 export const DRUG_MONTHS_PORT = vectorPort<GenericDrugEconomicsMonth>(DRUG_MONTH_PORT);
+
+// Generic-drug tariff transition --------------------------------------------
+
+export const GENERIC_TARIFF_SCENARIO_PORT = objectPort<GenericTariffScenario>({
+  id: metadataPort('string', 'Scenario identifier.'),
+  label: metadataPort('string', 'Scenario label.'),
+  months: unitPort('month'),
+  initialImportShare: unitPort('fraction'),
+  initialDomesticShare: unitPort('fraction'),
+  initialInventoryMonths: unitPort('month'),
+  targetInventoryMonths: unitPort('month'),
+  tariffStartMonth: unitPort('step-index'),
+  secondTariffMonth: unitPort('step-index'),
+  firstTariffRate: unitPort('1'),
+  secondTariffRate: unitPort('1'),
+  importedUnitCostIndex: unitPort('1'),
+  existingDomesticUnitCostIndex: unitPort('1'),
+  newDomesticUnitCostIndex: unitPort('1'),
+  tariffCustomsValueShare: unitPort('fraction'),
+  payerPassThrough: unitPort('fraction'),
+  importSupplyElasticity: unitPort('1'),
+  minimumImportRetention: unitPort('fraction'),
+  onshoreTargetShare: unitPort('fraction'),
+  constructionLeadMonths: unitPort('month'),
+  qualificationRampMonths: unitPort('month'),
+  domesticSupplyElasticity: unitPort('1'),
+  domesticProductionCredit: unitPort('fraction'),
+});
+
+export const GENERIC_TARIFF_MONTH_PORT = objectPort<GenericTariffMonth>({
+  month: unitPort('step-index'),
+  tariffRate: unitPort('1'),
+  allowedPriceMultiplier: unitPort('1'),
+  importDeliveredCostIndex: unitPort('1'),
+  importEconomicCoverage: unitPort('fraction'),
+  importSupply: unitPort('fraction'),
+  existingDomesticSupply: unitPort('fraction'),
+  newDomesticCapacity: unitPort('fraction'),
+  newDomesticSupply: unitPort('fraction'),
+  releasedSupply: unitPort('fraction'),
+  beginningInventoryMonths: unitPort('month'),
+  endingInventoryMonths: unitPort('month'),
+  serviceLevel: unitPort('fraction'),
+  domesticShareOfReleasedSupply: unitPort('fraction'),
+  tariffRevenueIndex: unitPort('1'),
+});
+
+export const GENERIC_TARIFF_MONTHS_PORT =
+  vectorPort<GenericTariffMonth>(GENERIC_TARIFF_MONTH_PORT);
+
+// Data-center grid cost and adequacy ----------------------------------------
+
+export const DATA_CENTER_GRID_SCENARIO_PORT = objectPort<DataCenterGridScenario>({
+  id: metadataPort('string', 'Scenario identifier.'),
+  label: metadataPort('string', 'Scenario label.'),
+  incrementalContractedLoadGw: unitPort('GW'),
+  loadFactor: unitPort('fraction'),
+  peakCoincidenceFactor: unitPort('fraction'),
+  flexibleLoadShare: unitPort('fraction'),
+  dedicatedGenerationShare: unitPort('fraction'),
+  dedicatedCapacityCredit: unitPort('fraction'),
+  sharedFirmBuildGw: unitPort('GW'),
+  generationCostResponsibility: unitPort('fraction'),
+  networkCostResponsibility: unitPort('fraction'),
+  takeOrPayCoverage: unitPort('fraction'),
+  expectedLoadRealization: unitPort('fraction'),
+  generationCapexPerKw: unitPort('$/kW'),
+  networkCapexPerKw: unitPort('$/kW'),
+  fixedChargeRate: unitPort('fraction/year'),
+  nonDataCenterRetailSalesTwh: unitPort('TWh/year'),
+  nonDataCenterRetailRatePerMwh: unitPort('$/MWh'),
+  gridEmissionsKgPerMwh: unitPort('kgCO2/MWh'),
+  dedicatedEmissionsKgPerMwh: unitPort('kgCO2/MWh'),
+  hoursPerYear: unitPort('hour/year'),
+});
+
+export const DATA_CENTER_GRID_RESULT_PORT = objectPort<DataCenterGridResult>({
+  scenario: DATA_CENTER_GRID_SCENARIO_PORT,
+  realizedAverageLoadGw: unitPort('GW'),
+  annualElectricityTwh: unitPort('TWh/year'),
+  coincidentPeakGw: unitPort('GW'),
+  flexiblePeakGw: unitPort('GW'),
+  dedicatedFirmCapacityGw: unitPort('GW'),
+  sharedFirmCapacityRequiredGw: unitPort('GW'),
+  sharedFirmCapacityBuiltGw: unitPort('GW'),
+  reliabilityGapGw: unitPort('GW'),
+  dedicatedGenerationCapexBillion: unitPort('$B'),
+  sharedGenerationCapexBillion: unitPort('$B'),
+  networkCapexBillion: unitPort('$B'),
+  totalIncrementalCapexBillion: unitPort('$B'),
+  developerAssignedCapexBillion: unitPort('$B'),
+  ratepayerAssignedCapexBillion: unitPort('$B'),
+  strandedRiskShiftBillion: unitPort('$B'),
+  annualRatepayerRevenueRequirementBillion: unitPort('$B/year'),
+  nonDataCenterBillImpact: unitPort('fraction'),
+  dedicatedElectricityTwh: unitPort('TWh/year'),
+  gridElectricityTwh: unitPort('TWh/year'),
+  operationalEmissionsGtCo2: unitPort('GtCO2/year'),
+});
 
 // Bilateral tariffs ----------------------------------------------------------
 

@@ -19,6 +19,14 @@ export type EntrypointCoverage =
 export const SIMULATION_ENTRYPOINT_COVERAGE = {
   simulateHeatEvent: { status: 'registered', modelId: 'acute-heat-event' },
   simulateGenericDrugEconomics: { status: 'registered', modelId: 'generic-drug-economics' },
+  simulateGenericTariffTransition: {
+    status: 'registered',
+    modelId: 'generic-drug-tariff-transition',
+  },
+  simulateDataCenterGrid: {
+    status: 'registered',
+    modelId: 'data-center-grid-cost-allocation',
+  },
   simulateBilateralTariff: { status: 'registered', modelId: 'bilateral-tariff-io' },
   simulatePriceShock: { status: 'registered', modelId: 'critical-material-price-network' },
   simulateDynamicNetwork: { status: 'registered', modelId: 'critical-material-flow-network' },

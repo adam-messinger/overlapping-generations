@@ -13,6 +13,8 @@ import {
   CONTAGION_OPTIONS_PORT,
   CONTAGION_POLICY_PORT,
   COUNTERMEASURE_PORT,
+  DATA_CENTER_GRID_RESULT_PORT,
+  DATA_CENTER_GRID_SCENARIO_PORT,
   DEFENSE_MONTHS_PORT,
   DEFENSE_PARAMS_PORT,
   DYNAMIC_NETWORK_OPTIONS_PORT,
@@ -20,6 +22,8 @@ import {
   DRUG_MONTHS_PORT,
   DRUG_SCENARIO_PORT,
   FUND_STRESS_ROWS_PORT,
+  GENERIC_TARIFF_MONTHS_PORT,
+  GENERIC_TARIFF_SCENARIO_PORT,
   HEAT_ADAPTATION_PORT,
   HEAT_EVENT_PORT,
   HEAT_FOOD_PORT,
@@ -51,6 +55,12 @@ import { simulateHeatEvent, type HeatSimulationResult } from './heat/model.js';
 import type { GenericDrugEconomicsScenario } from './drug-supply/data.js';
 import { drugSupplyEvidence } from './drug-supply/data.js';
 import { simulateGenericDrugEconomics, type GenericDrugEconomicsResult } from './drug-supply/model.js';
+import {
+  genericTariffEvidence,
+  simulateGenericTariffTransition,
+  type GenericTariffResult,
+  type GenericTariffScenario,
+} from './drug-supply/generic-tariff.js';
 import type { BilateralTariffAction } from './trade/data.js';
 import { tariffEvidence } from './trade/data.js';
 import { simulateBilateralTariff, type BilateralTariffResult } from './trade/model.js';
@@ -106,13 +116,25 @@ import {
   type WarAiExperiment,
   type WarAiExperimentOptions,
 } from './news/war-ai.js';
+import {
+  dataCenterGridEvidence,
+  simulateDataCenterGrid,
+  type DataCenterGridResult,
+  type DataCenterGridScenario,
+} from './news/data-center-grid.js';
 
-const observed = (id: string, label: string, url: string, role: EvidenceRecord['role']): EvidenceRecord => ({
+const observed = (
+  id: string,
+  label: string,
+  url: string,
+  role: EvidenceRecord['role'],
+  accessedAt = '2026-07-22',
+): EvidenceRecord => ({
   id,
   label,
   kind: 'observed',
   role,
-  source: { title: label, url, accessedAt: '2026-07-22' },
+  source: { title: label, url, accessedAt },
 });
 
 const claim = (
@@ -204,6 +226,167 @@ export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, Generi
     observed('drug-cisplatin-utilization', 'Held-out cisplatin utilization response', drugSupplyEvidence.sources.utilization, 'holdout'),
   ],
   validationClaims: [claim('mechanism-inherited', 'Margin-to-service scenario', 'Supply dynamics inherit the separately backtested cisplatin inventory/allocation mechanism; manufacturer cost curves remain scenarios.', ['drug-cisplatin-utilization', 'drug-india-price'])],
+});
+
+export const genericDrugTariffModel = defineModel<
+  GenericTariffScenario,
+  GenericTariffResult
+>({
+  id: 'generic-drug-tariff-transition',
+  version: '1.0.0',
+  description:
+    'Monthly import economics, inventories, qualified onshoring, prices, and patient service under phased generic-drug tariffs.',
+  run: (scenario) => simulateGenericTariffTransition(scenario),
+  inputPorts: GENERIC_TARIFF_SCENARIO_PORT.fields,
+  outputPorts: {
+    scenario: GENERIC_TARIFF_SCENARIO_PORT,
+    months: GENERIC_TARIFF_MONTHS_PORT,
+    firstShortageMonth: { ...unitPort('step-index', 'number'), nullable: true },
+    monthsBelow98Pct: unitPort('month', 'number'),
+    minimumServiceLevel: unitPort('fraction', 'number'),
+    cumulativeDoseShortfallMonths: unitPort('month', 'number'),
+    peakPaidPriceMultiplier: unitPort('1', 'number'),
+    averagePaidPriceMultiplier: unitPort('1', 'number'),
+    endingInventoryMonths: unitPort('month', 'number'),
+    endingDomesticCapacityShare: unitPort('fraction', 'number'),
+    cumulativeTariffRevenueDemandMonths: unitPort('month', 'number'),
+  },
+  invariants: [
+    {
+      id: 'service-range',
+      description: 'Every monthly patient service level must be in [0,1].',
+      check: (result) =>
+        result.months.every(
+          (row) => row.serviceLevel >= 0 && row.serviceLevel <= 1,
+        ),
+    },
+    {
+      id: 'supply-share-reconciliation',
+      description: 'Initial domestic and import shares must sum to one.',
+      check: (result) =>
+        Math.abs(
+          result.scenario.initialDomesticShare +
+            result.scenario.initialImportShare -
+            1,
+        ) < 1e-9,
+    },
+  ],
+  evidence: [
+    observed(
+      'generic-tariff-policy',
+      'July 2026 proposed phased tariff on imported generic drugs',
+      genericTariffEvidence.sources.policy,
+      'scenario',
+      '2026-07-23',
+    ),
+    observed(
+      'generic-tariff-fda-onshoring',
+      'FDA foreign generic manufacturing and API shares',
+      genericTariffEvidence.sources.fdaOnshoring,
+      'development',
+      '2026-07-23',
+    ),
+    observed(
+      'generic-tariff-fda-economics',
+      'FDA generic prescription and spending shares',
+      genericTariffEvidence.sources.fdaGenericEconomics,
+      'validation',
+      '2026-07-23',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'scenario-only',
+      'Tariff-to-access transition',
+      'Import exposure and policy timing are observed, while pass-through, plant timing, and supplier exit are transparent scenarios without a historical holdout.',
+      [
+        'generic-tariff-policy',
+        'generic-tariff-fda-onshoring',
+        'generic-tariff-fda-economics',
+      ],
+    ),
+  ],
+});
+
+export const dataCenterGridModel = defineModel<
+  DataCenterGridScenario,
+  DataCenterGridResult
+>({
+  id: 'data-center-grid-cost-allocation',
+  version: '1.0.0',
+  description:
+    'Large-load resource adequacy, generation/network capex assignment, take-or-pay risk, ratepayer impact, and operational emissions.',
+  run: (scenario) => simulateDataCenterGrid(scenario),
+  inputPorts: DATA_CENTER_GRID_SCENARIO_PORT.fields,
+  outputPorts: DATA_CENTER_GRID_RESULT_PORT.fields,
+  invariants: [
+    {
+      id: 'capex-reconciliation',
+      description: 'Developer and ratepayer assignments must reconcile to total capex.',
+      check: (result) =>
+        Math.abs(
+          result.totalIncrementalCapexBillion -
+            result.developerAssignedCapexBillion -
+            result.ratepayerAssignedCapexBillion,
+        ) < 1e-8,
+    },
+    {
+      id: 'nonnegative-reliability-gap',
+      description: 'The residual firm-capacity gap cannot be negative.',
+      check: (result) => result.reliabilityGapGw >= 0,
+    },
+  ],
+  evidence: [
+    observed(
+      'dc-grid-bnef-2035',
+      'BloombergNEF 194 GW U.S. data-center scenario for 2035',
+      dataCenterGridEvidence.sources.bnef2035,
+      'scenario',
+      '2026-07-23',
+    ),
+    observed(
+      'dc-grid-lbnl',
+      'Berkeley Lab U.S. data-center electricity range',
+      dataCenterGridEvidence.sources.lbnl,
+      'development',
+      '2026-07-23',
+    ),
+    observed(
+      'dc-grid-doe-rates',
+      'DOE large-load rate-design principles',
+      dataCenterGridEvidence.sources.doeRates,
+      'validation',
+      '2026-07-23',
+    ),
+    observed(
+      'dc-grid-pledge',
+      'Ratepayer Protection Pledge commitments',
+      dataCenterGridEvidence.sources.pledge,
+      'scenario',
+      '2026-07-23',
+    ),
+    observed(
+      'dc-grid-flexibility',
+      'EPRI DCFlex field demonstrations',
+      dataCenterGridEvidence.sources.flexibility,
+      'validation',
+      '2026-07-23',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'scenario-only',
+      'Ratepayer and adequacy implications',
+      'The accounting identities are exact and load/flexibility anchors are published, but 2035 capex, project realization, and generation mix remain conditional scenarios.',
+      [
+        'dc-grid-bnef-2035',
+        'dc-grid-lbnl',
+        'dc-grid-doe-rates',
+        'dc-grid-pledge',
+        'dc-grid-flexibility',
+      ],
+    ),
+  ],
 });
 
 export interface TariffModelInput {
@@ -564,6 +747,8 @@ export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
 export const SIMULATION_MODELS = [
   heatEventModel,
   genericDrugModel,
+  genericDrugTariffModel,
+  dataCenterGridModel,
   bilateralTariffModel,
   criticalMaterialPriceModel,
   criticalMaterialFlowModel,
