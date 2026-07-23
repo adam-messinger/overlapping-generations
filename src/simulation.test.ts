@@ -374,7 +374,9 @@ test('global graph has complete, compatible unit contracts', () => {
   const audit = auditGlobalUnitContracts();
   if (!audit.valid) throw new Error(`Unit contract audit failed:\n${audit.errors.join('\n')}`);
   expect(audit.unitBearingContracts > 100).toBe(true);
-  expect(audit.opaqueContracts > 0).toBe(true);
+  expect(audit.structuredContracts > 0).toBe(true);
+  expect(audit.metadataContracts > 0).toBe(true);
+  expect(audit.opaqueContracts).toBe(0);
 });
 
 // trackReads integration: run real simulation and check for undeclared reads

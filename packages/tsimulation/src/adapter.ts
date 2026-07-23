@@ -1,6 +1,12 @@
 import type { ValidationResult } from './types.js';
 import type { PortMeta } from './units.js';
-import { areUnitsConvertible, areUnitsIdentical, isOpaquePort, validatePortMeta } from './units.js';
+import {
+  areUnitsConvertible,
+  isOpaquePort,
+  isQuantityPort,
+  validatePortMeta,
+  validatePortUnits,
+} from './units.js';
 import { assertFiniteDeep } from './validation.js';
 
 export type TimeScale =
@@ -87,18 +93,23 @@ function validateMappings<TSource, TTarget>(definition: AdapterDefinition<TSourc
     mappedSources.add(mapping.source);
     mappedTargets.add(mapping.target);
     if (mapping.conversion.kind === 'identity') {
-      if (isOpaquePort(source) || isOpaquePort(target)) {
-        if (!(isOpaquePort(source) && isOpaquePort(target))) {
-          throw new Error(`Adapter '${definition.id}' mapping ${mapping.source} -> ${mapping.target} mixes opaque and unit-bearing ports`);
-        }
-      } else if (!areUnitsIdentical(source.unit, target.unit)) {
+      try {
+        validatePortUnits(
+          source,
+          target,
+          `Adapter '${definition.id}' identity mapping ${mapping.source} -> ${mapping.target}`,
+        );
+      } catch (error) {
         throw new Error(
-          `Adapter '${definition.id}' identity mapping ${mapping.source} -> ${mapping.target} ` +
-          `changes '${source.unit}' to '${target.unit}'`,
+          error instanceof Error ? error.message : String(error),
         );
       }
     } else if (mapping.conversion.kind === 'unit') {
-      if (isOpaquePort(source) || isOpaquePort(target) || !areUnitsConvertible(source.unit, target.unit)) {
+      if (
+        isOpaquePort(source) || isOpaquePort(target) ||
+        !isQuantityPort(source) || !isQuantityPort(target) ||
+        !areUnitsConvertible(source.unit, target.unit)
+      ) {
         throw new Error(
           `Adapter '${definition.id}' unit mapping ${mapping.source} -> ${mapping.target} has incompatible contracts`,
         );

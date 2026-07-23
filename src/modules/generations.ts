@@ -20,7 +20,23 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { Module, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
+import {
+  assertUnitBalance,
+  convertQuantity,
+  divideQuantities,
+  integrateFlow,
+  Module,
+  multiplyQuantities,
+  subtractQuantities,
+  sumQuantities,
+  unitConnector,
+  unitQuantity,
+  validatedMerge,
+} from 'tsimulation';
+import {
+  COHORT_ACCOUNTS_CONNECTOR,
+  REGIONAL_COHORT_ACCOUNTS_CONNECTOR,
+} from '../connector-schemas.js';
 
 export interface GenerationsParams {
   cohortWidth: number;                  // Years per birth cohort (default 5)
@@ -680,8 +696,8 @@ export const generationsModule: Module<
       regionalChildCost: unitConnector('record', '$T/year'),
     },
     outputs: {
-      cohortAccounts: opaqueConnector('record', 'Cohort ledgers mix populations, stocks, flows, rates, and labels.'),
-      regionalCohortAccounts: opaqueConnector('nested-record', 'Regional cohort ledgers mix populations, stocks, flows, rates, and labels.'),
+      cohortAccounts: COHORT_ACCOUNTS_CONNECTOR,
+      regionalCohortAccounts: REGIONAL_COHORT_ACCOUNTS_CONNECTOR,
       cohortDesiredCapital: unitConnector('number', '$T/year'),
       cohortFundedCapital: unitConnector('number', '$T/year'),
       cohortFundingGap: unitConnector('number', '$T/year'),
@@ -888,10 +904,37 @@ export const generationsModule: Module<
 
     // Desired investment = replacement implied by the macro stock transition
     // plus a user-visible target net growth rate.
+    const annualGeneralInvestmentStock = integrateFlow(
+      unitQuantity(inputs.generalInvestment, '$T/year', 'general investment'),
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'annual general capital formation',
+    );
     const impliedDepreciation = inputs.stock > 0
-      ? Math.max(0, Math.min(1, (inputs.stock + inputs.generalInvestment - inputs.nextCapitalStock) / inputs.stock))
+      ? Math.max(0, Math.min(1, convertQuantity(divideQuantities(
+          divideQuantities(
+            subtractQuantities(
+              sumQuantities([
+                unitQuantity(inputs.stock, '$T', 'opening capital stock'),
+                annualGeneralInvestmentStock,
+              ], '$T', 'capital before depreciation'),
+              [unitQuantity(inputs.nextCapitalStock, '$T', 'closing capital stock')],
+              'annual depreciation amount',
+            ),
+            unitQuantity(inputs.stock, '$T', 'opening capital stock'),
+            'annual depreciation fraction',
+          ),
+          unitQuantity(1, 'year', 'annual timestep'),
+          'implied depreciation rate',
+        ), 'fraction/year').value))
       : 0;
-    const desiredTotal = inputs.stock * (impliedDepreciation + params.desiredNetCapitalGrowth);
+    const desiredTotal = convertQuantity(multiplyQuantities([
+      unitQuantity(inputs.stock, '$T', 'capital stock'),
+      sumQuantities([
+        unitQuantity(impliedDepreciation, 'fraction/year', 'replacement rate'),
+        unitQuantity(params.desiredNetCapitalGrowth, 'fraction/year', 'desired net growth rate'),
+      ], 'fraction/year', 'desired capital formation rate'),
+    ], 'desired capital formation'), '$T/year').value;
     const desiredScores: Record<string, number> = {};
     const savingScores: Record<string, number> = {};
     for (const key of keys) {
@@ -961,8 +1004,21 @@ export const generationsModule: Module<
     // assets rather than by directly purchasing it from labor income, so
     // funder-only ownership drained old cohorts of assets at rates the DFA
     // replay rejects.
-    const funderOwnedInvestment = inputs.generalInvestment * params.newCapitalFunderShare;
-    const incumbentCapital = Math.max(0, inputs.nextCapitalStock - funderOwnedInvestment);
+    const funderOwnedInvestmentFlow = convertQuantity(multiplyQuantities([
+      unitQuantity(inputs.generalInvestment, '$T/year', 'general investment'),
+      unitQuantity(params.newCapitalFunderShare, 'fraction', 'current-funder ownership share'),
+    ], 'funder-owned investment flow'), '$T/year');
+    const funderOwnedInvestment = integrateFlow(
+      funderOwnedInvestmentFlow,
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'funder-owned capital addition',
+    ).value;
+    const incumbentCapital = Math.max(0, subtractQuantities(
+      unitQuantity(inputs.nextCapitalStock, '$T', 'closing capital stock'),
+      [unitQuantity(funderOwnedInvestment, '$T', 'funder-owned addition')],
+      'incumbent-owned capital',
+    ).value);
     scaleLedgerField(ledgers, 'assets', incumbentCapital, assetScores);
     const ownershipScores: Record<string, number> = {};
     for (const key of keys) {
@@ -978,7 +1034,17 @@ export const generationsModule: Module<
     // balances stay proportional to existing cohort liabilities. Applying an
     // additional age-retention factor here previously erased retiree debt at
     // 60-98% per year, effectively amortizing it twice.
-    const retainedDebt = Math.max(0, inputs.nextPrivateDebtStock - inputs.creditImpulse);
+    const newCreditStock = integrateFlow(
+      unitQuantity(inputs.creditImpulse, '$T/year', 'new private credit'),
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'new private liabilities',
+    ).value;
+    const retainedDebt = Math.max(0, subtractQuantities(
+      unitQuantity(inputs.nextPrivateDebtStock, '$T', 'closing private debt'),
+      [unitQuantity(newCreditStock, '$T', 'new private liabilities')],
+      'retained private debt',
+    ).value);
     const retainedDebtScores: Record<string, number> = {};
     for (const key of keys) {
       retainedDebtScores[key] = ledgers[key].liabilities;
@@ -989,7 +1055,7 @@ export const generationsModule: Module<
     for (const key of keys) {
       totalCreditScores[key] = eligibleCredit[key] > 0 ? eligibleCredit[key] : desiredScores[key];
     }
-    const newLiabilities = allocatePool(inputs.creditImpulse, totalCreditScores, keys);
+    const newLiabilities = allocatePool(newCreditStock, totalCreditScores, keys);
     for (const key of keys) ledgers[key].liabilities += newLiabilities[key];
     // Macro rounding and unusual scenarios can make retainedDebt + credit differ
     // slightly from the target. Reconcile exactly.
@@ -1040,6 +1106,28 @@ export const generationsModule: Module<
     const sumFlow = (field: keyof AnnualFlows): number =>
       keys.reduce((sum, key) => sum + flows[key][field], 0);
     const cohortBequests = sumFlow('bequestsReceived');
+    const cohortAssets = sumQuantities(
+      Object.values(ledgers).map((ledger) => unitQuantity(ledger.assets, '$T', 'cohort assets')),
+      '$T',
+      'aggregate cohort assets',
+    ).value;
+    const cohortLiabilities = sumQuantities(
+      Object.values(ledgers).map((ledger) => unitQuantity(ledger.liabilities, '$T', 'cohort liabilities')),
+      '$T',
+      'aggregate cohort liabilities',
+    ).value;
+    assertUnitBalance(
+      'cohort asset reconciliation',
+      unitQuantity(inputs.nextCapitalStock, '$T', 'macro capital stock'),
+      [unitQuantity(cohortAssets, '$T', 'cohort assets')],
+      { absoluteTolerance: 1e-8 },
+    );
+    assertUnitBalance(
+      'cohort liability reconciliation',
+      unitQuantity(inputs.nextPrivateDebtStock, '$T', 'macro private debt'),
+      [unitQuantity(cohortLiabilities, '$T', 'cohort liabilities')],
+      { absoluteTolerance: 1e-8 },
+    );
 
     return {
       state: {
@@ -1063,8 +1151,8 @@ export const generationsModule: Module<
           ? borrowingConstrainedWorking / totalWorking
           : 0,
         cohortBequests,
-        cohortAssets: Object.values(ledgers).reduce((sum, ledger) => sum + ledger.assets, 0),
-        cohortLiabilities: Object.values(ledgers).reduce((sum, ledger) => sum + ledger.liabilities, 0),
+        cohortAssets,
+        cohortLiabilities,
       },
     };
   },

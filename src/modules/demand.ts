@@ -21,7 +21,12 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
-import { Module, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
+import { Module, validatedMerge, unitConnector } from 'tsimulation';
+import {
+  DEMAND_SECTORS_CONNECTOR,
+  REGIONAL_ALLOCATION_CONNECTOR,
+  REGIONAL_DEMAND_CONNECTOR,
+} from '../connector-schemas.js';
 
 // =============================================================================
 // TYPES
@@ -1083,9 +1088,9 @@ export const demandModule: Module<
       nonElectricEnergyPotential: unitConnector('number', 'TWh/year'),
       gdpPerWorking: unitConnector('number', '$/people/year'),
       finalEnergyPerCapitaDay: unitConnector('number', 'kWh/people/day'),
-      regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
-      regionalAllocation: opaqueConnector('record', 'Regional allocation diagnostics mix factors, rates, and shares.'),
-      sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+      regional: REGIONAL_DEMAND_CONNECTOR,
+      regionalAllocation: REGIONAL_ALLOCATION_CONNECTOR,
+      sectors: DEMAND_SECTORS_CONNECTOR,
       fuels: unitConnector('record', 'TWh/year'),
       nonElectricEmissions: unitConnector('number', 'GtCO2/year'),
       electricityCost: unitConnector('number', '$T/year'),

@@ -20,6 +20,12 @@ onward. Before 1.0, minor versions may include breaking changes.
 - Compound-unit algebra (`*`, `/`, powers, and parentheses), complete typed
   port contracts, explicit opaque-port escape hatches, and CI-friendly graph
   contract audits.
+- Recursive object, record, and vector port schemas with leaf-level units,
+  explicit string/boolean metadata, optional/nullable semantics, exact runtime
+  shape checks, and model-registry contract audits.
+- Unit-aware equation helpers for compatible sums and differences, products,
+  quotients, powers, explicit flow integration, conversion, and accounting or
+  conservation balance assertions.
 - Shared validated linear/fixed-point solvers and generic DAG validation/sorting.
 - Deep parameter-read tracking and unread-override diagnostics.
 
@@ -44,6 +50,8 @@ onward. Before 1.0, minor versions may include breaking changes.
 - Standalone model input/output contracts are complete at compile time and
   checked against actual runtime objects. Adapter targets require explicit
   source mappings, conversion declarations, and aggregation declarations.
+- Structured module and standalone-model contracts are now checked recursively
+  instead of treating a whole record or vector as one opaque boundary value.
 
 ### Fixed
 - The NaN/Infinity output guard now descends into arrays and arbitrarily deep,

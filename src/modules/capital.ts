@@ -24,7 +24,15 @@
  */
 
 import { Region, REGIONS } from '../domain-types.js';
-import { Module, validatedMerge, unitConnector } from 'tsimulation';
+import {
+  integrateFlow,
+  Module,
+  subtractQuantities,
+  sumQuantities,
+  unitConnector,
+  unitQuantity,
+  validatedMerge,
+} from 'tsimulation';
 
 // =============================================================================
 // TYPES
@@ -876,13 +884,26 @@ export const capitalModule: Module<
     const availableGdp = inputs.gdp * (1 - totalBurden);
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
     const grossSavings = availableGdp * savingsRate * stability * netEnergyFactor;
-    const investment = Math.max(0, grossSavings + creditImpulse);
+    const investment = Math.max(0, sumQuantities([
+      unitQuantity(grossSavings, '$T/year', 'gross savings'),
+      unitQuantity(creditImpulse, '$T/year', 'credit impulse'),
+    ], '$T/year', 'gross investment').value);
 
     // Worker consumption = residual (20% floor prevents negative)
     const MIN_WORKER_CONSUMPTION_SHARE = 0.20;
+    const workerConsumptionResidual = subtractQuantities(
+      unitQuantity(inputs.gdp, '$T/year', 'GDP'),
+      [
+        unitQuantity(investment, '$T/year', 'investment'),
+        unitQuantity(retireeCost, '$T/year', 'retiree cost'),
+        unitQuantity(childCost, '$T/year', 'child cost'),
+        unitQuantity(publicDebtService, '$T/year', 'public debt service'),
+      ],
+      'worker-consumption residual',
+    ).value;
     const workerConsumption = Math.max(
       MIN_WORKER_CONSUMPTION_SHARE * inputs.gdp,
-      inputs.gdp - investment - retireeCost - childCost - publicDebtService,
+      workerConsumptionResidual,
     );
 
     // Split investment between energy and general economy
@@ -907,13 +928,21 @@ export const capitalModule: Module<
     const realizedCdrSpend = inputs.cdrSpend ?? 0;
     const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
     const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
-    const totalRealizedSpend =
-      realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+    const totalRealizedSpend = sumQuantities([
+      unitQuantity(realizedEnergyCapex, '$T/year', 'energy capex'),
+      unitQuantity(realizedCdrSpend, '$T/year', 'CDR spend'),
+      unitQuantity(realizedRobotCapex, '$T/year', 'robot capex'),
+      unitQuantity(realizedDataCenterCapex, '$T/year', 'datacenter capex'),
+    ], '$T/year', 'realized capital spend').value;
     // When spends exceed the pool, generalInvestment floors at 0 and the
     // overflow is implicitly unfinanced — exposed as an output so runs can
     // detect a silently binding floor instead of hiding it.
     const unfundedRealizedSpend = Math.max(0, totalRealizedSpend - investment);
-    const generalInvestment = Math.max(0, investment - totalRealizedSpend);
+    const generalInvestment = Math.max(0, subtractQuantities(
+      unitQuantity(investment, '$T/year', 'investment'),
+      [unitQuantity(totalRealizedSpend, '$T/year', 'realized special-purpose spend')],
+      'general investment',
+    ).value);
 
     // Calculate automation share (grows but is capped)
     const rawShare = params.automationShare2025 * Math.pow(1 + params.automationGrowth, t);
@@ -934,7 +963,16 @@ export const capitalModule: Module<
     const capitalOutputRatio = state.stock / inputs.gdp;
 
     // Update capital stock: only general investment builds general capital
-    const newStock = (1 - params.depreciation) * state.stock + generalInvestment;
+    const generalInvestmentStock = integrateFlow(
+      unitQuantity(generalInvestment, '$T/year', 'general investment'),
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'general capital formation',
+    );
+    const newStock = sumQuantities([
+      unitQuantity((1 - params.depreciation) * state.stock, '$T', 'post-depreciation stock'),
+      generalInvestmentStock,
+    ], '$T', 'next capital stock').value;
 
     // Capital growth rate
     const capitalGrowthRate = yearIndex > 0 && state.stock > 0
@@ -955,8 +993,31 @@ export const capitalModule: Module<
     // publicDebtService claim on GDP and the debtRiskPremium channel, not
     // as runaway debt stocks. debt-populism results understate true
     // spiral risk and say so in the scenario description.
-    const newPublicDebt = Math.max(0, publicDebt + primaryDeficit);
-    const newPrivateDebt = Math.max(0, privateDebt + creditImpulse - amortization);
+    const primaryDeficitStock = integrateFlow(
+      unitQuantity(primaryDeficit, '$T/year', 'primary deficit'),
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'annual public-debt addition',
+    );
+    const newPublicDebt = Math.max(0, sumQuantities([
+      unitQuantity(publicDebt, '$T', 'opening public debt'),
+      primaryDeficitStock,
+    ], '$T', 'next public debt').value);
+    const netPrivateCredit = subtractQuantities(
+      unitQuantity(creditImpulse, '$T/year', 'credit impulse'),
+      [unitQuantity(amortization, '$T/year', 'private amortization')],
+      'net private credit flow',
+    );
+    const netPrivateDebtAddition = integrateFlow(
+      netPrivateCredit,
+      unitQuantity(1, 'year', 'annual timestep'),
+      '$T',
+      'annual private-debt addition',
+    );
+    const newPrivateDebt = Math.max(0, sumQuantities([
+      unitQuantity(privateDebt, '$T', 'opening private debt'),
+      netPrivateDebtAddition,
+    ], '$T', 'next private debt').value);
 
     return {
       state: {

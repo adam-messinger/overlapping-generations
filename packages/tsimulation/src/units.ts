@@ -38,8 +38,10 @@ export type PortValueType = 'number' | 'record' | 'nested-record' | 'vector';
 export interface QuantityPortMeta {
   unit: string;
   description?: string;
+  /** Defaults to a scalar number when omitted. */
   valueType?: PortValueType;
   optional?: boolean;
+  nullable?: boolean;
   opaque?: never;
 }
 
@@ -53,16 +55,82 @@ export interface OpaquePortMeta {
   description: string;
   valueType?: Exclude<PortValueType, 'number'>;
   optional?: boolean;
+  nullable?: boolean;
   unit?: never;
 }
 
-export type PortMeta = QuantityPortMeta | OpaquePortMeta;
+/** Non-quantitative data that is still structurally validated. */
+export interface MetadataPortMeta {
+  kind: 'metadata';
+  dataType: 'string' | 'boolean';
+  description: string;
+  optional?: boolean;
+  nullable?: boolean;
+  unit?: never;
+  opaque?: never;
+}
 
-type PortMetaForValue<T> = [NonNullable<T>] extends [number]
-  ? QuantityPortMeta
-  : [NonNullable<T>] extends [string | boolean]
-    ? OpaquePortMeta
-    : PortMeta;
+export type ObjectFieldContract<T extends object> = {
+  readonly [K in keyof T]-?: {} extends Pick<T, K>
+    ? PortMetaForValue<T[K]> & { optional: true }
+    : PortMetaForValue<T[K]> & { optional?: false };
+};
+
+/** A fixed-shape object whose leaves carry their own contracts. */
+export interface ObjectPortMeta<T extends object = Record<string, unknown>> {
+  kind: 'object';
+  fields: ObjectFieldContract<T>;
+  description?: string;
+  optional?: boolean;
+  nullable?: boolean;
+  unit?: never;
+  opaque?: never;
+}
+
+/** A homogeneous keyed map, optionally restricted to a known key set. */
+export interface RecordPortMeta<T = unknown> {
+  kind: 'record';
+  values: PortMetaForValue<T>;
+  keys?: readonly string[];
+  description?: string;
+  optional?: boolean;
+  nullable?: boolean;
+  unit?: never;
+  opaque?: never;
+}
+
+/** A homogeneous array or typed-array contract. */
+export interface VectorPortMeta<T = unknown> {
+  kind: 'vector';
+  items: PortMetaForValue<T>;
+  description?: string;
+  optional?: boolean;
+  nullable?: boolean;
+  unit?: never;
+  opaque?: never;
+}
+
+export type StructuredPortMeta = ObjectPortMeta<any> | RecordPortMeta<any> | VectorPortMeta<any>;
+export type PortMeta = QuantityPortMeta | MetadataPortMeta | StructuredPortMeta | OpaquePortMeta;
+
+type WithNullability<T, TMeta> = null extends T
+  ? TMeta & { nullable: true }
+  : TMeta & { nullable?: false };
+
+export type PortMetaForValue<T> = WithNullability<T,
+  [NonNullable<T>] extends [number]
+    ? QuantityPortMeta
+    : [NonNullable<T>] extends [string]
+      ? MetadataPortMeta | OpaquePortMeta
+      : [NonNullable<T>] extends [boolean]
+        ? MetadataPortMeta | OpaquePortMeta
+        : NonNullable<T> extends readonly (infer TItem)[]
+          ? QuantityPortMeta | VectorPortMeta<TItem> | OpaquePortMeta
+          : NonNullable<T> extends object
+            ? QuantityPortMeta | ObjectPortMeta<NonNullable<T>> |
+              RecordPortMeta<NonNullable<T>[keyof NonNullable<T>]> | OpaquePortMeta
+            : OpaquePortMeta
+>;
 
 /** Every top-level field at a model boundary must have a contract entry. */
 export type PortContract<T> = T extends object
@@ -77,15 +145,70 @@ export function unitPort(
   unit: string,
   valueType?: PortValueType,
   description?: string,
-): QuantityPortMeta & { optional?: false } {
+): QuantityPortMeta & { optional?: false; nullable?: false } {
   return { unit, ...(valueType ? { valueType } : {}), ...(description ? { description } : {}) };
 }
 
 export function opaquePort(
   description: string,
   valueType?: Exclude<PortValueType, 'number'>,
-): OpaquePortMeta & { optional?: false } {
+): OpaquePortMeta & { optional?: false; nullable?: false } {
   return { opaque: true, description, ...(valueType ? { valueType } : {}) };
+}
+
+export function metadataPort(
+  dataType: MetadataPortMeta['dataType'],
+  description: string,
+): MetadataPortMeta & { optional?: false; nullable?: false } {
+  return { kind: 'metadata', dataType, description };
+}
+
+export function objectPort<T extends object>(
+  fields: ObjectFieldContract<T>,
+  description?: string,
+): ObjectPortMeta<T> & { optional?: false; nullable?: false } {
+  return {
+    kind: 'object',
+    fields,
+    ...(description ? { description } : {}),
+  };
+}
+
+export function recordPort<T>(
+  values: PortMetaForValue<T>,
+  options: { keys?: readonly string[]; description?: string } = {},
+): RecordPortMeta<T> & { optional?: false; nullable?: false } {
+  return {
+    kind: 'record',
+    values,
+    ...(options.keys ? { keys: [...options.keys] } : {}),
+    ...(options.description ? { description: options.description } : {}),
+  };
+}
+
+export function vectorPort<T>(
+  items: PortMetaForValue<T>,
+  description?: string,
+): VectorPortMeta<T> & { optional?: false; nullable?: false } {
+  return { kind: 'vector', items, ...(description ? { description } : {}) };
+}
+
+/** Convert a full fixed-object schema to a schema for TypeScript's Partial<T>. */
+export function partialObjectPort<T extends object>(
+  port: ObjectPortMeta<T>,
+  description = port.description,
+): ObjectPortMeta<Partial<T>> & { optional?: false; nullable?: false } {
+  const fields = Object.fromEntries(
+    Object.entries(port.fields as Readonly<Record<string, PortMeta>>).map(([name, field]) => [
+      name,
+      { ...field, optional: true },
+    ]),
+  );
+  return {
+    kind: 'object',
+    fields: fields as ObjectFieldContract<Partial<T>>,
+    ...(description ? { description } : {}),
+  };
 }
 
 interface ResolvedUnit extends UnitDefinition {
@@ -318,30 +441,184 @@ export function isOpaquePort(port: PortMeta): port is OpaquePortMeta {
   return 'opaque' in port && port.opaque === true;
 }
 
+export function isQuantityPort(port: PortMeta): port is QuantityPortMeta {
+  return 'unit' in port && typeof port.unit === 'string';
+}
+
+export function isMetadataPort(port: PortMeta): port is MetadataPortMeta {
+  return 'kind' in port && port.kind === 'metadata';
+}
+
+export function isObjectPort(port: PortMeta): port is ObjectPortMeta<any> {
+  return 'kind' in port && port.kind === 'object';
+}
+
+export function isRecordPort(port: PortMeta): port is RecordPortMeta<any> {
+  return 'kind' in port && port.kind === 'record';
+}
+
+export function isVectorPort(port: PortMeta): port is VectorPortMeta<any> {
+  return 'kind' in port && port.kind === 'vector';
+}
+
+export function isPortMeta(value: unknown): value is PortMeta {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.unit === 'string' || candidate.opaque === true ||
+    candidate.kind === 'metadata' || candidate.kind === 'object' ||
+    candidate.kind === 'record' || candidate.kind === 'vector';
+}
+
+function portKind(port: PortMeta): string {
+  if (isQuantityPort(port)) return 'quantity';
+  if (isOpaquePort(port)) return 'opaque';
+  return port.kind;
+}
+
 export function validatePortMeta(port: PortMeta, context: string): void {
+  if (port.optional !== undefined && typeof port.optional !== 'boolean') {
+    throw new Error(`${context}: optional must be boolean`);
+  }
+  if (port.nullable !== undefined && typeof port.nullable !== 'boolean') {
+    throw new Error(`${context}: nullable must be boolean`);
+  }
   if (isOpaquePort(port)) {
-    if (!port.description.trim()) throw new Error(`${context}: opaque port must explain why it is opaque`);
+    if (typeof port.description !== 'string' || !port.description.trim()) {
+      throw new Error(`${context}: opaque port must explain why it is opaque`);
+    }
     return;
   }
-  if (!getUnit(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
+  if (isQuantityPort(port)) {
+    if (!getUnit(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
+    if (
+      port.valueType !== undefined &&
+      !(['number', 'record', 'nested-record', 'vector'] as const).includes(port.valueType)
+    ) {
+      throw new Error(`${context}: invalid quantity value type '${String(port.valueType)}'`);
+    }
+    return;
+  }
+  if (isMetadataPort(port)) {
+    if (port.dataType !== 'string' && port.dataType !== 'boolean') {
+      throw new Error(`${context}: invalid metadata type '${String(port.dataType)}'`);
+    }
+    if (typeof port.description !== 'string' || !port.description.trim()) {
+      throw new Error(`${context}: metadata port must have a description`);
+    }
+    return;
+  }
+  if (isObjectPort(port)) {
+    if (!isRecord(port.fields)) throw new Error(`${context}: object contract must declare fields`);
+    for (const [name, field] of Object.entries(port.fields as Readonly<Record<string, PortMeta>>)) {
+      if (!isPortMeta(field)) throw new Error(`${context}.${name}: invalid port contract`);
+      validatePortMeta(field, `${context}.${name}`);
+    }
+    return;
+  }
+  if (isRecordPort(port)) {
+    if (port.keys) {
+      if (!Array.isArray(port.keys) || port.keys.some((key) => typeof key !== 'string')) {
+        throw new Error(`${context}: record keys must be an array of strings`);
+      }
+      if (new Set(port.keys).size !== port.keys.length) {
+        throw new Error(`${context}: record contract has duplicate keys`);
+      }
+    }
+    if (!isPortMeta(port.values)) throw new Error(`${context}{value}: invalid port contract`);
+    validatePortMeta(port.values, `${context}{value}`);
+    return;
+  }
+  if (isVectorPort(port)) {
+    if (!isPortMeta(port.items)) throw new Error(`${context}[]: invalid port contract`);
+    validatePortMeta(port.items, `${context}[]`);
+    return;
+  }
+  throw new Error(`${context}: invalid port contract`);
 }
 
 export function validatePortUnits(producer: PortMeta, consumer: PortMeta, context: string): void {
   validatePortMeta(producer, `${context} producer`);
   validatePortMeta(consumer, `${context} consumer`);
+  if (producer.optional && !consumer.optional) {
+    throw new Error(`${context}: optional producer cannot satisfy a required consumer`);
+  }
+  if (producer.nullable && !consumer.nullable) {
+    throw new Error(`${context}: nullable producer cannot satisfy a non-null consumer`);
+  }
+  const producerKind = portKind(producer);
+  const consumerKind = portKind(consumer);
+  if (producerKind !== consumerKind) {
+    throw new Error(`${context}: schema mismatch '${producerKind}' -> '${consumerKind}'`);
+  }
   if (isOpaquePort(producer) || isOpaquePort(consumer)) {
     if (!(isOpaquePort(producer) && isOpaquePort(consumer))) {
       throw new Error(`${context}: opaque and unit-bearing ports cannot be connected implicitly`);
     }
-  } else if (!areUnitsIdentical(producer.unit, consumer.unit)) {
-    throw new Error(
-      `${context}: unit mismatch '${producer.unit}' -> '${consumer.unit}'. ` +
-      `Use an explicit conversion transform.`,
-    );
+    if (producer.valueType && consumer.valueType && producer.valueType !== consumer.valueType) {
+      throw new Error(`${context}: opaque value type mismatch '${producer.valueType}' -> '${consumer.valueType}'`);
+    }
+    return;
   }
-  if (producer.valueType && consumer.valueType && producer.valueType !== consumer.valueType) {
-    throw new Error(`${context}: value type mismatch '${producer.valueType}' -> '${consumer.valueType}'`);
+  if (isQuantityPort(producer) && isQuantityPort(consumer)) {
+    if (!areUnitsIdentical(producer.unit, consumer.unit)) {
+      throw new Error(
+        `${context}: unit mismatch '${producer.unit}' -> '${consumer.unit}'. ` +
+        `Use an explicit conversion transform.`,
+      );
+    }
+    const producerValueType = producer.valueType ?? 'number';
+    const consumerValueType = consumer.valueType ?? 'number';
+    if (producerValueType !== consumerValueType) {
+      throw new Error(`${context}: value type mismatch '${producerValueType}' -> '${consumerValueType}'`);
+    }
+    return;
   }
+  if (isMetadataPort(producer) && isMetadataPort(consumer)) {
+    if (producer.dataType !== consumer.dataType) {
+      throw new Error(`${context}: metadata type mismatch '${producer.dataType}' -> '${consumer.dataType}'`);
+    }
+    return;
+  }
+  if (isObjectPort(producer) && isObjectPort(consumer)) {
+    const producerFields = producer.fields as Readonly<Record<string, PortMeta>>;
+    const consumerFields = consumer.fields as Readonly<Record<string, PortMeta>>;
+    const producerNames = Object.keys(producerFields).sort();
+    const consumerNames = Object.keys(consumerFields).sort();
+    const missing = consumerNames.filter((name) => !Object.hasOwn(producerFields, name));
+    const extra = producerNames.filter((name) => !Object.hasOwn(consumerFields, name));
+    if (missing.length || extra.length) {
+      throw new Error(
+        `${context}: object schema fields differ` +
+        `${missing.length ? `; missing [${missing.join(', ')}]` : ''}` +
+        `${extra.length ? `; extra [${extra.join(', ')}]` : ''}`,
+      );
+    }
+    for (const name of consumerNames) {
+      const provided = producerFields[name];
+      const expected = consumerFields[name];
+      validatePortUnits(provided, expected, `${context}.${name}`);
+    }
+    return;
+  }
+  if (isRecordPort(producer) && isRecordPort(consumer)) {
+    const producerKeys = producer.keys ? [...producer.keys].sort() : undefined;
+    const consumerKeys = consumer.keys ? [...consumer.keys].sort() : undefined;
+    if (JSON.stringify(producerKeys) !== JSON.stringify(consumerKeys)) {
+      throw new Error(
+        `${context}: record key contracts differ ` +
+        `(${producerKeys?.join(', ') ?? 'dynamic'} -> ${consumerKeys?.join(', ') ?? 'dynamic'})`,
+      );
+    }
+    validatePortUnits(producer.values, consumer.values, `${context}{value}`);
+    return;
+  }
+  if (isVectorPort(producer) && isVectorPort(consumer)) {
+    validatePortUnits(producer.items, consumer.items, `${context}[]`);
+    return;
+  }
+  throw new Error(
+    `${context}: incompatible port schemas '${producerKind}' -> '${consumerKind}'`,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -359,7 +636,9 @@ function matchesValueType(value: unknown, type: PortValueType): boolean {
 
 function assertNumericDeep(value: unknown, path: string, seen = new WeakSet<object>()): void {
   if (typeof value === 'number') return;
-  if (value === undefined || value === null) return;
+  if (value === undefined || value === null) {
+    throw new Error(`${path}: unit-bearing value must be numeric, got ${String(value)}`);
+  }
   if (typeof value !== 'object') throw new Error(`${path}: unit-bearing value must be numeric, got ${typeof value}`);
   if (seen.has(value)) return;
   seen.add(value);
@@ -369,11 +648,73 @@ function assertNumericDeep(value: unknown, path: string, seen = new WeakSet<obje
 /** Validate the runtime shape and numeric content of a single boundary value. */
 export function assertPortValue(value: unknown, meta: PortMeta, context: string): void {
   validatePortMeta(meta, context);
-  if (value === undefined) return;
-  if (meta.valueType && !matchesValueType(value, meta.valueType)) {
-    throw new Error(`${context}: expected ${meta.valueType} value`);
+  if (value === undefined) {
+    if (meta.optional) return;
+    throw new Error(`${context}: required contracted value is undefined`);
   }
-  if (!isOpaquePort(meta)) assertNumericDeep(value, context);
+  if (value === null) {
+    if (meta.nullable) return;
+    throw new Error(`${context}: contracted value is not nullable`);
+  }
+  if (isOpaquePort(meta)) {
+    if (meta.valueType && !matchesValueType(value, meta.valueType)) {
+      throw new Error(`${context}: expected ${meta.valueType} value`);
+    }
+    return;
+  }
+  if (isQuantityPort(meta)) {
+    const valueType = meta.valueType ?? 'number';
+    if (!matchesValueType(value, valueType)) {
+      throw new Error(`${context}: expected ${valueType} value`);
+    }
+    assertNumericDeep(value, context);
+    return;
+  }
+  if (isMetadataPort(meta)) {
+    if (typeof value !== meta.dataType) {
+      throw new Error(`${context}: expected ${meta.dataType} metadata, got ${typeof value}`);
+    }
+    return;
+  }
+  if (isObjectPort(meta)) {
+    if (!isRecord(value)) throw new Error(`${context}: expected object value`);
+    const fields = meta.fields as Readonly<Record<string, PortMeta>>;
+    for (const [name, field] of Object.entries(fields)) {
+      if (!field.optional && !Object.hasOwn(value, name)) {
+        throw new Error(`${context}.${name}: required contracted value is missing`);
+      }
+      if (Object.hasOwn(value, name)) assertPortValue(value[name], field, `${context}.${name}`);
+    }
+    for (const name of Object.keys(value)) {
+      if (!Object.hasOwn(fields, name)) throw new Error(`${context}.${name}: value has no port contract`);
+    }
+    return;
+  }
+  if (isRecordPort(meta)) {
+    if (!isRecord(value)) throw new Error(`${context}: expected record value`);
+    if (meta.keys) {
+      const expected = new Set(meta.keys);
+      for (const key of meta.keys) {
+        if (!Object.hasOwn(value, key)) throw new Error(`${context}.${key}: required record key is missing`);
+      }
+      for (const key of Object.keys(value)) {
+        if (!expected.has(key)) throw new Error(`${context}.${key}: unexpected record key`);
+      }
+    }
+    for (const [key, child] of Object.entries(value)) {
+      assertPortValue(child, meta.values, `${context}.${key}`);
+    }
+    return;
+  }
+  if (isVectorPort(meta)) {
+    if (!Array.isArray(value) && !ArrayBuffer.isView(value)) {
+      throw new Error(`${context}: expected vector value`);
+    }
+    for (const [index, child] of Array.from(value as ArrayLike<unknown>).entries()) {
+      assertPortValue(child, meta.items, `${context}[${index}]`);
+    }
+    return;
+  }
 }
 
 /**
@@ -387,11 +728,12 @@ export function assertPortContract<T>(
   context: string,
 ): void {
   if (!contract) throw new Error(`${context}: missing port contract`);
-  if (typeof value !== 'object' || value === null) {
-    const meta = contract as PortMeta;
-    validatePortMeta(meta, context);
-    if (!isOpaquePort(meta)) assertNumericDeep(value, context);
+  if (isPortMeta(contract)) {
+    assertPortValue(value, contract, context);
     return;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${context}: expected object matching the top-level port contract`);
   }
   const declared = contract as Readonly<Record<string, PortMeta>>;
   for (const [name, meta] of Object.entries(declared)) validatePortMeta(meta, `${context}.${name}`);
@@ -407,6 +749,34 @@ export function assertPortContract<T>(
   }
 }
 
+export interface PortSchemaCounts {
+  unitBearing: number;
+  metadata: number;
+  opaque: number;
+  structured: number;
+}
+
+/** Count leaf and structural contracts for CI coverage reporting. */
+export function countPortSchema(meta: PortMeta): PortSchemaCounts {
+  if (isQuantityPort(meta)) return { unitBearing: 1, metadata: 0, opaque: 0, structured: 0 };
+  if (isMetadataPort(meta)) return { unitBearing: 0, metadata: 1, opaque: 0, structured: 0 };
+  if (isOpaquePort(meta)) return { unitBearing: 0, metadata: 0, opaque: 1, structured: 0 };
+  const children = isObjectPort(meta)
+    ? Object.values(meta.fields as Readonly<Record<string, PortMeta>>)
+    : [isRecordPort(meta) ? meta.values : meta.items];
+  return children.reduce<PortSchemaCounts>(
+    (total, child) => {
+      const count = countPortSchema(child);
+      total.unitBearing += count.unitBearing;
+      total.metadata += count.metadata;
+      total.opaque += count.opaque;
+      total.structured += count.structured;
+      return total;
+    },
+    { unitBearing: 0, metadata: 0, opaque: 0, structured: 1 },
+  );
+}
+
 const SECOND = 1;
 const HOUR = 60 * 60;
 const DAY = 24 * HOUR;
@@ -420,6 +790,7 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: '%', dimension: 'dimensionless', scale: 0.01 },
   { symbol: 'percentage-point', dimension: 'dimensionless', scale: 0.01 },
   { symbol: 'bp', dimension: 'dimensionless', scale: 0.0001 },
+  { symbol: '100bp', dimension: 'dimensionless', scale: 0.01 },
   { symbol: '$', dimension: 'currency', scale: 1 },
   { symbol: '$k', dimension: 'currency', scale: 1e3 },
   { symbol: '$M', dimension: 'currency', scale: 1e6 },
@@ -437,6 +808,7 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: 'TW', dimension: 'power', dimensions: POWER_DIMENSIONS, scale: 1e12 },
   { symbol: 'second', dimension: 'time', scale: SECOND },
   { symbol: 'hour', dimension: 'time', scale: HOUR },
+  { symbol: '100hour', dimension: 'time', scale: 100 * HOUR },
   { symbol: 'day', dimension: 'time', scale: DAY },
   { symbol: 'week', dimension: 'time', scale: 7 * DAY },
   { symbol: 'month', dimension: 'time', scale: YEAR / 12 },
@@ -461,6 +833,7 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: 'robot', dimension: 'custom:robot', scale: 1 },
   { symbol: 'bed', dimension: 'custom:bed', scale: 1 },
   { symbol: 'course', dimension: 'custom:course', scale: 1 },
+  { symbol: 'dose', dimension: 'custom:dose', scale: 1 },
   { symbol: 'vehicle', dimension: 'custom:vehicle', scale: 1 },
   { symbol: 'individual', dimension: 'custom:individual', scale: 1 },
   { symbol: 'housing-unit', dimension: 'custom:housing-unit', scale: 1 },
@@ -468,7 +841,16 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: 'kcal', dimension: 'energy', dimensions: ENERGY_DIMENSIONS, scale: 4184 },
   { symbol: 'ppm', dimension: 'custom:concentration', scale: 1e-6 },
   { symbol: 'pH', dimension: 'dimensionless', scale: 1 },
-  { symbol: 'mb/d', dimension: 'custom:oil-flow', scale: 1, description: 'million barrels per day' },
+  { symbol: 'barrel', dimension: 'custom:oil-volume', scale: 1 },
+  { symbol: 'million-barrel', dimension: 'custom:oil-volume', scale: 1e6 },
+  {
+    symbol: 'mb/d',
+    dimension: 'custom:oil-flow',
+    dimensions: { 'custom:oil-volume': 1, time: -1 },
+    scale: 1e6 / DAY,
+    description: 'million barrels per day',
+  },
+  { symbol: 'Bcf', dimension: 'custom:gas-volume', scale: 1, description: 'billion cubic feet' },
 ];
 
 BUILTIN_UNITS.forEach(registerUnit);

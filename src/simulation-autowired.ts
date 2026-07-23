@@ -22,9 +22,17 @@ import {
   requireOutput,
   optionalOutput,
   auditConnectorContracts,
-  opaqueConnector,
   unitConnector,
 } from 'tsimulation';
+import {
+  CARBON_CONNECTOR,
+  DEMAND_SECTORS_CONNECTOR,
+  ENERGY_ADDITION_CONNECTOR,
+  ENERGY_CAPACITY_CONNECTOR,
+  ENERGY_LCOE_CONNECTOR,
+  REGIONAL_DEMAND_CONNECTOR,
+  REGIONAL_ENERGY_LCOE_CONNECTOR,
+} from './connector-schemas.js';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
@@ -129,7 +137,7 @@ function buildTransforms(
       inputTypes: {
         electricityEmissions: unitConnector('number', 'GtCO2/year'),
         nonElectricEmissions: unitConnector('number', 'GtCO2/year'),
-        carbon: opaqueConnector('record', 'Carbon records mix annual fluxes and cumulative CO2.'),
+        carbon: CARBON_CONNECTOR,
         cdrRemovalGtCO2: unitConnector('number', 'GtCO2/year'),
       },
       outputType: unitConnector('number', 'GtCO2/year'),
@@ -231,12 +239,12 @@ function buildTransforms(
         'solarPlusBatteryLCOE', 'regionalFuelCost', 'sectors',
       ],
       inputTypes: {
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
         regionalGeneration: unitConnector('nested-record', 'TWh/year'),
-        regionalLCOEs: opaqueConnector('nested-record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+        regionalLCOEs: REGIONAL_ENERGY_LCOE_CONNECTOR,
         solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
         regionalFuelCost: unitConnector('record', '$T/year'),
-        sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+        sectors: DEMAND_SECTORS_CONNECTOR,
       },
       outputType: unitConnector('record', 'fraction'),
     },
@@ -288,7 +296,7 @@ function buildTransforms(
       },
       dependsOn: ['regional', 'regionalShortfallRate'],
       inputTypes: {
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
         regionalShortfallRate: unitConnector('record', 'fraction'),
       },
       outputType: unitConnector('record', 'fraction'),
@@ -302,7 +310,7 @@ function buildTransforms(
       },
       dependsOn: ['sectors'],
       inputTypes: {
-        sectors: opaqueConnector('record', 'Sector records mix energy quantities and electrification shares.'),
+        sectors: DEMAND_SECTORS_CONNECTOR,
       },
       outputType: unitConnector('number', 'fraction'),
     },
@@ -335,7 +343,7 @@ function buildTransforms(
       dependsOn: [],
       inputTypes: {
         generation: unitConnector('record', 'TWh/year'),
-        lcoes: opaqueConnector('record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+        lcoes: ENERGY_LCOE_CONNECTOR,
         solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
       },
       outputType: unitConnector('number', '$/MWh'),
@@ -380,7 +388,7 @@ function buildTransforms(
       },
       dependsOn: ['regional'],
       inputTypes: {
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
       },
       outputType: unitConnector('record', 'TWh/year'),
     },
@@ -411,7 +419,7 @@ function buildTransforms(
       inputTypes: {
         investment: unitConnector('number', '$T/year'),
         regionalSavings: unitConnector('record', 'fraction'),
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
       },
       outputType: unitConnector('record', '$T/year'),
     },
@@ -439,8 +447,8 @@ function buildTransforms(
       ),
       dependsOn: [],
       inputTypes: {
-        additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
-        capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
+        additions: ENERGY_ADDITION_CONNECTOR,
+        capacities: ENERGY_CAPACITY_CONNECTOR,
       },
       outputType: unitConnector('number', 'TWh/year'),
     },
@@ -455,7 +463,7 @@ function buildTransforms(
       },
       dependsOn: ['regional'],
       inputTypes: {
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
       },
       outputType: unitConnector('record', '$T/year'),
     },
@@ -475,7 +483,7 @@ function buildTransforms(
       },
       dependsOn: ['regional', 'regionalPopulation'],
       inputTypes: {
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
         regionalPopulation: unitConnector('record', 'people'),
       },
       outputType: unitConnector('record', '$/people/year'),
@@ -500,7 +508,7 @@ function buildTransforms(
       dependsOn: [],
       inputTypes: {
         regionalDamages: unitConnector('record', 'fraction'),
-        regional: opaqueConnector('record', 'Regional demand records mix GDP, energy, growth, and intensity units.'),
+        regional: REGIONAL_DEMAND_CONNECTOR,
       },
       outputType: unitConnector('number', 'fraction'),
     },

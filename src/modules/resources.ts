@@ -17,7 +17,28 @@
  * - minerals, land: Tracking data
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
+import {
+  assertUnitBalance,
+  convertQuantity,
+  defineModule,
+  divideQuantities,
+  integrateFlow,
+  Module,
+  multiplyQuantities,
+  subtractQuantities,
+  sumQuantities,
+  unitConnector,
+  unitQuantity,
+  ValidationResult,
+  validatedMerge,
+} from 'tsimulation';
+import {
+  CARBON_CONNECTOR,
+  ENERGY_ADDITION_CONNECTOR,
+  FOOD_CONNECTOR,
+  LAND_CONNECTOR,
+  MINERALS_CONNECTOR,
+} from '../connector-schemas.js';
 import { EnergySource, Region, REGIONS } from '../domain-types.js';
 
 // =============================================================================
@@ -593,7 +614,7 @@ export const resourcesModule: Module<
 
   connectorTypes: {
     inputs: {
-      additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+      additions: ENERGY_ADDITION_CONNECTOR,
       population: unitConnector('number', 'people'),
       gdpPerCapita: unitConnector('number', '$/people/year'),
       gdpPerCapita2025: unitConnector('number', '$/people/year'),
@@ -601,10 +622,10 @@ export const resourcesModule: Module<
       transportElectrification: unitConnector('number', 'fraction'),
     },
     outputs: {
-      minerals: opaqueConnector('nested-record', 'Mineral records mix annual demand, cumulative stocks, and dimensionless rates.'),
-      land: opaqueConnector('record', 'Land records mix area, yield, and annual change units.'),
-      carbon: opaqueConnector('record', 'Carbon records mix annual fluxes and cumulative CO2.'),
-      food: opaqueConnector('record', 'Food records mix calories, shares, and grain mass flows.'),
+      minerals: MINERALS_CONNECTOR,
+      land: LAND_CONNECTOR,
+      carbon: CARBON_CONNECTOR,
+      food: FOOD_CONNECTOR,
       foodStress: unitConnector('number', 'fraction'),
       mineralConstraint: unitConnector('number', 'fraction'),
       miningEnergyTWh: unitConnector('number', 'TWh/year'),
@@ -880,12 +901,20 @@ export const resourcesModule: Module<
 
     // Farmland = grain demand / yield × non-food multiplier
     // grainDemand is in Mt, yield is t/ha → result in Mha
-    const grainFarmland = grainDemand / currentYield;
+    const grainFarmland = convertQuantity(divideQuantities(
+      unitQuantity(grainDemand, 'Mt/year', 'annual grain demand'),
+      unitQuantity(currentYield, 't/ha/year', 'annual crop yield'),
+      'grain farmland requirement',
+    ), 'Mha').value;
     const uncappedFarmland = grainFarmland * land.nonFoodMultiplier;
 
     // Urban land (compute early for land budget)
     const wealthFactor = Math.pow(gdpPerCapita / gdpPerCapita2025, land.urbanWealthElasticity);
-    const urban = (population * land.urbanPerCapita * wealthFactor) / 1e6;
+    const urban = convertQuantity(multiplyQuantities([
+      unitQuantity(population, 'people', 'population'),
+      unitQuantity(land.urbanPerCapita, 'ha/people', 'urban land per capita'),
+      unitQuantity(wealthFactor, 'fraction', 'urban wealth factor'),
+    ], 'urban land demand'), 'Mha').value;
 
     // Climate-driven desertification accumulates path-dependently in state
     // (the previous form recomputed the whole expansion retroactively with
@@ -936,10 +965,34 @@ export const resourcesModule: Module<
 
     // Desert/barren is the pure residual, so the land identity holds:
     // farmland + urban + forest + desert === totalLandArea
-    const desert = Math.max(0, land.totalLandArea - farmland - urban - forest);
+    const desert = Math.max(0, subtractQuantities(
+      unitQuantity(land.totalLandArea, 'Mha', 'total land'),
+      [
+        unitQuantity(farmland, 'Mha', 'farmland'),
+        unitQuantity(urban, 'Mha', 'urban land'),
+        unitQuantity(forest, 'Mha', 'forest'),
+      ],
+      'residual desert land',
+    ).value);
 
     // Forest change
-    const forestChange = forest - state.land.forest;
+    const forestChange = divideQuantities(
+      subtractQuantities(
+        unitQuantity(forest, 'Mha', 'ending forest'),
+        [unitQuantity(state.land.forest, 'Mha', 'opening forest')],
+        'forest area change',
+      ),
+      unitQuantity(1, 'year', 'annual timestep'),
+      'annual forest change',
+    );
+    const forestChangeMhaPerYear = convertQuantity(forestChange, 'Mha/year').value;
+
+    assertUnitBalance('global land identity', unitQuantity(land.totalLandArea, 'Mha'), [
+      unitQuantity(farmland, 'Mha', 'farmland'),
+      unitQuantity(urban, 'Mha', 'urban land'),
+      unitQuantity(forest, 'Mha', 'forest'),
+      unitQuantity(desert, 'Mha', 'desert and barren land'),
+    ]);
 
     const landOutput: LandOutput = {
       farmland,
@@ -948,7 +1001,7 @@ export const resourcesModule: Module<
       desert,
       yield: currentYield,
       yieldDamageFactor,
-      forestChange,
+      forestChange: forestChangeMhaPerYear,
     };
 
     // =========================================================================
@@ -956,26 +1009,67 @@ export const resourcesModule: Module<
     // =========================================================================
 
     // Sequestration from forest growth
-    const sequestration = forestChange > 0
-      ? (forestChange * 1e6 * land.sequestrationRate) / 1e9
+    const sequestration = forestChangeMhaPerYear > 0
+      ? convertQuantity(multiplyQuantities([
+          unitQuantity(forestChangeMhaPerYear, 'Mha/year', 'new forest area'),
+          unitQuantity(land.sequestrationRate, 'tCO2/ha', 'forest sequestration density'),
+        ], 'forest sequestration'), 'GtCO2/year').value
       : 0;
 
     // Deforestation emissions
-    const deforestationArea = forestChange < 0 ? -forestChange : 0;
+    const deforestationArea = forestChangeMhaPerYear < 0 ? -forestChangeMhaPerYear : 0;
     const CO2_PER_CARBON = 44 / 12; // molecular weight ratio CO2/C
-    const totalCarbonReleased = (deforestationArea * 1e6 * land.forestCarbonDensity * CO2_PER_CARBON) / 1e9;
+    const totalCarbonReleased = convertQuantity(multiplyQuantities([
+      unitQuantity(deforestationArea, 'Mha/year', 'deforested area'),
+      unitQuantity(
+        land.forestCarbonDensity * CO2_PER_CARBON,
+        'tCO2/ha',
+        'forest CO2 density',
+      ),
+    ], 'deforestation carbon release'), 'GtCO2/year').value;
     const immediateEmissions = totalCarbonReleased * land.deforestationEmissionFactor;
     const deferredEmissions = totalCarbonReleased * (1 - land.deforestationEmissionFactor);
 
     // Decay pool
-    const decayEmissions = state.decayPool * land.decayRate;
-    const newDecayPool = state.decayPool + deferredEmissions - decayEmissions;
+    const decayEmissions = convertQuantity(multiplyQuantities([
+      unitQuantity(state.decayPool, 'GtCO2', 'opening decay pool'),
+      unitQuantity(land.decayRate, 'fraction/year', 'decay rate'),
+    ], 'decay emissions'), 'GtCO2/year').value;
+    const netDecayPoolFlow = subtractQuantities(
+      unitQuantity(deferredEmissions, 'GtCO2/year', 'deferred deforestation emissions'),
+      [unitQuantity(decayEmissions, 'GtCO2/year', 'released decay emissions')],
+      'net decay-pool flow',
+    );
+    const newDecayPool = sumQuantities([
+      unitQuantity(state.decayPool, 'GtCO2', 'opening decay pool'),
+      integrateFlow(
+        netDecayPoolFlow,
+        unitQuantity(1, 'year', 'annual timestep'),
+        'GtCO2',
+        'decay-pool stock change',
+      ),
+    ], 'GtCO2', 'ending decay pool').value;
 
     // Net flux (positive = emissions, negative = sink)
-    const netFlux = immediateEmissions + decayEmissions - sequestration;
+    const netFlux = subtractQuantities(
+      sumQuantities([
+        unitQuantity(immediateEmissions, 'GtCO2/year', 'immediate deforestation emissions'),
+        unitQuantity(decayEmissions, 'GtCO2/year', 'decay emissions'),
+      ], 'GtCO2/year', 'gross land emissions'),
+      [unitQuantity(sequestration, 'GtCO2/year', 'forest sequestration')],
+      'net land-carbon flux',
+    ).value;
 
     // Cumulative sequestration
-    const newCumulativeSequestration = state.cumulativeSequestration + sequestration;
+    const newCumulativeSequestration = sumQuantities([
+      unitQuantity(state.cumulativeSequestration, 'GtCO2', 'cumulative sequestration'),
+      integrateFlow(
+        unitQuantity(sequestration, 'GtCO2/year', 'annual sequestration'),
+        unitQuantity(1, 'year', 'annual timestep'),
+        'GtCO2',
+        'annual sequestered stock',
+      ),
+    ], 'GtCO2', 'updated cumulative sequestration').value;
 
     const carbonOutput: CarbonOutput = {
       sequestration,

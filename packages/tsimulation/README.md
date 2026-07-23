@@ -20,9 +20,9 @@ access, co-located parameter metadata — and brings them to TypeScript.
   (uses only `structuredClone` and `console.warn`).
 - **Fail-fast wiring.** Output collisions, unresolved inputs, dependency cycles,
   transform typos, and `NaN`/`Infinity` outputs all throw with clear messages.
-- **Strict units by default.** Every model and module boundary declares a unit
-  (or an explicit, explained `opaque` escape hatch), and incompatible wiring
-  fails before the first step runs.
+- **Strict units by default.** Every numeric leaf at a model or module boundary
+  declares a unit, while non-numeric metadata is marked explicitly. Incompatible
+  wiring and runtime shape drift fail before results can escape the model.
 - **One project, multiple time scales.** Annual systems, monthly networks, and
   event models share APIs without forcing every model into an annual module.
 - **Evidence-aware.** Development, validation, holdout, diagnostic, and scenario
@@ -78,10 +78,54 @@ initial value and history to the consumer. `runAutowired()` validates all of
 these in `error` mode by default. Use `auditConnectorContracts()` in CI for a
 non-running completeness report.
 
-Mixed-unit structures may use `opaqueConnector()` or `opaquePort()`, but must
-include a reason. This escape hatch is intended for scenario trees and records
-that genuinely contain several physical dimensions—not as a substitute for a
-known numeric unit.
+Structured values use recursive `objectPort()`, `recordPort()`, and
+`vectorPort()` schemas. Each numeric leaf carries its own unit; strings and
+booleans use `metadataPort()`. Required, optional, and nullable fields remain
+distinct in both TypeScript and runtime validation. For example:
+
+```typescript
+const capacity = objectPort<CapacityRow>({
+  solar: { unit: 'GW' },
+  battery: { unit: 'GWh' },
+  label: metadataPort('string', 'Scenario label'),
+});
+```
+
+The recursive validator reports the full failing path, such as
+`capacity.battery`, and rejects missing or undeclared fields. Use
+`auditConnectorContracts()` for module graphs and `auditModelContracts()` for
+standalone models; both distinguish dimensional leaves, metadata, structured
+schemas, and remaining opaque escape hatches.
+
+`opaqueConnector()` and `opaquePort()` still exist for truly external or
+unbounded structures and require an explanation. They should be rare: a record
+containing several physical dimensions is normally a reason to use a recursive
+schema, not to make the record opaque.
+
+Boundary contracts cannot detect a dimensionally invalid equation entirely
+inside a `step()` or `run()` function. The unit-aware equation helpers cover
+high-risk stock/flow and conservation identities without changing ordinary
+TypeScript arithmetic:
+
+```typescript
+const addition = integrateFlow(
+  unitQuantity(investment, '$T/year'),
+  unitQuantity(1, 'year'),
+  '$T',
+);
+
+assertUnitBalance('capital stock', unitQuantity(nextCapital, '$T'), [
+  unitQuantity(previousCapital, '$T'),
+  addition,
+  unitQuantity(-depreciation, '$T'),
+]);
+```
+
+`sumQuantities()`, `subtractQuantities()`, `multiplyQuantities()`,
+`divideQuantities()`, `powQuantity()`, `convertQuantity()`, and
+`assertUnitBalance()` reject incompatible dimensions immediately. Apply them to
+important identities and unit transitions rather than wrapping every scalar in
+the model.
 
 ## Standalone models and experiments
 

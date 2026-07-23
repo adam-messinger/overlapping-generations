@@ -27,7 +27,24 @@
  * - emissions: Gt CO2 from electricity - GLOBAL
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
+import {
+  assertUnitBalance,
+  convertQuantity,
+  defineModule,
+  divideQuantities,
+  Module,
+  multiplyQuantities,
+  subtractQuantities,
+  sumQuantities,
+  unitConnector,
+  unitQuantity,
+  ValidationResult,
+  validatedMerge,
+} from 'tsimulation';
+import {
+  ENERGY_CAPACITY_CONNECTOR,
+  REGIONAL_ENERGY_CAPACITY_CONNECTOR,
+} from '../connector-schemas.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 
@@ -252,6 +269,19 @@ interface MeritSource {
   isBareSolar: boolean;
 }
 
+function annualGenerationTWh(
+  capacityGW: number,
+  capacityFactor: number,
+  hoursPerYear: number,
+  label: string,
+): number {
+  return convertQuantity(multiplyQuantities([
+    unitQuantity(capacityGW, 'GW', `${label} capacity`),
+    unitQuantity(capacityFactor, 'fraction', `${label} capacity factor`),
+    unitQuantity(hoursPerYear, 'hour/year', 'operating hours'),
+  ], `${label} annual generation`), 'TWh/year').value;
+}
+
 function dispatchRegion(
   demandTWh: number,
   capacities: Record<EnergySource, number>,
@@ -271,17 +301,31 @@ function dispatchRegion(
   // Calculate max generation (TWh) each source can provide
   const maxGen: Record<string, number> = {};
   for (const source of ENERGY_SOURCES) {
+    if (source === 'battery') {
+      // Battery is an energy stock (GWh), not generation power (GW). Its
+      // contribution is represented only through solarPlusBattery below.
+      maxGen[source] = 0;
+      continue;
+    }
     const capacity = capacities[source];
     const cf = params.capacityFactor[source];
-    maxGen[source] = (capacity * cf * params.hoursPerYear) / 1000;
+    maxGen[source] = annualGenerationTWh(capacity, cf, params.hoursPerYear, source);
   }
 
   // Solar+battery capacity limited by battery storage
   const batteryGWh = capacities.battery;
-  const batteryGW = batteryGWh / params.batteryDuration;
+  const batteryGW = convertQuantity(divideQuantities(
+    unitQuantity(batteryGWh, 'GWh', 'battery energy capacity'),
+    unitQuantity(params.batteryDuration, 'hour', 'battery duration'),
+    'battery discharge power',
+  ), 'GW').value;
   const pairedSolarGW = Math.min(capacities.solar * 0.5, batteryGW);
-  maxGen['solarPlusBattery'] =
-    (pairedSolarGW * params.capacityFactor.battery * params.hoursPerYear) / 1000;
+  maxGen['solarPlusBattery'] = annualGenerationTWh(
+    pairedSolarGW,
+    params.capacityFactor.battery,
+    params.hoursPerYear,
+    'solar plus battery',
+  );
 
   // For curtailment, count solar panels once (bare solar covers all panels;
   // solarPlusBattery draws from the same panels via storage)
@@ -330,9 +374,22 @@ function dispatchRegion(
 
   // VRE limits based on two-tier storage (short-duration batteries + long-duration)
   const PEAK_TO_AVERAGE_RATIO = 2;
-  const peakDemandGW = (demandTWh * 1000) / params.hoursPerYear * PEAK_TO_AVERAGE_RATIO;
-  const shortStorageHours = batteryGWh / Math.max(1, peakDemandGW);
-  const longStorageHours = longStorageGWh / Math.max(1, peakDemandGW);
+  const averageDemandGW = convertQuantity(divideQuantities(
+    unitQuantity(demandTWh, 'TWh/year', 'annual electricity demand'),
+    unitQuantity(params.hoursPerYear, 'hour/year', 'operating hours'),
+    'average electricity demand',
+  ), 'GW').value;
+  const peakDemandGW = averageDemandGW * PEAK_TO_AVERAGE_RATIO;
+  const shortStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(batteryGWh, 'GWh', 'short-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'short-duration storage hours',
+  ), 'hour').value;
+  const longStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(longStorageGWh, 'GWh', 'long-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'long-duration storage hours',
+  ), 'hour').value;
   // VRE penetration limit = storage-based headroom. No separate ceiling: the
   // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
   // demand limit clamp VRE first), and it made maxVREPenetration a redundant
@@ -421,18 +478,52 @@ function dispatchRegion(
   const curtailmentTWh = Math.max(0, totalAvailableVRE - totalDispatchedVRE);
   const curtailmentRate = totalAvailableVRE > 0 ? curtailmentTWh / totalAvailableVRE : 0;
 
-  const totalGeneration = demandTWh - remaining;
+  const totalGeneration = subtractQuantities(
+    unitQuantity(demandTWh, 'TWh/year', 'required generation'),
+    [unitQuantity(remaining, 'TWh/year', 'unserved generation')],
+    'served generation',
+  ).value;
   const shortfall = remaining;
 
-  // TWh × kg/MWh = 1e6 × Gt CO2 (intermediate unit for both intensity and emissions)
-  const emissionsProduct =
-    generation.gas * params.carbonIntensity.gas +
-    generation.coal * params.carbonIntensity.coal;
-  const gridIntensity = totalGeneration > 0 ? emissionsProduct / totalGeneration : 0; // kg CO2/MWh
-  const electricityEmissions = emissionsProduct / 1e6; // Gt CO2
+  const electricityEmissions = sumQuantities([
+    convertQuantity(multiplyQuantities([
+      unitQuantity(generation.gas, 'TWh/year', 'gas generation'),
+      unitQuantity(params.carbonIntensity.gas, 'kgCO2/MWh', 'gas carbon intensity'),
+    ], 'gas emissions'), 'GtCO2/year'),
+    convertQuantity(multiplyQuantities([
+      unitQuantity(generation.coal, 'TWh/year', 'coal generation'),
+      unitQuantity(params.carbonIntensity.coal, 'kgCO2/MWh', 'coal carbon intensity'),
+    ], 'coal emissions'), 'GtCO2/year'),
+  ], 'GtCO2/year', 'electricity emissions').value;
+  const gridIntensity = totalGeneration > 0
+    ? convertQuantity(divideQuantities(
+        unitQuantity(electricityEmissions, 'GtCO2/year', 'electricity emissions'),
+        unitQuantity(totalGeneration, 'TWh/year', 'total generation'),
+        'grid carbon intensity',
+      ), 'kgCO2/MWh').value
+    : 0;
 
-  const fossilGen = generation.gas + generation.coal;
+  const fossilGen = sumQuantities([
+    unitQuantity(generation.gas, 'TWh/year', 'gas generation'),
+    unitQuantity(generation.coal, 'TWh/year', 'coal generation'),
+  ], 'TWh/year', 'fossil generation').value;
   const fossilShare = totalGeneration > 0 ? fossilGen / totalGeneration : 0;
+
+  assertUnitBalance(
+    'regional dispatch supply requirement',
+    unitQuantity(demandTWh, 'TWh/year', 'required generation'),
+    [
+      unitQuantity(totalGeneration, 'TWh/year', 'served generation'),
+      unitQuantity(shortfall, 'TWh/year', 'shortfall'),
+    ],
+  );
+  assertUnitBalance(
+    'regional dispatched generation',
+    unitQuantity(totalGeneration, 'TWh/year', 'served generation'),
+    Object.entries(generation).map(([source, value]) =>
+      unitQuantity(value, 'TWh/year', `${source} generation`)),
+    { relativeTolerance: 1e-10 },
+  );
 
   return {
     generation: generation as Record<EnergySource | 'solarPlusBattery', number>,
@@ -513,8 +604,8 @@ export const dispatchModule: Module<
     inputs: {
       electricityDemand: unitConnector('number', 'TWh/year'),
       regionalElectricityDemand: unitConnector('record', 'TWh/year'),
-      capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
-      regionalCapacities: opaqueConnector('nested-record', 'Generator capacity is GW while battery capacity is GWh.'),
+      capacities: ENERGY_CAPACITY_CONNECTOR,
+      regionalCapacities: REGIONAL_ENERGY_CAPACITY_CONNECTOR,
       carbonPrice: unitConnector('number', '$/tCO2'),
       regionalCarbonPrice: unitConnector('record', '$/tCO2'),
       longStorageRegional: unitConnector('record', 'GWh'),
@@ -647,7 +738,7 @@ export const dispatchModule: Module<
 
     let globalTotalGeneration = 0;
     let globalShortfall = 0;
-    let globalEmissionsProduct = 0; // TWh × kg/MWh (intermediate unit)
+    let globalElectricityEmissions = 0;
     let globalCurtailmentTWh = 0;
     const regionalCurtailment: Record<Region, number> = {} as Record<Region, number>;
 
@@ -658,7 +749,7 @@ export const dispatchModule: Module<
       }
       globalTotalGeneration += regionalOutputs[region].totalGeneration;
       globalShortfall += regionalOutputs[region].shortfall;
-      globalEmissionsProduct += regionalOutputs[region].electricityEmissions * 1e6; // Gt → intermediate unit
+      globalElectricityEmissions += regionalOutputs[region].electricityEmissions;
       globalCurtailmentTWh += regionalOutputs[region].curtailmentTWh;
       regionalCurtailment[region] = regionalOutputs[region].curtailmentTWh;
     }
@@ -667,10 +758,18 @@ export const dispatchModule: Module<
     const globalAvailableVRE = globalGeneration.solar + globalGeneration.solarPlusBattery + globalGeneration.wind + globalCurtailmentTWh;
     const globalCurtailmentRate = globalAvailableVRE > 0 ? globalCurtailmentTWh / globalAvailableVRE : 0;
 
-    const globalGridIntensity = globalTotalGeneration > 0 ? globalEmissionsProduct / globalTotalGeneration : 0;
-    const globalElectricityEmissions = globalEmissionsProduct / 1e6;
+    const globalGridIntensity = globalTotalGeneration > 0
+      ? convertQuantity(divideQuantities(
+          unitQuantity(globalElectricityEmissions, 'GtCO2/year', 'global electricity emissions'),
+          unitQuantity(globalTotalGeneration, 'TWh/year', 'global generation'),
+          'global grid intensity',
+        ), 'kgCO2/MWh').value
+      : 0;
 
-    const fossilGen = globalGeneration.gas + globalGeneration.coal;
+    const fossilGen = sumQuantities([
+      unitQuantity(globalGeneration.gas, 'TWh/year', 'global gas generation'),
+      unitQuantity(globalGeneration.coal, 'TWh/year', 'global coal generation'),
+    ], 'TWh/year', 'global fossil generation').value;
     const globalFossilShare = globalTotalGeneration > 0 ? fossilGen / globalTotalGeneration : 0;
 
     return {

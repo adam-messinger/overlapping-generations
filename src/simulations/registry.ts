@@ -1,11 +1,46 @@
 import {
   ModelRegistry,
   defineModel,
+  metadataPort,
   opaquePort,
   unitPort,
   type EvidenceRecord,
   type ValidationClaim,
 } from 'tsimulation';
+import {
+  ANNUAL_HORMUZ_ROWS_PORT,
+  BOOLEAN_PORT,
+  CONTAGION_OPTIONS_PORT,
+  CONTAGION_POLICY_PORT,
+  COUNTERMEASURE_PORT,
+  DEFENSE_MONTHS_PORT,
+  DEFENSE_PARAMS_PORT,
+  DRUG_MONTHS_PORT,
+  DRUG_SCENARIO_PORT,
+  DYNAMIC_NETWORK_PORT,
+  FUND_STRESS_ROWS_PORT,
+  HEAT_ADAPTATION_PORT,
+  HEAT_EVENT_PORT,
+  HEAT_FOOD_PORT,
+  HEAT_MORTALITY_PORT,
+  HEAT_POWER_PORT,
+  HORMUZ_MONTHS_PORT,
+  HORMUZ_PARAMS_PORT,
+  HORMUZ_SCENARIO_PORT,
+  LEVERAGED_FUNDS_PORT,
+  MARITIME_ANNUAL_ROWS_PORT,
+  MARITIME_MONTHS_PORT,
+  MARITIME_PARAMS_PORT,
+  MARITIME_SCENARIO_PORT,
+  MARKET_STRESS_ROWS_PORT,
+  PARTIAL_DEFENSE_PARAMS_PORT,
+  PARTIAL_MARITIME_PARAMS_PORT,
+  SOVEREIGN_MARKETS_PORT,
+  SOVEREIGN_SCENARIO_PORT,
+  TARIFF_ACTION_PORT,
+  TARIFF_SECTORS_PORT,
+  WAR_AI_YEARS_PORT,
+} from './registry-port-schemas.js';
 import type { HeatAdaptation, HeatEvent } from './heat/data.js';
 import { heatEvidence } from './heat/data.js';
 import { simulateHeatEvent, type HeatSimulationResult } from './heat/model.js';
@@ -85,17 +120,17 @@ export const heatEventModel = defineModel<HeatModelInput, HeatSimulationResult>(
   description: 'Coupled acute heat mortality, cooling-power, and crop-stress experiment.',
   run: ({ event, adaptation, mortalityScale }) => simulateHeatEvent(event, adaptation, mortalityScale),
   inputPorts: {
-    event: opaquePort('Heat-event configuration contains temperatures, durations, populations, and shares.'),
-    adaptation: opaquePort('Adaptation configuration contains capacities, temperatures, and shares.'),
+    event: HEAT_EVENT_PORT,
+    adaptation: HEAT_ADAPTATION_PORT,
     mortalityScale: unitPort('1', 'number'),
   },
   outputPorts: {
-    event: opaquePort('Echoed mixed-unit heat-event configuration.'),
-    adaptation: opaquePort('Echoed mixed-unit adaptation configuration.'),
+    event: HEAT_EVENT_PORT,
+    adaptation: HEAT_ADAPTATION_PORT,
     mortalityScale: unitPort('1', 'number'),
-    power: opaquePort('Power result mixes degree-days, shares, TWh, and GW.'),
-    food: opaquePort('Food result mixes degree-days and yield shares.'),
-    mortality: opaquePort('Mortality result mixes thermal load, people, and shares.'),
+    power: HEAT_POWER_PORT,
+    food: HEAT_FOOD_PORT,
+    mortality: HEAT_MORTALITY_PORT,
   },
   invariants: [
     { id: 'nonnegative-deaths', description: 'Mortality must be non-negative', check: (row) => row.mortality.totalDeaths >= 0 },
@@ -111,8 +146,8 @@ export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, Generi
   description: 'Monthly sterile-generic margins, utilization, inventories, and patient service.',
   run: (scenario) => simulateGenericDrugEconomics(scenario),
   inputPorts: {
-    id: opaquePort('Scenario identifier.'),
-    label: opaquePort('Scenario label.'),
+    id: metadataPort('string', 'Scenario identifier.'),
+    label: metadataPort('string', 'Scenario label.'),
     months: unitPort('month', 'number'),
     ratedCapacity: unitPort('1', 'number'),
     initialUtilization: unitPort('fraction', 'number'),
@@ -129,12 +164,12 @@ export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, Generi
     resiliencePayment: unitPort('fraction', 'number'),
   },
   outputPorts: {
-    scenario: opaquePort('Echoed mixed-unit drug scenario.'),
-    months: opaquePort('Monthly records mix quantities, inventories, margins, and service shares.', 'vector'),
-    firstShortageMonth: unitPort('month', 'number'),
+    scenario: DRUG_SCENARIO_PORT,
+    months: DRUG_MONTHS_PORT,
+    firstShortageMonth: { ...unitPort('month', 'number'), nullable: true },
     monthsBelow98Pct: unitPort('month', 'number'),
     minimumServiceLevel: unitPort('fraction', 'number'),
-    cumulativeDoseShortfall: unitPort('1', 'number'),
+    cumulativeDoseShortfall: unitPort('month', 'number'),
     endingInventoryMonths: unitPort('month', 'number'),
     averagePaidPriceMultiplier: unitPort('1', 'number'),
     averageOperatingMargin: unitPort('fraction', 'number'),
@@ -163,14 +198,14 @@ export const bilateralTariffModel = defineModel<TariffModelInput, BilateralTarif
   description: 'Product-scoped bilateral tariff model with input-output price propagation.',
   run: ({ action, scope, retaliation }) => simulateBilateralTariff(action, { scope, retaliation }),
   inputPorts: {
-    action: opaquePort('Tariff action mixes currency flows, tariff rates, and elasticities.'),
-    scope: { ...opaquePort('Tariff scope enum.'), optional: true },
-    retaliation: { ...opaquePort('Retaliation boolean.'), optional: true },
+    action: TARIFF_ACTION_PORT,
+    scope: { ...metadataPort('string', 'Tariff scope enum.'), optional: true },
+    retaliation: { ...metadataPort('boolean', 'Retaliation flag.'), optional: true },
   },
   outputPorts: {
-    action: opaquePort('Echoed mixed-unit tariff action.'),
-    scope: opaquePort('Tariff scope enum.'),
-    retaliation: opaquePort('Retaliation boolean.'),
+    action: TARIFF_ACTION_PORT,
+    scope: metadataPort('string', 'Tariff scope enum.'),
+    retaliation: metadataPort('boolean', 'Retaliation flag.'),
     coveredShareOfPartnerImports: unitPort('fraction', 'number'),
     effectiveAverageTariffIncrease: unitPort('fraction', 'number'),
     weightedAffectedImportQuantityDecline: unitPort('fraction', 'number'),
@@ -182,7 +217,7 @@ export const bilateralTariffModel = defineModel<TariffModelInput, BilateralTarif
     usRealGdpChange: unitPort('fraction', 'number'),
     partnerRealGdpChange: unitPort('fraction', 'number'),
     partnerExportRevenueLossBillion: unitPort('$B/year', 'number'),
-    sectors: opaquePort('Sector results mix currency flows and dimensionless changes.', 'vector'),
+    sectors: TARIFF_SECTORS_PORT,
   },
   invariants: [{
     id: 'coverage-range',
@@ -211,27 +246,27 @@ export const financialContagionModel = defineModel<FinancialContagionInput, Fina
   run: ({ scenario, policy, markets, funds, options }) =>
     simulateFinancialContagion(scenario, policy, markets, funds, options),
   inputPorts: {
-    scenario: opaquePort('Shock scenario mixes yield shocks and labels.'),
-    policy: opaquePort('Policy configuration mixes multipliers and currency limits.'),
-    markets: opaquePort('Market records mix yields, durations, depth, and currency values.', 'vector'),
-    funds: opaquePort('Fund records mix currency balance sheets, calls, and allocation shares.', 'vector'),
-    options: { ...opaquePort('Solver options mix counts, basis points, and currency values.'), optional: true },
+    scenario: SOVEREIGN_SCENARIO_PORT,
+    policy: CONTAGION_POLICY_PORT,
+    markets: SOVEREIGN_MARKETS_PORT,
+    funds: LEVERAGED_FUNDS_PORT,
+    options: { ...CONTAGION_OPTIONS_PORT, optional: true },
   },
   outputPorts: {
-    scenario: opaquePort('Echoed mixed-unit shock scenario.'),
-    policy: opaquePort('Echoed mixed-unit policy configuration.'),
-    converged: opaquePort('Solver convergence boolean.'),
+    scenario: SOVEREIGN_SCENARIO_PORT,
+    policy: CONTAGION_POLICY_PORT,
+    converged: metadataPort('boolean', 'Solver convergence flag.'),
     iterations: unitPort('1', 'number'),
     residualBps: unitPort('bp', 'number'),
-    termination: opaquePort('Solver termination enum.'),
-    markets: opaquePort('Market stress records mix basis points and currency flows.', 'vector'),
-    funds: opaquePort('Fund stress records mix currency flows, flags, and allocations.', 'vector'),
+    termination: metadataPort('string', 'Solver termination enum.'),
+    markets: MARKET_STRESS_ROWS_PORT,
+    funds: FUND_STRESS_ROWS_PORT,
     totalForcedSalesBillion: unitPort('$B', 'number'),
     totalCentralBankPurchasesBillion: unitPort('$B', 'number'),
     dealerCounterpartyLossBillion: unitPort('$B', 'number'),
     bankTier1CapitalHit: unitPort('fraction', 'number'),
     crossMarketSpilloverBps: unitPort('bp', 'number'),
-    liquidationCapacityExhausted: opaquePort('Liquidation-capacity boolean.'),
+    liquidationCapacityExhausted: BOOLEAN_PORT,
   },
   invariants: [{
     id: 'nonnegative-sales',
@@ -256,14 +291,14 @@ export const maritimeNetworkModel = defineModel<MaritimeModelInput, MaritimeSimu
   description: 'Monthly Hormuz–Bab–Suez serial-edge network with Cape rerouting and queues.',
   run: ({ scenario, params }) => simulateMaritimeNetwork(scenario, params),
   inputPorts: {
-    scenario: opaquePort('Maritime scenario contains throughput paths, dates, and labels.'),
-    params: { ...opaquePort('Network parameters mix flows, delays, exposures, and elasticities.'), optional: true },
+    scenario: MARITIME_SCENARIO_PORT,
+    params: { ...PARTIAL_MARITIME_PARAMS_PORT, optional: true },
   },
   outputPorts: {
-    scenario: opaquePort('Echoed mixed-unit maritime scenario.'),
-    params: opaquePort('Resolved mixed-unit maritime parameters.'),
-    monthly: opaquePort('Monthly network rows mix mb/d, hours, shares, and inflation points.', 'vector'),
-    annual: opaquePort('Annual network rows mix mb/d, hours, shares, and inflation points.', 'vector'),
+    scenario: MARITIME_SCENARIO_PORT,
+    params: MARITIME_PARAMS_PORT,
+    monthly: MARITIME_MONTHS_PORT,
+    annual: MARITIME_ANNUAL_ROWS_PORT,
   },
   invariants: [{
     id: 'availability-range',
@@ -285,20 +320,20 @@ export const defenseSourcingModel = defineModel<DefenseSourcingInput, DefenseSou
   description: 'Monthly capacity commissioning, qualification, waivers, stockpiles, and defense output.',
   run: ({ policy, overrides }) => simulateDefenseSourcing(policy, overrides),
   inputPorts: {
-    policy: opaquePort('Defense policy identifier.'),
-    overrides: { ...opaquePort('Defense parameters mix capacities, dates, costs, and shares.'), optional: true },
+    policy: metadataPort('string', 'Defense policy identifier.'),
+    overrides: { ...PARTIAL_DEFENSE_PARAMS_PORT, optional: true },
   },
   outputPorts: {
-    policy: opaquePort('Defense policy identifier.'),
-    params: opaquePort('Resolved mixed-unit defense parameters.'),
-    months: opaquePort('Monthly defense rows mix capacity, inventory, costs, and output shares.', 'vector'),
-    network: opaquePort('Dynamic network result contains mixed node quantities and service shares.'),
-    firstCurtailmentMonth: unitPort('month', 'number'),
+    policy: metadataPort('string', 'Defense policy identifier.'),
+    params: DEFENSE_PARAMS_PORT,
+    months: DEFENSE_MONTHS_PORT,
+    network: DYNAMIC_NETWORK_PORT,
+    firstCurtailmentMonth: { ...unitPort('month', 'number'), nullable: true },
     minimumDefenseOutput: unitPort('fraction', 'number'),
     outputMonthsLost: unitPort('month', 'number'),
     monthsBelow95Pct: unitPort('month', 'number'),
     waiverSupplyMonths: unitPort('month', 'number'),
-    stockpileDepletionMonth: unitPort('month', 'number'),
+    stockpileDepletionMonth: { ...unitPort('month', 'number'), nullable: true },
     endingQualifiedCapacity: unitPort('1', 'number'),
     averageProcurementCostIndex: unitPort('1', 'number'),
   },
@@ -322,14 +357,14 @@ export const hormuzDisruptionModel = defineModel<HormuzModelInput, HormuzSimulat
   description: 'Monthly oil, LNG, fertilizer, inventory, storage, price, and regional exposure model.',
   run: ({ scenario, params }) => simulateHormuzDisruption(scenario, params),
   inputPorts: {
-    scenario: opaquePort('Hormuz scenario mixes throughput paths, timing, and labels.'),
-    params: { ...opaquePort('Hormuz parameters mix commodity flows, storage, prices, and elasticities.'), optional: true },
+    scenario: HORMUZ_SCENARIO_PORT,
+    params: { ...HORMUZ_PARAMS_PORT, optional: true },
   },
   outputPorts: {
-    scenario: opaquePort('Echoed mixed-unit Hormuz scenario.'),
-    params: opaquePort('Resolved mixed-unit Hormuz parameters.'),
-    months: opaquePort('Monthly Hormuz rows mix physical flows, inventories, prices, and shares.', 'vector'),
-    annual: opaquePort('Annual Hormuz rows mix availability, prices, output, and regional effects.', 'vector'),
+    scenario: HORMUZ_SCENARIO_PORT,
+    params: HORMUZ_PARAMS_PORT,
+    months: HORMUZ_MONTHS_PORT,
+    annual: ANNUAL_HORMUZ_ROWS_PORT,
   },
   invariants: [{
     id: 'oil-availability-range',
@@ -372,7 +407,7 @@ export const outbreakPreparednessModel = defineModel<OutbreakV2Params, OutbreakS
     severityDeclineStartDaysAfterResponse: unitPort('day', 'number'),
     severityHalfLifeDays: unitPort('day', 'number'),
     severityFloor: unitPort('fraction', 'number'),
-    countermeasure: { ...opaquePort('Countermeasure configuration mixes timing, course flow, and efficacy.'), optional: true },
+    countermeasure: { ...COUNTERMEASURE_PORT, optional: true },
   },
   outputPorts: {
     weeklyCases: unitPort('people/week', 'vector'),
@@ -398,13 +433,13 @@ export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
   inputPorts: {
     baseParams: { ...opaquePort('Global-model parameter tree contains many module-specific units.'), optional: true },
     aiParams: opaquePort('AI scenario parameter tree contains many module-specific units.'),
-    hormuzScenario: { ...opaquePort('Hormuz scenario identifier.'), optional: true },
+    hormuzScenario: { ...metadataPort('string', 'Hormuz scenario identifier.'), optional: true },
     endYear: { ...unitPort('year', 'number'), optional: true },
   },
   outputPorts: {
-    scenario: opaquePort('Hormuz scenario identifier.'),
+    scenario: metadataPort('string', 'Hormuz scenario identifier.'),
     paths: opaquePort('Four complete global simulation results contain many units.'),
-    years: opaquePort('Annual experiment rows mix GDP, energy, capital, rates, and regional effects.', 'vector'),
+    years: WAR_AI_YEARS_PORT,
   },
   invariants: [{
     id: 'aligned-paths',
@@ -415,13 +450,17 @@ export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
   validationClaims: [claim('mechanism-inherited', 'War × AI interaction', 'This experiment composes the separately calibrated Hormuz model with the global macro model; the interaction itself has no historical holdout.', [])],
 });
 
-export const simulationModelRegistry = new ModelRegistry()
-  .register(heatEventModel)
-  .register(genericDrugModel)
-  .register(bilateralTariffModel)
-  .register(financialContagionModel)
-  .register(maritimeNetworkModel)
-  .register(defenseSourcingModel)
-  .register(hormuzDisruptionModel)
-  .register(outbreakPreparednessModel)
-  .register(warAiModel);
+export const SIMULATION_MODELS = [
+  heatEventModel,
+  genericDrugModel,
+  bilateralTariffModel,
+  financialContagionModel,
+  maritimeNetworkModel,
+  defenseSourcingModel,
+  hormuzDisruptionModel,
+  outbreakPreparednessModel,
+  warAiModel,
+] as const;
+
+export const simulationModelRegistry = new ModelRegistry();
+for (const model of SIMULATION_MODELS) simulationModelRegistry.register(model as any);

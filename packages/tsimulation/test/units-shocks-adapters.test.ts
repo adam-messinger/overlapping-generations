@@ -7,16 +7,27 @@ import {
   defineModel,
   defineModule,
   auditConnectorContracts,
+  auditModelContracts,
   areUnitsConvertible,
+  assertPortValue,
   getUnit,
+  assertUnitBalance,
+  convertQuantity,
+  divideQuantities,
+  integrateFlow,
+  metadataPort,
   mergeTemporalRecords,
   multiplyUnits,
+  multiplyQuantities,
+  objectConnector,
+  objectPort,
   runAutowired,
   runAdapter,
   runModel,
   trackObjectReads,
   unreadOverridePaths,
   unitConnector,
+  unitQuantity,
   validatePortUnits,
 } from '../src/index.js';
 import { okValidate } from './helpers.js';
@@ -38,6 +49,111 @@ test('compound-unit algebra distinguishes stocks, flows, power, and energy', () 
   assert.ok(areUnitsConvertible(multiplyUnits('GW', 'hour').symbol, 'GWh'));
   assert.throws(() => convertUnit(1, '$T', '$T/year'), /Incompatible/);
   assert.throws(() => convertUnit(1, 'GW', 'TWh'), /Incompatible/);
+});
+
+test('recursive contracts validate every nested field and report its path', () => {
+  interface CapacityRow { solar: number; battery: number; label: string }
+  const capacity = objectPort<CapacityRow>({
+    solar: { unit: 'GW' },
+    battery: { unit: 'GWh' },
+    label: metadataPort('string', 'Scenario label.'),
+  });
+  assertPortValue({ solar: 10, battery: 40, label: 'base' }, capacity, 'capacity');
+  assert.throws(
+    () => assertPortValue({ solar: 10, battery: 40 }, capacity, 'capacity'),
+    /capacity.label: required contracted value is missing/,
+  );
+  assert.throws(
+    () => assertPortValue({ solar: 10, battery: 40, label: true }, capacity, 'capacity'),
+    /capacity.label: expected string metadata/,
+  );
+  assert.throws(
+    () => assertPortValue(
+      { solar: 10, battery: 40, label: 'base', undeclared: 1 },
+      capacity,
+      'capacity',
+    ),
+    /capacity.undeclared: value has no port contract/,
+  );
+
+  const producer = objectConnector<CapacityRow>('record', {
+    solar: { unit: 'GW' },
+    battery: { unit: 'GWh' },
+    label: metadataPort('string', 'Scenario label.'),
+  });
+  const badConsumer = objectConnector<CapacityRow>('record', {
+    solar: { unit: 'GW' },
+    battery: { unit: 'GW' },
+    label: metadataPort('string', 'Scenario label.'),
+  });
+  assert.throws(
+    () => validatePortUnits(producer, badConsumer, 'energy capacities'),
+    /energy capacities\.battery: unit mismatch 'GWh' -> 'GW'/,
+  );
+});
+
+test('scalar, optional, and nullable contracts stay strict at runtime and wiring time', () => {
+  assert.throws(
+    () => assertPortValue([1, 2], { unit: 'GW' }, 'scalar capacity'),
+    /scalar capacity: expected number value/,
+  );
+  assert.throws(
+    () => assertPortValue({ a: null }, { unit: 'GW', valueType: 'record' }, 'capacity map'),
+    /capacity map\.a: unit-bearing value must be numeric, got null/,
+  );
+  assert.throws(
+    () => validatePortUnits(
+      { unit: 'GW', nullable: true },
+      { unit: 'GW' },
+      'nullable capacity',
+    ),
+    /nullable producer cannot satisfy a non-null consumer/,
+  );
+  assert.throws(
+    () => validatePortUnits(
+      { unit: 'GW', optional: true },
+      { unit: 'GW' },
+      'optional capacity',
+    ),
+    /optional producer cannot satisfy a required consumer/,
+  );
+
+  const malformed = auditModelContracts([{
+    id: 'malformed',
+    inputPorts: { row: { kind: 'object' } },
+    outputPorts: { value: { unit: '1' } },
+  }] as any);
+  assert.equal(malformed.valid, false);
+  assert.match(malformed.errors.join('\n'), /object contract must declare fields/);
+});
+
+test('unit-aware equations integrate flows and reject invalid arithmetic', () => {
+  const annualInvestment = unitQuantity(2, '$T/year', 'investment');
+  const addition = integrateFlow(annualInvestment, unitQuantity(1, 'year'), '$T', 'annual investment');
+  assert.ok(Math.abs(addition.value - 2) < 1e-12);
+  assert.equal(addition.unit, '$T');
+
+  const generation = convertQuantity(multiplyQuantities([
+    unitQuantity(1, 'GW'),
+    unitQuantity(0.5, 'fraction'),
+    unitQuantity(8760, 'hour/year'),
+  ]), 'TWh/year');
+  assert.ok(Math.abs(generation.value - 4.38) < 1e-12);
+
+  const storageDuration = convertQuantity(divideQuantities(
+    unitQuantity(8, 'GWh'),
+    unitQuantity(2, 'GW'),
+  ), 'hour');
+  assert.ok(Math.abs(storageDuration.value - 4) < 1e-12);
+
+  assertUnitBalance('capital stock', unitQuantity(102, '$T'), [
+    unitQuantity(100, '$T'),
+    addition,
+  ]);
+  assert.throws(
+    () => assertUnitBalance('bad ledger', unitQuantity(1, '$T'), [unitQuantity(1, 'people')]),
+    /cannot convert 'people' to '\$T'/,
+  );
 });
 
 test('strict graph audit rejects missing contracts and implicit scale conversions', () => {

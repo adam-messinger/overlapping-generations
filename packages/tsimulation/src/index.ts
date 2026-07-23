@@ -13,6 +13,7 @@ export * from './validated-merge.js';
 export * from './component-params.js';
 export * from './validation.js';
 export * from './units.js';
+export * from './equation.js';
 export * from './graph.js';
 export * from './solvers.js';
 export * from './serialization.js';

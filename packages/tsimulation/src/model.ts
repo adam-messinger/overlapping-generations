@@ -4,7 +4,13 @@ import { validateEvidence, validateValidationClaims } from './evidence.js';
 import type { Invariant, InvariantReport } from './validation.js';
 import { assertFiniteDeep, assertInvariants } from './validation.js';
 import type { PortContract, PortMeta } from './units.js';
-import { assertPortContract, validatePortMeta } from './units.js';
+import {
+  assertPortContract,
+  countPortSchema,
+  isOpaquePort,
+  isPortMeta,
+  validatePortMeta,
+} from './units.js';
 
 export interface ModelContext {
   seed?: number;
@@ -42,6 +48,71 @@ export interface ModelRun<TInput, TOutput> {
   runLabel?: string;
 }
 
+export interface ModelContractAudit {
+  valid: boolean;
+  errors: string[];
+  unitBearingContracts: number;
+  metadataContracts: number;
+  opaqueContracts: number;
+  structuredContracts: number;
+  opaquePaths: string[];
+}
+
+export interface AuditableModelContract {
+  id: string;
+  inputPorts: unknown;
+  outputPorts: unknown;
+}
+
+function walkModelContract(
+  contract: unknown,
+  context: string,
+  audit: ModelContractAudit,
+): void {
+  if (isPortMeta(contract)) {
+    try {
+      validatePortMeta(contract, context);
+      const count = countPortSchema(contract);
+      audit.unitBearingContracts += count.unitBearing;
+      audit.metadataContracts += count.metadata;
+      audit.opaqueContracts += count.opaque;
+      audit.structuredContracts += count.structured;
+      if (isOpaquePort(contract)) audit.opaquePaths.push(context);
+    } catch (error) {
+      audit.errors.push(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+  if (typeof contract !== 'object' || contract === null) {
+    audit.errors.push(`${context}: missing or invalid port contract`);
+    return;
+  }
+  for (const [name, field] of Object.entries(contract)) {
+    walkModelContract(field, `${context}.${name}`, audit);
+  }
+}
+
+/** CI-friendly dimensional coverage audit for standalone model boundaries. */
+export function auditModelContracts(
+  models: readonly AuditableModelContract[],
+): ModelContractAudit {
+  const audit: ModelContractAudit = {
+    valid: true,
+    errors: [],
+    unitBearingContracts: 0,
+    metadataContracts: 0,
+    opaqueContracts: 0,
+    structuredContracts: 0,
+    opaquePaths: [],
+  };
+  for (const model of models) {
+    walkModelContract(model.inputPorts, `model ${model.id}.input`, audit);
+    walkModelContract(model.outputPorts, `model ${model.id}.output`, audit);
+  }
+  audit.valid = audit.errors.length === 0;
+  return audit;
+}
+
 function applyValidation(result: ValidationResult | void, context: string, warnings: string[]): void {
   if (!result) return;
   warnings.push(...result.warnings.map((warning) => `${context}: ${warning}`));
@@ -61,7 +132,7 @@ export function defineModel<TInput, TOutput>(
     ['output', definition.outputPorts],
   ] as const) {
     if (!ports) throw new Error(`Model '${definition.id}' is missing its ${side} port contract`);
-    if ('unit' in (ports as PortMeta) || 'opaque' in (ports as PortMeta)) {
+    if (isPortMeta(ports)) {
       validatePortMeta(ports as PortMeta, `Model '${definition.id}' ${side} port`);
       continue;
     }

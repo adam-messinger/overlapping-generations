@@ -24,7 +24,15 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, opaqueConnector, unitConnector } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
+import {
+  ENERGY_ADDITION_CONNECTOR,
+  ENERGY_CAPACITY_CONNECTOR,
+  ENERGY_LCOE_CONNECTOR,
+  REGIONAL_ENERGY_ADDITION_CONNECTOR,
+  REGIONAL_ENERGY_CAPACITY_CONNECTOR,
+  REGIONAL_ENERGY_LCOE_CONNECTOR,
+} from '../connector-schemas.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
@@ -902,16 +910,16 @@ export const energyModule: Module<
       regionalSavings: unitConnector('record', 'fraction'),
     },
     outputs: {
-      lcoes: opaqueConnector('record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
-      regionalLCOEs: opaqueConnector('nested-record', 'Battery entries are $/kWh while generator entries are $/MWh.'),
+      lcoes: ENERGY_LCOE_CONNECTOR,
+      regionalLCOEs: REGIONAL_ENERGY_LCOE_CONNECTOR,
       netEnergyFraction: unitConnector('record', 'fraction'),
       solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
-      capacities: opaqueConnector('record', 'Generator capacity is GW while battery capacity is GWh.'),
+      capacities: ENERGY_CAPACITY_CONNECTOR,
       energyCapexSpend: unitConnector('number', '$T/year'),
-      regionalCapacities: opaqueConnector('nested-record', 'Generator capacity is GW while battery capacity is GWh.'),
-      cumulativeCapacity: opaqueConnector('record', 'Generator deployment is GW while battery deployment is GWh.'),
-      additions: opaqueConnector('record', 'Generator additions are GW/year while battery additions are GWh/year.'),
-      regionalAdditions: opaqueConnector('nested-record', 'Generator additions are GW/year while battery additions are GWh/year.'),
+      regionalCapacities: REGIONAL_ENERGY_CAPACITY_CONNECTOR,
+      cumulativeCapacity: ENERGY_CAPACITY_CONNECTOR,
+      additions: ENERGY_ADDITION_CONNECTOR,
+      regionalAdditions: REGIONAL_ENERGY_ADDITION_CONNECTOR,
       batteryCost: unitConnector('number', '$/kWh'),
       cheapestLCOE: unitConnector('number', '$/MWh'),
       effectiveSolarCF: unitConnector('number', 'fraction'),

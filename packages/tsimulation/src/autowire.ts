@@ -14,7 +14,8 @@
 import { Module, ConnectorDeclaration, ConnectorSpec, ConnectorType } from './module.js';
 import { Year, YearIndex } from './types.js';
 import { validatedMerge } from './validated-merge.js';
-import { assertPortValue, getUnit, validatePortUnits } from './units.js';
+import type { PortMeta } from './units.js';
+import { assertPortValue, countPortSchema, validatePortMeta, validatePortUnits } from './units.js';
 import { trackObjectReads, unreadOverridePaths } from './liveness.js';
 import { findNonFiniteValues } from './validation.js';
 
@@ -345,6 +346,18 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
 // CONNECTOR TYPE VALIDATION
 // =============================================================================
 
+function connectorPortMeta(spec: ConnectorSpec): PortMeta {
+  if ('kind' in spec && spec.kind) return spec as PortMeta;
+  if ('opaque' in spec && spec.opaque) {
+    return { opaque: true, description: spec.description, valueType: spec.type };
+  }
+  return {
+    unit: spec.unit,
+    valueType: spec.type,
+    ...(spec.description ? { description: spec.description } : {}),
+  };
+}
+
 /** Validate complete shape/unit contracts for modules, transforms, and lags. */
 export function validateConnectorTypes(
   modules: AnyModule[],
@@ -366,10 +379,10 @@ export function validateConnectorTypes(
       warnings.push(`Incomplete connector contract: ${context} declares type '${declaration}' but no unit or opaque marker`);
       return undefined;
     }
-    if ('opaque' in declaration && declaration.opaque) {
-      if (!declaration.description?.trim()) warnings.push(`Opaque connector ${context} must explain why it is opaque`);
-    } else if (!getUnit(declaration.unit)) {
-      warnings.push(`Unknown unit '${declaration.unit}' in connector ${context}`);
+    try {
+      validatePortMeta(connectorPortMeta(declaration), context);
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
     }
     return declaration;
   };
@@ -380,12 +393,8 @@ export function validateConnectorTypes(
     }
     try {
       validatePortUnits(
-        'opaque' in producer && producer.opaque
-          ? { opaque: true, description: producer.description, valueType: producer.type }
-          : { unit: producer.unit, valueType: producer.type },
-        'opaque' in consumer && consumer.opaque
-          ? { opaque: true, description: consumer.description, valueType: consumer.type }
-          : { unit: consumer.unit, valueType: consumer.type },
+        connectorPortMeta(producer),
+        connectorPortMeta(consumer),
         context,
       );
     } catch (error) {
@@ -484,17 +493,16 @@ export function validateConnectorTypes(
 }
 
 function assertConnectorValue(value: unknown, spec: ConnectorSpec, context: string): void {
-  const meta = 'opaque' in spec && spec.opaque
-    ? { opaque: true as const, description: spec.description, valueType: spec.type }
-    : { unit: spec.unit, valueType: spec.type };
-  assertPortValue(value, meta, context);
+  assertPortValue(value, connectorPortMeta(spec), context);
 }
 
 export interface ConnectorContractAudit {
   valid: boolean;
   errors: string[];
   unitBearingContracts: number;
+  metadataContracts: number;
   opaqueContracts: number;
+  structuredContracts: number;
 }
 
 /** CI-friendly completeness audit for an entire composed simulation graph. */
@@ -514,14 +522,32 @@ export function auditConnectorContracts(
     declarations.push(...Object.values(transform.inputTypes ?? {}), transform.outputType);
   }
   for (const lag of Object.values(lags)) if (lag.contract) declarations.push(lag.contract);
-  const unitBearingContracts = declarations.filter(
-    (declaration) => typeof declaration !== 'string' && !('opaque' in declaration && declaration.opaque),
-  ).length;
-  const opaqueContracts = declarations.filter(
-    (declaration) => typeof declaration !== 'string' && 'opaque' in declaration && declaration.opaque,
-  ).length;
+  const counts = declarations.reduce(
+    (total, declaration) => {
+      if (typeof declaration === 'string' || !declaration) return total;
+      try {
+        const meta = connectorPortMeta(declaration);
+        validatePortMeta(meta, 'connector contract audit');
+        const count = countPortSchema(meta);
+        total.unitBearingContracts += count.unitBearing;
+        total.metadataContracts += count.metadata;
+        total.opaqueContracts += count.opaque;
+        total.structuredContracts += count.structured;
+      } catch {
+        // validateConnectorTypes below records the contextual error. Keep the
+        // audit report usable even when a JavaScript caller supplied malformed metadata.
+      }
+      return total;
+    },
+    {
+      unitBearingContracts: 0,
+      metadataContracts: 0,
+      opaqueContracts: 0,
+      structuredContracts: 0,
+    },
+  );
   const errors = validateConnectorTypes(modules, outputRegistry, transforms, lags);
-  return { valid: errors.length === 0, errors, unitBearingContracts, opaqueContracts };
+  return { valid: errors.length === 0, errors, ...counts };
 }
 
 export function assertConnectorContracts(
