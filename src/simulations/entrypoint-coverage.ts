@@ -37,6 +37,10 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
   simulateOutbreakV2: { status: 'registered', modelId: 'outbreak-preparedness' },
   makeForecast: { status: 'registered', modelId: 'outbreak-probabilistic-forecast' },
   runWarAiExperiment: { status: 'registered', modelId: 'war-ai-factorial' },
+  simulateAviationInfrastructure: {
+    status: 'registered',
+    modelId: 'aviation-infrastructure-traffic',
+  },
 
   simulateCisplatinBackcast: {
     status: 'validation-component',

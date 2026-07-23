@@ -9,6 +9,7 @@ import { france2026HeatEvent, heatAdaptationPackages } from './heat/data.js';
 import { genericDrugEconomicsScenarios } from './drug-supply/data.js';
 import { genericTariffScenarios } from './drug-supply/generic-tariff.js';
 import { dataCenterGridScenarios } from './news/data-center-grid.js';
+import { centralAviationScenario } from './aviation-infrastructure/data.js';
 import { canadaJuly2026Tariff } from './trade/data.js';
 import {
   contagionPolicies,
@@ -209,8 +210,12 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       originIndex: 14,
       horizon: 4,
     }),
+    simulationModelRegistry.run(
+      'aviation-infrastructure-traffic',
+      centralAviationScenario,
+    ),
   ];
-  assert.equal(runs.length, 13);
+  assert.equal(runs.length, 14);
 });
 
 test('war-AI annual rows satisfy their recursive contract', () => {

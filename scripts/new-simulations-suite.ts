@@ -9,6 +9,7 @@ import {
 } from 'tsimulation';
 import { loadScenario, scenarioToParams } from '../src/scenario.js';
 import {
+  aviationInfrastructureModel,
   bilateralTariffModel,
   defenseSourcingModel,
   financialContagionModel,
@@ -19,6 +20,14 @@ import {
   outbreakPreparednessModel,
   warAiModel,
 } from '../src/simulations/registry.js';
+import {
+  aviationInfrastructureScenarios,
+} from '../src/simulations/aviation-infrastructure/data.js';
+import {
+  backtestConventionalTraffic,
+  evaluateEarlyAamBenchmark,
+  projectPaloAltoTraffic,
+} from '../src/simulations/aviation-infrastructure/calibration.js';
 import { outbreakEpisodes } from '../src/simulations/outbreak/data.js';
 import { calibrateOutbreakV1, calibrateOutbreakV2 } from '../src/simulations/outbreak/calibration.js';
 import { evaluatePanel } from '../src/simulations/outbreak/probabilistic.js';
@@ -249,6 +258,22 @@ const warAiTrough = warAi.years.reduce((selected, row) =>
 );
 const warAi2035 = warAi.years.find((row) => row.year === 2035)!;
 
+const aviationRuns = Object.entries(aviationInfrastructureScenarios)
+  .map(([id, scenario]) => ({
+    id,
+    result: runTracked(
+      `aviation-${id}`,
+      aviationInfrastructureModel,
+      scenario,
+    ),
+  }));
+const aviationCentral = aviationRuns
+  .find((row) => row.id === 'central-mixed')!.result;
+const aviationBacktest = backtestConventionalTraffic();
+const aviationBenchmark = evaluateEarlyAamBenchmark();
+const aviationPaloAlto = projectPaloAltoTraffic(aviationCentral)
+  .filter((row) => [2030, 2035, 2040, 2045, 2050].includes(row.year));
+
 const summary = {
   schemaVersion: 'tsimulation.suite/v1',
   createdAt: new Date().toISOString(),
@@ -288,6 +313,30 @@ const summary = {
   warAi: {
     trough: warAiTrough,
     year2035: warAi2035,
+  },
+  aviationInfrastructure: {
+    conventionalHoldout: {
+      naiveMape: aviationBacktest.naiveMeanAbsolutePercentageError,
+      segmentedMape:
+        aviationBacktest.segmentedMeanAbsolutePercentageError,
+    },
+    earlyAamBenchmark: {
+      vtolToAllUseFleetAbsoluteDifference:
+        aviationBenchmark.meanVtolToAllUseFleetAbsolutePercentageDifference,
+      modeledToUnconstrainedPassengerFlightRatio:
+        aviationBenchmark.meanModeledToUnconstrainedPassengerFlightRatio,
+    },
+    scenarios: aviationRuns.map(({ id, result }) => ({
+      id,
+      firstMillionAamFlightsYear: result.firstMillionAamFlightsYear,
+      firstTenMillionAamFlightsYear: result.firstTenMillionAamFlightsYear,
+      endingAamFlights: result.endingAamFlights,
+      endingAamPassengerTrips: result.endingAamPassengerTrips,
+      endingVtolFlightShare: result.endingVtolFlightShare,
+      endingRunwayFlightShare: result.endingRunwayFlightShare,
+      endingFacilityAamOperations: result.endingFacilityAamOperations,
+    })),
+    centralPaloAltoIllustration: aviationPaloAlto,
   },
 };
 

@@ -63,6 +63,16 @@ test('absolute temperatures, temperature differences, and calendar labels stay d
   assert.equal(getUnit('°C*day'), undefined);
 });
 
+test('aviation units distinguish flights, endpoint operations, passengers, and capacity', () => {
+  assert.ok(Math.abs(convertUnit(1, 'mi', 'km') - 1.609344) < 1e-12);
+  assert.equal(areUnitsConvertible('flight', 'operation'), false);
+  assert.equal(areUnitsConvertible('flight', 'passenger-trip'), false);
+  assert.equal(areUnitsConvertible('aircraft', 'vehicle'), false);
+  assert.ok(getUnit('flight/aircraft/day'));
+  assert.ok(getUnit('operation/facility/day'));
+  assert.ok(getUnit('USgal/operation'));
+});
+
 test('recursive contracts validate every nested field and report its path', () => {
   interface CapacityRow { solar: number; battery: number; label: string }
   const capacity = objectPort<CapacityRow>({

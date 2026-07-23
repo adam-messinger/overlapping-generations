@@ -134,6 +134,24 @@ import {
   bnefTotalToIncrementalLoadDerivation,
   lbnl2023DataCenterElectricityMeasurement,
 } from './news/data-center-grid-measurements.js';
+import {
+  aviationEvidence,
+  tafFacilityTrafficHistory,
+  type AviationInfrastructureScenario,
+} from './aviation-infrastructure/data.js';
+import {
+  simulateAviationInfrastructure,
+  type AviationInfrastructureResult,
+} from './aviation-infrastructure/model.js';
+import {
+  businessJetEndpointDerivation,
+  faaDomesticBusinessJetOperations2025Measurement,
+  faaInternationalBusinessJetOperations2025Measurement,
+} from './aviation-infrastructure/measurement-contracts.js';
+import {
+  AVIATION_INFRASTRUCTURE_RESULT_PORT,
+  AVIATION_INFRASTRUCTURE_SCENARIO_PORT,
+} from './aviation-infrastructure/ports.js';
 
 const observed = (
   id: string,
@@ -813,6 +831,191 @@ export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
   validationClaims: [claim('mechanism-inherited', 'War × AI interaction', 'This experiment composes the separately calibrated Hormuz model with the global macro model; the interaction itself has no historical holdout.', [])],
 });
 
+export const aviationInfrastructureModel = defineModel<
+  AviationInfrastructureScenario,
+  AviationInfrastructureResult
+>({
+  id: 'aviation-infrastructure-traffic',
+  version: '1.0.0',
+  description:
+    'Annual U.S. conventional and advanced-air-mobility traffic allocated across major-airport FBOs, business-aviation airports, small airports, helipads, and new vertiports.',
+  run: (scenario) => simulateAviationInfrastructure(scenario),
+  inputPorts: AVIATION_INFRASTRUCTURE_SCENARIO_PORT.fields,
+  outputPorts: AVIATION_INFRASTRUCTURE_RESULT_PORT.fields,
+  invariants: [
+    {
+      id: 'two-facility-operations-per-flight',
+      description:
+        'Every origin-to-destination AAM flight must create one departure and one arrival.',
+      check: (result) =>
+        result.years.every((row) =>
+          Math.abs(row.totalAamFacilityOperations - 2 * row.totalAamFlights) <=
+          Math.max(1e-6, row.totalAamFacilityOperations * 1e-10)
+        ),
+    },
+    {
+      id: 'architecture-shares-reconcile',
+      description:
+        'VTOL and runway flight shares must sum to one whenever AAM operates.',
+      check: (result) =>
+        result.years.every((row) =>
+          row.totalAamFlights === 0
+            ? row.vtolFlightShare === 0 && row.runwayFlightShare === 0
+            : Math.abs(row.vtolFlightShare + row.runwayFlightShare - 1) < 1e-10
+        ),
+    },
+    {
+      id: 'fbo-service-is-subset-of-traffic',
+      description:
+        'FBO-handled operations cannot exceed total facility operations.',
+      check: (result) =>
+        result.years.every((row) =>
+          row.totalFboHandledOperations <=
+          row.totalConventionalOperations + row.totalAamFacilityOperations + 1e-6
+        ),
+    },
+  ],
+  evidence: [
+    {
+      id: 'aviation-faa-business-jet-domestic',
+      label: 'FAA 2025 domestic business-jet arrivals and departures',
+      kind: 'observed',
+      role: 'development',
+      value: aviationEvidence.faaBusinessJetDomesticOperations2025,
+      unit: 'operation/year',
+      source: {
+        title: 'FAA Business Jet Report, June 2026',
+        url: aviationEvidence.sources.faaBusinessJet,
+        accessedAt: '2026-07-23',
+      },
+      measurement: faaDomesticBusinessJetOperations2025Measurement,
+    },
+    {
+      id: 'aviation-faa-business-jet-international',
+      label: 'FAA 2025 international business-jet arrivals and departures',
+      kind: 'observed',
+      role: 'development',
+      value: aviationEvidence.faaBusinessJetInternationalOperations2025,
+      unit: 'operation/year',
+      source: {
+        title: 'FAA Business Jet Report, June 2026',
+        url: aviationEvidence.sources.faaBusinessJet,
+        accessedAt: '2026-07-23',
+      },
+      measurement: faaInternationalBusinessJetOperations2025Measurement,
+    },
+    {
+      id: 'aviation-faa-taf-holdout',
+      label: 'FAA 2023–2024 fixed-cohort airport traffic holdouts',
+      kind: 'observed',
+      role: 'holdout',
+      value: {
+        majorAirportGa2024:
+          tafFacilityTrafficHistory.majorAirportGa.observations.at(-1)?.value,
+        businessAviationAirport2024:
+          tafFacilityTrafficHistory.businessAviationAirports.observations.at(-1)?.value,
+        otherRunwayAirport2024:
+          tafFacilityTrafficHistory.otherRunwayAirports.observations.at(-1)?.value,
+      },
+      unit: 'operation/year',
+      source: {
+        title: 'FAA 2025 Terminal Area Forecast',
+        url: aviationEvidence.sources.faaTaf,
+        accessedAt: '2026-07-23',
+      },
+      notes:
+        `Fixed-cohort TAF source ZIP SHA-256: ${aviationEvidence.taf2025ZipSha256}.`,
+    },
+    {
+      id: 'aviation-faa-business-jet-holdout',
+      label: 'FAA 2024–2025 business-jet traffic holdout',
+      kind: 'observed',
+      role: 'holdout',
+      value: {
+        businessJet2024:
+          5_134_988,
+        businessJet2025:
+          aviationEvidence.faaBusinessJetEtmscOperations2025,
+      },
+      unit: 'operation/year',
+      source: {
+        title: 'FAA Business Jet Report, June 2026',
+        url: aviationEvidence.sources.faaBusinessJet,
+        accessedAt: '2026-07-23',
+      },
+    },
+    {
+      id: 'aviation-faa-aam-unconstrained',
+      label: 'FAA six-year unconstrained AAM fleet and trip scenario',
+      kind: 'literature',
+      role: 'scenario',
+      value: {
+        allUseCaseFleet:
+          aviationEvidence.faaAamEarlyFleetAllUseCases,
+        allUseCaseDepartures:
+          aviationEvidence.faaAamEarlyAllUseCaseDepartures,
+        passengerDepartures:
+          aviationEvidence.faaAamEarlyPassengerDepartures,
+      },
+      source: {
+        title: 'FAA Aerospace Forecast FY 2026–2046',
+        url: aviationEvidence.sources.faaAerospaceForecast,
+        accessedAt: '2026-07-23',
+      },
+      notes:
+        'Passenger flights use Airport Shuttle plus Commuter Air Taxi. The published fleet also supports cargo and medical trips, so its VTOL comparison is only a scale proxy. This is not observed traffic or a forced calibration target.',
+    },
+    {
+      id: 'aviation-faa-initial-aam-infrastructure',
+      label: 'FAA initial AAM infrastructure assumptions',
+      kind: 'literature',
+      role: 'scenario',
+      source: {
+        title: 'FAA Advanced Air Mobility Infrastructure',
+        url: aviationEvidence.sources.faaAamInfrastructure,
+        accessedAt: '2026-07-23',
+      },
+      notes:
+        'Supports an initial piloted-aircraft phase using existing airports and heliports.',
+    },
+    {
+      id: 'aviation-electra-stol-certification',
+      label: 'Electra EL9 FAA certification-basis milestone',
+      kind: 'literature',
+      role: 'scenario',
+      source: {
+        title: 'Electra EL9 FAA certification milestone',
+        url: aviationEvidence.sources.electraCertification,
+        accessedAt: '2026-07-23',
+      },
+      notes:
+        'Program-specific evidence that a nine-seat ultra-short aircraft is in the certification process; it does not validate the modeled entry year.',
+    },
+  ],
+  validationClaims: [
+    claim(
+      'out-of-sample',
+      'Segmented conventional traffic baseline',
+      'Segment-specific robust growth rates are estimated before the 2023–2025 holdouts and cut mean absolute percentage error roughly in half relative to a generic aviation-growth extrapolation.',
+      [
+        'aviation-faa-taf-holdout',
+        'aviation-faa-business-jet-holdout',
+      ],
+    ),
+    claim(
+      'scenario-only',
+      'AAM architecture, certification, and autonomy branches',
+      'The early production ramp is compared with the FAA unconstrained scenario, but certification timing, usable-site rollout, passenger adoption, autonomy, and facility capture remain explicit scenarios rather than validated point forecasts.',
+      [
+        'aviation-faa-aam-unconstrained',
+        'aviation-faa-initial-aam-infrastructure',
+        'aviation-electra-stol-certification',
+      ],
+    ),
+  ],
+  semanticDerivations: [businessJetEndpointDerivation],
+});
+
 export const SIMULATION_MODELS = [
   heatEventModel,
   genericDrugModel,
@@ -828,6 +1031,7 @@ export const SIMULATION_MODELS = [
   outbreakPreparednessModel,
   outbreakForecastModel,
   warAiModel,
+  aviationInfrastructureModel,
 ] as const;
 
 export const simulationModelRegistry = new ModelRegistry();

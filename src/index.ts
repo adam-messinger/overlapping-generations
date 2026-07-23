@@ -80,5 +80,34 @@ export type { HormuzSimulationResult, HormuzMonthResult, AnnualHormuzShock } fro
 export { calibrateHormuzModel, scoreHormuzBackcast } from './simulations/critical-materials/hormuz-calibration.js';
 export { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './simulations/critical-materials/hormuz-bridge.js';
 
+// Aviation infrastructure and air-mobility traffic extension
+export {
+  aviationEvidence,
+  aviationInfrastructureScenarios,
+  centralAviationScenario,
+  paloAltoTrafficHistory,
+  tafFacilityTrafficHistory,
+} from './simulations/aviation-infrastructure/data.js';
+export type {
+  AirMobilityArchitecture,
+  AirMobilityMarket,
+  AviationFacilityClass,
+  AviationInfrastructureScenario,
+} from './simulations/aviation-infrastructure/data.js';
+export { simulateAviationInfrastructure } from './simulations/aviation-infrastructure/model.js';
+export type {
+  ArchitectureYearResult,
+  AviationInfrastructureResult,
+  AviationInfrastructureYear,
+  FacilityTrafficYearResult,
+} from './simulations/aviation-infrastructure/model.js';
+export {
+  analyzeAviationSensitivity,
+  backtestConventionalTraffic,
+  evaluateEarlyAamBenchmark,
+  naiveExtrapolatedAamFlights,
+  projectPaloAltoTraffic,
+} from './simulations/aviation-infrastructure/calibration.js';
+
 // Framework types
 export type { ValidationResult } from 'tsimulation';
