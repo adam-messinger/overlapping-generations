@@ -7,7 +7,12 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
 import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
-import { buildOutputRegistry, resolveKey, getOutputsAtYear } from 'tsimulation';
+import {
+  auditCollectorContracts,
+  buildOutputRegistry,
+  resolveKey,
+  getOutputsAtYear,
+} from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
@@ -327,7 +332,7 @@ test('describeOutputs keys match standardCollectors keys', () => {
   const outputKeys = new Set(Object.keys(outputSchema));
   const collectorKeys = new Set(
     standardCollectors.timeseries
-      .filter(d => d.unit && d.description) // only entries with metadata
+      .filter(d => d.description)
       .map(d => resolveKey(d))
   );
   collectorKeys.add('year'); // framework field
@@ -368,6 +373,13 @@ test('standardCollectors sources exist in module outputs', () => {
   if (problems.length > 0) {
     throw new Error(`standardCollectors drift:\n${problems.join('\n')}`);
   }
+});
+
+test('standardCollectors derive and validate units against their producers', () => {
+  const audit = auditCollectorContracts(ALL_MODULES, standardCollectors);
+  if (!audit.valid) throw new Error(`Collector contract audit failed:\n${audit.errors.join('\n')}`);
+  expect(audit.collectors).toBe(standardCollectors.timeseries.length);
+  expect(audit.transformedCollectors).toBe(2);
 });
 
 test('global graph has complete, compatible unit contracts', () => {

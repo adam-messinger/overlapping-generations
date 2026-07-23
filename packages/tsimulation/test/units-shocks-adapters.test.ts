@@ -51,6 +51,18 @@ test('compound-unit algebra distinguishes stocks, flows, power, and energy', () 
   assert.throws(() => convertUnit(1, 'GW', 'TWh'), /Incompatible/);
 });
 
+test('absolute temperatures, temperature differences, and calendar labels stay distinct', () => {
+  assert.ok(Math.abs(convertUnit(30, '°C', 'K') - 303.15) < 1e-12);
+  assert.equal(convertUnit(5, 'Δ°C', 'ΔK'), 5);
+  assert.equal(areUnitsConvertible('°C', 'Δ°C'), false);
+  assert.equal(areUnitsConvertible('pH', 'fraction'), false);
+  assert.equal(areUnitsConvertible('calendar-year', 'year'), false);
+  assert.equal(areUnitsConvertible('calendar-month', 'month'), false);
+  assert.equal(areUnitsConvertible('step-index', 'month'), false);
+  assert.ok(getUnit('Δ°C*day'));
+  assert.equal(getUnit('°C*day'), undefined);
+});
+
 test('recursive contracts validate every nested field and report its path', () => {
   interface CapacityRow { solar: number; battery: number; label: string }
   const capacity = objectPort<CapacityRow>({

@@ -180,7 +180,7 @@ export interface YearResult {
   regionalAdaptation: Record<Region, number>;
 
   // Long-duration storage
-  longStorageCost: number;     // $/MWh (Wright's Law)
+  longStorageCost: number;     // $/kWh of energy capacity (Wright's Law)
   longStorageCapacity: number; // GWh global
 
   // Resources - Minerals
@@ -197,7 +197,7 @@ export interface YearResult {
 
   // Resources - Food (Bennett's Law)
   proteinShare: number;          // Fraction of calories from protein
-  grainEquivalent: number;       // Mt grain needed (direct + feed)
+  grainEquivalent: number;       // Mt/year grain needed (direct + feed)
   foodStress: number;            // 0-1, fraction of food demand unmet (land cap)
 
   // Resources - Carbon
@@ -206,21 +206,21 @@ export interface YearResult {
 
   // CDR (Carbon Dioxide Removal)
   cdrRemoval: number;       // Gt CO2/yr removed
-  cdrEnergyTWh: number;     // TWh consumed
-  cdrCostPerTon: number;    // $/ton
+  cdrEnergyTWh: number;     // TWh/year consumed
+  cdrCostPerTon: number;    // $/tCO2
   cdrCumulative: number;    // Gt total removed
   cdrCapacity: number;      // Gt/yr capacity
   cdrAnnualSpend: number;   // $T/yr
 
   // Production (biophysical)
-  productionUsefulEnergy: number;
-  energySystemOverhead: number;
+  productionUsefulEnergy: number; // TWh/year
+  energySystemOverhead: number;   // TWh/year
   capitalContribution: number;   // (K/K0)^alpha
   laborContribution: number;     // (L/L0)^beta
   energyContribution: number;    // (E/E0)^gamma
   efficiencyLevel: number;       // end-use x organizational efficiency multiplier
 
-  // Resource energy consumption (TWh)
+  // Resource energy consumption (TWh/year)
   miningEnergyTWh: number;
   farmingEnergyTWh: number;
 

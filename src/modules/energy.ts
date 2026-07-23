@@ -584,10 +584,10 @@ export interface EnergyInputs {
 export interface EnergyOutputs {
   /** Realized capex spend this year, all sources incl. fossil/storage ($T) */
   energyCapexSpend: number;
-  /** Current LCOE by source ($/MWh) - GLOBAL (from learning curves) */
+  /** Generator LCOEs ($/MWh) plus battery capital cost ($/kWh), globally learned */
   lcoes: Record<EnergySource, number>;
 
-  /** Effective LCOE by source and region ($/MWh; includes financing, carbon, and site quality) */
+  /** Regional generator LCOEs ($/MWh) plus battery capital cost ($/kWh) */
   regionalLCOEs: Record<Region, Record<EnergySource, number>>;
 
   /** Net energy fraction by source (1 - 1/EROI) */
@@ -663,6 +663,26 @@ function getGlobalLongStorageCumulative2025(params: EnergyParams): number {
     total += params.longStorage.capacity2025[region] ?? 0;
   }
   return total;
+}
+
+/** Annual capital-recovery factor for an asset with a finite service life. */
+export function capitalRecoveryFactor(rate: number, lifetimeYears: number): number {
+  if (rate < 0.001) return 1 / lifetimeYears;
+  return rate / (1 - Math.pow(1 + rate, -lifetimeYears));
+}
+
+/**
+ * Convert storage capital cost ($/kWh of energy capacity) to incremental
+ * levelized storage service cost ($/MWh cycled).
+ */
+export function levelizedStorageCostPerMWh(
+  costPerKWh: number,
+  wacc: number,
+  lifetimeYears: number,
+  cyclesPerYear: number,
+): number {
+  return (costPerKWh * 1000 * capitalRecoveryFactor(wacc, lifetimeYears)) /
+    cyclesPerYear;
 }
 
 /**
@@ -1233,11 +1253,7 @@ export const energyModule: Module<
 
     // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
     const PROJECT_LIFE = 25; // years, generic generation asset
-    const crf = (r: number, n: number = PROJECT_LIFE) => {
-      if (r < 0.001) return 1 / n; // Limit as r→0
-      return r / (1 - Math.pow(1 + r, -n));
-    };
-    const crfBase = crf(params.baseWACC);
+    const crfBase = capitalRecoveryFactor(params.baseWACC, PROJECT_LIFE);
 
     // Adjust LCOE for the capital-intensity-weighted portion only, so soft
     // floor bounds are respected. The CRF ratio depends only on the WACC, so
@@ -1251,9 +1267,14 @@ export const energyModule: Module<
 
     // Pre-adjustment LCOEs are the basis for the regional adjustment.
     const preWaccLcoes = { ...lcoes };
-    const crfGlobalRatio = crf(effectiveWACC) / crfBase;
+    const crfGlobalRatio =
+      capitalRecoveryFactor(effectiveWACC, PROJECT_LIFE) / crfBase;
     for (const source of ENERGY_SOURCES) {
-      lcoes[source] = waccAdjustedLCOE(preWaccLcoes[source], source, crfGlobalRatio);
+      // Battery is an up-front energy-capacity cost ($/kWh), not a generator
+      // LCOE. Financing enters when that cost is converted to LCOS below.
+      lcoes[source] = source === 'battery'
+        ? preWaccLcoes[source]
+        : waccAdjustedLCOE(preWaccLcoes[source], source, crfGlobalRatio);
     }
 
     // Regional financing spreads over the global rate: a static residual for
@@ -1271,7 +1292,8 @@ export const energyModule: Module<
       const spread = ((params.regional[region].financingSpread ?? 0) +
         params.financingHomeBias * savingsGap) * params.financingSpreadScale;
       regionalWACC[region] = waccAt(spread);
-      regionalCrfRatio[region] = crf(regionalWACC[region]) / crfBase;
+      regionalCrfRatio[region] =
+        capitalRecoveryFactor(regionalWACC[region], PROJECT_LIFE) / crfBase;
     }
 
     // =========================================================================
@@ -1303,7 +1325,9 @@ export const energyModule: Module<
       // Regional effective LCOE (regional financing cost + carbon cost + site quality)
       const regionalLCOE: Record<EnergySource, number> = {} as any;
       for (const source of ENERGY_SOURCES) {
-        let lcoe = waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
+        let lcoe = source === 'battery'
+          ? preWaccLcoes[source]
+          : waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
         // Add regional carbon cost for fossil fuels
         if (source === 'gas' || source === 'coal') {
           const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
@@ -1320,6 +1344,14 @@ export const energyModule: Module<
         regionalLCOE[source] = lcoe;
       }
       regionalLCOEs[region] = regionalLCOE;
+      const regionalBatteryLCOS = levelizedStorageCostPerMWh(
+        regionalLCOE.battery,
+        regionalWACC[region],
+        params.batteryLifetimeYears,
+        params.batteryCyclesPerYear,
+      );
+      const regionalSolarPlusBatteryLCOE =
+        regionalLCOE.solar / params.batteryEfficiency + regionalBatteryLCOS;
 
       // Find cheapest LCOE from each side for bilateral competitiveness
       const cheapestFossilLCOE = Math.min(regionalLCOE.gas, regionalLCOE.coal);
@@ -1370,12 +1402,15 @@ export const energyModule: Module<
           const targetBatteryGWh = futureSolarGW * params.batteryDuration * storagePressure;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
 
-          // Assumption: storage-firmed solar costs ~1.5x bare solar in
-          // regional investment decisions (coarser than the global LCOS
-          // calculation; kept simple deliberately)
-          const REGIONAL_BATTERY_MARKUP = 1.5;
-          const solarPlusBatteryLCOE = regionalLCOE.solar * REGIONAL_BATTERY_MARKUP;
-          const isCompetitive = solarPlusBatteryLCOE <= cheapestFossilLCOE * params.competitiveThreshold;
+          // Keep the calibrated firmed-solar adoption threshold separate
+          // from budget ranking. Both sides here are $/MWh; the actual LCOS
+          // conversion below fixes the distinct $/kWh-vs-$/MWh sorting bug.
+          const CALIBRATED_FIRMED_SOLAR_MARKUP = 1.5;
+          const firmedSolarAdoptionProxy =
+            regionalLCOE.solar * CALIBRATED_FIRMED_SOLAR_MARKUP;
+          const isCompetitive =
+            firmedSolarAdoptionProxy <=
+            cheapestFossilLCOE * params.competitiveThreshold;
 
           if (isCompetitive && batteryGap > 0) {
             targetAddition = batteryGap * params.demandFillRate;
@@ -1436,12 +1471,11 @@ export const energyModule: Module<
       const regionVREShare = prevTotalGen > 0 ? prevVREGen / prevTotalGen : 0;
 
       // Effective solar LCOE for investment ranking: blends bare solar with solar+battery
-      const REGIONAL_BATTERY_MARKUP_FOR_RANK = 1.5;
-      const regionalSolarPlusBatteryLCOE = regionalLCOE.solar * REGIONAL_BATTERY_MARKUP_FOR_RANK;
       const effectiveSolarLCOE = (1 - regionVREShare) * regionalLCOE.solar + regionVREShare * regionalSolarPlusBatteryLCOE;
 
       const rankingLCOE: Record<EnergySource, number> = { ...regionalLCOE };
       rankingLCOE.solar = effectiveSolarLCOE;
+      rankingLCOE.battery = regionalBatteryLCOS;
 
       const cleanSources: EnergySource[] = ['solar', 'wind', 'battery', 'nuclear', 'hydro'];
       cleanSources.sort((a, b) => rankingLCOE[a] - rankingLCOE[b]);
@@ -1621,9 +1655,12 @@ export const energyModule: Module<
     // annual cycles. Uses the same effective WACC as every other source's
     // capital cost, so storage responds to interest rates consistently
     // (~$42/MWh at 7% WACC vs ~$26 straight-line).
-    const batteryLCOEContribution =
-      (batteryCost * 1000 * crf(effectiveWACC, params.batteryLifetimeYears))
-      / params.batteryCyclesPerYear;
+    const batteryLCOEContribution = levelizedStorageCostPerMWh(
+      batteryCost,
+      effectiveWACC,
+      params.batteryLifetimeYears,
+      params.batteryCyclesPerYear,
+    );
     const solarPlusBatteryLCOE =
       lcoes.solar / params.batteryEfficiency + batteryLCOEContribution;
 

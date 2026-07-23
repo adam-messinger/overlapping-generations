@@ -9,7 +9,14 @@
  *   runAgingSim({epoch: '2023'}) — 2025->2065 forecast
  *   runAgingSim({epoch: '2000'}) — 2000->2025 hindcast (validation)
  */
-import { initAutowired, stepAutowired, LagConfig, unitConnector } from 'tsimulation';
+import {
+  auditConnectorContracts,
+  initAutowired,
+  stepAutowired,
+  unitConnector,
+  type AnyModule,
+  type LagConfig,
+} from 'tsimulation';
 import { COHORTS, Cohort, DEFAULT_HEADSHIP } from './domain-types.js';
 import { EpochData, loadEpoch } from './data.js';
 import { nationModule, NationParams } from './modules/nation.js';
@@ -77,6 +84,118 @@ const NATION_DYNAMICS: Record<'2000' | '2023', Pick<NationParams,
   },
 };
 
+export const AGING_MODULES: AnyModule[] = [
+  nationModule,
+  attractionModule,
+  migrationModule,
+  marketModule,
+];
+
+interface AgingLagSeeds {
+  priceToIncome: Float64Array;
+  youngShare: Float64Array;
+  working: Float64Array;
+  midlife: Float64Array;
+  retiree: Float64Array;
+  destinationUnits: Float64Array;
+  cohorts: Record<Cohort, Float64Array>;
+}
+
+function buildAgingLags(seeds: AgingLagSeeds): Record<string, LagConfig> {
+  return {
+    laggedPriceToIncome: {
+      source: 'priceToIncome',
+      delay: 1,
+      initial: seeds.priceToIncome,
+      contract: unitConnector('vector', 'year'),
+    },
+    laggedYoungShare: {
+      source: 'youngShareVec',
+      delay: 1,
+      initial: seeds.youngShare,
+      contract: unitConnector('vector', 'fraction'),
+    },
+    laggedWorkingStock: {
+      source: 'workingStock',
+      delay: 1,
+      initial: seeds.working,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedMidlifeStock: {
+      source: 'midlifeStock',
+      delay: 1,
+      initial: seeds.midlife,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedRetireeStock: {
+      source: 'retireeStock',
+      delay: 1,
+      initial: seeds.retiree,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedDestinationUnits: {
+      source: 'destinationUnits',
+      delay: 1,
+      initial: seeds.destinationUnits,
+      contract: unitConnector('vector', 'housing-unit'),
+    },
+    laggedA0_19Stock: {
+      source: 'stockA0_19',
+      delay: 1,
+      initial: seeds.cohorts.a0_19,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedA20_24Stock: {
+      source: 'stockA20_24',
+      delay: 1,
+      initial: seeds.cohorts.a20_24,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedA25_44Stock: {
+      source: 'stockA25_44',
+      delay: 1,
+      initial: seeds.cohorts.a25_44,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedA45_64Stock: {
+      source: 'stockA45_64',
+      delay: 1,
+      initial: seeds.cohorts.a45_64,
+      contract: unitConnector('vector', 'people'),
+    },
+    laggedA65upStock: {
+      source: 'stockA65up',
+      delay: 1,
+      initial: seeds.cohorts.a65up,
+      contract: unitConnector('vector', 'people'),
+    },
+  };
+}
+
+/** Static unit/shape coverage for the aging-city composition root. */
+export function auditAgingUnitContracts() {
+  const scalar = () => Float64Array.of(1);
+  return auditConnectorContracts(
+    AGING_MODULES,
+    {},
+    buildAgingLags({
+      priceToIncome: scalar(),
+      youngShare: scalar(),
+      working: scalar(),
+      midlife: scalar(),
+      retiree: scalar(),
+      destinationUnits: scalar(),
+      cohorts: {
+        a0_19: scalar(),
+        a20_24: scalar(),
+        a25_44: scalar(),
+        a45_64: scalar(),
+        a65up: scalar(),
+      },
+    }),
+  );
+}
+
 export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   const years = cfg.years ?? (cfg.epoch === '2000' ? 25 : 40);
   if (!Number.isInteger(years) || years < 1 || years > 100) {
@@ -106,19 +225,21 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
     pti0[i] = s.income0[i] > 0 ? s.price0[i] / s.income0[i] : 4;
   }
 
-  const lags: Record<string, LagConfig> = {
-    laggedPriceToIncome: { source: 'priceToIncome', delay: 1, initial: pti0, contract: unitConnector('vector', 'year') },
-    laggedYoungShare: { source: 'youngShareVec', delay: 1, initial: young0, contract: unitConnector('vector', 'fraction') },
-    laggedWorkingStock: { source: 'workingStock', delay: 1, initial: working0, contract: unitConnector('vector', 'people') },
-    laggedMidlifeStock: { source: 'midlifeStock', delay: 1, initial: midlife0, contract: unitConnector('vector', 'people') },
-    laggedRetireeStock: { source: 'retireeStock', delay: 1, initial: retiree0, contract: unitConnector('vector', 'people') },
-    laggedDestinationUnits: { source: 'destinationUnits', delay: 1, initial: Float64Array.from(s.units0), contract: unitConnector('vector', 'housing-unit') },
-    laggedA0_19Stock: { source: 'stockA0_19', delay: 1, initial: Float64Array.from(s.cohorts0.a0_19), contract: unitConnector('vector', 'people') },
-    laggedA20_24Stock: { source: 'stockA20_24', delay: 1, initial: Float64Array.from(s.cohorts0.a20_24), contract: unitConnector('vector', 'people') },
-    laggedA25_44Stock: { source: 'stockA25_44', delay: 1, initial: Float64Array.from(s.cohorts0.a25_44), contract: unitConnector('vector', 'people') },
-    laggedA45_64Stock: { source: 'stockA45_64', delay: 1, initial: Float64Array.from(s.cohorts0.a45_64), contract: unitConnector('vector', 'people') },
-    laggedA65upStock: { source: 'stockA65up', delay: 1, initial: Float64Array.from(s.cohorts0.a65up), contract: unitConnector('vector', 'people') },
-  };
+  const lags = buildAgingLags({
+    priceToIncome: pti0,
+    youngShare: young0,
+    working: working0,
+    midlife: midlife0,
+    retiree: retiree0,
+    destinationUnits: Float64Array.from(s.units0),
+    cohorts: {
+      a0_19: Float64Array.from(s.cohorts0.a0_19),
+      a20_24: Float64Array.from(s.cohorts0.a20_24),
+      a25_44: Float64Array.from(s.cohorts0.a25_44),
+      a45_64: Float64Array.from(s.cohorts0.a45_64),
+      a65up: Float64Array.from(s.cohorts0.a65up),
+    },
+  });
 
   const nationEpoch = {
     startCohortsM: NATION_START[cfg.epoch],
@@ -146,7 +267,7 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   }
 
   const state = initAutowired({
-    modules: [nationModule, attractionModule, migrationModule, marketModule],
+    modules: AGING_MODULES,
     lags,
     params: {
       nation: { ...nationEpoch, ...(cfg.params?.nation ?? {}) },

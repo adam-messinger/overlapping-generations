@@ -8,7 +8,12 @@
  */
 
 import { Region, REGIONS } from './domain-types.js';
-import type { CollectorConfig } from 'tsimulation';
+import { unitConnector, type CollectorConfig } from 'tsimulation';
+import {
+  ENERGY_ADDITION_CONNECTOR,
+  ENERGY_CAPACITY_CONNECTOR,
+  REGIONAL_DEMAND_CONNECTOR,
+} from './connector-schemas.js';
 
 // =============================================================================
 // ENERGY SYSTEM OVERHEAD (shared computation)
@@ -27,7 +32,7 @@ const OPERATING_ENERGY: Record<string, number> = {
 };
 
 /**
- * Compute total energy system overhead (embodied + operating) in TWh.
+ * Compute annual energy system overhead (embodied + operating) in TWh/year.
  * Shared by the energySystemOverheadComputed transform, toYearResults(),
  * and the standardCollectors transform.
  */
@@ -60,17 +65,17 @@ export const standardCollectors: CollectorConfig = {
     // Demographics
     { source: 'population', unit: 'people', description: 'Global population', module: 'demographics' },
     { source: 'working', unit: 'people', description: 'Working-age population (20-64)', module: 'demographics' },
-    { source: 'dependency', unit: 'ratio', description: 'Old-age dependency ratio (65+/working)', module: 'demographics' },
+    { source: 'dependency', unit: 'fraction', description: 'Old-age dependency ratio (65+/working)', module: 'demographics' },
     { source: 'effectiveWorkers', unit: 'people', description: 'Productivity-weighted workers (education premium)', module: 'demographics' },
     { source: 'collegeShare', unit: 'fraction', description: 'Share of workers with college degree', module: 'demographics' },
 
     // Demand
-    { source: 'gdp', unit: '$T', description: 'Global GDP in trillions', module: 'production' },
-    { source: 'electricityDemand', unit: 'TWh', description: 'Global electricity demand', module: 'demand' },
+    { source: 'gdp', unit: '$T/year', description: 'Global annual GDP in trillions', module: 'production' },
+    { source: 'electricityDemand', unit: 'TWh/year', description: 'Global electricity demand', module: 'demand' },
     { source: 'electrificationRate', unit: 'fraction', description: 'Electricity share of final energy', module: 'demand' },
-    { source: 'totalFinalEnergy', unit: 'TWh', description: 'Total final energy consumption', module: 'demand' },
-    { source: 'nonElectricEnergy', unit: 'TWh', description: 'Non-electric energy consumption', module: 'demand' },
-    { source: 'finalEnergyPerCapitaDay', unit: 'kWh/person/day', description: 'Final energy per capita per day', module: 'demand' },
+    { source: 'totalFinalEnergy', unit: 'TWh/year', description: 'Total final energy consumption', module: 'demand' },
+    { source: 'nonElectricEnergy', unit: 'TWh/year', description: 'Non-electric energy consumption', module: 'demand' },
+    { source: 'finalEnergyPerCapitaDay', unit: 'kWh/people/day', description: 'Final energy per capita per day', module: 'demand' },
 
     // Sectors
     { source: 'sectors', as: 'transportElectrification', path: 'transport.electrificationRate', unit: 'fraction', description: 'Transport sector electrification rate', module: 'demand' },
@@ -78,50 +83,50 @@ export const standardCollectors: CollectorConfig = {
     { source: 'sectors', as: 'industryElectrification', path: 'industry.electrificationRate', unit: 'fraction', description: 'Industry sector electrification rate', module: 'demand' },
 
     // Fuels
-    { source: 'fuels', as: 'oilConsumption', path: 'oil', unit: 'TWh', description: 'Oil consumption (non-electric)', module: 'demand' },
-    { source: 'fuels', as: 'gasConsumption', path: 'gas', unit: 'TWh', description: 'Gas consumption (non-electric)', module: 'demand' },
-    { source: 'fuels', as: 'coalConsumption', path: 'coal', unit: 'TWh', description: 'Coal consumption (non-electric)', module: 'demand' },
-    { source: 'fuels', as: 'hydrogenConsumption', path: 'hydrogen', unit: 'TWh', description: 'Hydrogen consumption (non-electric)', module: 'demand' },
-    { source: 'nonElectricEmissions', unit: 'Gt CO2/year', description: 'Non-electric fuel combustion emissions', module: 'demand' },
+    { source: 'fuels', as: 'oilConsumption', path: 'oil', unit: 'TWh/year', description: 'Oil consumption (non-electric)', module: 'demand' },
+    { source: 'fuels', as: 'gasConsumption', path: 'gas', unit: 'TWh/year', description: 'Gas consumption (non-electric)', module: 'demand' },
+    { source: 'fuels', as: 'coalConsumption', path: 'coal', unit: 'TWh/year', description: 'Coal consumption (non-electric)', module: 'demand' },
+    { source: 'fuels', as: 'hydrogenConsumption', path: 'hydrogen', unit: 'TWh/year', description: 'Hydrogen consumption (non-electric)', module: 'demand' },
+    { source: 'nonElectricEmissions', unit: 'GtCO2/year', description: 'Non-electric fuel combustion emissions', module: 'demand' },
 
     // Energy burden
-    { source: 'electricityCost', unit: '$T', description: 'Total electricity expenditure', module: 'demand' },
-    { source: 'fuelCost', unit: '$T', description: 'Total fuel (non-electric) expenditure', module: 'demand' },
-    { source: 'totalEnergyCost', unit: '$T', description: 'Total energy cost (electricity + fuel)', module: 'demand' },
+    { source: 'electricityCost', unit: '$T/year', description: 'Total electricity expenditure', module: 'demand' },
+    { source: 'fuelCost', unit: '$T/year', description: 'Total fuel (non-electric) expenditure', module: 'demand' },
+    { source: 'totalEnergyCost', unit: '$T/year', description: 'Total energy cost (electricity + fuel)', module: 'demand' },
     { source: 'energyBurden', unit: 'fraction', description: 'Energy cost as fraction of GDP', module: 'demand' },
     { source: 'burdenDamage', unit: 'fraction', description: 'GDP damage from excess energy burden', module: 'demand' },
 
     // Per-worker welfare metric
-    { source: 'gdpPerWorking', unit: '$', description: 'GDP per working-age adult (Fernandez-Villaverde welfare metric)', module: 'demand' },
+    { source: 'gdpPerWorking', unit: '$/people/year', description: 'GDP per working-age adult (Fernandez-Villaverde welfare metric)', module: 'demand' },
 
     // Useful work
     { source: 'usefulWorkGrowthRate', unit: 'fraction/year', description: 'Growth rate of useful energy per worker (Ayres/Warr)', module: 'demand' },
 
     // Capital
     { source: 'stock', as: 'capitalStock', unit: '$T', description: 'Global capital stock', module: 'capital' },
-    { source: 'investment', unit: '$T', description: 'Annual investment', module: 'capital' },
+    { source: 'investment', unit: '$T/year', description: 'Annual investment', module: 'capital' },
     { source: 'savingsRate', unit: 'fraction', description: 'Aggregate savings rate', module: 'capital' },
     { source: 'regionalSavings', unit: 'fraction', description: 'Savings rate by region', module: 'capital' },
-    { source: 'stability', unit: 'index', description: 'Financial stability index (0-1)', module: 'capital' },
+    { source: 'stability', unit: 'fraction', description: 'Financial stability index (0-1)', module: 'capital' },
     { source: 'interestRate', unit: 'fraction', description: 'Real interest rate', module: 'capital' },
-    { source: 'robotsDensity', unit: 'per 1000 workers', description: 'Automation capital density', module: 'capital' },
+    { source: 'robotsDensity', unit: 'robot/kpeople', description: 'Automation capital density', module: 'capital' },
     { source: 'automationShare', unit: 'fraction', description: 'Fraction of capital stock that is automation', module: 'capital' },
-    { source: 'capitalOutputRatio', unit: 'ratio', description: 'Capital-to-output ratio (K/Y)', module: 'capital' },
+    { source: 'capitalOutputRatio', unit: 'year', description: 'Capital-to-output ratio (K/Y)', module: 'capital' },
     { source: 'capitalGrowthRate', unit: 'fraction/year', description: 'Annual capital stock growth rate', module: 'capital' },
-    { source: 'retireeCost', unit: '$T', description: 'Retiree transfers: pensions + healthcare (65+)', module: 'capital' },
-    { source: 'childCost', unit: '$T', description: 'Child transfers: education spending (0-19)', module: 'capital' },
+    { source: 'retireeCost', unit: '$T/year', description: 'Retiree transfers: pensions + healthcare (65+)', module: 'capital' },
+    { source: 'childCost', unit: '$T/year', description: 'Child transfers: education spending (0-19)', module: 'capital' },
     { source: 'transferBurden', unit: 'fraction', description: 'Intergenerational transfer burden (retiree+child cost / GDP)', module: 'capital' },
-    { source: 'workerConsumption', unit: '$T', description: 'Worker consumption (GDP - investment - transfers - debt service)', module: 'capital' },
-    { source: 'publicDebtGDP', unit: 'ratio', description: 'Public debt to GDP ratio', module: 'capital' },
-    { source: 'privateDebtGDP', unit: 'ratio', description: 'Private debt to GDP ratio', module: 'capital' },
-    { source: 'totalDebtGDP', unit: 'ratio', description: 'Total debt to GDP ratio', module: 'capital' },
-    { source: 'publicDebtService', unit: '$T', description: 'Interest payments on public debt', module: 'capital' },
-    { source: 'creditImpulse', unit: '$T', description: 'Net new private credit flow', module: 'capital' },
+    { source: 'workerConsumption', unit: '$T/year', description: 'Worker consumption (GDP - investment - transfers - debt service)', module: 'capital' },
+    { source: 'publicDebtGDP', unit: 'fraction', description: 'Public debt to GDP ratio', module: 'capital' },
+    { source: 'privateDebtGDP', unit: 'fraction', description: 'Private debt to GDP ratio', module: 'capital' },
+    { source: 'totalDebtGDP', unit: 'fraction', description: 'Total debt to GDP ratio', module: 'capital' },
+    { source: 'publicDebtService', unit: '$T/year', description: 'Interest payments on public debt', module: 'capital' },
+    { source: 'creditImpulse', unit: '$T/year', description: 'Net new private credit flow', module: 'capital' },
     { source: 'debtRiskPremium', unit: 'fraction', description: 'Interest rate premium from debt levels', module: 'capital' },
 
     // Five-year birth-cohort accounts
-    { source: 'cohortAccounts', unit: 'account records', description: 'Global five-year birth-cohort balance sheets and annual flows', module: 'generations' },
-    { source: 'regionalCohortAccounts', unit: 'account records', description: 'Five-year birth-cohort accounts by region', module: 'generations' },
+    { source: 'cohortAccounts', description: 'Global five-year birth-cohort balance sheets and annual flows', module: 'generations' },
+    { source: 'regionalCohortAccounts', description: 'Five-year birth-cohort accounts by region', module: 'generations' },
     { source: 'cohortDesiredCapital', unit: '$T/year', description: 'Diagnostic desired cohort capital formation: replacement plus target net growth', module: 'generations' },
     { source: 'cohortFundedCapital', unit: '$T/year', description: 'Desired cohort capital acquisition funded by own saving and allocated credit', module: 'generations' },
     { source: 'cohortFundingGap', unit: '$T/year', description: 'Desired cohort capital acquisition not funded', module: 'generations' },
@@ -136,34 +141,34 @@ export const standardCollectors: CollectorConfig = {
     { source: 'cohortLiabilities', unit: '$T', description: 'End-of-period private liabilities across cohort accounts', module: 'generations' },
 
     // Energy
-    { source: 'lcoes', unit: '$/MWh', description: 'Levelized cost by source', module: 'energy' },
-    { source: 'capacities', unit: 'GW (GWh for battery)', description: 'Installed capacity by source', module: 'energy' },
+    { source: 'lcoes', description: 'Generator LCOEs and battery storage capital cost by source', module: 'energy' },
+    { source: 'capacities', description: 'Installed generation power and battery energy capacity by source', module: 'energy' },
     { source: 'lcoes', as: 'solarLCOE', path: 'solar', unit: '$/MWh', description: 'Solar levelized cost', module: 'energy' },
     { source: 'lcoes', as: 'windLCOE', path: 'wind', unit: '$/MWh', description: 'Wind levelized cost', module: 'energy' },
     { source: 'batteryCost', unit: '$/kWh', description: 'Battery storage cost', module: 'energy' },
     { source: 'cheapestLCOE', unit: '$/MWh', description: 'Cheapest LCOE across all sources', module: 'energy' },
     { source: 'solarPlusBatteryLCOE', unit: '$/MWh', description: 'Solar + battery combined LCOE', module: 'energy' },
-    { source: 'longStorageCost', unit: '$/MWh', description: 'Long-duration storage cost (Wright\'s Law)', module: 'energy' },
+    { source: 'longStorageCost', unit: '$/kWh', description: 'Long-duration storage capital cost (Wright\'s Law)', module: 'energy' },
     { source: 'longStorageCapacity', unit: 'GWh', description: 'Global long-duration storage capacity', module: 'energy' },
     { source: 'effectiveWACC', unit: 'fraction', description: 'Weighted average cost of capital for energy projects', module: 'energy' },
 
     // Dispatch
-    { source: 'generation', unit: 'TWh', description: 'Electricity generation by source', module: 'dispatch' },
-    { source: 'gridIntensity', unit: 'kg CO2/MWh', description: 'Grid carbon intensity', module: 'dispatch' },
-    { source: 'totalGeneration', unit: 'TWh', description: 'Total electricity generation', module: 'dispatch' },
-    { source: 'shortfall', unit: 'TWh', description: 'Unmet electricity demand', module: 'dispatch' },
-    { source: 'electricityEmissions', unit: 'Gt CO2/year', description: 'Electricity generation emissions', module: 'dispatch' },
+    { source: 'generation', unit: 'TWh/year', description: 'Electricity generation by source', module: 'dispatch' },
+    { source: 'gridIntensity', unit: 'kgCO2/MWh', description: 'Grid carbon intensity', module: 'dispatch' },
+    { source: 'totalGeneration', unit: 'TWh/year', description: 'Total electricity generation', module: 'dispatch' },
+    { source: 'shortfall', unit: 'TWh/year', description: 'Unmet electricity demand', module: 'dispatch' },
+    { source: 'electricityEmissions', unit: 'GtCO2/year', description: 'Electricity generation emissions', module: 'dispatch' },
     { source: 'fossilShare', unit: 'fraction', description: 'Fossil share of electricity generation', module: 'dispatch' },
-    { source: 'curtailmentTWh', unit: 'TWh', description: 'VRE generation curtailed', module: 'dispatch' },
+    { source: 'curtailmentTWh', unit: 'TWh/year', description: 'VRE generation curtailed', module: 'dispatch' },
     { source: 'curtailmentRate', unit: 'fraction', description: 'Fraction of available VRE curtailed', module: 'dispatch' },
 
     // Climate
-    { source: 'temperature', unit: '°C', description: 'Surface temperature above preindustrial (T₁)', module: 'climate' },
+    { source: 'temperature', unit: 'Δ°C', description: 'Surface temperature above preindustrial (T₁)', module: 'climate' },
     { source: 'co2ppm', unit: 'ppm', description: 'Atmospheric CO2 concentration', module: 'climate' },
-    { source: 'equilibriumTemp', unit: '°C', description: 'Equilibrium temperature at current CO2', module: 'climate' },
+    { source: 'equilibriumTemp', unit: 'Δ°C', description: 'Equilibrium temperature at current CO2', module: 'climate' },
     { source: 'damages', unit: 'fraction', description: 'Global climate damage (fraction of GDP)', module: 'climate' },
-    { source: 'cumulativeEmissions', unit: 'Gt CO2', description: 'Cumulative CO2 emissions since preindustrial', module: 'climate' },
-    { source: 'deepOceanTemp', unit: '°C', description: 'Deep ocean temperature anomaly (T₂)', module: 'climate' },
+    { source: 'cumulativeEmissions', unit: 'GtCO2', description: 'Cumulative CO2 emissions since preindustrial', module: 'climate' },
+    { source: 'deepOceanTemp', unit: 'Δ°C', description: 'Deep ocean temperature anomaly (T₂)', module: 'climate' },
     { source: 'radiativeForcing', unit: 'W/m²', description: 'Radiative forcing from CO2', module: 'climate' },
     { source: 'regionalAdaptation', unit: 'fraction', description: 'Adaptation spending by region', module: 'climate' },
     { source: 'heatStressLoss', unit: 'fraction', description: 'Labor productivity loss from heat stress by region', module: 'demographics' },
@@ -174,9 +179,9 @@ export const standardCollectors: CollectorConfig = {
     { source: 'minerals', as: 'lithiumDemand', path: 'lithium.demand', unit: 'Mt/year', description: 'Annual lithium demand (net of recycling)', module: 'resources' },
     { source: 'minerals', as: 'copperCumulative', path: 'copper.cumulative', unit: 'Mt', description: 'Cumulative copper extracted', module: 'resources' },
     { source: 'minerals', as: 'lithiumCumulative', path: 'lithium.cumulative', unit: 'Mt', description: 'Cumulative lithium extracted', module: 'resources' },
-    { source: 'mineralConstraint', unit: '0-1 factor', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
-    { source: 'miningEnergyTWh', unit: 'TWh', description: 'Energy consumed by mining', module: 'resources' },
-    { source: 'farmingEnergyTWh', unit: 'TWh', description: 'Energy consumed by farming/agriculture', module: 'resources' },
+    { source: 'mineralConstraint', unit: 'fraction', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
+    { source: 'miningEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by mining', module: 'resources' },
+    { source: 'farmingEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by farming/agriculture', module: 'resources' },
 
     // Resources - Land
     { source: 'land', as: 'farmland', path: 'farmland', unit: 'Mha', description: 'Global cropland area', module: 'resources' },
@@ -186,63 +191,70 @@ export const standardCollectors: CollectorConfig = {
 
     // Resources - Food
     { source: 'food', as: 'proteinShare', path: 'proteinShare', unit: 'fraction', description: 'Fraction of calories from protein (Bennett\'s Law)', module: 'resources' },
-    { source: 'food', as: 'grainEquivalent', path: 'grainEquivalent', unit: 'Mt', description: 'Total grain needed (direct + feed conversion)', module: 'resources' },
+    { source: 'food', as: 'grainEquivalent', path: 'grainEquivalent', unit: 'Mt/year', description: 'Total grain needed (direct + feed conversion)', module: 'resources' },
     { source: 'foodStress', unit: 'fraction', description: 'Fraction of food demand unmet due to land constraint', module: 'resources' },
 
     // Resources - Carbon
-    { source: 'carbon', as: 'forestNetFlux', path: 'netFlux', unit: 'Gt CO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },
-    { source: 'carbon', as: 'cumulativeSequestration', path: 'cumulativeSequestration', unit: 'Gt CO2', description: 'Cumulative forest carbon sequestration', module: 'resources' },
+    { source: 'carbon', as: 'forestNetFlux', path: 'netFlux', unit: 'GtCO2/year', description: 'Net forest carbon flux (positive=emissions)', module: 'resources' },
+    { source: 'carbon', as: 'cumulativeSequestration', path: 'cumulativeSequestration', unit: 'GtCO2', description: 'Cumulative forest carbon sequestration', module: 'resources' },
 
     // Resources - Water
     { source: 'waterStress', unit: 'fraction', description: 'Water stress index by region', module: 'resources' },
     { source: 'waterYieldFactor', unit: 'fraction', description: 'Crop yield loss factor from water stress', module: 'resources' },
 
     // CDR (Carbon Dioxide Removal)
-    { source: 'cdrRemovalGtCO2', as: 'cdrRemoval', unit: 'Gt CO2/year', description: 'CDR removal rate', module: 'cdr' },
-    { source: 'cdrEnergyTWh', unit: 'TWh', description: 'Energy consumed by CDR', module: 'cdr' },
-    { source: 'cdrCostPerTon', unit: '$/ton CO2', description: 'CDR cost per ton', module: 'cdr' },
-    { source: 'cdrCumulative', unit: 'Gt CO2', description: 'Cumulative CDR removals', module: 'cdr' },
-    { source: 'cdrCapacity', unit: 'Gt CO2/year', description: 'CDR deployment capacity', module: 'cdr' },
+    { source: 'cdrRemovalGtCO2', as: 'cdrRemoval', unit: 'GtCO2/year', description: 'CDR removal rate', module: 'cdr' },
+    { source: 'cdrEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by CDR', module: 'cdr' },
+    { source: 'cdrCostPerTon', unit: '$/tCO2', description: 'CDR cost per ton', module: 'cdr' },
+    { source: 'cdrCumulative', unit: 'GtCO2', description: 'Cumulative CDR removals', module: 'cdr' },
+    { source: 'cdrCapacity', unit: 'GtCO2/year', description: 'CDR deployment capacity', module: 'cdr' },
     { source: 'cdrAnnualSpend', unit: '$T/year', description: 'Annual CDR spending', module: 'cdr' },
 
     // Production
-    { source: 'productionUsefulEnergy', unit: 'TWh', description: 'Exergy-weighted useful energy for production', module: 'production' },
-    { source: 'capitalContribution', unit: 'index', description: 'Capital contribution to GDP, (K/K0)^alpha', module: 'production' },
-    { source: 'laborContribution', unit: 'index', description: 'Labor contribution to GDP, (L/L0)^beta', module: 'production' },
-    { source: 'energyContribution', unit: 'index', description: 'Useful-energy contribution to GDP, (E/E0)^gamma — the dominant heterodox growth channel', module: 'production' },
-    { source: 'efficiencyLevel', unit: 'index', description: 'TFP-replacement efficiency multiplier (end-use x organizational)', module: 'production' },
+    { source: 'productionUsefulEnergy', unit: 'TWh/year', description: 'Exergy-weighted useful energy for production', module: 'production' },
+    { source: 'capitalContribution', unit: '1', description: 'Capital contribution to GDP, (K/K0)^alpha', module: 'production' },
+    { source: 'laborContribution', unit: '1', description: 'Labor contribution to GDP, (L/L0)^beta', module: 'production' },
+    { source: 'energyContribution', unit: '1', description: 'Useful-energy contribution to GDP, (E/E0)^gamma — the dominant heterodox growth channel', module: 'production' },
+    { source: 'efficiencyLevel', unit: '1', description: 'TFP-replacement efficiency multiplier (end-use x organizational)', module: 'production' },
 
     // Energy system overhead (computed from additions + capacities)
     {
       source: 'additions',
       as: 'energySystemOverhead',
-      unit: 'TWh',
+      unit: 'TWh/year',
       description: 'Embodied + operating energy of energy infrastructure (net energy overhead)',
       module: 'energy',
+      inputTypes: {
+        additions: ENERGY_ADDITION_CONNECTOR,
+        capacities: ENERGY_CAPACITY_CONNECTOR,
+      },
+      outputType: unitConnector('number', 'TWh/year'),
       transform: (outputs: Record<string, any>) =>
         computeEnergySystemOverhead(outputs.additions, outputs.capacities),
     },
 
     // Infrastructure lock-in
-    { source: 'fossilStockTWh', unit: 'TWh', description: 'Total fossil end-use equipment stock (TWh annual energy)', module: 'demand' },
+    { source: 'fossilStockTWh', unit: 'TWh/year', description: 'Total fossil end-use equipment stock (TWh annual energy)', module: 'demand' },
 
     // Automation
-    { source: 'robotLoadTWh', unit: 'TWh', description: 'Automation energy consumption', module: 'demand' },
-    { source: 'robotsPer1000', unit: 'per 1000 workers', description: 'Robots per 1000 workers', module: 'demand' },
+    { source: 'robotLoadTWh', unit: 'TWh/year', description: 'Automation energy consumption', module: 'demand' },
+    { source: 'robotsPer1000', unit: 'robot/kpeople', description: 'Robots per 1000 workers', module: 'demand' },
 
     // Datacenter / AI compute
-    { source: 'dataCenterLoadTWh', unit: 'TWh', description: 'Datacenter/AI electricity load', module: 'demand' },
-    { source: 'dataCenterCapexSpend', unit: '$T', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
+    { source: 'dataCenterLoadTWh', unit: 'TWh/year', description: 'Datacenter/AI electricity load', module: 'demand' },
+    { source: 'dataCenterCapexSpend', unit: '$T/year', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },
-    { source: 'regionalFertility', unit: 'TFR', description: 'Total fertility rate by region (births per woman)', module: 'demographics' },
+    { source: 'regionalFertility', unit: '1', description: 'Total fertility rate by region (births per woman)', module: 'demographics' },
     {
       source: 'regional',
       as: 'regionalGdp',
-      unit: '$T',
+      unit: '$T/year',
       description: 'GDP by region',
       module: 'demand',
+      inputTypes: { regional: REGIONAL_DEMAND_CONNECTOR },
+      outputType: unitConnector('record', '$T/year'),
       transform: (outputs: Record<string, any>) => {
         const regional = outputs.regional;
         if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
@@ -251,13 +263,13 @@ export const standardCollectors: CollectorConfig = {
         return result;
       },
     },
-    { source: 'regionalCapacities', unit: 'GW', description: 'Energy capacity by region and source', module: 'energy' },
+    { source: 'regionalCapacities', description: 'Energy capacity by region and source', module: 'energy' },
     { source: 'regionalWACC', unit: 'fraction', description: 'Energy project WACC by region (global rate + regional financing spread)', module: 'energy' },
-    { source: 'regionalAdditions', unit: 'GW', description: 'Capacity additions by region and source', module: 'energy' },
-    { source: 'regionalGeneration', unit: 'TWh', description: 'Generation by region and source', module: 'dispatch' },
-    { source: 'regionalGridIntensity', unit: 'kg CO2/MWh', description: 'Grid intensity by region', module: 'dispatch' },
+    { source: 'regionalAdditions', description: 'Capacity additions by region and source', module: 'energy' },
+    { source: 'regionalGeneration', unit: 'TWh/year', description: 'Generation by region and source', module: 'dispatch' },
+    { source: 'regionalGridIntensity', unit: 'kgCO2/MWh', description: 'Grid intensity by region', module: 'dispatch' },
     { source: 'regionalFossilShare', unit: 'fraction', description: 'Fossil share by region', module: 'dispatch' },
-    { source: 'regionalEmissions', unit: 'Gt CO2/year', description: 'Electricity emissions by region', module: 'dispatch' },
+    { source: 'regionalEmissions', unit: 'GtCO2/year', description: 'Electricity emissions by region', module: 'dispatch' },
   ],
 
   metrics: [

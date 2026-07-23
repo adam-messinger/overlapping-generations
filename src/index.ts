@@ -46,8 +46,22 @@ export { defineSimulation, solve, init } from 'tsimulation';
 export type { SimulationProblem, StepperResult, Stepper } from 'tsimulation';
 
 // Declarative data collectors (generic framework)
-export { collectResults, resolveKey } from 'tsimulation';
-export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from 'tsimulation';
+export {
+  assertCollectorContracts,
+  auditCollectorContracts,
+  collectResults,
+  resolveCollectorContract,
+  resolveKey,
+  summarizePortUnits,
+} from 'tsimulation';
+export type {
+  TimeseriesDef,
+  MetricDef,
+  MetricAggregator,
+  CollectorConfig,
+  CollectedResults,
+  CollectorContractAudit,
+} from 'tsimulation';
 
 // Standard collectors (domain-specific)
 export { standardCollectors, computeEnergySystemOverhead } from './standard-collectors.js';

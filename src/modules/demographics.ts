@@ -569,7 +569,7 @@ export const demographicsModule: Module<
 
   connectorTypes: {
     inputs: {
-      temperature: unitConnector('number', '°C'),
+      temperature: unitConnector('number', 'Δ°C'),
     },
     outputs: {
       population: unitConnector('number', 'people'),

@@ -589,7 +589,7 @@ function buildLags(params: SimulationParams) {
       source: 'temperature',
       delay: 1,
       initial: mergedClimate.currentTemp,
-      contract: unitConnector('number', '°C'),
+      contract: unitConnector('number', 'Δ°C'),
     },
 
     // Demand needs lagged average LCOE for cost-driven electrification

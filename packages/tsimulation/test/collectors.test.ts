@@ -5,8 +5,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runAutowired as runAutowiredStrict } from '../src/autowire.js';
-import { defineModule } from '../src/module.js';
-import { collectResults, resolveKey } from '../src/collectors.js';
+import { defineModule, objectConnector, unitConnector } from '../src/module.js';
+import {
+  auditCollectorContracts,
+  collectResults,
+  resolveCollectorContract,
+  resolveKey,
+  summarizePortUnits,
+} from '../src/collectors.js';
+import { objectPort, unitPort } from '../src/units.js';
 import { okValidate } from './helpers.js';
 
 const runAutowired = (config: Parameters<typeof runAutowiredStrict>[0]) =>
@@ -27,8 +34,41 @@ const ramp = defineModule({
   }),
 });
 
+const contractedRamp = defineModule({
+  name: 'contracted-ramp',
+  description: 'A collector-contract test module',
+  defaults: {},
+  inputs: [] as const,
+  outputs: ['level', 'group'] as const,
+  connectorTypes: {
+    inputs: {},
+    outputs: {
+      level: unitConnector('number', '$B/year'),
+      group: objectConnector('nested-record', {
+        inner: objectPort({ value: unitPort('people') }),
+      }),
+    },
+  },
+  validate: okValidate,
+  mergeParams: (p) => p,
+  init: () => ({}),
+  step: (_s, _i, _p, _y, yearIndex) => ({
+    state: {},
+    outputs: { level: yearIndex * 10, group: { inner: { value: yearIndex + 1 } } },
+  }),
+});
+
 function run() {
   return runAutowired({ modules: [ramp], startYear: 2000, endYear: 2004 });
+}
+
+function runContracted() {
+  return runAutowiredStrict({
+    modules: [contractedRamp],
+    startYear: 2000,
+    endYear: 2004,
+    connectorValidation: 'error',
+  });
 }
 
 test('collectResults extracts a simple timeseries by source', () => {
@@ -60,6 +100,73 @@ test('collectResults supports a transform timeseries', () => {
     metrics: [],
   });
   assert.strictEqual(timeseries[1].plusYear, 10 + 2001);
+});
+
+test('collector contracts derive direct/path units and reject stale labels', () => {
+  const config = {
+    timeseries: [
+      { source: 'level', unit: '$B/year' },
+      { source: 'group', as: 'innerValue', path: 'inner.value', unit: 'people' },
+    ],
+    metrics: [],
+  };
+  const audit = auditCollectorContracts([contractedRamp], config);
+  assert.equal(audit.valid, true, audit.errors.join('\n'));
+  assert.equal(summarizePortUnits(resolveCollectorContract(
+    [contractedRamp],
+    config.timeseries[1],
+  )), 'people');
+  assert.deepStrictEqual(collectResults(runContracted(), config).timeseries[2], {
+    year: 2002,
+    level: 20,
+    innerValue: 3,
+  });
+
+  const stale = auditCollectorContracts([contractedRamp], {
+    timeseries: [{ source: 'level', unit: '$B' }],
+    metrics: [],
+  });
+  assert.equal(stale.valid, false);
+  assert.match(stale.errors.join('\n'), /does not match producer\/output contract '\$B\/year'/);
+});
+
+test('transformed collectors require complete input/output signatures and validate reads', () => {
+  const good = {
+    timeseries: [{
+      source: 'level',
+      as: 'doubleLevel',
+      unit: '$B/year',
+      inputTypes: { level: unitConnector('number', '$B/year') },
+      outputType: unitConnector('number', '$B/year'),
+      transform: (outputs: Record<string, any>) => outputs.level * 2,
+    }],
+    metrics: [],
+  };
+  assert.equal(auditCollectorContracts([contractedRamp], good).valid, true);
+  assert.equal(collectResults(runContracted(), good).timeseries[4].doubleLevel, 80);
+
+  const missingOutput = auditCollectorContracts([contractedRamp], {
+    timeseries: [{
+      source: 'level',
+      inputTypes: { level: unitConnector('number', '$B/year') },
+      transform: (outputs: Record<string, any>) => outputs.level,
+    }],
+    metrics: [],
+  });
+  assert.match(missingOutput.errors.join('\n'), /must declare outputType/);
+
+  assert.throws(
+    () => collectResults(runContracted(), {
+      timeseries: [{
+        source: 'level',
+        inputTypes: {},
+        outputType: unitConnector('number', '$B/year'),
+        transform: (outputs: Record<string, any>) => outputs.level,
+      }],
+      metrics: [],
+    }),
+    /reads 'level' without an input unit signature/,
+  );
 });
 
 test('resolveKey prefers `as`, else falls back to source', () => {

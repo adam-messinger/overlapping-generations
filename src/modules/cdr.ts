@@ -203,7 +203,7 @@ export const cdrModule: Module<
 
   connectorTypes: {
     inputs: {
-      temperature: unitConnector('number', '°C'),
+      temperature: unitConnector('number', 'Δ°C'),
       gdp: unitConnector('number', '$T/year'),
       laggedAvgLCOE: unitConnector('number', '$/MWh'),
       laggedInterestRate: unitConnector('number', 'fraction'),

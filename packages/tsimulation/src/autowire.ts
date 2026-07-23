@@ -346,7 +346,8 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
 // CONNECTOR TYPE VALIDATION
 // =============================================================================
 
-function connectorPortMeta(spec: ConnectorSpec): PortMeta {
+/** Convert a module connector declaration to the framework's common port schema. */
+export function connectorSpecToPortMeta(spec: ConnectorSpec): PortMeta {
   if ('kind' in spec && spec.kind) return spec as PortMeta;
   if ('opaque' in spec && spec.opaque) {
     return { opaque: true, description: spec.description, valueType: spec.type };
@@ -380,7 +381,7 @@ export function validateConnectorTypes(
       return undefined;
     }
     try {
-      validatePortMeta(connectorPortMeta(declaration), context);
+      validatePortMeta(connectorSpecToPortMeta(declaration), context);
     } catch (error) {
       warnings.push(error instanceof Error ? error.message : String(error));
     }
@@ -393,8 +394,8 @@ export function validateConnectorTypes(
     }
     try {
       validatePortUnits(
-        connectorPortMeta(producer),
-        connectorPortMeta(consumer),
+        connectorSpecToPortMeta(producer),
+        connectorSpecToPortMeta(consumer),
         context,
       );
     } catch (error) {
@@ -493,7 +494,7 @@ export function validateConnectorTypes(
 }
 
 function assertConnectorValue(value: unknown, spec: ConnectorSpec, context: string): void {
-  assertPortValue(value, connectorPortMeta(spec), context);
+  assertPortValue(value, connectorSpecToPortMeta(spec), context);
 }
 
 export interface ConnectorContractAudit {
@@ -526,7 +527,7 @@ export function auditConnectorContracts(
     (total, declaration) => {
       if (typeof declaration === 'string' || !declaration) return total;
       try {
-        const meta = connectorPortMeta(declaration);
+        const meta = connectorSpecToPortMeta(declaration);
         validatePortMeta(meta, 'connector contract audit');
         const count = countPortSchema(meta);
         total.unitBearingContracts += count.unitBearing;
@@ -807,6 +808,12 @@ export interface AutowireResult {
   years: number[];
   outputs: Record<string, Record<string, any[]>>;  // module -> output -> values[]
   states: Record<string, any[]>;  // module -> state[]
+  /**
+   * Producer contracts carried with normal engine results so downstream
+   * collectors can validate source paths and transformed outputs automatically.
+   * Optional for compatibility with externally constructed result fixtures.
+   */
+  outputContracts?: Record<string, { module: string; spec: ConnectorSpec }>;
   diagnostics?: {
     bootstrap?: BootstrapDiagnostics;
     parameterLiveness?: Record<string, {
@@ -1104,6 +1111,17 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
  */
 export function finalizeAutowired(state: AutowireState): AutowireResult {
   const completeRun = state.currentYear > state.endYear;
+  const outputContractEntries = state.sortedModules.flatMap((mod) =>
+    mod.outputs.flatMap((output) => {
+      const name = String(output);
+      const spec = (mod.connectorTypes?.outputs as Record<string, ConnectorSpec> | undefined)?.[name];
+      return spec ? [[name, { module: mod.name, spec }] as const] : [];
+    }),
+  );
+  const expectedOutputContracts = state.sortedModules.reduce(
+    (sum, mod) => sum + mod.outputs.length,
+    0,
+  );
   let parameterLiveness: NonNullable<AutowireResult['diagnostics']>['parameterLiveness'];
   if (state.paramLiveness !== 'off') {
     parameterLiveness = {};
@@ -1131,6 +1149,9 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
     years: state.years,
     outputs: state.outputs,
     states: state.states,
+    ...(outputContractEntries.length === expectedOutputContracts
+      ? { outputContracts: Object.fromEntries(outputContractEntries) }
+      : {}),
     ...((state.diagnostics || parameterLiveness) ? {
       diagnostics: {
         ...(state.diagnostics ?? {}),

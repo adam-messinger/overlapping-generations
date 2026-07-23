@@ -47,8 +47,16 @@ import type {
 } from './critical-materials/defense-sourcing.js';
 import type {
   DynamicMonthResult,
+  DynamicNetworkOptions,
   DynamicNetworkResult,
 } from './critical-materials/dynamic-network.js';
+import type {
+  MaterialInput,
+  MaterialNode,
+} from './critical-materials/data.js';
+import type {
+  PriceShockResult,
+} from './critical-materials/price-network.js';
 import type {
   FertilizerMarketParams,
   HormuzModelParams,
@@ -66,6 +74,10 @@ import type {
   RegionalHormuzMonthResult,
 } from './critical-materials/hormuz-model.js';
 import type { CountermeasureParams } from './outbreak/model.js';
+import {
+  FORECAST_QUANTILES,
+  type ProbabilisticForecast,
+} from './outbreak/probabilistic.js';
 import type { WarAiYearResult } from './news/war-ai.js';
 
 const regionFractions = () => recordPort<number>(unitPort('fraction'), { keys: REGIONS });
@@ -84,7 +96,7 @@ export const HEAT_EVENT_PORT = objectPort<HeatEvent>({
   meanDayMaximumC: unitPort('°C'),
   meanNightMinimumC: unitPort('°C'),
   compoundHotNightShare: unitPort('fraction'),
-  urbanHeatIslandC: unitPort('°C'),
+  urbanHeatIslandC: unitPort('Δ°C'),
   humidityRiskMultiplier: unitPort('1'),
   mortalityDayThresholdC: unitPort('°C'),
   mortalityNightThresholdC: unitPort('°C'),
@@ -106,17 +118,17 @@ export const HEAT_ADAPTATION_PORT = objectPort<HeatAdaptation>({
   coolingAccess: recordPort<number>(unitPort('fraction'), { keys: HEAT_AGE_GROUPS }),
   coolingMortalityEfficacy: unitPort('fraction'),
   mechanicalGridUptime: unitPort('fraction'),
-  passiveCoolingC: unitPort('°C'),
+  passiveCoolingC: unitPort('Δ°C'),
   coolingEfficiencyMultiplier: unitPort('1'),
   demandResponseShare: unitPort('fraction'),
   additionalFirmCapacityGw: unitPort('GW'),
   irrigatedCropShare: unitPort('fraction'),
   irrigationDamageReduction: unitPort('fraction'),
-  cropHeatToleranceC: unitPort('°C'),
+  cropHeatToleranceC: unitPort('Δ°C'),
 });
 
 export const HEAT_POWER_PORT = objectPort<HeatPowerResult>({
-  coolingDegreeDays: unitPort('°C*day'),
+  coolingDegreeDays: unitPort('Δ°C*day'),
   populationCoolingCoverage: unitPort('fraction'),
   coolingElectricityTwh: unitPort('TWh'),
   unmanagedCoolingPeakGw: unitPort('GW'),
@@ -129,14 +141,14 @@ export const HEAT_POWER_PORT = objectPort<HeatPowerResult>({
 });
 
 export const HEAT_FOOD_PORT = objectPort<HeatFoodResult>({
-  extremeDegreeDays: unitPort('°C*day'),
+  extremeDegreeDays: unitPort('Δ°C*day'),
   lossWithinExposedCrops: unitPort('fraction'),
   aggregateSeasonalYieldLoss: unitPort('fraction'),
   irrigatedDamageAvoided: unitPort('fraction'),
 });
 
 export const HEAT_MORTALITY_PORT = objectPort<HeatMortalityResult>({
-  thermalLoad: unitPort('°C*day'),
+  thermalLoad: unitPort('Δ°C*day'),
   deathsByAge: recordPort<number>(unitPort('people'), { keys: HEAT_AGE_GROUPS }),
   totalDeaths: unitPort('people'),
   shareAge65Plus: unitPort('fraction'),
@@ -155,7 +167,7 @@ export const DRUG_SCENARIO_PORT = objectPort<GenericDrugEconomicsScenario>({
   targetInventoryMonths: unitPort('month'),
   rawMaterialCostMultiplier: unitPort('1'),
   laterRawMaterialCostMultiplier: unitPort('1'),
-  rawMaterialReliefMonth: unitPort('month'),
+  rawMaterialReliefMonth: unitPort('step-index'),
   priceMultiplier: unitPort('1'),
   priceChangeDelayMonths: unitPort('month'),
   demandMultiplier: unitPort('1'),
@@ -165,7 +177,7 @@ export const DRUG_SCENARIO_PORT = objectPort<GenericDrugEconomicsScenario>({
 });
 
 export const DRUG_MONTH_PORT = objectPort<GenericDrugEconomicsMonth>({
-  month: unitPort('month'),
+  month: unitPort('step-index'),
   rawMaterialCostMultiplier: unitPort('1'),
   allowedPriceMultiplier: unitPort('1'),
   economicCostIndex: unitPort('1'),
@@ -288,8 +300,8 @@ export const MARITIME_SCENARIO_PORT = objectPort<MaritimeScenario>({
   id: metadataPort('string', 'Maritime scenario identifier.'),
   label: metadataPort('string', 'Maritime scenario label.'),
   description: metadataPort('string', 'Maritime scenario description.'),
-  startYear: unitPort('year'),
-  startMonth: unitPort('month'),
+  startYear: unitPort('calendar-year'),
+  startMonth: unitPort('calendar-month'),
   hormuzThroughputPath: vectorPort<number>(unitPort('fraction')),
   babThroughputPath: vectorPort<number>(unitPort('fraction')),
   suezThroughputPath: vectorPort<number>(unitPort('fraction')),
@@ -315,8 +327,8 @@ export const MARITIME_PARAMS_PORT = objectPort<MaritimeNetworkParams>({
 export const PARTIAL_MARITIME_PARAMS_PORT = partialObjectPort(MARITIME_PARAMS_PORT);
 
 export const MARITIME_MONTH_PORT = objectPort<MaritimeMonthResult>({
-  year: unitPort('year'),
-  month: unitPort('month'),
+  year: unitPort('calendar-year'),
+  month: unitPort('calendar-month'),
   hormuzThroughput: unitPort('fraction'),
   babThroughput: unitPort('fraction'),
   suezThroughput: unitPort('fraction'),
@@ -336,7 +348,7 @@ export const MARITIME_MONTH_PORT = objectPort<MaritimeMonthResult>({
 export const MARITIME_MONTHS_PORT = vectorPort<MaritimeMonthResult>(MARITIME_MONTH_PORT);
 
 export const MARITIME_ANNUAL_PORT = objectPort<MaritimeAnnualResult>({
-  year: unitPort('year'),
+  year: unitPort('calendar-year'),
   averageIntendedMarketOilAvailability: unitPort('fraction'),
   minimumIntendedMarketOilAvailability: unitPort('fraction'),
   averageCapeOilFlowMbd: unitPort('mb/d'),
@@ -352,13 +364,13 @@ export const MARITIME_ANNUAL_ROWS_PORT = vectorPort<MaritimeAnnualResult>(MARITI
 export const DEFENSE_PROJECT_PORT = objectPort<DefenseCapacityProject>({
   id: metadataPort('string', 'Capacity-project identifier.'),
   capacity: unitPort('fraction'),
-  commissionMonth: unitPort('month'),
+  commissionMonth: unitPort('step-index'),
   qualificationMonths: unitPort('month'),
 });
 
 export const DEFENSE_PARAMS_PORT = objectPort<DefenseSourcingParams>({
   months: unitPort('month'),
-  cutoffMonth: unitPort('month'),
+  cutoffMonth: unitPort('step-index'),
   initialQualifiedCapacity: unitPort('fraction'),
   initialPhysicalUnqualifiedCapacity: unitPort('fraction'),
   initialUnqualifiedQualificationMonths: unitPort('month'),
@@ -373,9 +385,9 @@ export const DEFENSE_PARAMS_PORT = objectPort<DefenseSourcingParams>({
 export const PARTIAL_DEFENSE_PARAMS_PORT = partialObjectPort(DEFENSE_PARAMS_PORT);
 
 export const DEFENSE_MONTH_PORT = objectPort<DefenseSourcingMonth>({
-  month: unitPort('month'),
-  calendarYear: unitPort('year'),
-  calendarMonth: unitPort('month'),
+  month: unitPort('step-index'),
+  calendarYear: unitPort('calendar-year'),
+  calendarMonth: unitPort('calendar-month'),
   physicalCompliantCapacity: unitPort('fraction'),
   qualifiedCompliantCapacity: unitPort('fraction'),
   waiverAllowance: unitPort('fraction'),
@@ -388,8 +400,46 @@ export const DEFENSE_MONTH_PORT = objectPort<DefenseSourcingMonth>({
 });
 export const DEFENSE_MONTHS_PORT = vectorPort<DefenseSourcingMonth>(DEFENSE_MONTH_PORT);
 
+export const MATERIAL_INPUT_PORT = objectPort<MaterialInput>({
+  from: metadataPort('string', 'Upstream material or component identifier.'),
+  costShare: unitPort('fraction'),
+  critical: metadataPort('boolean', 'Whether this input is a fixed-proportion bottleneck.'),
+  maxSubstitution: { ...unitPort('fraction'), optional: true },
+  substitutionRampMonths: { ...unitPort('month'), optional: true },
+});
+
+export const MATERIAL_NODE_PORT = objectPort<MaterialNode>({
+  id: metadataPort('string', 'Material-network node identifier.'),
+  label: metadataPort('string', 'Material-network node label.'),
+  kind: metadataPort('string', 'Material-network node kind.'),
+  inputs: vectorPort<MaterialInput>(MATERIAL_INPUT_PORT),
+  inventoryMonths: unitPort('month'),
+  finalDemandWeight: unitPort('fraction'),
+});
+export const MATERIAL_NODES_PORT = vectorPort<MaterialNode>(MATERIAL_NODE_PORT);
+
+export const DYNAMIC_NETWORK_OPTIONS_PORT = objectPort<DynamicNetworkOptions>({
+  months: unitPort('month'),
+  supplyPaths: recordPort<readonly number[]>(vectorPort<number>(unitPort('fraction'))),
+  revision: metadataPort('string', 'Dynamic-network model revision.'),
+  inventoryMonthsOverride: { ...unitPort('month'), optional: true },
+  inventoryMonthsByInput: {
+    ...recordPort<number>(unitPort('month')),
+    optional: true,
+  },
+  inventoryMultiplier: { ...unitPort('1'), optional: true },
+  substitutionMultiplier: { ...unitPort('1'), optional: true },
+  priceElasticity: unitPort('1'),
+  pricePassThrough: unitPort('1'),
+  curtailmentNodeId: {
+    ...metadataPort('string', 'Optional output node used to identify curtailment.'),
+    optional: true,
+  },
+  curtailmentThreshold: { ...unitPort('fraction'), optional: true },
+});
+
 export const DYNAMIC_MONTH_PORT = objectPort<DynamicMonthResult>({
-  month: unitPort('month'),
+  month: unitPort('step-index'),
   outputRatios: recordPort<number>(unitPort('fraction')),
   weightedFinalOutput: unitPort('fraction'),
   finalBasketPriceMultiple: unitPort('1'),
@@ -397,10 +447,15 @@ export const DYNAMIC_MONTH_PORT = objectPort<DynamicMonthResult>({
 });
 export const DYNAMIC_NETWORK_PORT = objectPort<DynamicNetworkResult>({
   months: vectorPort<DynamicMonthResult>(DYNAMIC_MONTH_PORT),
-  firstCurtailmentMonth: { ...unitPort('month'), nullable: true },
-  recoveryMonth: { ...unitPort('month'), nullable: true },
+  firstCurtailmentMonth: { ...unitPort('step-index'), nullable: true },
+  recoveryMonth: { ...unitPort('step-index'), nullable: true },
   peakSourcePriceMultiple: unitPort('1'),
   cumulativeWeightedOutputLoss: unitPort('month'),
+});
+
+export const PRICE_SHOCK_PORT = objectPort<PriceShockResult>({
+  nodePriceChanges: recordPort<number>(unitPort('fraction')),
+  finalBasketPriceChange: unitPort('fraction'),
 });
 
 // Hormuz commodity stock-flow model -----------------------------------------
@@ -409,8 +464,8 @@ export const HORMUZ_SCENARIO_PORT = objectPort<HormuzScenario>({
   id: metadataPort('string', 'Hormuz scenario identifier.'),
   label: metadataPort('string', 'Hormuz scenario label.'),
   description: metadataPort('string', 'Hormuz scenario description.'),
-  startYear: unitPort('year'),
-  startMonth: unitPort('month'),
+  startYear: unitPort('calendar-year'),
+  startMonth: unitPort('calendar-month'),
   throughputPath: vectorPort<number>(unitPort('fraction')),
   bypassAvailabilityPath: { ...vectorPort<number>(unitPort('fraction')), optional: true },
 });
@@ -526,9 +581,9 @@ export const REGIONAL_HORMUZ_MONTH_PORT = objectPort<RegionalHormuzMonthResult>(
 });
 
 export const HORMUZ_MONTH_PORT = objectPort<HormuzMonthResult>({
-  index: unitPort('month'),
-  year: unitPort('year'),
-  month: unitPort('month'),
+  index: unitPort('step-index'),
+  year: unitPort('calendar-year'),
+  month: unitPort('calendar-month'),
   throughput: unitPort('fraction'),
   oil: OIL_MONTH_PORT,
   lng: LNG_MONTH_PORT,
@@ -548,7 +603,7 @@ export const ANNUAL_REGIONAL_HORMUZ_PORT = objectPort<AnnualRegionalHormuzShock>
 });
 
 export const ANNUAL_HORMUZ_PORT = objectPort<AnnualHormuzShock>({
-  year: unitPort('year'),
+  year: unitPort('calendar-year'),
   monthsModeled: unitPort('month'),
   oilPriceMultiple: unitPort('1'),
   gasPriceMultiple: unitPort('1'),
@@ -574,8 +629,19 @@ export const COUNTERMEASURE_PORT = objectPort<CountermeasureParams>({
   effectivenessAgainstInfection: unitPort('fraction'),
 });
 
+export const PROBABILISTIC_FORECAST_PORT = objectPort<ProbabilisticForecast>({
+  model: metadataPort('string', 'Forecast-model identifier.'),
+  originIndex: unitPort('step-index'),
+  targetIndex: unitPort('step-index'),
+  horizon: unitPort('week'),
+  pointLog: unitPort('log1p-admissions'),
+  quantilesLog: recordPort<number>(unitPort('log1p-admissions'), {
+    keys: FORECAST_QUANTILES.map(String),
+  }),
+});
+
 export const WAR_AI_YEAR_PORT = objectPort<WarAiYearResult>({
-  year: unitPort('year'),
+  year: unitPort('calendar-year'),
   baselineGdp: unitPort('$T/year'),
   aiOnlyGdp: unitPort('$T/year'),
   warOnlyGdp: unitPort('$T/year'),

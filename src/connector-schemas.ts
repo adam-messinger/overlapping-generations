@@ -291,8 +291,8 @@ const cohortFlowFields = {
 
 const cohortRow = objectPort<CohortRow>({
   label: metadataPort('string', 'Birth-cohort label.'),
-  birthYearStart: unitPort('year'),
-  birthYearEnd: unitPort('year'),
+  birthYearStart: unitPort('calendar-year'),
+  birthYearEnd: unitPort('calendar-year'),
   ageStart: unitPort('year'),
   ageEnd: unitPort('year'),
   status: metadataPort('string', 'Lifecycle status.'),

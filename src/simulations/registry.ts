@@ -15,9 +15,10 @@ import {
   COUNTERMEASURE_PORT,
   DEFENSE_MONTHS_PORT,
   DEFENSE_PARAMS_PORT,
+  DYNAMIC_NETWORK_OPTIONS_PORT,
+  DYNAMIC_NETWORK_PORT,
   DRUG_MONTHS_PORT,
   DRUG_SCENARIO_PORT,
-  DYNAMIC_NETWORK_PORT,
   FUND_STRESS_ROWS_PORT,
   HEAT_ADAPTATION_PORT,
   HEAT_EVENT_PORT,
@@ -33,8 +34,11 @@ import {
   MARITIME_PARAMS_PORT,
   MARITIME_SCENARIO_PORT,
   MARKET_STRESS_ROWS_PORT,
+  MATERIAL_NODES_PORT,
   PARTIAL_DEFENSE_PARAMS_PORT,
   PARTIAL_MARITIME_PARAMS_PORT,
+  PRICE_SHOCK_PORT,
+  PROBABILISTIC_FORECAST_PORT,
   SOVEREIGN_MARKETS_PORT,
   SOVEREIGN_SCENARIO_PORT,
   TARIFF_ACTION_PORT,
@@ -74,6 +78,16 @@ import {
   simulateDefenseSourcing,
   type DefenseSourcingResult,
 } from './critical-materials/defense-sourcing.js';
+import type { MaterialNode } from './critical-materials/data.js';
+import {
+  simulateDynamicNetwork,
+  type DynamicNetworkOptions,
+  type DynamicNetworkResult,
+} from './critical-materials/dynamic-network.js';
+import {
+  simulatePriceShock,
+  type PriceShockResult,
+} from './critical-materials/price-network.js';
 import type { HormuzModelParams, HormuzScenario } from './critical-materials/hormuz-data.js';
 import {
   simulateHormuzDisruption,
@@ -81,6 +95,12 @@ import {
 } from './critical-materials/hormuz-model.js';
 import type { OutbreakV2Params, OutbreakSeries } from './outbreak/model.js';
 import { simulateOutbreakV2 } from './outbreak/model.js';
+import {
+  makeForecast,
+  type ForecastHorizon,
+  type ForecastModel,
+  type ProbabilisticForecast,
+} from './outbreak/probabilistic.js';
 import {
   runWarAiExperiment,
   type WarAiExperiment,
@@ -155,7 +175,7 @@ export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, Generi
     targetInventoryMonths: unitPort('month', 'number'),
     rawMaterialCostMultiplier: unitPort('1', 'number'),
     laterRawMaterialCostMultiplier: unitPort('1', 'number'),
-    rawMaterialReliefMonth: unitPort('month', 'number'),
+    rawMaterialReliefMonth: unitPort('step-index', 'number'),
     priceMultiplier: unitPort('1', 'number'),
     priceChangeDelayMonths: unitPort('month', 'number'),
     demandMultiplier: unitPort('1', 'number'),
@@ -166,7 +186,7 @@ export const genericDrugModel = defineModel<GenericDrugEconomicsScenario, Generi
   outputPorts: {
     scenario: DRUG_SCENARIO_PORT,
     months: DRUG_MONTHS_PORT,
-    firstShortageMonth: { ...unitPort('month', 'number'), nullable: true },
+    firstShortageMonth: { ...unitPort('step-index', 'number'), nullable: true },
     monthsBelow98Pct: unitPort('month', 'number'),
     minimumServiceLevel: unitPort('fraction', 'number'),
     cumulativeDoseShortfall: unitPort('month', 'number'),
@@ -229,6 +249,62 @@ export const bilateralTariffModel = defineModel<TariffModelInput, BilateralTarif
     observed('tariff-canada-order', 'Canada tariff product scope', tariffEvidence.sources.canadaOrder, 'scenario'),
   ],
   validationClaims: [claim('same-event-fit', 'Sector pass-through and substitution', 'Pass-through and elasticities are fit to the 2018 steel/aluminum episode; 2026 policy effects are conditional scenarios.', ['tariff-usitc-2018', 'tariff-canada-order'])],
+});
+
+export interface PriceShockModelInput {
+  nodes: readonly MaterialNode[];
+  shockedNodeId: string;
+  shockFraction: number;
+  passThrough?: number;
+}
+
+export const criticalMaterialPriceModel = defineModel<PriceShockModelInput, PriceShockResult>({
+  id: 'critical-material-price-network',
+  version: '2.0.0',
+  description: 'Weber-style input-output propagation of an upstream material price shock.',
+  run: ({ nodes, shockedNodeId, shockFraction, passThrough }) =>
+    simulatePriceShock(nodes, shockedNodeId, shockFraction, passThrough),
+  inputPorts: {
+    nodes: MATERIAL_NODES_PORT,
+    shockedNodeId: metadataPort('string', 'Shocked material-network node identifier.'),
+    shockFraction: unitPort('fraction', 'number'),
+    passThrough: { ...unitPort('1', 'number'), optional: true },
+  },
+  outputPorts: PRICE_SHOCK_PORT.fields,
+  invariants: [{
+    id: 'finite-basket-price',
+    description: 'The propagated final-basket price change must be finite.',
+    check: (result) => Number.isFinite(result.finalBasketPriceChange),
+  }],
+  evidence: [],
+});
+
+export interface DynamicNetworkModelInput {
+  nodes: readonly MaterialNode[];
+  options: DynamicNetworkOptions;
+}
+
+export const criticalMaterialFlowModel = defineModel<
+  DynamicNetworkModelInput,
+  DynamicNetworkResult
+>({
+  id: 'critical-material-flow-network',
+  version: '2.0.0',
+  description: 'Monthly inventories, substitution, bottleneck output, and material-price propagation.',
+  run: ({ nodes, options }) => simulateDynamicNetwork(nodes, options),
+  inputPorts: {
+    nodes: MATERIAL_NODES_PORT,
+    options: DYNAMIC_NETWORK_OPTIONS_PORT,
+  },
+  outputPorts: DYNAMIC_NETWORK_PORT.fields,
+  invariants: [{
+    id: 'output-range',
+    description: 'Weighted final output must remain in [0,1].',
+    check: (result) => result.months.every(
+      (row) => row.weightedFinalOutput >= 0 && row.weightedFinalOutput <= 1,
+    ),
+  }],
+  evidence: [],
 });
 
 export interface FinancialContagionInput {
@@ -328,12 +404,12 @@ export const defenseSourcingModel = defineModel<DefenseSourcingInput, DefenseSou
     params: DEFENSE_PARAMS_PORT,
     months: DEFENSE_MONTHS_PORT,
     network: DYNAMIC_NETWORK_PORT,
-    firstCurtailmentMonth: { ...unitPort('month', 'number'), nullable: true },
+    firstCurtailmentMonth: { ...unitPort('step-index', 'number'), nullable: true },
     minimumDefenseOutput: unitPort('fraction', 'number'),
     outputMonthsLost: unitPort('month', 'number'),
     monthsBelow95Pct: unitPort('month', 'number'),
     waiverSupplyMonths: unitPort('month', 'number'),
-    stockpileDepletionMonth: { ...unitPort('month', 'number'), nullable: true },
+    stockpileDepletionMonth: { ...unitPort('step-index', 'number'), nullable: true },
     endingQualifiedCapacity: unitPort('1', 'number'),
     averageProcurementCostIndex: unitPort('1', 'number'),
   },
@@ -425,6 +501,41 @@ export const outbreakPreparednessModel = defineModel<OutbreakV2Params, OutbreakS
   validationClaims: [claim('out-of-sample', 'Cross-episode outbreak dynamics', 'Parameters are fitted on early weeks and scored on frozen later-week episode holdouts; generic preparedness paths remain scenarios.', [])],
 });
 
+export interface ProbabilisticForecastModelInput {
+  values: readonly number[];
+  model: ForecastModel;
+  originIndex: number;
+  horizon: ForecastHorizon;
+}
+
+export const outbreakForecastModel = defineModel<
+  ProbabilisticForecastModelInput,
+  ProbabilisticForecast
+>({
+  id: 'outbreak-probabilistic-forecast',
+  version: '2.0.0',
+  description: 'Leakage-safe one-to-four-week probabilistic hospital-admission forecast.',
+  run: ({ values, model, originIndex, horizon }) =>
+    makeForecast(values, model, originIndex, horizon),
+  inputPorts: {
+    values: unitPort('people/week', 'vector'),
+    model: metadataPort('string', 'Forecast-model identifier.'),
+    originIndex: unitPort('step-index', 'number'),
+    horizon: unitPort('week', 'number'),
+  },
+  outputPorts: PROBABILISTIC_FORECAST_PORT.fields,
+  invariants: [{
+    id: 'ordered-intervals',
+    description: 'Forecast quantiles must be weakly increasing.',
+    check: (forecast) => {
+      const q = forecast.quantilesLog;
+      return q[0.025] <= q[0.25] && q[0.25] <= q[0.5] &&
+        q[0.5] <= q[0.75] && q[0.75] <= q[0.975];
+    },
+  }],
+  evidence: [],
+});
+
 export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
   id: 'war-ai-factorial',
   version: '2.0.0',
@@ -434,7 +545,7 @@ export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({
     baseParams: { ...opaquePort('Global-model parameter tree contains many module-specific units.'), optional: true },
     aiParams: opaquePort('AI scenario parameter tree contains many module-specific units.'),
     hormuzScenario: { ...metadataPort('string', 'Hormuz scenario identifier.'), optional: true },
-    endYear: { ...unitPort('year', 'number'), optional: true },
+    endYear: { ...unitPort('calendar-year', 'number'), optional: true },
   },
   outputPorts: {
     scenario: metadataPort('string', 'Hormuz scenario identifier.'),
@@ -454,11 +565,14 @@ export const SIMULATION_MODELS = [
   heatEventModel,
   genericDrugModel,
   bilateralTariffModel,
+  criticalMaterialPriceModel,
+  criticalMaterialFlowModel,
   financialContagionModel,
   maritimeNetworkModel,
   defenseSourcingModel,
   hormuzDisruptionModel,
   outbreakPreparednessModel,
+  outbreakForecastModel,
   warAiModel,
 ] as const;
 

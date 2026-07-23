@@ -12,7 +12,27 @@
  *   const { timeseries, metrics } = collectResults(autowireResult, config);
  */
 
-import { AutowireResult, getOutputsAtYear } from './autowire.js';
+import {
+  connectorSpecToPortMeta,
+  getOutputsAtYear,
+  type AnyModule,
+  type AutowireResult,
+} from './autowire.js';
+import type { ConnectorSpec } from './module.js';
+import {
+  areUnitsIdentical,
+  assertPortValue,
+  isMetadataPort,
+  isObjectPort,
+  isOpaquePort,
+  isQuantityPort,
+  isRecordPort,
+  isVectorPort,
+  validatePortMeta,
+  validatePortUnits,
+  type PortMeta,
+  type QuantityPortMeta,
+} from './units.js';
 
 // =============================================================================
 // TYPES
@@ -25,15 +45,19 @@ import { AutowireResult, getOutputsAtYear } from './autowire.js';
  * - as: optional rename for the result field (defaults to source)
  * - path: optional dot-path for nested extraction (e.g., 'copper.demand')
  * - transform: optional function to derive value from all outputs
- * - unit: output unit for introspection (e.g., '°C', 'TWh')
+ * - unit: optional asserted unit for introspection; direct collectors derive
+ *   their authoritative contract from the producer
  * - description: human-readable description for introspection
  * - module: originating module name for introspection
+ * - inputTypes/outputType: mandatory signatures for transformed collectors
  */
 export interface TimeseriesDef {
   source: string;
   as?: string;
   path?: string;
   transform?: (outputs: Record<string, any>, year: number, yearIndex: number) => any;
+  inputTypes?: Record<string, ConnectorSpec>;
+  outputType?: ConnectorSpec;
   unit?: string;
   description?: string;
   module?: string;
@@ -83,6 +107,241 @@ export interface CollectedResults {
   years: number[];
   timeseries: Record<string, any>[];  // Per-year records
   metrics: Record<string, any>;       // Summary metrics
+}
+
+export interface CollectorContractAudit {
+  valid: boolean;
+  errors: string[];
+  collectors: number;
+  directCollectors: number;
+  transformedCollectors: number;
+}
+
+interface ProducerContract {
+  module: string;
+  spec: ConnectorSpec;
+}
+
+type ProducerContracts = Readonly<Record<string, ProducerContract>>;
+
+function producerContractsFromModules(modules: readonly AnyModule[]): ProducerContracts {
+  return Object.fromEntries(
+    modules.flatMap((mod) =>
+      mod.outputs.map((output) => {
+        const name = String(output);
+        const spec = (mod.connectorTypes.outputs as Record<string, ConnectorSpec>)[name];
+        return [name, { module: mod.name, spec }] as const;
+      }),
+    ),
+  );
+}
+
+function scalarQuantity(port: QuantityPortMeta): QuantityPortMeta {
+  return {
+    ...port,
+    valueType: 'number',
+    optional: false,
+    nullable: false,
+  };
+}
+
+/**
+ * Resolve a collector's dot-path through a recursive producer contract.
+ * Homogeneous legacy record connectors can validate the leaf unit even though
+ * they do not declare keys; fixed object/record schemas validate every key.
+ */
+export function resolvePortPath(
+  root: PortMeta,
+  path: string | undefined,
+  context = 'collector source',
+): PortMeta {
+  if (!path) return root;
+  const parts = path.split('.');
+  if (parts.some((part) => !part)) throw new Error(`${context}: invalid empty path segment in '${path}'`);
+  let current = root;
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    if (isObjectPort(current)) {
+      const next = (current.fields as Readonly<Record<string, PortMeta>>)[part];
+      if (!next) throw new Error(`${context}: path '${path}' has no field '${part}'`);
+      current = next;
+      continue;
+    }
+    if (isRecordPort(current)) {
+      if (current.keys && !current.keys.includes(part)) {
+        throw new Error(`${context}: path '${path}' uses undeclared record key '${part}'`);
+      }
+      current = current.values;
+      continue;
+    }
+    if (isVectorPort(current)) {
+      if (!/^\d+$/.test(part)) {
+        throw new Error(`${context}: path '${path}' must use a numeric vector index, got '${part}'`);
+      }
+      current = current.items;
+      continue;
+    }
+    if (isQuantityPort(current) && current.valueType && current.valueType !== 'number') {
+      // A homogeneous record/nested-record connector has one unit at every
+      // numeric leaf but no field schema. The remaining path therefore has
+      // the same scalar quantity contract.
+      return scalarQuantity(current);
+    }
+    if (isOpaquePort(current)) {
+      throw new Error(`${context}: path '${path}' enters an opaque contract at '${part}'`);
+    }
+    throw new Error(`${context}: path '${path}' continues through a non-structured value at '${part}'`);
+  }
+  return current;
+}
+
+function transformedContract(def: TimeseriesDef, context: string): PortMeta {
+  if (!def.outputType) {
+    throw new Error(`${context}: transformed collector must declare outputType`);
+  }
+  const contract = connectorSpecToPortMeta(def.outputType);
+  validatePortMeta(contract, `${context} output`);
+  return contract;
+}
+
+function validateDeclaredUnit(def: TimeseriesDef, contract: PortMeta, context: string): void {
+  if (!def.unit) return;
+  if (!isQuantityPort(contract)) {
+    throw new Error(
+      `${context}: structured or metadata contracts cannot be represented by one unit '${def.unit}'; ` +
+      `omit unit and use the derived contract`,
+    );
+  }
+  if (!areUnitsIdentical(contract.unit, def.unit)) {
+    throw new Error(
+      `${context}: collector unit '${def.unit}' does not match producer/output contract '${contract.unit}'`,
+    );
+  }
+}
+
+function resolveCollectorAgainstRegistry(
+  def: TimeseriesDef,
+  producers: ProducerContracts,
+  context: string,
+): PortMeta {
+  const producer = producers[def.source];
+  if (!producer) throw new Error(`${context}: source '${def.source}' is not produced by any module`);
+  if (def.module && def.module !== producer.module) {
+    throw new Error(
+      `${context}: source '${def.source}' is attributed to '${def.module}' but produced by '${producer.module}'`,
+    );
+  }
+
+  if (!def.transform) {
+    if (def.inputTypes || def.outputType) {
+      throw new Error(`${context}: direct collector must not declare transform inputTypes/outputType`);
+    }
+    const contract = resolvePortPath(
+      connectorSpecToPortMeta(producer.spec),
+      def.path,
+      `${context} source '${def.source}'`,
+    );
+    validatePortMeta(contract, `${context} resolved source`);
+    validateDeclaredUnit(def, contract, context);
+    return contract;
+  }
+
+  if (def.path) throw new Error(`${context}: transformed collector must not also declare path`);
+  if (!def.inputTypes) {
+    throw new Error(`${context}: transformed collector must declare inputTypes`);
+  }
+  for (const [read, expectedSpec] of Object.entries(def.inputTypes)) {
+    const readProducer = producers[read];
+    if (!readProducer) {
+      throw new Error(`${context}: transform input '${read}' is not produced by any module`);
+    }
+    validatePortUnits(
+      connectorSpecToPortMeta(readProducer.spec),
+      connectorSpecToPortMeta(expectedSpec),
+      `${context}: ${readProducer.module}.${read} -> transform input '${read}'`,
+    );
+  }
+  const contract = transformedContract(def, context);
+  validateDeclaredUnit(def, contract, context);
+  return contract;
+}
+
+function auditCollectorRegistry(
+  producers: ProducerContracts,
+  config: CollectorConfig,
+): CollectorContractAudit {
+  const errors: string[] = [];
+  const keys = new Set<string>();
+  let directCollectors = 0;
+  let transformedCollectors = 0;
+  for (const def of config.timeseries) {
+    const key = resolveKey(def);
+    const context = `collector '${key}'`;
+    if (keys.has(key)) errors.push(`${context}: duplicate resolved timeseries key`);
+    keys.add(key);
+    if (def.transform) transformedCollectors++;
+    else directCollectors++;
+    try {
+      resolveCollectorAgainstRegistry(def, producers, context);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return {
+    valid: errors.length === 0,
+    errors,
+    collectors: config.timeseries.length,
+    directCollectors,
+    transformedCollectors,
+  };
+}
+
+/** CI-friendly audit of collectors against the actual module producers. */
+export function auditCollectorContracts(
+  modules: readonly AnyModule[],
+  config: CollectorConfig,
+): CollectorContractAudit {
+  return auditCollectorRegistry(producerContractsFromModules(modules), config);
+}
+
+export function assertCollectorContracts(
+  modules: readonly AnyModule[],
+  config: CollectorConfig,
+): CollectorContractAudit {
+  const audit = auditCollectorContracts(modules, config);
+  if (!audit.valid) throw new Error(`Collector contract errors:\n${audit.errors.join('\n')}`);
+  return audit;
+}
+
+/** Resolve the authoritative schema for one direct or transformed collector. */
+export function resolveCollectorContract(
+  modules: readonly AnyModule[],
+  def: TimeseriesDef,
+): PortMeta {
+  return resolveCollectorAgainstRegistry(
+    def,
+    producerContractsFromModules(modules),
+    `collector '${resolveKey(def)}'`,
+  );
+}
+
+/** Compact display-only summary; the returned PortMeta remains authoritative. */
+export function summarizePortUnits(port: PortMeta): string {
+  const units = new Set<string>();
+  const visit = (node: PortMeta): void => {
+    if (isQuantityPort(node)) units.add(node.unit);
+    else if (isObjectPort(node)) {
+      for (const field of Object.values(node.fields as Readonly<Record<string, PortMeta>>)) visit(field);
+    } else if (isRecordPort(node)) visit(node.values);
+    else if (isVectorPort(node)) visit(node.items);
+    else if (isMetadataPort(node)) units.add('metadata');
+    else if (isOpaquePort(node)) units.add('opaque');
+  };
+  visit(port);
+  const values = [...units].sort();
+  if (values.length === 0) return 'structured';
+  if (values.length === 1) return values[0];
+  return `mixed[${values.join(', ')}]`;
 }
 
 // =============================================================================
@@ -182,6 +441,18 @@ function aggregate(values: any[], years: number[], aggregator: MetricAggregator)
  */
 export function collectResults(result: AutowireResult, config: CollectorConfig): CollectedResults {
   const { years } = result;
+  const producers = result.outputContracts;
+  const resolvedContracts = new Map<string, PortMeta>();
+  if (producers) {
+    const audit = auditCollectorRegistry(producers, config);
+    if (!audit.valid) throw new Error(`Collector contract errors:\n${audit.errors.join('\n')}`);
+    for (const def of config.timeseries) {
+      resolvedContracts.set(
+        resolveKey(def),
+        resolveCollectorAgainstRegistry(def, producers, `collector '${resolveKey(def)}'`),
+      );
+    }
+  }
 
   // Validate metric configs before doing any work (fail fast, like
   // validateWiring). Each metric needs exactly one of source/transform, and a
@@ -208,7 +479,29 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
 
     for (const def of config.timeseries) {
       const key = resolveKey(def);
-      record[key] = extractValue(def, outputs, years[i], i);
+      let value: unknown;
+      if (def.transform && producers) {
+        const reads = new Set<string>();
+        const proxy = new Proxy(outputs, {
+          get(target, property) {
+            if (typeof property === 'string') reads.add(property);
+            return target[property as string];
+          },
+        });
+        value = def.transform(proxy, years[i], i);
+        for (const read of reads) {
+          if (!def.inputTypes?.[read]) {
+            throw new Error(
+              `Collector '${key}' transform reads '${read}' without an input unit signature`,
+            );
+          }
+        }
+      } else {
+        value = extractValue(def, outputs, years[i], i);
+      }
+      const contract = resolvedContracts.get(key);
+      if (contract) assertPortValue(value, contract, `Collector '${key}' at year ${years[i]}`);
+      record[key] = value;
     }
 
     timeseries.push(record);

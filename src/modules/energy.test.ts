@@ -5,7 +5,11 @@
  * Validates Wright's Law, EROEI depletion, and investment constraints.
  */
 
-import { energyModule, energyDefaults } from './energy.js';
+import {
+  energyModule,
+  energyDefaults,
+  levelizedStorageCostPerMWh,
+} from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { dispatchDefaults } from './dispatch.js';
@@ -326,11 +330,9 @@ test('lower investment reduces additions (stability embedded in capital)', () =>
   const resultHigh = energyModule.step(stateHigh, inputsHigh, params, 2025, 0);
   const resultLow = energyModule.step(stateLow, inputsLow, params, 2025, 0);
 
-  // Lower investment should result in lower additions
-  const totalHigh = ENERGY_SOURCES.reduce((sum, s) => sum + resultHigh.outputs.additions[s], 0);
-  const totalLow = ENERGY_SOURCES.reduce((sum, s) => sum + resultLow.outputs.additions[s], 0);
-
-  expect(totalLow).toBeLessThan(totalHigh + 1); // Allow small tolerance
+  // Compare dollars with dollars: additions mix GW/year and GWh/year.
+  expect(resultLow.outputs.energyCapexSpend)
+    .toBeLessThan(resultHigh.outputs.energyCapexSpend + 1e-9);
 });
 
 // --- Investment Constraint ---
@@ -352,10 +354,6 @@ test('lower investment reduces additions', () => {
   expect(resultLow.outputs.additions.solar).toBeLessThan(resultHigh.outputs.additions.solar + 1);
 });
 
-// Sum of funded clean additions (gas/coal are unconstrained by the budget)
-const totalCleanAdditions = (r: any) =>
-  ['solar', 'wind', 'battery', 'nuclear', 'hydro'].reduce((s, k) => s + r.outputs.additions[k], 0);
-
 test('gridLossFactor matches dispatch (capacity planned on generation basis)', () => {
   // Energy sizes the fleet; dispatch runs it. Both must use the same
   // delivered->generation conversion or the fleet is systematically
@@ -373,7 +371,7 @@ test('cleanShareFlex expands the capex budget when desired build is rationed', (
   const rigid = energyModule.step(energyModule.init(paramsRigid), inputs, paramsRigid, 2025, 0);
   const flex = energyModule.step(energyModule.init(paramsFlex), inputs, paramsFlex, 2025, 0);
 
-  expect(totalCleanAdditions(flex)).toBeGreaterThan(totalCleanAdditions(rigid));
+  expect(flex.outputs.energyCapexSpend).toBeGreaterThan(rigid.outputs.energyCapexSpend);
 });
 
 test('cleanShareFlex defaults to off: zero flex reproduces the exogenous ramp', () => {
@@ -393,7 +391,14 @@ test('cleanShareMax caps the expanded budget', () => {
   const inputs = createInputs(40000, 8);
   const low = energyModule.step(energyModule.init(paramsLow), inputs, paramsLow, 2025, 0);
   const high = energyModule.step(energyModule.init(paramsHigh), inputs, paramsHigh, 2025, 0);
-  expect(totalCleanAdditions(low)).toBeLessThan(totalCleanAdditions(high) + 1e-9);
+  expect(low.outputs.energyCapexSpend).toBeLessThan(high.outputs.energyCapexSpend + 1e-9);
+});
+
+test('battery ranking converts $/kWh capital cost to a comparable $/MWh LCOS', () => {
+  const lcos = levelizedStorageCostPerMWh(140, 0.07, 15, 365);
+  expect(lcos).toBeBetween(40, 45);
+  expect(levelizedStorageCostPerMWh(140, 0.03, 15, 365)).toBeLessThan(lcos);
+  expect(lcos).toBeLessThan(140);
 });
 
 test('investment constraint calculated from CAPEX', () => {

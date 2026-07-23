@@ -11,7 +11,16 @@
  *   // { type: 'number', default: 35, min: 0, max: 200, unit: '$/ton', path: 'energy.carbonPrice', ... }
  */
 
-import { ComponentParams, generateParameterSchema, GeneratedParameterInfo, resolveKey } from 'tsimulation';
+import {
+  ComponentParams,
+  generateParameterSchema,
+  resolveCollectorContract,
+  resolveKey,
+  summarizePortUnits,
+  unitPort,
+  type GeneratedParameterInfo,
+  type PortMeta,
+} from 'tsimulation';
 import { standardCollectors } from './standard-collectors.js';
 import { deepMerge } from './scenario.js';
 
@@ -21,6 +30,7 @@ import { energyModule } from './modules/energy.js';
 import { demandModule } from './modules/demand.js';
 import { demographicsModule } from './modules/demographics.js';
 import { capitalModule } from './modules/capital.js';
+import { generationsModule } from './modules/generations.js';
 import { dispatchModule } from './modules/dispatch.js';
 import { productionModule } from './modules/production.js';
 import { resourcesModule } from './modules/resources.js';
@@ -55,6 +65,7 @@ const ALL_MODULES = [
   demandModule,
   demographicsModule,
   capitalModule,
+  generationsModule,
   dispatchModule,
   productionModule,
   resourcesModule,
@@ -144,6 +155,8 @@ export interface OutputInfo {
   unit: string;
   description: string;
   module: string;
+  /** Authoritative recursive producer/output contract. */
+  contract: PortMeta;
 }
 
 export interface OutputSchema {
@@ -159,15 +172,26 @@ export function describeOutputs(): OutputSchema {
   const result: OutputSchema = {};
 
   // 'year' is always present (framework field, not a collector)
-  result.year = { unit: 'year', description: 'Simulation year', module: 'framework' };
+  result.year = {
+    unit: 'calendar-year',
+    description: 'Simulation year',
+    module: 'framework',
+    contract: unitPort('calendar-year'),
+  };
 
   for (const def of standardCollectors.timeseries) {
     const key = resolveKey(def);
-    if (!def.unit || !def.description) {
-      console.warn(`[introspection] standardCollectors entry '${key}' missing unit or description`);
+    if (!def.description) {
+      console.warn(`[introspection] standardCollectors entry '${key}' missing description`);
       continue;
     }
-    result[key] = { unit: def.unit, description: def.description, module: def.module ?? '' };
+    const contract = resolveCollectorContract(ALL_MODULES, def);
+    result[key] = {
+      unit: summarizePortUnits(contract),
+      description: def.description,
+      module: def.module ?? '',
+      contract,
+    };
   }
 
   return result;

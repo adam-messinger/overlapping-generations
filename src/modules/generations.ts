@@ -570,7 +570,7 @@ export const generationsModule: Module<
     },
     borrowingLimitIncomeMultiple: {
       description: 'Maximum cohort liabilities as a multiple of annual labor income.',
-      unit: 'ratio',
+      unit: 'year',
       range: { min: 0, max: 10, default: 4.0 },
       tier: 1 as const,
     },

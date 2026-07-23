@@ -26,5 +26,20 @@ export * from './ensemble.js';
 export * from './shock-ledger.js';
 export * from './manifest.js';
 export * from './liveness.js';
-export { collectResults, resolveKey } from './collectors.js';
-export type { TimeseriesDef, MetricDef, MetricAggregator, CollectorConfig, CollectedResults } from './collectors.js';
+export {
+  assertCollectorContracts,
+  auditCollectorContracts,
+  collectResults,
+  resolveCollectorContract,
+  resolveKey,
+  resolvePortPath,
+  summarizePortUnits,
+} from './collectors.js';
+export type {
+  TimeseriesDef,
+  MetricDef,
+  MetricAggregator,
+  CollectorConfig,
+  CollectedResults,
+  CollectorContractAudit,
+} from './collectors.js';

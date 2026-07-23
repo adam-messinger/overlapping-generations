@@ -618,7 +618,7 @@ export const resourcesModule: Module<
       population: unitConnector('number', 'people'),
       gdpPerCapita: unitConnector('number', '$/people/year'),
       gdpPerCapita2025: unitConnector('number', '$/people/year'),
-      temperature: unitConnector('number', '°C'),
+      temperature: unitConnector('number', 'Δ°C'),
       transportElectrification: unitConnector('number', 'fraction'),
     },
     outputs: {
