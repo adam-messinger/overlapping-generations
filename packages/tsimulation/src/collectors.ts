@@ -21,6 +21,7 @@ import {
 import type { ConnectorSpec } from './module.js';
 import {
   areUnitsIdentical,
+  auditPortSemantics,
   assertPortValue,
   isMetadataPort,
   isObjectPort,
@@ -29,10 +30,18 @@ import {
   isRecordPort,
   isVectorPort,
   validatePortMeta,
-  validatePortUnits,
+  validatePortCompatibility,
   type PortMeta,
   type QuantityPortMeta,
 } from './units.js';
+import {
+  compareEstimands,
+  validateSemanticDerivation,
+  type MeasurementCrosswalk,
+  type SemanticCrosswalk,
+  type SemanticDerivation,
+  type SemanticValidationMode,
+} from './semantics.js';
 
 // =============================================================================
 // TYPES
@@ -58,6 +67,9 @@ export interface TimeseriesDef {
   transform?: (outputs: Record<string, any>, year: number, yearIndex: number) => any;
   inputTypes?: Record<string, ConnectorSpec>;
   outputType?: ConnectorSpec;
+  inputCrosswalks?: Record<string, SemanticCrosswalk>;
+  inputMeasurementCrosswalks?: Record<string, MeasurementCrosswalk>;
+  derivation?: SemanticDerivation;
   unit?: string;
   description?: string;
   module?: string;
@@ -90,6 +102,9 @@ export interface MetricDef {
   as: string;
   aggregator: MetricAggregator;
   transform?: (outputs: Record<string, any>, year: number, yearIndex: number) => any;
+  /** Required for transformed/custom metrics under strict semantic validation. */
+  outputType?: ConnectorSpec;
+  derivation?: SemanticDerivation;
 }
 
 /**
@@ -98,6 +113,7 @@ export interface MetricDef {
 export interface CollectorConfig {
   timeseries: TimeseriesDef[];
   metrics: MetricDef[];
+  semanticValidation?: SemanticValidationMode;
 }
 
 /**
@@ -107,6 +123,10 @@ export interface CollectedResults {
   years: number[];
   timeseries: Record<string, any>[];  // Per-year records
   metrics: Record<string, any>;       // Summary metrics
+  contracts: {
+    timeseries: Record<string, PortMeta>;
+    metrics: Record<string, PortMeta>;
+  };
 }
 
 export interface CollectorContractAudit {
@@ -223,6 +243,7 @@ function resolveCollectorAgainstRegistry(
   def: TimeseriesDef,
   producers: ProducerContracts,
   context: string,
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): PortMeta {
   const producer = producers[def.source];
   if (!producer) throw new Error(`${context}: source '${def.source}' is not produced by any module`);
@@ -242,6 +263,12 @@ function resolveCollectorAgainstRegistry(
       `${context} source '${def.source}'`,
     );
     validatePortMeta(contract, `${context} resolved source`);
+    if (semanticValidation === 'required') {
+      const semantic = auditPortSemantics(contract, `${context} resolved source`);
+      if (semantic.missingSemanticPaths.length > 0) {
+        throw new Error(`${context}: direct source is missing an estimand contract`);
+      }
+    }
     validateDeclaredUnit(def, contract, context);
     return contract;
   }
@@ -255,13 +282,41 @@ function resolveCollectorAgainstRegistry(
     if (!readProducer) {
       throw new Error(`${context}: transform input '${read}' is not produced by any module`);
     }
-    validatePortUnits(
+    validatePortCompatibility(
       connectorSpecToPortMeta(readProducer.spec),
       connectorSpecToPortMeta(expectedSpec),
       `${context}: ${readProducer.module}.${read} -> transform input '${read}'`,
+      {
+        semanticValidation,
+        crosswalk: def.inputCrosswalks?.[read],
+        measurementCrosswalk: def.inputMeasurementCrosswalks?.[read],
+      },
     );
   }
   const contract = transformedContract(def, context);
+  if (def.derivation) {
+    validateSemanticDerivation(def.derivation, `${context} derivation`);
+    if (isQuantityPort(contract) && contract.estimand) {
+      const comparison = compareEstimands(def.derivation.outputEstimand, contract.estimand);
+      if (!comparison.compatible) {
+        throw new Error(`${context}: derivation output estimand does not match outputType`);
+      }
+    }
+  }
+  if (semanticValidation === 'required') {
+    const semantic = auditPortSemantics(contract, `${context} output`);
+    if (semantic.missingSemanticPaths.length > 0) {
+      throw new Error(`${context}: transformed output is missing an estimand contract`);
+    }
+    const inputEstimands = Object.values(def.inputTypes)
+      .map((spec) => connectorSpecToPortMeta(spec))
+      .flatMap((meta) => isQuantityPort(meta) && meta.estimand ? [meta.estimand] : []);
+    if (isQuantityPort(contract) && contract.estimand && inputEstimands.length > 0 &&
+        !inputEstimands.some((input) => compareEstimands(input, contract.estimand!).compatible) &&
+        !def.derivation) {
+      throw new Error(`${context}: transformed collector derives a new estimand without a derivation`);
+    }
+  }
   validateDeclaredUnit(def, contract, context);
   return contract;
 }
@@ -282,7 +337,38 @@ function auditCollectorRegistry(
     if (def.transform) transformedCollectors++;
     else directCollectors++;
     try {
-      resolveCollectorAgainstRegistry(def, producers, context);
+      resolveCollectorAgainstRegistry(
+        def,
+        producers,
+        context,
+        config.semanticValidation ?? 'if-present',
+      );
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  for (const metric of config.metrics) {
+    try {
+      if (metric.outputType) {
+        const contract = connectorSpecToPortMeta(metric.outputType);
+        validatePortMeta(contract, `metric '${metric.as}' output`);
+        if (metric.derivation) {
+          validateSemanticDerivation(metric.derivation, `metric '${metric.as}' derivation`);
+        }
+        if (config.semanticValidation === 'required') {
+          const semantic = auditPortSemantics(contract, `metric.${metric.as}`);
+          if (semantic.missingSemanticPaths.length > 0) {
+            throw new Error(`Metric '${metric.as}' output is missing an estimand contract`);
+          }
+        }
+      } else if (
+        config.semanticValidation === 'required' &&
+        (metric.transform || metric.aggregator !== 'last')
+      ) {
+        throw new Error(
+          `Metric '${metric.as}' must declare outputType under strict semantic validation`,
+        );
+      }
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
@@ -317,11 +403,13 @@ export function assertCollectorContracts(
 export function resolveCollectorContract(
   modules: readonly AnyModule[],
   def: TimeseriesDef,
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): PortMeta {
   return resolveCollectorAgainstRegistry(
     def,
     producerContractsFromModules(modules),
     `collector '${resolveKey(def)}'`,
+    semanticValidation,
   );
 }
 
@@ -449,7 +537,12 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
     for (const def of config.timeseries) {
       resolvedContracts.set(
         resolveKey(def),
-        resolveCollectorAgainstRegistry(def, producers, `collector '${resolveKey(def)}'`),
+        resolveCollectorAgainstRegistry(
+          def,
+          producers,
+          `collector '${resolveKey(def)}'`,
+          config.semanticValidation ?? 'if-present',
+        ),
       );
     }
   }
@@ -509,6 +602,7 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
 
   // Collect metrics (config validated above)
   const metrics: Record<string, any> = {};
+  const metricContracts: Record<string, PortMeta> = {};
   for (const def of config.metrics) {
     if (def.transform) {
       // Multi-field metric: compute per-year values then aggregate
@@ -523,7 +617,37 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
       const values = timeseries.map(r => r[def.source!]);
       metrics[def.as] = aggregate(values, years, def.aggregator);
     }
+    if (def.outputType) {
+      const contract = connectorSpecToPortMeta(def.outputType);
+      validatePortMeta(contract, `Metric '${def.as}' output`);
+      if (def.derivation) {
+        validateSemanticDerivation(def.derivation, `Metric '${def.as}' derivation`);
+      }
+      if (config.semanticValidation === 'required') {
+        const semantic = auditPortSemantics(contract, `metric.${def.as}`);
+        if (semantic.missingSemanticPaths.length > 0) {
+          throw new Error(`Metric '${def.as}' output is missing an estimand contract`);
+        }
+      }
+      assertPortValue(metrics[def.as], contract, `Metric '${def.as}'`);
+      metricContracts[def.as] = contract;
+    } else if (!def.transform && def.aggregator === 'last' && def.source) {
+      const sourceContract = resolvedContracts.get(def.source);
+      if (sourceContract) metricContracts[def.as] = sourceContract;
+    } else if (config.semanticValidation === 'required') {
+      throw new Error(
+        `Metric '${def.as}' must declare outputType under strict semantic validation`,
+      );
+    }
   }
 
-  return { years, timeseries, metrics };
+  return {
+    years,
+    timeseries,
+    metrics,
+    contracts: {
+      timeseries: Object.fromEntries(resolvedContracts),
+      metrics: metricContracts,
+    },
+  };
 }

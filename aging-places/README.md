@@ -156,5 +156,6 @@ This currently maps the global model's OECD real GDP-per-capita path into munici
 and national real house-price drift. The current OECD path contains a large, unvalidated modeled
 GDP-share reallocation, so coupled absolute price and income levels are integration diagnostics,
 not forecasts. The OECD proxy and all unconsumed capital, WACC, energy, and climate fields remain
-explicit in `macroPath`; see
+explicit in `macroPath`. The GDP-to-income and GDP-to-house-price assumptions are now versioned
+semantic crosswalks rather than implicit unit-compatible mappings; see
 [GLOBAL_INTEGRATION.md](docs/GLOBAL_INTEGRATION.md).

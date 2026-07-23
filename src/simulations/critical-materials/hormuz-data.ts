@@ -12,7 +12,10 @@ export interface HormuzScenario {
   description: string;
   startYear: number;
   startMonth: number;
-  /** Fraction of normal Hormuz traffic physically able to pass each month. */
+  /**
+   * Fraction of normal commodity cargo-throughput capacity physically
+   * available each month. This is not a vessel-count fraction.
+   */
   throughputPath: readonly number[];
   /** Fraction of the 4.7 mb/d oil bypass capacity operational each month. */
   bypassAvailabilityPath?: readonly number[];

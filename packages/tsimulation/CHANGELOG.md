@@ -28,6 +28,19 @@ onward. Before 1.0, minor versions may include breaking changes.
   conservation balance assertions.
 - Shared validated linear/fixed-point solvers and generic DAG validation/sorting.
 - Deep parameter-read tracking and unread-override diagnostics.
+- Versioned estimand contracts for population, geography, inclusion,
+  total/incremental and stock/flow meaning, ratio basis, temporal support,
+  valuation, and sign convention.
+- Dataset-specific measurement bindings and measurement crosswalks for source
+  fields, observation procedures, reporting coverage, releases, revisions,
+  backfills, and transformations.
+- Immutable SHA-256 data artifacts and retrieval snapshots, resolver-backed
+  lineage, safe credential references, evidence/calibration snapshot linkage,
+  and Node HTTP/file resolvers.
+- Explicit experiment intent and variable roles, including separate aleatory,
+  epistemic, and nested mixed-uncertainty result semantics.
+- Semantic derivation/crosswalk propagation through modules, transforms,
+  adapters, collectors, standalone models, calibration, and v2 run manifests.
 
 ### Changed (behavior)
 - The engine now runs each module's `validate()` at load time, throwing on
@@ -52,6 +65,14 @@ onward. Before 1.0, minor versions may include breaking changes.
   source mappings, conversion declarations, and aggregation declarations.
 - Structured module and standalone-model contracts are now checked recursively
   instead of treating a whole record or vector as one opaque boundary value.
+- Ports with equal units but incompatible estimands or declared measurement
+  regimes now fail unless an explicit matching crosswalk is supplied.
+- Ensemble summaries now distinguish probability quantiles, design-sample
+  percentiles, and epistemic bounds. Flat mixed-uncertainty ensembles are
+  rejected in favor of nested families.
+- Run manifests now emit `tsimulation.run/v2` with boundary-contract hashes,
+  semantic lineage, experiment meaning, and full external-data lineage; v1
+  records upgrade with unavailable historical fields marked explicitly.
 
 ### Fixed
 - The NaN/Infinity output guard now descends into arrays and arbitrarily deep,
@@ -64,6 +85,8 @@ onward. Before 1.0, minor versions may include breaking changes.
   or all-non-numeric series; `max`/`min` use a reduce (no stack overflow on long
   series). `collectResults` validates metric configs up front (unknown source
   key, or neither source nor transform, now throw).
+- Persisted data requests reject credential-like query/header names, URL
+  credentials, and credential-like URL query parameters.
 
 ### Packaging
 - Added a `default` export condition so `require('tsimulation')` resolves on

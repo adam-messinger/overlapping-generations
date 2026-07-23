@@ -23,6 +23,10 @@ access, co-located parameter metadata — and brings them to TypeScript.
 - **Strict units by default.** Every numeric leaf at a model or module boundary
   declares a unit, while non-numeric metadata is marked explicitly. Incompatible
   wiring and runtime shape drift fail before results can escape the model.
+- **Meaning is checked separately from units.** Estimands declare population,
+  geography, inclusion, total/incremental status, ratio basis, temporal support,
+  and valuation. Dataset-specific measurement regimes and explicit crosswalks
+  prevent equal-unit values from being treated as interchangeable.
 - **One project, multiple time scales.** Annual systems, monthly networks, and
   event models share APIs without forcing every model into an annual module.
 - **Evidence-aware.** Development, validation, holdout, diagnostic, and scenario
@@ -57,6 +61,9 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 | **Model** | A validated standalone simulation contract with version, ports, evidence, and invariants. |
 | **Experiment** | A scenario set, factorial, sweep, threshold search, or seeded ensemble around a model. |
 | **Adapter** | An explicit unit- and time-scale-aware bridge from one model's output to another's input. |
+| **Estimand** | The stable real-world quantity a value represents, independent of units and data release. |
+| **Measurement** | A dataset field, observation procedure, coverage, and revision regime bound to an estimand. |
+| **Data snapshot** | An immutable retrieval vintage with canonical request metadata and exact SHA-256 content identity. |
 | **Manifest** | A stable record of model/code/data versions, hashes, calibration split, inputs, outputs, and diagnostics. |
 
 The engine advances in integer steps (labelled `startYear`..`endYear`, but the
@@ -126,6 +133,96 @@ assertUnitBalance('capital stock', unitQuantity(nextCapital, '$T'), [
 `assertUnitBalance()` reject incompatible dimensions immediately. Apply them to
 important identities and unit transitions rather than wrapping every scalar in
 the model.
+
+## Semantic and measurement contracts
+
+Units answer “how is this number scaled?” They cannot tell total from
+incremental electricity, residents from reporting hospitals, vessel counts
+from cargo volume, or a first release from a backfilled series.
+
+`EstimandContract` supplies the stable meaning of a quantity. Attach it with
+`measurementPort()` or `measurementConnector()`. Set semantic validation to
+`required` on a migrated model or adapter to reject any unannotated quantitative
+leaf.
+
+`MeasurementBinding` separately identifies the dataset, field, observation
+procedure, reporting coverage, release, and revision policy. Attach a
+source-bound observation with `observationPort()` or
+`observationConnector()`. Two observation ports with different regimes fail
+compatibility unless they carry a matching `MeasurementCrosswalk`.
+
+```typescript
+const admissions = defineEstimand({
+  schemaVersion: 'tsimulation.estimand/v1',
+  id: 'us-covid-weekly-admissions',
+  version: '1',
+  quantityKind: 'health.covid-19.hospital-admissions',
+  measure: { kind: 'flow', totality: 'total' },
+  population: { id: 'population.us.residents' },
+  geography: { id: 'geo.us' },
+  time: {
+    kind: 'interval',
+    interval: 'epidemiological-week',
+    aggregation: 'sum',
+    calendar: 'cdc-week-ending-saturday',
+  },
+});
+
+const firstRelease = defineMeasurement({
+  schemaVersion: 'tsimulation.measurement/v1',
+  id: 'cdc-first-release-admissions',
+  version: '1',
+  estimand: admissions,
+  dataset: { id: 'cdc.weekly-admissions', field: 'covid_admissions' },
+  procedure: { description: 'Freeze the initially reported national total.' },
+  revisionPolicy: 'first-release',
+  release: 'first',
+});
+
+const input = observationPort('people/week', firstRelease, 'vector');
+```
+
+`SemanticCrosswalk` bridges genuinely different estimands. A
+`MeasurementCrosswalk` bridges observation procedures for the same (or a
+crosswalked) phenomenon. `SemanticDerivation` records an equation that creates
+a new estimand. Models and adapters propagate the IDs and versions of those
+objects into run lineage; manifests hash the complete boundary contracts.
+
+## Data snapshots and provenance
+
+`captureDataSnapshot()` resolves data, hashes the exact raw bytes with SHA-256,
+hashes the normalized value separately, and records the canonical request,
+resolver version, retrieval/as-of/publication times, response metadata,
+coverage, and measurement binding. Artifact identity is content identity;
+snapshot identity also includes retrieval vintage, so identical bytes fetched
+at two different times remain the same artifact but different snapshots.
+
+Secrets are supplied by named `credentialsRef` and are never serialized.
+Requests containing credential-like query/header names or URL credentials are
+rejected. Portable inline resolvers are exported from `tsimulation`; Node HTTP
+and file resolvers are exported from `tsimulation/node`.
+
+`createRunManifest()` emits `tsimulation.run/v2`, linking snapshots,
+transformations, evidence, calibration splits, semantic lineage, experiment
+meaning, and input/output contract hashes. Parsed v1 manifests can be upgraded,
+but unavailable historical lineage is explicitly marked rather than invented.
+
+## Experiment meaning
+
+`ExperimentContract` distinguishes scenarios, stress tests, design spaces,
+sensitivity studies, aleatory uncertainty, epistemic uncertainty, and nested
+mixed uncertainty. Variables declare roles and domains, and multiple
+probabilistic variables must state their dependence assumption.
+
+This changes result language as well as metadata:
+
+- scenario/stress results are unweighted cases;
+- design samples report empirical design percentiles, not probabilities;
+- aleatory ensembles may report probability quantiles;
+- epistemic studies report possibility bounds;
+- mixed studies must use `runNestedEnsemble()` and preserve an outer set of
+  epistemic cases around inner aleatory distributions. A flat mixed ensemble
+  throws instead of producing a misleading single CDF.
 
 ## Standalone models and experiments
 

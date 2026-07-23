@@ -119,10 +119,14 @@ const scenarios = [
 console.log('\nGENERIC PREPAREDNESS EXPERIMENT (10m people; scenario, not forecast)');
 console.log('Scenario\tinfections\tdeaths\tpeak staffed-bed load');
 for (const scenario of scenarios) {
-  const result = runModel(outbreakPreparednessModel, { ...preparednessBase, ...scenario }).output;
+  const { name, ...scenarioInput } = scenario;
+  const result = runModel(outbreakPreparednessModel, {
+    ...preparednessBase,
+    ...scenarioInput,
+  }).output;
   console.log(
     [
-      scenario.name,
+      name,
       round(result.totalInfections),
       round(result.totalDeaths),
       round(result.peakHospitalLoad),

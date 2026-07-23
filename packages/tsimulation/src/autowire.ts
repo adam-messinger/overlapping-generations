@@ -15,7 +15,21 @@ import { Module, ConnectorDeclaration, ConnectorSpec, ConnectorType } from './mo
 import { Year, YearIndex } from './types.js';
 import { validatedMerge } from './validated-merge.js';
 import type { PortMeta } from './units.js';
-import { assertPortValue, countPortSchema, validatePortMeta, validatePortUnits } from './units.js';
+import {
+  assertPortValue,
+  auditPortSemantics,
+  countPortSchema,
+  validatePortCompatibility,
+  validatePortMeta,
+} from './units.js';
+import {
+  compareEstimands,
+  validateSemanticDerivation,
+  type MeasurementCrosswalk,
+  type SemanticCrosswalk,
+  type SemanticDerivation,
+  type SemanticValidationMode,
+} from './semantics.js';
 import { trackObjectReads, unreadOverridePaths } from './liveness.js';
 import { findNonFiniteValues } from './validation.js';
 
@@ -45,6 +59,16 @@ export interface TransformConfig {
   inputTypes: Record<string, ConnectorSpec>;
   /** Unit/shape signature of the value returned by the transform. */
   outputType: ConnectorSpec;
+  /** Explicit semantic bridges applied by individual transform inputs. */
+  inputCrosswalks?: Record<string, SemanticCrosswalk>;
+  /** Explicit observation-procedure bridges applied by transform inputs. */
+  inputMeasurementCrosswalks?: Record<string, MeasurementCrosswalk>;
+  /** Explicit semantic bridge from the transform output to its consumer. */
+  outputCrosswalk?: SemanticCrosswalk;
+  /** Explicit observation-procedure bridge from transform output to consumer. */
+  outputMeasurementCrosswalk?: MeasurementCrosswalk;
+  /** Provenance for a transform that derives a genuinely new estimand. */
+  derivation?: SemanticDerivation;
 }
 
 /**
@@ -130,6 +154,9 @@ export interface AutowireConfig {
 
   /** Runtime connector contract policy (default: error). */
   connectorValidation?: 'off' | 'warn' | 'error';
+
+  /** Estimand policy layered on top of shape/unit validation (default: if-present). */
+  semanticValidation?: SemanticValidationMode;
 
   /** Report or reject scenario parameters that are never read during a full run. */
   paramLiveness?: 'off' | 'report' | 'warn' | 'error';
@@ -355,6 +382,8 @@ export function connectorSpecToPortMeta(spec: ConnectorSpec): PortMeta {
   return {
     unit: spec.unit,
     valueType: spec.type,
+    ...(spec.estimand ? { estimand: spec.estimand } : {}),
+    ...(spec.measurement ? { measurement: spec.measurement } : {}),
     ...(spec.description ? { description: spec.description } : {}),
   };
 }
@@ -364,7 +393,8 @@ export function validateConnectorTypes(
   modules: AnyModule[],
   _outputRegistry: Map<string, string>,
   transforms: Record<string, TransformEntry> = {},
-  lags: Record<string, LagConfig> = {}
+  lags: Record<string, LagConfig> = {},
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): string[] {
   const warnings: string[] = [];
 
@@ -388,15 +418,22 @@ export function validateConnectorTypes(
     return declaration;
   };
 
-  const compare = (producer: ConnectorSpec, consumer: ConnectorSpec, context: string): void => {
+  const compare = (
+    producer: ConnectorSpec,
+    consumer: ConnectorSpec,
+    context: string,
+    crosswalk?: SemanticCrosswalk,
+    measurementCrosswalk?: MeasurementCrosswalk,
+  ): void => {
     if (producer.type !== consumer.type) {
       warnings.push(`Type mismatch: ${context} provides '${producer.type}' but consumer expects '${consumer.type}'`);
     }
     try {
-      validatePortUnits(
+      validatePortCompatibility(
         connectorSpecToPortMeta(producer),
         connectorSpecToPortMeta(consumer),
         context,
+        { semanticValidation, crosswalk, measurementCrosswalk },
       );
     } catch (error) {
       warnings.push(error instanceof Error ? error.message : String(error));
@@ -430,6 +467,25 @@ export function validateConnectorTypes(
     }
     const outputType = normalize(entry.outputType, `transform ${name} output`);
     if (outputType) transformOutputs.set(name, outputType);
+    if (entry.derivation) {
+      try {
+        validateSemanticDerivation(entry.derivation, `transform ${name} derivation`);
+        const declaredOutput = connectorSpecToPortMeta(entry.outputType);
+        if ('estimand' in declaredOutput && declaredOutput.estimand) {
+          const comparison = compareEstimands(
+            entry.derivation.outputEstimand,
+            declaredOutput.estimand,
+          );
+          if (!comparison.compatible) {
+            warnings.push(
+              `Transform '${name}' derivation output does not match its output contract`,
+            );
+          }
+        }
+      } catch (error) {
+        warnings.push(error instanceof Error ? error.message : String(error));
+      }
+    }
     const declaredReads = new Set(Object.keys(entry.inputTypes ?? {}));
     for (const dependency of entry.dependsOn) {
       if (!declaredReads.has(dependency)) {
@@ -442,7 +498,27 @@ export function validateConnectorTypes(
       if (!provider) {
         warnings.push(`Transform '${name}' input signature references unknown module output '${read}'`);
       } else if (expected) {
-        compare(provider.spec, expected, `${provider.module}.${read} -> transform ${name}.${read}`);
+        compare(
+          provider.spec,
+          expected,
+          `${provider.module}.${read} -> transform ${name}.${read}`,
+          entry.inputCrosswalks?.[read],
+          entry.inputMeasurementCrosswalks?.[read],
+        );
+      }
+    }
+    if (semanticValidation === 'required' && outputType) {
+      const outputMeta = connectorSpecToPortMeta(outputType);
+      const inputEstimands = Object.values(entry.inputTypes ?? {})
+        .map((input) => connectorSpecToPortMeta(input))
+        .flatMap((input) => 'estimand' in input && input.estimand ? [input.estimand] : []);
+      const outputEstimand = 'estimand' in outputMeta ? outputMeta.estimand : undefined;
+      if (outputEstimand && inputEstimands.length > 0 &&
+          !inputEstimands.some((input) => compareEstimands(input, outputEstimand).compatible) &&
+          !entry.derivation) {
+        warnings.push(
+          `Transform '${name}' derives estimand '${outputEstimand.id}' but declares no semantic derivation`,
+        );
       }
     }
   }
@@ -459,7 +535,15 @@ export function validateConnectorTypes(
       if (transform) {
         if (typeof transform !== 'function') {
           const provided = transformOutputs.get(inputName);
-          if (provided) compare(provided, expected, `transform ${inputName} -> ${mod.name}.${inputName}`);
+          if (provided) {
+            compare(
+              provided,
+              expected,
+              `transform ${inputName} -> ${mod.name}.${inputName}`,
+              transform.outputCrosswalk,
+              transform.outputMeasurementCrosswalk,
+            );
+          }
         }
         continue;
       }
@@ -504,6 +588,9 @@ export interface ConnectorContractAudit {
   metadataContracts: number;
   opaqueContracts: number;
   structuredContracts: number;
+  semanticContracts: number;
+  measurementContracts: number;
+  missingSemanticPaths: string[];
 }
 
 /** CI-friendly completeness audit for an entire composed simulation graph. */
@@ -511,20 +598,31 @@ export function auditConnectorContracts(
   modules: AnyModule[],
   transforms: Record<string, TransformEntry> = {},
   lags: Record<string, LagConfig> = {},
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): ConnectorContractAudit {
   const outputRegistry = buildOutputRegistry(modules);
-  const declarations: ConnectorDeclaration[] = [];
+  const declarations: Array<{ path: string; declaration: ConnectorDeclaration }> = [];
   for (const mod of modules) {
-    declarations.push(...Object.values(mod.connectorTypes?.inputs ?? {}));
-    declarations.push(...Object.values(mod.connectorTypes?.outputs ?? {}));
+    for (const [name, declaration] of Object.entries(mod.connectorTypes?.inputs ?? {})) {
+      declarations.push({ path: `${mod.name}.input.${name}`, declaration });
+    }
+    for (const [name, declaration] of Object.entries(mod.connectorTypes?.outputs ?? {})) {
+      declarations.push({ path: `${mod.name}.output.${name}`, declaration });
+    }
   }
-  for (const transform of Object.values(transforms)) {
+  for (const [name, transform] of Object.entries(transforms)) {
     if (typeof transform === 'function') continue;
-    declarations.push(...Object.values(transform.inputTypes ?? {}), transform.outputType);
+    for (const [input, declaration] of Object.entries(transform.inputTypes ?? {})) {
+      declarations.push({ path: `transform.${name}.input.${input}`, declaration });
+    }
+    declarations.push({ path: `transform.${name}.output`, declaration: transform.outputType });
   }
-  for (const lag of Object.values(lags)) if (lag.contract) declarations.push(lag.contract);
+  for (const [name, lag] of Object.entries(lags)) {
+    if (lag.contract) declarations.push({ path: `lag.${name}`, declaration: lag.contract });
+  }
+  const missingSemanticPaths: string[] = [];
   const counts = declarations.reduce(
-    (total, declaration) => {
+    (total, { path, declaration }) => {
       if (typeof declaration === 'string' || !declaration) return total;
       try {
         const meta = connectorSpecToPortMeta(declaration);
@@ -534,6 +632,10 @@ export function auditConnectorContracts(
         total.metadataContracts += count.metadata;
         total.opaqueContracts += count.opaque;
         total.structuredContracts += count.structured;
+        const semantic = auditPortSemantics(meta, path);
+        total.semanticContracts += semantic.semanticContracts;
+        total.measurementContracts += semantic.measurementContracts;
+        missingSemanticPaths.push(...semantic.missingSemanticPaths);
       } catch {
         // validateConnectorTypes below records the contextual error. Keep the
         // audit report usable even when a JavaScript caller supplied malformed metadata.
@@ -545,18 +647,35 @@ export function auditConnectorContracts(
       metadataContracts: 0,
       opaqueContracts: 0,
       structuredContracts: 0,
+      semanticContracts: 0,
+      measurementContracts: 0,
     },
   );
-  const errors = validateConnectorTypes(modules, outputRegistry, transforms, lags);
-  return { valid: errors.length === 0, errors, ...counts };
+  const errors = validateConnectorTypes(
+    modules,
+    outputRegistry,
+    transforms,
+    lags,
+    semanticValidation,
+  );
+  if (semanticValidation === 'required') {
+    errors.push(...missingSemanticPaths.map((path) => `${path}: missing estimand contract`));
+  }
+  return {
+    valid: errors.length === 0,
+    errors: [...new Set(errors)],
+    ...counts,
+    missingSemanticPaths: [...new Set(missingSemanticPaths)],
+  };
 }
 
 export function assertConnectorContracts(
   modules: AnyModule[],
   transforms: Record<string, TransformEntry> = {},
   lags: Record<string, LagConfig> = {},
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): ConnectorContractAudit {
-  const audit = auditConnectorContracts(modules, transforms, lags);
+  const audit = auditConnectorContracts(modules, transforms, lags, semanticValidation);
   if (!audit.valid) throw new Error(`Connector contract errors:\n${audit.errors.join('\n')}`);
   return audit;
 }
@@ -844,6 +963,7 @@ export interface AutowireState {
   currentYear: number;
   trackReads: boolean;
   connectorValidation: NonNullable<AutowireConfig['connectorValidation']>;
+  semanticValidation: NonNullable<AutowireConfig['semanticValidation']>;
   diagnostics?: AutowireResult['diagnostics'];
   paramReads: Map<string, Set<string>>;
   paramOverrides: Map<string, unknown>;
@@ -864,6 +984,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     endYear,
     trackReads = false,
     connectorValidation = 'error',
+    semanticValidation = 'if-present',
     paramLiveness = 'off',
     externalParamReads = {},
   } = config;
@@ -881,7 +1002,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
   // Unit contracts are strict by default; callers must explicitly opt out.
   const connectorWarnings = connectorValidation === 'off'
     ? []
-    : validateConnectorTypes(modules, outputRegistry, transforms, lags);
+    : validateConnectorTypes(modules, outputRegistry, transforms, lags, semanticValidation);
   if (connectorWarnings.length > 0 && connectorValidation === 'error') {
     throw new Error(`Connector contract errors:\n${connectorWarnings.join('\n')}`);
   }
@@ -964,6 +1085,7 @@ export function initAutowired(config: AutowireConfig): AutowireState {
     currentYear: startYear,
     trackReads,
     connectorValidation,
+    semanticValidation,
     paramReads,
     paramOverrides,
     paramLiveness,

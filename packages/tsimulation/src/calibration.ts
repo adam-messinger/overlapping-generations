@@ -1,4 +1,6 @@
 import type { EvidenceRole } from './evidence.js';
+import { validateDataSnapshot, type DataSnapshot } from './data.js';
+import { validateMeasurement, type MeasurementBinding } from './semantics.js';
 import { stableHash } from './serialization.js';
 
 export interface CalibrationObservation<T> {
@@ -6,12 +8,16 @@ export interface CalibrationObservation<T> {
   role: Extract<EvidenceRole, 'development' | 'validation' | 'holdout' | 'diagnostic'>;
   value: T;
   weight?: number;
+  evidenceId?: string;
+  snapshotIds?: readonly string[];
+  measurement?: MeasurementBinding;
 }
 
 export interface CalibrationProblem<TParams, TObservation, TPrediction> {
   id: string;
   candidates: Iterable<TParams> | (() => Iterable<TParams>);
   observations: readonly CalibrationObservation<TObservation>[];
+  snapshots?: readonly DataSnapshot[];
   predict: (
     params: TParams,
     observation: CalibrationObservation<TObservation>,
@@ -46,6 +52,7 @@ export interface CalibrationResult<TParams, TPrediction> {
   scores: Record<CalibrationObservation<unknown>['role'], CalibrationScore>;
   predictions: readonly CalibrationPrediction<TPrediction>[];
   splitHash: string;
+  snapshotIds: readonly string[];
 }
 
 const ROLES: CalibrationObservation<unknown>['role'][] = [
@@ -60,12 +67,49 @@ export function calibrate<TParams, TObservation, TPrediction>(
 ): CalibrationResult<TParams, TPrediction> {
   if (!problem.id) throw new Error('Calibration ID must not be empty');
   const ids = new Set<string>();
+  const snapshots = problem.snapshots ?? [];
+  const snapshotById = new Map<string, DataSnapshot>();
+  for (const snapshot of snapshots) {
+    validateDataSnapshot(snapshot, `Calibration '${problem.id}' snapshot '${snapshot.id}'`);
+    if (snapshotById.has(snapshot.id)) {
+      throw new Error(`Calibration '${problem.id}' has duplicate snapshot '${snapshot.id}'`);
+    }
+    snapshotById.set(snapshot.id, snapshot);
+  }
   for (const observation of problem.observations) {
     if (ids.has(observation.id)) throw new Error(`Duplicate calibration observation '${observation.id}'`);
     ids.add(observation.id);
     if (observation.weight !== undefined &&
         (!Number.isFinite(observation.weight) || observation.weight <= 0)) {
       throw new Error(`Observation '${observation.id}' weight must be finite and positive`);
+    }
+    if (observation.measurement) {
+      validateMeasurement(
+        observation.measurement,
+        `Calibration observation '${observation.id}' measurement`,
+      );
+      if (observation.measurement.snapshotId &&
+          snapshots.length > 0 &&
+          !snapshotById.has(observation.measurement.snapshotId)) {
+        throw new Error(
+          `Calibration observation '${observation.id}' measurement references unknown ` +
+          `snapshot '${observation.measurement.snapshotId}'`,
+        );
+      }
+      if (observation.measurement.snapshotId &&
+          !(observation.snapshotIds ?? []).includes(observation.measurement.snapshotId)) {
+        throw new Error(
+          `Calibration observation '${observation.id}' measurement snapshot is absent ` +
+          'from snapshotIds',
+        );
+      }
+    }
+    for (const snapshotId of observation.snapshotIds ?? []) {
+      if (snapshots.length > 0 && !snapshotById.has(snapshotId)) {
+        throw new Error(
+          `Calibration observation '${observation.id}' references unknown snapshot '${snapshotId}'`,
+        );
+      }
     }
   }
   const development = problem.observations.filter((row) => row.role === 'development');
@@ -128,6 +172,9 @@ export function calibrate<TParams, TObservation, TPrediction>(
       totalWeight,
     } satisfies CalibrationScore];
   })) as Record<CalibrationObservation<unknown>['role'], CalibrationScore>;
+  const usedSnapshotIds = [...new Set(
+    problem.observations.flatMap((observation) => observation.snapshotIds ?? []),
+  )].sort();
   return {
     id: problem.id,
     params: bestParams,
@@ -135,6 +182,33 @@ export function calibrate<TParams, TObservation, TPrediction>(
     developmentObjective: bestObjective,
     scores,
     predictions,
-    splitHash: stableHash(problem.observations.map(({ id, role, weight }) => ({ id, role, weight }))),
+    splitHash: stableHash(problem.observations.map(({
+      id,
+      role,
+      weight,
+      evidenceId,
+      snapshotIds,
+      measurement,
+    }) => ({
+      id,
+      role,
+      weight,
+      evidenceId,
+      snapshotIds: [...(snapshotIds ?? [])].sort(),
+      measurement,
+      snapshots: [...(snapshotIds ?? [])]
+        .sort()
+        .map((snapshotId) => {
+          const snapshot = snapshotById.get(snapshotId);
+          return snapshot
+            ? {
+                id: snapshot.id,
+                artifact: snapshot.artifact.digest,
+                normalizedDigest: snapshot.normalizedDigest,
+              }
+            : { id: snapshotId };
+        }),
+    }))),
+    snapshotIds: usedSnapshotIds,
   };
 }

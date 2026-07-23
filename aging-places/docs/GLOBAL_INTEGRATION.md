@@ -21,6 +21,12 @@ The 0.2-point spread preserves the standalone model's existing long-run calibrat
 are optional. Calling `runAgingSim` without a macro path reproduces the existing standalone
 behavior, so backtests, international validation, and current rankings do not silently change.
 
+The bridge now has a strict machine-readable semantic contract. Unchanged global and regional
+diagnostics are identity mappings. OECD/selected-region GDP per capita to U.S. municipal household
+income, and GDP per capita to house-price drift, are separate versioned crosswalks with their proxy
+assumptions and qualitative uncertainty recorded. Equal numeric units no longer make those
+translations look like identities.
+
 ## Contract already carried for later slices
 
 Every annual macro point also records:

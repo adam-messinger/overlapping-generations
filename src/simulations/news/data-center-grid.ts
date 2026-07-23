@@ -28,7 +28,9 @@ export interface DataCenterGridScenario {
   takeOrPayCoverage: number;
   /** Fraction of contracted load that ultimately materializes. */
   expectedLoadRealization: number;
+  /** Overnight generation capital cost in constant 2026 USD per kW. */
   generationCapexPerKw: number;
+  /** Network-upgrade capital cost in constant 2026 USD per kW of contracted load. */
   networkCapexPerKw: number;
   /** Annual revenue requirement as a share of installed capital. */
   fixedChargeRate: number;

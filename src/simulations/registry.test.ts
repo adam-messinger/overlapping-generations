@@ -18,8 +18,19 @@ import {
 } from './financial-contagion/data.js';
 import { maritimeScenarios } from './critical-materials/shipping-data.js';
 import { hormuzScenarios } from './critical-materials/hormuz-data.js';
+import { hormuzGlobalAdapter } from './critical-materials/hormuz-bridge.js';
 import { criticalMaterialNetwork } from './critical-materials/data.js';
-import { SIMULATION_MODELS, simulationModelRegistry } from './registry.js';
+import {
+  SIMULATION_MODELS,
+  dataCenterGridModel,
+  outbreakForecastModel,
+  simulationModelRegistry,
+} from './registry.js';
+import {
+  cdcFixedInitialAdmissionsMeasurement,
+  cdcOperationalAdmissionsMeasurement,
+} from './outbreak/measurement-contracts.js';
+import { outbreakResolutionAdapter } from './outbreak/forecast-bridge.js';
 import {
   COMPOSITION_ENTRYPOINT_COVERAGE,
   SIMULATION_ENTRYPOINT_COVERAGE,
@@ -53,6 +64,48 @@ test('standalone model registry has recursive dimensional coverage', () => {
     'model war-ai-factorial.output.paths',
   ]);
   assert.equal(audit.opaqueContracts, 3);
+});
+
+test('migrated forecasting boundaries have complete semantic contracts', () => {
+  const audit = auditModelContracts(
+    [dataCenterGridModel, outbreakForecastModel],
+    'required',
+  );
+  assert.equal(audit.valid, true, audit.errors.join('\n'));
+  assert.deepEqual(audit.missingSemanticPaths, []);
+  assert.ok(audit.semanticContracts > 60);
+  assert.equal(audit.measurementContracts, 1);
+  assert.equal(
+    dataCenterGridModel.evidence?.[0].semanticDerivations?.[0].id,
+    'derivation.data-center.bnef-total-to-incremental-load',
+  );
+  assert.equal(outbreakResolutionAdapter.measurementValidation, 'required');
+  assert.equal(
+    outbreakResolutionAdapter.portMappings[0].measurementCrosswalk?.id,
+    'measurement-crosswalk.outbreak.operational-to-fixed-initial-admissions',
+  );
+  assert.equal(hormuzGlobalAdapter.semanticValidation, 'required');
+  assert.deepEqual(
+    hormuzGlobalAdapter.portMappings
+      .flatMap((mapping) => mapping.crosswalk?.id ?? []),
+    [
+      'crosswalk.hormuz.oil-availability-to-non-electric-energy',
+      'crosswalk.hormuz.gas-availability-to-non-electric-energy',
+    ],
+  );
+});
+
+test('CDC operational and fixed-initial series share an estimand but not a measurement regime', () => {
+  assert.equal(
+    cdcOperationalAdmissionsMeasurement.estimand,
+    cdcFixedInitialAdmissionsMeasurement.estimand,
+  );
+  assert.equal(cdcOperationalAdmissionsMeasurement.revisionPolicy, 'backfilled');
+  assert.equal(cdcFixedInitialAdmissionsMeasurement.revisionPolicy, 'first-release');
+  assert.notEqual(
+    cdcOperationalAdmissionsMeasurement.dataset.id,
+    cdcFixedInitialAdmissionsMeasurement.dataset.id,
+  );
 });
 
 test('every exported simulation entry point is registered or explicitly classified', () => {

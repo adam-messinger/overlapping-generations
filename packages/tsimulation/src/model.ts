@@ -5,12 +5,31 @@ import type { Invariant, InvariantReport } from './validation.js';
 import { assertFiniteDeep, assertInvariants } from './validation.js';
 import type { PortContract, PortMeta } from './units.js';
 import {
+  auditPortSemantics,
   assertPortContract,
   countPortSchema,
   isOpaquePort,
+  isObjectPort,
   isPortMeta,
+  isQuantityPort,
+  isRecordPort,
+  isVectorPort,
   validatePortMeta,
 } from './units.js';
+import {
+  validateSemanticCrosswalk,
+  validateSemanticDerivation,
+  validateMeasurementCrosswalk,
+  compareEstimands,
+  compareMeasurements,
+  type EstimandContract,
+  type MeasurementBinding,
+  type MeasurementCrosswalk,
+  type SemanticCrosswalk,
+  type SemanticDerivation,
+  type SemanticValidationMode,
+} from './semantics.js';
+import { stableHash } from './serialization.js';
 
 export interface ModelContext {
   seed?: number;
@@ -31,6 +50,14 @@ export interface ModelDefinition<TInput, TOutput> {
   outputPorts: PortContract<TOutput>;
   evidence?: readonly EvidenceRecord[];
   validationClaims?: readonly ValidationClaim[];
+  /** Auditable equations that produce a different estimand from model inputs. */
+  semanticDerivations?: readonly SemanticDerivation[];
+  /** Explicit approximations that bridge non-equivalent estimands inside the model. */
+  semanticCrosswalks?: readonly SemanticCrosswalk[];
+  /** Explicit translations between source-specific observation procedures. */
+  measurementCrosswalks?: readonly MeasurementCrosswalk[];
+  /** Semantic completeness expected for this model's quantitative boundary. */
+  semanticValidation?: SemanticValidationMode;
   /** Disable only for explicit sentinel values such as Infinity-as-no-decay. */
   requireFiniteInput?: boolean;
   requireFiniteOutput?: boolean;
@@ -46,6 +73,15 @@ export interface ModelRun<TInput, TOutput> {
   durationMs: number;
   seed?: number;
   runLabel?: string;
+  contractHashes: {
+    input: string;
+    output: string;
+  };
+  semanticLineage: {
+    derivations: readonly { id: string; version: string }[];
+    crosswalks: readonly { id: string; version: string }[];
+    measurementCrosswalks: readonly { id: string; version: string }[];
+  };
 }
 
 export interface ModelContractAudit {
@@ -56,6 +92,9 @@ export interface ModelContractAudit {
   opaqueContracts: number;
   structuredContracts: number;
   opaquePaths: string[];
+  semanticContracts: number;
+  measurementContracts: number;
+  missingSemanticPaths: string[];
 }
 
 export interface AuditableModelContract {
@@ -78,6 +117,10 @@ function walkModelContract(
       audit.opaqueContracts += count.opaque;
       audit.structuredContracts += count.structured;
       if (isOpaquePort(contract)) audit.opaquePaths.push(context);
+      const semantic = auditPortSemantics(contract, context);
+      audit.semanticContracts += semantic.semanticContracts;
+      audit.measurementContracts += semantic.measurementContracts;
+      audit.missingSemanticPaths.push(...semantic.missingSemanticPaths);
     } catch (error) {
       audit.errors.push(error instanceof Error ? error.message : String(error));
     }
@@ -95,6 +138,7 @@ function walkModelContract(
 /** CI-friendly dimensional coverage audit for standalone model boundaries. */
 export function auditModelContracts(
   models: readonly AuditableModelContract[],
+  semanticValidation: SemanticValidationMode = 'if-present',
 ): ModelContractAudit {
   const audit: ModelContractAudit = {
     valid: true,
@@ -104,10 +148,17 @@ export function auditModelContracts(
     opaqueContracts: 0,
     structuredContracts: 0,
     opaquePaths: [],
+    semanticContracts: 0,
+    measurementContracts: 0,
+    missingSemanticPaths: [],
   };
   for (const model of models) {
     walkModelContract(model.inputPorts, `model ${model.id}.input`, audit);
     walkModelContract(model.outputPorts, `model ${model.id}.output`, audit);
+  }
+  audit.missingSemanticPaths = [...new Set(audit.missingSemanticPaths)];
+  if (semanticValidation === 'required') {
+    audit.errors.push(...audit.missingSemanticPaths.map((path) => `${path}: missing estimand contract`));
   }
   audit.valid = audit.errors.length === 0;
   return audit;
@@ -119,6 +170,38 @@ function applyValidation(result: ValidationResult | void, context: string, warni
   if (!result.valid || result.errors.length > 0) {
     throw new Error(`${context}:\n  ${result.errors.join('\n  ')}`);
   }
+}
+
+function collectBoundaryEstimands(contract: unknown): EstimandContract[] {
+  if (isPortMeta(contract)) {
+    if (isQuantityPort(contract)) return contract.estimand ? [contract.estimand] : [];
+    if (isObjectPort(contract)) {
+      return Object.values(contract.fields as Readonly<Record<string, PortMeta>>)
+        .flatMap(collectBoundaryEstimands);
+    }
+    if (isRecordPort(contract)) return collectBoundaryEstimands(contract.values);
+    if (isVectorPort(contract)) return collectBoundaryEstimands(contract.items);
+    return [];
+  }
+  if (typeof contract !== 'object' || contract === null) return [];
+  return Object.values(contract).flatMap(collectBoundaryEstimands);
+}
+
+function collectBoundaryMeasurements(contract: unknown): MeasurementBinding[] {
+  if (isPortMeta(contract)) {
+    if (isQuantityPort(contract)) {
+      return contract.measurement ? [contract.measurement] : [];
+    }
+    if (isObjectPort(contract)) {
+      return Object.values(contract.fields as Readonly<Record<string, PortMeta>>)
+        .flatMap(collectBoundaryMeasurements);
+    }
+    if (isRecordPort(contract)) return collectBoundaryMeasurements(contract.values);
+    if (isVectorPort(contract)) return collectBoundaryMeasurements(contract.items);
+    return [];
+  }
+  if (typeof contract !== 'object' || contract === null) return [];
+  return Object.values(contract).flatMap(collectBoundaryMeasurements);
 }
 
 export function defineModel<TInput, TOutput>(
@@ -140,8 +223,87 @@ export function defineModel<TInput, TOutput>(
       validatePortMeta(port, `Model '${definition.id}' ${side} port '${name}'`);
     }
   }
+  if (definition.semanticValidation === 'required') {
+    const semanticAudit = auditModelContracts([definition], 'required');
+    if (!semanticAudit.valid) {
+      throw new Error(
+        `Model '${definition.id}' semantic contract errors:\n${semanticAudit.errors.join('\n')}`,
+      );
+    }
+  }
   validateEvidence(definition.evidence ?? []);
   validateValidationClaims(definition.validationClaims ?? [], definition.evidence ?? []);
+  const inputEstimands = collectBoundaryEstimands(definition.inputPorts);
+  const outputEstimands = collectBoundaryEstimands(definition.outputPorts);
+  const inputMeasurements = collectBoundaryMeasurements(definition.inputPorts);
+  const outputMeasurements = collectBoundaryMeasurements(definition.outputPorts);
+  const semanticIds = new Set<string>();
+  for (const derivation of definition.semanticDerivations ?? []) {
+    validateSemanticDerivation(
+      derivation,
+      `Model '${definition.id}' derivation '${derivation.id}'`,
+    );
+    if (semanticIds.has(derivation.id)) {
+      throw new Error(`Model '${definition.id}' has duplicate semantic lineage ID '${derivation.id}'`);
+    }
+    for (const inputId of derivation.inputEstimandIds) {
+      if (!inputEstimands.some((estimand) => estimand.id === inputId)) {
+        throw new Error(
+          `Model '${definition.id}' derivation '${derivation.id}' references input ` +
+          `estimand '${inputId}' that is absent from its input ports`,
+        );
+      }
+    }
+    if (!outputEstimands.some((estimand) =>
+      compareEstimands(estimand, derivation.outputEstimand).compatible
+    )) {
+      throw new Error(
+        `Model '${definition.id}' derivation '${derivation.id}' output is absent from its ` +
+        'output ports',
+      );
+    }
+    semanticIds.add(derivation.id);
+  }
+  for (const crosswalk of definition.semanticCrosswalks ?? []) {
+    validateSemanticCrosswalk(
+      crosswalk,
+      `Model '${definition.id}' crosswalk '${crosswalk.id}'`,
+    );
+    if (semanticIds.has(crosswalk.id)) {
+      throw new Error(`Model '${definition.id}' has duplicate semantic lineage ID '${crosswalk.id}'`);
+    }
+    if (!inputEstimands.some((estimand) =>
+      compareEstimands(estimand, crosswalk.source).compatible
+    ) || !outputEstimands.some((estimand) =>
+      compareEstimands(crosswalk.target, estimand).compatible
+    )) {
+      throw new Error(
+        `Model '${definition.id}' crosswalk '${crosswalk.id}' does not match an ` +
+        'input-to-output boundary',
+      );
+    }
+    semanticIds.add(crosswalk.id);
+  }
+  for (const crosswalk of definition.measurementCrosswalks ?? []) {
+    validateMeasurementCrosswalk(
+      crosswalk,
+      `Model '${definition.id}' measurement crosswalk '${crosswalk.id}'`,
+    );
+    if (semanticIds.has(crosswalk.id)) {
+      throw new Error(`Model '${definition.id}' has duplicate semantic lineage ID '${crosswalk.id}'`);
+    }
+    if (!inputMeasurements.some((measurement) =>
+      compareMeasurements(measurement, crosswalk.source).compatible
+    ) || !outputMeasurements.some((measurement) =>
+      compareMeasurements(crosswalk.target, measurement).compatible
+    )) {
+      throw new Error(
+        `Model '${definition.id}' measurement crosswalk '${crosswalk.id}' does not match ` +
+        'an input-to-output boundary',
+      );
+    }
+    semanticIds.add(crosswalk.id);
+  }
   return definition;
 }
 
@@ -174,6 +336,22 @@ export function runModel<TInput, TOutput>(
     warnings,
     invariantReport,
     durationMs,
+    contractHashes: {
+      input: stableHash(model.inputPorts),
+      output: stableHash(model.outputPorts),
+    },
+    semanticLineage: {
+      derivations: (model.semanticDerivations ?? []).map(({ id, version }) => ({
+        id,
+        version,
+      })),
+      crosswalks: (model.semanticCrosswalks ?? []).map(({ id, version }) => ({
+        id,
+        version,
+      })),
+      measurementCrosswalks: (model.measurementCrosswalks ?? [])
+        .map(({ id, version }) => ({ id, version })),
+    },
     ...context,
   };
 }

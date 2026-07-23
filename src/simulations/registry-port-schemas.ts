@@ -1,6 +1,7 @@
 /** Field-level model-port schemas shared by the sibling simulation registry. */
 
 import {
+  measurementPort,
   metadataPort,
   objectPort,
   partialObjectPort,
@@ -9,6 +10,11 @@ import {
   vectorPort,
 } from 'tsimulation';
 import { REGIONS } from '../domain-types.js';
+import {
+  dataCenterEstimands,
+  hormuzEstimands,
+  outbreakForecastEstimands,
+} from './semantic-contracts.js';
 import { HEAT_AGE_GROUPS, type HeatAdaptation, type HeatEvent } from './heat/data.js';
 import type {
   HeatFoodResult,
@@ -254,49 +260,163 @@ export const GENERIC_TARIFF_MONTHS_PORT =
 export const DATA_CENTER_GRID_SCENARIO_PORT = objectPort<DataCenterGridScenario>({
   id: metadataPort('string', 'Scenario identifier.'),
   label: metadataPort('string', 'Scenario label.'),
-  incrementalContractedLoadGw: unitPort('GW'),
-  loadFactor: unitPort('fraction'),
-  peakCoincidenceFactor: unitPort('fraction'),
-  flexibleLoadShare: unitPort('fraction'),
-  dedicatedGenerationShare: unitPort('fraction'),
-  dedicatedCapacityCredit: unitPort('fraction'),
-  sharedFirmBuildGw: unitPort('GW'),
-  generationCostResponsibility: unitPort('fraction'),
-  networkCostResponsibility: unitPort('fraction'),
-  takeOrPayCoverage: unitPort('fraction'),
-  expectedLoadRealization: unitPort('fraction'),
-  generationCapexPerKw: unitPort('$/kW'),
-  networkCapexPerKw: unitPort('$/kW'),
-  fixedChargeRate: unitPort('fraction/year'),
-  nonDataCenterRetailSalesTwh: unitPort('TWh/year'),
-  nonDataCenterRetailRatePerMwh: unitPort('$/MWh'),
-  gridEmissionsKgPerMwh: unitPort('kgCO2/MWh'),
-  dedicatedEmissionsKgPerMwh: unitPort('kgCO2/MWh'),
-  hoursPerYear: unitPort('hour/year'),
+  incrementalContractedLoadGw: measurementPort(
+    'GW',
+    dataCenterEstimands.incrementalContractedLoadGw,
+  ),
+  loadFactor: measurementPort('fraction', dataCenterEstimands.loadFactor),
+  peakCoincidenceFactor: measurementPort(
+    'fraction',
+    dataCenterEstimands.peakCoincidenceFactor,
+  ),
+  flexibleLoadShare: measurementPort(
+    'fraction',
+    dataCenterEstimands.flexibleLoadShare,
+  ),
+  dedicatedGenerationShare: measurementPort(
+    'fraction',
+    dataCenterEstimands.dedicatedGenerationShare,
+  ),
+  dedicatedCapacityCredit: measurementPort(
+    'fraction',
+    dataCenterEstimands.dedicatedCapacityCredit,
+  ),
+  sharedFirmBuildGw: measurementPort(
+    'GW',
+    dataCenterEstimands.sharedFirmBuildGw,
+  ),
+  generationCostResponsibility: measurementPort(
+    'fraction',
+    dataCenterEstimands.generationCostResponsibility,
+  ),
+  networkCostResponsibility: measurementPort(
+    'fraction',
+    dataCenterEstimands.networkCostResponsibility,
+  ),
+  takeOrPayCoverage: measurementPort(
+    'fraction',
+    dataCenterEstimands.takeOrPayCoverage,
+  ),
+  expectedLoadRealization: measurementPort(
+    'fraction',
+    dataCenterEstimands.expectedLoadRealization,
+  ),
+  generationCapexPerKw: measurementPort(
+    '$/kW',
+    dataCenterEstimands.generationCapexPerKw,
+  ),
+  networkCapexPerKw: measurementPort(
+    '$/kW',
+    dataCenterEstimands.networkCapexPerKw,
+  ),
+  fixedChargeRate: measurementPort(
+    'fraction/year',
+    dataCenterEstimands.fixedChargeRate,
+  ),
+  nonDataCenterRetailSalesTwh: measurementPort(
+    'TWh/year',
+    dataCenterEstimands.nonDataCenterRetailSalesTwh,
+  ),
+  nonDataCenterRetailRatePerMwh: measurementPort(
+    '$/MWh',
+    dataCenterEstimands.nonDataCenterRetailRatePerMwh,
+  ),
+  gridEmissionsKgPerMwh: measurementPort(
+    'kgCO2/MWh',
+    dataCenterEstimands.gridEmissionsKgPerMwh,
+  ),
+  dedicatedEmissionsKgPerMwh: measurementPort(
+    'kgCO2/MWh',
+    dataCenterEstimands.dedicatedEmissionsKgPerMwh,
+  ),
+  hoursPerYear: measurementPort(
+    'hour/year',
+    dataCenterEstimands.hoursPerYear,
+  ),
 });
 
 export const DATA_CENTER_GRID_RESULT_PORT = objectPort<DataCenterGridResult>({
   scenario: DATA_CENTER_GRID_SCENARIO_PORT,
-  realizedAverageLoadGw: unitPort('GW'),
-  annualElectricityTwh: unitPort('TWh/year'),
-  coincidentPeakGw: unitPort('GW'),
-  flexiblePeakGw: unitPort('GW'),
-  dedicatedFirmCapacityGw: unitPort('GW'),
-  sharedFirmCapacityRequiredGw: unitPort('GW'),
-  sharedFirmCapacityBuiltGw: unitPort('GW'),
-  reliabilityGapGw: unitPort('GW'),
-  dedicatedGenerationCapexBillion: unitPort('$B'),
-  sharedGenerationCapexBillion: unitPort('$B'),
-  networkCapexBillion: unitPort('$B'),
-  totalIncrementalCapexBillion: unitPort('$B'),
-  developerAssignedCapexBillion: unitPort('$B'),
-  ratepayerAssignedCapexBillion: unitPort('$B'),
-  strandedRiskShiftBillion: unitPort('$B'),
-  annualRatepayerRevenueRequirementBillion: unitPort('$B/year'),
-  nonDataCenterBillImpact: unitPort('fraction'),
-  dedicatedElectricityTwh: unitPort('TWh/year'),
-  gridElectricityTwh: unitPort('TWh/year'),
-  operationalEmissionsGtCo2: unitPort('GtCO2/year'),
+  realizedAverageLoadGw: measurementPort(
+    'GW',
+    dataCenterEstimands.realizedAverageLoadGw,
+  ),
+  annualElectricityTwh: measurementPort(
+    'TWh/year',
+    dataCenterEstimands.annualElectricityTwh,
+  ),
+  coincidentPeakGw: measurementPort(
+    'GW',
+    dataCenterEstimands.coincidentPeakGw,
+  ),
+  flexiblePeakGw: measurementPort(
+    'GW',
+    dataCenterEstimands.flexiblePeakGw,
+  ),
+  dedicatedFirmCapacityGw: measurementPort(
+    'GW',
+    dataCenterEstimands.dedicatedFirmCapacityGw,
+  ),
+  sharedFirmCapacityRequiredGw: measurementPort(
+    'GW',
+    dataCenterEstimands.sharedFirmCapacityRequiredGw,
+  ),
+  sharedFirmCapacityBuiltGw: measurementPort(
+    'GW',
+    dataCenterEstimands.sharedFirmCapacityBuiltGw,
+  ),
+  reliabilityGapGw: measurementPort(
+    'GW',
+    dataCenterEstimands.reliabilityGapGw,
+  ),
+  dedicatedGenerationCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.dedicatedGenerationCapexBillion,
+  ),
+  sharedGenerationCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.sharedGenerationCapexBillion,
+  ),
+  networkCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.networkCapexBillion,
+  ),
+  totalIncrementalCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.totalIncrementalCapexBillion,
+  ),
+  developerAssignedCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.developerAssignedCapexBillion,
+  ),
+  ratepayerAssignedCapexBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.ratepayerAssignedCapexBillion,
+  ),
+  strandedRiskShiftBillion: measurementPort(
+    '$B',
+    dataCenterEstimands.strandedRiskShiftBillion,
+  ),
+  annualRatepayerRevenueRequirementBillion: measurementPort(
+    '$B/year',
+    dataCenterEstimands.annualRatepayerRevenueRequirementBillion,
+  ),
+  nonDataCenterBillImpact: measurementPort(
+    'fraction',
+    dataCenterEstimands.nonDataCenterBillImpact,
+  ),
+  dedicatedElectricityTwh: measurementPort(
+    'TWh/year',
+    dataCenterEstimands.dedicatedElectricityTwh,
+  ),
+  gridElectricityTwh: measurementPort(
+    'TWh/year',
+    dataCenterEstimands.gridElectricityTwh,
+  ),
+  operationalEmissionsGtCo2: measurementPort(
+    'GtCO2/year',
+    dataCenterEstimands.operationalEmissionsGtCo2,
+  ),
 });
 
 // Bilateral tariffs ----------------------------------------------------------
@@ -573,7 +693,10 @@ export const HORMUZ_SCENARIO_PORT = objectPort<HormuzScenario>({
   description: metadataPort('string', 'Hormuz scenario description.'),
   startYear: unitPort('calendar-year'),
   startMonth: unitPort('calendar-month'),
-  throughputPath: vectorPort<number>(unitPort('fraction')),
+  throughputPath: vectorPort<number>(
+    measurementPort('fraction', hormuzEstimands.commodityThroughputShare),
+    'Physical commodity cargo-throughput capacity relative to baseline; never vessel counts.',
+  ),
   bypassAvailabilityPath: { ...vectorPort<number>(unitPort('fraction')), optional: true },
 });
 
@@ -738,11 +861,23 @@ export const COUNTERMEASURE_PORT = objectPort<CountermeasureParams>({
 
 export const PROBABILISTIC_FORECAST_PORT = objectPort<ProbabilisticForecast>({
   model: metadataPort('string', 'Forecast-model identifier.'),
-  originIndex: unitPort('step-index'),
-  targetIndex: unitPort('step-index'),
-  horizon: unitPort('week'),
-  pointLog: unitPort('log1p-admissions'),
-  quantilesLog: recordPort<number>(unitPort('log1p-admissions'), {
+  originIndex: measurementPort(
+    'step-index',
+    outbreakForecastEstimands.originIndex,
+  ),
+  targetIndex: measurementPort(
+    'step-index',
+    outbreakForecastEstimands.targetIndex,
+  ),
+  horizon: measurementPort('week', outbreakForecastEstimands.horizon),
+  pointLog: measurementPort(
+    'log1p-admissions',
+    outbreakForecastEstimands.admissionsLog,
+  ),
+  quantilesLog: recordPort<number>(measurementPort(
+    'log1p-admissions',
+    outbreakForecastEstimands.admissionsLog,
+  ), {
     keys: FORECAST_QUANTILES.map(String),
   }),
 });

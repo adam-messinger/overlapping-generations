@@ -1,5 +1,12 @@
 import type { ModelDefinition } from './model.js';
 import { runModel } from './model.js';
+import {
+  experimentInterpretation,
+  validateExperiment,
+  validateExperimentSample,
+  type ExperimentContract,
+  type ExperimentResultInterpretation,
+} from './study.js';
 
 export type RandomSource = () => number;
 
@@ -80,14 +87,37 @@ function correlation(left: readonly number[], right: readonly number[]): number 
 export interface EnsembleSample<TInput> {
   input: TInput;
   parameters?: Readonly<Record<string, number>>;
+  variables?: Readonly<Record<string, unknown>>;
 }
 
-export interface EnsembleMetricSummary {
+export interface ProbabilityMetricSummary {
+  kind: 'probability';
   mean: number;
   min: number;
   max: number;
   quantiles: Record<string, number>;
 }
+
+export interface DesignMetricSummary {
+  kind: 'design-sample';
+  designMean: number;
+  min: number;
+  max: number;
+  /** Percentiles of sampled design points; these are not probabilities. */
+  empiricalPercentiles: Record<string, number>;
+}
+
+export interface EpistemicMetricSummary {
+  kind: 'epistemic-possibility';
+  lower: number;
+  upper: number;
+  sampledPossibilities: number;
+}
+
+export type EnsembleMetricSummary =
+  | ProbabilityMetricSummary
+  | DesignMetricSummary
+  | EpistemicMetricSummary;
 
 export interface EnsembleResult<TOutput> {
   seed: number;
@@ -95,6 +125,32 @@ export interface EnsembleResult<TOutput> {
   outputs: TOutput[];
   metrics: Record<string, EnsembleMetricSummary>;
   rankSensitivity: Record<string, Record<string, number>>;
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
+}
+
+export interface EpistemicCase<TContext> {
+  id: string;
+  context: TContext;
+}
+
+export interface NestedMetricSummary {
+  kind: 'nested-aleatory-epistemic';
+  byEpistemicCase: Readonly<Record<string, ProbabilityMetricSummary>>;
+  meanRange: { lower: number; upper: number };
+  quantileEnvelope: Readonly<Record<string, { lower: number; upper: number }>>;
+}
+
+export interface NestedEnsembleResult<TOutput, TContext> {
+  seed: number;
+  aleatoryDrawsPerCase: number;
+  experiment: ExperimentContract;
+  interpretation: 'nested-aleatory-epistemic';
+  families: readonly {
+    epistemicCase: EpistemicCase<TContext>;
+    outputs: readonly TOutput[];
+  }[];
+  metrics: Readonly<Record<string, NestedMetricSummary>>;
 }
 
 export function runEnsemble<TInput, TOutput>(options: {
@@ -104,28 +160,75 @@ export function runEnsemble<TInput, TOutput>(options: {
   sample: (random: RandomSource, draw: number) => EnsembleSample<TInput>;
   metrics: Readonly<Record<string, (output: TOutput) => number>>;
   quantiles?: readonly number[];
+  experiment?: ExperimentContract;
 }): EnsembleResult<TOutput> {
   if (!Number.isInteger(options.draws) || options.draws < 1) throw new Error('Ensemble draws must be >= 1');
+  if (options.experiment) {
+    validateExperiment(options.experiment);
+    if (options.experiment.intent === 'mixed-uncertainty') {
+      throw new Error(
+        'A flat ensemble cannot represent mixed aleatory/epistemic uncertainty; ' +
+        'use separate nested studies instead of flattening the two levels.',
+      );
+    }
+  }
+  const interpretation = experimentInterpretation(options.experiment);
   const random = seededRandom(options.seed);
   const outputs: TOutput[] = [];
   const parameterRows: Array<Readonly<Record<string, number>>> = [];
   for (let draw = 0; draw < options.draws; draw++) {
     const sample = options.sample(random, draw);
+    if (options.experiment) {
+      validateExperimentSample(
+        options.experiment,
+        sample.variables ?? sample.parameters ?? {},
+        `Ensemble draw ${draw}`,
+      );
+    }
     parameterRows.push(sample.parameters ?? {});
     outputs.push(runModel(options.model, sample.input, { seed: options.seed, runLabel: `draw-${draw}` }).output);
   }
   const probabilities = options.quantiles ?? [0.05, 0.5, 0.95];
+  if (probabilities.some((probability) =>
+    !Number.isFinite(probability) || probability < 0 || probability > 1
+  )) {
+    throw new Error('Ensemble percentile levels must be finite and in [0, 1]');
+  }
   const metricValues = Object.fromEntries(Object.entries(options.metrics).map(([name, metric]) => {
     const values = outputs.map(metric);
     if (values.some((value) => !Number.isFinite(value))) throw new Error(`Ensemble metric '${name}' is non-finite`);
     return [name, values];
   })) as Record<string, number[]>;
-  const metrics = Object.fromEntries(Object.entries(metricValues).map(([name, values]) => [name, {
-    mean: values.reduce((a, b) => a + b, 0) / values.length,
-    min: Math.min(...values),
-    max: Math.max(...values),
-    quantiles: Object.fromEntries(probabilities.map((p) => [String(p), quantile(values, p)])),
-  } satisfies EnsembleMetricSummary]));
+  const metrics = Object.fromEntries(Object.entries(metricValues).map(([name, values]) => {
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (interpretation === 'probability-distribution') {
+      return [name, {
+        kind: 'probability',
+        mean: values.reduce((a, b) => a + b, 0) / values.length,
+        min,
+        max,
+        quantiles: Object.fromEntries(probabilities.map((p) => [String(p), quantile(values, p)])),
+      } satisfies ProbabilityMetricSummary];
+    }
+    if (interpretation === 'epistemic-possibility') {
+      return [name, {
+        kind: 'epistemic-possibility',
+        lower: min,
+        upper: max,
+        sampledPossibilities: values.length,
+      } satisfies EpistemicMetricSummary];
+    }
+    return [name, {
+      kind: 'design-sample',
+      designMean: values.reduce((a, b) => a + b, 0) / values.length,
+      min,
+      max,
+      empiricalPercentiles: Object.fromEntries(
+        probabilities.map((p) => [String(p), quantile(values, p)]),
+      ),
+    } satisfies DesignMetricSummary];
+  }));
   const parameterNames = [...new Set(parameterRows.flatMap((row) => Object.keys(row)))];
   const rankSensitivity = Object.fromEntries(parameterNames.map((parameter) => {
     const parameterValues = parameterRows.map((row) => row[parameter] ?? 0);
@@ -134,5 +237,122 @@ export function runEnsemble<TInput, TOutput>(options: {
       correlation(ranks(parameterValues), ranks(values)),
     ]))];
   }));
-  return { seed: options.seed, draws: options.draws, outputs, metrics, rankSensitivity };
+  return {
+    seed: options.seed,
+    draws: options.draws,
+    outputs,
+    metrics,
+    rankSensitivity,
+    ...(options.experiment ? { experiment: options.experiment } : {}),
+    interpretation,
+  };
+}
+
+/**
+ * Preserve epistemic cases as an outer possibility set and aleatory
+ * probability distributions as inner families. No single flattened CDF is
+ * produced because that would silently assign probabilities to epistemic
+ * possibilities.
+ */
+export function runNestedEnsemble<TInput, TOutput, TContext>(options: {
+  model: ModelDefinition<TInput, TOutput>;
+  experiment: ExperimentContract;
+  epistemicCases: readonly EpistemicCase<TContext>[];
+  aleatoryDrawsPerCase: number;
+  seed: number;
+  sample: (
+    epistemic: EpistemicCase<TContext>,
+    random: RandomSource,
+    draw: number,
+  ) => EnsembleSample<TInput>;
+  metrics: Readonly<Record<string, (output: TOutput) => number>>;
+  quantiles?: readonly number[];
+}): NestedEnsembleResult<TOutput, TContext> {
+  validateExperiment(options.experiment);
+  if (options.experiment.intent !== 'mixed-uncertainty') {
+    throw new Error('Nested ensembles require a mixed-uncertainty experiment');
+  }
+  if (!Number.isInteger(options.aleatoryDrawsPerCase) || options.aleatoryDrawsPerCase < 1) {
+    throw new Error('Nested ensemble aleatoryDrawsPerCase must be >= 1');
+  }
+  if (options.epistemicCases.length === 0) {
+    throw new Error('Nested ensemble needs at least one epistemic case');
+  }
+  const caseIds = new Set<string>();
+  for (const epistemic of options.epistemicCases) {
+    if (!epistemic.id.trim()) throw new Error('Nested ensemble epistemic case ID must not be empty');
+    if (caseIds.has(epistemic.id)) {
+      throw new Error(`Duplicate epistemic case ID '${epistemic.id}'`);
+    }
+    caseIds.add(epistemic.id);
+  }
+  const probabilities = options.quantiles ?? [0.05, 0.5, 0.95];
+  if (probabilities.some((probability) =>
+    !Number.isFinite(probability) || probability < 0 || probability > 1
+  )) {
+    throw new Error('Nested ensemble quantile levels must be finite and in [0, 1]');
+  }
+  const random = seededRandom(options.seed);
+  const families = options.epistemicCases.map((epistemic) => {
+    const outputs: TOutput[] = [];
+    for (let draw = 0; draw < options.aleatoryDrawsPerCase; draw++) {
+      const sample = options.sample(epistemic, random, draw);
+      validateExperimentSample(
+        options.experiment,
+        sample.variables ?? sample.parameters ?? {},
+        `Nested ensemble case '${epistemic.id}' draw ${draw}`,
+      );
+      outputs.push(runModel(options.model, sample.input, {
+        seed: options.seed,
+        runLabel: `${epistemic.id}:draw-${draw}`,
+      }).output);
+    }
+    return { epistemicCase: epistemic, outputs };
+  });
+  const metrics = Object.fromEntries(Object.entries(options.metrics).map(([name, metric]) => {
+    const byEpistemicCase = Object.fromEntries(families.map((family) => {
+      const values = family.outputs.map(metric);
+      if (values.some((value) => !Number.isFinite(value))) {
+        throw new Error(`Nested ensemble metric '${name}' is non-finite`);
+      }
+      return [family.epistemicCase.id, {
+        kind: 'probability',
+        mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+        min: Math.min(...values),
+        max: Math.max(...values),
+        quantiles: Object.fromEntries(
+          probabilities.map((probability) => [
+            String(probability),
+            quantile(values, probability),
+          ]),
+        ),
+      } satisfies ProbabilityMetricSummary];
+    }));
+    const summaries = Object.values(byEpistemicCase);
+    const meanValues = summaries.map((summary) => summary.mean);
+    const quantileEnvelope = Object.fromEntries(probabilities.map((probability) => {
+      const values = summaries.map((summary) => summary.quantiles[String(probability)]);
+      return [String(probability), {
+        lower: Math.min(...values),
+        upper: Math.max(...values),
+      }];
+    }));
+    return [name, {
+      kind: 'nested-aleatory-epistemic',
+      byEpistemicCase,
+      meanRange: {
+        lower: Math.min(...meanValues),
+        upper: Math.max(...meanValues),
+      },
+      quantileEnvelope,
+    } satisfies NestedMetricSummary];
+  }));
+  return {
+    seed: options.seed,
+    aleatoryDrawsPerCase: options.aleatoryDrawsPerCase,
+    experiment: options.experiment,
+    interpretation: 'nested-aleatory-epistemic',
+    families,
+    metrics,
+  };
 }

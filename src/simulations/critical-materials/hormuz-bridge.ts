@@ -7,7 +7,16 @@ import type {
   AnnualHormuzShock,
   HormuzSimulationResult,
 } from './hormuz-model.js';
-import { defineAdapter, mergeTemporalRecords, runAdapter } from 'tsimulation';
+import {
+  defineAdapter,
+  measurementPort,
+  mergeTemporalRecords,
+  runAdapter,
+} from 'tsimulation';
+import {
+  hormuzCrosswalks,
+  hormuzEstimands,
+} from '../semantic-contracts.js';
 
 export interface HormuzBridgeOptions {
   /** Near-term shares of non-electric final energy; remaining fuels are unshocked. */
@@ -152,40 +161,99 @@ export const hormuzGlobalAdapter = defineAdapter<HormuzGlobalAdapterInput, Simul
   targetModel: 'global-olg',
   sourceTimeScale: { kind: 'monthly' },
   targetTimeScale: { kind: 'annual' },
+  semanticValidation: 'required',
   sourcePorts: {
-    oilAvailability: { unit: 'fraction', valueType: 'number' },
-    gasAvailability: { unit: 'fraction', valueType: 'number' },
-    oilPriceMultiple: { unit: '1', valueType: 'number' },
-    gasPriceMultiple: { unit: '1', valueType: 'number' },
+    oilAvailability: measurementPort(
+      'fraction',
+      hormuzEstimands.oilAvailability,
+    ),
+    gasAvailability: measurementPort(
+      'fraction',
+      hormuzEstimands.gasAvailability,
+    ),
+    oilPriceMultiple: measurementPort(
+      '1',
+      hormuzEstimands.oilPriceMultiple,
+    ),
+    gasPriceMultiple: measurementPort(
+      '1',
+      hormuzEstimands.gasPriceMultiple,
+    ),
   },
   targetPorts: {
-    nonElectricAvailability: { unit: 'fraction', valueType: 'number' },
-    commodityPriceMultiple: { unit: '1', valueType: 'number' },
+    oilAvailability: measurementPort(
+      'fraction',
+      hormuzEstimands.oilAvailability,
+    ),
+    gasAvailability: measurementPort(
+      'fraction',
+      hormuzEstimands.gasAvailability,
+    ),
+    nonElectricAvailability: measurementPort(
+      'fraction',
+      hormuzEstimands.nonElectricAvailability,
+    ),
+    oilPriceMultiple: measurementPort(
+      '1',
+      hormuzEstimands.oilPriceMultiple,
+    ),
+    gasPriceMultiple: measurementPort(
+      '1',
+      hormuzEstimands.gasPriceMultiple,
+    ),
   },
   portMappings: [
     {
       source: 'oilAvailability',
-      target: 'nonElectricAvailability',
+      target: 'oilAvailability',
       conversion: { kind: 'identity' },
       aggregation: { kind: 'custom', description: 'Annual consumption-weighted oil and gas availability.' },
     },
     {
       source: 'gasAvailability',
-      target: 'nonElectricAvailability',
+      target: 'gasAvailability',
       conversion: { kind: 'identity' },
       aggregation: { kind: 'custom', description: 'Annual consumption-weighted oil and gas availability.' },
     },
     {
       source: 'oilPriceMultiple',
-      target: 'commodityPriceMultiple',
+      target: 'oilPriceMultiple',
       conversion: { kind: 'identity' },
       aggregation: { kind: 'custom', description: 'Annual duration-weighted commodity price shock.' },
     },
     {
       source: 'gasPriceMultiple',
-      target: 'commodityPriceMultiple',
+      target: 'gasPriceMultiple',
       conversion: { kind: 'identity' },
       aggregation: { kind: 'custom', description: 'Annual duration-weighted commodity price shock.' },
+    },
+    {
+      source: 'oilAvailability',
+      target: 'nonElectricAvailability',
+      conversion: {
+        kind: 'custom',
+        description: 'Contribute the fixed oil share of non-electric final-energy loss.',
+        convert: (value) => value,
+      },
+      aggregation: {
+        kind: 'custom',
+        description: 'Combine fixed oil and gas shares with unshocked residual fuels.',
+      },
+      crosswalk: hormuzCrosswalks.oilToNonElectric,
+    },
+    {
+      source: 'gasAvailability',
+      target: 'nonElectricAvailability',
+      conversion: {
+        kind: 'custom',
+        description: 'Contribute the fixed gas share of non-electric final-energy loss.',
+        convert: (value) => value,
+      },
+      aggregation: {
+        kind: 'custom',
+        description: 'Combine fixed oil and gas shares with unshocked residual fuels.',
+      },
+      crosswalk: hormuzCrosswalks.gasToNonElectric,
     },
   ],
   adapt: ({ simulation, base = {}, options = hormuzBridgeDefaults }) =>

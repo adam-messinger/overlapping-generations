@@ -87,6 +87,9 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   model, experiment, calibration, adapter, solver, evidence, and manifest APIs
   (no domain imports; reusable for other simulations; see its
   [README](packages/tsimulation/README.md))
+- [`docs/SEMANTIC_MEASUREMENT_CONTRACTS.md`](docs/SEMANTIC_MEASUREMENT_CONTRACTS.md)
+  — estimand, observation-regime, immutable data-lineage, crosswalk, and
+  experiment-semantics design plus the first strict model migrations
 - `scenarios/` — scenario JSON files ([format docs](scenarios/README.md))
 - `baselines/` + `scripts/` — blessed regression baselines and the
   capture/compare/bless tooling

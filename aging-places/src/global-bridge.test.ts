@@ -3,6 +3,7 @@ import { expect, printSummary, test } from '../../src/test-utils.js';
 import {
   DEFAULT_HOUSE_PRICE_INCOME_PREMIUM,
   buildGlobalMacroPath,
+  globalCityMacroAdapter,
   runGlobalCitySimulation,
 } from './global-bridge.js';
 import { type NationalMacroPath, type NationalMacroPoint } from './macro-path.js';
@@ -48,6 +49,19 @@ test('global bridge converts consecutive OECD GDP-per-capita levels into forward
   ).toBeCloseTo(DEFAULT_HOUSE_PRICE_INCOME_PREMIUM, 12);
   expect(path.points[2025].aggregateCapitalCoverage)
     .toBeCloseTo(current.aggregateCapitalCoverage, 12);
+});
+
+test('global bridge records proxy assumptions as semantic crosswalks', () => {
+  expect(globalCityMacroAdapter.semanticValidation).toBe('required');
+  const crosswalks = globalCityMacroAdapter.portMappings
+    .flatMap((mapping) => mapping.crosswalk?.id ?? []);
+  expect(crosswalks).toEqual([
+    'crosswalk.global-city.regional-gdp-per-capita-to-municipal-income-growth',
+    'crosswalk.global-city.regional-gdp-per-capita-to-municipal-house-price-drift',
+  ]);
+  expect(globalCityMacroAdapter.portMappings.filter(
+    (mapping) => mapping.conversion.kind === 'identity',
+  )).toHaveLength(9);
 });
 
 test('market annual paths override scalar rates only in the requested years', () => {

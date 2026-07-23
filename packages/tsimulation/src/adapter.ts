@@ -2,16 +2,27 @@ import type { ValidationResult } from './types.js';
 import type { PortMeta } from './units.js';
 import {
   areUnitsConvertible,
+  auditPortSemantics,
   isOpaquePort,
   isQuantityPort,
+  validatePortCompatibility,
   validatePortMeta,
-  validatePortUnits,
 } from './units.js';
+import {
+  assertEstimandsCompatible,
+  assertMeasurementsCompatible,
+  validateMeasurementCrosswalk,
+  validateSemanticCrosswalk,
+  type MeasurementCrosswalk,
+  type SemanticCrosswalk,
+  type SemanticValidationMode,
+} from './semantics.js';
 import { assertFiniteDeep } from './validation.js';
 
 export type TimeScale =
   | { kind: 'event' }
   | { kind: 'daily' }
+  | { kind: 'weekly' }
   | { kind: 'monthly' }
   | { kind: 'quarterly' }
   | { kind: 'annual' };
@@ -39,6 +50,10 @@ export interface AdapterDefinition<TSource, TTarget> {
   sourcePorts: Readonly<Record<string, PortMeta>>;
   /** Semantic quantities written into the target. All must be declared. */
   targetPorts: Readonly<Record<string, PortMeta>>;
+  /** Estimands are checked whenever present; `required` rejects unannotated quantitative ports. */
+  semanticValidation?: SemanticValidationMode;
+  /** Observation procedures are compared when both sides declare them. */
+  measurementValidation?: SemanticValidationMode;
   /** Explicit source-to-target conversion and time-aggregation contracts. */
   portMappings: readonly AdapterPortMapping[];
   adapt: (source: TSource, context: AdapterContext) => TTarget;
@@ -63,6 +78,10 @@ export interface AdapterPortMapping {
   target: string;
   conversion: AdapterConversion;
   aggregation: AdapterAggregation;
+  /** Required whenever source and target estimands are not equivalent. */
+  crosswalk?: SemanticCrosswalk;
+  /** Required whenever declared source and target observation procedures differ. */
+  measurementCrosswalk?: MeasurementCrosswalk;
 }
 
 export interface AdapterRun<TSource, TTarget> {
@@ -74,6 +93,8 @@ export interface AdapterRun<TSource, TTarget> {
   target: TTarget;
   context: AdapterContext;
   warnings: string[];
+  crosswalks: readonly { id: string; version: string }[];
+  measurementCrosswalks: readonly { id: string; version: string }[];
 }
 
 function validatePorts(id: string, side: string, ports: Readonly<Record<string, PortMeta>>): void {
@@ -94,10 +115,16 @@ function validateMappings<TSource, TTarget>(definition: AdapterDefinition<TSourc
     mappedTargets.add(mapping.target);
     if (mapping.conversion.kind === 'identity') {
       try {
-        validatePortUnits(
+        validatePortCompatibility(
           source,
           target,
           `Adapter '${definition.id}' identity mapping ${mapping.source} -> ${mapping.target}`,
+          {
+            semanticValidation: definition.semanticValidation ?? 'if-present',
+            measurementValidation: definition.measurementValidation ?? 'if-present',
+            crosswalk: mapping.crosswalk,
+            measurementCrosswalk: mapping.measurementCrosswalk,
+          },
         );
       } catch (error) {
         throw new Error(
@@ -114,8 +141,58 @@ function validateMappings<TSource, TTarget>(definition: AdapterDefinition<TSourc
           `Adapter '${definition.id}' unit mapping ${mapping.source} -> ${mapping.target} has incompatible contracts`,
         );
       }
+      assertEstimandsCompatible(
+        source.estimand,
+        target.estimand,
+        `Adapter '${definition.id}' unit mapping ${mapping.source} -> ${mapping.target}`,
+        {
+          mode: definition.semanticValidation ?? 'if-present',
+          crosswalk: mapping.crosswalk,
+        },
+      );
+      assertMeasurementsCompatible(
+        source.measurement,
+        target.measurement,
+        `Adapter '${definition.id}' unit mapping ${mapping.source} -> ${mapping.target}`,
+        {
+          mode: definition.measurementValidation ?? 'if-present',
+          crosswalk: mapping.measurementCrosswalk,
+        },
+      );
     } else if (!mapping.conversion.description.trim()) {
       throw new Error(`Adapter '${definition.id}' custom mapping must describe its conversion`);
+    } else if (isQuantityPort(source) && isQuantityPort(target)) {
+      assertEstimandsCompatible(
+        source.estimand,
+        target.estimand,
+        `Adapter '${definition.id}' custom mapping ${mapping.source} -> ${mapping.target}`,
+        {
+          mode: definition.semanticValidation ?? 'if-present',
+          crosswalk: mapping.crosswalk,
+        },
+      );
+      assertMeasurementsCompatible(
+        source.measurement,
+        target.measurement,
+        `Adapter '${definition.id}' custom mapping ${mapping.source} -> ${mapping.target}`,
+        {
+          mode: definition.measurementValidation ?? 'if-present',
+          crosswalk: mapping.measurementCrosswalk,
+        },
+      );
+    }
+    if (mapping.crosswalk) {
+      validateSemanticCrosswalk(
+        mapping.crosswalk,
+        `Adapter '${definition.id}' mapping ${mapping.source} -> ${mapping.target} crosswalk`,
+      );
+    }
+    if (mapping.measurementCrosswalk) {
+      validateMeasurementCrosswalk(
+        mapping.measurementCrosswalk,
+        `Adapter '${definition.id}' mapping ${mapping.source} -> ` +
+        `${mapping.target} measurement crosswalk`,
+      );
     }
     if (mapping.aggregation.kind === 'custom' && !mapping.aggregation.description.trim()) {
       throw new Error(`Adapter '${definition.id}' custom aggregation must have a description`);
@@ -156,6 +233,22 @@ export function defineAdapter<TSource, TTarget>(
   if (!definition.portMappings) throw new Error(`Adapter '${definition.id}' must declare port mappings`);
   validatePorts(definition.id, 'source', definition.sourcePorts);
   validatePorts(definition.id, 'target', definition.targetPorts);
+  if (definition.semanticValidation === 'required') {
+    for (const [side, ports] of [
+      ['source', definition.sourcePorts],
+      ['target', definition.targetPorts],
+    ] as const) {
+      for (const [name, port] of Object.entries(ports)) {
+        const audit = auditPortSemantics(port, `${side}.${name}`);
+        if (audit.missingSemanticPaths.length > 0) {
+          throw new Error(
+            `Adapter '${definition.id}' missing estimand contracts: ` +
+            audit.missingSemanticPaths.join(', '),
+          );
+        }
+      }
+    }
+  }
   validateMappings(definition);
   return definition;
 }
@@ -180,5 +273,18 @@ export function runAdapter<TSource, TTarget>(
     target,
     context,
     warnings,
+    crosswalks: adapter.portMappings.flatMap((mapping) =>
+      mapping.crosswalk
+        ? [{ id: mapping.crosswalk.id, version: mapping.crosswalk.version }]
+        : [],
+    ),
+    measurementCrosswalks: adapter.portMappings.flatMap((mapping) =>
+      mapping.measurementCrosswalk
+        ? [{
+            id: mapping.measurementCrosswalk.id,
+            version: mapping.measurementCrosswalk.version,
+          }]
+        : [],
+    ),
   };
 }

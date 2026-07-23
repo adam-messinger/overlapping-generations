@@ -1,12 +1,15 @@
 import {
   ModelRegistry,
   defineModel,
+  measurementPort,
   metadataPort,
+  observationPort,
   opaquePort,
   unitPort,
   type EvidenceRecord,
   type ValidationClaim,
 } from 'tsimulation';
+import { outbreakForecastEstimands } from './semantic-contracts.js';
 import {
   ANNUAL_HORMUZ_ROWS_PORT,
   BOOLEAN_PORT,
@@ -112,6 +115,10 @@ import {
   type ProbabilisticForecast,
 } from './outbreak/probabilistic.js';
 import {
+  cdcFixedInitialAdmissionsMeasurement,
+  cdcOperationalAdmissionsMeasurement,
+} from './outbreak/measurement-contracts.js';
+import {
   runWarAiExperiment,
   type WarAiExperiment,
   type WarAiExperimentOptions,
@@ -122,6 +129,11 @@ import {
   type DataCenterGridResult,
   type DataCenterGridScenario,
 } from './news/data-center-grid.js';
+import {
+  bnef2035DataCenterCapacityMeasurement,
+  bnefTotalToIncrementalLoadDerivation,
+  lbnl2023DataCenterElectricityMeasurement,
+} from './news/data-center-grid-measurements.js';
 
 const observed = (
   id: string,
@@ -129,12 +141,18 @@ const observed = (
   url: string,
   role: EvidenceRecord['role'],
   accessedAt = '2026-07-22',
+  measurement?: EvidenceRecord['measurement'],
+  value?: unknown,
+  unit?: string,
 ): EvidenceRecord => ({
   id,
   label,
   kind: 'observed',
   role,
   source: { title: label, url, accessedAt },
+  ...(measurement ? { measurement } : {}),
+  ...(value !== undefined ? { value } : {}),
+  ...(unit ? { unit } : {}),
 });
 
 const claim = (
@@ -316,6 +334,7 @@ export const dataCenterGridModel = defineModel<
   version: '1.0.0',
   description:
     'Large-load resource adequacy, generation/network capex assignment, take-or-pay risk, ratepayer impact, and operational emissions.',
+  semanticValidation: 'required',
   run: (scenario) => simulateDataCenterGrid(scenario),
   inputPorts: DATA_CENTER_GRID_SCENARIO_PORT.fields,
   outputPorts: DATA_CENTER_GRID_RESULT_PORT.fields,
@@ -337,19 +356,28 @@ export const dataCenterGridModel = defineModel<
     },
   ],
   evidence: [
-    observed(
-      'dc-grid-bnef-2035',
-      'BloombergNEF 194 GW U.S. data-center scenario for 2035',
-      dataCenterGridEvidence.sources.bnef2035,
-      'scenario',
-      '2026-07-23',
-    ),
+    {
+      ...observed(
+        'dc-grid-bnef-2035',
+        'BloombergNEF 194 GW U.S. data-center scenario for 2035',
+        dataCenterGridEvidence.sources.bnef2035,
+        'scenario',
+        '2026-07-23',
+        bnef2035DataCenterCapacityMeasurement,
+        dataCenterGridEvidence.bnef2035CapacityGw,
+        'GW',
+      ),
+      semanticDerivations: [bnefTotalToIncrementalLoadDerivation],
+    },
     observed(
       'dc-grid-lbnl',
       'Berkeley Lab U.S. data-center electricity range',
       dataCenterGridEvidence.sources.lbnl,
       'development',
       '2026-07-23',
+      lbnl2023DataCenterElectricityMeasurement,
+      dataCenterGridEvidence.lbnl2023ElectricityTwh,
+      'TWh/year',
     ),
     observed(
       'dc-grid-doe-rates',
@@ -696,15 +724,28 @@ export const outbreakForecastModel = defineModel<
   ProbabilisticForecast
 >({
   id: 'outbreak-probabilistic-forecast',
-  version: '2.0.0',
-  description: 'Leakage-safe one-to-four-week probabilistic hospital-admission forecast.',
+  version: '2.1.0',
+  description: 'Leakage-safe one-to-four-week probabilistic U.S. COVID-19 hospital-admission forecast.',
+  semanticValidation: 'required',
   run: ({ values, model, originIndex, horizon }) =>
     makeForecast(values, model, originIndex, horizon),
   inputPorts: {
-    values: unitPort('people/week', 'vector'),
+    values: observationPort(
+      'people/week',
+      cdcOperationalAdmissionsMeasurement,
+      'vector',
+    ),
     model: metadataPort('string', 'Forecast-model identifier.'),
-    originIndex: unitPort('step-index', 'number'),
-    horizon: unitPort('week', 'number'),
+    originIndex: measurementPort(
+      'step-index',
+      outbreakForecastEstimands.originIndex,
+      'number',
+    ),
+    horizon: measurementPort(
+      'week',
+      outbreakForecastEstimands.horizon,
+      'number',
+    ),
   },
   outputPorts: PROBABILISTIC_FORECAST_PORT.fields,
   invariants: [{
@@ -716,7 +757,35 @@ export const outbreakForecastModel = defineModel<
         q[0.5] <= q[0.75] && q[0.75] <= q[0.975];
     },
   }],
-  evidence: [],
+  evidence: [
+    {
+      id: 'outbreak-forecast-operational-admissions',
+      label: 'CDC operational, revisable U.S. COVID-19 weekly admissions',
+      kind: 'observed',
+      role: 'development',
+      unit: 'people/week',
+      source: {
+        title: 'CDC complete operational national admissions API',
+        url: 'https://data.cdc.gov/resource/mpgq-jmmr.json',
+        accessedAt: '2026-07-23',
+      },
+      measurement: cdcOperationalAdmissionsMeasurement,
+    },
+    {
+      id: 'outbreak-forecast-fixed-initial-admissions',
+      label: 'CDC fixed-initial U.S. COVID-19 weekly admissions',
+      kind: 'observed',
+      role: 'diagnostic',
+      unit: 'people/week',
+      source: {
+        title: 'CDC fixed-initial national admissions dataset',
+        url: 'https://data.cdc.gov/resource/vdzy-6i9v.json',
+        accessedAt: '2026-07-23',
+      },
+      measurement: cdcFixedInitialAdmissionsMeasurement,
+      notes: 'Forecast resolution series; linked to the longer operational series through an explicit pilot correction, not treated as the same measurement procedure.',
+    },
+  ],
 });
 
 export const warAiModel = defineModel<WarAiExperimentOptions, WarAiExperiment>({

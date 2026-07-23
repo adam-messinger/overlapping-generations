@@ -163,12 +163,15 @@ export function pointForecast(
   return clamp(combined, Math.min(...recent) - 0.35, Math.max(...recent) + 0.35);
 }
 
-function historicalResiduals(
+/** Residuals available at an origin, using no observations after that origin. */
+export function historicalResiduals(
   values: readonly number[],
   model: ForecastModel,
   origin: number,
   horizon: ForecastHorizon,
 ): number[] {
+  if (origin < 6) throw new Error('Forecast origin needs at least seven observations');
+  if (origin >= values.length) throw new Error('Forecast origin is outside series');
   const logValues = values.map(transform);
   const residuals: number[] = [];
   const latestPriorOrigin = origin - horizon;
@@ -187,7 +190,7 @@ export function makeForecast(
   horizon: ForecastHorizon,
 ): ProbabilisticForecast {
   if (originIndex < 6) throw new Error('Forecast origin needs at least seven observations');
-  if (originIndex + horizon >= values.length) throw new Error('Forecast target is outside series');
+  if (originIndex >= values.length) throw new Error('Forecast origin is outside series');
   const pointLog = pointForecast(values, model, originIndex, horizon);
   let residuals = historicalResiduals(values, model, originIndex, horizon);
   if (residuals.length < 12) {

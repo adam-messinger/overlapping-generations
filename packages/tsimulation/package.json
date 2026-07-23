@@ -30,6 +30,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node-data.d.ts",
+      "import": "./dist/node-data.js",
+      "default": "./dist/node-data.js"
     }
   },
   "main": "./dist/index.js",

@@ -6,6 +6,18 @@
  * parentheses. Examples: `$/MWh`, `TWh/year`, `kgCO2/MWh`, and `people/year`.
  */
 
+import {
+  assertEstimandsCompatible,
+  assertMeasurementsCompatible,
+  validateEstimand,
+  validateMeasurement,
+  type EstimandContract,
+  type MeasurementBinding,
+  type MeasurementCrosswalk,
+  type SemanticCrosswalk,
+  type SemanticValidationMode,
+} from './semantics.js';
+
 export type UnitDimension =
   | 'dimensionless'
   | 'currency'
@@ -37,6 +49,10 @@ export type PortValueType = 'number' | 'record' | 'nested-record' | 'vector';
 
 export interface QuantityPortMeta {
   unit: string;
+  /** Meaning of the quantity, independent of its physical unit and scale. */
+  estimand?: EstimandContract;
+  /** Optional concrete observation procedure for source-bound data ports. */
+  measurement?: MeasurementBinding;
   description?: string;
   /** Defaults to a scalar number when omitted. */
   valueType?: PortValueType;
@@ -147,6 +163,38 @@ export function unitPort(
   description?: string,
 ): QuantityPortMeta & { optional?: false; nullable?: false } {
   return { unit, ...(valueType ? { valueType } : {}), ...(description ? { description } : {}) };
+}
+
+export function measurementPort(
+  unit: string,
+  estimand: EstimandContract,
+  valueType?: PortValueType,
+  description?: string,
+): QuantityPortMeta & { optional?: false; nullable?: false } {
+  validateEstimand(estimand, `Port '${estimand.id}' estimand`);
+  return {
+    unit,
+    estimand,
+    ...(valueType ? { valueType } : {}),
+    ...(description ? { description } : {}),
+  };
+}
+
+/** A quantitative port tied to a particular dataset/field/revision regime. */
+export function observationPort(
+  unit: string,
+  measurement: MeasurementBinding,
+  valueType?: PortValueType,
+  description?: string,
+): QuantityPortMeta & { optional?: false; nullable?: false } {
+  validateMeasurement(measurement, `Port '${measurement.id}' measurement`);
+  return {
+    unit,
+    estimand: measurement.estimand,
+    measurement,
+    ...(valueType ? { valueType } : {}),
+    ...(description ? { description } : {}),
+  };
 }
 
 export function opaquePort(
@@ -490,6 +538,16 @@ export function validatePortMeta(port: PortMeta, context: string): void {
   }
   if (isQuantityPort(port)) {
     if (!getUnit(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
+    if (port.estimand) validateEstimand(port.estimand, `${context}.estimand`);
+    if (port.measurement) {
+      validateMeasurement(port.measurement, `${context}.measurement`);
+      assertEstimandsCompatible(
+        port.measurement.estimand,
+        port.estimand,
+        `${context}.measurement estimand`,
+        { mode: 'required' },
+      );
+    }
     if (
       port.valueType !== undefined &&
       !(['number', 'record', 'nested-record', 'vector'] as const).includes(port.valueType)
@@ -619,6 +677,81 @@ export function validatePortUnits(producer: PortMeta, consumer: PortMeta, contex
   throw new Error(
     `${context}: incompatible port schemas '${producerKind}' -> '${consumerKind}'`,
   );
+}
+
+export interface PortCompatibilityOptions {
+  semanticValidation?: SemanticValidationMode;
+  measurementValidation?: SemanticValidationMode;
+  /** Valid only for a scalar/homogeneous quantity mapping. */
+  crosswalk?: SemanticCrosswalk;
+  /** Valid only for a scalar/homogeneous observed quantity mapping. */
+  measurementCrosswalk?: MeasurementCrosswalk;
+}
+
+function validatePortSemantics(
+  producer: PortMeta,
+  consumer: PortMeta,
+  context: string,
+  options: PortCompatibilityOptions,
+): void {
+  if (isQuantityPort(producer) && isQuantityPort(consumer)) {
+    assertEstimandsCompatible(producer.estimand, consumer.estimand, context, {
+      mode: options.semanticValidation,
+      crosswalk: options.crosswalk,
+    });
+    assertMeasurementsCompatible(
+      producer.measurement,
+      consumer.measurement,
+      context,
+      {
+        mode: options.measurementValidation,
+        crosswalk: options.measurementCrosswalk,
+      },
+    );
+    return;
+  }
+  if (options.crosswalk || options.measurementCrosswalk) {
+    throw new Error(`${context}: one crosswalk cannot be applied to a structured port`);
+  }
+  if (isObjectPort(producer) && isObjectPort(consumer)) {
+    const producerFields = producer.fields as Readonly<Record<string, PortMeta>>;
+    const consumerFields = consumer.fields as Readonly<Record<string, PortMeta>>;
+    for (const name of Object.keys(consumerFields)) {
+      validatePortSemantics(
+        producerFields[name],
+        consumerFields[name],
+        `${context}.${name}`,
+        options,
+      );
+    }
+    return;
+  }
+  if (isRecordPort(producer) && isRecordPort(consumer)) {
+    validatePortSemantics(producer.values, consumer.values, `${context}{value}`, options);
+    return;
+  }
+  if (isVectorPort(producer) && isVectorPort(consumer)) {
+    validatePortSemantics(producer.items, consumer.items, `${context}[]`, options);
+  }
+}
+
+/**
+ * Full boundary compatibility: shape, units, and—when declared or
+ * required—the estimand carried by every quantitative leaf.
+ */
+export function validatePortCompatibility(
+  producer: PortMeta,
+  consumer: PortMeta,
+  context: string,
+  options: PortCompatibilityOptions = {},
+): void {
+  validatePortUnits(producer, consumer, context);
+  validatePortSemantics(producer, consumer, context, {
+    semanticValidation: options.semanticValidation ?? 'if-present',
+    measurementValidation: options.measurementValidation ?? 'if-present',
+    crosswalk: options.crosswalk,
+    measurementCrosswalk: options.measurementCrosswalk,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -754,6 +887,48 @@ export interface PortSchemaCounts {
   metadata: number;
   opaque: number;
   structured: number;
+}
+
+export interface SemanticSchemaAudit {
+  quantitativeContracts: number;
+  semanticContracts: number;
+  measurementContracts: number;
+  missingSemanticPaths: string[];
+}
+
+function walkSemanticSchema(
+  meta: PortMeta,
+  path: string,
+  audit: SemanticSchemaAudit,
+): void {
+  if (isQuantityPort(meta)) {
+    audit.quantitativeContracts++;
+    if (meta.estimand) audit.semanticContracts++;
+    else audit.missingSemanticPaths.push(path);
+    if (meta.measurement) audit.measurementContracts++;
+    return;
+  }
+  if (isObjectPort(meta)) {
+    for (const [name, field] of Object.entries(meta.fields as Readonly<Record<string, PortMeta>>)) {
+      walkSemanticSchema(field, `${path}.${name}`, audit);
+    }
+  } else if (isRecordPort(meta)) {
+    walkSemanticSchema(meta.values, `${path}{value}`, audit);
+  } else if (isVectorPort(meta)) {
+    walkSemanticSchema(meta.items, `${path}[]`, audit);
+  }
+}
+
+/** Count semantic coverage independently from dimensional coverage. */
+export function auditPortSemantics(meta: PortMeta, path = 'port'): SemanticSchemaAudit {
+  const audit: SemanticSchemaAudit = {
+    quantitativeContracts: 0,
+    semanticContracts: 0,
+    measurementContracts: 0,
+    missingSemanticPaths: [],
+  };
+  walkSemanticSchema(meta, path, audit);
+  return audit;
 }
 
 /** Count leaf and structural contracts for CI coverage reporting. */

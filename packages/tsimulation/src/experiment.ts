@@ -1,5 +1,11 @@
 import type { ModelDefinition, ModelRun } from './model.js';
 import { runModel } from './model.js';
+import {
+  experimentInterpretation,
+  validateExperiment,
+  type ExperimentContract,
+  type ExperimentResultInterpretation,
+} from './study.js';
 
 export interface ScenarioCase<TInput> {
   id: string;
@@ -9,12 +15,17 @@ export interface ScenarioCase<TInput> {
 
 export interface ScenarioRun<TInput, TOutput> extends ScenarioCase<TInput> {
   run: ModelRun<TInput, TOutput>;
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
 }
 
 export function runScenarios<TInput, TOutput>(
   model: ModelDefinition<TInput, TOutput>,
   scenarios: readonly ScenarioCase<TInput>[],
+  experiment?: ExperimentContract,
 ): ScenarioRun<TInput, TOutput>[] {
+  if (experiment) validateExperiment(experiment);
+  const interpretation = experimentInterpretation(experiment);
   const ids = new Set<string>();
   return scenarios.map((scenario) => {
     if (ids.has(scenario.id)) throw new Error(`Duplicate scenario ID '${scenario.id}'`);
@@ -22,6 +33,8 @@ export function runScenarios<TInput, TOutput>(
     return {
       ...scenario,
       run: runModel(model, scenario.input, { runLabel: scenario.id }),
+      ...(experiment ? { experiment } : {}),
+      interpretation,
     };
   });
 }
@@ -44,13 +57,17 @@ export interface FactorialCell<TInput, TOutput> {
 export interface FactorialExperiment<TInput, TOutput> {
   factorNames: string[];
   cells: FactorialCell<TInput, TOutput>[];
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
 }
 
 export function runFactorial<TInput, TOutput>(options: {
   model: ModelDefinition<TInput, TOutput>;
   baseInput: TInput;
   factors: FactorDefinitions<TInput>;
+  experiment?: ExperimentContract;
 }): FactorialExperiment<TInput, TOutput> {
+  if (options.experiment) validateExperiment(options.experiment);
   const factorNames = Object.keys(options.factors);
   const cells: FactorialCell<TInput, TOutput>[] = [];
   const visit = (index: number, input: TInput, levels: Record<string, string>): void => {
@@ -77,7 +94,12 @@ export function runFactorial<TInput, TOutput>(options: {
     }
   };
   visit(0, structuredClone(options.baseInput), {});
-  return { factorNames, cells };
+  return {
+    factorNames,
+    cells,
+    ...(options.experiment ? { experiment: options.experiment } : {}),
+    interpretation: experimentInterpretation(options.experiment),
+  };
 }
 
 export interface TwoFactorInteraction {
@@ -132,16 +154,25 @@ export interface SweepPoint<TInput> {
 
 export interface SweepResult<TInput, TOutput> extends SweepPoint<TInput> {
   run: ModelRun<TInput, TOutput>;
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
 }
 
 export function runSweep<TInput, TOutput>(
   model: ModelDefinition<TInput, TOutput>,
   points: readonly SweepPoint<TInput>[],
+  experiment?: ExperimentContract,
 ): SweepResult<TInput, TOutput>[] {
   return runScenarios(
     model,
     points.map(({ id, input }) => ({ id, input })),
-  ).map((row, index) => ({ ...points[index], run: row.run }));
+    experiment,
+  ).map((row, index) => ({
+    ...points[index],
+    run: row.run,
+    ...(row.experiment ? { experiment: row.experiment } : {}),
+    interpretation: row.interpretation,
+  }));
 }
 
 export interface ThresholdResult {
@@ -152,6 +183,8 @@ export interface ThresholdResult {
   iterations: number;
   lowerOutcome: number;
   upperOutcome: number;
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
 }
 
 /** Bisection for a monotonic outcome crossing a target. */
@@ -163,7 +196,13 @@ export function findThreshold(options: {
   tolerance?: number;
   maxIterations?: number;
   direction?: 'increasing' | 'decreasing';
+  experiment?: ExperimentContract;
 }): ThresholdResult {
+  if (options.experiment) validateExperiment(options.experiment);
+  const metadata = {
+    ...(options.experiment ? { experiment: options.experiment } : {}),
+    interpretation: experimentInterpretation(options.experiment),
+  };
   const tolerance = options.tolerance ?? 1e-6;
   const maxIterations = options.maxIterations ?? 100;
   if (!(options.upper > options.lower)) throw new Error('Threshold upper must exceed lower');
@@ -179,7 +218,16 @@ export function findThreshold(options: {
   const signed = (outcome: number): number =>
     (direction === 'increasing' ? 1 : -1) * (outcome - options.target);
   if (signed(lowerOutcome) > 0 || signed(upperOutcome) < 0) {
-    return { found: false, lower, upper, estimate: null, iterations: 0, lowerOutcome, upperOutcome };
+    return {
+      found: false,
+      lower,
+      upper,
+      estimate: null,
+      iterations: 0,
+      lowerOutcome,
+      upperOutcome,
+      ...metadata,
+    };
   }
   let iterations = 0;
   while (upper - lower > tolerance && iterations < maxIterations) {
@@ -203,6 +251,7 @@ export function findThreshold(options: {
     iterations,
     lowerOutcome,
     upperOutcome,
+    ...metadata,
   };
 }
 
@@ -216,6 +265,8 @@ export interface ParameterEffectAudit {
   changedMetrics: string[];
   inert: boolean;
   deltas: Record<string, number>;
+  experiment?: ExperimentContract;
+  interpretation: ExperimentResultInterpretation;
 }
 
 export function auditParameterEffects<TInput, TOutput>(options: {
@@ -224,7 +275,10 @@ export function auditParameterEffects<TInput, TOutput>(options: {
   variants: readonly ParameterEffect<TInput>[];
   metrics: Readonly<Record<string, (output: TOutput) => number>>;
   tolerance?: number;
+  experiment?: ExperimentContract;
 }): ParameterEffectAudit[] {
+  if (options.experiment) validateExperiment(options.experiment);
+  const interpretation = experimentInterpretation(options.experiment);
   const tolerance = options.tolerance ?? 1e-12;
   const baseline = runModel(options.model, options.baseline).output;
   return options.variants.map((variant) => {
@@ -237,6 +291,13 @@ export function auditParameterEffects<TInput, TOutput>(options: {
     const changedMetrics = Object.entries(deltas)
       .filter(([, delta]) => Math.abs(delta) > tolerance)
       .map(([name]) => name);
-    return { id: variant.id, changedMetrics, inert: changedMetrics.length === 0, deltas };
+    return {
+      id: variant.id,
+      changedMetrics,
+      inert: changedMetrics.length === 0,
+      deltas,
+      ...(options.experiment ? { experiment: options.experiment } : {}),
+      interpretation,
+    };
   });
 }

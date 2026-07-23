@@ -10,6 +10,12 @@
  */
 
 import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
+import {
+  validateEstimand,
+  validateMeasurement,
+  type EstimandContract,
+  type MeasurementBinding,
+} from './semantics.js';
 import type {
   MetadataPortMeta,
   ObjectFieldContract,
@@ -90,6 +96,37 @@ export function unitConnector(
   description?: string,
 ): UnitConnectorSpec {
   return { type, unit, ...(description ? { description } : {}) };
+}
+
+export function measurementConnector(
+  type: Exclude<ConnectorType, 'metadata'>,
+  unit: string,
+  estimand: EstimandContract,
+  description?: string,
+): UnitConnectorSpec {
+  validateEstimand(estimand, `Connector '${estimand.id}' estimand`);
+  return {
+    type,
+    unit,
+    estimand,
+    ...(description ? { description } : {}),
+  };
+}
+
+export function observationConnector(
+  type: Exclude<ConnectorType, 'metadata'>,
+  unit: string,
+  measurement: MeasurementBinding,
+  description?: string,
+): UnitConnectorSpec {
+  validateMeasurement(measurement, `Connector '${measurement.id}' measurement`);
+  return {
+    type,
+    unit,
+    estimand: measurement.estimand,
+    measurement,
+    ...(description ? { description } : {}),
+  };
 }
 
 export function opaqueConnector(
