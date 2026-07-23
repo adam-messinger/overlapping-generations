@@ -62,6 +62,7 @@ node --import tsx scripts/generic-drug-scenario.ts
 node --import tsx scripts/bilateral-tariff-scenario.ts
 node --import tsx scripts/financial-contagion-scenario.ts
 npm run aviation:infrastructure
+npm run aviation:bay-pj
 
 # Rerun every new model/backtest and optionally emit reproducible manifests
 npm run sim:new -- --output=/tmp/tsimulation-suite.json --manifests=/tmp/tsimulation-manifests
@@ -104,5 +105,6 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   news-driven stress tests with frozen backcasts and explicit scenario inputs
   ([method, results, and limitations](docs/NEWS_STRESS_TESTS_2026-07-22.md))
 - `src/simulations/aviation-infrastructure/` — conventional and advanced-air-
-  mobility traffic through FBOs, small airports, helipads, and vertiports
+  mobility traffic through FBOs, small airports, helipads, and vertiports,
+  plus a conventional-PJ-only Bay Area airport overlay
   ([method, scenarios, and forecast](docs/AVIATION_INFRASTRUCTURE.md))

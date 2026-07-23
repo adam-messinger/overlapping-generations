@@ -229,10 +229,72 @@ This overlay is useful for capacity and investment questions, but the 0.25%
 attraction share needs a route-choice and airport-catchment model before it
 should be used for property underwriting.
 
+## Bay Area conventional private-jet scenario
+
+The Bay Area overlay deliberately holds aside autonomous flight and all AAM.
+It runs the national `continuity` scenario, verifies that AAM and autonomy are
+zero, and allocates only the resulting conventional business-jet operations
+across a fixed local airport cohort.
+
+The central case assumes that the Bay Area receives 3.0% of U.S.-facility
+business-jet operations. Individual-airport weights combine:
+
+- The airport's FAA 2025 TAF paths for itinerant GA and air-taxi operations.
+- Its 2024 based-jet share and role as gateway, business reliever, or
+  limited-service airport.
+- A lower air-taxi PJ weight at SFO, OAK, SJC, and STS because the TAF
+  category also contains scheduled commuter traffic.
+- A based-jet activity signal, rather than the large piston-traffic count, at
+  PAO, SQL, RHV, HAF, and DVO.
+
+These weights are normalized to the regional total. They are not being passed
+off as airport-level FAA business-jet observations. Obtaining a TFMSC report
+with the `Business Jet` filter remains the cleanest next calibration step.
+
+The central regional path grows from 148,267 annual PJ operations in 2025 to
+199,783 in 2050. The lower and upper conditional demand cases put 2050 at
+154,438 and 251,205 operations. One operation is one arrival or departure,
+not one complete flight.
+
+| Airport | 2025 central ops | 2050 central ops | 2050 with gateway access tightening |
+|---|---:|---:|---:|
+| SJC | 31,439 | 43,413 | 40,165 |
+| OAK | 30,926 | 38,644 | 37,856 |
+| APC | 18,211 | 25,503 | 27,759 |
+| CCR | 15,518 | 20,615 | 22,439 |
+| HWD | 14,863 | 19,737 | 21,483 |
+| SFO | 10,658 | 16,740 | 11,843 |
+| STS | 11,179 | 16,156 | 17,585 |
+| LVK | 12,650 | 15,753 | 17,146 |
+| SQL + PAO + RHV + HAF + DVO | 2,822 | 3,222 | 3,507 |
+
+The gateway sensitivity does not destroy trips. It reduces 2050 access
+retention to 65% at SFO, 90% at OAK, and 85% at SJC relative to their TAF
+allocation paths, then redistributes the unchanged Bay Area total. This moves
+about 8,900 annual operations out of the three gateways, principally into
+APC, CCR, HWD, LVK, and STS.
+
+Two local planning documents provide useful scale checks:
+
+- OAK's 2022 activity forecast implies a conservative jet proxy of 30,159
+  operations in 2028 and 36,308 in 2038. The model produces 31,518 and 34,402,
+  respectively: 4.5% high and 5.2% low.
+- Hayward's layout-plan report forecast 11,000 jet operations in 2020 with 35
+  based jets. Simply scaling that stock to the TAF's 46 based jets in 2024
+  gives 14,457 operations, versus the model's 14,863 in 2025. This is a
+  sanity check against an old forecast, not a holdout observation.
+
+The biggest practical caveat is peak load. SJC reported more than 900 private
+jet takeoffs and landings over six days around the February 2026 Super Bowl,
+or about 150 per day, versus roughly 87 per day in the model's ordinary 2026
+annual average. FBO apron, hangar, staffing, and fuel-capacity decisions need
+an event schedule, not just annual operations.
+
 ## Run
 
 ```bash
 npm run aviation:infrastructure
+npm run aviation:bay-pj
 ```
 
 The aviation model is also registered as
@@ -242,9 +304,10 @@ The aviation model is also registered as
 
 - There is no observed passenger AAM history to backtest. The AAM result is a
   transparent structural scenario.
-- The model does not yet resolve routes, metropolitan catchments, noise
-  restrictions, weather, airspace queues, electric interconnection delays, or
-  facility-by-facility ownership.
+- The national model does not resolve routes or metropolitan catchments. The
+  Bay Area overlay resolves airports, but not routes, catchment competition,
+  noise restrictions, weather, airspace queues, lease ownership, or individual
+  FBO operators.
 - Endpoint shares and FBO capture rates are scenario judgments.
 - The central case is not a probability-weighted forecast, and scenario ranges
   are not confidence intervals.

@@ -24,7 +24,8 @@
     "regression": "npm run capture-baseline && npx tsx scripts/compare-baselines.ts --strict baselines/reference.json baselines/current.json",
     "bless-baseline": "npx tsx scripts/bless-baseline.ts",
     "sim:new": "node --import tsx scripts/new-simulations-suite.ts",
-    "aviation:infrastructure": "node --import tsx scripts/aviation-infrastructure-scenario.ts"
+    "aviation:infrastructure": "node --import tsx scripts/aviation-infrastructure-scenario.ts",
+    "aviation:bay-pj": "node --import tsx scripts/bay-area-private-jet-scenario.ts"
   },
   "engines": {
     "node": ">=20"

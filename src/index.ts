@@ -108,6 +108,22 @@ export {
   naiveExtrapolatedAamFlights,
   projectPaloAltoTraffic,
 } from './simulations/aviation-infrastructure/calibration.js';
+export {
+  BAY_AREA_PRIVATE_JET_AIRPORT_CODES,
+  bayAreaPrivateJetAirportProfiles,
+  bayAreaPrivateJetScenarios,
+  projectBayAreaPrivateJetTraffic,
+} from './simulations/aviation-infrastructure/bay-area-private-jets.js';
+export type {
+  BayAreaAirportPrivateJetYear,
+  BayAreaAirportRole,
+  BayAreaPrivateJetAirportCode,
+  BayAreaPrivateJetAirportProfile,
+  BayAreaPrivateJetResult,
+  BayAreaPrivateJetScenario,
+  BayAreaPrivateJetYear,
+  BayAreaTafTrafficKnot,
+} from './simulations/aviation-infrastructure/bay-area-private-jets.js';
 
 // Framework types
 export type { ValidationResult } from 'tsimulation';
