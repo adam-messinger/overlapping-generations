@@ -540,9 +540,8 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
         `collector '${key}'`,
         config.semanticValidation ?? 'if-present',
       );
-      // Validated once here; the per-step checks below are value-only, so a
-      // contract is not re-walked for every one of its ~76 values.
-      validatePortMeta(contract, `collector '${key}'`);
+      // resolveCollectorAgainstRegistry has already validated the contract on
+      // every return path, so the per-step checks below can be value-only.
       resolvedContracts.set(key, contract);
     }
   }
@@ -595,8 +594,8 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
       // Only transform-derived values need checking here. A plain source/path
       // collector resolves its contract FROM the producer registry, and the
       // engine already asserted that module output against that same contract
-      // when the step ran -- re-walking a Record<Region, Record<cohort, Row>>
-      // per step to reach the same verdict is the dominant cost of collection.
+      // when the step ran, so re-walking a deep record per step would only
+      // reach a verdict the engine already reached.
       if (def.transform) {
         const contract = resolvedContracts.get(key);
         if (contract) assertPortValueOnly(value, contract, `Collector '${key}' at year ${years[i]}`);

@@ -10,13 +10,10 @@
  * - capitalGrowthRate lagged to break demand→capital cycle
  * - gdpPerCapita2025 captured from year 0 via closure
  * - carbonPrice + regionalCarbonPrice read from full params
- * - Metrics computation ported from simulation.ts
- * - YearResult mapping from autowire outputs
  */
 
 import {
   runAutowired,
-  getOutputsAtYear,
   type AutowireResult,
   type AnyModule,
   requireOutput,
@@ -916,13 +913,8 @@ export function runAutowiredSimulation(
 // YEAR RESULT MAPPING
 // =============================================================================
 
-/**
- * Convert autowire result to flat YearResult array (matches simulation.ts output).
- */
+/** Rows for every simulated year, from the one declaration of the schema. */
 export function toYearResults(result: AutowireResult): YearResult[] {
-  // standardCollectors is the single declaration of the output schema; the
-  // engine turns it into rows. This replaced ~218 lines of hand-written field
-  // mapping that had to be kept in sync with the collector spec by test.
   return collectResults(result, standardCollectors).timeseries as YearResult[];
 }
 
@@ -936,26 +928,30 @@ interface PeakResult {
   year: number;
 }
 
-export function computeMetrics(result: AutowireResult): SimulationMetrics {
-  const metrics = collectResults(result, standardCollectors).metrics as Record<string, unknown>;
-  const peakPopulation = metrics.peakPopulation as PeakResult | undefined;
-  const peakEmissions = metrics.peakEmissions as PeakResult | undefined;
+/** Reshape collected metrics into the domain's flat SimulationMetrics. */
+function toSimulationMetrics(metrics: Record<string, any>): SimulationMetrics {
+  const peakPopulation: PeakResult | undefined = metrics.peakPopulation;
+  const peakEmissions: PeakResult | undefined = metrics.peakEmissions;
 
   return {
     peakPopulation: peakPopulation?.value ?? 0,
     peakPopulationYear: peakPopulation?.year ?? 2025,
-    population2100: metrics.population2100 as number,
-    warming2050: metrics.warming2050 as number,
-    warming2100: metrics.warming2100 as number,
+    population2100: metrics.population2100,
+    warming2050: metrics.warming2050,
+    warming2100: metrics.warming2100,
     peakEmissions: peakEmissions?.value ?? 0,
     peakEmissionsYear: peakEmissions?.year ?? 2025,
-    solarCrossoverYear: metrics.solarCrossoverYear as number | null,
-    gridBelow100Year: metrics.gridBelow100Year as number | null,
-    fossilShareFinal: metrics.fossilShareFinal as number,
-    gdp2050: metrics.gdp2050 as number,
-    gdp2100: metrics.gdp2100 as number,
-    kY2050: metrics.kY2050 as number,
+    solarCrossoverYear: metrics.solarCrossoverYear,
+    gridBelow100Year: metrics.gridBelow100Year,
+    fossilShareFinal: metrics.fossilShareFinal,
+    gdp2050: metrics.gdp2050,
+    gdp2100: metrics.gdp2100,
+    kY2050: metrics.kY2050,
   };
+}
+
+export function computeMetrics(result: AutowireResult): SimulationMetrics {
+  return toSimulationMetrics(collectResults(result, standardCollectors).metrics);
 }
 
 /**
@@ -966,9 +962,14 @@ export function runAutowiredFull(
   options?: RunOptions
 ): SimulationResult {
   const autowireResult = runAutowiredSimulation(params, options);
-  const results = toYearResults(autowireResult);
-  const metrics = computeMetrics(autowireResult);
-  return { years: autowireResult.years, results, metrics };
+  // One pass: collectResults produces rows and metrics together, so calling
+  // toYearResults and computeMetrics separately here would collect twice.
+  const collected = collectResults(autowireResult, standardCollectors);
+  return {
+    years: autowireResult.years,
+    results: collected.timeseries as YearResult[],
+    metrics: toSimulationMetrics(collected.metrics),
+  };
 }
 
 // =============================================================================

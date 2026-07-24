@@ -6,10 +6,9 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { runSimulation } from './simulation.js';
-import { runAutowiredFull, runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
+import { runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
 import {
   auditCollectorContracts,
-  buildOutputRegistry,
   resolveKey,
   getOutputsAtYear,
 } from 'tsimulation';
@@ -302,53 +301,20 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
 });
 
-// Cross-check: describeOutputs matches standardCollectors
-test('describeOutputs keys match standardCollectors keys', () => {
-  const outputSchema = describeOutputs();
-  const outputKeys = new Set(Object.keys(outputSchema));
-  const collectorKeys = new Set(
-    standardCollectors.timeseries
-      .filter(d => d.description)
-      .map(d => resolveKey(d))
-  );
-  collectorKeys.add('year'); // framework field
-
-  const missingFromOutputs = [...collectorKeys].filter(k => !outputKeys.has(k));
-  const extraInOutputs = [...outputKeys].filter(k => !collectorKeys.has(k));
-
-  if (missingFromOutputs.length > 0) {
+// describeOutputs() is a filtered loop over standardCollectors, so comparing
+// their key sets compares a thing to itself. What it cannot see is the filter:
+// a collector with no description is silently dropped from the agent-facing
+// schema (with only a console.warn). That is the failure worth catching.
+test('every collector carries a description for describeOutputs', () => {
+  const undescribed = standardCollectors.timeseries
+    .filter(d => !d.description)
+    .map(d => resolveKey(d));
+  if (undescribed.length > 0) {
     throw new Error(
-      `standardCollectors fields missing from describeOutputs: ${missingFromOutputs.join(', ')}`
+      `collectors missing a description, so describeOutputs() drops them: ${undescribed.join(', ')}`
     );
   }
-  if (extraInOutputs.length > 0) {
-    throw new Error(
-      `describeOutputs fields not in standardCollectors: ${extraInOutputs.join(', ')}`
-    );
-  }
-});
-
-// Cross-check: every collector source is a real module output.
-// Catches phantom outputs: collector entries whose source no module computes
-// would silently collect undefined (and YearResult would report a constant).
-test('standardCollectors sources exist in module outputs', () => {
-  // Output name -> owning module, from the real wiring's module list
-  const outputOwner = buildOutputRegistry(ALL_MODULES);
-
-  const problems: string[] = [];
-  for (const def of standardCollectors.timeseries) {
-    if (def.transform) continue; // transform entries compute their own value
-    const owner = outputOwner.get(def.source);
-    if (!owner) {
-      problems.push(`'${def.source}' is not produced by any module`);
-    } else if (def.module && def.module !== owner) {
-      problems.push(`'${def.source}' attributed to '${def.module}' but produced by '${owner}'`);
-    }
-  }
-
-  if (problems.length > 0) {
-    throw new Error(`standardCollectors drift:\n${problems.join('\n')}`);
-  }
+  expect(Object.keys(describeOutputs()).length).toBe(standardCollectors.timeseries.length + 1);
 });
 
 test('standardCollectors derive and validate units against their producers', () => {
