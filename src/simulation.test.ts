@@ -301,6 +301,27 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
 });
 
+// toYearResults casts collectResults' rows to YearResult[]. That cast is
+// unchecked, so nothing links the 134-field interface to what is actually
+// produced. Comparing key SETS would be circular (the rows are built from
+// standardCollectors), so this checks the thing that is not circular: that
+// every declared field actually carries a value. A collector whose path stops
+// matching -- a renamed key inside a keyless record, say -- lands undefined
+// here, in a field the interface types as number.
+test('every YearResult field is populated in every year', () => {
+  const result = runSimulation({ startYear: 2025, endYear: 2030 });
+  const empty: string[] = [];
+  for (const row of result.results) {
+    for (const [key, value] of Object.entries(row)) {
+      if (value === undefined || value === null) empty.push(`${key}@${row.year}`);
+    }
+  }
+  if (empty.length > 0) {
+    throw new Error(`YearResult fields with no value: ${empty.slice(0, 10).join(', ')}`);
+  }
+  expect(Object.keys(result.results[0]).length).toBe(standardCollectors.timeseries.length + 1);
+});
+
 // describeOutputs() is a filtered loop over standardCollectors, so comparing
 // their key sets compares a thing to itself. What it cannot see is the filter:
 // a collector with no description is silently dropped from the agent-facing

@@ -21,7 +21,6 @@ import {
   areUnitsIdentical,
   auditPortSemantics,
   assertPortValue,
-  assertPortValueOnly,
   isMetadataPort,
   isObjectPort,
   isOpaquePort,
@@ -591,14 +590,19 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
       } else {
         value = extractValue(def, outputs, years[i], i);
       }
-      // Only transform-derived values need checking here. A plain source/path
-      // collector resolves its contract FROM the producer registry, and the
-      // engine already asserted that module output against that same contract
-      // when the step ran, so re-walking a deep record per step would only
-      // reach a verdict the engine already reached.
-      if (def.transform) {
+      // A collector that reads a whole module output needs no check here: the
+      // engine asserted that value against this very contract when the step
+      // ran. Transforms and paths are different --
+      //   - a transform computes something checked nowhere else;
+      //   - a path may reach INTO a keyless record or a homogeneous quantity
+      //     port, where the engine only walked the keys that were present, and
+      //     resolvePortPath synthesizes a narrower contract than it ever saw.
+      //     A renamed key there would otherwise land undefined, silently.
+      // Note the whole-output skip assumes the run validated its steps; under
+      // connectorValidation:'off' nothing checked them, by the caller's choice.
+      if (def.transform || def.path) {
         const contract = resolvedContracts.get(key);
-        if (contract) assertPortValueOnly(value, contract, `Collector '${key}' at year ${years[i]}`);
+        if (contract) assertPortValue(value, contract, `Collector '${key}' at year ${years[i]}`);
       }
       record[key] = value;
     }

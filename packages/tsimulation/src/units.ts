@@ -872,10 +872,8 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
 }
 
 /**
- * Value conformance only; assumes `meta` has already been validated.
- *
- * Exported as `assertPortValueOnly` for callers checking many values against
- * one loop-invariant contract. `assertPortValue` is the safe default.
+ * Value conformance only; assumes `meta` has already been validated by the
+ * `assertPortValue` entry point above.
  */
 function assertValueOnly(value: unknown, meta: PortMeta, context: string): void {
   if (value === undefined) {
@@ -952,8 +950,6 @@ function assertValueOnly(value: unknown, meta: PortMeta, context: string): void 
  * This catches JavaScript callers and drift between declared TypeScript types
  * and the object a model actually returns.
  */
-export { assertValueOnly as assertPortValueOnly };
-
 export function assertPortContract<T>(
   value: T,
   contract: PortContract<T>,
