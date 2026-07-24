@@ -871,7 +871,10 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
   assertValueOnly(value, meta, context);
 }
 
-/** Value conformance only. Assumes `meta` has already been validated. */
+/**
+ * Value conformance only; assumes `meta` has already been validated by the
+ * `assertPortValue` entry point above.
+ */
 function assertValueOnly(value: unknown, meta: PortMeta, context: string): void {
   if (value === undefined) {
     if (meta.optional) return;

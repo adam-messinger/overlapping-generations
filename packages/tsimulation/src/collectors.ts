@@ -532,15 +532,16 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
     const audit = auditCollectorRegistry(producers, config);
     if (!audit.valid) throw new Error(`Collector contract errors:\n${audit.errors.join('\n')}`);
     for (const def of config.timeseries) {
-      resolvedContracts.set(
-        resolveKey(def),
-        resolveCollectorAgainstRegistry(
-          def,
-          producers,
-          `collector '${resolveKey(def)}'`,
-          config.semanticValidation ?? 'if-present',
-        ),
+      const key = resolveKey(def);
+      const contract = resolveCollectorAgainstRegistry(
+        def,
+        producers,
+        `collector '${key}'`,
+        config.semanticValidation ?? 'if-present',
       );
+      // resolveCollectorAgainstRegistry has already validated the contract on
+      // every return path, so the per-step checks below can be value-only.
+      resolvedContracts.set(key, contract);
     }
   }
 
@@ -589,8 +590,20 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
       } else {
         value = extractValue(def, outputs, years[i], i);
       }
-      const contract = resolvedContracts.get(key);
-      if (contract) assertPortValue(value, contract, `Collector '${key}' at year ${years[i]}`);
+      // A collector that reads a whole module output needs no check here: the
+      // engine asserted that value against this very contract when the step
+      // ran. Transforms and paths are different --
+      //   - a transform computes something checked nowhere else;
+      //   - a path may reach INTO a keyless record or a homogeneous quantity
+      //     port, where the engine only walked the keys that were present, and
+      //     resolvePortPath synthesizes a narrower contract than it ever saw.
+      //     A renamed key there would otherwise land undefined, silently.
+      // Note the whole-output skip assumes the run validated its steps; under
+      // connectorValidation:'off' nothing checked them, by the caller's choice.
+      if (def.transform || def.path) {
+        const contract = resolvedContracts.get(key);
+        if (contract) assertPortValue(value, contract, `Collector '${key}' at year ${years[i]}`);
+      }
       record[key] = value;
     }
 
