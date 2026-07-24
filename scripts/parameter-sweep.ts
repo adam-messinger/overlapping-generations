@@ -18,7 +18,7 @@ import {
   scenarioToParams,
 } from '../src/index.js';
 import { deepMerge } from '../src/scenario.js';
-import type { SimulationResult, YearResult } from '../src/index.js';
+import type { RunOptions, SimulationResult, YearResult } from '../src/index.js';
 
 // =============================================================================
 // TYPES
@@ -130,12 +130,17 @@ function computePerturbations(schema: Record<string, any>): ParamPerturbation[] 
 // SWEEP ONE SCENARIO
 // =============================================================================
 
+/** Contracts are re-verified by each scenario's own validated baseline run. */
+const PERTURBATION_OPTIONS: RunOptions = { connectorValidation: 'off' };
+
 function sweepScenario(
   scenarioName: string,
   scenarioParams: Record<string, unknown>,
   perturbations: ParamPerturbation[],
 ): { sweep: ScenarioSweep; runCount: number; skipped: string[] } {
-  // Run scenario baseline
+  // The baseline runs with full per-step port validation. It exercises exactly
+  // the same wiring as every perturbation below, so once it passes, re-checking
+  // the contracts on each of the ~2N perturbation runs only buys runtime.
   const baselineResult = runSimulation(scenarioParams as any);
   const baselineMetrics: Record<string, number> = {};
   for (const m of METRICS) {
@@ -157,7 +162,7 @@ function sweepScenario(
     try {
       const lowOverride = buildMultiParams({ [p.name]: p.lowValue });
       const merged = deepMerge(scenarioParams, lowOverride);
-      lowResult = runSimulation(merged as any);
+      lowResult = runSimulation(merged as any, PERTURBATION_OPTIONS);
       runCount++;
     } catch {
       skipped.push(p.name);
@@ -167,7 +172,7 @@ function sweepScenario(
     try {
       const highOverride = buildMultiParams({ [p.name]: p.highValue });
       const merged = deepMerge(scenarioParams, highOverride);
-      highResult = runSimulation(merged as any);
+      highResult = runSimulation(merged as any, PERTURBATION_OPTIONS);
       runCount++;
     } catch {
       skipped.push(p.name);

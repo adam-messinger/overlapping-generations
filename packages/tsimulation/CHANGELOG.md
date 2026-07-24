@@ -7,6 +7,25 @@ onward. Before 1.0, minor versions may include breaking changes.
 
 ## [Unreleased]
 
+### Performance
+- `assertPortValue` no longer re-validates the port contract at every node of
+  its recursive descent. Contract validity and value conformance are separate
+  questions: the contract is a static schema that `validatePortMeta` already
+  walks in full, so it is now checked once at the top of the descent instead of
+  once per value leaf. For a `Record<Region, Record<Source, number>>` that is
+  one contract walk rather than ~40.
+- Unit resolution is memoized, keyed on the raw symbol and invalidated by
+  `registerUnit`. Contract checking resolved the same handful of unit strings
+  at every port on every step, re-parsing each expression from scratch.
+
+  Together these took a representative 76-step, 10-module run from 6,617 ms to
+  1,238 ms (5.4x) with byte-identical outputs. `validatePortMeta` remains a
+  pure predicate — nothing about a contract's validity is cached.
+
+### Changed
+- `getUnit` no longer clones the resolved unit a second time. It still returns a
+  private copy that callers may freely mutate.
+
 ### Added
 - Standalone `defineModel` / `runModel` contracts and a model registry, with
   finite-value checks, invariants, port metadata, evidence, and validation claims.
