@@ -546,26 +546,7 @@ export const demographicsModule: Module<
     },
   },
 
-  inputs: [
-    'temperature',  // Lagged from climate, for heat stress
-  ] as const,
 
-  outputs: [
-    'population',
-    'working',
-    'dependency',
-    'effectiveWorkers',
-    'collegeShare',
-    'heatStressLoss',
-    'regionalPopulation',
-    'regionalYoung',
-    'regionalWorking',
-    'regionalOld',
-    'regionalEffectiveWorkers',
-    'regionalDependency',
-    'regionalFertility',
-    'regionalLifeExpectancy',
-  ] as const,
 
   connectorTypes: {
     inputs: {

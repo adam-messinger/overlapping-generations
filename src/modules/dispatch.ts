@@ -556,34 +556,7 @@ export const dispatchModule: Module<
 
   defaults: dispatchDefaults,
 
-  inputs: [
-    'electricityDemand',
-    'regionalElectricityDemand',
-    'capacities',
-    'regionalCapacities',
-    'carbonPrice',
-    'regionalCarbonPrice',
-    'longStorageRegional',
-    'effectiveSolarCF',
-    'effectiveWindCF',
-  ] as const,
 
-  outputs: [
-    'generation',
-    'regionalGeneration',
-    'gridIntensity',
-    'regionalGridIntensity',
-    'totalGeneration',
-    'electricityEmissions',
-    'regionalEmissions',
-    'shortfall',
-    'regionalShortfallRate',
-    'fossilShare',
-    'regionalFossilShare',
-    'curtailmentTWh',
-    'curtailmentRate',
-    'regionalCurtailment',
-  ] as const,
 
   paramMeta: {
     curtailmentOnset: {

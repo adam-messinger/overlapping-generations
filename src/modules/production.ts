@@ -237,32 +237,7 @@ export const productionModule: Module<
     },
   },
 
-  inputs: [
-    'capitalStock',
-    'effectiveWorkers',
-    'totalGeneration',
-    'nonElectricEnergy',
-    'damages',
-    'energyBurdenDamage',
-    'foodStress',
-    'resourceEnergy',
-    'energySystemOverhead',
-    'collegeShare',
-    'cdrEnergy',
-    'robotsPer1000',
-    'robotLoadTWh',
-    'dataCenterLoadTWh',
-  ] as const,
 
-  outputs: [
-    'gdp',
-    'productionUsefulEnergy',
-    'capitalContribution',
-    'laborContribution',
-    'energyContribution',
-    'efficiencyLevel',
-    'eta',
-  ] as const,
 
   connectorTypes: {
     inputs: {

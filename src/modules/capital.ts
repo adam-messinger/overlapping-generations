@@ -27,6 +27,7 @@ import { Region, REGIONS } from '../domain-types.js';
 import {
   integrateFlow,
   Module,
+  defineModule,
   subtractQuantities,
   sumQuantities,
   unitPort,
@@ -394,7 +395,7 @@ export const capitalModule: Module<
   CapitalState,
   CapitalInputs,
   CapitalOutputs
-> = {
+> = defineModule<CapitalParams, CapitalState, CapitalInputs, CapitalOutputs>({
   name: 'capital',
   description: 'OLG capital accumulation with demographic-weighted savings',
   defaults: capitalDefaults,
@@ -458,56 +459,7 @@ export const capitalModule: Module<
     },
   },
 
-  inputs: [
-    'regionalYoung',
-    'regionalWorking',
-    'regionalOld',
-    'regionalPopulation',
-    'effectiveWorkers',
-    'gdp',
-    'regionalGdp',
-    'damages',
-    'netEnergyFactor',
-    'energyBurden',
-    'regionalLifeExpectancy',
-    'energyCapexSpend',
-    'cdrSpend',
-    'robotCapexSpend',
-    'dataCenterCapexSpend',
-  ] as const,
 
-  outputs: [
-    'stock',
-    'nextCapitalStock',
-    'investment',
-    'savingsRate',
-    'regionalSavings',
-    'stability',
-    'interestRate',
-    'robotsDensity',
-    'automationShare',
-    'kPerWorker',
-    'capitalOutputRatio',
-    'capitalGrowthRate',
-    'energyInvestment',
-    'generalInvestment',
-    'unfundedRealizedSpend',
-    'energyShareOfInvestment',
-    'retireeCost',
-    'childCost',
-    'regionalRetireeCost',
-    'regionalChildCost',
-    'transferBurden',
-    'workerConsumption',
-    'publicDebtGDP',
-    'privateDebtGDP',
-    'totalDebtGDP',
-    'privateDebtStock',
-    'nextPrivateDebtStock',
-    'publicDebtService',
-    'creditImpulse',
-    'debtRiskPremium',
-  ] as const,
 
   connectorTypes: {
     inputs: {
@@ -1064,4 +1016,4 @@ export const capitalModule: Module<
       },
     };
   },
-};
+});

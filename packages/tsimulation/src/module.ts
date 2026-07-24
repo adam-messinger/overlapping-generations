@@ -122,13 +122,44 @@ export interface StepResult<TState, TOutputs> {
 /**
  * Helper to create a module with better type inference
  */
+/**
+ * What an author writes. `inputs`/`outputs` are optional here because they are
+ * exactly `Object.keys(connectorTypes.*)` — declaring them again is a second
+ * copy of the same list that can only ever drift.
+ *
+ * `Module` (what `defineModule` returns) keeps them required, so every
+ * framework consumer can still iterate `mod.inputs` without a null check.
+ */
+export type ModuleDefinition<
+  TParams extends object,
+  TState extends object,
+  TInputs extends object,
+  TOutputs extends object
+> = Omit<Module<TParams, TState, TInputs, TOutputs>, 'inputs' | 'outputs'> &
+  Partial<Pick<Module<TParams, TState, TInputs, TOutputs>, 'inputs' | 'outputs'>>;
+
 export function defineModule<
   TParams extends object,
   TState extends object,
   TInputs extends object,
   TOutputs extends object
 >(
-  definition: Module<TParams, TState, TInputs, TOutputs>
+  definition: ModuleDefinition<TParams, TState, TInputs, TOutputs>
 ): Module<TParams, TState, TInputs, TOutputs> {
-  return definition;
+  // Derive only when absent. Fixtures that declare ports without a
+  // connectorTypes contract keep working, and validateConnectorTypes keeps
+  // both of its cross-check branches live for modules that declare both.
+  //
+  // Object.keys preserves insertion order, which matters: buildDependencyGraph
+  // walks mod.inputs in declaration order and that seeds topologicalSort's
+  // tie-break. Pinned by src/module-ports.test.ts.
+  return {
+    ...definition,
+    inputs:
+      definition.inputs ??
+      (Object.keys(definition.connectorTypes?.inputs ?? {}) as (keyof TInputs)[]),
+    outputs:
+      definition.outputs ??
+      (Object.keys(definition.connectorTypes?.outputs ?? {}) as (keyof TOutputs)[]),
+  };
 }

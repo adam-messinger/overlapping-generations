@@ -589,28 +589,7 @@ export const resourcesModule: Module<
     },
   },
 
-  inputs: [
-    'additions',
-    'population',
-    'gdpPerCapita',
-    'gdpPerCapita2025',
-    'temperature',
-    'transportElectrification',
-  ] as const,
 
-  outputs: [
-    'minerals',
-    'land',
-    'carbon',
-    'food',
-    'foodStress',
-    'mineralConstraint',
-    'miningEnergyTWh',
-    'farmingEnergyTWh',
-    'totalResourceEnergy',
-    'waterStress',
-    'waterYieldFactor',
-  ] as const,
 
   connectorTypes: {
     inputs: {

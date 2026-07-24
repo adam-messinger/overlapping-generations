@@ -27,6 +27,7 @@ import {
   integrateFlow,
   Module,
   multiplyQuantities,
+  defineModule,
   subtractQuantities,
   sumQuantities,
   unitPort,
@@ -556,7 +557,7 @@ export const generationsModule: Module<
   GenerationsState,
   GenerationsInputs,
   GenerationsOutputs
-> = {
+> = defineModule<GenerationsParams, GenerationsState, GenerationsInputs, GenerationsOutputs>({
   name: 'generations',
   description: 'Five-year birth-cohort balance sheets and capital-access diagnostics',
   defaults: generationsDefaults,
@@ -636,43 +637,7 @@ export const generationsModule: Module<
     },
   },
 
-  inputs: [
-    'regionalYoung',
-    'regionalWorking',
-    'regionalOld',
-    'regionalPopulation',
-    'regionalLifeExpectancy',
-    'regionalGdp',
-    'gdp',
-    'stock',
-    'nextCapitalStock',
-    'investment',
-    'generalInvestment',
-    'creditImpulse',
-    'privateDebtStock',
-    'nextPrivateDebtStock',
-    'publicDebtService',
-    'regionalSavings',
-    'regionalRetireeCost',
-    'regionalChildCost',
-  ] as const,
 
-  outputs: [
-    'cohortAccounts',
-    'regionalCohortAccounts',
-    'cohortDesiredCapital',
-    'cohortFundedCapital',
-    'cohortFundingGap',
-    'aggregateCapitalFundingGap',
-    'aggregateCapitalCoverage',
-    'cohortBorrowingLimitGap',
-    'cohortCreditRationingGap',
-    'constrainedWorkingShare',
-    'borrowingConstrainedWorkingShare',
-    'cohortBequests',
-    'cohortAssets',
-    'cohortLiabilities',
-  ] as const,
 
   connectorTypes: {
     inputs: {
@@ -1156,4 +1121,4 @@ export const generationsModule: Module<
       },
     };
   },
-};
+});

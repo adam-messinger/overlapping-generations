@@ -130,11 +130,23 @@ export interface VectorPortMeta<T = unknown> {
  * Erased structured contracts.
  *
  * The generic forms above keep each field tied to the value type it describes,
- * which is what makes a declaration site type-safe. But `ObjectPortMeta<any>`
- * is not a usable union member: `ObjectFieldContract<any>` collapses to an
- * index signature demanding `optional: true`, so no concrete
- * `objectPort<T>()` result is assignable to it. The union therefore uses these
- * erased forms, which drop the T link and keep only the runtime shape.
+ * which is what makes a declaration site type-safe. They are not usable as
+ * members of the `PortMeta` union, though, because the union instantiates them
+ * at `any`:
+ *
+ * - `ObjectFieldContract<any>` collapses to an index signature demanding
+ *   `optional: true`, so no concrete `objectPort<T>()` result is assignable to
+ *   `ObjectPortMeta<any>` at all.
+ * - `RecordPortMeta<any>`/`VectorPortMeta<any>` still accept concrete ports,
+ *   but reading through them is useless: `RecordPortMeta<any>['values']`
+ *   resolves to `QuantityPortMeta & { nullable: true }` regardless of the
+ *   actual contract.
+ *
+ * Guarding the conditional against `any` (`0 extends (1 & T) ? ... : ...`) does
+ * not work here: TypeScript substitutes the *constraint* for `any` when
+ * instantiating a constrained parameter, so the guard never fires for
+ * `T extends object`. Making it fire would mean dropping the constraint that
+ * makes the generic form worth having. Erased union members are the fix.
  */
 export interface AnyObjectPortMeta extends Omit<ObjectPortMeta, 'fields'> {
   fields: Readonly<Record<string, PortMeta>>;

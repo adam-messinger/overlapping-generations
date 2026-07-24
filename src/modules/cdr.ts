@@ -184,22 +184,7 @@ export const cdrModule: Module<
     },
   },
 
-  inputs: [
-    'temperature',
-    'gdp',
-    'laggedAvgLCOE',
-    'laggedInterestRate',
-    'laggedGdp',
-  ] as const,
 
-  outputs: [
-    'cdrRemovalGtCO2',
-    'cdrEnergyTWh',
-    'cdrCostPerTon',
-    'cdrCumulative',
-    'cdrCapacity',
-    'cdrAnnualSpend',
-  ] as const,
 
   connectorTypes: {
     inputs: {
