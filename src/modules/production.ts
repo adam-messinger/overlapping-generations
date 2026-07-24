@@ -237,8 +237,6 @@ export const productionModule: Module<
     },
   },
 
-
-
   connectorTypes: {
     inputs: {
       capitalStock: unitPort('$T'),

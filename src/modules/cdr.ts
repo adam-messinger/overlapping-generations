@@ -184,8 +184,6 @@ export const cdrModule: Module<
     },
   },
 
-
-
   connectorTypes: {
     inputs: {
       temperature: unitPort('Δ°C'),

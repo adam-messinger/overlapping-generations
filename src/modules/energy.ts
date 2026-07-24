@@ -37,7 +37,6 @@ import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.j
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
 
-
 // =============================================================================
 // PARAMETERS
 // =============================================================================
@@ -882,8 +881,6 @@ export const energyModule: Module<
       },
     },
   },
-
-
 
   connectorTypes: {
     inputs: {

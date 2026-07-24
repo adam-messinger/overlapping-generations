@@ -120,24 +120,25 @@ export interface StepResult<TState, TOutputs> {
 }
 
 /**
- * Helper to create a module with better type inference
- */
-/**
- * What an author writes. `inputs`/`outputs` are optional here because they are
- * exactly `Object.keys(connectorTypes.*)` — declaring them again is a second
- * copy of the same list that can only ever drift.
+ * What a module author writes.
  *
- * `Module` (what `defineModule` returns) keeps them required, so every
- * framework consumer can still iterate `mod.inputs` without a null check.
+ * `inputs`/`outputs` are optional here because they are exactly
+ * `Object.keys(connectorTypes.*)` — declaring them again is a second copy of
+ * the same list that can only ever drift. `Module`, what `defineModule`
+ * returns, keeps them required so every consumer can iterate `mod.inputs`
+ * without a null check.
  */
 export type ModuleDefinition<
   TParams extends object,
   TState extends object,
   TInputs extends object,
   TOutputs extends object
-> = Omit<Module<TParams, TState, TInputs, TOutputs>, 'inputs' | 'outputs'> &
-  Partial<Pick<Module<TParams, TState, TInputs, TOutputs>, 'inputs' | 'outputs'>>;
+> = Omit<Module<TParams, TState, TInputs, TOutputs>, 'inputs' | 'outputs'> & {
+  readonly inputs?: readonly (keyof TInputs)[];
+  readonly outputs?: readonly (keyof TOutputs)[];
+};
 
+/** Materialise a module's port lists from its contract and fix its types. */
 export function defineModule<
   TParams extends object,
   TState extends object,
@@ -146,20 +147,16 @@ export function defineModule<
 >(
   definition: ModuleDefinition<TParams, TState, TInputs, TOutputs>
 ): Module<TParams, TState, TInputs, TOutputs> {
-  // Derive only when absent. Fixtures that declare ports without a
-  // connectorTypes contract keep working, and validateConnectorTypes keeps
-  // both of its cross-check branches live for modules that declare both.
+  // Derived only when absent, so a module may still declare its ports
+  // explicitly — which fixtures without a connectorTypes contract rely on.
   //
-  // Object.keys preserves insertion order, which matters: buildDependencyGraph
-  // walks mod.inputs in declaration order and that seeds topologicalSort's
-  // tie-break. Pinned by src/module-ports.test.ts.
+  // Object.keys preserves insertion order, and that order is load-bearing:
+  // buildDependencyGraph walks mod.inputs in declaration order, which seeds
+  // topologicalSort's tie-break. Pinned by the execution-order test in
+  // src/module-ports.test.ts.
   return {
     ...definition,
-    inputs:
-      definition.inputs ??
-      (Object.keys(definition.connectorTypes?.inputs ?? {}) as (keyof TInputs)[]),
-    outputs:
-      definition.outputs ??
-      (Object.keys(definition.connectorTypes?.outputs ?? {}) as (keyof TOutputs)[]),
+    inputs: definition.inputs ?? (Object.keys(definition.connectorTypes.inputs) as (keyof TInputs)[]),
+    outputs: definition.outputs ?? (Object.keys(definition.connectorTypes.outputs) as (keyof TOutputs)[]),
   };
 }

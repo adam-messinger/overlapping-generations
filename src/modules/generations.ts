@@ -21,13 +21,13 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import {
+  defineModule,
   assertUnitBalance,
   convertQuantity,
   divideQuantities,
   integrateFlow,
   Module,
   multiplyQuantities,
-  defineModule,
   subtractQuantities,
   sumQuantities,
   unitPort,
@@ -636,8 +636,6 @@ export const generationsModule: Module<
       tier: 2 as const,
     },
   },
-
-
 
   connectorTypes: {
     inputs: {

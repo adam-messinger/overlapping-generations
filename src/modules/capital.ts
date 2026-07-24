@@ -25,9 +25,9 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import {
+  defineModule,
   integrateFlow,
   Module,
-  defineModule,
   subtractQuantities,
   sumQuantities,
   unitPort,
@@ -458,8 +458,6 @@ export const capitalModule: Module<
       tier: 1 as const,
     },
   },
-
-
 
   connectorTypes: {
     inputs: {

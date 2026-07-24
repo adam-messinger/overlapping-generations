@@ -38,6 +38,16 @@ onward. Before 1.0, minor versions may include breaking changes.
   concept of a connection between module ports.
 
 ### Added
+- `ModuleDefinition<TParams, TState, TInputs, TOutputs>` — what a module author
+  writes, and `defineModule`'s new parameter type. It differs from `Module` only
+  in that `inputs`/`outputs` are optional: `defineModule` derives them from
+  `Object.keys(connectorTypes.*)` when they are absent, so a module declares its
+  ports once. `defineModule` still returns `Module`, with both arrays
+  materialised, so consumers are unaffected. Modules that declare the arrays
+  explicitly keep working unchanged.
+
+  Note `defineModule` is no longer an identity function — it returns a new
+  object. Nothing may rely on `defineModule(x) === x`.
 - `AnyObjectPortMeta`, `AnyRecordPortMeta`, `AnyVectorPortMeta` — erased
   structured contracts used as `PortMeta` union members. The generic forms stay
   for declaration sites, where they tie each field to the value type it

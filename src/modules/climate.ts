@@ -259,7 +259,6 @@ export const climateModule: Module<
     },
   },
 
-
   connectorTypes: {
     inputs: {
       emissions: unitPort('GtCO2/year'),

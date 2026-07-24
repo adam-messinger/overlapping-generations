@@ -1009,8 +1009,6 @@ export const demandModule: Module<
     },
   },
 
-
-
   connectorTypes: {
     inputs: {
       regionalWorking: unitPort('people', 'record'),

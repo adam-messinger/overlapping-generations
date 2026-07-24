@@ -556,8 +556,6 @@ export const dispatchModule: Module<
 
   defaults: dispatchDefaults,
 
-
-
   paramMeta: {
     curtailmentOnset: {
       description: 'VRE share of demand at which soft curtailment begins.',

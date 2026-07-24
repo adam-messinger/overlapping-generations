@@ -395,7 +395,6 @@ function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number)
   return (tfr * womenOfChildbearingAge * 0.5) / 32;
 }
 
-
 function ageCohorts(
   state: RegionState,
   tfr: number,
@@ -546,10 +545,9 @@ export const demographicsModule: Module<
     },
   },
 
-
-
   connectorTypes: {
     inputs: {
+      // Lagged from climate, for heat stress.
       temperature: unitPort('Δ°C'),
     },
     outputs: {

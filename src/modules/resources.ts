@@ -589,8 +589,6 @@ export const resourcesModule: Module<
     },
   },
 
-
-
   connectorTypes: {
     inputs: {
       additions: ENERGY_ADDITION_PORT,
