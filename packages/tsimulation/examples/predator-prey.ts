@@ -12,8 +12,6 @@ const prey = defineModule({
   name: 'prey',
   description: 'Prey population with logistic growth, thinned by predators',
   defaults: { growth: 0.6, capacity: 120, predation: 0.02 },
-  inputs: ['laggedPredators'] as const,
-  outputs: ['prey'] as const,
   connectorTypes: {
     inputs: { laggedPredators: unitPort('individual') },
     outputs: { prey: unitPort('individual') },
@@ -33,8 +31,6 @@ const predator = defineModule({
   name: 'predator',
   description: 'Predator population fed by prey, thinned by mortality',
   defaults: { efficiency: 0.012, mortality: 0.5 },
-  inputs: ['prey'] as const,
-  outputs: ['predators'] as const,
   connectorTypes: {
     inputs: { prey: unitPort('individual') },
     outputs: { predators: unitPort('individual') },

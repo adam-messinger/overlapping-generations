@@ -37,7 +37,6 @@ import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.j
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
 
-
 // =============================================================================
 // PARAMETERS
 // =============================================================================
@@ -882,40 +881,6 @@ export const energyModule: Module<
       },
     },
   },
-
-  inputs: [
-    'electricityDemand',
-    'regionalElectricityDemand',
-    'availableInvestment',
-    'regionalInvestment',
-    'mineralConstraint',
-    'laggedCurtailmentRate',
-    'laggedInterestRate',
-    'savingsRate',
-    'regionalSavings',
-  ] as const,
-
-  outputs: [
-    'lcoes',
-    'regionalLCOEs',
-    'netEnergyFraction',
-    'solarPlusBatteryLCOE',
-    'capacities',
-    'energyCapexSpend',
-    'regionalCapacities',
-    'cumulativeCapacity',
-    'additions',
-    'regionalAdditions',
-    'batteryCost',
-    'cheapestLCOE',
-    'effectiveSolarCF',
-    'effectiveWindCF',
-    'longStorageCost',
-    'longStorageCapacity',
-    'longStorageRegional',
-    'effectiveWACC',
-    'regionalWACC',
-  ] as const,
 
   connectorTypes: {
     inputs: {

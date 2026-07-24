@@ -21,7 +21,7 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
-import { Module, validatedMerge, unitPort } from 'tsimulation';
+import { defineModule, Module, validatedMerge, unitPort } from 'tsimulation';
 import {
   DEMAND_SECTORS_PORT,
   REGIONAL_ALLOCATION_PORT,
@@ -875,7 +875,7 @@ export const demandModule: Module<
   DemandState,
   DemandInputs,
   DemandOutputs
-> = {
+> = defineModule<DemandParams, DemandState, DemandInputs, DemandOutputs>({
   name: 'demand',
   description: 'GDP and electricity demand model with regional economics',
   defaults: demandDefaults,
@@ -1008,57 +1008,6 @@ export const demandModule: Module<
       tier: 1 as const,
     },
   },
-
-  inputs: [
-    'regionalWorking',
-    'regionalEffectiveWorkers',
-    'regionalDependency',
-    'population',
-    'working',
-    'dependency',
-    'gdp',
-    'regionalDamages',
-    'totalGeneration',
-    'carbonPrice',
-    'laggedAvgLCOE',
-    'laggedInterestRate',
-    'robotLaborEquivalent',
-    'cdrEnergy',
-    'regionalEnergyBurden',
-    'regionalReliabilityFactor',
-    'laborOutputElasticity',
-  ] as const,
-
-  outputs: [
-    'electricityDemand',
-    'electrificationRate',
-    'totalFinalEnergy',
-    'nonElectricEnergy',
-    'nonElectricEnergyPotential',
-    'gdpPerWorking',
-    'finalEnergyPerCapitaDay',
-    'regional',
-    'regionalAllocation',
-    'sectors',
-    'fuels',
-    'nonElectricEmissions',
-    'electricityCost',
-    'fuelCost',
-    'totalEnergyCost',
-    'energyBurden',
-    'burdenDamage',
-    'regionalFuelCost',
-    'regionalFuelAvailability',
-    'usefulWorkGrowthRate',
-    'robotLoadTWh',
-    'robotCapexSpend',
-    'robotsPer1000',
-    'robotProfitability',
-    'fossilStockTWh',
-    'dataCenterLoadTWh',
-    'dataCenterCapexSpend',
-    'dataCenterPowerSpendShare',
-  ] as const,
 
   connectorTypes: {
     inputs: {
@@ -2144,4 +2093,4 @@ export const demandModule: Module<
       },
     };
   },
-};
+});

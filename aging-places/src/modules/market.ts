@@ -145,19 +145,6 @@ export const marketModule = defineModule<MarketParams, MarketState, MarketInputs
   name: 'market',
   description: 'Local cohorts, observed-household demand, supply, and real prices',
   defaults: DEFAULTS,
-  inputs: [
-    'internalNetByCohort', 'localNetImmigrationByCohort',
-    'elderlyWealthIndex', 'currentTfr',
-  ],
-  outputs: [
-    'priceIndexVec', 'priceToIncome', 'youngShareVec', 'workingStock',
-    'midlifeStock', 'retireeStock',
-    'stockA0_19', 'stockA20_24', 'stockA25_44', 'stockA45_64', 'stockA65up',
-    'destinationUnits', 'unitsVec',
-    'householdsVec', 'incomeVec', 'gapVec', 'popVec', 'birthsTotal',
-    'meanPriceIndex', 'medianPriceIndex', 'p90PriceIndex', 'p10PriceIndex',
-    'shareDecliningReal',
-  ],
   connectorTypes: {
     inputs: {
       internalNetByCohort: unitPort('people/year', 'nested-record'),

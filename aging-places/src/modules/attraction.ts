@@ -162,8 +162,6 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
   name: 'attraction',
   description: 'Four-capitals attraction scores per municipality',
   defaults: DEFAULTS,
-  inputs: ['laggedPriceToIncome', 'laggedYoungShare', 'natWorkingGrowth'],
-  outputs: ['attractionWorking', 'attractionRetiree'],
   connectorTypes: {
     inputs: {
       laggedPriceToIncome: unitPort('year', 'vector'),

@@ -7,6 +7,52 @@ onward. Before 1.0, minor versions may include breaking changes.
 
 ## [Unreleased]
 
+### Removed (breaking)
+- The `ConnectorSpec` port vocabulary. Module ports are now described with the
+  same `PortMeta` types every other boundary already used, so a port is a port
+  wherever it appears. Removed: the types `ConnectorType`, `ConnectorSpec`,
+  `ConnectorDeclaration`, `UnitConnectorSpec`, `OpaqueConnectorSpec`,
+  `MetadataConnectorSpec`, `ObjectConnectorSpec`, `RecordConnectorSpec`,
+  `VectorConnectorSpec`, and the constructors `unitConnector`,
+  `measurementConnector`, `observationConnector`, `opaqueConnector`,
+  `metadataConnector`, `objectConnector`, `recordConnector`, `vectorConnector`,
+  plus `connectorSpecToPortMeta`.
+
+  Migration is mechanical — the argument order differs because the value type
+  is now optional and trailing rather than required and leading:
+
+  | Before | After |
+  |---|---|
+  | `unitConnector('number', U)` | `unitPort(U)` |
+  | `unitConnector(T, U)` | `unitPort(U, T)` |
+  | `objectConnector(T, fields, D)` | `objectPort(fields, D)` |
+  | `recordConnector(T, values, opts)` | `recordPort(values, opts)` |
+  | `measurementConnector(T, U, e, D)` | `measurementPort(U, e, T, D)` |
+  | `opaqueConnector(T, D)` | `opaquePort(D, T)` |
+  | `metadataConnector(dt, D)` | `metadataPort(dt, D)` |
+  | `vectorConnector(items, D)` | `vectorPort(items, D)` |
+
+  `Module.connectorTypes` now holds `PortMeta`. The field itself, along with
+  `connectorValidation`, `validateConnectorTypes`, and `auditConnectorContracts`,
+  keeps its name: what was removed is the port *spec* vocabulary, not the
+  concept of a connection between module ports.
+
+### Added
+- `ModuleDefinition<TParams, TState, TInputs, TOutputs>` — what a module author
+  writes, and `defineModule`'s new parameter type. It differs from `Module` only
+  in that `inputs`/`outputs` are optional: `defineModule` derives them from
+  `Object.keys(connectorTypes.*)` when they are absent, so a module declares its
+  ports once. `defineModule` still returns `Module`, with both arrays
+  materialised, so consumers are unaffected. Modules that declare the arrays
+  explicitly keep working unchanged.
+
+  Note `defineModule` is no longer an identity function — it returns a new
+  object. Nothing may rely on `defineModule(x) === x`.
+- `AnyObjectPortMeta`, `AnyRecordPortMeta`, `AnyVectorPortMeta` — erased
+  structured contracts used as `PortMeta` union members. The generic forms stay
+  for declaration sites, where they tie each field to the value type it
+  describes.
+
 ### Performance
 - `assertPortValue` no longer re-validates the port contract at every node of
   its recursive descent. Contract validity and value conformance are separate

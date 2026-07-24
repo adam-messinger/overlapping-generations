@@ -56,11 +56,6 @@ export const nationModule = defineModule<NationParams, NationState, Record<strin
   name: 'nation',
   description: 'US national cohorts, international migration, and elderly wealth',
   defaults: DEFAULTS,
-  inputs: [],
-  outputs: [
-    'natCohorts', 'currentTfr', 'netImmigrationByCohort', 'netImmigration',
-    'elderlyWealthIndex', 'births', 'natWorkingGrowth',
-  ],
   connectorTypes: {
     inputs: {},
     outputs: {

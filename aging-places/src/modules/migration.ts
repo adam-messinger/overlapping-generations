@@ -196,20 +196,6 @@ export const migrationModule = defineModule<
   name: 'migration',
   description: 'Closed internal migration plus open international migration',
   defaults: DEFAULTS,
-  inputs: [
-    'attractionWorking', 'attractionRetiree', 'netImmigrationByCohort',
-    'laggedWorkingStock', 'laggedMidlifeStock', 'laggedRetireeStock', 'laggedDestinationUnits',
-    'laggedA0_19Stock', 'laggedA20_24Stock', 'laggedA25_44Stock',
-    'laggedA45_64Stock', 'laggedA65upStock', 'currentTfr',
-  ],
-  outputs: [
-    'netWorking', 'netMidlife', 'netRetiree', 'internalNetByCohort',
-    'localNetImmigrationByCohort',
-    'arrivalsWorking', 'departuresWorking', 'departuresRetiree',
-    'internalNetTotal', 'internationalNetTotal',
-    'unmetInternalMigrationByCohort', 'unmetInternationalExitByCohort',
-    'unmetInternalMigrationTotal', 'unmetInternationalExitTotal',
-  ],
   connectorTypes: {
     inputs: {
       attractionWorking: unitPort('1', 'vector'),

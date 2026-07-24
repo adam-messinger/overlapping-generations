@@ -53,7 +53,7 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 
 | Concept | What it is |
 |---------|------------|
-| **Module** | A unit with `defaults`, declared `inputs`/`outputs`, `init()`, and a pure `step()`. Composed via `defineModule`. |
+| **Module** | A unit with `defaults`, a `connectorTypes` port contract, `init()`, and a pure `step()`. Composed via `defineModule`, which derives its port lists from that contract. |
 | **Autowire** | The engine reads every module's `inputs`/`outputs`, builds a dependency graph, and runs modules in topological order each step. |
 | **Transform** | A function that derives an input from other modules' outputs (e.g. a ratio). Declares `dependsOn` so the engine can order it. |
 | **Lag** | A delayed value used to break a feedback cycle. Module A can read last step's output of module B even though B reads A this step. |
@@ -295,8 +295,6 @@ const prey = defineModule({
   name: 'prey',
   description: 'Prey population',
   defaults: { growth: 0.6, capacity: 120, predation: 0.02 },
-  inputs: ['laggedPredators'] as const,
-  outputs: ['prey'] as const,
   connectorTypes: {
     inputs: { laggedPredators: unitPort('individual') },
     outputs: { prey: unitPort('individual') },
@@ -317,8 +315,6 @@ const predator = defineModule({
   name: 'predator',
   description: 'Predator population',
   defaults: { efficiency: 0.012, mortality: 0.5 },
-  inputs: ['prey'] as const,
-  outputs: ['predators'] as const,
   connectorTypes: {
     inputs: { prey: unitPort('individual') },
     outputs: { predators: unitPort('individual') },

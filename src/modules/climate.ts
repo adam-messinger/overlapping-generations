@@ -259,20 +259,6 @@ export const climateModule: Module<
     },
   },
 
-  inputs: ['emissions', 'regionalGdpPerCapita'] as const,
-  outputs: [
-    'temperature',
-    'co2ppm',
-    'equilibriumTemp',
-    'damages',
-    'regionalDamages',
-    'cumulativeEmissions',
-    'deepOceanTemp',
-    'radiativeForcing',
-    'regionalAdaptation',
-    'oceanPH',
-  ] as const,
-
   connectorTypes: {
     inputs: {
       emissions: unitPort('GtCO2/year'),
