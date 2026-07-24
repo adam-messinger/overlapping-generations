@@ -302,30 +302,6 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
 });
 
-// Cross-check: standardCollectors covers all toYearResults fields
-test('standardCollectors covers all toYearResults fields', () => {
-  const result = runAutowiredFull({ startYear: 2025, endYear: 2026 });
-  const yearResultKeys = new Set(Object.keys(result.results[0]));
-  const collectorKeys = new Set(
-    standardCollectors.timeseries.map(d => resolveKey(d))
-  );
-  collectorKeys.add('year'); // framework field
-
-  const missingFromCollectors = [...yearResultKeys].filter(k => !collectorKeys.has(k));
-  const extraInCollectors = [...collectorKeys].filter(k => !yearResultKeys.has(k));
-
-  if (missingFromCollectors.length > 0) {
-    throw new Error(
-      `YearResult fields missing from standardCollectors: ${missingFromCollectors.join(', ')}`
-    );
-  }
-  if (extraInCollectors.length > 0) {
-    throw new Error(
-      `standardCollectors fields not in YearResult: ${extraInCollectors.join(', ')}`
-    );
-  }
-});
-
 // Cross-check: describeOutputs matches standardCollectors
 test('describeOutputs keys match standardCollectors keys', () => {
   const outputSchema = describeOutputs();

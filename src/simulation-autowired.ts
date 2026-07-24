@@ -22,6 +22,7 @@ import {
   requireOutput,
   optionalOutput,
   auditConnectorContracts,
+  collectResults,
   unitPort,
 } from 'tsimulation';
 import {
@@ -33,7 +34,7 @@ import {
   REGIONAL_DEMAND_PORT,
   REGIONAL_ENERGY_LCOE_PORT,
 } from './port-schemas.js';
-import { computeEnergySystemOverhead } from './standard-collectors.js';
+import { computeEnergySystemOverhead, standardCollectors } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
@@ -919,282 +920,41 @@ export function runAutowiredSimulation(
  * Convert autowire result to flat YearResult array (matches simulation.ts output).
  */
 export function toYearResults(result: AutowireResult): YearResult[] {
-  const yearResults: YearResult[] = [];
-
-  for (let i = 0; i < result.years.length; i++) {
-    const o = getOutputsAtYear(result, i);
-
-    yearResults.push({
-      year: result.years[i],
-
-      // Demographics
-      population: o.population,
-      working: o.working,
-      dependency: o.dependency,
-      effectiveWorkers: o.effectiveWorkers,
-      collegeShare: o.collegeShare,
-
-      // Demand
-      gdp: o.gdp,
-      electricityDemand: o.electricityDemand,
-      electrificationRate: o.electrificationRate,
-      totalFinalEnergy: o.totalFinalEnergy,
-      nonElectricEnergy: o.nonElectricEnergy,
-      finalEnergyPerCapitaDay: o.finalEnergyPerCapitaDay,
-
-      // Sectors
-      transportElectrification: o.sectors?.transport?.electrificationRate ?? 0,
-      buildingsElectrification: o.sectors?.buildings?.electrificationRate ?? 0,
-      industryElectrification: o.sectors?.industry?.electrificationRate ?? 0,
-
-      // Fuels
-      oilConsumption: o.fuels?.oil ?? 0,
-      gasConsumption: o.fuels?.gas ?? 0,
-      coalConsumption: o.fuels?.coal ?? 0,
-      hydrogenConsumption: o.fuels?.hydrogen ?? 0,
-
-      // Non-electric emissions
-      nonElectricEmissions: o.nonElectricEmissions,
-
-      // Energy burden
-      electricityCost: o.electricityCost ?? 0,
-      fuelCost: o.fuelCost ?? 0,
-      totalEnergyCost: o.totalEnergyCost,
-      energyBurden: o.energyBurden,
-      burdenDamage: o.burdenDamage,
-      gdpPerWorking: o.gdpPerWorking ?? 0,
-
-      // Useful work
-      usefulWorkGrowthRate: o.usefulWorkGrowthRate ?? 0,
-
-      // Capital
-      capitalStock: o.stock,
-      investment: o.investment,
-      savingsRate: o.savingsRate,
-      regionalSavings: o.regionalSavings,
-      stability: o.stability,
-      interestRate: o.interestRate,
-      robotsDensity: o.robotsDensity,
-      automationShare: o.automationShare,
-      capitalOutputRatio: o.capitalOutputRatio,
-      capitalGrowthRate: o.capitalGrowthRate,
-      retireeCost: o.retireeCost ?? 0,
-      childCost: o.childCost ?? 0,
-      transferBurden: o.transferBurden ?? 0,
-      workerConsumption: o.workerConsumption ?? 0,
-      publicDebtGDP: o.publicDebtGDP ?? 0,
-      privateDebtGDP: o.privateDebtGDP ?? 0,
-      totalDebtGDP: o.totalDebtGDP ?? 0,
-      publicDebtService: o.publicDebtService ?? 0,
-      creditImpulse: o.creditImpulse ?? 0,
-      debtRiskPremium: o.debtRiskPremium ?? 0,
-
-      // Five-year birth-cohort accounts
-      cohortAccounts: o.cohortAccounts ?? {},
-      regionalCohortAccounts: o.regionalCohortAccounts ??
-        Object.fromEntries(REGIONS.map(r => [r, {}])),
-      cohortDesiredCapital: o.cohortDesiredCapital ?? 0,
-      cohortFundedCapital: o.cohortFundedCapital ?? 0,
-      cohortFundingGap: o.cohortFundingGap ?? 0,
-      aggregateCapitalFundingGap: o.aggregateCapitalFundingGap ?? 0,
-      aggregateCapitalCoverage: o.aggregateCapitalCoverage ?? 1,
-      cohortBorrowingLimitGap: o.cohortBorrowingLimitGap ?? 0,
-      cohortCreditRationingGap: o.cohortCreditRationingGap ?? 0,
-      constrainedWorkingShare: o.constrainedWorkingShare ?? 0,
-      borrowingConstrainedWorkingShare: o.borrowingConstrainedWorkingShare ?? 0,
-      cohortBequests: o.cohortBequests ?? 0,
-      cohortAssets: o.cohortAssets ?? 0,
-      cohortLiabilities: o.cohortLiabilities ?? 0,
-
-      // Energy
-      lcoes: o.lcoes,
-      capacities: o.capacities,
-      solarLCOE: o.lcoes?.solar ?? 0,
-      windLCOE: o.lcoes?.wind ?? 0,
-      batteryCost: o.batteryCost ?? 0,
-      cheapestLCOE: o.cheapestLCOE ?? 0,
-      solarPlusBatteryLCOE: o.solarPlusBatteryLCOE ?? 0,
-
-      // Dispatch
-      generation: o.generation,
-      gridIntensity: o.gridIntensity,
-      totalGeneration: o.totalGeneration,
-      shortfall: o.shortfall,
-      electricityEmissions: o.electricityEmissions,
-      fossilShare: o.fossilShare,
-      curtailmentTWh: o.curtailmentTWh,
-      curtailmentRate: o.curtailmentRate,
-      effectiveWACC: o.effectiveWACC ?? 0.07,
-
-      // Climate
-      temperature: o.temperature,
-      co2ppm: o.co2ppm,
-      equilibriumTemp: o.equilibriumTemp,
-      damages: o.damages,
-      cumulativeEmissions: o.cumulativeEmissions,
-      deepOceanTemp: o.deepOceanTemp ?? 0,
-      radiativeForcing: o.radiativeForcing ?? 0,
-
-      // Ocean acidification
-      oceanPH: o.oceanPH ?? 8.18,
-
-      // Adaptation
-      regionalAdaptation: o.regionalAdaptation ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
-
-      // Long-duration storage
-      longStorageCost: o.longStorageCost ?? 300,
-      longStorageCapacity: o.longStorageCapacity ?? 0,
-
-      // Resources - Minerals
-      copperDemand: o.minerals?.copper?.demand ?? 0,
-      lithiumDemand: o.minerals?.lithium?.demand ?? 0,
-      copperCumulative: o.minerals?.copper?.cumulative ?? 0,
-      lithiumCumulative: o.minerals?.lithium?.cumulative ?? 0,
-
-      // Resources - Land
-      farmland: o.land?.farmland ?? 0,
-      forest: o.land?.forest ?? 0,
-      desert: o.land?.desert ?? 0,
-      yieldDamageFactor: o.land?.yieldDamageFactor ?? 1,
-
-      // Resources - Food
-      proteinShare: o.food?.proteinShare ?? 0,
-      grainEquivalent: o.food?.grainEquivalent ?? 0,
-      foodStress: o.foodStress ?? 0,
-
-      // Resources - Carbon
-      forestNetFlux: o.carbon?.netFlux ?? 0,
-      cumulativeSequestration: o.carbon?.cumulativeSequestration ?? 0,
-
-      // CDR (Carbon Dioxide Removal)
-      cdrRemoval: o.cdrRemovalGtCO2 ?? 0,
-      cdrEnergyTWh: o.cdrEnergyTWh ?? 0,
-      cdrCostPerTon: o.cdrCostPerTon ?? 400,
-      cdrCumulative: o.cdrCumulative ?? 0,
-      cdrCapacity: o.cdrCapacity ?? 0,
-      cdrAnnualSpend: o.cdrAnnualSpend ?? 0,
-
-      // Robot/automation (from demand, expansion dissolved)
-      robotLoadTWh: o.robotLoadTWh ?? 0,
-      robotsPer1000: o.robotsPer1000 ?? 0,
-
-      // Datacenter / AI compute (from demand)
-      dataCenterLoadTWh: o.dataCenterLoadTWh ?? 0,
-      dataCenterCapexSpend: o.dataCenterCapexSpend ?? 0,
-
-      // Production (biophysical)
-      productionUsefulEnergy: o.productionUsefulEnergy ?? 0,
-      capitalContribution: o.capitalContribution ?? 1,
-      laborContribution: o.laborContribution ?? 1,
-      energyContribution: o.energyContribution ?? 1,
-      efficiencyLevel: o.efficiencyLevel ?? 1,
-      // Compute from energy module outputs (the transform output
-      // energySystemOverheadComputed is only available via the lag mechanism)
-      energySystemOverhead: computeEnergySystemOverhead(o.additions, o.capacities),
-
-      // Resource energy consumption
-      miningEnergyTWh: o.miningEnergyTWh ?? 0,
-      farmingEnergyTWh: o.farmingEnergyTWh ?? 0,
-
-      // Mineral constraint
-      mineralConstraint: o.mineralConstraint ?? 1.0,
-
-      // Water stress
-      waterStress: o.waterStress ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
-      waterYieldFactor: o.waterYieldFactor ?? 1,
-
-      // Infrastructure lock-in
-      fossilStockTWh: o.fossilStockTWh ?? 0,
-
-      // Heat stress
-      heatStressLoss: o.heatStressLoss ?? Object.fromEntries(REGIONS.map(r => [r, 0])),
-
-      // Regional
-      regionalPopulation: o.regionalPopulation,
-      regionalFertility: o.regionalFertility,
-      regionalGdp: (() => {
-        const regional = o.regional;
-        if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
-        const result: Record<Region, number> = {} as any;
-        for (const r of REGIONS) result[r] = regional[r]?.gdp ?? 0;
-        return result;
-      })(),
-
-      // Regional Energy
-      regionalCapacities: o.regionalCapacities,
-      regionalAdditions: o.regionalAdditions,
-      regionalWACC: o.regionalWACC,
-
-      // Regional Dispatch
-      regionalGeneration: o.regionalGeneration,
-      regionalGridIntensity: o.regionalGridIntensity,
-      regionalFossilShare: o.regionalFossilShare,
-      regionalEmissions: o.regionalEmissions,
-    });
-  }
-
-  return yearResults;
+  // standardCollectors is the single declaration of the output schema; the
+  // engine turns it into rows. This replaced ~218 lines of hand-written field
+  // mapping that had to be kept in sync with the collector spec by test.
+  return collectResults(result, standardCollectors).timeseries as YearResult[];
 }
 
 // =============================================================================
 // METRICS
 // =============================================================================
 
-/**
- * Compute summary metrics from YearResult array.
- * Ported from simulation.ts calculateMetrics().
- */
-export function computeMetrics(results: YearResult[]): SimulationMetrics {
-  let peakPopulation = 0;
-  let peakPopulationYear = 2025;
-  for (const r of results) {
-    if (r.population > peakPopulation) {
-      peakPopulation = r.population;
-      peakPopulationYear = r.year;
-    }
-  }
+/** A `{ peak: true }` aggregator yields { value, year }; SimulationMetrics wants both flat. */
+interface PeakResult {
+  value: number;
+  year: number;
+}
 
-  let peakEmissions = 0;
-  let peakEmissionsYear = 2025;
-  for (const r of results) {
-    const totalEmissions = r.electricityEmissions + r.nonElectricEmissions + r.forestNetFlux;
-    if (totalEmissions > peakEmissions) {
-      peakEmissions = totalEmissions;
-      peakEmissionsYear = r.year;
-    }
-  }
-
-  let solarCrossoverYear: number | null = null;
-  let gridBelow100Year: number | null = null;
-  for (const r of results) {
-    if (solarCrossoverYear === null && r.solarLCOE < r.lcoes.gas) {
-      solarCrossoverYear = r.year;
-    }
-    if (gridBelow100Year === null && r.gridIntensity < 100) {
-      gridBelow100Year = r.year;
-    }
-  }
-
-  const idx2050 = results.findIndex(r => r.year === 2050);
-  const idx2100 = results.length - 1;
+export function computeMetrics(result: AutowireResult): SimulationMetrics {
+  const metrics = collectResults(result, standardCollectors).metrics as Record<string, unknown>;
+  const peakPopulation = metrics.peakPopulation as PeakResult | undefined;
+  const peakEmissions = metrics.peakEmissions as PeakResult | undefined;
 
   return {
-    peakPopulation,
-    peakPopulationYear,
-    population2100: results[idx2100].population,
-
-    warming2050: idx2050 >= 0 ? results[idx2050].temperature : 0,
-    warming2100: results[idx2100].temperature,
-    peakEmissions,
-    peakEmissionsYear,
-
-    solarCrossoverYear,
-    gridBelow100Year,
-    fossilShareFinal: results[idx2100].fossilShare,
-
-    gdp2050: idx2050 >= 0 ? results[idx2050].gdp : 0,
-    gdp2100: results[idx2100].gdp,
-    kY2050: idx2050 >= 0 ? results[idx2050].capitalStock / results[idx2050].gdp : 0,
+    peakPopulation: peakPopulation?.value ?? 0,
+    peakPopulationYear: peakPopulation?.year ?? 2025,
+    population2100: metrics.population2100 as number,
+    warming2050: metrics.warming2050 as number,
+    warming2100: metrics.warming2100 as number,
+    peakEmissions: peakEmissions?.value ?? 0,
+    peakEmissionsYear: peakEmissions?.year ?? 2025,
+    solarCrossoverYear: metrics.solarCrossoverYear as number | null,
+    gridBelow100Year: metrics.gridBelow100Year as number | null,
+    fossilShareFinal: metrics.fossilShareFinal as number,
+    gdp2050: metrics.gdp2050 as number,
+    gdp2100: metrics.gdp2100 as number,
+    kY2050: metrics.kY2050 as number,
   };
 }
 
@@ -1207,7 +967,7 @@ export function runAutowiredFull(
 ): SimulationResult {
   const autowireResult = runAutowiredSimulation(params, options);
   const results = toYearResults(autowireResult);
-  const metrics = computeMetrics(results);
+  const metrics = computeMetrics(autowireResult);
   return { years: autowireResult.years, results, metrics };
 }
 

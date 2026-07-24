@@ -872,6 +872,19 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
 }
 
 /** Value conformance only. Assumes `meta` has already been validated. */
+/**
+ * Check a value against a contract that has ALREADY been validated.
+ *
+ * For checking many values against one contract — a collector across every
+ * step, say — validate the contract once with `validatePortMeta` and then call
+ * this per value. `assertPortValue` is the safe default; reach for this only
+ * where the contract is loop-invariant and validating it per value would
+ * dominate the cost.
+ */
+export function assertPortValueOnly(value: unknown, meta: PortMeta, context: string): void {
+  assertValueOnly(value, meta, context);
+}
+
 function assertValueOnly(value: unknown, meta: PortMeta, context: string): void {
   if (value === undefined) {
     if (meta.optional) return;
