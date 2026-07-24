@@ -305,6 +305,9 @@ export function registerUnit(definition: UnitDefinition): void {
     throw new Error(`Unit '${definition.symbol}' is already registered differently`);
   }
   definitions.set(definition.symbol, resolved);
+  // A new base unit can turn a previously-unresolvable symbol (cached as
+  // `undefined`) or a compound expression built from it into a hit.
+  resolutionCache.clear();
 }
 
 class UnitExpressionParser {
@@ -364,7 +367,7 @@ class UnitExpressionParser {
     if (!symbol) throw new Error(`Expected unit symbol at position ${start + 1}`);
     const unit = definitions.get(symbol);
     if (!unit) throw new Error(`Unknown atomic unit '${symbol}'`);
-    return { ...unit, dimensions: { ...unit.dimensions } };
+    return cloneResolved(unit);
   }
 
   private skipWhitespace(): void {
@@ -418,10 +421,40 @@ function normalizeExpression(symbol: string): string {
   return symbol.replaceAll('·', '*').replaceAll('²', '^2').replaceAll('³', '^3').trim();
 }
 
+/**
+ * Resolution cache, keyed on the RAW symbol.
+ *
+ * Not the normalized form: resolveUncached tests the compound-character regex
+ * against the raw symbol while parsing the normalized one, so a normalized key
+ * would conflate '·'-style symbols with their already-normalized twins.
+ *
+ * Contract validation resolves the same handful of unit strings at every leaf of
+ * every port on every step, so without this the parser dominates a run's whole
+ * runtime. Cleared by registerUnit, which is the only mutation path into
+ * `definitions` and the only thing that can turn a miss into a hit.
+ */
+/** Misses are stored as null so one lookup distinguishes them from an absent key. */
+const resolutionCache = new Map<string, ResolvedUnit | null>();
+
+/** Callers may mutate what they get back, so every hit hands out a fresh copy. */
+function cloneResolved(unit: ResolvedUnit): ResolvedUnit {
+  return { ...unit, dimensions: { ...unit.dimensions } };
+}
+
 function resolveUnit(symbol: string): ResolvedUnit | undefined {
+  let cached = resolutionCache.get(symbol);
+  if (cached === undefined) {
+    cached = resolveUncached(symbol) ?? null;
+    resolutionCache.set(symbol, cached);
+  }
+  // The cached entry is never handed out directly, so it needs no copy going in.
+  return cached ? cloneResolved(cached) : undefined;
+}
+
+function resolveUncached(symbol: string): ResolvedUnit | undefined {
   const normalized = normalizeExpression(symbol);
   const registered = definitions.get(normalized);
-  if (registered) return { ...registered, dimensions: { ...registered.dimensions } };
+  if (registered) return registered;
   if (!/[*/^()²³·]/.test(symbol)) return undefined;
   try {
     return new UnitExpressionParser(normalized).parse();
@@ -430,13 +463,23 @@ function resolveUnit(symbol: string): ResolvedUnit | undefined {
   }
 }
 
+/** Existence check for validators, avoiding the defensive copy getUnit owes callers. */
+function unitExists(symbol: string): boolean {
+  let cached = resolutionCache.get(symbol);
+  if (cached === undefined) {
+    cached = resolveUncached(symbol) ?? null;
+    resolutionCache.set(symbol, cached);
+  }
+  return cached !== null;
+}
+
 export function getUnit(symbol: string): UnitDefinition | undefined {
-  const unit = resolveUnit(symbol);
-  return unit ? { ...unit, dimensions: { ...unit.dimensions } } : undefined;
+  // resolveUnit already hands back a private copy; no second clone needed.
+  return resolveUnit(symbol);
 }
 
 export function listUnits(): UnitDefinition[] {
-  return [...definitions.values()].map((unit) => ({ ...unit, dimensions: { ...unit.dimensions } }));
+  return [...definitions.values()].map(cloneResolved);
 }
 
 export function areUnitsConvertible(fromSymbol: string, toSymbol: string): boolean {
@@ -537,7 +580,7 @@ export function validatePortMeta(port: PortMeta, context: string): void {
     return;
   }
   if (isQuantityPort(port)) {
-    if (!getUnit(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
+    if (!unitExists(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
     if (port.estimand) validateEstimand(port.estimand, `${context}.estimand`);
     if (port.measurement) {
       validateMeasurement(port.measurement, `${context}.measurement`);
@@ -778,9 +821,24 @@ function assertNumericDeep(value: unknown, path: string, seen = new WeakSet<obje
   for (const [key, child] of Object.entries(value)) assertNumericDeep(child, `${path}.${key}`, seen);
 }
 
-/** Validate the runtime shape and numeric content of a single boundary value. */
+/**
+ * Validate the runtime shape and numeric content of a single boundary value.
+ *
+ * Contract validity and value conformance are two different questions, and
+ * conflating them is expensive: the contract is a static schema, while the
+ * value is a tree that may hold hundreds of leaves. validatePortMeta already
+ * walks the whole contract tree, so one call here covers every nested field —
+ * the recursion below deliberately re-enters assertValueOnly, not this
+ * function, so a Record<Region, Record<Source, number>> costs one contract
+ * walk instead of one per leaf.
+ */
 export function assertPortValue(value: unknown, meta: PortMeta, context: string): void {
   validatePortMeta(meta, context);
+  assertValueOnly(value, meta, context);
+}
+
+/** Value conformance only. Assumes `meta` has already been validated. */
+function assertValueOnly(value: unknown, meta: PortMeta, context: string): void {
   if (value === undefined) {
     if (meta.optional) return;
     throw new Error(`${context}: required contracted value is undefined`);
@@ -816,7 +874,7 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
       if (!field.optional && !Object.hasOwn(value, name)) {
         throw new Error(`${context}.${name}: required contracted value is missing`);
       }
-      if (Object.hasOwn(value, name)) assertPortValue(value[name], field, `${context}.${name}`);
+      if (Object.hasOwn(value, name)) assertValueOnly(value[name], field, `${context}.${name}`);
     }
     for (const name of Object.keys(value)) {
       if (!Object.hasOwn(fields, name)) throw new Error(`${context}.${name}: value has no port contract`);
@@ -835,7 +893,7 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
       }
     }
     for (const [key, child] of Object.entries(value)) {
-      assertPortValue(child, meta.values, `${context}.${key}`);
+      assertValueOnly(child, meta.values, `${context}.${key}`);
     }
     return;
   }
@@ -844,7 +902,7 @@ export function assertPortValue(value: unknown, meta: PortMeta, context: string)
       throw new Error(`${context}: expected vector value`);
     }
     for (const [index, child] of Array.from(value as ArrayLike<unknown>).entries()) {
-      assertPortValue(child, meta.items, `${context}[${index}]`);
+      assertValueOnly(child, meta.items, `${context}[${index}]`);
     }
     return;
   }

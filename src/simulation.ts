@@ -25,6 +25,7 @@
  *      (damages, energy burden, food stress feed back via lags to production)
  */
 
+import type { AutowireConfig } from 'tsimulation';
 import type { DemographicsParams } from './modules/demographics.js';
 import type { ProductionParams } from './modules/production.js';
 import type { DemandParams } from './modules/demand.js';
@@ -56,6 +57,21 @@ export interface SimulationParams {
   cdr?: Partial<CDRParams>;
   climate?: Partial<ClimateParams>;
 }
+
+/**
+ * Engine-level run controls, separate from the model's parameters.
+ *
+ * These change how much checking the engine does, never what it computes.
+ * A plain `runSimulation()` gets full per-step port validation and
+ * parameter-liveness warnings; ensembles and sweeps that run the same wiring
+ * thousands of times can turn the checks off once a representative run has
+ * passed them — see `scripts/parameter-sweep.ts`.
+ *
+ * Derived from `AutowireConfig` rather than restated, so a new engine mode
+ * cannot silently fail to reach the domain API.
+ */
+export interface RunOptions
+  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads'> {}
 
 export interface YearResult {
   year: number;
@@ -299,8 +315,11 @@ export interface SimulationMetrics {
  * Run a simulation with optional parameter overrides.
  * Delegates to the autowired simulation path.
  */
-export function runSimulation(params: SimulationParams = {}): SimulationResult {
-  return runAutowiredFull(params);
+export function runSimulation(
+  params: SimulationParams = {},
+  options?: RunOptions
+): SimulationResult {
+  return runAutowiredFull(params, options);
 }
 
 /**
@@ -308,7 +327,8 @@ export function runSimulation(params: SimulationParams = {}): SimulationResult {
  */
 export async function runWithScenario(
   scenarioPath: string,
-  overrides?: SimulationParams
+  overrides?: SimulationParams,
+  options?: RunOptions
 ): Promise<{ scenario: { name: string; description: string }; result: SimulationResult }> {
   const { loadScenario, scenarioToParams, deepMerge } = await import('./scenario.js');
 
@@ -319,7 +339,7 @@ export async function runWithScenario(
     params = deepMerge(params, overrides);
   }
 
-  const result = runSimulation(params);
+  const result = runSimulation(params, options);
 
   return {
     scenario: { name: scenario.name, description: scenario.description },

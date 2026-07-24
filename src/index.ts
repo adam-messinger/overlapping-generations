@@ -6,7 +6,7 @@
 
 // Simulation
 export { runSimulation, runWithScenario } from './simulation.js';
-export type { SimulationParams, SimulationResult, SimulationMetrics, YearResult } from './simulation.js';
+export type { SimulationParams, RunOptions, SimulationResult, SimulationMetrics, YearResult } from './simulation.js';
 
 // Scenario loader
 export { loadScenario, scenarioToParams, listScenarios, getScenarioPath, deepMerge } from './scenario.js';

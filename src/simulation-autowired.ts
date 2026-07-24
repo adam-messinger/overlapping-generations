@@ -46,7 +46,7 @@ import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './domain-types.js';
-import type { SimulationParams, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
+import type { SimulationParams, RunOptions, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
 
 // =============================================================================
 // MODULES
@@ -806,10 +806,7 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
  */
 export function runAutowiredSimulation(
   params: SimulationParams = {},
-  options?: {
-    trackReads?: boolean;
-    paramLiveness?: 'off' | 'report' | 'warn' | 'error';
-  }
+  options?: RunOptions
 ): AutowireResult {
   // Merge energy params to read carbon prices
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
@@ -874,6 +871,10 @@ export function runAutowiredSimulation(
     startYear: params.startYear ?? 2025,
     endYear: params.endYear ?? 2100,
     trackReads: options?.trackReads,
+    // Per-step port checking. The framework already defaults this to 'error';
+    // ensembles and sweeps that have already validated a representative run
+    // can pass 'off' to skip it.
+    connectorValidation: options?.connectorValidation,
     // Report pathwise-inert scenario knobs. This is a warning by default
     // because conditional branches can legitimately leave a parameter unread;
     // unknown scenario keys are rejected separately by scenarioToParams.
@@ -1200,8 +1201,11 @@ export function computeMetrics(results: YearResult[]): SimulationMetrics {
 /**
  * Run autowired simulation and return full SimulationResult (matching simulation.ts).
  */
-export function runAutowiredFull(params: SimulationParams = {}): SimulationResult {
-  const autowireResult = runAutowiredSimulation(params);
+export function runAutowiredFull(
+  params: SimulationParams = {},
+  options?: RunOptions
+): SimulationResult {
+  const autowireResult = runAutowiredSimulation(params, options);
   const results = toYearResults(autowireResult);
   const metrics = computeMetrics(results);
   return { years: autowireResult.years, results, metrics };
