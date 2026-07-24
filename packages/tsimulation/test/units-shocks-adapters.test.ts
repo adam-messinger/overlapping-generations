@@ -19,14 +19,13 @@ import {
   mergeTemporalRecords,
   multiplyUnits,
   multiplyQuantities,
-  objectConnector,
   objectPort,
   runAutowired,
   runAdapter,
   runModel,
   trackObjectReads,
   unreadOverridePaths,
-  unitConnector,
+  unitPort,
   unitQuantity,
   validatePortUnits,
 } from '../src/index.js';
@@ -100,12 +99,12 @@ test('recursive contracts validate every nested field and report its path', () =
     /capacity.undeclared: value has no port contract/,
   );
 
-  const producer = objectConnector<CapacityRow>('record', {
+  const producer = objectPort<CapacityRow>({
     solar: { unit: 'GW' },
     battery: { unit: 'GWh' },
     label: metadataPort('string', 'Scenario label.'),
   });
-  const badConsumer = objectConnector<CapacityRow>('record', {
+  const badConsumer = objectPort<CapacityRow>({
     solar: { unit: 'GW' },
     battery: { unit: 'GW' },
     label: metadataPort('string', 'Scenario label.'),
@@ -194,7 +193,7 @@ test('strict graph audit rejects missing contracts and implicit scale conversion
   const producer = defineModule({
     name: 'producer', description: 'produces billions', defaults: {}, inputs: [] as const,
     outputs: ['revenue'] as const,
-    connectorTypes: { inputs: {}, outputs: { revenue: unitConnector('number', '$B/year') } },
+    connectorTypes: { inputs: {}, outputs: { revenue: unitPort('$B/year') } },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: () => ({ state: {}, outputs: { revenue: 1_000 } }),
   });
@@ -202,8 +201,8 @@ test('strict graph audit rejects missing contracts and implicit scale conversion
     name: 'consumer', description: 'expects trillions', defaults: {}, inputs: ['revenue'] as const,
     outputs: ['seen'] as const,
     connectorTypes: {
-      inputs: { revenue: unitConnector('number', '$T/year') },
-      outputs: { seen: unitConnector('number', '$T/year') },
+      inputs: { revenue: unitPort('$T/year') },
+      outputs: { seen: unitPort('$T/year') },
     },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: (_s, input) => ({ state: {}, outputs: { seen: input.revenue } }),
@@ -217,7 +216,7 @@ test('an explicit transform may perform a declared unit conversion', () => {
   const producer = defineModule({
     name: 'producer-b', description: 'produces billions', defaults: {}, inputs: [] as const,
     outputs: ['revenueB'] as const,
-    connectorTypes: { inputs: {}, outputs: { revenueB: unitConnector('number', '$B/year') } },
+    connectorTypes: { inputs: {}, outputs: { revenueB: unitPort('$B/year') } },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: () => ({ state: {}, outputs: { revenueB: 1_000 } }),
   });
@@ -225,8 +224,8 @@ test('an explicit transform may perform a declared unit conversion', () => {
     name: 'consumer-t', description: 'consumes trillions', defaults: {}, inputs: ['revenueT'] as const,
     outputs: ['seen'] as const,
     connectorTypes: {
-      inputs: { revenueT: unitConnector('number', '$T/year') },
-      outputs: { seen: unitConnector('number', '$T/year') },
+      inputs: { revenueT: unitPort('$T/year') },
+      outputs: { seen: unitPort('$T/year') },
     },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: (_s, input) => ({ state: {}, outputs: { seen: input.revenueT } }),
@@ -235,8 +234,8 @@ test('an explicit transform may perform a declared unit conversion', () => {
     revenueT: {
       fn: (outputs: Record<string, number>) => convertUnit(outputs.revenueB, '$B/year', '$T/year'),
       dependsOn: ['revenueB'],
-      inputTypes: { revenueB: unitConnector('number', '$B/year') },
-      outputType: unitConnector('number', '$T/year'),
+      inputTypes: { revenueB: unitPort('$B/year') },
+      outputType: unitPort('$T/year'),
     },
   };
   const audit = auditConnectorContracts([producer, consumer], transforms);
@@ -249,7 +248,7 @@ test('lags preserve their source unit and cannot hide a mismatch', () => {
   const source = defineModule({
     name: 'energy-source', description: 'annual energy', defaults: {}, inputs: [] as const,
     outputs: ['energy'] as const,
-    connectorTypes: { inputs: {}, outputs: { energy: unitConnector('number', 'TWh/year') } },
+    connectorTypes: { inputs: {}, outputs: { energy: unitPort('TWh/year') } },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: () => ({ state: {}, outputs: { energy: 1 } }),
   });
@@ -257,8 +256,8 @@ test('lags preserve their source unit and cannot hide a mismatch', () => {
     name: 'power-sink', description: 'expects power', defaults: {}, inputs: ['previousPower'] as const,
     outputs: ['seen'] as const,
     connectorTypes: {
-      inputs: { previousPower: unitConnector('number', 'GW') },
-      outputs: { seen: unitConnector('number', 'GW') },
+      inputs: { previousPower: unitPort('GW') },
+      outputs: { seen: unitPort('GW') },
     },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
     step: (_s, input) => ({ state: {}, outputs: { seen: input.previousPower } }),
@@ -266,7 +265,7 @@ test('lags preserve their source unit and cannot hide a mismatch', () => {
   const audit = auditConnectorContracts([source, sink], {}, {
     previousPower: {
       source: 'energy', delay: 1, initial: 0,
-      contract: unitConnector('number', 'TWh/year'),
+      contract: unitPort('TWh/year'),
     },
   });
   assert.equal(audit.valid, false);

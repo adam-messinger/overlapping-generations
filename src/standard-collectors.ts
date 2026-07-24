@@ -8,7 +8,7 @@
  */
 
 import { Region, REGIONS } from './domain-types.js';
-import { unitConnector, type CollectorConfig } from 'tsimulation';
+import { unitPort, type CollectorConfig } from 'tsimulation';
 import {
   ENERGY_ADDITION_CONNECTOR,
   ENERGY_CAPACITY_CONNECTOR,
@@ -228,7 +228,7 @@ export const standardCollectors: CollectorConfig = {
         additions: ENERGY_ADDITION_CONNECTOR,
         capacities: ENERGY_CAPACITY_CONNECTOR,
       },
-      outputType: unitConnector('number', 'TWh/year'),
+      outputType: unitPort('TWh/year'),
       transform: (outputs: Record<string, any>) =>
         computeEnergySystemOverhead(outputs.additions, outputs.capacities),
     },
@@ -254,7 +254,7 @@ export const standardCollectors: CollectorConfig = {
       description: 'GDP by region',
       module: 'demand',
       inputTypes: { regional: REGIONAL_DEMAND_CONNECTOR },
-      outputType: unitConnector('record', '$T/year'),
+      outputType: unitPort('$T/year', 'record'),
       transform: (outputs: Record<string, any>) => {
         const regional = outputs.regional;
         if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;

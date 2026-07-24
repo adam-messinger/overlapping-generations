@@ -38,7 +38,7 @@ export type { ParameterInfo, ParameterSchema, OutputInfo, OutputSchema } from '.
 // Auto-wired simulation
 export { runAutowired, initAutowired, stepAutowired, finalizeAutowired, buildOutputRegistry, buildDependencyGraph, topologicalSort, getOutputsAtYear, getTimeSeries, validateConnectorTypes } from 'tsimulation';
 export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AutowireState, AnyModule } from 'tsimulation';
-export type { ConnectorType } from 'tsimulation';
+export type { PortMeta, PortValueType } from 'tsimulation';
 export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics } from './simulation-autowired.js';
 
 // Problem-solve separation (Julia SciML-inspired)

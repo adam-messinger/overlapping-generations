@@ -11,7 +11,7 @@
  * - Lags: handle feedback loops with delayed values
  */
 
-import { Module, ConnectorDeclaration, ConnectorSpec, ConnectorType } from './module.js';
+import { Module } from './module.js';
 import { Year, YearIndex } from './types.js';
 import { validatedMerge } from './validated-merge.js';
 import type { PortMeta } from './units.js';
@@ -56,9 +56,9 @@ export interface TransformConfig {
   /** Output names this transform reads (creates dependency edges) */
   dependsOn: string[];
   /** Complete unit/shape signature for every output the function may read. */
-  inputTypes: Record<string, ConnectorSpec>;
+  inputTypes: Record<string, PortMeta>;
   /** Unit/shape signature of the value returned by the transform. */
-  outputType: ConnectorSpec;
+  outputType: PortMeta;
   /** Explicit semantic bridges applied by individual transform inputs. */
   inputCrosswalks?: Record<string, SemanticCrosswalk>;
   /** Explicit observation-procedure bridges applied by transform inputs. */
@@ -85,7 +85,7 @@ function normalizeTransform(entry: TransformEntry): TransformConfig {
       fn: entry,
       dependsOn: [],
       inputTypes: {},
-      outputType: undefined as unknown as ConnectorSpec,
+      outputType: undefined as unknown as PortMeta,
     }; // Runtime backwards compatibility; strict validation rejects this form.
   }
   return entry;
@@ -102,7 +102,7 @@ export interface LagConfig {
   /** Initial value for year 0 */
   initial: any;
   /** The lag preserves this unit and shape from source through initial/history to consumer. */
-  contract: ConnectorSpec;
+  contract: PortMeta;
   /**
    * When true and the run uses bootstrapLags > 0, this lag's initial is
    * replaced by the value its source actually produces in a warm-up pass of
@@ -373,21 +373,6 @@ export function topologicalSort(graph: Map<string, DepNode>): AnyModule[] {
 // CONNECTOR TYPE VALIDATION
 // =============================================================================
 
-/** Convert a module connector declaration to the framework's common port schema. */
-export function connectorSpecToPortMeta(spec: ConnectorSpec): PortMeta {
-  if ('kind' in spec && spec.kind) return spec as PortMeta;
-  if ('opaque' in spec && spec.opaque) {
-    return { opaque: true, description: spec.description, valueType: spec.type };
-  }
-  return {
-    unit: spec.unit,
-    valueType: spec.type,
-    ...(spec.estimand ? { estimand: spec.estimand } : {}),
-    ...(spec.measurement ? { measurement: spec.measurement } : {}),
-    ...(spec.description ? { description: spec.description } : {}),
-  };
-}
-
 /** Validate complete shape/unit contracts for modules, transforms, and lags. */
 export function validateConnectorTypes(
   modules: AnyModule[],
@@ -399,9 +384,9 @@ export function validateConnectorTypes(
   const warnings: string[] = [];
 
   const normalize = (
-    declaration: ConnectorDeclaration | undefined,
+    declaration: PortMeta | string | undefined,
     context: string,
-  ): ConnectorSpec | undefined => {
+  ): PortMeta | undefined => {
     if (!declaration) {
       warnings.push(`Missing connector contract: ${context}`);
       return undefined;
@@ -411,7 +396,7 @@ export function validateConnectorTypes(
       return undefined;
     }
     try {
-      validatePortMeta(connectorSpecToPortMeta(declaration), context);
+      validatePortMeta(declaration, context);
     } catch (error) {
       warnings.push(error instanceof Error ? error.message : String(error));
     }
@@ -419,19 +404,20 @@ export function validateConnectorTypes(
   };
 
   const compare = (
-    producer: ConnectorSpec,
-    consumer: ConnectorSpec,
+    producer: PortMeta,
+    consumer: PortMeta,
     context: string,
     crosswalk?: SemanticCrosswalk,
     measurementCrosswalk?: MeasurementCrosswalk,
   ): void => {
-    if (producer.type !== consumer.type) {
-      warnings.push(`Type mismatch: ${context} provides '${producer.type}' but consumer expects '${consumer.type}'`);
-    }
+    // Shape agreement is checked by validatePortCompatibility below: it
+    // compares portKind, normalizes an omitted quantity valueType to 'number',
+    // and walks structured schemas recursively. The old flat `type` tag was a
+    // strictly weaker version of the same check.
     try {
       validatePortCompatibility(
-        connectorSpecToPortMeta(producer),
-        connectorSpecToPortMeta(consumer),
+        producer,
+        consumer,
         context,
         { semanticValidation, crosswalk, measurementCrosswalk },
       );
@@ -440,12 +426,12 @@ export function validateConnectorTypes(
     }
   };
 
-  const outputTypes = new Map<string, { module: string; spec: ConnectorSpec }>();
+  const outputTypes = new Map<string, { module: string; spec: PortMeta }>();
   for (const mod of modules) {
     const inputNames = new Set(mod.inputs.map(String));
     const outputNames = new Set(mod.outputs.map(String));
-    const inputContracts = mod.connectorTypes?.inputs as Record<string, ConnectorDeclaration> | undefined;
-    const outputContracts = mod.connectorTypes?.outputs as Record<string, ConnectorDeclaration> | undefined;
+    const inputContracts = mod.connectorTypes?.inputs as Record<string, PortMeta | string> | undefined;
+    const outputContracts = mod.connectorTypes?.outputs as Record<string, PortMeta | string> | undefined;
     for (const inputName of inputNames) normalize(inputContracts?.[inputName], `${mod.name}.${inputName}`);
     for (const outputName of outputNames) {
       const spec = normalize(outputContracts?.[outputName], `${mod.name}.${outputName}`);
@@ -459,7 +445,7 @@ export function validateConnectorTypes(
     }
   }
 
-  const transformOutputs = new Map<string, ConnectorSpec>();
+  const transformOutputs = new Map<string, PortMeta>();
   for (const [name, entry] of Object.entries(transforms)) {
     if (typeof entry === 'function') {
       warnings.push(`Transform '${name}' uses the legacy bare-function form and has no unit signature`);
@@ -470,7 +456,7 @@ export function validateConnectorTypes(
     if (entry.derivation) {
       try {
         validateSemanticDerivation(entry.derivation, `transform ${name} derivation`);
-        const declaredOutput = connectorSpecToPortMeta(entry.outputType);
+        const declaredOutput = entry.outputType;
         if ('estimand' in declaredOutput && declaredOutput.estimand) {
           const comparison = compareEstimands(
             entry.derivation.outputEstimand,
@@ -508,9 +494,9 @@ export function validateConnectorTypes(
       }
     }
     if (semanticValidation === 'required' && outputType) {
-      const outputMeta = connectorSpecToPortMeta(outputType);
+      const outputMeta = outputType;
       const inputEstimands = Object.values(entry.inputTypes ?? {})
-        .map((input) => connectorSpecToPortMeta(input))
+        .map((input) => input)
         .flatMap((input) => 'estimand' in input && input.estimand ? [input.estimand] : []);
       const outputEstimand = 'estimand' in outputMeta ? outputMeta.estimand : undefined;
       if (outputEstimand && inputEstimands.length > 0 &&
@@ -527,7 +513,7 @@ export function validateConnectorTypes(
     for (const input of mod.inputs) {
       const inputName = String(input);
       const expected = normalize(
-        (mod.connectorTypes?.inputs as Record<string, ConnectorDeclaration> | undefined)?.[inputName],
+        (mod.connectorTypes?.inputs as Record<string, PortMeta | string> | undefined)?.[inputName],
         `${mod.name}.${inputName}`,
       );
       if (!expected) continue;
@@ -577,8 +563,8 @@ export function validateConnectorTypes(
   return [...new Set(warnings)];
 }
 
-function assertConnectorValue(value: unknown, spec: ConnectorSpec, context: string): void {
-  assertPortValue(value, connectorSpecToPortMeta(spec), context);
+function assertConnectorValue(value: unknown, spec: PortMeta, context: string): void {
+  assertPortValue(value, spec, context);
 }
 
 export interface ConnectorContractAudit {
@@ -601,7 +587,7 @@ export function auditConnectorContracts(
   semanticValidation: SemanticValidationMode = 'if-present',
 ): ConnectorContractAudit {
   const outputRegistry = buildOutputRegistry(modules);
-  const declarations: Array<{ path: string; declaration: ConnectorDeclaration }> = [];
+  const declarations: Array<{ path: string; declaration: PortMeta }> = [];
   for (const mod of modules) {
     for (const [name, declaration] of Object.entries(mod.connectorTypes?.inputs ?? {})) {
       declarations.push({ path: `${mod.name}.input.${name}`, declaration });
@@ -625,7 +611,7 @@ export function auditConnectorContracts(
     (total, { path, declaration }) => {
       if (typeof declaration === 'string' || !declaration) return total;
       try {
-        const meta = connectorSpecToPortMeta(declaration);
+        const meta = declaration;
         validatePortMeta(meta, 'connector contract audit');
         const count = countPortSchema(meta);
         total.unitBearingContracts += count.unitBearing;
@@ -932,7 +918,7 @@ export interface AutowireResult {
    * collectors can validate source paths and transformed outputs automatically.
    * Optional for compatibility with externally constructed result fixtures.
    */
-  outputContracts?: Record<string, { module: string; spec: ConnectorSpec }>;
+  outputContracts?: Record<string, { module: string; spec: PortMeta }>;
   diagnostics?: {
     bootstrap?: BootstrapDiagnostics;
     parameterLiveness?: Record<string, {
@@ -1154,7 +1140,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
     }
 
     if (state.connectorValidation !== 'off') {
-      const contracts = mod.connectorTypes?.inputs as Record<string, ConnectorSpec> | undefined;
+      const contracts = mod.connectorTypes?.inputs as Record<string, PortMeta> | undefined;
       for (const input of mod.inputs) {
         const inputName = String(input);
         if (contracts?.[inputName]) {
@@ -1170,7 +1156,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
     // Verify completeness + NaN guard
     validateOutputs(mod, result.outputs as Record<string, any>, year);
     if (state.connectorValidation !== 'off') {
-      const contracts = mod.connectorTypes?.outputs as Record<string, ConnectorSpec> | undefined;
+      const contracts = mod.connectorTypes?.outputs as Record<string, PortMeta> | undefined;
       for (const output of mod.outputs) {
         const outputName = String(output);
         if (contracts?.[outputName]) {
@@ -1236,7 +1222,7 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
   const outputContractEntries = state.sortedModules.flatMap((mod) =>
     mod.outputs.flatMap((output) => {
       const name = String(output);
-      const spec = (mod.connectorTypes?.outputs as Record<string, ConnectorSpec> | undefined)?.[name];
+      const spec = (mod.connectorTypes?.outputs as Record<string, PortMeta> | undefined)?.[name];
       return spec ? [[name, { module: mod.name, spec }] as const] : [];
     }),
   );

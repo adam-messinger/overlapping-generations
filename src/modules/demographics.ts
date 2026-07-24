@@ -14,7 +14,7 @@
  * - regionalPopulation: Per-region breakdown
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
 import { exponentialConvergence, logistic } from '../primitives/math.js';
 
@@ -569,23 +569,23 @@ export const demographicsModule: Module<
 
   connectorTypes: {
     inputs: {
-      temperature: unitConnector('number', 'Δ°C'),
+      temperature: unitPort('Δ°C'),
     },
     outputs: {
-      population: unitConnector('number', 'people'),
-      working: unitConnector('number', 'people'),
-      dependency: unitConnector('number', 'fraction'),
-      effectiveWorkers: unitConnector('number', 'people'),
-      collegeShare: unitConnector('number', 'fraction'),
-      heatStressLoss: unitConnector('record', 'fraction'),
-      regionalPopulation: unitConnector('record', 'people'),
-      regionalYoung: unitConnector('record', 'people'),
-      regionalWorking: unitConnector('record', 'people'),
-      regionalOld: unitConnector('record', 'people'),
-      regionalEffectiveWorkers: unitConnector('record', 'people'),
-      regionalDependency: unitConnector('record', 'fraction'),
-      regionalFertility: unitConnector('record', '1'),
-      regionalLifeExpectancy: unitConnector('record', 'year'),
+      population: unitPort('people'),
+      working: unitPort('people'),
+      dependency: unitPort('fraction'),
+      effectiveWorkers: unitPort('people'),
+      collegeShare: unitPort('fraction'),
+      heatStressLoss: unitPort('fraction', 'record'),
+      regionalPopulation: unitPort('people', 'record'),
+      regionalYoung: unitPort('people', 'record'),
+      regionalWorking: unitPort('people', 'record'),
+      regionalOld: unitPort('people', 'record'),
+      regionalEffectiveWorkers: unitPort('people', 'record'),
+      regionalDependency: unitPort('fraction', 'record'),
+      regionalFertility: unitPort('1', 'record'),
+      regionalLifeExpectancy: unitPort('year', 'record'),
     },
   },
 

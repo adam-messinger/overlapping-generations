@@ -18,7 +18,7 @@ import {
   defineSemanticDerivation,
   inlineDataResolver,
   manifestToJson,
-  measurementConnector,
+  measurementPort,
   measurementPort,
   observationPort,
   parseRunManifest,
@@ -112,7 +112,7 @@ test('semantic validation propagates through connectors and adapters', () => {
     connectorTypes: {
       inputs: {},
       outputs: {
-        electricity: measurementConnector('number', 'TWh/year', totalSiteEnergy),
+        electricity: measurementPort('TWh/year', totalSiteEnergy),
       },
     },
     validate: okValidate,
@@ -128,10 +128,10 @@ test('semantic validation propagates through connectors and adapters', () => {
     outputs: ['seen'] as const,
     connectorTypes: {
       inputs: {
-        electricity: measurementConnector('number', 'TWh/year', incrementalServerEnergy),
+        electricity: measurementPort('TWh/year', incrementalServerEnergy),
       },
       outputs: {
-        seen: measurementConnector('number', 'TWh/year', incrementalServerEnergy),
+        seen: measurementPort('TWh/year', incrementalServerEnergy),
       },
     },
     validate: okValidate,
