@@ -8,12 +8,12 @@
  */
 
 import { Region, REGIONS } from './domain-types.js';
-import { unitConnector, type CollectorConfig } from 'tsimulation';
+import { unitPort, type CollectorConfig } from 'tsimulation';
 import {
-  ENERGY_ADDITION_CONNECTOR,
-  ENERGY_CAPACITY_CONNECTOR,
-  REGIONAL_DEMAND_CONNECTOR,
-} from './connector-schemas.js';
+  ENERGY_ADDITION_PORT,
+  ENERGY_CAPACITY_PORT,
+  REGIONAL_DEMAND_PORT,
+} from './port-schemas.js';
 
 // =============================================================================
 // ENERGY SYSTEM OVERHEAD (shared computation)
@@ -225,10 +225,10 @@ export const standardCollectors: CollectorConfig = {
       description: 'Embodied + operating energy of energy infrastructure (net energy overhead)',
       module: 'energy',
       inputTypes: {
-        additions: ENERGY_ADDITION_CONNECTOR,
-        capacities: ENERGY_CAPACITY_CONNECTOR,
+        additions: ENERGY_ADDITION_PORT,
+        capacities: ENERGY_CAPACITY_PORT,
       },
-      outputType: unitConnector('number', 'TWh/year'),
+      outputType: unitPort('TWh/year'),
       transform: (outputs: Record<string, any>) =>
         computeEnergySystemOverhead(outputs.additions, outputs.capacities),
     },
@@ -253,8 +253,8 @@ export const standardCollectors: CollectorConfig = {
       unit: '$T/year',
       description: 'GDP by region',
       module: 'demand',
-      inputTypes: { regional: REGIONAL_DEMAND_CONNECTOR },
-      outputType: unitConnector('record', '$T/year'),
+      inputTypes: { regional: REGIONAL_DEMAND_PORT },
+      outputType: unitPort('$T/year', 'record'),
       transform: (outputs: Record<string, any>) => {
         const regional = outputs.regional;
         if (!regional) return Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;

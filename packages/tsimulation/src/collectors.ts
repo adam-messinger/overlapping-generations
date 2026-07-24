@@ -13,12 +13,10 @@
  */
 
 import {
-  connectorSpecToPortMeta,
   getOutputsAtYear,
   type AnyModule,
   type AutowireResult,
 } from './autowire.js';
-import type { ConnectorSpec } from './module.js';
 import {
   areUnitsIdentical,
   auditPortSemantics,
@@ -65,8 +63,8 @@ export interface TimeseriesDef {
   as?: string;
   path?: string;
   transform?: (outputs: Record<string, any>, year: number, yearIndex: number) => any;
-  inputTypes?: Record<string, ConnectorSpec>;
-  outputType?: ConnectorSpec;
+  inputTypes?: Record<string, PortMeta>;
+  outputType?: PortMeta;
   inputCrosswalks?: Record<string, SemanticCrosswalk>;
   inputMeasurementCrosswalks?: Record<string, MeasurementCrosswalk>;
   derivation?: SemanticDerivation;
@@ -103,7 +101,7 @@ export interface MetricDef {
   aggregator: MetricAggregator;
   transform?: (outputs: Record<string, any>, year: number, yearIndex: number) => any;
   /** Required for transformed/custom metrics under strict semantic validation. */
-  outputType?: ConnectorSpec;
+  outputType?: PortMeta;
   derivation?: SemanticDerivation;
 }
 
@@ -139,7 +137,7 @@ export interface CollectorContractAudit {
 
 interface ProducerContract {
   module: string;
-  spec: ConnectorSpec;
+  spec: PortMeta;
 }
 
 type ProducerContracts = Readonly<Record<string, ProducerContract>>;
@@ -149,7 +147,7 @@ function producerContractsFromModules(modules: readonly AnyModule[]): ProducerCo
     modules.flatMap((mod) =>
       mod.outputs.map((output) => {
         const name = String(output);
-        const spec = (mod.connectorTypes.outputs as Record<string, ConnectorSpec>)[name];
+        const spec = (mod.connectorTypes.outputs as Record<string, PortMeta>)[name];
         return [name, { module: mod.name, spec }] as const;
       }),
     ),
@@ -219,7 +217,7 @@ function transformedContract(def: TimeseriesDef, context: string): PortMeta {
   if (!def.outputType) {
     throw new Error(`${context}: transformed collector must declare outputType`);
   }
-  const contract = connectorSpecToPortMeta(def.outputType);
+  const contract = def.outputType;
   validatePortMeta(contract, `${context} output`);
   return contract;
 }
@@ -258,7 +256,7 @@ function resolveCollectorAgainstRegistry(
       throw new Error(`${context}: direct collector must not declare transform inputTypes/outputType`);
     }
     const contract = resolvePortPath(
-      connectorSpecToPortMeta(producer.spec),
+      producer.spec,
       def.path,
       `${context} source '${def.source}'`,
     );
@@ -283,8 +281,8 @@ function resolveCollectorAgainstRegistry(
       throw new Error(`${context}: transform input '${read}' is not produced by any module`);
     }
     validatePortCompatibility(
-      connectorSpecToPortMeta(readProducer.spec),
-      connectorSpecToPortMeta(expectedSpec),
+      readProducer.spec,
+      expectedSpec,
       `${context}: ${readProducer.module}.${read} -> transform input '${read}'`,
       {
         semanticValidation,
@@ -309,7 +307,6 @@ function resolveCollectorAgainstRegistry(
       throw new Error(`${context}: transformed output is missing an estimand contract`);
     }
     const inputEstimands = Object.values(def.inputTypes)
-      .map((spec) => connectorSpecToPortMeta(spec))
       .flatMap((meta) => isQuantityPort(meta) && meta.estimand ? [meta.estimand] : []);
     if (isQuantityPort(contract) && contract.estimand && inputEstimands.length > 0 &&
         !inputEstimands.some((input) => compareEstimands(input, contract.estimand!).compatible) &&
@@ -350,7 +347,7 @@ function auditCollectorRegistry(
   for (const metric of config.metrics) {
     try {
       if (metric.outputType) {
-        const contract = connectorSpecToPortMeta(metric.outputType);
+        const contract = metric.outputType;
         validatePortMeta(contract, `metric '${metric.as}' output`);
         if (metric.derivation) {
           validateSemanticDerivation(metric.derivation, `metric '${metric.as}' derivation`);
@@ -618,7 +615,7 @@ export function collectResults(result: AutowireResult, config: CollectorConfig):
       metrics[def.as] = aggregate(values, years, def.aggregator);
     }
     if (def.outputType) {
-      const contract = connectorSpecToPortMeta(def.outputType);
+      const contract = def.outputType;
       validatePortMeta(contract, `Metric '${def.as}' output`);
       if (def.derivation) {
         validateSemanticDerivation(def.derivation, `Metric '${def.as}' derivation`);

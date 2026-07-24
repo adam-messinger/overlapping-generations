@@ -8,7 +8,7 @@
  * International migration is intentionally non-zero-sum and is scaled by the
  * cohort-specific share of the national population covered by modeled places.
  */
-import { defineModule, ValidationResult, unitConnector } from 'tsimulation';
+import { defineModule, ValidationResult, unitPort } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort } from '../domain-types.js';
 
 export interface MigrationParams {
@@ -212,35 +212,35 @@ export const migrationModule = defineModule<
   ],
   connectorTypes: {
     inputs: {
-      attractionWorking: unitConnector('vector', '1'),
-      attractionRetiree: unitConnector('vector', '1'),
-      netImmigrationByCohort: unitConnector('record', 'people/year'),
-      laggedWorkingStock: unitConnector('vector', 'people'),
-      laggedMidlifeStock: unitConnector('vector', 'people'),
-      laggedRetireeStock: unitConnector('vector', 'people'),
-      laggedDestinationUnits: unitConnector('vector', 'housing-unit'),
-      laggedA0_19Stock: unitConnector('vector', 'people'),
-      laggedA20_24Stock: unitConnector('vector', 'people'),
-      laggedA25_44Stock: unitConnector('vector', 'people'),
-      laggedA45_64Stock: unitConnector('vector', 'people'),
-      laggedA65upStock: unitConnector('vector', 'people'),
-      currentTfr: unitConnector('number', '1'),
+      attractionWorking: unitPort('1', 'vector'),
+      attractionRetiree: unitPort('1', 'vector'),
+      netImmigrationByCohort: unitPort('people/year', 'record'),
+      laggedWorkingStock: unitPort('people', 'vector'),
+      laggedMidlifeStock: unitPort('people', 'vector'),
+      laggedRetireeStock: unitPort('people', 'vector'),
+      laggedDestinationUnits: unitPort('housing-unit', 'vector'),
+      laggedA0_19Stock: unitPort('people', 'vector'),
+      laggedA20_24Stock: unitPort('people', 'vector'),
+      laggedA25_44Stock: unitPort('people', 'vector'),
+      laggedA45_64Stock: unitPort('people', 'vector'),
+      laggedA65upStock: unitPort('people', 'vector'),
+      currentTfr: unitPort('1'),
     },
     outputs: {
-      netWorking: unitConnector('vector', 'people/year'),
-      netMidlife: unitConnector('vector', 'people/year'),
-      netRetiree: unitConnector('vector', 'people/year'),
-      internalNetByCohort: unitConnector('nested-record', 'people/year'),
-      localNetImmigrationByCohort: unitConnector('nested-record', 'people/year'),
-      arrivalsWorking: unitConnector('vector', 'people/year'),
-      departuresWorking: unitConnector('vector', 'people/year'),
-      departuresRetiree: unitConnector('vector', 'people/year'),
-      internalNetTotal: unitConnector('number', 'people/year'),
-      internationalNetTotal: unitConnector('number', 'people/year'),
-      unmetInternalMigrationByCohort: unitConnector('record', 'people/year'),
-      unmetInternationalExitByCohort: unitConnector('record', 'people/year'),
-      unmetInternalMigrationTotal: unitConnector('number', 'people/year'),
-      unmetInternationalExitTotal: unitConnector('number', 'people/year'),
+      netWorking: unitPort('people/year', 'vector'),
+      netMidlife: unitPort('people/year', 'vector'),
+      netRetiree: unitPort('people/year', 'vector'),
+      internalNetByCohort: unitPort('people/year', 'nested-record'),
+      localNetImmigrationByCohort: unitPort('people/year', 'nested-record'),
+      arrivalsWorking: unitPort('people/year', 'vector'),
+      departuresWorking: unitPort('people/year', 'vector'),
+      departuresRetiree: unitPort('people/year', 'vector'),
+      internalNetTotal: unitPort('people/year'),
+      internationalNetTotal: unitPort('people/year'),
+      unmetInternalMigrationByCohort: unitPort('people/year', 'record'),
+      unmetInternationalExitByCohort: unitPort('people/year', 'record'),
+      unmetInternalMigrationTotal: unitPort('people/year'),
+      unmetInternationalExitTotal: unitPort('people/year'),
     },
   },
 

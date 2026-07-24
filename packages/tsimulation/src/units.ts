@@ -126,7 +126,29 @@ export interface VectorPortMeta<T = unknown> {
   opaque?: never;
 }
 
-export type StructuredPortMeta = ObjectPortMeta<any> | RecordPortMeta<any> | VectorPortMeta<any>;
+/**
+ * Erased structured contracts.
+ *
+ * The generic forms above keep each field tied to the value type it describes,
+ * which is what makes a declaration site type-safe. But `ObjectPortMeta<any>`
+ * is not a usable union member: `ObjectFieldContract<any>` collapses to an
+ * index signature demanding `optional: true`, so no concrete
+ * `objectPort<T>()` result is assignable to it. The union therefore uses these
+ * erased forms, which drop the T link and keep only the runtime shape.
+ */
+export interface AnyObjectPortMeta extends Omit<ObjectPortMeta, 'fields'> {
+  fields: Readonly<Record<string, PortMeta>>;
+}
+
+export interface AnyRecordPortMeta extends Omit<RecordPortMeta, 'values'> {
+  values: PortMeta;
+}
+
+export interface AnyVectorPortMeta extends Omit<VectorPortMeta, 'items'> {
+  items: PortMeta;
+}
+
+export type StructuredPortMeta = AnyObjectPortMeta | AnyRecordPortMeta | AnyVectorPortMeta;
 export type PortMeta = QuantityPortMeta | MetadataPortMeta | StructuredPortMeta | OpaquePortMeta;
 
 type WithNullability<T, TMeta> = null extends T
@@ -540,15 +562,15 @@ export function isMetadataPort(port: PortMeta): port is MetadataPortMeta {
   return 'kind' in port && port.kind === 'metadata';
 }
 
-export function isObjectPort(port: PortMeta): port is ObjectPortMeta<any> {
+export function isObjectPort(port: PortMeta): port is AnyObjectPortMeta {
   return 'kind' in port && port.kind === 'object';
 }
 
-export function isRecordPort(port: PortMeta): port is RecordPortMeta<any> {
+export function isRecordPort(port: PortMeta): port is AnyRecordPortMeta {
   return 'kind' in port && port.kind === 'record';
 }
 
-export function isVectorPort(port: PortMeta): port is VectorPortMeta<any> {
+export function isVectorPort(port: PortMeta): port is AnyVectorPortMeta {
   return 'kind' in port && port.kind === 'vector';
 }
 

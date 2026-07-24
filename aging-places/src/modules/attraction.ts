@@ -7,7 +7,7 @@
  * (weights justified in docs/METHODOLOGY.md from the Japan/Italy evidence);
  * the pillar-level weights are tunable params.
  */
-import { defineModule, ValidationResult, unitConnector } from 'tsimulation';
+import { defineModule, ValidationResult, unitPort } from 'tsimulation';
 import { PlaceStatics } from '../domain-types.js';
 
 export interface AttractionParams {
@@ -166,13 +166,13 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
   outputs: ['attractionWorking', 'attractionRetiree'],
   connectorTypes: {
     inputs: {
-      laggedPriceToIncome: unitConnector('vector', 'year'),
-      laggedYoungShare: unitConnector('vector', 'fraction'),
-      natWorkingGrowth: unitConnector('number', 'fraction/year'),
+      laggedPriceToIncome: unitPort('year', 'vector'),
+      laggedYoungShare: unitPort('fraction', 'vector'),
+      natWorkingGrowth: unitPort('fraction/year'),
     },
     outputs: {
-      attractionWorking: unitConnector('vector', '1'),
-      attractionRetiree: unitConnector('vector', '1'),
+      attractionWorking: unitPort('1', 'vector'),
+      attractionRetiree: unitPort('1', 'vector'),
     },
   },
 

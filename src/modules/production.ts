@@ -27,7 +27,7 @@
  * - Brockway et al. (2018): Exergy-GDP relationship
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import { STRUCTURAL_ANCHOR_YEAR } from '../primitives/math.js';
 
 // =============================================================================
@@ -266,29 +266,29 @@ export const productionModule: Module<
 
   connectorTypes: {
     inputs: {
-      capitalStock: unitConnector('number', '$T'),
-      effectiveWorkers: unitConnector('number', 'people'),
-      totalGeneration: unitConnector('number', 'TWh/year'),
-      nonElectricEnergy: unitConnector('number', 'TWh/year'),
-      damages: unitConnector('number', 'fraction'),
-      energyBurdenDamage: unitConnector('number', 'fraction'),
-      foodStress: unitConnector('number', 'fraction'),
-      resourceEnergy: unitConnector('number', 'TWh/year'),
-      energySystemOverhead: unitConnector('number', 'TWh/year'),
-      collegeShare: unitConnector('number', 'fraction'),
-      cdrEnergy: unitConnector('number', 'TWh/year'),
-      robotsPer1000: unitConnector('number', 'robot/kpeople'),
-      robotLoadTWh: unitConnector('number', 'TWh/year'),
-      dataCenterLoadTWh: unitConnector('number', 'TWh/year'),
+      capitalStock: unitPort('$T'),
+      effectiveWorkers: unitPort('people'),
+      totalGeneration: unitPort('TWh/year'),
+      nonElectricEnergy: unitPort('TWh/year'),
+      damages: unitPort('fraction'),
+      energyBurdenDamage: unitPort('fraction'),
+      foodStress: unitPort('fraction'),
+      resourceEnergy: unitPort('TWh/year'),
+      energySystemOverhead: unitPort('TWh/year'),
+      collegeShare: unitPort('fraction'),
+      cdrEnergy: unitPort('TWh/year'),
+      robotsPer1000: unitPort('robot/kpeople'),
+      robotLoadTWh: unitPort('TWh/year'),
+      dataCenterLoadTWh: unitPort('TWh/year'),
     },
     outputs: {
-      gdp: unitConnector('number', '$T/year'),
-      productionUsefulEnergy: unitConnector('number', 'TWh/year'),
-      capitalContribution: unitConnector('number', '1'),
-      laborContribution: unitConnector('number', '1'),
-      energyContribution: unitConnector('number', '1'),
-      efficiencyLevel: unitConnector('number', '1'),
-      eta: unitConnector('number', '1'),
+      gdp: unitPort('$T/year'),
+      productionUsefulEnergy: unitPort('TWh/year'),
+      capitalContribution: unitPort('1'),
+      laborContribution: unitPort('1'),
+      energyContribution: unitPort('1'),
+      efficiencyLevel: unitPort('1'),
+      eta: unitPort('1'),
     },
   },
 

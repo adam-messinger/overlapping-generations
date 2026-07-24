@@ -27,18 +27,18 @@ import {
   multiplyQuantities,
   subtractQuantities,
   sumQuantities,
-  unitConnector,
+  unitPort,
   unitQuantity,
   ValidationResult,
   validatedMerge,
 } from 'tsimulation';
 import {
-  CARBON_CONNECTOR,
-  ENERGY_ADDITION_CONNECTOR,
-  FOOD_CONNECTOR,
-  LAND_CONNECTOR,
-  MINERALS_CONNECTOR,
-} from '../connector-schemas.js';
+  CARBON_PORT,
+  ENERGY_ADDITION_PORT,
+  FOOD_PORT,
+  LAND_PORT,
+  MINERALS_PORT,
+} from '../port-schemas.js';
 import { EnergySource, Region, REGIONS } from '../domain-types.js';
 
 // =============================================================================
@@ -614,25 +614,25 @@ export const resourcesModule: Module<
 
   connectorTypes: {
     inputs: {
-      additions: ENERGY_ADDITION_CONNECTOR,
-      population: unitConnector('number', 'people'),
-      gdpPerCapita: unitConnector('number', '$/people/year'),
-      gdpPerCapita2025: unitConnector('number', '$/people/year'),
-      temperature: unitConnector('number', 'Δ°C'),
-      transportElectrification: unitConnector('number', 'fraction'),
+      additions: ENERGY_ADDITION_PORT,
+      population: unitPort('people'),
+      gdpPerCapita: unitPort('$/people/year'),
+      gdpPerCapita2025: unitPort('$/people/year'),
+      temperature: unitPort('Δ°C'),
+      transportElectrification: unitPort('fraction'),
     },
     outputs: {
-      minerals: MINERALS_CONNECTOR,
-      land: LAND_CONNECTOR,
-      carbon: CARBON_CONNECTOR,
-      food: FOOD_CONNECTOR,
-      foodStress: unitConnector('number', 'fraction'),
-      mineralConstraint: unitConnector('number', 'fraction'),
-      miningEnergyTWh: unitConnector('number', 'TWh/year'),
-      farmingEnergyTWh: unitConnector('number', 'TWh/year'),
-      totalResourceEnergy: unitConnector('number', 'TWh/year'),
-      waterStress: unitConnector('record', 'fraction'),
-      waterYieldFactor: unitConnector('number', 'fraction'),
+      minerals: MINERALS_PORT,
+      land: LAND_PORT,
+      carbon: CARBON_PORT,
+      food: FOOD_PORT,
+      foodStress: unitPort('fraction'),
+      mineralConstraint: unitPort('fraction'),
+      miningEnergyTWh: unitPort('TWh/year'),
+      farmingEnergyTWh: unitPort('TWh/year'),
+      totalResourceEnergy: unitPort('TWh/year'),
+      waterStress: unitPort('fraction', 'record'),
+      waterYieldFactor: unitPort('fraction'),
     },
   },
 

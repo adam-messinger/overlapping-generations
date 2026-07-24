@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runAutowired as runAutowiredStrict } from '../src/autowire.js';
-import { defineModule, objectConnector, unitConnector } from '../src/module.js';
+import { defineModule } from '../src/module.js';
 import {
   auditCollectorContracts,
   collectResults,
@@ -43,8 +43,8 @@ const contractedRamp = defineModule({
   connectorTypes: {
     inputs: {},
     outputs: {
-      level: unitConnector('number', '$B/year'),
-      group: objectConnector('nested-record', {
+      level: unitPort('$B/year'),
+      group: objectPort({
         inner: objectPort({ value: unitPort('people') }),
       }),
     },
@@ -136,8 +136,8 @@ test('transformed collectors require complete input/output signatures and valida
       source: 'level',
       as: 'doubleLevel',
       unit: '$B/year',
-      inputTypes: { level: unitConnector('number', '$B/year') },
-      outputType: unitConnector('number', '$B/year'),
+      inputTypes: { level: unitPort('$B/year') },
+      outputType: unitPort('$B/year'),
       transform: (outputs: Record<string, any>) => outputs.level * 2,
     }],
     metrics: [],
@@ -148,7 +148,7 @@ test('transformed collectors require complete input/output signatures and valida
   const missingOutput = auditCollectorContracts([contractedRamp], {
     timeseries: [{
       source: 'level',
-      inputTypes: { level: unitConnector('number', '$B/year') },
+      inputTypes: { level: unitPort('$B/year') },
       transform: (outputs: Record<string, any>) => outputs.level,
     }],
     metrics: [],
@@ -160,7 +160,7 @@ test('transformed collectors require complete input/output signatures and valida
       timeseries: [{
         source: 'level',
         inputTypes: {},
-        outputType: unitConnector('number', '$B/year'),
+        outputType: unitPort('$B/year'),
         transform: (outputs: Record<string, any>) => outputs.level,
       }],
       metrics: [],

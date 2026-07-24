@@ -8,9 +8,7 @@
 
 import {
   metadataPort,
-  objectConnector,
   objectPort,
-  recordConnector,
   recordPort,
   unitPort,
 } from 'tsimulation';
@@ -61,25 +59,16 @@ export const ENERGY_LCOE_PORT = objectPort<EnergyValues>(
   'Generator LCOEs plus battery storage cost.',
 );
 
-export const ENERGY_CAPACITY_CONNECTOR = objectConnector<EnergyValues>(
-  'record', energyCapacityFields, 'Generation power capacity plus battery energy capacity.',
-);
-export const REGIONAL_ENERGY_CAPACITY_CONNECTOR = recordConnector<EnergyValues>(
-  'nested-record', ENERGY_CAPACITY_PORT,
+export const REGIONAL_ENERGY_CAPACITY_PORT = recordPort<EnergyValues>(
+  ENERGY_CAPACITY_PORT,
   { keys: REGIONS, description: 'Capacity by region and technology.' },
 );
-export const ENERGY_ADDITION_CONNECTOR = objectConnector<EnergyValues>(
-  'record', energyAdditionFields, 'Annual generation and battery capacity additions.',
-);
-export const REGIONAL_ENERGY_ADDITION_CONNECTOR = recordConnector<EnergyValues>(
-  'nested-record', ENERGY_ADDITION_PORT,
+export const REGIONAL_ENERGY_ADDITION_PORT = recordPort<EnergyValues>(
+  ENERGY_ADDITION_PORT,
   { keys: REGIONS, description: 'Annual capacity additions by region and technology.' },
 );
-export const ENERGY_LCOE_CONNECTOR = objectConnector<EnergyValues>(
-  'record', energyLcoeFields, 'Generator LCOEs plus battery storage cost.',
-);
-export const REGIONAL_ENERGY_LCOE_CONNECTOR = recordConnector<EnergyValues>(
-  'nested-record', ENERGY_LCOE_PORT,
+export const REGIONAL_ENERGY_LCOE_PORT = recordPort<EnergyValues>(
+  ENERGY_LCOE_PORT,
   { keys: REGIONS, description: 'Technology costs by region.' },
 );
 
@@ -107,8 +96,8 @@ const regionalDemandRow = objectPort<RegionalDemandRow>({
   electricityPerWorking: unitPort('kWh/people/year'),
 });
 
-export const REGIONAL_DEMAND_CONNECTOR = recordConnector<RegionalDemandRow>(
-  'record', regionalDemandRow,
+export const REGIONAL_DEMAND_PORT = recordPort<RegionalDemandRow>(
+  regionalDemandRow,
   { keys: REGIONS, description: 'Regional macroeconomic and energy demand results.' },
 );
 
@@ -132,8 +121,8 @@ const regionalAllocationRow = objectPort<RegionalAllocationRow>({
   gdpShare: unitPort('fraction'),
 });
 
-export const REGIONAL_ALLOCATION_CONNECTOR = recordConnector<RegionalAllocationRow>(
-  'record', regionalAllocationRow,
+export const REGIONAL_ALLOCATION_PORT = recordPort<RegionalAllocationRow>(
+  regionalAllocationRow,
   { keys: REGIONS, description: 'Regional GDP allocation factors and shares.' },
 );
 
@@ -151,8 +140,7 @@ const sectorRow = objectPort<SectorRow>({
   electrificationRate: unitPort('fraction'),
 });
 
-export const DEMAND_SECTORS_CONNECTOR = objectConnector<Record<'transport' | 'buildings' | 'industry', SectorRow>>(
-  'record',
+export const DEMAND_SECTORS_PORT = objectPort<Record<'transport' | 'buildings' | 'industry', SectorRow>>(
   { transport: sectorRow, buildings: sectorRow, industry: sectorRow },
   'Demand and electrification by end-use sector.',
 );
@@ -175,8 +163,7 @@ const mineralRow = objectPort<MineralRow>({
   reserveRatio: unitPort('fraction'),
 });
 
-export const MINERALS_CONNECTOR = objectConnector<Record<'copper' | 'lithium' | 'rareEarths' | 'steel', MineralRow>>(
-  'nested-record',
+export const MINERALS_PORT = objectPort<Record<'copper' | 'lithium' | 'rareEarths' | 'steel', MineralRow>>(
   { copper: mineralRow, lithium: mineralRow, rareEarths: mineralRow, steel: mineralRow },
   'Demand, recycling, and depletion by mineral.',
 );
@@ -200,7 +187,7 @@ const landFields = {
   yieldDamageFactor: unitPort('fraction'),
   forestChange: unitPort('Mha/year'),
 };
-export const LAND_CONNECTOR = objectConnector<LandRow>('record', landFields, 'Global land-use ledger.');
+export const LAND_PORT = objectPort<LandRow>(landFields, 'Global land-use ledger.');
 
 interface CarbonRow {
   sequestration: number;
@@ -217,7 +204,7 @@ const carbonFields = {
   netFlux: unitPort('GtCO2/year'),
   cumulativeSequestration: unitPort('GtCO2'),
 };
-export const CARBON_CONNECTOR = objectConnector<CarbonRow>('record', carbonFields, 'Land-carbon stock and flow ledger.');
+export const CARBON_PORT = objectPort<CarbonRow>(carbonFields, 'Land-carbon stock and flow ledger.');
 
 interface FoodRow {
   caloriesPerCapita: number;
@@ -230,7 +217,7 @@ const foodFields = {
   proteinShare: unitPort('fraction'),
   grainEquivalent: unitPort('Mt/year'),
 };
-export const FOOD_CONNECTOR = objectConnector<FoodRow>('record', foodFields, 'Food availability and demand.');
+export const FOOD_PORT = objectPort<FoodRow>(foodFields, 'Food availability and demand.');
 
 interface CohortRow {
   label: string;
@@ -319,10 +306,11 @@ const cohortRow = objectPort<CohortRow>({
 });
 
 const cohortMap = recordPort<CohortRow>(cohortRow, { description: 'Dynamic five-year birth cohorts.' });
-export const COHORT_ACCOUNTS_CONNECTOR = recordConnector<CohortRow>(
-  'record', cohortRow, { description: 'Global cohort ledger keyed by birth cohort.' },
+export const COHORT_ACCOUNTS_PORT = recordPort<CohortRow>(
+  cohortRow,
+  { description: 'Global cohort ledger keyed by birth cohort.' },
 );
-export const REGIONAL_COHORT_ACCOUNTS_CONNECTOR = recordConnector<Record<string, CohortRow>>(
-  'nested-record', cohortMap,
+export const REGIONAL_COHORT_ACCOUNTS_PORT = recordPort<Record<string, CohortRow>>(
+  cohortMap,
   { keys: REGIONS, description: 'Cohort ledgers nested by region.' },
 );

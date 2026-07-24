@@ -6,7 +6,7 @@
  * count. Run with: `npm run example`.
  */
 
-import { defineModule, runAutowired, unitConnector } from '../src/index.js';
+import { defineModule, runAutowired, unitPort } from '../src/index.js';
 
 const prey = defineModule({
   name: 'prey',
@@ -15,8 +15,8 @@ const prey = defineModule({
   inputs: ['laggedPredators'] as const,
   outputs: ['prey'] as const,
   connectorTypes: {
-    inputs: { laggedPredators: unitConnector('number', 'individual') },
-    outputs: { prey: unitConnector('number', 'individual') },
+    inputs: { laggedPredators: unitPort('individual') },
+    outputs: { prey: unitPort('individual') },
   },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ growth: 0.6, capacity: 120, predation: 0.02, ...p }),
@@ -36,8 +36,8 @@ const predator = defineModule({
   inputs: ['prey'] as const,
   outputs: ['predators'] as const,
   connectorTypes: {
-    inputs: { prey: unitConnector('number', 'individual') },
-    outputs: { predators: unitConnector('number', 'individual') },
+    inputs: { prey: unitPort('individual') },
+    outputs: { predators: unitPort('individual') },
   },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ efficiency: 0.012, mortality: 0.5, ...p }),
@@ -55,7 +55,7 @@ const result = runAutowired({
   lags: {
     laggedPredators: {
       source: 'predators', delay: 1, initial: 9,
-      contract: unitConnector('number', 'individual'),
+      contract: unitPort('individual'),
     },
   },
   startYear: 0,

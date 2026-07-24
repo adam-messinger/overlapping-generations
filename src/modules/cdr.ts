@@ -16,7 +16,7 @@
  * - Lackner (2020): The promise of negative emissions
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import { clamp } from '../primitives/math.js';
 
 // =============================================================================
@@ -203,19 +203,19 @@ export const cdrModule: Module<
 
   connectorTypes: {
     inputs: {
-      temperature: unitConnector('number', 'Δ°C'),
-      gdp: unitConnector('number', '$T/year'),
-      laggedAvgLCOE: unitConnector('number', '$/MWh'),
-      laggedInterestRate: unitConnector('number', 'fraction'),
-      laggedGdp: unitConnector('number', '$T/year'),
+      temperature: unitPort('Δ°C'),
+      gdp: unitPort('$T/year'),
+      laggedAvgLCOE: unitPort('$/MWh'),
+      laggedInterestRate: unitPort('fraction'),
+      laggedGdp: unitPort('$T/year'),
     },
     outputs: {
-      cdrRemovalGtCO2: unitConnector('number', 'GtCO2/year'),
-      cdrEnergyTWh: unitConnector('number', 'TWh/year'),
-      cdrCostPerTon: unitConnector('number', '$/tCO2'),
-      cdrCumulative: unitConnector('number', 'GtCO2'),
-      cdrCapacity: unitConnector('number', 'GtCO2/year'),
-      cdrAnnualSpend: unitConnector('number', '$T/year'),
+      cdrRemovalGtCO2: unitPort('GtCO2/year'),
+      cdrEnergyTWh: unitPort('TWh/year'),
+      cdrCostPerTon: unitPort('$/tCO2'),
+      cdrCumulative: unitPort('GtCO2'),
+      cdrCapacity: unitPort('GtCO2/year'),
+      cdrAnnualSpend: unitPort('$T/year'),
     },
   },
 

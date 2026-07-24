@@ -24,15 +24,15 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitConnector } from 'tsimulation';
+import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import {
-  ENERGY_ADDITION_CONNECTOR,
-  ENERGY_CAPACITY_CONNECTOR,
-  ENERGY_LCOE_CONNECTOR,
-  REGIONAL_ENERGY_ADDITION_CONNECTOR,
-  REGIONAL_ENERGY_CAPACITY_CONNECTOR,
-  REGIONAL_ENERGY_LCOE_CONNECTOR,
-} from '../connector-schemas.js';
+  ENERGY_ADDITION_PORT,
+  ENERGY_CAPACITY_PORT,
+  ENERGY_LCOE_PORT,
+  REGIONAL_ENERGY_ADDITION_PORT,
+  REGIONAL_ENERGY_CAPACITY_PORT,
+  REGIONAL_ENERGY_LCOE_PORT,
+} from '../port-schemas.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
@@ -919,36 +919,36 @@ export const energyModule: Module<
 
   connectorTypes: {
     inputs: {
-      electricityDemand: unitConnector('number', 'TWh/year'),
-      regionalElectricityDemand: unitConnector('record', 'TWh/year'),
-      availableInvestment: unitConnector('number', '$T/year'),
-      regionalInvestment: unitConnector('record', '$T/year'),
-      mineralConstraint: unitConnector('number', 'fraction'),
-      laggedCurtailmentRate: unitConnector('number', 'fraction'),
-      laggedInterestRate: unitConnector('number', 'fraction'),
-      savingsRate: unitConnector('number', 'fraction'),
-      regionalSavings: unitConnector('record', 'fraction'),
+      electricityDemand: unitPort('TWh/year'),
+      regionalElectricityDemand: unitPort('TWh/year', 'record'),
+      availableInvestment: unitPort('$T/year'),
+      regionalInvestment: unitPort('$T/year', 'record'),
+      mineralConstraint: unitPort('fraction'),
+      laggedCurtailmentRate: unitPort('fraction'),
+      laggedInterestRate: unitPort('fraction'),
+      savingsRate: unitPort('fraction'),
+      regionalSavings: unitPort('fraction', 'record'),
     },
     outputs: {
-      lcoes: ENERGY_LCOE_CONNECTOR,
-      regionalLCOEs: REGIONAL_ENERGY_LCOE_CONNECTOR,
-      netEnergyFraction: unitConnector('record', 'fraction'),
-      solarPlusBatteryLCOE: unitConnector('number', '$/MWh'),
-      capacities: ENERGY_CAPACITY_CONNECTOR,
-      energyCapexSpend: unitConnector('number', '$T/year'),
-      regionalCapacities: REGIONAL_ENERGY_CAPACITY_CONNECTOR,
-      cumulativeCapacity: ENERGY_CAPACITY_CONNECTOR,
-      additions: ENERGY_ADDITION_CONNECTOR,
-      regionalAdditions: REGIONAL_ENERGY_ADDITION_CONNECTOR,
-      batteryCost: unitConnector('number', '$/kWh'),
-      cheapestLCOE: unitConnector('number', '$/MWh'),
-      effectiveSolarCF: unitConnector('number', 'fraction'),
-      effectiveWindCF: unitConnector('number', 'fraction'),
-      longStorageCost: unitConnector('number', '$/kWh'),
-      longStorageCapacity: unitConnector('number', 'GWh'),
-      longStorageRegional: unitConnector('record', 'GWh'),
-      effectiveWACC: unitConnector('number', 'fraction'),
-      regionalWACC: unitConnector('record', 'fraction'),
+      lcoes: ENERGY_LCOE_PORT,
+      regionalLCOEs: REGIONAL_ENERGY_LCOE_PORT,
+      netEnergyFraction: unitPort('fraction', 'record'),
+      solarPlusBatteryLCOE: unitPort('$/MWh'),
+      capacities: ENERGY_CAPACITY_PORT,
+      energyCapexSpend: unitPort('$T/year'),
+      regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      cumulativeCapacity: ENERGY_CAPACITY_PORT,
+      additions: ENERGY_ADDITION_PORT,
+      regionalAdditions: REGIONAL_ENERGY_ADDITION_PORT,
+      batteryCost: unitPort('$/kWh'),
+      cheapestLCOE: unitPort('$/MWh'),
+      effectiveSolarCF: unitPort('fraction'),
+      effectiveWindCF: unitPort('fraction'),
+      longStorageCost: unitPort('$/kWh'),
+      longStorageCapacity: unitPort('GWh'),
+      longStorageRegional: unitPort('GWh', 'record'),
+      effectiveWACC: unitPort('fraction'),
+      regionalWACC: unitPort('fraction', 'record'),
     },
   },
 

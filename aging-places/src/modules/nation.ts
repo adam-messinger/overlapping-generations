@@ -13,7 +13,7 @@
  * from the municipal stocks in migration.ts so a partial place universe never
  * receives the full-country mover pool.
  */
-import { defineModule, ValidationResult, unitConnector } from 'tsimulation';
+import { defineModule, ValidationResult, unitPort } from 'tsimulation';
 import { COHORTS, COHORT_RATES, Cohort, NationOutputs } from '../domain-types.js';
 
 export interface NationParams {
@@ -64,13 +64,13 @@ export const nationModule = defineModule<NationParams, NationState, Record<strin
   connectorTypes: {
     inputs: {},
     outputs: {
-      natCohorts: unitConnector('record', 'people'),
-      currentTfr: unitConnector('number', '1'),
-      netImmigrationByCohort: unitConnector('record', 'people/year'),
-      netImmigration: unitConnector('number', 'people/year'),
-      elderlyWealthIndex: unitConnector('number', '1'),
-      births: unitConnector('number', 'people/year'),
-      natWorkingGrowth: unitConnector('number', 'fraction/year'),
+      natCohorts: unitPort('people', 'record'),
+      currentTfr: unitPort('1'),
+      netImmigrationByCohort: unitPort('people/year', 'record'),
+      netImmigration: unitPort('people/year'),
+      elderlyWealthIndex: unitPort('1'),
+      births: unitPort('people/year'),
+      natWorkingGrowth: unitPort('fraction/year'),
     },
   },
 

@@ -10,20 +10,7 @@
  */
 
 import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
-import {
-  validateEstimand,
-  validateMeasurement,
-  type EstimandContract,
-  type MeasurementBinding,
-} from './semantics.js';
-import type {
-  MetadataPortMeta,
-  ObjectFieldContract,
-  OpaquePortMeta,
-  PortMeta,
-  PortMetaForValue,
-  QuantityPortMeta,
-} from './units.js';
+import type { PortMeta } from './units.js';
 
 /**
  * Module definition interface
@@ -33,154 +20,16 @@ import type {
  * @template TInputs - What this module needs from other modules
  * @template TOutputs - What this module provides to other modules
  */
-/** Connector type for runtime validation of module wiring */
-export type ConnectorType = 'number' | 'record' | 'nested-record' | 'vector' | 'metadata';
-interface ConnectorSpecBase {
-  type: ConnectorType;
-}
-export interface UnitConnectorSpec extends ConnectorSpecBase, QuantityPortMeta {
-  type: Exclude<ConnectorType, 'metadata'>;
-  /** Runtime unit contract. Different scales require an explicit transform. */
-  unit: string;
-  opaque?: never;
-  description?: string;
-}
-export interface OpaqueConnectorSpec extends ConnectorSpecBase, OpaquePortMeta {
-  type: Exclude<ConnectorType, 'number' | 'metadata'>;
-  /** Explicit escape hatch for mixed-unit structured data. */
-}
-export interface MetadataConnectorSpec extends ConnectorSpecBase, MetadataPortMeta {
-  type: 'metadata';
-}
-export interface ObjectConnectorSpec extends ConnectorSpecBase {
-  type: 'record' | 'nested-record';
-  kind: 'object';
-  fields: Readonly<Record<string, PortMeta>>;
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-}
-export interface RecordConnectorSpec extends ConnectorSpecBase {
-  type: 'record' | 'nested-record';
-  kind: 'record';
-  values: PortMeta;
-  keys?: readonly string[];
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-}
-export interface VectorConnectorSpec extends ConnectorSpecBase {
-  type: 'vector';
-  kind: 'vector';
-  items: PortMeta;
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-}
-export type ConnectorSpec =
-  | UnitConnectorSpec
-  | OpaqueConnectorSpec
-  | MetadataConnectorSpec
-  | ObjectConnectorSpec
-  | RecordConnectorSpec
-  | VectorConnectorSpec;
-/** String declarations are retained only so strict validation can diagnose legacy callers. */
-export type ConnectorDeclaration = ConnectorType | ConnectorSpec;
+/**
+ * Complete runtime shape and unit contract for every port of a module.
+ *
+ * Ports are described with the same PortMeta vocabulary that model and adapter
+ * boundaries use (`unitPort`, `objectPort`, `recordPort`, ...). There is no
+ * separate "connector" spelling: a port is a port wherever it appears.
+ */
 export type ConnectorContract<T extends object> = {
-  readonly [K in keyof T]-?: ConnectorSpec;
+  readonly [K in keyof T]-?: PortMeta;
 };
-
-export function unitConnector(
-  type: Exclude<ConnectorType, 'metadata'>,
-  unit: string,
-  description?: string,
-): UnitConnectorSpec {
-  return { type, unit, ...(description ? { description } : {}) };
-}
-
-export function measurementConnector(
-  type: Exclude<ConnectorType, 'metadata'>,
-  unit: string,
-  estimand: EstimandContract,
-  description?: string,
-): UnitConnectorSpec {
-  validateEstimand(estimand, `Connector '${estimand.id}' estimand`);
-  return {
-    type,
-    unit,
-    estimand,
-    ...(description ? { description } : {}),
-  };
-}
-
-export function observationConnector(
-  type: Exclude<ConnectorType, 'metadata'>,
-  unit: string,
-  measurement: MeasurementBinding,
-  description?: string,
-): UnitConnectorSpec {
-  validateMeasurement(measurement, `Connector '${measurement.id}' measurement`);
-  return {
-    type,
-    unit,
-    estimand: measurement.estimand,
-    measurement,
-    ...(description ? { description } : {}),
-  };
-}
-
-export function opaqueConnector(
-  type: Exclude<ConnectorType, 'number' | 'metadata'>,
-  description: string,
-): OpaqueConnectorSpec {
-  return { type, opaque: true, description };
-}
-
-export function metadataConnector(
-  dataType: MetadataPortMeta['dataType'],
-  description: string,
-): MetadataConnectorSpec {
-  return { type: 'metadata', kind: 'metadata', dataType, description };
-}
-
-export function objectConnector<T extends object>(
-  type: 'record' | 'nested-record',
-  fields: ObjectFieldContract<T>,
-  description?: string,
-): ObjectConnectorSpec {
-  return {
-    type,
-    kind: 'object',
-    fields: fields as Readonly<Record<string, PortMeta>>,
-    ...(description ? { description } : {}),
-  };
-}
-
-export function recordConnector<T>(
-  type: 'record' | 'nested-record',
-  values: PortMetaForValue<T>,
-  options: { keys?: readonly string[]; description?: string } = {},
-): RecordConnectorSpec {
-  return {
-    type,
-    kind: 'record',
-    values: values as PortMeta,
-    ...(options.keys ? { keys: [...options.keys] } : {}),
-    ...(options.description ? { description: options.description } : {}),
-  };
-}
-
-export function vectorConnector<T>(
-  items: PortMetaForValue<T>,
-  description?: string,
-): VectorConnectorSpec {
-  return {
-    type: 'vector',
-    kind: 'vector',
-    items: items as PortMeta,
-    ...(description ? { description } : {}),
-  };
-}
 
 export interface Module<
   TParams extends object,
