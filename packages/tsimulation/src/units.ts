@@ -136,35 +136,16 @@ export interface VectorPortMeta<T = unknown> {
  * `objectPort<T>()` result is assignable to it. The union therefore uses these
  * erased forms, which drop the T link and keep only the runtime shape.
  */
-export interface AnyObjectPortMeta {
-  kind: 'object';
+export interface AnyObjectPortMeta extends Omit<ObjectPortMeta, 'fields'> {
   fields: Readonly<Record<string, PortMeta>>;
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-  unit?: never;
-  opaque?: never;
 }
 
-export interface AnyRecordPortMeta {
-  kind: 'record';
+export interface AnyRecordPortMeta extends Omit<RecordPortMeta, 'values'> {
   values: PortMeta;
-  keys?: readonly string[];
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-  unit?: never;
-  opaque?: never;
 }
 
-export interface AnyVectorPortMeta {
-  kind: 'vector';
+export interface AnyVectorPortMeta extends Omit<VectorPortMeta, 'items'> {
   items: PortMeta;
-  description?: string;
-  optional?: boolean;
-  nullable?: boolean;
-  unit?: never;
-  opaque?: never;
 }
 
 export type StructuredPortMeta = AnyObjectPortMeta | AnyRecordPortMeta | AnyVectorPortMeta;

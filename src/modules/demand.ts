@@ -23,10 +23,10 @@ import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
 import { Module, validatedMerge, unitPort } from 'tsimulation';
 import {
-  DEMAND_SECTORS_CONNECTOR,
-  REGIONAL_ALLOCATION_CONNECTOR,
-  REGIONAL_DEMAND_CONNECTOR,
-} from '../connector-schemas.js';
+  DEMAND_SECTORS_PORT,
+  REGIONAL_ALLOCATION_PORT,
+  REGIONAL_DEMAND_PORT,
+} from '../port-schemas.js';
 
 // =============================================================================
 // TYPES
@@ -1088,9 +1088,9 @@ export const demandModule: Module<
       nonElectricEnergyPotential: unitPort('TWh/year'),
       gdpPerWorking: unitPort('$/people/year'),
       finalEnergyPerCapitaDay: unitPort('kWh/people/day'),
-      regional: REGIONAL_DEMAND_CONNECTOR,
-      regionalAllocation: REGIONAL_ALLOCATION_CONNECTOR,
-      sectors: DEMAND_SECTORS_CONNECTOR,
+      regional: REGIONAL_DEMAND_PORT,
+      regionalAllocation: REGIONAL_ALLOCATION_PORT,
+      sectors: DEMAND_SECTORS_PORT,
       fuels: unitPort('TWh/year', 'record'),
       nonElectricEmissions: unitPort('GtCO2/year'),
       electricityCost: unitPort('$T/year'),

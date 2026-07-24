@@ -104,7 +104,7 @@ The recursive validator reports the full failing path, such as
 standalone models; both distinguish dimensional leaves, metadata, structured
 schemas, and remaining opaque escape hatches.
 
-`opaqueConnector()` and `opaquePort()` still exist for truly external or
+`opaquePort()` still exists for truly external or
 unbounded structures and require an explanation. They should be rare: a record
 containing several physical dimensions is normally a reason to use a recursive
 schema, not to make the record opaque.
@@ -141,14 +141,14 @@ incremental electricity, residents from reporting hospitals, vessel counts
 from cargo volume, or a first release from a backfilled series.
 
 `EstimandContract` supplies the stable meaning of a quantity. Attach it with
-`measurementPort()` or `measurementConnector()`. Set semantic validation to
+`measurementPort()`. Set semantic validation to
 `required` on a migrated model or adapter to reject any unannotated quantitative
 leaf.
 
 `MeasurementBinding` separately identifies the dataset, field, observation
 procedure, reporting coverage, release, and revision policy. Attach a
 source-bound observation with `observationPort()` or
-`observationConnector()`. Two observation ports with different regimes fail
+`observationPort()`. Two observation ports with different regimes fail
 compatibility unless they carry a matching `MeasurementCrosswalk`.
 
 ```typescript
@@ -288,7 +288,7 @@ Two modules in mutual feedback, with the cycle broken by a one-step lag. See
 (`npm run example`).
 
 ```typescript
-import { defineModule, runAutowired, unitConnector } from 'tsimulation';
+import { defineModule, runAutowired, unitPort } from 'tsimulation';
 
 // Prey grow logistically and are thinned by (last step's) predators.
 const prey = defineModule({
@@ -298,8 +298,8 @@ const prey = defineModule({
   inputs: ['laggedPredators'] as const,
   outputs: ['prey'] as const,
   connectorTypes: {
-    inputs: { laggedPredators: unitConnector('number', 'individual') },
-    outputs: { prey: unitConnector('number', 'individual') },
+    inputs: { laggedPredators: unitPort('individual') },
+    outputs: { prey: unitPort('individual') },
   },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ growth: 0.6, capacity: 120, predation: 0.02, ...p }),
@@ -320,8 +320,8 @@ const predator = defineModule({
   inputs: ['prey'] as const,
   outputs: ['predators'] as const,
   connectorTypes: {
-    inputs: { prey: unitConnector('number', 'individual') },
-    outputs: { predators: unitConnector('number', 'individual') },
+    inputs: { prey: unitPort('individual') },
+    outputs: { predators: unitPort('individual') },
   },
   validate: () => ({ valid: true, errors: [], warnings: [] }),
   mergeParams: (p) => ({ efficiency: 0.012, mortality: 0.5, ...p }),
@@ -340,7 +340,7 @@ const result = runAutowired({
     // 'prey' reads laggedPredators; it resolves to last step's 'predators'
     laggedPredators: {
       source: 'predators', delay: 1, initial: 9,
-      contract: unitConnector('number', 'individual'),
+      contract: unitPort('individual'),
     },
   },
   startYear: 0,

@@ -19,7 +19,6 @@ import {
   inlineDataResolver,
   manifestToJson,
   measurementPort,
-  measurementPort,
   observationPort,
   parseRunManifest,
   runAdapter,

@@ -25,14 +25,14 @@ import {
   unitPort,
 } from 'tsimulation';
 import {
-  CARBON_CONNECTOR,
-  DEMAND_SECTORS_CONNECTOR,
-  ENERGY_ADDITION_CONNECTOR,
-  ENERGY_CAPACITY_CONNECTOR,
-  ENERGY_LCOE_CONNECTOR,
-  REGIONAL_DEMAND_CONNECTOR,
-  REGIONAL_ENERGY_LCOE_CONNECTOR,
-} from './connector-schemas.js';
+  CARBON_PORT,
+  DEMAND_SECTORS_PORT,
+  ENERGY_ADDITION_PORT,
+  ENERGY_CAPACITY_PORT,
+  ENERGY_LCOE_PORT,
+  REGIONAL_DEMAND_PORT,
+  REGIONAL_ENERGY_LCOE_PORT,
+} from './port-schemas.js';
 import { computeEnergySystemOverhead } from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
@@ -137,7 +137,7 @@ function buildTransforms(
       inputTypes: {
         electricityEmissions: unitPort('GtCO2/year'),
         nonElectricEmissions: unitPort('GtCO2/year'),
-        carbon: CARBON_CONNECTOR,
+        carbon: CARBON_PORT,
         cdrRemovalGtCO2: unitPort('GtCO2/year'),
       },
       outputType: unitPort('GtCO2/year'),
@@ -239,12 +239,12 @@ function buildTransforms(
         'solarPlusBatteryLCOE', 'regionalFuelCost', 'sectors',
       ],
       inputTypes: {
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
         regionalGeneration: unitPort('TWh/year', 'nested-record'),
-        regionalLCOEs: REGIONAL_ENERGY_LCOE_CONNECTOR,
+        regionalLCOEs: REGIONAL_ENERGY_LCOE_PORT,
         solarPlusBatteryLCOE: unitPort('$/MWh'),
         regionalFuelCost: unitPort('$T/year', 'record'),
-        sectors: DEMAND_SECTORS_CONNECTOR,
+        sectors: DEMAND_SECTORS_PORT,
       },
       outputType: unitPort('fraction', 'record'),
     },
@@ -296,7 +296,7 @@ function buildTransforms(
       },
       dependsOn: ['regional', 'regionalShortfallRate'],
       inputTypes: {
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
         regionalShortfallRate: unitPort('fraction', 'record'),
       },
       outputType: unitPort('fraction', 'record'),
@@ -310,7 +310,7 @@ function buildTransforms(
       },
       dependsOn: ['sectors'],
       inputTypes: {
-        sectors: DEMAND_SECTORS_CONNECTOR,
+        sectors: DEMAND_SECTORS_PORT,
       },
       outputType: unitPort('fraction'),
     },
@@ -343,7 +343,7 @@ function buildTransforms(
       dependsOn: [],
       inputTypes: {
         generation: unitPort('TWh/year', 'record'),
-        lcoes: ENERGY_LCOE_CONNECTOR,
+        lcoes: ENERGY_LCOE_PORT,
         solarPlusBatteryLCOE: unitPort('$/MWh'),
       },
       outputType: unitPort('$/MWh'),
@@ -388,7 +388,7 @@ function buildTransforms(
       },
       dependsOn: ['regional'],
       inputTypes: {
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
       },
       outputType: unitPort('TWh/year', 'record'),
     },
@@ -419,7 +419,7 @@ function buildTransforms(
       inputTypes: {
         investment: unitPort('$T/year'),
         regionalSavings: unitPort('fraction', 'record'),
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
       },
       outputType: unitPort('$T/year', 'record'),
     },
@@ -447,8 +447,8 @@ function buildTransforms(
       ),
       dependsOn: [],
       inputTypes: {
-        additions: ENERGY_ADDITION_CONNECTOR,
-        capacities: ENERGY_CAPACITY_CONNECTOR,
+        additions: ENERGY_ADDITION_PORT,
+        capacities: ENERGY_CAPACITY_PORT,
       },
       outputType: unitPort('TWh/year'),
     },
@@ -463,7 +463,7 @@ function buildTransforms(
       },
       dependsOn: ['regional'],
       inputTypes: {
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
       },
       outputType: unitPort('$T/year', 'record'),
     },
@@ -483,7 +483,7 @@ function buildTransforms(
       },
       dependsOn: ['regional', 'regionalPopulation'],
       inputTypes: {
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
         regionalPopulation: unitPort('people', 'record'),
       },
       outputType: unitPort('$/people/year', 'record'),
@@ -508,7 +508,7 @@ function buildTransforms(
       dependsOn: [],
       inputTypes: {
         regionalDamages: unitPort('fraction', 'record'),
-        regional: REGIONAL_DEMAND_CONNECTOR,
+        regional: REGIONAL_DEMAND_PORT,
       },
       outputType: unitPort('fraction'),
     },

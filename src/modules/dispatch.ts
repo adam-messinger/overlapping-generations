@@ -42,9 +42,9 @@ import {
   validatedMerge,
 } from 'tsimulation';
 import {
-  ENERGY_CAPACITY_CONNECTOR,
-  REGIONAL_ENERGY_CAPACITY_CONNECTOR,
-} from '../connector-schemas.js';
+  ENERGY_CAPACITY_PORT,
+  REGIONAL_ENERGY_CAPACITY_PORT,
+} from '../port-schemas.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 
@@ -604,8 +604,8 @@ export const dispatchModule: Module<
     inputs: {
       electricityDemand: unitPort('TWh/year'),
       regionalElectricityDemand: unitPort('TWh/year', 'record'),
-      capacities: ENERGY_CAPACITY_CONNECTOR,
-      regionalCapacities: REGIONAL_ENERGY_CAPACITY_CONNECTOR,
+      capacities: ENERGY_CAPACITY_PORT,
+      regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
       carbonPrice: unitPort('$/tCO2'),
       regionalCarbonPrice: unitPort('$/tCO2', 'record'),
       longStorageRegional: unitPort('GWh', 'record'),

@@ -34,9 +34,9 @@ import {
   validatedMerge,
 } from 'tsimulation';
 import {
-  COHORT_ACCOUNTS_CONNECTOR,
-  REGIONAL_COHORT_ACCOUNTS_CONNECTOR,
-} from '../connector-schemas.js';
+  COHORT_ACCOUNTS_PORT,
+  REGIONAL_COHORT_ACCOUNTS_PORT,
+} from '../port-schemas.js';
 
 export interface GenerationsParams {
   cohortWidth: number;                  // Years per birth cohort (default 5)
@@ -696,8 +696,8 @@ export const generationsModule: Module<
       regionalChildCost: unitPort('$T/year', 'record'),
     },
     outputs: {
-      cohortAccounts: COHORT_ACCOUNTS_CONNECTOR,
-      regionalCohortAccounts: REGIONAL_COHORT_ACCOUNTS_CONNECTOR,
+      cohortAccounts: COHORT_ACCOUNTS_PORT,
+      regionalCohortAccounts: REGIONAL_COHORT_ACCOUNTS_PORT,
       cohortDesiredCapital: unitPort('$T/year'),
       cohortFundedCapital: unitPort('$T/year'),
       cohortFundingGap: unitPort('$T/year'),

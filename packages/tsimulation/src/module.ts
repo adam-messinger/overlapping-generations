@@ -10,20 +10,7 @@
  */
 
 import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
-import {
-  validateEstimand,
-  validateMeasurement,
-  type EstimandContract,
-  type MeasurementBinding,
-} from './semantics.js';
-import type {
-  MetadataPortMeta,
-  ObjectFieldContract,
-  OpaquePortMeta,
-  PortMeta,
-  PortMetaForValue,
-  QuantityPortMeta,
-} from './units.js';
+import type { PortMeta } from './units.js';
 
 /**
  * Module definition interface

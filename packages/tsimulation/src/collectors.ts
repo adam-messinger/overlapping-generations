@@ -307,7 +307,6 @@ function resolveCollectorAgainstRegistry(
       throw new Error(`${context}: transformed output is missing an estimand contract`);
     }
     const inputEstimands = Object.values(def.inputTypes)
-      .map((spec) => spec)
       .flatMap((meta) => isQuantityPort(meta) && meta.estimand ? [meta.estimand] : []);
     if (isQuantityPort(contract) && contract.estimand && inputEstimands.length > 0 &&
         !inputEstimands.some((input) => compareEstimands(input, contract.estimand!).compatible) &&

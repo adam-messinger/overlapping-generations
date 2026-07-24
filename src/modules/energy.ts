@@ -26,13 +26,13 @@
 
 import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import {
-  ENERGY_ADDITION_CONNECTOR,
-  ENERGY_CAPACITY_CONNECTOR,
-  ENERGY_LCOE_CONNECTOR,
-  REGIONAL_ENERGY_ADDITION_CONNECTOR,
-  REGIONAL_ENERGY_CAPACITY_CONNECTOR,
-  REGIONAL_ENERGY_LCOE_CONNECTOR,
-} from '../connector-schemas.js';
+  ENERGY_ADDITION_PORT,
+  ENERGY_CAPACITY_PORT,
+  ENERGY_LCOE_PORT,
+  REGIONAL_ENERGY_ADDITION_PORT,
+  REGIONAL_ENERGY_CAPACITY_PORT,
+  REGIONAL_ENERGY_LCOE_PORT,
+} from '../port-schemas.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
@@ -930,16 +930,16 @@ export const energyModule: Module<
       regionalSavings: unitPort('fraction', 'record'),
     },
     outputs: {
-      lcoes: ENERGY_LCOE_CONNECTOR,
-      regionalLCOEs: REGIONAL_ENERGY_LCOE_CONNECTOR,
+      lcoes: ENERGY_LCOE_PORT,
+      regionalLCOEs: REGIONAL_ENERGY_LCOE_PORT,
       netEnergyFraction: unitPort('fraction', 'record'),
       solarPlusBatteryLCOE: unitPort('$/MWh'),
-      capacities: ENERGY_CAPACITY_CONNECTOR,
+      capacities: ENERGY_CAPACITY_PORT,
       energyCapexSpend: unitPort('$T/year'),
-      regionalCapacities: REGIONAL_ENERGY_CAPACITY_CONNECTOR,
-      cumulativeCapacity: ENERGY_CAPACITY_CONNECTOR,
-      additions: ENERGY_ADDITION_CONNECTOR,
-      regionalAdditions: REGIONAL_ENERGY_ADDITION_CONNECTOR,
+      regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      cumulativeCapacity: ENERGY_CAPACITY_PORT,
+      additions: ENERGY_ADDITION_PORT,
+      regionalAdditions: REGIONAL_ENERGY_ADDITION_PORT,
       batteryCost: unitPort('$/kWh'),
       cheapestLCOE: unitPort('$/MWh'),
       effectiveSolarCF: unitPort('fraction'),

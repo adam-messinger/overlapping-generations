@@ -384,15 +384,11 @@ export function validateConnectorTypes(
   const warnings: string[] = [];
 
   const normalize = (
-    declaration: PortMeta | string | undefined,
+    declaration: PortMeta | undefined,
     context: string,
   ): PortMeta | undefined => {
     if (!declaration) {
       warnings.push(`Missing connector contract: ${context}`);
-      return undefined;
-    }
-    if (typeof declaration === 'string') {
-      warnings.push(`Incomplete connector contract: ${context} declares type '${declaration}' but no unit or opaque marker`);
       return undefined;
     }
     try {
@@ -430,8 +426,8 @@ export function validateConnectorTypes(
   for (const mod of modules) {
     const inputNames = new Set(mod.inputs.map(String));
     const outputNames = new Set(mod.outputs.map(String));
-    const inputContracts = mod.connectorTypes?.inputs as Record<string, PortMeta | string> | undefined;
-    const outputContracts = mod.connectorTypes?.outputs as Record<string, PortMeta | string> | undefined;
+    const inputContracts = mod.connectorTypes?.inputs as Record<string, PortMeta> | undefined;
+    const outputContracts = mod.connectorTypes?.outputs as Record<string, PortMeta> | undefined;
     for (const inputName of inputNames) normalize(inputContracts?.[inputName], `${mod.name}.${inputName}`);
     for (const outputName of outputNames) {
       const spec = normalize(outputContracts?.[outputName], `${mod.name}.${outputName}`);
@@ -494,11 +490,9 @@ export function validateConnectorTypes(
       }
     }
     if (semanticValidation === 'required' && outputType) {
-      const outputMeta = outputType;
       const inputEstimands = Object.values(entry.inputTypes ?? {})
-        .map((input) => input)
         .flatMap((input) => 'estimand' in input && input.estimand ? [input.estimand] : []);
-      const outputEstimand = 'estimand' in outputMeta ? outputMeta.estimand : undefined;
+      const outputEstimand = 'estimand' in outputType ? outputType.estimand : undefined;
       if (outputEstimand && inputEstimands.length > 0 &&
           !inputEstimands.some((input) => compareEstimands(input, outputEstimand).compatible) &&
           !entry.derivation) {
@@ -513,7 +507,7 @@ export function validateConnectorTypes(
     for (const input of mod.inputs) {
       const inputName = String(input);
       const expected = normalize(
-        (mod.connectorTypes?.inputs as Record<string, PortMeta | string> | undefined)?.[inputName],
+        (mod.connectorTypes?.inputs as Record<string, PortMeta> | undefined)?.[inputName],
         `${mod.name}.${inputName}`,
       );
       if (!expected) continue;
@@ -547,7 +541,7 @@ export function validateConnectorTypes(
           compare(provider.spec, lagContract, `${provider.module}.${lag.source} -> lag ${inputName}`);
           compare(lagContract, expected, `lag ${inputName} -> ${mod.name}.${inputName}`);
           try {
-            assertConnectorValue(lag.initial, lagContract, `Lag '${inputName}' initial`);
+            assertPortValue(lag.initial, lagContract, `Lag '${inputName}' initial`);
           } catch (error) {
             warnings.push(error instanceof Error ? error.message : String(error));
           }
@@ -561,10 +555,6 @@ export function validateConnectorTypes(
   }
 
   return [...new Set(warnings)];
-}
-
-function assertConnectorValue(value: unknown, spec: PortMeta, context: string): void {
-  assertPortValue(value, spec, context);
 }
 
 export interface ConnectorContractAudit {
@@ -609,16 +599,15 @@ export function auditConnectorContracts(
   const missingSemanticPaths: string[] = [];
   const counts = declarations.reduce(
     (total, { path, declaration }) => {
-      if (typeof declaration === 'string' || !declaration) return total;
+      if (!declaration) return total;
       try {
-        const meta = declaration;
-        validatePortMeta(meta, 'connector contract audit');
-        const count = countPortSchema(meta);
+        validatePortMeta(declaration, 'connector contract audit');
+        const count = countPortSchema(declaration);
         total.unitBearingContracts += count.unitBearing;
         total.metadataContracts += count.metadata;
         total.opaqueContracts += count.opaque;
         total.structuredContracts += count.structured;
-        const semantic = auditPortSemantics(meta, path);
+        const semantic = auditPortSemantics(declaration, path);
         total.semanticContracts += semantic.semanticContracts;
         total.measurementContracts += semantic.measurementContracts;
         missingSemanticPaths.push(...semantic.missingSemanticPaths);
@@ -1144,7 +1133,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       for (const input of mod.inputs) {
         const inputName = String(input);
         if (contracts?.[inputName]) {
-          assertConnectorValue(inputs[inputName], contracts[inputName], `Module '${mod.name}' input '${inputName}' at year ${year}`);
+          assertPortValue(inputs[inputName], contracts[inputName], `Module '${mod.name}' input '${inputName}' at year ${year}`);
         }
       }
     }
@@ -1160,7 +1149,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       for (const output of mod.outputs) {
         const outputName = String(output);
         if (contracts?.[outputName]) {
-          assertConnectorValue(
+          assertPortValue(
             (result.outputs as Record<string, unknown>)[outputName],
             contracts[outputName],
             `Module '${mod.name}' output '${outputName}' at year ${year}`,
