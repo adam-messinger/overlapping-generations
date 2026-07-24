@@ -987,6 +987,7 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: 'day', dimension: 'time', scale: DAY },
   { symbol: 'week', dimension: 'time', scale: 7 * DAY },
   { symbol: 'month', dimension: 'time', scale: YEAR / 12 },
+  { symbol: 'quarter', dimension: 'time', scale: YEAR / 4 },
   { symbol: 'year', dimension: 'time', scale: YEAR },
   {
     symbol: 'calendar-year',
@@ -999,6 +1000,12 @@ const BUILTIN_UNITS: UnitDefinition[] = [
     dimension: 'custom:calendar-month',
     scale: 1,
     description: 'Gregorian month-of-year label in [1, 12], not a duration',
+  },
+  {
+    symbol: 'calendar-quarter',
+    dimension: 'custom:calendar-quarter',
+    scale: 1,
+    description: 'Gregorian quarter-of-year label in [1, 4], not a duration',
   },
   {
     symbol: 'step-index',

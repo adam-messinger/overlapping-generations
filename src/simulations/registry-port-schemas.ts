@@ -31,6 +31,32 @@ import type {
   DataCenterGridResult,
   DataCenterGridScenario,
 } from './news/data-center-grid.js';
+import type {
+  EnergyInflationMonth,
+  EnergyInflationNetworkMonth,
+  EnergyInflationNetworkResult,
+  EnergyInflationNetworkScenario,
+  EnergyInflationScenario,
+} from './news/energy-inflation.js';
+import type {
+  HormuzWeberInflationResult,
+  HormuzWeberInflationScenario,
+  WeberEnergyBridgeOptions,
+  WeberEnergyPriceMonth,
+  WeberEnergyPricePaths,
+} from './news/hormuz-weber-inflation.js';
+import type {
+  AiCapitalCycleScenario,
+  AiCapitalQuarter,
+  AiCapitalSnapshot,
+} from './news/ai-capital-cycle.js';
+import type {
+  CoralBleachingParamsV1,
+  CoralBleachingParamsV2,
+  CoralBleachingScenario,
+  CoralBleachingYearInput,
+  CoralBleachingYearResult,
+} from './news/coral-bleaching.js';
 import type { BilateralTariffAction, TradeSectorId } from './trade/data.js';
 import type { TariffSectorResult } from './trade/model.js';
 import {
@@ -85,6 +111,7 @@ import type {
   CommodityMonthResult,
   FertilizerMonthResult,
   HormuzMonthResult,
+  HormuzSimulationResult,
   RegionalHormuzMonthResult,
 } from './critical-materials/hormuz-model.js';
 import type { CountermeasureParams } from './outbreak/model.js';
@@ -418,6 +445,189 @@ export const DATA_CENTER_GRID_RESULT_PORT = objectPort<DataCenterGridResult>({
     dataCenterEstimands.operationalEmissionsGtCo2,
   ),
 });
+
+// Energy-price inflation and policy transmission ----------------------------
+
+export const ENERGY_INFLATION_SCENARIO_PORT =
+  objectPort<EnergyInflationScenario>({
+    id: metadataPort('string', 'Energy-inflation scenario identifier.'),
+    label: metadataPort('string', 'Energy-inflation scenario label.'),
+    importEnergyPricePath: vectorPort<number>(unitPort('1')),
+    startingHeadlineInflationPct: unitPort('%'),
+    startingCoreInflationPct: unitPort('%'),
+    startingExpectedInflationPct: unitPort('%'),
+    startingPolicyRatePct: unitPort('%'),
+    startingOutputGapPct: unitPort('%'),
+    inflationTargetPct: unitPort('%'),
+    neutralPolicyRatePct: unitPort('%'),
+    energyCpiWeight: unitPort('fraction'),
+    directConsumerPassThrough: unitPort('fraction'),
+    directAdjustmentHalfLifeMonths: unitPort('month'),
+    indirectCorePassThrough: unitPort('fraction'),
+    indirectAdjustmentHalfLifeMonths: unitPort('month'),
+    largeShockNonlinearity: unitPort('1'),
+    fiscalShieldingShare: unitPort('fraction'),
+    exchangeRateAmplification: unitPort('1'),
+    inflationAttention: unitPort('1'),
+    wageFeedback: unitPort('fraction'),
+    energyOutputSensitivity: unitPort('fraction'),
+    policyOutputSensitivity: unitPort('fraction'),
+    policyInflationResponse: unitPort('1'),
+    policyOutputResponse: unitPort('1'),
+    policySmoothing: unitPort('fraction'),
+    supplyShockLookThrough: unitPort('fraction'),
+  });
+
+export const ENERGY_INFLATION_MONTH_PORT =
+  objectPort<EnergyInflationMonth>({
+    month: unitPort('step-index'),
+    importEnergyPriceMultiple: unitPort('1'),
+    consumerEnergyPriceGapPct: unitPort('%'),
+    corePriceGapPct: unitPort('%'),
+    headlineInflationPct: unitPort('%'),
+    coreInflationPct: unitPort('%'),
+    expectedInflationPct: unitPort('%'),
+    policyRatePct: unitPort('%'),
+    outputGapPct: unitPort('%'),
+  });
+export const ENERGY_INFLATION_MONTHS_PORT =
+  vectorPort<EnergyInflationMonth>(ENERGY_INFLATION_MONTH_PORT);
+
+export const ENERGY_INFLATION_NETWORK_SCENARIO_PORT =
+  objectPort<EnergyInflationNetworkScenario>({
+    ...ENERGY_INFLATION_SCENARIO_PORT.fields,
+    coreCpiWeight: unitPort('fraction'),
+    networkCorePriceGapPathPct: vectorPort<number>(unitPort('%')),
+    networkOtherCpiContributionPathPct:
+      vectorPort<number>(unitPort('percentage-point')),
+  });
+
+export const ENERGY_INFLATION_NETWORK_MONTH_PORT =
+  objectPort<EnergyInflationNetworkMonth>({
+    ...ENERGY_INFLATION_MONTH_PORT.fields,
+    networkCoreTargetPriceGapPct: unitPort('%'),
+    networkOtherCpiContributionPct: unitPort('percentage-point'),
+  });
+export const ENERGY_INFLATION_NETWORK_MONTHS_PORT =
+  vectorPort<EnergyInflationNetworkMonth>(
+    ENERGY_INFLATION_NETWORK_MONTH_PORT,
+  );
+
+export const ENERGY_INFLATION_NETWORK_RESULT_PORT =
+  objectPort<EnergyInflationNetworkResult>({
+    scenario: ENERGY_INFLATION_NETWORK_SCENARIO_PORT,
+    revision: metadataPort(
+      'string',
+      'Weber-network energy-inflation model revision.',
+    ),
+    months: ENERGY_INFLATION_NETWORK_MONTHS_PORT,
+    peakHeadlineInflationPct: unitPort('%'),
+    peakCoreInflationPct: unitPort('%'),
+    peakPolicyRatePct: unitPort('%'),
+    troughOutputGapPct: unitPort('%'),
+    monthsHeadlineAboveTarget: unitPort('month'),
+    monthsCoreAboveTarget: unitPort('month'),
+  });
+
+// AI capital-cycle accounting -----------------------------------------------
+
+export const AI_CAPITAL_CYCLE_SCENARIO_PORT =
+  objectPort<AiCapitalCycleScenario>({
+    id: metadataPort('string', 'AI capital-cycle scenario identifier.'),
+    label: metadataPort('string', 'AI capital-cycle scenario label.'),
+    startYear: unitPort('calendar-year'),
+    startQuarter: unitPort('calendar-quarter'),
+    quarters: unitPort('quarter'),
+    startingQuarterlyAiRevenueBillion: unitPort('$B/quarter'),
+    startingQuarterlyAiDepreciationBillion: unitPort('$B/quarter'),
+    annualRevenueGrowthPath: vectorPort<number>(unitPort('fraction/year')),
+    annualTotalDeveloperCapexBillion: vectorPort<number>(unitPort('$B/year')),
+    aiShareOfDeveloperCapex: unitPort('fraction'),
+    cashOperatingCostShare: unitPort('fraction'),
+    chipShareOfAiCapex: unitPort('fraction'),
+    chipUsefulLifeYears: unitPort('year'),
+    facilityUsefulLifeYears: unitPort('year'),
+    chipDeploymentLagQuarters: unitPort('quarter'),
+    facilityDeploymentLagQuarters: unitPort('quarter'),
+    replacementCostPremium: unitPort('1'),
+    debtFundedShareOfCashDeficit: unitPort('fraction'),
+    financingRate: unitPort('fraction/year'),
+  });
+
+export const AI_CAPITAL_SNAPSHOT_PORT = objectPort<AiCapitalSnapshot>({
+  quarterlyAiRevenueBillion: unitPort('$B/quarter'),
+  quarterlyAiDepreciationBillion: unitPort('$B/quarter'),
+  revenueDepreciationCoverage: unitPort('1'),
+  revenueLessDepreciationBillion: unitPort('$B/quarter'),
+  clearsDepreciationBar: metadataPort(
+    'boolean',
+    'Whether quarterly AI revenue is at least quarterly depreciation.',
+  ),
+});
+
+export const AI_CAPITAL_QUARTER_PORT = objectPort<AiCapitalQuarter>({
+  index: unitPort('step-index'),
+  year: unitPort('calendar-year'),
+  quarter: unitPort('calendar-quarter'),
+  aiRevenueBillion: unitPort('$B/quarter'),
+  aiCapexBillion: unitPort('$B/quarter'),
+  depreciationBillion: unitPort('$B/quarter'),
+  cashOperatingCostBillion: unitPort('$B/quarter'),
+  operatingCashContributionBillion: unitPort('$B/quarter'),
+  maintenanceCapexBillion: unitPort('$B/quarter'),
+  growthCapexBillion: unitPort('$B/quarter'),
+  financingCostBillion: unitPort('$B/quarter'),
+  revenueDepreciationCoverage: unitPort('1'),
+  economicReplacementCoverage: unitPort('1'),
+  totalCapexSelfFundingCoverage: unitPort('1'),
+  cashAfterReplacementBillion: unitPort('$B/quarter'),
+  freeCashFlowBillion: unitPort('$B/quarter'),
+  cumulativeNetCashBillion: unitPort('$B'),
+  debtBalanceBillion: unitPort('$B'),
+});
+export const AI_CAPITAL_QUARTERS_PORT =
+  vectorPort<AiCapitalQuarter>(AI_CAPITAL_QUARTER_PORT);
+
+// Global coral-bleaching exposure -------------------------------------------
+
+export const CORAL_PARAMS_V1_PORT = objectPort<CoralBleachingParamsV1>({
+  intercept: unitPort('1'),
+  laggedEnsoCoefficient: unitPort('1/Δ°C'),
+});
+export const CORAL_PARAMS_V2_PORT = objectPort<CoralBleachingParamsV2>({
+  intercept: unitPort('1'),
+  laggedEnsoCoefficient: unitPort('1/Δ°C'),
+  oceanWarmingCoefficient: unitPort('1/Δ°C'),
+  earlyRecordOceanAnomalyC: unitPort('Δ°C'),
+});
+export const CORAL_YEAR_INPUT_PORT = objectPort<CoralBleachingYearInput>({
+  year: unitPort('calendar-year'),
+  oceanAnomalyC: unitPort('Δ°C'),
+  maxOniC: unitPort('Δ°C'),
+  observedBleachingExtent: { ...unitPort('fraction'), nullable: true },
+});
+export const CORAL_SCENARIO_PORT = objectPort<CoralBleachingScenario>({
+  id: metadataPort('string', 'Coral-bleaching scenario identifier.'),
+  label: metadataPort('string', 'Coral-bleaching scenario label.'),
+  priorYearMaxOniC: unitPort('Δ°C'),
+  years: vectorPort<CoralBleachingYearInput>(CORAL_YEAR_INPUT_PORT),
+  paramsV1: CORAL_PARAMS_V1_PORT,
+  paramsV2: CORAL_PARAMS_V2_PORT,
+});
+export const CORAL_YEAR_RESULT_PORT = objectPort<CoralBleachingYearResult>({
+  year: unitPort('calendar-year'),
+  oceanAnomalyC: unitPort('Δ°C'),
+  maxOniC: unitPort('Δ°C'),
+  laggedPositiveEnsoC: unitPort('Δ°C'),
+  observedBleachingExtent: { ...unitPort('fraction'), nullable: true },
+  predictedBleachingExtent: unitPort('fraction'),
+  earlyRecordBaselineCounterfactualExtent: unitPort('fraction'),
+  neutralEnsoCounterfactualExtent: unitPort('fraction'),
+  conditionalRecentWarmingContributionPctPoints: unitPort('percentage-point'),
+  conditionalEnsoContributionPctPoints: unitPort('percentage-point'),
+});
+export const CORAL_YEAR_RESULTS_PORT =
+  vectorPort<CoralBleachingYearResult>(CORAL_YEAR_RESULT_PORT);
 
 // Bilateral tariffs ----------------------------------------------------------
 
@@ -850,6 +1060,83 @@ export const ANNUAL_HORMUZ_PORT = objectPort<AnnualHormuzShock>({
   regional: recordPort<AnnualRegionalHormuzShock>(ANNUAL_REGIONAL_HORMUZ_PORT, { keys: REGIONS }),
 });
 export const ANNUAL_HORMUZ_ROWS_PORT = vectorPort<AnnualHormuzShock>(ANNUAL_HORMUZ_PORT);
+
+export const HORMUZ_RESULT_PORT = objectPort<HormuzSimulationResult>({
+  scenario: HORMUZ_SCENARIO_PORT,
+  params: HORMUZ_PARAMS_PORT,
+  months: HORMUZ_MONTHS_PORT,
+  annual: ANNUAL_HORMUZ_ROWS_PORT,
+});
+
+export const WEBER_ENERGY_BRIDGE_OPTIONS_PORT =
+  objectPort<WeberEnergyBridgeOptions>({
+    horizonMonths: unitPort('month'),
+    region: metadataPort(
+      'string',
+      'Regional Hormuz price series used as the euro-area proxy.',
+    ),
+    oilInputShare: unitPort('fraction'),
+    gasInputShare: unitPort('fraction'),
+    oilPetroleumTransmissionShare: unitPort('fraction'),
+    gasUtilitiesTransmissionShare: unitPort('fraction'),
+    coreAllocationShare: unitPort('fraction'),
+    coreCpiWeight: unitPort('fraction'),
+    networkScale: unitPort('1'),
+  });
+
+export const WEBER_ENERGY_PRICE_MONTH_PORT =
+  objectPort<WeberEnergyPriceMonth>({
+    index: unitPort('step-index'),
+    year: unitPort('calendar-year'),
+    month: unitPort('calendar-month'),
+    oilPriceMultiple: unitPort('1'),
+    gasPriceMultiple: unitPort('1'),
+    importEnergyPriceMultiple: unitPort('1'),
+    oilIndirectCpiImpactPct: unitPort('percentage-point'),
+    gasIndirectCpiImpactPct: unitPort('percentage-point'),
+    networkIndirectCpiImpactPct: unitPort('percentage-point'),
+    networkCoreSubindexPriceGapPct: unitPort('%'),
+    networkOtherCpiContributionPct: unitPort('percentage-point'),
+  });
+
+export const WEBER_ENERGY_PRICE_PATHS_PORT =
+  objectPort<WeberEnergyPricePaths>({
+    months: vectorPort<WeberEnergyPriceMonth>(
+      WEBER_ENERGY_PRICE_MONTH_PORT,
+    ),
+    importEnergyPricePath: vectorPort<number>(unitPort('1')),
+    networkCorePriceGapPathPct: vectorPort<number>(unitPort('%')),
+    networkOtherCpiContributionPathPct:
+      vectorPort<number>(unitPort('percentage-point')),
+  });
+
+export const HORMUZ_WEBER_INFLATION_SCENARIO_PORT =
+  objectPort<HormuzWeberInflationScenario>({
+    id: metadataPort(
+      'string',
+      'Composed Hormuz-Weber-inflation scenario identifier.',
+    ),
+    label: metadataPort(
+      'string',
+      'Composed Hormuz-Weber-inflation scenario label.',
+    ),
+    hormuzScenario: HORMUZ_SCENARIO_PORT,
+    hormuzParams: HORMUZ_PARAMS_PORT,
+    inflationScenario: ENERGY_INFLATION_SCENARIO_PORT,
+    bridgeOptions: WEBER_ENERGY_BRIDGE_OPTIONS_PORT,
+  });
+
+export const HORMUZ_WEBER_INFLATION_RESULT_PORT =
+  objectPort<HormuzWeberInflationResult>({
+    scenario: HORMUZ_WEBER_INFLATION_SCENARIO_PORT,
+    revision: metadataPort(
+      'string',
+      'Composed Hormuz-Weber-inflation model revision.',
+    ),
+    hormuz: HORMUZ_RESULT_PORT,
+    pricePaths: WEBER_ENERGY_PRICE_PATHS_PORT,
+    inflation: ENERGY_INFLATION_NETWORK_RESULT_PORT,
+  });
 
 // Outbreak and composed macro experiment ------------------------------------
 

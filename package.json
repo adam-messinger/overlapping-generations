@@ -25,7 +25,8 @@
     "bless-baseline": "npx tsx scripts/bless-baseline.ts",
     "sim:new": "node --import tsx scripts/new-simulations-suite.ts",
     "aviation:infrastructure": "node --import tsx scripts/aviation-infrastructure-scenario.ts",
-    "aviation:bay-pj": "node --import tsx scripts/bay-area-private-jet-scenario.ts"
+    "aviation:bay-pj": "node --import tsx scripts/bay-area-private-jet-scenario.ts",
+    "news:2026-07-24": "node --import tsx scripts/headlines-2026-07-24.ts"
   },
   "engines": {
     "node": ">=20"

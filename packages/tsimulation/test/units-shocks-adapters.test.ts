@@ -45,6 +45,7 @@ test('units convert explicitly and incompatible connector units fail', () => {
 test('compound-unit algebra distinguishes stocks, flows, power, and energy', () => {
   assert.equal(convertUnit(1, '$T/year', '$B/year'), 1_000);
   assert.equal(convertUnit(1, 'GW*hour', 'GWh'), 1);
+  assert.equal(convertUnit(1, 'quarter', 'month'), 3);
   assert.ok(getUnit('kgCO2/MWh'));
   assert.ok(areUnitsConvertible(multiplyUnits('GW', 'hour').symbol, 'GWh'));
   assert.throws(() => convertUnit(1, '$T', '$T/year'), /Incompatible/);
@@ -58,6 +59,7 @@ test('absolute temperatures, temperature differences, and calendar labels stay d
   assert.equal(areUnitsConvertible('pH', 'fraction'), false);
   assert.equal(areUnitsConvertible('calendar-year', 'year'), false);
   assert.equal(areUnitsConvertible('calendar-month', 'month'), false);
+  assert.equal(areUnitsConvertible('calendar-quarter', 'month'), false);
   assert.equal(areUnitsConvertible('step-index', 'month'), false);
   assert.ok(getUnit('Δ°C*day'));
   assert.equal(getUnit('°C*day'), undefined);

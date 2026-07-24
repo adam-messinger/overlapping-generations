@@ -27,6 +27,22 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
     status: 'registered',
     modelId: 'data-center-grid-cost-allocation',
   },
+  simulateEnergyInflationV2: {
+    status: 'registered',
+    modelId: 'energy-inflation-policy',
+  },
+  simulateHormuzWeberInflation: {
+    status: 'registered',
+    modelId: 'hormuz-weber-inflation',
+  },
+  simulateAiCapitalCycleV2: {
+    status: 'registered',
+    modelId: 'ai-capital-cycle',
+  },
+  simulateCoralBleachingV2: {
+    status: 'registered',
+    modelId: 'coral-bleaching-exposure',
+  },
   simulateBilateralTariff: { status: 'registered', modelId: 'bilateral-tariff-io' },
   simulatePriceShock: { status: 'registered', modelId: 'critical-material-price-network' },
   simulateDynamicNetwork: { status: 'registered', modelId: 'critical-material-flow-network' },
@@ -51,6 +67,26 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
     status: 'validation-component',
     reason: 'Superseded calibration baseline retained for V1-to-V2 comparison.',
     coveredBy: 'outbreak-preparedness',
+  },
+  simulateEnergyInflationV1: {
+    status: 'validation-component',
+    reason: 'Direct-only headline-inflation toy retained for V1-to-V2 comparison.',
+    coveredBy: 'energy-inflation-policy',
+  },
+  simulateEnergyInflationV3: {
+    status: 'validation-component',
+    reason: 'Network-aware policy block is composed and registered at the Hormuz-Weber model boundary.',
+    coveredBy: 'hormuz-weber-inflation',
+  },
+  simulateAiCapitalCycleV1: {
+    status: 'validation-component',
+    reason: 'Revenue-versus-depreciation snapshot retained to expose the headline accounting shortcut.',
+    coveredBy: 'ai-capital-cycle',
+  },
+  simulateCoralBleachingV1: {
+    status: 'validation-component',
+    reason: 'ENSO-only toy retained for the frozen V1-to-V2 holdout comparison.',
+    coveredBy: 'coral-bleaching-exposure',
   },
   simulateHistoricalDisruption: {
     status: 'validation-component',

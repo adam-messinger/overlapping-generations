@@ -9,6 +9,7 @@ import { simulateDynamicNetwork } from './dynamic-network.js';
 import {
   evaluateWeberPeriod,
   fitWeberModels,
+  propagateWeberShock,
   simulatePriceShock,
 } from './price-network.js';
 
@@ -27,6 +28,21 @@ test('network exposure beats direct exposure on both Weber holdout periods', () 
     expect(v2.maePctPoints).toBeLessThan(v1.maePctPoints);
     expect(v2.rankCorrelation).toBeGreaterThan(v1.rankCorrelation);
   }
+});
+
+test('Weber propagation separates direct energy weight from systemic CPI exposure', () => {
+  const fit = fitWeberModels(weberBenchmark);
+  const impact = propagateWeberShock(
+    weberBenchmark,
+    'oil-gas',
+    100,
+    fit,
+  );
+  expect(impact.directCpiImpactPct).toBe(0.04);
+  expect(impact.totalCpiImpactPct).toBeGreaterThan(
+    impact.directCpiImpactPct,
+  );
+  expect(impact.indirectCpiImpactPct).toBeGreaterThan(0.7);
 });
 
 test('inventories delay the observed rare-earth quantity bottleneck', () => {

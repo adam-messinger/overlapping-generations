@@ -9,6 +9,9 @@ import { france2026HeatEvent, heatAdaptationPackages } from './heat/data.js';
 import { genericDrugEconomicsScenarios } from './drug-supply/data.js';
 import { genericTariffScenarios } from './drug-supply/generic-tariff.js';
 import { dataCenterGridScenarios } from './news/data-center-grid.js';
+import { energyInflationScenarios } from './news/energy-inflation.js';
+import { aiCapitalCycleScenarios } from './news/ai-capital-cycle.js';
+import { coralBleachingScenarios } from './news/coral-bleaching.js';
 import { centralAviationScenario } from './aviation-infrastructure/data.js';
 import { canadaJuly2026Tariff } from './trade/data.js';
 import {
@@ -19,8 +22,13 @@ import {
 } from './financial-contagion/data.js';
 import { maritimeScenarios } from './critical-materials/shipping-data.js';
 import { hormuzScenarios } from './critical-materials/hormuz-data.js';
+import { calibrateHormuzModel } from './critical-materials/hormuz-calibration.js';
 import { hormuzGlobalAdapter } from './critical-materials/hormuz-bridge.js';
 import { criticalMaterialNetwork } from './critical-materials/data.js';
+import {
+  hormuzWeberPriceAdapter,
+  makeHormuzWeberInflationScenario,
+} from './news/hormuz-weber-inflation.js';
 import {
   SIMULATION_MODELS,
   dataCenterGridModel,
@@ -94,6 +102,13 @@ test('migrated forecasting boundaries have complete semantic contracts', () => {
       'crosswalk.hormuz.gas-availability-to-non-electric-energy',
     ],
   );
+  assert.equal(hormuzWeberPriceAdapter.semanticValidation, 'required');
+  assert.equal(
+    hormuzWeberPriceAdapter.portMappings.filter(
+      (mapping) => mapping.crosswalk !== undefined,
+    ).length,
+    8,
+  );
 });
 
 test('CDC operational and fixed-initial series share an estimand but not a measurement regime', () => {
@@ -147,6 +162,29 @@ test('representative standalone runs satisfy every nested runtime contract', () 
     simulationModelRegistry.run(
       'data-center-grid-cost-allocation',
       dataCenterGridScenarios['full-pledge-clean-flex'],
+    ),
+    simulationModelRegistry.run(
+      'energy-inflation-policy',
+      energyInflationScenarios['euro-area-2026-current'],
+    ),
+    simulationModelRegistry.run(
+      'hormuz-weber-inflation',
+      makeHormuzWeberInflationScenario({
+        id: 'registry-smoke',
+        label: 'Registry smoke test',
+        hormuzScenario: hormuzScenarios['short-disruption'],
+        hormuzParams: calibrateHormuzModel().params,
+        inflationScenario:
+          energyInflationScenarios['euro-area-2026-current'],
+      }),
+    ),
+    simulationModelRegistry.run(
+      'ai-capital-cycle',
+      aiCapitalCycleScenarios.central,
+    ),
+    simulationModelRegistry.run(
+      'coral-bleaching-exposure',
+      coralBleachingScenarios['current-outlook'],
     ),
     simulationModelRegistry.run('bilateral-tariff-io', { action: canadaJuly2026Tariff }),
     simulationModelRegistry.run('critical-material-price-network', {
@@ -215,7 +253,7 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       centralAviationScenario,
     ),
   ];
-  assert.equal(runs.length, 14);
+  assert.equal(runs.length, 18);
 });
 
 test('war-AI annual rows satisfy their recursive contract', () => {

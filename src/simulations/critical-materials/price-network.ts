@@ -72,6 +72,14 @@ export interface WeberFit {
   networkExposure: Readonly<Record<string, number>>;
 }
 
+export interface WeberShockImpact {
+  sectorId: string;
+  shockPct: number;
+  directCpiImpactPct: number;
+  totalCpiImpactPct: number;
+  indirectCpiImpactPct: number;
+}
+
 /** Fit V1's one global multiplier and V2's total-requirements exposure on 2000–2019. */
 export function fitWeberModels(
   rows: readonly WeberSectorBenchmark[],
@@ -105,6 +113,40 @@ export function predictWeberImpact(
     return fit.directScale * shock * (row.consumerSharePct / 100);
   }
   return shock * fit.networkExposure[row.id];
+}
+
+/**
+ * Apply a fitted Weber total-requirements exposure to an arbitrary sector
+ * price shock, retaining the direct consumer-weight contribution separately.
+ *
+ * `indirectCpiImpactPct` is the network contribution beyond the shocked
+ * sector's own final-consumption weight. It is a CPI percentage-point
+ * contribution, not a percentage change in the upstream sector price.
+ */
+export function propagateWeberShock(
+  rows: readonly WeberSectorBenchmark[],
+  sectorId: string,
+  shockPct: number,
+  fit: WeberFit = fitWeberModels(rows),
+): WeberShockImpact {
+  assertFiniteDeep({ rows, shockPct, fit }, 'Weber shock propagation');
+  const row = rows.find((candidate) => candidate.id === sectorId);
+  if (!row) throw new Error(`Unknown Weber sector: ${sectorId}`);
+  const exposure = fit.networkExposure[sectorId];
+  if (exposure === undefined) {
+    throw new Error(`Weber fit has no network exposure for sector: ${sectorId}`);
+  }
+  const directCpiImpactPct = shockPct * row.consumerSharePct / 100;
+  const totalCpiImpactPct = shockPct * exposure;
+  const result: WeberShockImpact = {
+    sectorId,
+    shockPct,
+    directCpiImpactPct,
+    totalCpiImpactPct,
+    indirectCpiImpactPct: totalCpiImpactPct - directCpiImpactPct,
+  };
+  assertFiniteDeep(result, 'Weber shock impact');
+  return result;
 }
 
 export interface WeberEvaluation {

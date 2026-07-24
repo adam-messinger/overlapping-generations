@@ -11,10 +11,15 @@ import {
 } from 'tsimulation';
 import { outbreakForecastEstimands } from './semantic-contracts.js';
 import {
+  AI_CAPITAL_CYCLE_SCENARIO_PORT,
+  AI_CAPITAL_QUARTERS_PORT,
+  AI_CAPITAL_SNAPSHOT_PORT,
   ANNUAL_HORMUZ_ROWS_PORT,
   BOOLEAN_PORT,
   CONTAGION_OPTIONS_PORT,
   CONTAGION_POLICY_PORT,
+  CORAL_SCENARIO_PORT,
+  CORAL_YEAR_RESULTS_PORT,
   COUNTERMEASURE_PORT,
   DATA_CENTER_GRID_RESULT_PORT,
   DATA_CENTER_GRID_SCENARIO_PORT,
@@ -24,6 +29,8 @@ import {
   DYNAMIC_NETWORK_PORT,
   DRUG_MONTHS_PORT,
   DRUG_SCENARIO_PORT,
+  ENERGY_INFLATION_MONTHS_PORT,
+  ENERGY_INFLATION_SCENARIO_PORT,
   FUND_STRESS_ROWS_PORT,
   GENERIC_TARIFF_MONTHS_PORT,
   GENERIC_TARIFF_SCENARIO_PORT,
@@ -35,6 +42,8 @@ import {
   HORMUZ_MONTHS_PORT,
   HORMUZ_PARAMS_PORT,
   HORMUZ_SCENARIO_PORT,
+  HORMUZ_WEBER_INFLATION_RESULT_PORT,
+  HORMUZ_WEBER_INFLATION_SCENARIO_PORT,
   LEVERAGED_FUNDS_PORT,
   MARITIME_ANNUAL_ROWS_PORT,
   MARITIME_MONTHS_PORT,
@@ -129,6 +138,30 @@ import {
   type DataCenterGridResult,
   type DataCenterGridScenario,
 } from './news/data-center-grid.js';
+import {
+  energyInflationEvidence,
+  simulateEnergyInflationV2,
+  type EnergyInflationResult,
+  type EnergyInflationScenario,
+} from './news/energy-inflation.js';
+import {
+  hormuzWeberEvidence,
+  simulateHormuzWeberInflation,
+  type HormuzWeberInflationResult,
+  type HormuzWeberInflationScenario,
+} from './news/hormuz-weber-inflation.js';
+import {
+  aiCapitalCycleEvidence,
+  simulateAiCapitalCycleV2,
+  type AiCapitalCycleResult,
+  type AiCapitalCycleScenario,
+} from './news/ai-capital-cycle.js';
+import {
+  simulateCoralBleachingV2,
+  type CoralBleachingResult,
+  type CoralBleachingScenario,
+} from './news/coral-bleaching.js';
+import { coralCurrentEvidence } from './news/coral-data.js';
 import {
   bnef2035DataCenterCapacityMeasurement,
   bnefTotalToIncrementalLoadDerivation,
@@ -430,6 +463,375 @@ export const dataCenterGridModel = defineModel<
         'dc-grid-doe-rates',
         'dc-grid-pledge',
         'dc-grid-flexibility',
+      ],
+    ),
+  ],
+});
+
+export const energyInflationModel = defineModel<
+  EnergyInflationScenario,
+  EnergyInflationResult
+>({
+  id: 'energy-inflation-policy',
+  version: '2.0.0',
+  description:
+    'Monthly import-energy price-level transmission into headline/core inflation, output, expectations, and a supply-shock-aware policy rule.',
+  run: (scenario) => simulateEnergyInflationV2(scenario),
+  inputPorts: ENERGY_INFLATION_SCENARIO_PORT.fields,
+  outputPorts: {
+    scenario: ENERGY_INFLATION_SCENARIO_PORT,
+    revision: metadataPort('string', 'Energy-inflation model revision.'),
+    months: ENERGY_INFLATION_MONTHS_PORT,
+    peakHeadlineInflationPct: unitPort('%'),
+    peakCoreInflationPct: unitPort('%'),
+    peakPolicyRatePct: unitPort('%'),
+    troughOutputGapPct: unitPort('%'),
+    monthsHeadlineAboveTarget: unitPort('month'),
+    monthsCoreAboveTarget: unitPort('month'),
+  },
+  invariants: [
+    {
+      id: 'monthly-path-reconciliation',
+      description: 'The output path must contain one row per input month.',
+      check: (result) =>
+        result.months.length === result.scenario.importEnergyPricePath.length,
+    },
+    {
+      id: 'nonnegative-policy-rate',
+      description: 'This toy policy rule is subject to an effective lower bound of zero.',
+      check: (result) =>
+        result.months.every((row) => row.policyRatePct >= 0),
+    },
+  ],
+  evidence: [
+    observed(
+      'energy-inflation-current-market',
+      'July 2026 Brent settlement and market repricing',
+      energyInflationEvidence.sources.currentMarkets,
+      'scenario',
+      '2026-07-24',
+      undefined,
+      energyInflationEvidence.currentBrentUsdPerBarrel,
+      '$/barrel',
+    ),
+    observed(
+      'energy-inflation-ecb-transmission',
+      'ECB 2026 energy-shock transmission analysis',
+      energyInflationEvidence.sources.ecbTransmission,
+      'development',
+      '2026-07-24',
+    ),
+    observed(
+      'energy-inflation-2022-outcomes',
+      'Euro-area 2022–2023 inflation and policy peaks',
+      energyInflationEvidence.sources.ecbPolicy,
+      'validation',
+      '2026-07-24',
+      undefined,
+      {
+        headlineInflationPct:
+          energyInflationEvidence.euroArea2022PeakHeadlineInflationPct,
+        coreInflationPct:
+          energyInflationEvidence.euroArea2023PeakCoreInflationPct,
+        depositRatePct:
+          energyInflationEvidence.euroArea2023PeakDepositRatePct,
+      },
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'same-event-fit',
+      '2022 multidimensional reconstruction',
+      'The revised mechanism is checked against the 2022–2023 headline-inflation, core-inflation, and policy-rate peaks; the 2026 duration and policy response remain scenarios.',
+      [
+        'energy-inflation-ecb-transmission',
+        'energy-inflation-2022-outcomes',
+        'energy-inflation-current-market',
+      ],
+    ),
+  ],
+});
+
+export const hormuzWeberInflationModel = defineModel<
+  HormuzWeberInflationScenario,
+  HormuzWeberInflationResult
+>({
+  id: 'hormuz-weber-inflation',
+  version: '1.0.0',
+  description:
+    'Monthly Hormuz oil/LNG stock-flow prices propagated through Weber total-requirements exposures into euro-area inflation and policy.',
+  run: (scenario) => simulateHormuzWeberInflation(scenario),
+  inputPorts: HORMUZ_WEBER_INFLATION_SCENARIO_PORT.fields,
+  outputPorts: HORMUZ_WEBER_INFLATION_RESULT_PORT.fields,
+  invariants: [
+    {
+      id: 'monthly-path-reconciliation',
+      description:
+        'Hormuz, Weber price, and inflation paths must cover the same horizon.',
+      check: (result) =>
+        result.hormuz.months.length === result.pricePaths.months.length &&
+        result.pricePaths.months.length === result.inflation.months.length,
+    },
+    {
+      id: 'network-impact-reconciliation',
+      description:
+        'Oil and gas Weber contributions must sum to total indirect CPI impact.',
+      check: (result) =>
+        result.pricePaths.months.every(
+          (row) =>
+            Math.abs(
+              row.oilIndirectCpiImpactPct +
+                row.gasIndirectCpiImpactPct -
+                row.networkIndirectCpiImpactPct,
+            ) < 1e-10,
+        ),
+    },
+    {
+      id: 'nonnegative-policy-rate',
+      description:
+        'The supply-shock-aware policy rule retains its zero lower bound.',
+      check: (result) =>
+        result.inflation.months.every((row) => row.policyRatePct >= 0),
+    },
+  ],
+  evidence: [
+    {
+      id: 'hormuz-weber-total-requirements',
+      label: 'Weber et al. systemically significant prices',
+      kind: 'literature',
+      role: 'development',
+      source: {
+        title:
+          'Inflation in times of overlapping emergencies: systemically significant prices from an input-output perspective',
+        url: hormuzWeberEvidence.weberDoi,
+        accessedAt: '2026-07-24',
+      },
+      notes: hormuzWeberEvidence.notes,
+    },
+    observed(
+      'hormuz-weber-current-market',
+      'July 2026 Brent settlement and market repricing',
+      energyInflationEvidence.sources.currentMarkets,
+      'scenario',
+      '2026-07-24',
+    ),
+    observed(
+      'hormuz-weber-ecb-transmission',
+      'ECB 2026 energy-shock transmission analysis',
+      energyInflationEvidence.sources.ecbTransmission,
+      'validation',
+      '2026-07-24',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'out-of-sample',
+      'Weber network propagation plus inherited Hormuz stock-flow validation',
+      'The total-requirements exposure is fitted on Weber’s 2000–2019 vector and checked on its published 2021-Q4 and 2022-Q2 vectors. Hormuz prices inherit the separate stock-flow development/holdout tests; the euro-area sector crosswalk remains a scenario.',
+      [
+        'hormuz-weber-total-requirements',
+        'hormuz-weber-current-market',
+        'hormuz-weber-ecb-transmission',
+      ],
+    ),
+  ],
+});
+
+export const aiCapitalCycleModel = defineModel<
+  AiCapitalCycleScenario,
+  AiCapitalCycleResult
+>({
+  id: 'ai-capital-cycle',
+  version: '2.0.0',
+  description:
+    'Quarterly AI revenue, operating cash, capex cohorts, depreciation, replacement, financing, and self-funding accounting.',
+  run: (scenario) => simulateAiCapitalCycleV2(scenario),
+  inputPorts: AI_CAPITAL_CYCLE_SCENARIO_PORT.fields,
+  outputPorts: {
+    scenario: AI_CAPITAL_CYCLE_SCENARIO_PORT,
+    revision: metadataPort('string', 'AI capital-cycle model revision.'),
+    initialSnapshot: AI_CAPITAL_SNAPSHOT_PORT,
+    quarters: AI_CAPITAL_QUARTERS_PORT,
+    firstRevenueCoverageQuarter: {
+      ...metadataPort('string', 'First quarter with revenue at least depreciation.'),
+      nullable: true,
+    },
+    firstEconomicReplacementQuarter: {
+      ...metadataPort(
+        'string',
+        'First quarter whose operating contribution covers replacement and financing.',
+      ),
+      nullable: true,
+    },
+    firstTotalCapexSelfFundingQuarter: {
+      ...metadataPort(
+        'string',
+        'First quarter whose operating contribution covers total capex and financing.',
+      ),
+      nullable: true,
+    },
+    peakCumulativeFundingNeedBillion: unitPort('$B'),
+    endingCumulativeNetCashBillion: unitPort('$B'),
+    endingDebtBalanceBillion: unitPort('$B'),
+    endingCapexReplacementCoverage: unitPort('1'),
+  },
+  invariants: [
+    {
+      id: 'quarterly-cash-identity',
+      description: 'Operating contribution less capex and financing equals free cash flow.',
+      check: (result) =>
+        result.quarters.every(
+          (row) =>
+            Math.abs(
+              row.operatingCashContributionBillion -
+                row.aiCapexBillion -
+                row.financingCostBillion -
+                row.freeCashFlowBillion,
+            ) < 1e-8,
+        ),
+    },
+    {
+      id: 'nonnegative-debt',
+      description: 'Debt balances cannot be negative.',
+      check: (result) =>
+        result.quarters.every((row) => row.debtBalanceBillion >= 0),
+    },
+  ],
+  evidence: [
+    observed(
+      'ai-cycle-revenue-depreciation',
+      'Q1 2026 AI revenue and depreciation comparison',
+      aiCapitalCycleEvidence.sources.revenueAndDepreciation,
+      'development',
+      '2026-07-24',
+      undefined,
+      {
+        revenueBillion:
+          aiCapitalCycleEvidence.q1_2026RevenueBillion,
+        depreciationBillion:
+          aiCapitalCycleEvidence.q1_2026DepreciationBillion,
+      },
+      '$B/quarter',
+    ),
+    observed(
+      'ai-cycle-capex',
+      'Big Tech 2026 capital-spending guidance',
+      aiCapitalCycleEvidence.sources.capex,
+      'scenario',
+      '2026-07-24',
+      undefined,
+      aiCapitalCycleEvidence.bigTech2026CapexBillion,
+      '$B/year',
+    ),
+    observed(
+      'ai-cycle-market-reaction',
+      'July 2026 market reaction to hyperscaler cash burn',
+      aiCapitalCycleEvidence.sources.currentMarkets,
+      'scenario',
+      '2026-07-24',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'scenario-only',
+      'AI buildout self-financing path',
+      'The current-quarter revenue/depreciation ratio and aggregate capex are observed, while AI capex scope, operating cost, asset mix, monetization, and financing paths remain explicit scenarios.',
+      [
+        'ai-cycle-revenue-depreciation',
+        'ai-cycle-capex',
+        'ai-cycle-market-reaction',
+      ],
+    ),
+  ],
+});
+
+export const coralBleachingModel = defineModel<
+  CoralBleachingScenario,
+  CoralBleachingResult
+>({
+  id: 'coral-bleaching-exposure',
+  version: '2.0.0',
+  description:
+    'Annual global reef bleaching-level heat-stress extent from the ocean-warming baseline and lagged ENSO timing.',
+  run: (scenario) => simulateCoralBleachingV2(scenario),
+  inputPorts: CORAL_SCENARIO_PORT.fields,
+  outputPorts: {
+    scenario: CORAL_SCENARIO_PORT,
+    revision: metadataPort('string', 'Coral-bleaching model revision.'),
+    years: CORAL_YEAR_RESULTS_PORT,
+  },
+  invariants: [
+    {
+      id: 'extent-range',
+      description: 'Observed, predicted, and counterfactual reef extents are shares in [0,1].',
+      check: (result) =>
+        result.years.every(
+          (row) =>
+            row.predictedBleachingExtent >= 0 &&
+            row.predictedBleachingExtent <= 1 &&
+            row.earlyRecordBaselineCounterfactualExtent >= 0 &&
+            row.earlyRecordBaselineCounterfactualExtent <= 1 &&
+            row.neutralEnsoCounterfactualExtent >= 0 &&
+            row.neutralEnsoCounterfactualExtent <= 1,
+        ),
+    },
+  ],
+  evidence: [
+    observed(
+      'coral-noaa-bleaching-history',
+      'NOAA 365-day bleaching stress extent',
+      coralCurrentEvidence.sources.bleachingExtent,
+      'development',
+      '2026-07-24',
+    ),
+    observed(
+      'coral-noaa-ocean-temperature',
+      'NOAA global-ocean annual temperature anomalies',
+      coralCurrentEvidence.sources.oceanTemperature,
+      'development',
+      '2026-07-24',
+    ),
+    observed(
+      'coral-noaa-oni',
+      'NOAA Oceanic Niño Index',
+      coralCurrentEvidence.sources.oni,
+      'development',
+      '2026-07-24',
+    ),
+    observed(
+      'coral-noaa-holdout',
+      'NOAA 2018–2025 bleaching extent holdout',
+      coralCurrentEvidence.sources.bleachingStatus,
+      'holdout',
+      '2026-07-24',
+    ),
+    observed(
+      'coral-noaa-methodology',
+      'NOAA Degree Heating Week methodology',
+      coralCurrentEvidence.sources.methodology,
+      'validation',
+      '2026-07-24',
+    ),
+    observed(
+      'coral-noaa-current-enso',
+      'NOAA July 2026 ENSO strength probabilities',
+      coralCurrentEvidence.sources.currentOutlook,
+      'scenario',
+      '2026-07-24',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'out-of-sample',
+      'Post-2017 bleaching-regime holdout',
+      'Both revisions are fit only through 2017. Adding the ocean-warming baseline cuts 2018–2025 holdout MAE by roughly two thirds relative to the ENSO-only toy model.',
+      [
+        'coral-noaa-bleaching-history',
+        'coral-noaa-ocean-temperature',
+        'coral-noaa-oni',
+        'coral-noaa-holdout',
+        'coral-noaa-methodology',
+        'coral-noaa-current-enso',
       ],
     ),
   ],
@@ -1021,6 +1423,10 @@ export const SIMULATION_MODELS = [
   genericDrugModel,
   genericDrugTariffModel,
   dataCenterGridModel,
+  energyInflationModel,
+  hormuzWeberInflationModel,
+  aiCapitalCycleModel,
+  coralBleachingModel,
   bilateralTariffModel,
   criticalMaterialPriceModel,
   criticalMaterialFlowModel,

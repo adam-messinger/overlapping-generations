@@ -201,6 +201,19 @@ observed causal CPI decompositions.
 This validates the implementation of Weber's method, not the current physical
 network or a causal inflation theory.
 
+The July 24 energy-inflation composition now reuses these fitted
+total-requirements exposures. Monthly OECD oil and gas prices from the Hormuz
+stock-flow model are mapped through the petroleum, oil-and-gas extraction, and
+utilities exposures before entering the inflation/policy model. Run it with:
+
+```bash
+npm run news:2026-07-24
+```
+
+The integration remains a reduced-form OECD-to-euro-area crosswalk. Replacing
+it with a current Eurostat/OECD direct-requirements table is the next empirical
+upgrade; the bridge keeps that scale and allocation uncertainty explicit.
+
 ## Data access
 
 No signup is required for the committed USGS, Federal Reserve, CDC/WHO, or IEA

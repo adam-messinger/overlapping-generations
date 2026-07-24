@@ -38,6 +38,18 @@ const world = {
   boundaryVersion: 'global-model-boundary-v1',
 } as const;
 
+const oecdRegion = {
+  id: 'geo.oecd-model-region',
+  label: 'OECD aggregate model region',
+  boundaryVersion: 'global-model-region-v1',
+} as const;
+
+const euroArea = {
+  id: 'geo.euro-area',
+  label: 'Euro area',
+  boundaryVersion: 'current-membership-proxy',
+} as const;
+
 const usDataCenters = {
   id: 'population.us.data-centers',
   label: 'U.S. data-center facilities',
@@ -65,6 +77,13 @@ const calendarYearSum = {
   interval: 'calendar-year',
   aggregation: 'sum',
   calendar: 'gregorian',
+} as const;
+
+const simulationMonthMean = {
+  kind: 'interval',
+  interval: 'simulation-month',
+  aggregation: 'mean',
+  calendar: 'gregorian-month',
 } as const;
 
 const pointInTime = {
@@ -513,6 +532,20 @@ const globalCommodityMarket = {
   universe: 'Modeled global intended consumption in the traded oil or gas market.',
 } as const;
 
+const oecdCommodityMarket = {
+  id: 'population.oecd-traded-energy-market',
+  label: 'OECD aggregate traded oil and gas market',
+  universe:
+    'Modeled oil and gas prices faced by the OECD aggregate region after global clearing and regional scarcity premia.',
+} as const;
+
+const euroAreaConsumerBasket = {
+  id: 'population.euro-area-consumer-basket',
+  label: 'Euro-area harmonized consumer basket',
+  universe:
+    'Modeled euro-area household consumption prices, divided into direct energy, core, and other non-core components.',
+} as const;
+
 const globalNonElectricEnergy = {
   id: 'population.global-non-electric-final-energy',
   label: 'Global non-electric final-energy demand',
@@ -609,6 +642,92 @@ export const hormuzEstimands = {
     },
     time: calendarYearMean,
   }),
+  oecdOilPriceMultipleMonthly: estimand(
+    'estimand.hormuz.oecd-oil-price-multiple-monthly',
+    {
+      quantityKind: 'price.oecd-oil-price-multiple',
+      measure: { kind: 'index' },
+      population: oecdCommodityMarket,
+      geography: oecdRegion,
+      ratio: {
+        numerator: 'scenario-oecd-oil-price',
+        denominator: 'counterfactual-oecd-oil-price',
+      },
+      time: simulationMonthMean,
+    },
+  ),
+  oecdGasPriceMultipleMonthly: estimand(
+    'estimand.hormuz.oecd-gas-price-multiple-monthly',
+    {
+      quantityKind: 'price.oecd-gas-price-multiple',
+      measure: { kind: 'index' },
+      population: oecdCommodityMarket,
+      geography: oecdRegion,
+      ratio: {
+        numerator: 'scenario-oecd-gas-price',
+        denominator: 'counterfactual-oecd-gas-price',
+      },
+      time: simulationMonthMean,
+    },
+  ),
+} as const;
+
+export const weberEnergyInflationEstimands = {
+  importEnergyPriceMultiple: estimand(
+    'estimand.energy-inflation.euro-area-import-energy-price-multiple',
+    {
+      quantityKind: 'price.euro-area-import-energy-composite-multiple',
+      measure: { kind: 'index' },
+      population: euroAreaConsumerBasket,
+      geography: euroArea,
+      ratio: {
+        numerator: 'scenario-oil-gas-import-price-composite',
+        denominator: 'counterfactual-oil-gas-import-price-composite',
+      },
+      time: simulationMonthMean,
+      description:
+        'Fixed-share oil and gas import-price composite used to drive direct household energy prices.',
+    },
+  ),
+  networkIndirectCpiImpact: estimand(
+    'estimand.energy-inflation.weber-indirect-cpi-price-level-impact',
+    {
+      quantityKind:
+        'price.euro-area-indirect-energy-input-cpi-level-contribution',
+      measure: { kind: 'index' },
+      population: euroAreaConsumerBasket,
+      geography: euroArea,
+      time: simulationMonthMean,
+      description:
+        'Total CPI price-level contribution beyond the shocked energy sectors’ own direct household-consumption weights.',
+    },
+  ),
+  networkCoreSubindexPriceGap: estimand(
+    'estimand.energy-inflation.weber-core-subindex-price-gap',
+    {
+      quantityKind:
+        'price.euro-area-core-consumer-subindex-counterfactual-gap',
+      measure: { kind: 'index' },
+      population: euroAreaConsumerBasket,
+      geography: euroArea,
+      ratio: {
+        numerator: 'scenario-core-consumer-price-subindex',
+        denominator: 'counterfactual-core-consumer-price-subindex',
+      },
+      time: simulationMonthMean,
+    },
+  ),
+  networkOtherCpiContribution: estimand(
+    'estimand.energy-inflation.weber-other-cpi-price-level-contribution',
+    {
+      quantityKind:
+        'price.euro-area-non-core-non-energy-cpi-level-contribution',
+      measure: { kind: 'index' },
+      population: euroAreaConsumerBasket,
+      geography: euroArea,
+      time: simulationMonthMean,
+    },
+  ),
 } as const;
 
 function crosswalk(
@@ -651,5 +770,97 @@ export const hormuzCrosswalks = {
     'Convert the consumption-weighted regional gas availability result into its contribution to a broader non-electric final-energy availability shock.',
     'Fixed-share weighted loss: gasShare * (1 - gasAvailability), combined with oil and unshocked fuels.',
     ['The near-term gas share is supplied explicitly in HormuzBridgeOptions.', 'Regional gas availability is weighted by modeled gas consumption.'],
+  ),
+} as const;
+
+function weberEnergyCrosswalk(
+  id: string,
+  source: EstimandContract,
+  target: EstimandContract,
+  description: string,
+  method: string,
+): SemanticCrosswalk {
+  return defineSemanticCrosswalk({
+    schemaVersion: 'tsimulation.crosswalk/v1',
+    id,
+    version: '1.0.0',
+    description,
+    source,
+    target,
+    method,
+    assumptions: [
+      'The OECD aggregate regional price is used as a euro-area import-price proxy.',
+      'Oil and gas basket shares and Weber sector-chain allocations are explicit bridge parameters.',
+      'Published Weber total-requirements exposures are transported to the current euro-area scenario.',
+    ],
+    uncertainty: {
+      kind: 'qualitative',
+      description:
+        'A current euro-area direct-requirements table could materially change the sector allocation and indirect price level.',
+    },
+  });
+}
+
+const energyPriceSources = {
+  oil: hormuzEstimands.oecdOilPriceMultipleMonthly,
+  gas: hormuzEstimands.oecdGasPriceMultipleMonthly,
+} as const;
+
+export const hormuzWeberCrosswalks = {
+  oilToImportEnergy: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.oil-to-import-energy-composite',
+    energyPriceSources.oil,
+    weberEnergyInflationEstimands.importEnergyPriceMultiple,
+    'Map the modeled OECD oil-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
+    '1 + oilShare * (oilMultiple - 1) + gasShare * (gasMultiple - 1).',
+  ),
+  gasToImportEnergy: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.gas-to-import-energy-composite',
+    energyPriceSources.gas,
+    weberEnergyInflationEstimands.importEnergyPriceMultiple,
+    'Map the modeled OECD gas-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
+    '1 + oilShare * (oilMultiple - 1) + gasShare * (gasMultiple - 1).',
+  ),
+  oilToNetworkImpact: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.oil-to-network-cpi-impact',
+    energyPriceSources.oil,
+    weberEnergyInflationEstimands.networkIndirectCpiImpact,
+    'Translate the upstream oil-price shock into indirect CPI exposure beyond direct household energy.',
+    'Weighted blend of Weber petroleum and oil-and-gas extraction total-requirements exposures, net of direct consumer weights.',
+  ),
+  gasToNetworkImpact: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.gas-to-network-cpi-impact',
+    energyPriceSources.gas,
+    weberEnergyInflationEstimands.networkIndirectCpiImpact,
+    'Translate the upstream gas-price shock into indirect CPI exposure beyond direct household energy.',
+    'Weighted blend of Weber utilities and oil-and-gas extraction total-requirements exposures, net of direct consumer weights.',
+  ),
+  oilToCoreGap: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.oil-to-core-price-gap',
+    energyPriceSources.oil,
+    weberEnergyInflationEstimands.networkCoreSubindexPriceGap,
+    'Allocate the oil-driven indirect CPI impact to the euro-area core-price subindex.',
+    'Multiply by the core allocation share and divide by the core HICP weight.',
+  ),
+  gasToCoreGap: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.gas-to-core-price-gap',
+    energyPriceSources.gas,
+    weberEnergyInflationEstimands.networkCoreSubindexPriceGap,
+    'Allocate the gas-driven indirect CPI impact to the euro-area core-price subindex.',
+    'Multiply by the core allocation share and divide by the core HICP weight.',
+  ),
+  oilToOtherContribution: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.oil-to-other-cpi-contribution',
+    energyPriceSources.oil,
+    weberEnergyInflationEstimands.networkOtherCpiContribution,
+    'Allocate the residual oil-driven network impact to non-core, non-energy CPI.',
+    'Multiply the indirect CPI contribution by one minus the core allocation share.',
+  ),
+  gasToOtherContribution: weberEnergyCrosswalk(
+    'crosswalk.hormuz-weber.gas-to-other-cpi-contribution',
+    energyPriceSources.gas,
+    weberEnergyInflationEstimands.networkOtherCpiContribution,
+    'Allocate the residual gas-driven network impact to non-core, non-energy CPI.',
+    'Multiply the indirect CPI contribution by one minus the core allocation share.',
   ),
 } as const;
