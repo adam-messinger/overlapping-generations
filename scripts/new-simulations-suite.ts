@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import {
   createRunManifest,
   manifestToJson,
@@ -12,17 +12,27 @@ import {
   aviationInfrastructureModel,
   bilateralTariffModel,
   defenseSourcingModel,
+  ebikeMotorMarketModel,
   financialContagionModel,
   genericDrugModel,
   heatEventModel,
   hormuzDisruptionModel,
   maritimeNetworkModel,
   outbreakPreparednessModel,
+  tradeNetworkTariffModel,
   warAiModel,
 } from '../src/simulations/registry.js';
 import {
   aviationInfrastructureScenarios,
 } from '../src/simulations/aviation-infrastructure/data.js';
+import {
+  ebikeMotorScenarios,
+} from '../src/simulations/e-bike-motors/data.js';
+import {
+  analyzeEntrantGeographicScope,
+  backtestEbikeAdoption,
+  evaluateSupplierVolumeCalibration,
+} from '../src/simulations/e-bike-motors/calibration.js';
 import {
   backtestConventionalTraffic,
   evaluateEarlyAamBenchmark,
@@ -46,6 +56,11 @@ import { calibratedHeatMortalityScale } from '../src/simulations/heat/calibratio
 import { france2026HeatEvent, france2035HotterEvent, heatAdaptationPackages } from '../src/simulations/heat/data.js';
 import { genericDrugEconomicsScenarios } from '../src/simulations/drug-supply/data.js';
 import { canadaJuly2026Tariff, brazilJuly2026Tariff } from '../src/simulations/trade/data.js';
+import {
+  deserializeTradeNetworkSnapshot,
+  tradeNetworkCentralParameters,
+  type SerializedTradeNetworkSnapshot,
+} from '../src/simulations/trade/network-data.js';
 import {
   contagionPolicies,
   leveragedFunds2026,
@@ -214,6 +229,60 @@ const tariffs = tariffCases.map(({ id, action, scope }) => {
   };
 });
 
+const serializedTradeNetwork = JSON.parse(
+  await readFile(
+    new URL(
+      '../data/trade/forced-labor-2026-network.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as SerializedTradeNetworkSnapshot;
+const tradeNetworkSnapshot =
+  deserializeTradeNetworkSnapshot(serializedTradeNetwork);
+const tradeNetworkRuns = [
+  'low-taxable',
+  'central',
+  'high-taxable',
+] as const;
+const tradeNetworkTariff = Object.fromEntries(
+  tradeNetworkRuns.map((exemptionScopeCase) => {
+    const result = runTracked(
+      `trade-network-forced-labor-${exemptionScopeCase}`,
+      tradeNetworkTariffModel,
+      {
+        id: `forced-labor-301-${exemptionScopeCase}`,
+        label:
+          'July 2026 Section 301 replacement for the expiring Section 122 tariff',
+        snapshot: tradeNetworkSnapshot,
+        parameters: {
+          ...tradeNetworkCentralParameters,
+          exemptionScopeCase,
+        },
+      },
+    );
+    return [
+      exemptionScopeCase,
+      {
+        totalImportsBillion: result.totalImportsBillion,
+        effectiveOldAdditionalTariffRate:
+          result.effectiveOldAdditionalTariffRate,
+        effectiveNewAdditionalTariffRate:
+          result.effectiveNewAdditionalTariffRate,
+        deliveredImportPriceChange:
+          result.deliveredImportPriceChange,
+        usConsumerPriceChange: result.usConsumerPriceChange,
+        importsLostBillion: result.importsLostBillion,
+        supplierReallocationBillion:
+          result.supplierReallocationBillion,
+        additionalTariffRevenueBillion:
+          result.additionalTariffRevenueBillion,
+        usRealGdpChange: result.usRealGdpChange,
+      },
+    ];
+  }),
+);
+
 const finance = ['current', 'safeguards', 'thin-liquidity', 'backstop'].map((policy) => {
   const result = runTracked(`finance-global-200-${policy}`, financialContagionModel, {
     scenario: sovereignShockScenarios['global-200bp'],
@@ -274,6 +343,20 @@ const aviationBenchmark = evaluateEarlyAamBenchmark();
 const aviationPaloAlto = projectPaloAltoTraffic(aviationCentral)
   .filter((row) => [2030, 2035, 2040, 2045, 2050].includes(row.year));
 
+const ebikeRuns = Object.entries(ebikeMotorScenarios).map(
+  ([id, scenario]) => ({
+    id,
+    result: runTracked(
+      `e-bike-motors-${id}`,
+      ebikeMotorMarketModel,
+      scenario,
+    ),
+  }),
+);
+const ebikeBacktest = backtestEbikeAdoption();
+const ebikeSupplierCalibration = evaluateSupplierVolumeCalibration();
+const ebikeGeographicScope = analyzeEntrantGeographicScope();
+
 const summary = {
   schemaVersion: 'tsimulation.suite/v1',
   createdAt: new Date().toISOString(),
@@ -309,6 +392,7 @@ const summary = {
   heat: { france2026: heat, france2035: heat2035 },
   drugs,
   tariffs,
+  tradeNetworkTariff,
   finance,
   warAi: {
     trough: warAiTrough,
@@ -337,6 +421,27 @@ const summary = {
       endingFacilityAamOperations: result.endingFacilityAamOperations,
     })),
     centralPaloAltoIllustration: aviationPaloAlto,
+  },
+  ebikeMotorMarket: {
+    adoptionBacktest: {
+      naiveMape: ebikeBacktest.naiveMeanAbsolutePercentageError,
+      stockReplacementMape:
+        ebikeBacktest.stockReplacementMeanAbsolutePercentageError,
+    },
+    supplierComparableMape:
+      ebikeSupplierCalibration.meanAbsolutePercentageError,
+    scenarios: ebikeRuns.map(({ id, result }) => ({
+      id,
+      outcome: result.entrantOutcome,
+      endingAnnualUnits: result.endingAnnualUnits,
+      endingRevenueMillion: result.endingRevenueMillion,
+      endingOperatingMargin: result.endingOperatingMargin,
+      firstOperatingBreakevenYear: result.firstOperatingBreakevenYear,
+      cashPaybackYear: result.cashPaybackYear,
+      peakFundingNeedMillion: result.peakFundingNeedMillion,
+      enterpriseNpvMillion: result.enterpriseNpvMillion,
+    })),
+    geographicScope: ebikeGeographicScope,
   },
 };
 

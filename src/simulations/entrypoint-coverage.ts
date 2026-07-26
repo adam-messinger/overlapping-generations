@@ -44,6 +44,10 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
     modelId: 'coral-bleaching-exposure',
   },
   simulateBilateralTariff: { status: 'registered', modelId: 'bilateral-tariff-io' },
+  simulateTradeNetworkTariff: {
+    status: 'registered',
+    modelId: 'trade-network-tariff',
+  },
   simulatePriceShock: { status: 'registered', modelId: 'critical-material-price-network' },
   simulateDynamicNetwork: { status: 'registered', modelId: 'critical-material-flow-network' },
   simulateFinancialContagion: { status: 'registered', modelId: 'sovereign-nbfi-contagion' },
@@ -56,6 +60,10 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
   simulateAviationInfrastructure: {
     status: 'registered',
     modelId: 'aviation-infrastructure-traffic',
+  },
+  simulateEbikeMotorMarket: {
+    status: 'registered',
+    modelId: 'e-bike-motor-market',
   },
 
   simulateCisplatinBackcast: {

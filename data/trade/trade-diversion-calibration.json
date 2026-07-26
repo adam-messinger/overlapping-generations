@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "model": "same-product Armington supplier substitution",
+  "fittedOn": "training-lists-1-2-proxy",
+  "fittedElasticity": 1.4853389504700816,
+  "selectedElasticity": 1.5,
+  "recommendedSensitivityRange": [
+    1,
+    2
+  ],
+  "groups": [
+    {
+      "id": "training-lists-1-2-proxy",
+      "label": "Electrical and mechanical equipment (2018 Lists 1/2 proxy)",
+      "chapters": [
+        "84",
+        "85"
+      ],
+      "deliveredPriceShock": 0.2,
+      "before": {
+        "year": 2017,
+        "totalUsImportsBillion": 690.7013271900025,
+        "chinaImportsBillion": 245.48694033199996,
+        "chinaSupplierShare": 0.35541692286986126
+      },
+      "after": {
+        "year": 2019,
+        "totalUsImportsBillion": 721.9543234260026,
+        "chinaImportsBillion": 213.74322550600002,
+        "chinaSupplierShare": 0.29606197867434453
+      },
+      "impliedElasticity": 1.4853389504700816,
+      "prediction": {
+        "selectedElasticity": 1.5,
+        "chinaSupplierShare": 0.2955051992209153,
+        "absoluteError": 0.0005567794534292458,
+        "noDiversionAbsoluteError": 0.059354944195516735,
+        "absoluteErrorImprovement": 0.9906194932709362
+      }
+    },
+    {
+      "id": "holdout-list-3-proxy",
+      "label": "Plastics, textiles, furniture, and toys (List 3 proxy)",
+      "chapters": [
+        "39",
+        "63",
+        "94",
+        "95"
+      ],
+      "deliveredPriceShock": 0.15,
+      "before": {
+        "year": 2017,
+        "totalUsImportsBillion": 166.83080772300048,
+        "chinaImportsBillion": 84.30239842200004,
+        "chinaSupplierShare": 0.5053167311997466
+      },
+      "after": {
+        "year": 2019,
+        "totalUsImportsBillion": 174.06404399799996,
+        "chinaImportsBillion": 82.55113490099998,
+        "chinaSupplierShare": 0.4742572504057674
+      },
+      "impliedElasticity": 0.8895830391081432,
+      "prediction": {
+        "selectedElasticity": 1.5,
+        "chinaSupplierShare": 0.4530449719184757,
+        "absoluteError": 0.02121227848729168,
+        "noDiversionAbsoluteError": 0.031059480793979244,
+        "absoluteErrorImprovement": 0.31704336501968844
+      }
+    }
+  ],
+  "source": {
+    "name": "CEPII BACI version 202601, HS17",
+    "url": "https://www.cepii.fr/DATA_DOWNLOAD/baci/doc/baci_webpage.html",
+    "baciZipSha256": "16aaa22d3b000cc87744c2c28ac97ce44394c3adf315ec259451d5bb4fcae609"
+  },
+  "limitations": [
+    "Chapter groups are transparent proxies rather than exact USTR tariff-line lists.",
+    "The two-year change also contains exchange-rate, demand, and non-tariff shocks.",
+    "The holdout tests supplier substitution but not the short-run capacity parameter."
+  ]
+}

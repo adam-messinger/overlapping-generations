@@ -26,7 +26,12 @@
     "sim:new": "node --import tsx scripts/new-simulations-suite.ts",
     "aviation:infrastructure": "node --import tsx scripts/aviation-infrastructure-scenario.ts",
     "aviation:bay-pj": "node --import tsx scripts/bay-area-private-jet-scenario.ts",
-    "news:2026-07-24": "node --import tsx scripts/headlines-2026-07-24.ts"
+    "ebike:motors": "node --import tsx scripts/e-bike-motor-market.ts",
+    "trade:build-network": "node --import tsx scripts/build-trade-network-snapshot.ts",
+    "trade:calibrate-network": "node --import tsx scripts/calibrate-trade-diversion.ts",
+    "trade:network": "node --import tsx scripts/trade-network-tariff-scenario.ts",
+    "news:2026-07-24": "node --import tsx scripts/headlines-2026-07-24.ts",
+    "news:2026-07-25": "node --import tsx scripts/headlines-2026-07-25.ts"
   },
   "engines": {
     "node": ">=20"

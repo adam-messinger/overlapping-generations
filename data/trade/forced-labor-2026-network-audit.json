@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "generatedFrom": {
+    "baciZip": "BACI_HS22_V202601.zip",
+    "baciEntry": "BACI_HS22_Y2024_V202601.csv",
+    "ustrText": "forced-labor-301-2026.txt",
+    "section122Text": "section122-annex2.txt",
+    "currentPeriod": "2026-05",
+    "mfnPeriod": "2024-12",
+    "prePolicyPeriod": "2026-01",
+    "censusHts10Rows": 18379,
+    "mfnHts10Rows": 18697
+  },
+  "graph": {
+    "edges": 53079,
+    "products": 5551,
+    "exporters": 189,
+    "totalImportsBillion": 3236.272925,
+    "retainedBaciValueShare": 0.994448639,
+    "currentValueCoverageShare": 0.979421855
+  },
+  "policy": {
+    "investigatedTradeShare": 0.994448774,
+    "tradeByTreatmentBillion": {
+      "outside-investigation": 17.965281,
+      "ten-percent": 1287.306612,
+      "twelve-five-percent": 957.873142,
+      "mfn-cap-ten": 656.034845,
+      "mfn-cap-twelve-five": 317.093045
+    },
+    "oldTaxableImportsBillion": {
+      "low": 868.851,
+      "central": 1013.288548,
+      "high": 1189.717759
+    },
+    "oldTaxableShare": {
+      "low": 0.268472721,
+      "central": 0.313103552,
+      "high": 0.367619724
+    },
+    "newTaxableImportsBillion": {
+      "low": 826.909996,
+      "central": 986.883341,
+      "high": 1178.232743
+    },
+    "newTaxableShare": {
+      "low": 0.255513059,
+      "central": 0.304944411,
+      "high": 0.364070884
+    },
+    "preferenceUtilizationByCountry": {
+      "CAN": 0.81407,
+      "MEX": 0.880074,
+      "GTM": 0.464011,
+      "SLV": 0.63143,
+      "HND": 0.53346,
+      "NIC": 0.551453,
+      "CRI": 0.162289,
+      "DOM": 0.470703
+    },
+    "section122AnnexCodeCount": 1658,
+    "annexCodeCounts": {
+      "A": 2116,
+      "B": 48,
+      "C": 43,
+      "D": 134,
+      "E": 104,
+      "F": 157,
+      "G": 112,
+      "H": 99,
+      "I": 93,
+      "J": 87,
+      "K": 118,
+      "L": 148,
+      "M": 151,
+      "N": 152,
+      "O": 1740
+    }
+  }
+}

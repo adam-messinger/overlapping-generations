@@ -1154,6 +1154,24 @@ const BUILTIN_UNITS: UnitDefinition[] = [
   { symbol: 'course', dimension: 'custom:course', scale: 1 },
   { symbol: 'dose', dimension: 'custom:dose', scale: 1 },
   { symbol: 'vehicle', dimension: 'custom:vehicle', scale: 1 },
+  {
+    symbol: 'ebike',
+    dimension: 'custom:e-bike',
+    scale: 1,
+    description: 'one complete electric bicycle sold or in the installed fleet',
+  },
+  {
+    symbol: 'driveunit',
+    dimension: 'custom:e-bike-drive-unit',
+    scale: 1,
+    description: 'one e-bike motor or integrated drive-unit equivalent',
+  },
+  {
+    symbol: 'oemprogram',
+    dimension: 'custom:oem-program',
+    scale: 1,
+    description: 'one qualified bicycle-OEM vehicle program',
+  },
   { symbol: 'aircraft', dimension: 'custom:aircraft', scale: 1 },
   { symbol: 'seat', dimension: 'custom:seat', scale: 1 },
   {

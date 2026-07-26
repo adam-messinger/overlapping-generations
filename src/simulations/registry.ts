@@ -76,6 +76,18 @@ import {
 import type { BilateralTariffAction } from './trade/data.js';
 import { tariffEvidence } from './trade/data.js';
 import { simulateBilateralTariff, type BilateralTariffResult } from './trade/model.js';
+import {
+  tradeNetworkEvidence,
+  type TradeNetworkTariffScenario,
+} from './trade/network-data.js';
+import {
+  simulateTradeNetworkTariff,
+  type TradeNetworkTariffResult,
+} from './trade/network-model.js';
+import {
+  TRADE_NETWORK_RESULT_PORT,
+  TRADE_NETWORK_SCENARIO_PORT,
+} from './trade/network-ports.js';
 import type {
   ContagionPolicy,
   LeveragedFundGroup,
@@ -185,6 +197,33 @@ import {
   AVIATION_INFRASTRUCTURE_RESULT_PORT,
   AVIATION_INFRASTRUCTURE_SCENARIO_PORT,
 } from './aviation-infrastructure/ports.js';
+import {
+  EBIKE_REGIONS,
+  MOTOR_ARCHITECTURES,
+  MOTOR_SUPPLIERS,
+  ebikeMotorEvidence,
+  regionalSalesHistory,
+  supplierDisclosures,
+  type EbikeMotorScenario,
+} from './e-bike-motors/data.js';
+import {
+  simulateEbikeMotorMarket,
+  type EbikeMotorResult,
+} from './e-bike-motors/model.js';
+import {
+  EBIKE_MOTOR_RESULT_PORT,
+  EBIKE_MOTOR_SCENARIO_PORT,
+} from './e-bike-motors/ports.js';
+import {
+  ananda2024ComparableMeasurement,
+  bafang2024DriveUnitMeasurement,
+  bikeToDriveUnitDerivation,
+  china2023ProductionMeasurement,
+  eu2023SalesMeasurement,
+  japan2022ShipmentMeasurement,
+  usChannelExpansionDerivation,
+  usDtc2024Measurement,
+} from './e-bike-motors/measurement-contracts.js';
 
 const observed = (
   id: string,
@@ -882,6 +921,130 @@ export const bilateralTariffModel = defineModel<TariffModelInput, BilateralTarif
   validationClaims: [claim('same-event-fit', 'Sector pass-through and substitution', 'Pass-through and elasticities are fit to the 2018 steel/aluminum episode; 2026 policy effects are conditional scenarios.', ['tariff-usitc-2018', 'tariff-canada-order'])],
 });
 
+export const tradeNetworkTariffModel = defineModel<
+  TradeNetworkTariffScenario,
+  TradeNetworkTariffResult
+>({
+  id: 'trade-network-tariff',
+  version: '1.0.0',
+  description:
+    'OEC-style exporter-by-HS6 import network with legal tariff coverage, same-product supplier substitution and capacity, followed by U.S. input-output price propagation.',
+  run: (scenario) => simulateTradeNetworkTariff(scenario),
+  inputPorts: TRADE_NETWORK_SCENARIO_PORT.fields,
+  outputPorts: TRADE_NETWORK_RESULT_PORT.fields,
+  invariants: [
+    {
+      id: 'product-import-reconciliation',
+      description:
+        'Product baseline imports must reconcile to graph imports.',
+      check: (result) =>
+        Math.abs(
+          result.products.reduce(
+            (total, row) =>
+              total + row.baselineImportsBillion,
+            0,
+          ) - result.totalImportsBillion,
+        ) <=
+        Math.max(1e-8, result.totalImportsBillion * 1e-9),
+    },
+    {
+      id: 'taxable-import-bounds',
+      description:
+        'Old and new legally taxable flows cannot exceed total imports.',
+      check: (result) =>
+        result.oldTaxableImportsBillion >= 0 &&
+        result.oldTaxableImportsBillion <=
+          result.totalImportsBillion &&
+        result.newTaxableImportsBillion >= 0 &&
+        result.newTaxableImportsBillion <=
+          result.totalImportsBillion,
+    },
+    {
+      id: 'supplier-concentration-range',
+      description:
+        'Trade-weighted supplier HHI must stay in [0,1].',
+      check: (result) =>
+        result.weightedSupplierHhiBefore >= 0 &&
+        result.weightedSupplierHhiBefore <= 1 &&
+        result.weightedSupplierHhiAfter >= 0 &&
+        result.weightedSupplierHhiAfter <= 1,
+    },
+    {
+      id: 'nonnegative-unfilled-capacity',
+      description:
+        'Unfilled imports after capacity allocation cannot be negative.',
+      check: (result) =>
+        result.capacityConstrainedImportsBillion >= 0,
+    },
+  ],
+  evidence: [
+    observed(
+      'trade-network-baci-current',
+      'CEPII BACI bilateral HS6 trade network, version 202601',
+      tradeNetworkEvidence.baci,
+      'development',
+      '2026-07-25',
+    ),
+    observed(
+      'trade-network-census-current',
+      'Census current HTS10 import values and customs duties',
+      tradeNetworkEvidence.census,
+      'development',
+      '2026-07-25',
+    ),
+    observed(
+      'trade-network-census-preferences',
+      'Census entry-level trade-agreement preference identifiers',
+      tradeNetworkEvidence.censusCountrySubcodes,
+      'development',
+      '2026-07-25',
+    ),
+    observed(
+      'trade-network-section-122',
+      'February 2026 temporary Section 122 tariff and exemptions',
+      tradeNetworkEvidence.section122,
+      'scenario',
+      '2026-07-25',
+    ),
+    observed(
+      'trade-network-section-301',
+      'July 2026 forced-labor Section 301 final action',
+      tradeNetworkEvidence.tariffNotice,
+      'scenario',
+      '2026-07-25',
+    ),
+    observed(
+      'trade-network-baci-holdout',
+      'BACI 2017–2019 China supplier-share holdout',
+      tradeNetworkEvidence.baci,
+      'holdout',
+      '2026-07-25',
+    ),
+  ],
+  validationClaims: [
+    claim(
+      'out-of-sample',
+      '2018–2019 supplier diversion',
+      'An elasticity of 1.5 fitted on electrical and mechanical equipment reduces holdout China-share error for plastics, textiles, furniture and toys by 31.7% versus no supplier diversion; exact tariff-line assignment and capacity remain scenario limitations.',
+      [
+        'trade-network-baci-current',
+        'trade-network-baci-holdout',
+      ],
+    ),
+    claim(
+      'literature-anchored',
+      '2026 legal incidence and customs-entry crosswalk',
+      'Old and new exemption schedules are crosswalked at HTS10, while USMCA/CAFTA utilization and pre-existing Chapter 99 scope use observed Census entry classifications.',
+      [
+        'trade-network-census-current',
+        'trade-network-census-preferences',
+        'trade-network-section-122',
+        'trade-network-section-301',
+      ],
+    ),
+  ],
+});
+
 export interface PriceShockModelInput {
   nodes: readonly MaterialNode[];
   shockedNodeId: string;
@@ -1418,6 +1581,318 @@ export const aviationInfrastructureModel = defineModel<
   semanticDerivations: [businessJetEndpointDerivation],
 });
 
+export const ebikeMotorMarketModel = defineModel<
+  EbikeMotorScenario,
+  EbikeMotorResult
+>({
+  id: 'e-bike-motor-market',
+  version: '1.0.0',
+  description:
+    'Annual e-bike adoption by U.S., EU, China, Japan, and rest-of-world source boundary; drive-unit volumes by supplier; and commercial/financial constraints on a U.S. hub- or mid-drive entrant.',
+  run: (scenario) => simulateEbikeMotorMarket(scenario),
+  inputPorts: EBIKE_MOTOR_SCENARIO_PORT.fields,
+  outputPorts: EBIKE_MOTOR_RESULT_PORT.fields,
+  invariants: [
+    {
+      id: 'regional-sales-reconcile',
+      description:
+        'Regional complete-bike market flows must sum to the modeled global flow.',
+      check: (result) =>
+        result.years.every(
+          (row) =>
+            Math.abs(
+              EBIKE_REGIONS.reduce(
+                (total, region) => total + row.regions[region].annualSales,
+                0,
+              ) - row.globalAnnualSales,
+            ) <= Math.max(1e-6, row.globalAnnualSales * 1e-10),
+        ),
+    },
+    {
+      id: 'architecture-volumes-reconcile',
+      description:
+        'Hub and mid-drive equivalents must exhaust the annual complete-bike market flow.',
+      check: (result) =>
+        result.years.every(
+          (row) =>
+            Math.abs(
+              MOTOR_ARCHITECTURES.reduce(
+                (total, architecture) =>
+                  total + row.architectureVolumes[architecture],
+                0,
+              ) - row.globalDriveUnitDemand,
+            ) <= Math.max(1e-6, row.globalDriveUnitDemand * 1e-10),
+        ),
+    },
+    {
+      id: 'supplier-volumes-reconcile',
+      description:
+        'Named incumbent, residual, and entrant drive-unit volumes must exhaust annual demand.',
+      check: (result) =>
+        result.years.every(
+          (row) =>
+            Math.abs(
+              MOTOR_SUPPLIERS.reduce(
+                (total, supplier) => total + row.supplierVolumes[supplier],
+                0,
+              ) - row.globalDriveUnitDemand,
+            ) <= Math.max(1e-6, row.globalDriveUnitDemand * 1e-10),
+        ),
+    },
+    {
+      id: 'entrant-commercial-constraints',
+      description:
+        'Entrant deliveries cannot exceed addressable demand, OEM program capacity, or factory capacity.',
+      check: (result) =>
+        result.years.every(
+          (row) =>
+            row.entrant.annualUnits <= row.entrant.oemProgramCapacity + 1e-6 &&
+            row.entrant.annualUnits <= row.entrant.factoryCapacity + 1e-6 &&
+            EBIKE_REGIONS.every(
+              (region) =>
+                row.regions[region].entrantUnits <=
+                row.regions[region].entrantAddressableUnits + 1e-6,
+            ),
+        ),
+    },
+  ],
+  evidence: [
+    {
+      id: 'e-bike-us-2024-channel-expansion',
+      label: 'U.S. 2024 direct-to-consumer e-bike channel estimate',
+      kind: 'observed',
+      role: 'development',
+      value: 450_000,
+      unit: 'ebike/year',
+      source: {
+        title:
+          'PeopleForBikes: U.S. e-bike market is bigger than the numbers show',
+        url: ebikeMotorEvidence.sources.usPeopleForBikes,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: usDtc2024Measurement,
+      semanticDerivations: [usChannelExpansionDerivation],
+      notes:
+        'The model uses a rounded 900,000 total-new-sales anchor; approximately 80,000 used-bike transactions are excluded.',
+    },
+    {
+      id: 'e-bike-eu-adoption-development',
+      label: 'EU27 + UK 2019–2021 e-bike retail-sales development series',
+      kind: 'observed',
+      role: 'development',
+      value: regionalSalesHistory
+        .filter((row) => row.region === 'eu' && row.role === 'development')
+        .map(({ year, annualUnits }) => ({ year, annualUnits })),
+      unit: 'ebike/year',
+      source: {
+        title: 'CONEBI 2020–2021 Bicycle Industry and Market Profiles',
+        url: ebikeMotorEvidence.sources.euConebi2021,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+    },
+    {
+      id: 'e-bike-eu-2023-sales',
+      label: 'EU27 + UK 2023 e-bike retail sales holdout',
+      kind: 'observed',
+      role: 'holdout',
+      value: 5_100_000,
+      unit: 'ebike/year',
+      source: {
+        title: 'CONEBI Bicycle Industry and Market Profile 2024',
+        url: ebikeMotorEvidence.sources.euConebi2023,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: eu2023SalesMeasurement,
+    },
+    {
+      id: 'e-bike-china-2023-output',
+      label: 'China 2023 electric-bicycle production proxy',
+      kind: 'observed',
+      role: 'diagnostic',
+      value: 42_280_000,
+      unit: 'ebike/year',
+      source: {
+        title: 'Chinese government electric-bicycle industry statistics',
+        url: ebikeMotorEvidence.sources.chinaGovernmentStock,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: china2023ProductionMeasurement,
+      notes:
+        'This is production by major enterprises, not harmonized retail sell-through.',
+    },
+    {
+      id: 'e-bike-japan-adoption-development',
+      label: 'Japan 2007–2017 power-assist factory-shipment development series',
+      kind: 'observed',
+      role: 'development',
+      value: regionalSalesHistory
+        .filter(
+          (row) => row.region === 'japan' && row.role === 'development',
+        )
+        .map(({ year, annualUnits }) => ({ year, annualUnits })),
+      unit: 'ebike/year',
+      source: {
+        title: 'Japanese Diet testimony citing METI factory shipments',
+        url: ebikeMotorEvidence.sources.japanDiet,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+    },
+    {
+      id: 'e-bike-japan-2022-shipments',
+      label: 'Japan 2022 power-assist factory-shipment holdout',
+      kind: 'observed',
+      role: 'holdout',
+      value: 790_000,
+      unit: 'ebike/year',
+      source: {
+        title: 'Japanese Diet testimony citing METI factory shipments',
+        url: ebikeMotorEvidence.sources.japanDiet,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: japan2022ShipmentMeasurement,
+    },
+    {
+      id: 'e-bike-bafang-2024-volume',
+      label: 'Bafang 2024 disclosed drive-unit-equivalent volume',
+      kind: 'observed',
+      role: 'development',
+      value: supplierDisclosures.find(
+        (row) => row.supplier === 'bafang',
+      )?.modeledComparableUnits,
+      unit: 'driveunit/year',
+      source: {
+        title: 'Bafang 2024 annual report',
+        url: ebikeMotorEvidence.sources.bafangAnnualReport,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: bafang2024DriveUnitMeasurement,
+    },
+    {
+      id: 'e-bike-ananda-2024-volume',
+      label: 'Ananda 2024 constructed comparable drive-unit volume',
+      kind: 'derived',
+      role: 'development',
+      value: supplierDisclosures.find(
+        (row) => row.supplier === 'ananda',
+      )?.modeledComparableUnits,
+      unit: 'driveunit/year',
+      source: {
+        title: 'Ananda 2024 annual report and prospectus',
+        url: ebikeMotorEvidence.sources.anandaAnnualReport,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      measurement: ananda2024ComparableMeasurement,
+      notes:
+        'Mid-drive and direct-hub volumes are reported or growth-derived; geared-hub volume is an explicit estimate.',
+    },
+    {
+      id: 'e-bike-bosch-integration',
+      label: 'Bosch integrated drive-system and OEM-service footprint',
+      kind: 'literature',
+      role: 'scenario',
+      source: {
+        title: 'Bosch 2025 annual report',
+        url: ebikeMotorEvidence.sources.boschAnnualReport2025,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      notes:
+        'Bosch describes an integrated portfolio of drive units, batteries, ABS, displays, digital services, diagnostics, and a Europe-wide network of more than 30,000 specialist dealers.',
+    },
+    {
+      id: 'e-bike-avinox-oem-ramp',
+      label: 'Avinox reported expansion from 16 to more than 60 OEM partners',
+      kind: 'literature',
+      role: 'scenario',
+      source: {
+        title: 'Avinox April 2026 product and OEM-partner release',
+        url: ebikeMotorEvidence.sources.avinox2026Release,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      notes:
+        'Company-issued evidence is used only to bound the breakthrough OEM-acquisition scenario, not as independent market validation.',
+    },
+    {
+      id: 'e-bike-yamaha-brose-consolidation',
+      label: 'Yamaha acquisition of Brose bicycle drive business',
+      kind: 'observed',
+      role: 'scenario',
+      source: {
+        title: 'Yamaha Motor acquisition announcement',
+        url: ebikeMotorEvidence.sources.yamahaBrose,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+    },
+    {
+      id: 'e-bike-ul2849-system-certification',
+      label: 'UL 2849 whole electrical-system certification boundary',
+      kind: 'literature',
+      role: 'scenario',
+      source: {
+        title: 'UL Solutions e-bike certification and UL 2849',
+        url: ebikeMotorEvidence.sources.ul2849,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      notes:
+        'UL 2849 evaluates the drive train, battery, charger, and system combinations; a standalone competitive motor is not the full certification object.',
+    },
+    {
+      id: 'e-bike-bionx-service-risk',
+      label: 'BionX failure and replacement/service discontinuity',
+      kind: 'observed',
+      role: 'scenario',
+      source: {
+        title: 'Bicycle Retailer report on post-BionX replacement batteries',
+        url: ebikeMotorEvidence.sources.bionxFailure,
+        accessedAt: ebikeMotorEvidence.accessedAt,
+      },
+      notes:
+        'Supports the entrant bankability and installed-base service constraints.',
+    },
+  ],
+  validationClaims: [
+    claim(
+      'out-of-sample',
+      'Regional adoption shape',
+      'A replacement-and-saturation revision fitted only to EU 2019–2021 retail sales and Japan 2007–2017 factory shipments reduces mean error on the EU 2022–2023 and Japan 2022 holdouts from about 26.0% for exponential extrapolation to about 7.6%.',
+      [
+        'e-bike-eu-adoption-development',
+        'e-bike-eu-2023-sales',
+        'e-bike-japan-adoption-development',
+        'e-bike-japan-2022-shipments',
+      ],
+    ),
+    claim(
+      'same-event-fit',
+      'Supplier-volume baseline',
+      'The 2024 regional share table is calibrated to the only two auditable public global volume comparators found, reproducing modeled-comparable Bafang and Ananda units with about 1.3% mean absolute percentage error; other supplier volumes remain inferred or residual.',
+      ['e-bike-bafang-2024-volume', 'e-bike-ananda-2024-volume'],
+    ),
+    claim(
+      'literature-anchored',
+      'Motor-to-system commercial constraint',
+      'OEM integration, certification, service coverage, and supplier longevity are represented independently from product quality based on incumbent operating models, Avinox partner acquisition, UL 2849, consolidation, and the BionX failure.',
+      [
+        'e-bike-bosch-integration',
+        'e-bike-avinox-oem-ramp',
+        'e-bike-yamaha-brose-consolidation',
+        'e-bike-ul2849-system-certification',
+        'e-bike-bionx-service-risk',
+      ],
+    ),
+    claim(
+      'scenario-only',
+      'U.S. entrant investment outcome',
+      'The entrant P&L, OEM win rate, addressable shares, capacity ramp, and learning curve are transparent strategic scenarios rather than a historical company forecast.',
+      [
+        'e-bike-us-2024-channel-expansion',
+        'e-bike-bosch-integration',
+        'e-bike-avinox-oem-ramp',
+      ],
+    ),
+  ],
+  semanticDerivations: [bikeToDriveUnitDerivation],
+});
+
 export const SIMULATION_MODELS = [
   heatEventModel,
   genericDrugModel,
@@ -1428,6 +1903,7 @@ export const SIMULATION_MODELS = [
   aiCapitalCycleModel,
   coralBleachingModel,
   bilateralTariffModel,
+  tradeNetworkTariffModel,
   criticalMaterialPriceModel,
   criticalMaterialFlowModel,
   financialContagionModel,
@@ -1438,6 +1914,7 @@ export const SIMULATION_MODELS = [
   outbreakForecastModel,
   warAiModel,
   aviationInfrastructureModel,
+  ebikeMotorMarketModel,
 ] as const;
 
 export const simulationModelRegistry = new ModelRegistry();

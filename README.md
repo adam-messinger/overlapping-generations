@@ -63,6 +63,12 @@ node --import tsx scripts/bilateral-tariff-scenario.ts
 node --import tsx scripts/financial-contagion-scenario.ts
 npm run aviation:infrastructure
 npm run aviation:bay-pj
+npm run ebike:motors
+npm run trade:calibrate-network
+npm run trade:network
+
+# Refresh the checked-in country-by-HS6 graph from BACI, Census, and legal schedules
+npm run trade:build-network
 
 # Rerun every new model/backtest and optionally emit reproducible manifests
 npm run sim:new -- --output=/tmp/tsimulation-suite.json --manifests=/tmp/tsimulation-manifests
@@ -104,7 +110,13 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
 - `src/simulations/{news,heat,drug-supply,trade,financial-contagion}/` — small
   news-driven stress tests with frozen backcasts and explicit scenario inputs
   ([method, results, and limitations](docs/NEWS_STRESS_TESTS_2026-07-22.md))
+- `src/simulations/trade/network-*` — an exporter-by-HS6 trade graph with
+  customs-policy incidence, supplier diversion and input-output propagation
+  ([method, calibration, and July 2026 result](docs/TRADE_NETWORK_TARIFFS.md))
 - `src/simulations/aviation-infrastructure/` — conventional and advanced-air-
   mobility traffic through FBOs, small airports, helipads, and vertiports,
   plus a conventional-PJ-only Bay Area airport overlay
   ([method, scenarios, and forecast](docs/AVIATION_INFRASTRUCTURE.md))
+- `src/simulations/e-bike-motors/` — regional e-bike adoption, inferred
+  drive-unit supplier volumes, and U.S. entrant commercial/financial scenarios
+  ([method, backtest, and investment interpretation](docs/E_BIKE_MOTOR_MARKET.md))

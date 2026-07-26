@@ -74,6 +74,13 @@ test('aviation units distinguish flights, endpoint operations, passengers, and c
   assert.ok(getUnit('USgal/operation'));
 });
 
+test('e-bike market units distinguish complete bikes, drive units, and OEM programs', () => {
+  assert.equal(areUnitsConvertible('ebike', 'driveunit'), false);
+  assert.equal(areUnitsConvertible('driveunit/year', 'ebike/year'), false);
+  assert.equal(areUnitsConvertible('oemprogram', 'driveunit'), false);
+  assert.ok(getUnit('driveunit/oemprogram/year'));
+});
+
 test('recursive contracts validate every nested field and report its path', () => {
   interface CapacityRow { solar: number; battery: number; label: string }
   const capacity = objectPort<CapacityRow>({

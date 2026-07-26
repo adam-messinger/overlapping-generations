@@ -13,7 +13,9 @@ import { energyInflationScenarios } from './news/energy-inflation.js';
 import { aiCapitalCycleScenarios } from './news/ai-capital-cycle.js';
 import { coralBleachingScenarios } from './news/coral-bleaching.js';
 import { centralAviationScenario } from './aviation-infrastructure/data.js';
+import { ebikeMotorScenarios } from './e-bike-motors/data.js';
 import { canadaJuly2026Tariff } from './trade/data.js';
+import { tradeNetworkCentralParameters } from './trade/network-data.js';
 import {
   contagionPolicies,
   leveragedFunds2026,
@@ -187,6 +189,58 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       coralBleachingScenarios['current-outlook'],
     ),
     simulationModelRegistry.run('bilateral-tariff-io', { action: canadaJuly2026Tariff }),
+    simulationModelRegistry.run('trade-network-tariff', {
+      id: 'registry-toy-trade-network',
+      label: 'Registry toy trade network',
+      snapshot: {
+        metadata: {
+          id: 'registry-toy-trade-network',
+          label: 'Registry toy trade network',
+          importerIso3: 'USA',
+          tradeFlowYear: 2024,
+          currentFlowPeriod: '2026-05',
+          currentFlowMonths: 5,
+          baciVersion: '202601',
+          hsRevision: 'HS22',
+          edgeFloorMillion: 1,
+          retainedBaciValueShare: 1,
+          currentValueCoverageShare: 1,
+          exemptionValuation:
+            'HTS10-world-composition-plus-HS6-entry-preferences',
+          sharedExistingMeasureValuation:
+            'January-2026-HS6-Chapter99-share',
+          sourceUrls: {
+            baci: 'https://example.com/baci',
+            census: 'https://example.com/census',
+            section122Tariff:
+              'https://example.com/section-122',
+            tariffNotice: 'https://example.com/section-301',
+          },
+        },
+        edges: [
+          {
+            exporterIso3: 'AAA',
+            exporterName: 'Supplier A',
+            hs6: '850760',
+            productLabel: 'Lithium-ion batteries',
+            sector: 'machinery',
+            annualImportBillion: 1,
+            nonUsExportsBillion: 2,
+            baselineMfnRate: 0,
+            oldTaxableShare: 1,
+            oldTaxableShareLow: 1,
+            oldTaxableShareHigh: 1,
+            newTaxableShare: 1,
+            newTaxableShareLow: 1,
+            newTaxableShareHigh: 1,
+            oldAdditionalTariffRate: 0.1,
+            newAdditionalTariffRate: 0.125,
+            treatment: 'twelve-five-percent',
+          },
+        ],
+      },
+      parameters: tradeNetworkCentralParameters,
+    }),
     simulationModelRegistry.run('critical-material-price-network', {
       nodes: criticalMaterialNetwork,
       shockedNodeId: 'rare-earths',
@@ -252,8 +306,12 @@ test('representative standalone runs satisfy every nested runtime contract', () 
       'aviation-infrastructure-traffic',
       centralAviationScenario,
     ),
+    simulationModelRegistry.run(
+      'e-bike-motor-market',
+      ebikeMotorScenarios['full-stack'],
+    ),
   ];
-  assert.equal(runs.length, 18);
+  assert.equal(runs.length, 20);
 });
 
 test('war-AI annual rows satisfy their recursive contract', () => {

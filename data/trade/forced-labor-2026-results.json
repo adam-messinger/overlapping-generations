@@ -1,0 +1,430 @@
+{
+  "schemaVersion": 1,
+  "scenario": "July 2026 Section 301 replacement for the expiring Section 122 tariff",
+  "snapshotId": "us-forced-labor-301-2026",
+  "assumptions": {
+    "supplierSubstitutionElasticity": 1.5,
+    "importDemandElasticity": 1.5,
+    "tariffPassThrough": 0.8,
+    "exemptionScopeCase": "central",
+    "redirectableNonUsSupplyShare": 0.1,
+    "shortRunCapacityGrowthShare": 0.05,
+    "domesticRecaptureShare": 0.3,
+    "domesticValueAddedShare": 0.55,
+    "usNominalGdpBillion": 31000
+  },
+  "uncertainty": {
+    "low-taxable": {
+      "exemptionScopeCase": "low-taxable",
+      "totalImportsBillion": 3236.27292528101,
+      "oldTaxableImportsBillion": 868.8509996668091,
+      "newTaxableImportsBillion": 826.9099959011032,
+      "effectiveOldAdditionalTariffRate": 0.026847272146905223,
+      "effectiveNewAdditionalTariffRate": 0.026424194053711318,
+      "effectiveIncrementalTariffRate": -0.0004230780931939043,
+      "deliveredImportPriceChange": -0.0003632939782537608,
+      "usConsumerPriceChange": -0.00007202193653047347,
+      "importsLostBillion": -2.193725944359385,
+      "supplierReallocationBillion": 9.511364937388105,
+      "capacityConstrainedImportsBillion": 0.002712345436573717,
+      "additionalTariffRevenueBillion": -2.2881190209872955,
+      "usRealGdpChange": 0.000015138708846276137,
+      "weightedSupplierHhiBefore": 0.30003593654145727,
+      "weightedSupplierHhiAfter": 0.29921799490178447
+    },
+    "central": {
+      "exemptionScopeCase": "central",
+      "totalImportsBillion": 3236.27292528101,
+      "oldTaxableImportsBillion": 1013.2885476711677,
+      "newTaxableImportsBillion": 986.8833410828177,
+      "effectiveOldAdditionalTariffRate": 0.03131035518529953,
+      "effectiveNewAdditionalTariffRate": 0.03138595925555958,
+      "effectiveIncrementalTariffRate": 0.00007560407026004773,
+      "deliveredImportPriceChange": 0.000007473763113036294,
+      "usConsumerPriceChange": 0.000034326637731031676,
+      "importsLostBillion": -0.385952538720956,
+      "supplierReallocationBillion": 11.173299971864767,
+      "capacityConstrainedImportsBillion": 0.0026629607079318874,
+      "additionalTariffRevenueBillion": -0.7759152080660527,
+      "usRealGdpChange": -0.000008497834836126381,
+      "weightedSupplierHhiBefore": 0.3000359365414574,
+      "weightedSupplierHhiAfter": 0.29912617164712246
+    },
+    "high-taxable": {
+      "exemptionScopeCase": "high-taxable",
+      "totalImportsBillion": 3236.27292528101,
+      "oldTaxableImportsBillion": 1189.7177585950667,
+      "newTaxableImportsBillion": 1178.2327432259146,
+      "effectiveOldAdditionalTariffRate": 0.036761972369551144,
+      "effectiveNewAdditionalTariffRate": 0.03731464619155028,
+      "effectiveIncrementalTariffRate": 0.000552673821999139,
+      "deliveredImportPriceChange": 0.0003482490380439628,
+      "usConsumerPriceChange": 0.00013356259513508015,
+      "importsLostBillion": 1.1514140408193057,
+      "supplierReallocationBillion": 13.099642625305643,
+      "capacityConstrainedImportsBillion": 0.002662775232578684,
+      "additionalTariffRevenueBillion": 0.4249377954078142,
+      "usRealGdpChange": -0.0000311004359985307,
+      "weightedSupplierHhiBefore": 0.3000359365414572,
+      "weightedSupplierHhiAfter": 0.2990265164663874
+    }
+  },
+  "central": {
+    "exemptionScopeCase": "central",
+    "totalImportsBillion": 3236.27292528101,
+    "oldTaxableImportsBillion": 1013.2885476711677,
+    "newTaxableImportsBillion": 986.8833410828177,
+    "effectiveOldAdditionalTariffRate": 0.03131035518529953,
+    "effectiveNewAdditionalTariffRate": 0.03138595925555958,
+    "effectiveIncrementalTariffRate": 0.00007560407026004773,
+    "deliveredImportPriceChange": 0.000007473763113036294,
+    "usConsumerPriceChange": 0.000034326637731031676,
+    "importsLostBillion": -0.385952538720956,
+    "supplierReallocationBillion": 11.173299971864767,
+    "capacityConstrainedImportsBillion": 0.0026629607079318874,
+    "additionalTariffRevenueBillion": -0.7759152080660527,
+    "usRealGdpChange": -0.000008497834836126381,
+    "weightedSupplierHhiBefore": 0.3000359365414574,
+    "weightedSupplierHhiAfter": 0.29912617164712246,
+    "sectors": [
+      {
+        "sector": "apparel",
+        "baselineImportsBillion": 128.663320471,
+        "directSectorCostShock": 0.000626403409484231,
+        "totalSectorPriceChange": 0.000626403409484231,
+        "importsLostBillion": 0.4474544056280965,
+        "supplierReallocationBillion": 1.22260033572885
+      },
+      {
+        "sector": "wood-consumer",
+        "baselineImportsBillion": 102.155554656,
+        "directSectorCostShock": 0.0003557940892216454,
+        "totalSectorPriceChange": 0.00036990110069820515,
+        "importsLostBillion": 0.3141989692053376,
+        "supplierReallocationBillion": 0.3615239744287264
+      },
+      {
+        "sector": "materials",
+        "baselineImportsBillion": 854.7846111020017,
+        "directSectorCostShock": 0.00030380739957764746,
+        "totalSectorPriceChange": 0.00030380739957764746,
+        "importsLostBillion": 0.2893679505074898,
+        "supplierReallocationBillion": 3.0651094232319918
+      },
+      {
+        "sector": "food",
+        "baselineImportsBillion": 229.63422548199986,
+        "directSectorCostShock": -0.00019285695129948603,
+        "totalSectorPriceChange": -0.00018786416181025572,
+        "importsLostBillion": -0.5330944082500445,
+        "supplierReallocationBillion": 0.9739132961348695
+      },
+      {
+        "sector": "other-goods",
+        "baselineImportsBillion": 63.45081881299995,
+        "directSectorCostShock": -0.00012790247577410858,
+        "totalSectorPriceChange": -0.00011224366512839919,
+        "importsLostBillion": -0.9025348701785083,
+        "supplierReallocationBillion": 0.5369467680555724
+      },
+      {
+        "sector": "transport",
+        "baselineImportsBillion": 361.092041262,
+        "directSectorCostShock": 0.00008675989464893297,
+        "totalSectorPriceChange": 0.00013175788357361445,
+        "importsLostBillion": 0.18014348182942513,
+        "supplierReallocationBillion": 0.46549687733579714
+      },
+      {
+        "sector": "machinery",
+        "baselineImportsBillion": 1496.4923534949992,
+        "directSectorCostShock": -0.00007720050801519505,
+        "totalSectorPriceChange": -0.00003611195007742125,
+        "importsLostBillion": -0.1814880674627523,
+        "supplierReallocationBillion": 4.547709296948947
+      },
+      {
+        "sector": "construction",
+        "baselineImportsBillion": 0,
+        "directSectorCostShock": 0,
+        "totalSectorPriceChange": 0.00007863221101825205,
+        "importsLostBillion": 0,
+        "supplierReallocationBillion": 0
+      },
+      {
+        "sector": "services",
+        "baselineImportsBillion": 0,
+        "directSectorCostShock": 0,
+        "totalSectorPriceChange": 7.945014745570032e-7,
+        "importsLostBillion": 0,
+        "supplierReallocationBillion": 0
+      }
+    ],
+    "largestExporterLosses": [
+      {
+        "exporterIso3": "CHN",
+        "exporterName": "China",
+        "baselineImportsBillion": 422.21520717899995,
+        "totalImportChangeBillion": -5.869708762051292,
+        "supplierDiversionGainBillion": -4.444835356530418
+      },
+      {
+        "exporterIso3": "VNM",
+        "exporterName": "Viet Nam",
+        "baselineImportsBillion": 154.8759917409996,
+        "totalImportChangeBillion": -1.4935352338551706,
+        "supplierDiversionGainBillion": -1.1312396733430912
+      },
+      {
+        "exporterIso3": "THA",
+        "exporterName": "Thailand",
+        "baselineImportsBillion": 79.61030910800014,
+        "totalImportChangeBillion": -0.7480514441537937,
+        "supplierDiversionGainBillion": -0.6487839812598792
+      },
+      {
+        "exporterIso3": "SGP",
+        "exporterName": "Singapore",
+        "baselineImportsBillion": 27.188005889999996,
+        "totalImportChangeBillion": -0.39948330738579757,
+        "supplierDiversionGainBillion": -0.2613252754855925
+      },
+      {
+        "exporterIso3": "BRA",
+        "exporterName": "Brazil",
+        "baselineImportsBillion": 38.23164026699997,
+        "totalImportChangeBillion": -0.28874434858147524,
+        "supplierDiversionGainBillion": -0.3074943582292685
+      },
+      {
+        "exporterIso3": "TUR",
+        "exporterName": "Türkiye",
+        "baselineImportsBillion": 13.90612519299997,
+        "totalImportChangeBillion": -0.27004473358402936,
+        "supplierDiversionGainBillion": -0.2556082149174235
+      },
+      {
+        "exporterIso3": "CRI",
+        "exporterName": "Costa Rica",
+        "baselineImportsBillion": 10.72029796,
+        "totalImportChangeBillion": -0.2060738098318527,
+        "supplierDiversionGainBillion": -0.16084564159935572
+      },
+      {
+        "exporterIso3": "CHL",
+        "exporterName": "Chile",
+        "baselineImportsBillion": 26.072637013999998,
+        "totalImportChangeBillion": -0.1811521044081953,
+        "supplierDiversionGainBillion": -0.07897724988810727
+      },
+      {
+        "exporterIso3": "ISR",
+        "exporterName": "Israel",
+        "baselineImportsBillion": 18.77990779799999,
+        "totalImportChangeBillion": -0.171831959004112,
+        "supplierDiversionGainBillion": -0.18487406455181116
+      },
+      {
+        "exporterIso3": "PHL",
+        "exporterName": "Philippines",
+        "baselineImportsBillion": 19.316854828000004,
+        "totalImportChangeBillion": -0.1582195837527479,
+        "supplierDiversionGainBillion": -0.1455141315664848
+      }
+    ],
+    "largestExporterGains": [
+      {
+        "exporterIso3": "DEU",
+        "exporterName": "Germany",
+        "baselineImportsBillion": 145.98446994200026,
+        "totalImportChangeBillion": 2.3007247160663726,
+        "supplierDiversionGainBillion": 1.79822963699468
+      },
+      {
+        "exporterIso3": "ITA",
+        "exporterName": "Italy",
+        "baselineImportsBillion": 59.79983431100003,
+        "totalImportChangeBillion": 1.612936711325268,
+        "supplierDiversionGainBillion": 1.1794225697260625
+      },
+      {
+        "exporterIso3": "TWN",
+        "exporterName": "Taiwan (BACI Other Asia, nes proxy)",
+        "baselineImportsBillion": 179.3497613340002,
+        "totalImportChangeBillion": 1.1924474907294897,
+        "supplierDiversionGainBillion": 1.0383627091801213
+      },
+      {
+        "exporterIso3": "FRA",
+        "exporterName": "France",
+        "baselineImportsBillion": 48.45161661199987,
+        "totalImportChangeBillion": 1.0103257719689311,
+        "supplierDiversionGainBillion": 0.6454883165451399
+      },
+      {
+        "exporterIso3": "GBR",
+        "exporterName": "United Kingdom",
+        "baselineImportsBillion": 67.89974133000003,
+        "totalImportChangeBillion": 0.5873176364080828,
+        "supplierDiversionGainBillion": 0.21577263406729988
+      },
+      {
+        "exporterIso3": "ESP",
+        "exporterName": "Spain",
+        "baselineImportsBillion": 18.170963326999967,
+        "totalImportChangeBillion": 0.4133827387448867,
+        "supplierDiversionGainBillion": 0.30048185876291544
+      },
+      {
+        "exporterIso3": "NLD",
+        "exporterName": "Netherlands",
+        "baselineImportsBillion": 31.728771570000003,
+        "totalImportChangeBillion": 0.3612732875875041,
+        "supplierDiversionGainBillion": 0.2707033574293438
+      },
+      {
+        "exporterIso3": "IDN",
+        "exporterName": "Indonesia",
+        "baselineImportsBillion": 26.84907926299999,
+        "totalImportChangeBillion": 0.27464047149728676,
+        "supplierDiversionGainBillion": 0.09569114932977814
+      },
+      {
+        "exporterIso3": "POL",
+        "exporterName": "Poland",
+        "baselineImportsBillion": 13.517836439000007,
+        "totalImportChangeBillion": 0.25648130009533776,
+        "supplierDiversionGainBillion": 0.237939166056748
+      },
+      {
+        "exporterIso3": "AUT",
+        "exporterName": "Austria",
+        "baselineImportsBillion": 15.961107215000014,
+        "totalImportChangeBillion": 0.23975693043548965,
+        "supplierDiversionGainBillion": 0.18455041369972802
+      }
+    ],
+    "largestProductShocks": [
+      {
+        "hs6": "271000",
+        "productLabel": "Petroleum oils and oils from bituminous minerals, not crude: preparations n.e.c. containing by weight 70% or more of petroleum oils or oils from bituminous minerals: these being the basic constituents of the preparations: waste oils",
+        "baselineImportsBillion": 59.833846333999986,
+        "deliveredImportPriceChange": 0.006934595229778573,
+        "importQuantityChangeBillion": -0.6170335802104603,
+        "supplierReallocationBillion": 0.41139005602947903
+      },
+      {
+        "hs6": "970191",
+        "productLabel": "Paintings, drawings and pastels: executed entirely by hand, other than drawings of heading no. 4906, of an age not exceeding 100 years",
+        "baselineImportsBillion": 5.385173443999998,
+        "deliveredImportPriceChange": -0.07265242498903168,
+        "importQuantityChangeBillion": 0.645084431469483,
+        "supplierReallocationBillion": 0.02834007463817208
+      },
+      {
+        "hs6": "970121",
+        "productLabel": "Paintings, drawings and pastels: executed entirely by hand, other than drawings of heading no. 4906, of an age exceeding 100 years",
+        "baselineImportsBillion": 2.655981741,
+        "deliveredImportPriceChange": -0.07309292195745565,
+        "importQuantityChangeBillion": 0.3202777085000337,
+        "supplierReallocationBillion": 0.02028876104663563
+      },
+      {
+        "hs6": "950300",
+        "productLabel": "Tricycles, scooters, pedal cars and similar wheeled toys: dolls' carriages: dolls: other toys: reduced-size (scale) models and similar recreational models, working or not: puzzles of all kinds",
+        "baselineImportsBillion": 11.303914028000005,
+        "deliveredImportPriceChange": 0.01589400671022112,
+        "importQuantityChangeBillion": -0.2642400383618888,
+        "supplierReallocationBillion": 0.0371068012966807
+      },
+      {
+        "hs6": "848180",
+        "productLabel": "Taps, cocks, valves and similar appliances: for pipes, boiler shells, tanks, vats or the like, including thermostatically controlled valves",
+        "baselineImportsBillion": 10.999440214999996,
+        "deliveredImportPriceChange": -0.012732126227324891,
+        "importQuantityChangeBillion": 0.21346306251133917,
+        "supplierReallocationBillion": 0.2153542486706677
+      },
+      {
+        "hs6": "970390",
+        "productLabel": "Sculptures and statuary: original, in any material, of an age not exceeding 100 years",
+        "baselineImportsBillion": 1.4694942489999998,
+        "deliveredImportPriceChange": -0.07244934870810804,
+        "importQuantityChangeBillion": 0.175488844150832,
+        "supplierReallocationBillion": 0.006157842368184639
+      },
+      {
+        "hs6": "293499",
+        "productLabel": "Nucleic acids and their salts, other heterocyclic compounds, n.e.c. in heading number 2934",
+        "baselineImportsBillion": 2.598007418999999,
+        "deliveredImportPriceChange": 0.03933422339352366,
+        "importQuantityChangeBillion": -0.14608036904935418,
+        "supplierReallocationBillion": 0.01596764605342702
+      },
+      {
+        "hs6": "151190",
+        "productLabel": "Vegetable oils: palm oil and its fractions, other than crude, whether or not refined, but not chemically modified",
+        "baselineImportsBillion": 1.38554385,
+        "deliveredImportPriceChange": -0.07090292097257989,
+        "importQuantityChangeBillion": 0.16159265289490388,
+        "supplierReallocationBillion": 0.007381104510447681
+      },
+      {
+        "hs6": "901890",
+        "productLabel": "Medical, surgical or dental instruments and appliances: n.e.c. in heading no. 9018",
+        "baselineImportsBillion": 20.081021602999986,
+        "deliveredImportPriceChange": 0.004546429715926559,
+        "importQuantityChangeBillion": -0.13617127109208482,
+        "supplierReallocationBillion": 0.13687524756535874
+      },
+      {
+        "hs6": "420221",
+        "productLabel": "Cases and containers: handbags (whether or not with shoulder strap and including those without handle), with outer surface of leather or of composition leather",
+        "baselineImportsBillion": 2.3057462170000003,
+        "deliveredImportPriceChange": -0.03592454313710225,
+        "importQuantityChangeBillion": 0.13007250658391145,
+        "supplierReallocationBillion": 0.054355595110769636
+      },
+      {
+        "hs6": "901839",
+        "productLabel": "Medical, surgical instruments and appliances: catheters, cannulae and the like",
+        "baselineImportsBillion": 10.091010312999998,
+        "deliveredImportPriceChange": 0.006619401733318098,
+        "importQuantityChangeBillion": -0.0993719957245709,
+        "supplierReallocationBillion": 0.06328752861605723
+      },
+      {
+        "hs6": "040690",
+        "productLabel": "Dairy produce: cheese (not grated, powdered or processed), n.e.c. in heading no. 0406",
+        "baselineImportsBillion": 1.537101255999999,
+        "deliveredImportPriceChange": -0.04089267700537269,
+        "importQuantityChangeBillion": 0.09934469933644352,
+        "supplierReallocationBillion": 0.021166411680541564
+      },
+      {
+        "hs6": "852589",
+        "productLabel": "Television cameras: n.e.c. in item no 8525.8",
+        "baselineImportsBillion": 7.764359263999998,
+        "deliveredImportPriceChange": 0.007775351357236504,
+        "importQuantityChangeBillion": -0.08968371640669393,
+        "supplierReallocationBillion": 0.06369356979883711
+      },
+      {
+        "hs6": "293399",
+        "productLabel": "Heterocyclic compounds: n.e.c. in headings no. 2933",
+        "baselineImportsBillion": 1.6988108600000003,
+        "deliveredImportPriceChange": 0.03534483086709672,
+        "importQuantityChangeBillion": -0.08624485777635371,
+        "supplierReallocationBillion": 0.010431613284312488
+      },
+      {
+        "hs6": "842952",
+        "productLabel": "Mechanical shovels, excavators and shovel loaders: with a 360 degree revolving super structure",
+        "baselineImportsBillion": 4.988873542000001,
+        "deliveredImportPriceChange": 0.01203155840565917,
+        "importQuantityChangeBillion": -0.08870054829129437,
+        "supplierReallocationBillion": 0.011879620401526129
+      }
+    ]
+  }
+}
