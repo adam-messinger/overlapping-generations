@@ -7,6 +7,7 @@
  */
 
 import {
+  auditEstimandCompleteness,
   assertEstimandsCompatible,
   assertMeasurementsCompatible,
   validateEstimand,
@@ -989,6 +990,8 @@ export interface SemanticSchemaAudit {
   semanticContracts: number;
   measurementContracts: number;
   missingSemanticPaths: string[];
+  incompleteSemanticPaths: string[];
+  semanticCompletenessErrors: string[];
 }
 
 function walkSemanticSchema(
@@ -998,8 +1001,15 @@ function walkSemanticSchema(
 ): void {
   if (isQuantityPort(meta)) {
     audit.quantitativeContracts++;
-    if (meta.estimand) audit.semanticContracts++;
-    else audit.missingSemanticPaths.push(path);
+    if (meta.estimand) {
+      audit.semanticContracts++;
+      for (const issue of auditEstimandCompleteness(meta.estimand, path)) {
+        audit.incompleteSemanticPaths.push(issue.path);
+        audit.semanticCompletenessErrors.push(`${issue.path}: ${issue.message}`);
+      }
+    } else {
+      audit.missingSemanticPaths.push(path);
+    }
     if (meta.measurement) audit.measurementContracts++;
     return;
   }
@@ -1021,6 +1031,8 @@ export function auditPortSemantics(meta: PortMeta, path = 'port'): SemanticSchem
     semanticContracts: 0,
     measurementContracts: 0,
     missingSemanticPaths: [],
+    incompleteSemanticPaths: [],
+    semanticCompletenessErrors: [],
   };
   walkSemanticSchema(meta, path, audit);
   return audit;

@@ -1,4 +1,14 @@
-import { assertFiniteDeep, validateNumber } from 'tsimulation';
+import {
+  assertFiniteDeep,
+  divideSemanticQuantities,
+  multiplySemanticQuantities,
+  semanticQuantity,
+  validateNumber,
+} from 'tsimulation';
+import {
+  dataCenterEquationDerivations,
+  dataCenterEstimands,
+} from '../semantic-contracts.js';
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -14,8 +24,14 @@ export interface DataCenterGridScenario {
   peakCoincidenceFactor: number;
   /** Share of coincident load that can be curtailed during scarcity. */
   flexibleLoadShare: number;
-  /** Share of annual data-center energy backed by additive dedicated supply. */
+  /**
+   * Share of the contracted annual energy requirement provisioned with
+   * additive dedicated supply. The same portfolio serves that share of
+   * realized energy; unused capacity is stranded if load does not materialize.
+   */
   dedicatedGenerationShare: number;
+  /** Annual output divided by dedicated nameplate capacity times annual hours. */
+  dedicatedPortfolioCapacityFactor: number;
   /** Firm-capacity credit of the dedicated supply portfolio. */
   dedicatedCapacityCredit: number;
   /** Shared firm capacity actually completed for the incremental load. */
@@ -47,6 +63,7 @@ export interface DataCenterGridResult {
   annualElectricityTwh: number;
   coincidentPeakGw: number;
   flexiblePeakGw: number;
+  dedicatedNameplateGw: number;
   dedicatedFirmCapacityGw: number;
   sharedFirmCapacityRequiredGw: number;
   sharedFirmCapacityBuiltGw: number;
@@ -83,6 +100,11 @@ function validateScenario(scenario: DataCenterGridScenario): void {
       min: 0,
     }),
     ...validateNumber(scenario.sharedFirmBuildGw, 'sharedFirmBuildGw', { min: 0 }),
+    ...validateNumber(
+      scenario.dedicatedPortfolioCapacityFactor,
+      'dedicatedPortfolioCapacityFactor',
+      { min: 0, exclusiveMin: true, max: 1 },
+    ),
     ...validateNumber(scenario.generationCapexPerKw, 'generationCapexPerKw', { min: 0 }),
     ...validateNumber(scenario.networkCapexPerKw, 'networkCapexPerKw', { min: 0 }),
     ...validateNumber(scenario.fixedChargeRate, 'fixedChargeRate', { min: 0, max: 1 }),
@@ -121,16 +143,93 @@ export function simulateDataCenterGrid(
 ): DataCenterGridResult {
   validateScenario(scenario);
 
+  const realizedAverageLoad = multiplySemanticQuantities({
+    quantities: [
+      semanticQuantity(
+        scenario.incrementalContractedLoadGw,
+        'GW',
+        dataCenterEstimands.incrementalContractedLoadGw,
+      ),
+      semanticQuantity(
+        scenario.expectedLoadRealization,
+        'fraction',
+        dataCenterEstimands.expectedLoadRealization,
+      ),
+      semanticQuantity(
+        scenario.loadFactor,
+        'fraction',
+        dataCenterEstimands.loadFactor,
+      ),
+    ],
+    outputEstimand: dataCenterEstimands.realizedAverageLoadGw,
+    derivation: dataCenterEquationDerivations.realizedAverageLoad,
+    targetUnit: 'GW',
+    label: 'realized average data-center load',
+  });
+  const realizedAverageLoadGw = realizedAverageLoad.value;
   const realizedContractedLoadGw =
     scenario.incrementalContractedLoadGw * scenario.expectedLoadRealization;
-  const realizedAverageLoadGw = realizedContractedLoadGw * scenario.loadFactor;
-  const annualElectricityTwh =
-    realizedAverageLoadGw * scenario.hoursPerYear / 1_000;
+  const annualElectricityTwh = multiplySemanticQuantities({
+    quantities: [
+      realizedAverageLoad,
+      semanticQuantity(
+        scenario.hoursPerYear,
+        'hour/year',
+        dataCenterEstimands.hoursPerYear,
+      ),
+    ],
+    outputEstimand: dataCenterEstimands.annualElectricityTwh,
+    derivation: dataCenterEquationDerivations.annualElectricity,
+    targetUnit: 'TWh/year',
+    label: 'annual data-center electricity',
+  }).value;
   const coincidentPeakGw =
     realizedContractedLoadGw * scenario.peakCoincidenceFactor;
   const flexiblePeakGw = coincidentPeakGw * scenario.flexibleLoadShare;
-  const dedicatedNameplateGw =
-    scenario.incrementalContractedLoadGw * scenario.dedicatedGenerationShare;
+  const contractedAverageLoad = multiplySemanticQuantities({
+    quantities: [
+      semanticQuantity(
+        scenario.incrementalContractedLoadGw,
+        'GW',
+        dataCenterEstimands.incrementalContractedLoadGw,
+      ),
+      semanticQuantity(
+        scenario.loadFactor,
+        'fraction',
+        dataCenterEstimands.loadFactor,
+      ),
+    ],
+    outputEstimand: dataCenterEstimands.contractedAverageLoadGw,
+    derivation: dataCenterEquationDerivations.contractedAverageLoad,
+    targetUnit: 'GW',
+    label: 'contracted average data-center load',
+  });
+  const dedicatedAverageLoad = multiplySemanticQuantities({
+    quantities: [
+      contractedAverageLoad,
+      semanticQuantity(
+        scenario.dedicatedGenerationShare,
+        'fraction',
+        dataCenterEstimands.dedicatedGenerationShare,
+      ),
+    ],
+    outputEstimand: dataCenterEstimands.dedicatedAverageLoadGw,
+    derivation: dataCenterEquationDerivations.dedicatedAverageLoad,
+    targetUnit: 'GW',
+    label: 'dedicated average generation requirement',
+  });
+  const dedicatedNameplateGw = divideSemanticQuantities({
+    numerator: dedicatedAverageLoad,
+    denominator: semanticQuantity(
+      scenario.dedicatedPortfolioCapacityFactor,
+      'fraction',
+      dataCenterEstimands.dedicatedPortfolioCapacityFactor,
+    ),
+    outputEstimand: dataCenterEstimands.dedicatedNameplateGw,
+    derivation: dataCenterEquationDerivations.dedicatedNameplate,
+    targetUnit: 'GW',
+    label: 'dedicated generation nameplate capacity',
+  }).value;
   const dedicatedFirmCapacityGw =
     dedicatedNameplateGw * scenario.dedicatedCapacityCredit;
   const sharedFirmCapacityRequiredGw = Math.max(
@@ -202,6 +301,7 @@ export function simulateDataCenterGrid(
     annualElectricityTwh,
     coincidentPeakGw,
     flexiblePeakGw,
+    dedicatedNameplateGw,
     dedicatedFirmCapacityGw,
     sharedFirmCapacityRequiredGw,
     sharedFirmCapacityBuiltGw,
@@ -234,6 +334,7 @@ const common2035: Omit<
   | 'takeOrPayCoverage'
   | 'dedicatedEmissionsKgPerMwh'
   | 'sharedFirmBuildGw'
+  | 'dedicatedPortfolioCapacityFactor'
 > = {
   // BloombergNEF's headline 194 GW in 2035 less its earlier 35 GW operating
   // base. A 60% fleet-wide utilization factor approximately reconciles that
@@ -263,6 +364,7 @@ export const dataCenterGridScenarios: Readonly<Record<string, DataCenterGridScen
     label: 'Shared grid build with socialized capital cost',
     flexibleLoadShare: 0.05,
     dedicatedGenerationShare: 0,
+    dedicatedPortfolioCapacityFactor: 0.60,
     sharedFirmBuildGw: 120,
     generationCostResponsibility: 0,
     networkCostResponsibility: 0,
@@ -275,6 +377,7 @@ export const dataCenterGridScenarios: Readonly<Record<string, DataCenterGridScen
     label: 'Dedicated generation, but network costs remain shared',
     flexibleLoadShare: 0.05,
     dedicatedGenerationShare: 1,
+    dedicatedPortfolioCapacityFactor: 0.85,
     sharedFirmBuildGw: 10,
     generationCostResponsibility: 1,
     networkCostResponsibility: 0,
@@ -287,6 +390,7 @@ export const dataCenterGridScenarios: Readonly<Record<string, DataCenterGridScen
     label: 'Full cost responsibility with gas-heavy dedicated power',
     flexibleLoadShare: 0.05,
     dedicatedGenerationShare: 1,
+    dedicatedPortfolioCapacityFactor: 0.85,
     sharedFirmBuildGw: 10,
     generationCostResponsibility: 1,
     networkCostResponsibility: 1,
@@ -299,6 +403,7 @@ export const dataCenterGridScenarios: Readonly<Record<string, DataCenterGridScen
     label: 'Full cost responsibility, clean supply, and flexible compute',
     flexibleLoadShare: 0.25,
     dedicatedGenerationShare: 1,
+    dedicatedPortfolioCapacityFactor: 0.55,
     sharedFirmBuildGw: 0,
     generationCostResponsibility: 1,
     networkCostResponsibility: 1,

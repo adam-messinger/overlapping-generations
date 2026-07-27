@@ -4,7 +4,12 @@ import {
   type MaritimeNetworkParams,
   type MaritimeScenario,
 } from './shipping-data.js';
-import { assertFiniteDeep, validateNumber } from 'tsimulation';
+import {
+  advanceTransitLedger,
+  assertFiniteDeep,
+  createTransitLedger,
+  validateNumber,
+} from 'tsimulation';
 
 export interface MaritimeMonthResult {
   year: number;
@@ -42,6 +47,7 @@ export interface MaritimeSimulationResult {
   params: MaritimeNetworkParams;
   monthly: readonly MaritimeMonthResult[];
   annual: readonly MaritimeAnnualResult[];
+  terminalCapeOilInTransitMillionBarrels: number;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -120,15 +126,13 @@ export function simulateMaritimeNetwork(
     scenario.babThroughputPath.length,
     scenario.suezThroughputPath.length,
   );
-  const arrivalSchedule = Array.from({ length: months + 3 }, () => 0);
+  let capeTransit = createTransitLedger('million-barrel');
   const inflationSchedule = Array.from(
     { length: months + params.importInflationLagMonths + 1 },
     () => 0,
   );
   const monthly: MaritimeMonthResult[] = [];
   const delayMonths = params.capeExtraDays / params.daysPerMonth;
-  const delayFloor = Math.floor(delayMonths);
-  const delayRemainder = delayMonths - delayFloor;
 
   for (let index = 0; index < months; index++) {
     const { year, month } = dateAt(scenario.startYear, scenario.startMonth, index);
@@ -152,10 +156,14 @@ export function simulateMaritimeNetwork(
     const capeOilDeparturesMbd = blockedOilMbd * params.oilCapeRerouteShare;
     const reorientedOilMbd = blockedOilMbd - capeOilDeparturesMbd;
 
-    const firstArrival = index + delayFloor;
-    arrivalSchedule[firstArrival] += capeOilDeparturesMbd * (1 - delayRemainder);
-    arrivalSchedule[firstArrival + 1] += capeOilDeparturesMbd * delayRemainder;
-    const capeOilArrivalsMbd = arrivalSchedule[index];
+    const transit = advanceTransitLedger(capeTransit, {
+      step: index,
+      dispatchAmount: capeOilDeparturesMbd * params.daysPerMonth,
+      delaySteps: delayMonths,
+      batchId: `cape-oil-${year}-${month}`,
+    });
+    capeTransit = transit.state;
+    const capeOilArrivalsMbd = transit.arrived / params.daysPerMonth;
     const intendedDelivered = directOilMbd + capeOilArrivalsMbd;
     const intendedMarketOilAvailability = oilAvailableToRedSeaMbd > 0
       ? clamp(intendedDelivered / oilAvailableToRedSeaMbd, 0, 1.5)
@@ -223,7 +231,14 @@ export function simulateMaritimeNetwork(
     };
   });
 
-  const result = { scenario, params, monthly, annual };
+  const result = {
+    scenario,
+    params,
+    monthly,
+    annual,
+    terminalCapeOilInTransitMillionBarrels:
+      capeTransit.batches.reduce((sum, batch) => sum + batch.amount, 0),
+  };
   assertFiniteDeep(result, 'maritime network result');
   return result;
 }

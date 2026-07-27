@@ -1,5 +1,9 @@
 import {
+  advanceVintageStock,
   assertFiniteDeep,
+  createVintageStock,
+  scheduledVintageRetirements,
+  type VintageStockState,
   validateNumber,
   validateShares,
 } from 'tsimulation';
@@ -41,7 +45,9 @@ export interface RegionalMotorYear {
   region: EbikeRegion;
   populationMillions: number;
   beginningInstalledStock: number;
+  retirements: number;
   replacementSales: number;
+  unreplacedRetirements: number;
   newAdoptionSales: number;
   annualSales: number;
   endingInstalledStock: number;
@@ -115,6 +121,7 @@ interface RegionalState {
   populationMillions: number;
   stock: number;
   midDriveShare: number;
+  vintages: VintageStockState;
 }
 
 interface EntrantCommercialState {
@@ -168,6 +175,7 @@ function validateRegionalParams(
       max: 1,
     }),
     ...validateNumber(params.replacementYears, `${path}.replacementYears`, {
+      integer: true,
       min: 1,
     }),
     ...validateNumber(params.baseMidDriveShare, `${path}.baseMidDriveShare`, {
@@ -411,21 +419,32 @@ function regionalAdoption(
       ? state.populationMillions
       : state.populationMillions * (1 + params.annualPopulationGrowth);
   const beginningStock = state.stock;
-  const replacementSales = beginningStock / params.replacementYears;
+  const step = year - params.baseYear;
+  const retirements = scheduledVintageRetirements(state.vintages, step);
+  let replacementSales: number;
   let newAdoptionSales: number;
   let annualSales: number;
 
   if (year === params.baseYear) {
     annualSales = params.baseAnnualSales;
+    replacementSales = Math.min(retirements, annualSales);
     newAdoptionSales = Math.max(0, annualSales - replacementSales);
   } else {
     const targetStock =
       populationMillions *
       1_000_000 *
       (params.saturationStockPerThousandPeople / 1_000);
-    const remainingPotential = Math.max(0, targetStock - beginningStock);
+    const stockAfterRetirement = Math.max(0, beginningStock - retirements);
+    replacementSales = Math.min(
+      retirements,
+      Math.max(0, targetStock - stockAfterRetirement),
+    );
+    const stockAfterReplacement = stockAfterRetirement + replacementSales;
+    const remainingPotential = Math.max(0, targetStock - stockAfterReplacement);
     const adoptionFraction =
-      targetStock > 0 ? clamp(beginningStock / targetStock, 0, 1) : 1;
+      targetStock > 0
+        ? clamp(stockAfterReplacement / targetStock, 0, 1)
+        : 1;
     newAdoptionSales = Math.min(
       remainingPotential,
       Math.max(
@@ -437,10 +456,14 @@ function regionalAdoption(
     annualSales = replacementSales + newAdoptionSales;
   }
 
-  const endingInstalledStock = Math.max(
-    0,
-    beginningStock + newAdoptionSales,
-  );
+  const vintageAdvance = advanceVintageStock(state.vintages, {
+    step,
+    additions: annualSales,
+    serviceLifeSteps: params.replacementYears,
+    cohortId: `${params.id}-${year}`,
+  });
+  const endingInstalledStock = vintageAdvance.closingStock;
+  const unreplacedRetirements = Math.max(0, retirements - replacementSales);
   const midDriveShare =
     year === params.baseYear
       ? params.baseMidDriveShare
@@ -449,13 +472,16 @@ function regionalAdoption(
           (params.targetMidDriveShare - state.midDriveShare);
   state.populationMillions = populationMillions;
   state.stock = endingInstalledStock;
+  state.vintages = vintageAdvance.state;
   state.midDriveShare = clamp(midDriveShare, 0, 1);
 
   return {
     region: params.id,
     populationMillions,
     beginningInstalledStock: beginningStock,
+    retirements,
     replacementSales,
+    unreplacedRetirements,
     newAdoptionSales,
     annualSales,
     endingInstalledStock,
@@ -766,6 +792,13 @@ export function simulateEbikeMotorMarket(
           populationMillions: params.populationMillions,
           stock: params.initialInstalledStock,
           midDriveShare: params.baseMidDriveShare,
+          vintages: createVintageStock({
+            unit: 'ebike',
+            initialStock: params.initialInstalledStock,
+            serviceLifeSteps: params.replacementYears,
+            initialRetirementProfile: 'uniform',
+            idPrefix: `${region}-opening`,
+          }),
         },
       ];
     }),

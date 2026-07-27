@@ -91,6 +91,12 @@ export interface HormuzRegionExposure {
 export interface HormuzModelParams {
   oil: OilMarketParams;
   lng: TradedCommodityParams;
+  /**
+   * Total world natural-gas consumption, including pipeline and domestic gas.
+   * LNG-market shortages must be divided by this denominator before they are
+   * applied to total regional gas consumption.
+   */
+  globalGasDemandPerDay: number;
   fertilizer: FertilizerMarketParams;
   regions: Readonly<Record<Region, HormuzRegionExposure>>;
   /** Converts LNG spot-market prices into a broad regional gas-price shock. */
@@ -146,6 +152,10 @@ export const hormuzDefaults: HormuzModelParams = {
     routeRiskPremium: 0.07,
     maxPriceMultiple: 5,
   },
+  // Rough 2025 world natural-gas use in Bcf/day. The LNG subsystem above
+  // clears the much smaller seaborne market; this separate denominator keeps
+  // a seaborne LNG loss from becoming the same percentage loss of all gas.
+  globalGasDemandPerDay: 400,
   fertilizer: {
     hormuzTradeShare: 0.33,
     // Judgment: prices clear in the traded market, but domestic/non-traded

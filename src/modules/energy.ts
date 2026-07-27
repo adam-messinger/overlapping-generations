@@ -24,7 +24,16 @@
  * - cumulativeCapacity: Total deployed (for learning curves)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
+import {
+  advanceVintageStock,
+  createVintageStock,
+  defineModule,
+  type Module,
+  type ValidationResult,
+  type VintageStockState,
+  validatedMerge,
+  unitPort,
+} from 'tsimulation';
 import {
   ENERGY_ADDITION_PORT,
   ENERGY_CAPACITY_PORT,
@@ -523,8 +532,9 @@ export const energyDefaults: EnergyParams = {
 /** Regional capacity state (per region, per source) */
 export interface RegionalCapacityState {
   installed: number;      // Current capacity (GW or GWh) in this region
-  additions: number[];    // History of additions (for retirement)
-  initialCapacity: number; // Original 2025 capacity (for retirement)
+  additions: number[];    // Auditable history of annual additions
+  initialCapacity: number; // Original 2025 capacity
+  vintages: VintageStockState;
 }
 
 /** Global learning state (per source) - for Wright's Law */
@@ -924,6 +934,7 @@ export const energyModule: Module<
       ...energyDefaults,
       ...params,
       eroi: { ...energyDefaults.eroi, ...(params.eroi ?? {}) },
+      lifetime: { ...energyDefaults.lifetime, ...(params.lifetime ?? {}) },
     };
 
     // Validate regional carbon prices
@@ -966,6 +977,10 @@ export const energyModule: Module<
       }
       if (s.cost0 < 0) {
         errors.push(`sources.${source}.cost0 cannot be negative`);
+      }
+      const lifetime = p.lifetime[source];
+      if (!Number.isInteger(lifetime) || lifetime < 1) {
+        errors.push(`lifetime.${source} must be an integer number of years >= 1`);
       }
       const eroi = p.eroi[source];
       if (eroi !== undefined && eroi <= 1) {
@@ -1111,8 +1126,15 @@ export const energyModule: Module<
         const cap2025 = params.sources[source].capacity2025[region];
         regional[region][source] = {
           installed: cap2025,
-          additions: [0], // Year 0 has no additions
+          additions: [],
           initialCapacity: cap2025,
+          vintages: createVintageStock({
+            unit: source === 'battery' ? 'GWh' : 'GW',
+            initialStock: cap2025,
+            serviceLifeSteps: params.lifetime[source],
+            initialRetirementProfile: 'uniform',
+            idPrefix: `${region}-${source}-opening`,
+          }),
         };
       }
     }
@@ -1510,25 +1532,21 @@ export const energyModule: Module<
       // Calculate retirements and update regional state
       for (const source of ENERGY_SOURCES) {
         const regionState = state.regional[region][source];
-        const prevInstalled = regionState.installed;
-
         const addition = fundedAdditions[source];
         const lifetime = params.lifetime[source];
-        let retirement = 0;
-
-        if (yearIndex < lifetime) {
-          retirement += regionState.initialCapacity / lifetime;
-        }
-        if (yearIndex >= lifetime && regionState.additions.length > lifetime) {
-          retirement += regionState.additions[yearIndex - lifetime] || 0;
-        }
-
-        const newInstalled = Math.max(0, prevInstalled + addition - retirement);
+        const vintage = advanceVintageStock(regionState.vintages, {
+          step: yearIndex,
+          additions: addition,
+          serviceLifeSteps: lifetime,
+          cohortId: `${region}-${source}-${year}`,
+        });
+        const newInstalled = vintage.closingStock;
 
         newRegional[region][source] = {
           installed: newInstalled,
           additions: [...regionState.additions, addition],
           initialCapacity: regionState.initialCapacity,
+          vintages: vintage.state,
         };
 
         regionalCapacities[region][source] = newInstalled;

@@ -800,6 +800,42 @@ test('validation catches negative minWACC', () => {
   expect(result.valid).toBe(false);
 });
 
+test('new capacity retires at exactly its declared integer lifetime', () => {
+  const params = energyModule.mergeParams({
+    lifetime: { ...energyDefaults.lifetime, solar: 2 },
+  });
+  let state = energyModule.init(params);
+  const cohortId = 'oecd-solar-2025';
+  for (let yearIndex = 0; yearIndex <= 2; yearIndex++) {
+    const result = energyModule.step(
+      state,
+      createInputs(100_000, 1_000),
+      params,
+      2025 + yearIndex,
+      yearIndex,
+    );
+    state = result.state;
+    if (yearIndex === 0) {
+      const cohort = state.regional.oecd.solar.vintages.cohorts.find(
+        (candidate) => candidate.id === cohortId,
+      );
+      expect(cohort !== undefined).toBeTrue();
+      expect(cohort?.retirementStep).toBe(2);
+    }
+  }
+  expect(
+    state.regional.oecd.solar.vintages.cohorts.some(
+      (cohort) => cohort.id === cohortId,
+    ),
+  ).toBeFalse();
+});
+
+test('fractional asset lifetimes are rejected before array/vintage accounting', () => {
+  expect(energyModule.validate({
+    lifetime: { ...energyDefaults.lifetime, solar: 2.5 },
+  }).valid).toBeFalse();
+});
+
 // =============================================================================
 // SUMMARY
 // =============================================================================

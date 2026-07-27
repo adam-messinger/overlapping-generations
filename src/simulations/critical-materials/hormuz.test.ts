@@ -1,8 +1,9 @@
 import { expect, printSummary, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
+import { REGIONS } from '../../domain-types.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
 import { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './hormuz-bridge.js';
-import { hormuzScenarios } from './hormuz-data.js';
+import { hormuzDefaults, hormuzScenarios } from './hormuz-data.js';
 import { simulateHormuzDisruption } from './hormuz-model.js';
 
 const calibrated = calibrateHormuzModel();
@@ -73,6 +74,33 @@ test('regional exposure makes India more physically constrained than Latin Ameri
     .toBeLessThan(july.regional.latam.oilAvailability);
   expect(july.regional.india.gasAvailability)
     .toBeLessThan(july.regional.russia.gasAvailability);
+});
+
+test('seaborne LNG loss is converted to the total-gas denominator', () => {
+  const params = {
+    ...hormuzDefaults,
+    regions: Object.fromEntries(REGIONS.map((region) => [
+      region,
+      { ...hormuzDefaults.regions[region], physicalVulnerability: 1 },
+    ])) as typeof hormuzDefaults.regions,
+  };
+  const result = simulateHormuzDisruption(
+    hormuzScenarios['prolonged-closure'],
+    params,
+  );
+  const month = result.months[2];
+  const weightedRegionalGasLoss = REGIONS.reduce(
+    (sum, region) =>
+      sum +
+      params.regions[region].gasConsumptionWeight *
+        (1 - month.regional[region].gasAvailability),
+    0,
+  );
+  const expectedTotalGasLoss =
+    month.lng.netPhysicalSupplyLossPerDay / params.globalGasDemandPerDay;
+  const seaborneLngLoss = 1 - month.lng.physicalSupplyRatio;
+  expect(weightedRegionalGasLoss).toBeCloseTo(expectedTotalGasLoss, 9);
+  expect(weightedRegionalGasLoss).toBeLessThan(seaborneLngLoss / 3);
 });
 
 test('the annual bridge raises burden and lowers GDP in the disruption year', () => {

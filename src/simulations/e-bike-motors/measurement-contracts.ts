@@ -127,7 +127,11 @@ function regionStockEstimand(region: EbikeRegion): EstimandContract {
 
 function regionMarketComponentEstimand(
   region: EbikeRegion,
-  component: 'replacement' | 'new-adoption',
+  component:
+    | 'retirement'
+    | 'replacement'
+    | 'unreplaced-retirement'
+    | 'new-adoption',
 ): EstimandContract {
   return estimand(`${region}.${component}-complete-ebike-market-flow`, {
     quantityKind: `e-bike.${region}.${component}.complete-bike-market-flow`,
@@ -135,9 +139,13 @@ function regionMarketComponentEstimand(
     population: {
       ...completeEbikePopulation,
       inclusion: [
-        component === 'replacement'
-          ? 'complete bikes replacing retirements from the installed fleet'
-          : 'complete bikes that increase the installed fleet',
+        component === 'retirement'
+          ? 'complete bikes reaching scheduled end of service life'
+          : component === 'replacement'
+            ? 'complete bikes replacing retirements from the installed fleet'
+            : component === 'unreplaced-retirement'
+              ? 'scheduled retirements not replaced by a new complete bike'
+              : 'complete bikes that increase the installed fleet',
       ],
     },
     geography: geographies[region],
@@ -191,6 +199,18 @@ export const ebikeMotorEstimands = {
     EBIKE_REGIONS.map((region) => [
       region,
       regionMarketComponentEstimand(region, 'replacement'),
+    ]),
+  ) as Record<EbikeRegion, EstimandContract>,
+  regionalRetirementFlow: Object.fromEntries(
+    EBIKE_REGIONS.map((region) => [
+      region,
+      regionMarketComponentEstimand(region, 'retirement'),
+    ]),
+  ) as Record<EbikeRegion, EstimandContract>,
+  regionalUnreplacedRetirementFlow: Object.fromEntries(
+    EBIKE_REGIONS.map((region) => [
+      region,
+      regionMarketComponentEstimand(region, 'unreplaced-retirement'),
     ]),
   ) as Record<EbikeRegion, EstimandContract>,
   regionalNewAdoptionFlow: Object.fromEntries(

@@ -8,6 +8,7 @@
 import {
   defineEstimand,
   defineSemanticCrosswalk,
+  defineSemanticDerivation,
   type EstimandContract,
   type SemanticCrosswalk,
 } from 'tsimulation';
@@ -18,11 +19,55 @@ type EstimandSpec = Omit<
 >;
 
 function estimand(id: string, spec: EstimandSpec): EstimandContract {
+  const measure = {
+    ...spec.measure,
+    totality: spec.measure.totality ?? 'total',
+  };
+  const population = spec.population
+    ? {
+        ...spec.population,
+        universe:
+          spec.population.universe ??
+          `Population represented by ${id} within its stated model boundary.`,
+      }
+    : {
+        id: `population.${id.replace(/^estimand\./, '')}`,
+        universe: `Population represented by ${id} within its stated model boundary.`,
+      };
+  const geography = spec.geography
+    ? {
+        ...spec.geography,
+        boundaryVersion:
+          spec.geography.boundaryVersion ?? 'declared-model-boundary-v1',
+      }
+    : {
+        id: 'geo.model-scenario-boundary',
+        boundaryVersion: 'declared-model-boundary-v1',
+      };
+  const ratio =
+    spec.ratio ??
+    (measure.kind === 'rate' ||
+    measure.kind === 'share' ||
+    measure.kind === 'index'
+      ? {
+          numerator: `${spec.quantityKind} modeled numerator`,
+          denominator: `${spec.quantityKind} applicable denominator`,
+        }
+      : undefined);
   return defineEstimand({
     schemaVersion: 'tsimulation.estimand/v1',
     id,
     version: '1.0.0',
     ...spec,
+    measure,
+    population,
+    geography,
+    ...(ratio ? { ratio } : {}),
+    time: spec.time ?? { kind: 'timeless' },
+    vintage: spec.vintage ?? {
+      basis: 'current-period',
+      convention: 'Value applies to the model period represented at the call site.',
+    },
   });
 }
 
@@ -184,10 +229,22 @@ export const dataCenterEstimands = {
     { kind: 'share' },
     {
       ratio: {
-        numerator: 'annual-data-center-electricity-from-additive-dedicated-generation',
-        denominator: 'annual-total-data-center-electricity',
+        numerator: 'contracted-annual-data-center-electricity-provisioned-by-additive-dedicated-generation',
+        denominator: 'contracted-annual-total-data-center-electricity-requirement',
       },
       time: calendarYearSum,
+    },
+  ),
+  dedicatedPortfolioCapacityFactor: dataCenterContract(
+    'dedicated-portfolio-capacity-factor',
+    'electricity.dedicated-generation-capacity-factor',
+    { kind: 'share' },
+    {
+      ratio: {
+        numerator: 'annual-dedicated-generation-output',
+        denominator: 'dedicated-nameplate-capacity-times-hours-in-period',
+      },
+      time: calendarYearMean,
     },
   ),
   dedicatedCapacityCredit: dataCenterContract(
@@ -347,6 +404,24 @@ export const dataCenterEstimands = {
     { kind: 'level', totality: 'incremental', accounting: 'gross' },
     { time: calendarYearMean },
   ),
+  contractedAverageLoadGw: dataCenterContract(
+    'contracted-average-load',
+    'electricity.annual-average-contracted-full-site-load',
+    { kind: 'level', totality: 'incremental', accounting: 'gross' },
+    { time: calendarYearMean },
+  ),
+  dedicatedAverageLoadGw: dataCenterContract(
+    'dedicated-average-load',
+    'electricity.contracted-annual-average-load-backed-by-dedicated-generation',
+    { kind: 'level', totality: 'incremental', accounting: 'gross' },
+    { time: calendarYearMean },
+  ),
+  dedicatedNameplateGw: dataCenterContract(
+    'dedicated-nameplate-capacity',
+    'electricity.dedicated-generation-nameplate-capacity',
+    { kind: 'stock', totality: 'incremental', accounting: 'gross' },
+    { time: pointInTime },
+  ),
   annualElectricityTwh: dataCenterContract(
     'annual-electricity',
     'electricity.full-site-consumption',
@@ -480,6 +555,76 @@ export const dataCenterEstimands = {
     { kind: 'flow', totality: 'incremental', accounting: 'gross' },
     { time: calendarYearSum },
   ),
+} as const;
+
+export const dataCenterEquationDerivations = {
+  realizedAverageLoad: defineSemanticDerivation({
+    schemaVersion: 'tsimulation.derivation/v1',
+    id: 'derivation.data-center.realized-average-load',
+    version: '1.0.0',
+    description:
+      'Convert contracted maximum load to realized annual-average load using realization and load factors.',
+    inputEstimandIds: [
+      dataCenterEstimands.incrementalContractedLoadGw.id,
+      dataCenterEstimands.expectedLoadRealization.id,
+      dataCenterEstimands.loadFactor.id,
+    ],
+    outputEstimand: dataCenterEstimands.realizedAverageLoadGw,
+    expression:
+      'realizedAverageLoad = incrementalContractedLoad * expectedLoadRealization * loadFactor',
+  }),
+  annualElectricity: defineSemanticDerivation({
+    schemaVersion: 'tsimulation.derivation/v1',
+    id: 'derivation.data-center.annual-electricity',
+    version: '1.0.0',
+    description: 'Integrate realized average power over annual hours.',
+    inputEstimandIds: [
+      dataCenterEstimands.realizedAverageLoadGw.id,
+      dataCenterEstimands.hoursPerYear.id,
+    ],
+    outputEstimand: dataCenterEstimands.annualElectricityTwh,
+    expression: 'annualElectricity = realizedAverageLoad * hoursPerYear',
+  }),
+  contractedAverageLoad: defineSemanticDerivation({
+    schemaVersion: 'tsimulation.derivation/v1',
+    id: 'derivation.data-center.contracted-average-load',
+    version: '1.0.0',
+    description: 'Convert maximum contracted load to its annual-average equivalent.',
+    inputEstimandIds: [
+      dataCenterEstimands.incrementalContractedLoadGw.id,
+      dataCenterEstimands.loadFactor.id,
+    ],
+    outputEstimand: dataCenterEstimands.contractedAverageLoadGw,
+    expression: 'contractedAverageLoad = incrementalContractedLoad * loadFactor',
+  }),
+  dedicatedAverageLoad: defineSemanticDerivation({
+    schemaVersion: 'tsimulation.derivation/v1',
+    id: 'derivation.data-center.dedicated-average-load',
+    version: '1.0.0',
+    description:
+      'Apply the dedicated annual-energy share to contracted average load.',
+    inputEstimandIds: [
+      dataCenterEstimands.contractedAverageLoadGw.id,
+      dataCenterEstimands.dedicatedGenerationShare.id,
+    ],
+    outputEstimand: dataCenterEstimands.dedicatedAverageLoadGw,
+    expression:
+      'dedicatedAverageLoad = contractedAverageLoad * dedicatedGenerationShare',
+  }),
+  dedicatedNameplate: defineSemanticDerivation({
+    schemaVersion: 'tsimulation.derivation/v1',
+    id: 'derivation.data-center.dedicated-nameplate-capacity',
+    version: '1.0.0',
+    description:
+      'Convert required dedicated average output to nameplate capacity using the portfolio capacity factor.',
+    inputEstimandIds: [
+      dataCenterEstimands.dedicatedAverageLoadGw.id,
+      dataCenterEstimands.dedicatedPortfolioCapacityFactor.id,
+    ],
+    outputEstimand: dataCenterEstimands.dedicatedNameplateGw,
+    expression:
+      'dedicatedNameplate = dedicatedAverageLoad / dedicatedPortfolioCapacityFactor',
+  }),
 } as const;
 
 const usResidents = {
@@ -671,6 +816,57 @@ export const hormuzEstimands = {
     },
   ),
 } as const;
+
+export const hormuzGasEquationEstimands = {
+  netLngSupplyLossPerDay: estimand(
+    'estimand.hormuz.global-net-lng-supply-loss',
+    {
+      quantityKind: 'energy.gas.net-lng-supply-loss',
+      measure: { kind: 'flow', totality: 'incremental', accounting: 'net' },
+      population: globalCommodityMarket,
+      geography: world,
+      time: simulationMonthMean,
+    },
+  ),
+  globalGasDemandPerDay: estimand(
+    'estimand.hormuz.global-total-gas-demand',
+    {
+      quantityKind: 'energy.gas.total-demand',
+      measure: { kind: 'flow', totality: 'total', accounting: 'gross' },
+      population: globalCommodityMarket,
+      geography: world,
+      time: simulationMonthMean,
+    },
+  ),
+  globalGasSupplyLossShare: estimand(
+    'estimand.hormuz.global-gas-supply-loss-share',
+    {
+      quantityKind: 'energy.gas.physical-supply-loss-share',
+      measure: { kind: 'share', totality: 'incremental', accounting: 'net' },
+      population: globalCommodityMarket,
+      geography: world,
+      ratio: {
+        numerator: 'net-global-lng-supply-loss',
+        denominator: 'total-global-gas-demand',
+      },
+      time: simulationMonthMean,
+    },
+  ),
+} as const;
+
+export const hormuzGasLossDerivation = defineSemanticDerivation({
+  schemaVersion: 'tsimulation.derivation/v1',
+  id: 'derivation.hormuz.lng-loss-to-total-gas-loss',
+  version: '1.0.0',
+  description:
+    'Place the net LNG supply loss on the denominator of total global gas demand.',
+  inputEstimandIds: [
+    hormuzGasEquationEstimands.netLngSupplyLossPerDay.id,
+    hormuzGasEquationEstimands.globalGasDemandPerDay.id,
+  ],
+  outputEstimand: hormuzGasEquationEstimands.globalGasSupplyLossShare,
+  expression: 'globalGasLoss = netLngSupplyLossPerDay / globalGasDemandPerDay',
+});
 
 export const weberEnergyInflationEstimands = {
   importEnergyPriceMultiple: estimand(

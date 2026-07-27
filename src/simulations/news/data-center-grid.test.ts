@@ -70,6 +70,44 @@ test('clean dedicated supply changes emissions, not cost-allocation arithmetic',
   assert.ok(clean.operationalEmissionsGtCo2 < gas.operationalEmissionsGtCo2 / 5);
 });
 
+test('annual energy share does not masquerade as nameplate capacity share', () => {
+  const base = dataCenterGridScenarios['full-pledge-gas'];
+  const highCapacityFactor = simulateDataCenterGrid({
+    ...base,
+    dedicatedPortfolioCapacityFactor: 0.90,
+  });
+  const lowCapacityFactor = simulateDataCenterGrid({
+    ...base,
+    dedicatedPortfolioCapacityFactor: 0.45,
+  });
+  assert.equal(
+    highCapacityFactor.dedicatedElectricityTwh,
+    lowCapacityFactor.dedicatedElectricityTwh,
+  );
+  assert.ok(
+    Math.abs(
+      lowCapacityFactor.dedicatedNameplateGw /
+        highCapacityFactor.dedicatedNameplateGw -
+        2,
+    ) < 1e-12,
+  );
+  assert.ok(
+    lowCapacityFactor.dedicatedGenerationCapexBillion >
+      highCapacityFactor.dedicatedGenerationCapexBillion,
+  );
+});
+
+test('dedicated capacity factor must be positive before nameplate division', () => {
+  const scenario = structuredClone(
+    dataCenterGridScenarios['full-pledge-clean-flex'],
+  );
+  scenario.dedicatedPortfolioCapacityFactor = 0;
+  assert.throws(
+    () => simulateDataCenterGrid(scenario),
+    /dedicatedPortfolioCapacityFactor must be > 0/,
+  );
+});
+
 test('take-or-pay prevents abandoned contracted load from shifting assigned capex', () => {
   const base = {
     ...dataCenterGridScenarios['full-pledge-clean-flex'],
@@ -90,6 +128,21 @@ test('take-or-pay prevents abandoned contracted load from shifting assigned cape
   assert.ok(
     unprotectedResult.nonDataCenterBillImpact >
       protectedResult.nonDataCenterBillImpact,
+  );
+});
+
+test('dedicated build follows the contract while dispatch follows realized load', () => {
+  const base = dataCenterGridScenarios['full-pledge-clean-flex'];
+  const full = simulateDataCenterGrid(base);
+  const halfRealized = simulateDataCenterGrid({
+    ...base,
+    id: 'half-realized',
+    expectedLoadRealization: 0.5,
+  });
+  assert.equal(halfRealized.dedicatedNameplateGw, full.dedicatedNameplateGw);
+  assert.equal(
+    halfRealized.dedicatedElectricityTwh,
+    full.dedicatedElectricityTwh / 2,
   );
 });
 

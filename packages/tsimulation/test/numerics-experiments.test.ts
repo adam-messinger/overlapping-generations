@@ -60,6 +60,7 @@ test('thresholds, parameter audits, and seeded ensembles are reproducible', () =
     id: 'ensemble-test', version: '1', description: 'test', run: ({ x }) => ({ y: x * x }),
     inputPorts: { x: { unit: '1' }, inert: { unit: '1', optional: true } },
     outputPorts: { y: { unit: '1' } },
+    semanticValidation: 'off',
   });
   const audit = auditParameterEffects({
     model, baseline: { x: 2 },

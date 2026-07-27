@@ -304,6 +304,10 @@ export const DATA_CENTER_GRID_SCENARIO_PORT = objectPort<DataCenterGridScenario>
     'fraction',
     dataCenterEstimands.dedicatedGenerationShare,
   ),
+  dedicatedPortfolioCapacityFactor: measurementPort(
+    'fraction',
+    dataCenterEstimands.dedicatedPortfolioCapacityFactor,
+  ),
   dedicatedCapacityCredit: measurementPort(
     'fraction',
     dataCenterEstimands.dedicatedCapacityCredit,
@@ -379,6 +383,10 @@ export const DATA_CENTER_GRID_RESULT_PORT = objectPort<DataCenterGridResult>({
   flexiblePeakGw: measurementPort(
     'GW',
     dataCenterEstimands.flexiblePeakGw,
+  ),
+  dedicatedNameplateGw: measurementPort(
+    'GW',
+    dataCenterEstimands.dedicatedNameplateGw,
   ),
   dedicatedFirmCapacityGw: measurementPort(
     'GW',
@@ -963,6 +971,7 @@ export const HORMUZ_REGION_EXPOSURE_PORT = objectPort<HormuzRegionExposure>({
 export const HORMUZ_PARAMS_PORT = objectPort<HormuzModelParams>({
   oil: OIL_PARAMS_PORT,
   lng: LNG_PARAMS_PORT,
+  globalGasDemandPerDay: unitPort('Bcf/day'),
   fertilizer: FERTILIZER_PARAMS_PORT,
   regions: recordPort<HormuzRegionExposure>(HORMUZ_REGION_EXPOSURE_PORT, { keys: REGIONS }),
   globalLngPricePassThrough: unitPort('fraction'),

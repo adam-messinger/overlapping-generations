@@ -193,6 +193,14 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
     if (params.demographicAttractionMultiplier && (params.concentrationSensitivity ?? 0) > 0) {
       errors.push('demographicAttractionMultiplier (diagnostic) cannot combine with concentrationSensitivity > 0');
     }
+    if (
+      (params.concentrationSensitivity ?? 0) > 0 &&
+      (params.wEngines ?? 0) + (params.wHuman ?? 0) <= 0
+    ) {
+      errors.push(
+        'wEngines + wHuman must be positive when concentrationSensitivity > 0',
+      );
+    }
     return { valid: errors.length === 0, errors, warnings: [] };
   },
 
@@ -272,7 +280,10 @@ export const attractionModule = defineModule<AttractionParams, AttractionState, 
       params.concentrationGrowthHigh, params.concentrationGrowthLow,
     );
     const freed = shift * (params.wRegen + params.wVitality);
-    const enginesSplit = params.wEngines / (params.wEngines + params.wHuman);
+    const institutionalWeight = params.wEngines + params.wHuman;
+    const enginesSplit = institutionalWeight > 0
+      ? params.wEngines / institutionalWeight
+      : 0.5;
     const wEngines = params.wEngines + enginesSplit * freed;
     const wHuman = params.wHuman + (1 - enginesSplit) * freed;
     const wHub = params.wHub * (1 + shift);

@@ -75,3 +75,26 @@ test('full Red Sea avoidance produces finite delay, capacity, and inflation path
     assert.ok(Number.isFinite(row.intendedMarketOilAvailability));
   }
 });
+
+test('long Cape delays remain conserved as terminal in-transit oil', () => {
+  const result = simulateMaritimeNetwork(
+    maritimeScenarios['red-sea-1h25-holdout'],
+    { capeExtraDays: 120 },
+  );
+  const dispatchedMillionBarrels = result.monthly.reduce(
+    (sum, row) =>
+      sum + row.capeOilDeparturesMbd * result.params.daysPerMonth,
+    0,
+  );
+  const arrivedMillionBarrels = result.monthly.reduce(
+    (sum, row) =>
+      sum + row.capeOilArrivalsMbd * result.params.daysPerMonth,
+    0,
+  );
+  assert.ok(result.terminalCapeOilInTransitMillionBarrels > 0);
+  assert.ok(Math.abs(
+    dispatchedMillionBarrels -
+      arrivedMillionBarrels -
+      result.terminalCapeOilInTransitMillionBarrels,
+  ) < 1e-9);
+});

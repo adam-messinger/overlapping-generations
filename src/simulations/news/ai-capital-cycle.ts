@@ -1,4 +1,10 @@
-import { assertFiniteDeep, validateNumber } from 'tsimulation';
+import {
+  assertFiniteDeep,
+  depreciableVintage,
+  straightLineDepreciation,
+  type DepreciableVintage,
+  validateNumber,
+} from 'tsimulation';
 
 export interface AiCapitalCycleScenario {
   id: string;
@@ -63,18 +69,19 @@ export interface AiCapitalCycleResult {
   endingCumulativeNetCashBillion: number;
   endingDebtBalanceBillion: number;
   endingCapexReplacementCoverage: number;
-}
-
-interface CapexCohort {
-  quarter: number;
-  capexBillion: number;
+  endingNewCapexBookValueBillion: number;
 }
 
 function validateScenario(scenario: AiCapitalCycleScenario): void {
   assertFiniteDeep(scenario, 'AI capital-cycle scenario');
   const errors = [
-    ...validateNumber(scenario.startQuarter, 'startQuarter', { min: 1, max: 4 }),
-    ...validateNumber(scenario.quarters, 'quarters', { min: 1 }),
+    ...validateNumber(scenario.startYear, 'startYear', { integer: true }),
+    ...validateNumber(scenario.startQuarter, 'startQuarter', {
+      integer: true,
+      min: 1,
+      max: 4,
+    }),
+    ...validateNumber(scenario.quarters, 'quarters', { integer: true, min: 1 }),
     ...validateNumber(
       scenario.startingQuarterlyAiRevenueBillion,
       'startingQuarterlyAiRevenueBillion',
@@ -105,6 +112,16 @@ function validateScenario(scenario: AiCapitalCycleScenario): void {
       min: 0,
       exclusiveMin: true,
     }),
+    ...validateNumber(
+      scenario.chipDeploymentLagQuarters,
+      'chipDeploymentLagQuarters',
+      { integer: true, min: 0 },
+    ),
+    ...validateNumber(
+      scenario.facilityDeploymentLagQuarters,
+      'facilityDeploymentLagQuarters',
+      { integer: true, min: 0 },
+    ),
     ...validateNumber(scenario.replacementCostPremium, 'replacementCostPremium', {
       min: 0,
       exclusiveMin: true,
@@ -121,6 +138,12 @@ function validateScenario(scenario: AiCapitalCycleScenario): void {
   }
   if (scenario.annualTotalDeveloperCapexBillion.length === 0) {
     errors.push('annualTotalDeveloperCapexBillion must not be empty');
+  }
+  if (!Number.isInteger(scenario.chipUsefulLifeYears * 4)) {
+    errors.push('chipUsefulLifeYears must resolve to an integer number of quarters');
+  }
+  if (!Number.isInteger(scenario.facilityUsefulLifeYears * 4)) {
+    errors.push('facilityUsefulLifeYears must resolve to an integer number of quarters');
   }
   scenario.annualRevenueGrowthPath.forEach((value, index) => {
     errors.push(
@@ -194,12 +217,9 @@ export function simulateAiCapitalCycleV2(
   validateScenario(scenario);
 
   const initialSnapshot = simulateAiCapitalCycleV1(scenario);
-  const capexCohorts: CapexCohort[] = [];
+  const capexVintages: DepreciableVintage[] = [];
   const chipLifeQuarters = scenario.chipUsefulLifeYears * 4;
   const facilityLifeQuarters = scenario.facilityUsefulLifeYears * 4;
-  const weightedLegacyLifeQuarters =
-    scenario.chipShareOfAiCapex * chipLifeQuarters +
-    (1 - scenario.chipShareOfAiCapex) * facilityLifeQuarters;
 
   let revenueBillion = scenario.startingQuarterlyAiRevenueBillion;
   let cumulativeNetCashBillion = 0;
@@ -228,35 +248,34 @@ export function simulateAiCapitalCycleV2(
       totalDeveloperCapexBillion *
       scenario.aiShareOfDeveloperCapex /
       4;
-    capexCohorts.push({ quarter: index, capexBillion: aiCapexBillion });
+    capexVintages.push(
+      depreciableVintage({
+        id: `chips-${index}`,
+        expenditureStep: index,
+        inServiceStep: index + scenario.chipDeploymentLagQuarters,
+        cost: aiCapexBillion * scenario.chipShareOfAiCapex,
+        usefulLifeSteps: chipLifeQuarters,
+      }),
+      depreciableVintage({
+        id: `facilities-${index}`,
+        expenditureStep: index,
+        inServiceStep: index + scenario.facilityDeploymentLagQuarters,
+        cost: aiCapexBillion * (1 - scenario.chipShareOfAiCapex),
+        usefulLifeSteps: facilityLifeQuarters,
+      }),
+    );
 
-    // The starting depreciation stock is treated as a uniformly aged pool,
-    // so it expires gradually rather than remaining forever.
+    // The starting depreciation stock is split into separate uniformly aged
+    // chip and facility pools rather than compressed into one average life.
     const legacyDepreciationBillion =
-      scenario.startingQuarterlyAiDepreciationBillion *
-      Math.max(0, 1 - index / weightedLegacyLifeQuarters);
-    let newDepreciationBillion = 0;
-    for (const cohort of capexCohorts) {
-      const age = index - cohort.quarter;
-      if (
-        age >= scenario.chipDeploymentLagQuarters &&
-        age < scenario.chipDeploymentLagQuarters + chipLifeQuarters
-      ) {
-        newDepreciationBillion +=
-          cohort.capexBillion *
-          scenario.chipShareOfAiCapex /
-          chipLifeQuarters;
-      }
-      if (
-        age >= scenario.facilityDeploymentLagQuarters &&
-        age < scenario.facilityDeploymentLagQuarters + facilityLifeQuarters
-      ) {
-        newDepreciationBillion +=
-          cohort.capexBillion *
-          (1 - scenario.chipShareOfAiCapex) /
-          facilityLifeQuarters;
-      }
-    }
+      scenario.startingQuarterlyAiDepreciationBillion * (
+        scenario.chipShareOfAiCapex *
+          Math.max(0, 1 - index / chipLifeQuarters) +
+        (1 - scenario.chipShareOfAiCapex) *
+          Math.max(0, 1 - index / facilityLifeQuarters)
+      );
+    const newDepreciationBillion =
+      straightLineDepreciation(capexVintages, index).depreciation;
     const depreciationBillion =
       legacyDepreciationBillion + newDepreciationBillion;
     const cashOperatingCostBillion =
@@ -348,6 +367,11 @@ export function simulateAiCapitalCycleV2(
         ? (quarters.at(-1)?.aiCapexBillion ?? 0) /
           (quarters.at(-1)?.maintenanceCapexBillion ?? 1)
         : 1,
+    endingNewCapexBookValueBillion:
+      straightLineDepreciation(
+        capexVintages,
+        Math.max(0, scenario.quarters - 1),
+      ).endingBookValue,
   };
   assertFiniteDeep(result, 'AI capital-cycle V2 result');
   return result;

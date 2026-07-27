@@ -1,5 +1,9 @@
 import { expect, printSummary, test } from '../../src/test-utils.js';
-import { concentrationShift, universityThroughputRetention } from './modules/attraction.js';
+import {
+  attractionModule,
+  concentrationShift,
+  universityThroughputRetention,
+} from './modules/attraction.js';
 
 console.log('\n=== Aging Places Attraction Scenario Tests ===\n');
 
@@ -34,6 +38,18 @@ test('concentration dial ramps linearly and saturates at deep decline', () => {
 
 test('a degenerate growth band disables the dial instead of dividing by zero', () => {
   expect(concentrationShift(1, 0, 0.005, 0.005)).toBe(0);
+});
+
+test('concentration rejects a zero institutional-weight denominator', () => {
+  const validation = attractionModule.validate(
+    attractionModule.mergeParams({
+      wEngines: 0,
+      wHuman: 0,
+      concentrationSensitivity: 1,
+    }),
+  );
+  expect(validation.valid).toBeFalse();
+  expect(validation.errors.join(' ').includes('wEngines + wHuman')).toBeTrue();
 });
 
 printSummary();

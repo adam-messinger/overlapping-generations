@@ -52,3 +52,39 @@ test('monetization assumptions create a wide financing fork', () => {
   assert.ok(slow.endingDebtBalanceBillion > fast.endingDebtBalanceBillion);
 });
 
+test('calendar quarters, lags, and depreciation lives require quarter granularity', () => {
+  assert.throws(
+    () => simulateAiCapitalCycleV2({
+      ...aiCapitalCycleScenarios.central,
+      quarters: 1.5,
+    }),
+    /quarters must be an integer/,
+  );
+  assert.throws(
+    () => simulateAiCapitalCycleV2({
+      ...aiCapitalCycleScenarios.central,
+      startQuarter: 1.5,
+    }),
+    /startQuarter must be an integer/,
+  );
+  assert.throws(
+    () => simulateAiCapitalCycleV2({
+      ...aiCapitalCycleScenarios.central,
+      chipDeploymentLagQuarters: 1.5,
+    }),
+    /chipDeploymentLagQuarters must be an integer/,
+  );
+  assert.throws(
+    () => simulateAiCapitalCycleV2({
+      ...aiCapitalCycleScenarios.central,
+      chipUsefulLifeYears: 4.1,
+    }),
+    /integer number of quarters/,
+  );
+});
+
+test('new capex vintages expose a finite terminal book stock', () => {
+  const result = simulateAiCapitalCycleV2(aiCapitalCycleScenarios.central);
+  assert.ok(result.endingNewCapexBookValueBillion > 0);
+  assert.ok(Number.isFinite(result.endingNewCapexBookValueBillion));
+});

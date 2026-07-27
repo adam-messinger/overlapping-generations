@@ -6,7 +6,16 @@ import {
   type OilMarketParams,
   type TradedCommodityParams,
 } from './hormuz-data.js';
-import { assertFiniteDeep, validateNumber } from 'tsimulation';
+import {
+  assertFiniteDeep,
+  divideSemanticQuantities,
+  semanticQuantity,
+  validateNumber,
+} from 'tsimulation';
+import {
+  hormuzGasEquationEstimands,
+  hormuzGasLossDerivation,
+} from '../semantic-contracts.js';
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -365,7 +374,26 @@ function regionalMonth(
   }
 
   const globalOilLoss = Math.max(0, 1 - oil.physicalSupplyRatio);
-  const globalLngLoss = Math.max(0, 1 - lng.physicalSupplyRatio);
+  const globalGasLoss = clamp(
+    divideSemanticQuantities({
+      numerator: semanticQuantity(
+        lng.netPhysicalSupplyLossPerDay,
+        'Bcf/day',
+        hormuzGasEquationEstimands.netLngSupplyLossPerDay,
+      ),
+      denominator: semanticQuantity(
+        params.globalGasDemandPerDay,
+        'Bcf/day',
+        hormuzGasEquationEstimands.globalGasDemandPerDay,
+      ),
+      outputEstimand: hormuzGasEquationEstimands.globalGasSupplyLossShare,
+      derivation: hormuzGasLossDerivation,
+      targetUnit: 'fraction',
+      label: 'global gas loss on total-gas denominator',
+    }).value,
+    0,
+    1,
+  );
   const broadGasPrice = 1 +
     (lng.priceMultiple - 1) * params.globalLngPricePassThrough;
 
@@ -379,7 +407,7 @@ function regionalMonth(
     const regionGasRouteExposure =
       exposure.lngShareOfGasUse * exposure.hormuzShareOfLng;
     const gasLoss = globalGasRouteExposure > 0
-      ? globalLngLoss *
+      ? globalGasLoss *
         (regionGasRouteExposure / globalGasRouteExposure) *
         exposure.physicalVulnerability
       : 0;
@@ -391,7 +419,7 @@ function regionalMonth(
     );
     const gasScarcityGap = Math.max(
       0,
-      (1 - gasAvailability) - globalLngLoss,
+      (1 - gasAvailability) - globalGasLoss,
     );
     const oilPriceMultiple = clamp(
       oil.priceMultiple * (1 + params.regionalScarcityPricePremium * oilScarcityGap),
@@ -435,6 +463,7 @@ export function simulateHormuzDisruption(
     ...validateNumber(scenario.startMonth, 'scenario.startMonth', { integer: true, min: 1, max: 12 }),
     ...validateNumber(params.oil.globalDemandPerDay, 'oil.globalDemandPerDay', { min: 0, exclusiveMin: true }),
     ...validateNumber(params.lng.globalDemandPerDay, 'lng.globalDemandPerDay', { min: 0, exclusiveMin: true }),
+    ...validateNumber(params.globalGasDemandPerDay, 'globalGasDemandPerDay', { min: 0, exclusiveMin: true }),
     ...validateNumber(params.oil.hormuzFlowPerDay, 'oil.hormuzFlowPerDay', { min: 0 }),
     ...validateNumber(params.lng.hormuzFlowPerDay, 'lng.hormuzFlowPerDay', { min: 0 }),
     ...validateNumber(params.oil.demandElasticity, 'oil.demandElasticity', { min: 0, exclusiveMin: true }),
@@ -449,6 +478,9 @@ export function simulateHormuzDisruption(
   }
   if (params.lng.hormuzFlowPerDay > params.lng.globalDemandPerDay) {
     errors.push('lng.hormuzFlowPerDay must not exceed global demand');
+  }
+  if (params.globalGasDemandPerDay < params.lng.globalDemandPerDay) {
+    errors.push('globalGasDemandPerDay must be at least as large as seaborne LNG demand');
   }
   if (errors.length > 0) throw new Error(`Invalid Hormuz input:\n  ${errors.join('\n  ')}`);
   let oilState: CommodityState = {
