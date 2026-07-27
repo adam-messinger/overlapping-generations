@@ -42,6 +42,11 @@ import { outbreakEpisodes } from '../src/simulations/outbreak/data.js';
 import { calibrateOutbreakV1, calibrateOutbreakV2 } from '../src/simulations/outbreak/calibration.js';
 import { evaluatePanel } from '../src/simulations/outbreak/probabilistic.js';
 import { respiratoryPanel } from '../src/simulations/outbreak/rolling-data.js';
+import {
+  evaluateCyclosporaNowcast,
+  evaluateDataCenterRatepayerPledge,
+  evaluateHeatMortalityNowcast,
+} from '../src/simulations/news/headline-experiments-2026-07-26.js';
 import { weberBenchmark } from '../src/simulations/critical-materials/data.js';
 import { evaluateWeberPeriod, fitWeberModels } from '../src/simulations/critical-materials/price-network.js';
 import { calibrateDisruptionModel } from '../src/simulations/critical-materials/event-backtest.js';
@@ -356,6 +361,9 @@ const ebikeRuns = Object.entries(ebikeMotorScenarios).map(
 const ebikeBacktest = backtestEbikeAdoption();
 const ebikeSupplierCalibration = evaluateSupplierVolumeCalibration();
 const ebikeGeographicScope = analyzeEntrantGeographicScope();
+const july26Heat = evaluateHeatMortalityNowcast();
+const july26Cyclospora = evaluateCyclosporaNowcast();
+const july26DataCenters = evaluateDataCenterRatepayerPledge();
 
 const summary = {
   schemaVersion: 'tsimulation.suite/v1',
@@ -442,6 +450,42 @@ const summary = {
       enterpriseNpvMillion: result.enterpriseNpvMillion,
     })),
     geographicScope: ebikeGeographicScope,
+  },
+  headlineExperiments20260726: {
+    heatMortality: {
+      provisionalHeatAttributedDeaths:
+        july26Heat.case.provisionalHeatAttributedDeaths,
+      centralExcessDeaths: july26Heat.revisedV2.centralExcessDeaths,
+      lowerExcessDeaths: july26Heat.revisedV2.lowerExcessDeaths,
+      upperExcessDeaths: july26Heat.revisedV2.upperExcessDeaths,
+      leaveOneOutMape:
+        july26Heat.revisedV2.leaveOneOutMeanAbsolutePercentageError,
+    },
+    cyclospora: {
+      reportedCases: july26Cyclospora.case.currentReportedCases,
+      centralFinalCases:
+        july26Cyclospora.revisedV2.centralFinalOutbreakCases,
+      lowerFinalCases:
+        july26Cyclospora.revisedV2.lowerFinalOutbreakCases,
+      upperFinalCases:
+        july26Cyclospora.revisedV2.upperFinalOutbreakCases,
+      reportingBacktestAbsolutePercentageError:
+        july26Cyclospora.calibration
+          .later2020AbsolutePercentageError,
+    },
+    dataCenterRatepayers: {
+      centralProjectCoverage:
+        july26DataCenters.case.enforceableProjectCoverage,
+      centralBillImpact:
+        july26DataCenters.revisedV2.central
+          .netNonDataCenterBillImpact,
+      noProtectionBillImpact:
+        july26DataCenters.revisedV2.noProtection
+          .netNonDataCenterBillImpact,
+      literalFullPledgeBillImpact:
+        july26DataCenters.revisedV2.literalFullPledge
+          .netNonDataCenterBillImpact,
+    },
   },
 };
 
