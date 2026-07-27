@@ -54,10 +54,10 @@ V2 prices the guarantee instead of describing it:
 
 - **Serviceability.** At 8% over 15 years the full-build lease is ~$58B/yr,
   requiring ~$195B of OpenAI revenue if this one campus can absorb 30% of a
-  compute budget. Reusing the AI capital-cycle model's monetization paths:
-  fast covers the lease by 2031, central by 2032 (about when full build
-  arrives), slow never does by 2036. The guarantee is a bet that the slow
-  path does not happen.
+  compute budget. Reusing the AI capital-cycle model's monetization paths
+  (end-of-year run rates on its 2026 axis): fast covers the lease by 2030,
+  central by 2031 (about when full build would arrive), slow never does by
+  2035. The guarantee is a bet that the slow path does not happen.
 - **Expected loss.** Weighting the three paths (25/50/25) with per-path call
   probabilities (2%/15%/60%), 60% drawn at distress, and wrong-way recovery
   (20% in the slow world, where GPU resale collapses exactly when the call

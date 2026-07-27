@@ -54,13 +54,19 @@ console.log(
   )}x Lucent's peak vendor-financing intensity — the "Lucent redux" reading.`,
 );
 console.table(
-  backstop.revisedV2.scenarioCoverage.map((row) => ({
-    scenario: row.id,
-    weight: row.weight,
-    'P(call)': pct(row.callProbability),
-    'revenue 2032': billions(row.projectedRevenueBillion2032),
-    'covers lease in': row.coverageYear ?? 'never (by 2036)',
-  })),
+  backstop.revisedV2.scenarioCoverage.map((row, index) => {
+    const scenario = backstop.case.monetizationScenarios[index];
+    return {
+      scenario: row.id,
+      weight: scenario?.weight ?? NaN,
+      'P(call)': pct(scenario?.callProbability ?? NaN),
+      [`revenue ${backstop.case.revenueReportYear}`]: billions(
+        row.projectedRevenueAtReportYearBillion,
+      ),
+      'covers lease in':
+        row.coverageYear ?? `never (by ${backstop.revisedV2.projectionEndYear})`,
+    };
+  }),
 );
 console.log(
   `V2: the full-build lease is ${billions(

@@ -1,10 +1,18 @@
-import { assertFiniteDeep, validateNumber } from 'tsimulation';
+import { assertFiniteDeep, validateNumber, validateShares } from 'tsimulation';
 
+import { capitalRecoveryFactor } from '../../modules/energy.js';
 import { aiCapitalCycleScenarios } from './ai-capital-cycle.js';
 import {
+  dataCenterGridEvidence,
   dataCenterGridScenarios,
   simulateDataCenterGrid,
 } from './data-center-grid.js';
+
+function throwIfInvalid(label: string, errors: readonly string[]): void {
+  if (errors.length > 0) {
+    throw new Error(`Invalid ${label}:\n  ${errors.join('\n  ')}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 1. Nvidia's $250B lease backstop as vendor financing
@@ -33,13 +41,16 @@ export interface VendorBackstopCase {
   /** Separately discussed chip-purchase financing. */
   chipFinancingBillion: number;
   projectCapexBillion: number;
-  projectGw: number;
   /** Vendor (guarantor) trailing annual revenue, $ billions. */
   vendorRevenueBillion: number;
   /** Vendor trailing annual free cash flow, $ billions. */
   vendorFreeCashFlowBillion: number;
   /** Beneficiary (lessee) current annualized revenue, $ billions. */
   lesseeAnnualizedRevenueBillion: number;
+  /** Calendar year of that annualized revenue; growth paths start here. */
+  revenuePathStartYear: number;
+  /** Year whose projected run-rate the result reports for each scenario. */
+  revenueReportYear: number;
   /** Financing rate applied to the leased project. */
   leaseFinancingRate: number;
   /** Amortization term of the lease, years. */
@@ -86,14 +97,16 @@ export interface VendorBackstopResult {
     fullBuildAnnualLeasePaymentBillion: number;
     /** Lessee revenue needed to fit the lease inside the campus budget. */
     requiredLesseeRevenueBillion: number;
+    /** Last calendar year the scenario revenue paths cover. */
+    projectionEndYear: number;
     scenarioCoverage: readonly {
       id: string;
-      weight: number;
-      callProbability: number;
       /** Calendar year revenue first covers the lease, or null. */
       coverageYear: number | null;
-      projectedRevenueBillion2032: number;
+      projectedRevenueAtReportYearBillion: number;
     }[];
+    /** How much of peak commitments the telecoms actually drew. */
+    historicalDrawnShareOfCommitments: number;
     expectedLossBillion: number;
     worstCaseLossBillion: number;
     expectedLossShareOfAnnualFreeCashFlow: number;
@@ -113,13 +126,16 @@ export const vendorBackstopCase: VendorBackstopCase = {
   // with chip-purchase financing that could total another $350B.
   backstopGuaranteeBillion: 250,
   chipFinancingBillion: 350,
-  projectCapexBillion: 500,
-  projectGw: 10,
+  projectCapexBillion: 500, // 10 GW campus, ~$50B/GW including compute
   // Nvidia FY2026 (ended Jan 2026): revenue $215.9B, FCF $96.6B.
   vendorRevenueBillion: 215.9,
   vendorFreeCashFlowBillion: 96.6,
   // OpenAI annualized revenue ~ $25B in early 2026 (Sacra; WSJ reporting).
   lesseeAnnualizedRevenueBillion: 25,
+  // The growth paths below are reused from the AI capital-cycle model and
+  // are dated from its start year.
+  revenuePathStartYear: aiCapitalCycleScenarios.central.startYear,
+  revenueReportYear: 2032,
   leaseFinancingRate: 0.08, // BBB-ish infrastructure debt plus spread
   leaseTermYears: 15,
   // One campus cannot absorb the lessee's whole compute budget: Piketon is
@@ -214,20 +230,19 @@ function validateVendorBackstopCase(input: VendorBackstopCase): void {
       min: 0,
       max: 1,
     }),
+    ...validateNumber(input.revenueReportYear, 'revenueReportYear', {
+      integer: true,
+      min: input.revenuePathStartYear,
+    }),
+    ...validateShares(
+      input.monetizationScenarios.map((scenario) => scenario.weight),
+      'monetization scenario weights',
+    ),
   ];
   if (input.benchmarks.length === 0) {
     errors.push('benchmarks must not be empty');
   }
-  const totalWeight = input.monetizationScenarios.reduce(
-    (sum, scenario) => sum + scenario.weight,
-    0,
-  );
-  if (Math.abs(totalWeight - 1) > 1e-9) {
-    errors.push(`monetization scenario weights must sum to 1, got ${totalWeight}`);
-  }
-  if (errors.length > 0) {
-    throw new Error(`Invalid vendor-backstop case:\n  ${errors.join('\n  ')}`);
-  }
+  throwIfInvalid('vendor-backstop case', errors);
 }
 
 /**
@@ -257,35 +272,53 @@ export function evaluateVendorFinancingBackstop(
     input.backstopGuaranteeBillion / input.vendorRevenueBillion;
 
   // Annuity payment on the leased project at full build.
-  const rate = input.leaseFinancingRate;
-  const annuityFactor =
-    rate / (1 - Math.pow(1 + rate, -input.leaseTermYears));
   const fullBuildAnnualLeasePaymentBillion =
-    input.projectCapexBillion * annuityFactor;
+    input.projectCapexBillion *
+    capitalRecoveryFactor(input.leaseFinancingRate, input.leaseTermYears);
   const requiredLesseeRevenueBillion =
     fullBuildAnnualLeasePaymentBillion / input.campusRevenueBudgetShare;
 
-  const startYear = 2026;
+  // Years are end-of-year run-rates: applying the first growth entry to the
+  // start-year revenue gives the start year's closing run-rate, matching the
+  // convention of the AI capital-cycle model the paths come from.
   const scenarioCoverage = input.monetizationScenarios.map((scenario) => {
-    let revenue = input.lesseeAnnualizedRevenueBillion;
-    let coverageYear: number | null = null;
-    let revenue2032 = revenue;
-    scenario.revenueGrowthPath.forEach((growth, index) => {
-      revenue *= 1 + growth;
-      const year = startYear + index + 1;
-      if (coverageYear === null && revenue >= requiredLesseeRevenueBillion) {
-        coverageYear = year;
-      }
-      if (year === 2032) revenue2032 = revenue;
-    });
+    const series = scenario.revenueGrowthPath.reduce<
+      { year: number; revenueBillion: number }[]
+    >((rows, growth, index) => {
+      const previous =
+        rows[rows.length - 1]?.revenueBillion ??
+        input.lesseeAnnualizedRevenueBillion;
+      rows.push({
+        year: input.revenuePathStartYear + index,
+        revenueBillion: previous * (1 + growth),
+      });
+      return rows;
+    }, []);
+    const reportRow = series.find(
+      (row) => row.year === input.revenueReportYear,
+    );
+    if (!reportRow) {
+      throw new Error(
+        `revenueReportYear ${input.revenueReportYear} is outside scenario ${scenario.id}'s projected years`,
+      );
+    }
     return {
       id: scenario.id,
-      weight: scenario.weight,
-      callProbability: scenario.callProbability,
-      coverageYear,
-      projectedRevenueBillion2032: revenue2032,
+      coverageYear:
+        series.find(
+          (row) => row.revenueBillion >= requiredLesseeRevenueBillion,
+        )?.year ?? null,
+      projectedRevenueAtReportYearBillion: reportRow.revenueBillion,
     };
   });
+  const projectionEndYear =
+    input.revenuePathStartYear +
+    Math.min(
+      ...input.monetizationScenarios.map(
+        (scenario) => scenario.revenueGrowthPath.length,
+      ),
+    ) -
+    1;
 
   const drawnExposureBillion =
     input.backstopGuaranteeBillion * input.exposureAtDistressShare;
@@ -306,6 +339,10 @@ export function evaluateVendorFinancingBackstop(
 
   const totalHistoricalLoss = input.benchmarks.reduce(
     (sum, benchmark) => sum + benchmark.realizedLossBillion,
+    0,
+  );
+  const totalHistoricalDrawn = input.benchmarks.reduce(
+    (sum, benchmark) => sum + benchmark.drawnBillion,
     0,
   );
   const totalHistoricalCommitments = input.benchmarks.reduce(
@@ -329,7 +366,10 @@ export function evaluateVendorFinancingBackstop(
     revisedV2: {
       fullBuildAnnualLeasePaymentBillion,
       requiredLesseeRevenueBillion,
+      projectionEndYear,
       scenarioCoverage,
+      historicalDrawnShareOfCommitments:
+        totalHistoricalDrawn / totalHistoricalCommitments,
       expectedLossBillion,
       worstCaseLossBillion,
       expectedLossShareOfAnnualFreeCashFlow:
@@ -352,9 +392,7 @@ export function evaluateVendorFinancingBackstop(
 // ---------------------------------------------------------------------------
 
 export interface PipelineAttritionCase {
-  /** Projects blocked or delayed by local opposition in early 2026. */
-  blockedProjects: number;
-  /** Announced value of those projects, $ billions (Data Center Watch). */
+  /** Announced value of blocked projects, $ billions (Data Center Watch). */
   blockedValueBillion: number;
   /** Months covered by the blocked-project count. */
   observationMonths: number;
@@ -373,6 +411,11 @@ export interface PipelineAttritionCase {
   relocationShare: number;
   /** Firm-capacity build variants fed to the shared-grid model, GW. */
   sharedFirmBuildVariantsGw: readonly number[];
+  /**
+   * One drag channel is called binding only when it exceeds the other by
+   * this ratio; anything closer is reported as comparable.
+   */
+  bindingConstraintRatioThreshold: number;
 }
 
 export interface PipelineAttritionResult {
@@ -410,8 +453,6 @@ export interface PipelineAttritionResult {
       /** That unserved 2035 load spread over the buildout, GW/year. */
       firmCapacityDragAverageLoadGwPerYear: number;
     }[];
-    /** Largest per-year firm-capacity drag across variants. */
-    maxFirmCapacityDragAverageLoadGwPerYear: number;
     bindingConstraint: 'firm-capacity' | 'consent' | 'comparable';
   };
 }
@@ -420,22 +461,25 @@ export const pipelineAttritionCase: PipelineAttritionCase = {
   // Data Center Watch via PRNewswire/Tom's Hardware, July 2026: >75
   // projects worth ~$130B blocked or delayed in the first three months of
   // 2026, attributed to local opposition — not to a grid shortage.
-  blockedProjects: 75,
   blockedValueBillion: 130,
   observationMonths: 3,
   // $10-12B/GW for land, shell, cooling, and power infrastructure;
   // $30-40B/GW when announced "project value" includes IT equipment.
   facilityCapexPerGwBillion: 11,
   fullStackCapexPerGwBillion: 35,
-  // BloombergNEF path used by the existing data-center-grid model.
-  currentCapacityGw: 35,
-  forecast2035CapacityGw: 194,
+  // BloombergNEF path, inherited from the anchors the data-center-grid
+  // model registers so a BNEF revision propagates here automatically.
+  currentCapacityGw: dataCenterGridEvidence.illustrativeCurrentCapacityGw,
+  forecast2035CapacityGw: dataCenterGridEvidence.bnef2035CapacityGw,
   forecastYears: 10,
   // Utility integrated-resource plans discount large-load queues heavily;
   // 30-60% realization is typical, 40% is the central reading.
   queueRealizationShare: 0.4,
   relocationShare: 0.6,
   sharedFirmBuildVariantsGw: [60, 120],
+  // Within 2x is "comparable": the drag estimates carry at least that much
+  // parameter uncertainty, so a finer verdict would be spurious precision.
+  bindingConstraintRatioThreshold: 2,
 };
 
 function validatePipelineAttritionCase(input: PipelineAttritionCase): void {
@@ -468,6 +512,11 @@ function validatePipelineAttritionCase(input: PipelineAttritionCase): void {
       integer: true,
       min: 1,
     }),
+    ...validateNumber(
+      input.bindingConstraintRatioThreshold,
+      'bindingConstraintRatioThreshold',
+      { min: 1 },
+    ),
   ];
   if (input.forecast2035CapacityGw <= input.currentCapacityGw) {
     errors.push('forecast2035CapacityGw must exceed currentCapacityGw');
@@ -475,9 +524,7 @@ function validatePipelineAttritionCase(input: PipelineAttritionCase): void {
   if (input.sharedFirmBuildVariantsGw.length === 0) {
     errors.push('sharedFirmBuildVariantsGw must not be empty');
   }
-  if (errors.length > 0) {
-    throw new Error(`Invalid pipeline-attrition case:\n  ${errors.join('\n  ')}`);
-  }
+  throwIfInvalid('pipeline-attrition case', errors);
 }
 
 /**
@@ -500,13 +547,13 @@ export function evaluatePipelineAttrition(
     (input.forecast2035CapacityGw - input.currentCapacityGw) /
     input.forecastYears;
 
-  const annualizationFactor = 12 / input.observationMonths;
+  const annualize = (gwPerObservation: number): number =>
+    gwPerObservation * 12 / input.observationMonths;
   const blockedGwFacilityOnly =
     input.blockedValueBillion / input.facilityCapexPerGwBillion;
   const blockedGwFullStack =
     input.blockedValueBillion / input.fullStackCapexPerGwBillion;
-  const annualizedBlockedGwPerYear =
-    blockedGwFacilityOnly * annualizationFactor;
+  const annualizedBlockedGwPerYear = annualize(blockedGwFacilityOnly);
 
   // A blocked proposal only destroys demand if it would have materialized
   // (queue realization) and does not simply resite (relocation).
@@ -515,7 +562,7 @@ export function evaluatePipelineAttrition(
   const netCapacityLossGwPerYearHigh =
     annualizedBlockedGwPerYear * netLossFactor;
   const netCapacityLossGwPerYearLow =
-    blockedGwFullStack * annualizationFactor * netLossFactor;
+    annualize(blockedGwFullStack) * netLossFactor;
 
   // If only queueRealizationShare of gross proposals materialize, hitting the
   // net path requires gross proposals of net / share; the difference is
@@ -523,8 +570,9 @@ export function evaluatePipelineAttrition(
   const embeddedQueueAttritionGwPerYear =
     requiredNetAdditionsGwPerYear / input.queueRealizationShare -
     requiredNetAdditionsGwPerYear;
-  const grossBlockedGwPerYearCentral =
-    ((blockedGwFacilityOnly + blockedGwFullStack) / 2) * annualizationFactor;
+  const grossBlockedGwPerYearCentral = annualize(
+    (blockedGwFacilityOnly + blockedGwFullStack) / 2,
+  );
 
   const socialized = dataCenterGridScenarios.socialized;
   if (!socialized) {
@@ -538,9 +586,11 @@ export function evaluatePipelineAttrition(
         label: `Shared firm build ${sharedFirmBuildGw} GW`,
         sharedFirmBuildGw,
       });
+      // Scale the peak-GW gap to average load by the model's own realized
+      // average-to-peak ratio so a change to that derivation propagates.
       const unservedAverageLoadGw =
-        run.reliabilityGapGw / socialized.peakCoincidenceFactor *
-        socialized.loadFactor;
+        run.reliabilityGapGw *
+        (run.realizedAverageLoadGw / run.coincidentPeakGw);
       return {
         sharedFirmBuildGw,
         reliabilityGapGw: run.reliabilityGapGw,
@@ -550,7 +600,7 @@ export function evaluatePipelineAttrition(
       };
     },
   );
-  const maxFirmCapacityDragAverageLoadGwPerYear = Math.max(
+  const maxFirmCapacityDrag = Math.max(
     ...firmCapacityVariants.map(
       (row) => row.firmCapacityDragAverageLoadGwPerYear,
     ),
@@ -563,10 +613,11 @@ export function evaluatePipelineAttrition(
   const consentDragCentral =
     (consentDragAverageLoadGwPerYearLow + consentDragAverageLoadGwPerYearHigh) /
     2;
+  const threshold = input.bindingConstraintRatioThreshold;
   const bindingConstraint =
-    maxFirmCapacityDragAverageLoadGwPerYear > 2 * consentDragCentral
+    maxFirmCapacityDrag > threshold * consentDragCentral
       ? 'firm-capacity'
-      : consentDragCentral > 2 * maxFirmCapacityDragAverageLoadGwPerYear
+      : consentDragCentral > threshold * maxFirmCapacityDrag
         ? 'consent'
         : 'comparable';
 
@@ -591,7 +642,6 @@ export function evaluatePipelineAttrition(
       grossBlockedShareOfEmbeddedAttrition:
         grossBlockedGwPerYearCentral / embeddedQueueAttritionGwPerYear,
       firmCapacityVariants,
-      maxFirmCapacityDragAverageLoadGwPerYear,
       bindingConstraint,
     },
   };
@@ -604,6 +654,10 @@ export function evaluatePipelineAttrition(
 // ---------------------------------------------------------------------------
 
 export interface SolarCoalCrossoverCase {
+  /** Calendar year of the annual anchors; projections start the next year. */
+  anchorYear: number;
+  /** Year of the observed monthly (May) crossover. */
+  monthlyCrossoverYear: number;
   may2026SolarTwh: number;
   may2026CoalTwh: number;
   /** May-over-May growth implied by the same Ember release. */
@@ -658,6 +712,8 @@ export interface SolarCoalCrossoverResult {
 }
 
 export const solarCoalCrossoverCase: SolarCoalCrossoverCase = {
+  anchorYear: 2025,
+  monthlyCrossoverYear: 2026,
   // Ember, June-July 2026: May 2026 solar 45.5 TWh (12.8% share) vs coal
   // 43.4 TWh (12.2%) — the first month on record with solar above coal.
   may2026SolarTwh: 45.5,
@@ -712,10 +768,23 @@ function validateSolarCoalCase(input: SolarCoalCrossoverCase): void {
       min: input.coalAnnualGrowthLow,
       max: input.coalAnnualGrowthHigh,
     }),
+    ...validateNumber(input.monthlyCrossoverYear, 'monthlyCrossoverYear', {
+      integer: true,
+      min: input.anchorYear,
+    }),
   ];
-  if (errors.length > 0) {
-    throw new Error(`Invalid solar-coal crossover case:\n  ${errors.join('\n  ')}`);
+  // The prior-year anchors exist to guard the estimated current-year
+  // anchors against transcription errors, not to drive the projection.
+  if (input.annual2025SolarTwh <= input.annual2024SolarTwh) {
+    errors.push('annual2025SolarTwh must exceed annual2024SolarTwh');
   }
+  if (
+    input.annual2025CoalTwh < 0.8 * input.annual2024CoalTwh ||
+    input.annual2025CoalTwh > 1.2 * input.annual2024CoalTwh
+  ) {
+    errors.push('annual2025CoalTwh must be within 20% of annual2024CoalTwh');
+  }
+  throwIfInvalid('solar-coal crossover case', errors);
 }
 
 function annualCrossover(
@@ -731,7 +800,7 @@ function annualCrossover(
   let addition = input.solarAnnualAdditionTwh;
   let crossoverYear: number | null = null;
   for (let offset = 1; offset <= input.horizonYears; offset++) {
-    const year = 2025 + offset;
+    const year = input.anchorYear + offset;
     solar += addition;
     addition *= 1 + input.solarAdditionGrowth;
     coal *= 1 + coalGrowth;
@@ -781,7 +850,7 @@ export function evaluateSolarCoalCrossover(
   const result: SolarCoalCrossoverResult = {
     case: input,
     initialV1: {
-      claimedCrossoverYear: 2026,
+      claimedCrossoverYear: input.monthlyCrossoverYear,
       may2026SolarShareOfCoal: input.may2026SolarTwh / input.may2026CoalTwh,
     },
     revisedV2: {
@@ -800,7 +869,9 @@ export function evaluateSolarCoalCrossover(
       annualCrossoverYearCoalDeclineLow: low.crossoverYear,
       annualCrossoverYearCoalDeclineHigh: high.crossoverYear,
       monthlyLeadYears:
-        central.crossoverYear === null ? null : central.crossoverYear - 2026,
+        central.crossoverYear === null
+          ? null
+          : central.crossoverYear - input.monthlyCrossoverYear,
       annual2026SolarDeficitTwh: annual2026.coalTwh - annual2026.solarTwh,
     },
   };
@@ -808,8 +879,8 @@ export function evaluateSolarCoalCrossover(
   return result;
 }
 
-export const headlineEvidence20260727 = {
-  sources: {
+export const july27HeadlineEvidence = {
+  backstop: {
     nvidiaBackstop:
       'https://finance.yahoo.com/technology/ai/articles/nvidia-talks-openai-guarantee-250-233930971.html',
     piketonProject:
@@ -821,12 +892,16 @@ export const headlineEvidence20260727 = {
     nvidiaFy2026:
       'https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2026',
     openAiRevenue: 'https://sacra.com/c/openai/',
+  },
+  dataCenters: {
     blockedProjects:
       'https://www.prnewswire.com/news-releases/130-billion-in-ai-data-centers-have-been-blocked-or-delayed-in-2026-302821568.html',
     blockedProjectsDetail:
       'https://www.tomshardware.com/tech-industry/artificial-intelligence/more-than-75-data-center-build-outs-worth-usd130-billion-have-been-successfully-blocked-in-the-first-four-months-of-2026-bipartisan-opposition-mounts-nationwide-over-fears-of-soaring-power-and-water-costs',
     bnefForecast:
       'https://www.bloomberg.com/news/articles/2026-07-21/data-centers-on-track-to-suck-up-a-fifth-of-us-power-use-by-2035',
+  },
+  solarCoal: {
     emberMayCrossover:
       'https://ember-energy.org/latest-updates/solar-overtakes-coal-in-us-electricity-for-the-first-month-on-record/',
     eia2026Additions:
