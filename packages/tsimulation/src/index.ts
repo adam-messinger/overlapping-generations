@@ -29,6 +29,7 @@ export * from './ensemble.js';
 export * from './shock-ledger.js';
 export * from './manifest.js';
 export * from './liveness.js';
+export * from './stock-flow.js';
 export {
   assertCollectorContracts,
   auditCollectorContracts,

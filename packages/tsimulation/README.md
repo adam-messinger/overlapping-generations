@@ -25,8 +25,9 @@ access, co-located parameter metadata — and brings them to TypeScript.
   wiring and runtime shape drift fail before results can escape the model.
 - **Meaning is checked separately from units.** Estimands declare population,
   geography, inclusion, total/incremental status, ratio basis, temporal support,
-  and valuation. Dataset-specific measurement regimes and explicit crosswalks
-  prevent equal-unit values from being treated as interchangeable.
+  value vintage, and valuation. Dataset-specific measurement regimes and
+  explicit crosswalks prevent equal-unit values from being treated as
+  interchangeable.
 - **One project, multiple time scales.** Annual systems, monthly networks, and
   event models share APIs without forcing every model into an annual module.
 - **Evidence-aware.** Development, validation, holdout, diagnostic, and scenario
@@ -105,7 +106,7 @@ standalone models; both distinguish dimensional leaves, metadata, structured
 schemas, and remaining opaque escape hatches.
 
 `opaquePort()` still exists for truly external or
-unbounded structures and require an explanation. They should be rare: a record
+unbounded structures and requires an explanation. It should be rare: a record
 containing several physical dimensions is normally a reason to use a recursive
 schema, not to make the record opaque.
 
@@ -134,6 +135,23 @@ assertUnitBalance('capital stock', unitQuantity(nextCapital, '$T'), [
 important identities and unit transitions rather than wrapping every scalar in
 the model.
 
+For equations where equal units can still hide different meanings, use
+`semanticQuantity()` with `multiplySemanticQuantities()` or
+`divideSemanticQuantities()`. These operations require a
+`SemanticDerivation`; every supplied estimand must match the derivation's
+declared inputs, so one dimensionless share cannot impersonate another.
+
+Reusable stock/flow ledgers keep lifecycle bookkeeping out of model-specific
+arrays:
+
+- `createVintageStock()` / `advanceVintageStock()` handle opening cohorts,
+  additions, delivery lags, scheduled retirements, scrappage, and terminal
+  stock with a checked conservation residual.
+- `depreciableVintage()` / `straightLineDepreciation()` keep deployment lags,
+  useful lives, depreciation, and terminal book value explicit.
+- `createTransitLedger()` / `advanceTransitLedger()` conserve dispatched,
+  arrived, and terminal in-transit inventory, including fractional delays.
+
 ## Semantic and measurement contracts
 
 Units answer “how is this number scaled?” They cannot tell total from
@@ -141,13 +159,24 @@ incremental electricity, residents from reporting hospitals, vessel counts
 from cargo volume, or a first release from a backfilled series.
 
 `EstimandContract` supplies the stable meaning of a quantity. Attach it with
-`measurementPort()`. Set semantic validation to
-`required` on a migrated model or adapter to reject any unannotated quantitative
-leaf.
+`measurementPort()`. Standalone models now default to `semanticValidation:
+'required'`: every quantitative leaf needs population, geography and boundary
+version, stock/flow/rate/share status, total-versus-incremental status,
+temporal support, and a value-vintage convention. Rates, shares, and indexes
+also require an explicit numerator and denominator.
+
+`completeModelSemanticContracts()` is a migration aid for a complete unit
+schema. It preserves authored contracts and fills missing leaves with
+path-specific, visibly framework-completed contracts before enforcing strict
+validation. Completion clones the port graph, preserving intentional sharing
+within the model without mutating schemas reused by another model.
+Domain-authored contracts remain preferable wherever the real population or
+reporting boundary is known. `semanticValidation: 'off'` is an explicit escape
+hatch for infrastructure fixtures, not the default.
 
 `MeasurementBinding` separately identifies the dataset, field, observation
 procedure, reporting coverage, release, and revision policy. Attach a
-source-bound observation with `observationPort()` or
+source-bound observation with `measurementPort()` or
 `observationPort()`. Two observation ports with different regimes fail
 compatibility unless they carry a matching `MeasurementCrosswalk`.
 
@@ -158,13 +187,20 @@ const admissions = defineEstimand({
   version: '1',
   quantityKind: 'health.covid-19.hospital-admissions',
   measure: { kind: 'flow', totality: 'total' },
-  population: { id: 'population.us.residents' },
-  geography: { id: 'geo.us' },
+  population: {
+    id: 'population.us.residents',
+    universe: 'People resident in the United States.',
+  },
+  geography: { id: 'geo.us', boundaryVersion: 'current-national-boundary' },
   time: {
     kind: 'interval',
     interval: 'epidemiological-week',
     aggregation: 'sum',
     calendar: 'cdc-week-ending-saturday',
+  },
+  vintage: {
+    basis: 'observation-release',
+    convention: 'CDC release associated with the bound measurement.',
   },
 });
 
@@ -204,7 +240,9 @@ and file resolvers are exported from `tsimulation/node`.
 
 `createRunManifest()` emits `tsimulation.run/v2`, linking snapshots,
 transformations, evidence, calibration splits, semantic lineage, experiment
-meaning, and input/output contract hashes. Parsed v1 manifests can be upgraded,
+meaning, and input/output contract hashes. It also seals the complete manifest
+payload with `integrityHash`; `parseRunManifest()` verifies that hash and all
+recomputable component hashes by default. Parsed v1 manifests can be upgraded,
 but unavailable historical lineage is explicitly marked rather than invented.
 
 ## Experiment meaning
@@ -223,6 +261,11 @@ This changes result language as well as metadata:
 - mixed studies must use `runNestedEnsemble()` and preserve an outer set of
   epistemic cases around inner aleatory distributions. A flat mixed ensemble
   throws instead of producing a misleading single CDF.
+
+`twoFactorInteraction()` refuses to select an arbitrary first level when a
+factorial has additional factors. Callers must condition on every extra factor
+or request mean marginalization; marginalization also requires balanced
+extra-factor support in all four comparison cells.
 
 ## Standalone models and experiments
 

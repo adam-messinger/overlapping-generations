@@ -38,6 +38,15 @@ onward. Before 1.0, minor versions may include breaking changes.
   concept of a connection between module ports.
 
 ### Added
+- First-class vintage stock, straight-line depreciable-vintage, and in-transit
+  ledgers with additions, delivery lags, scheduled retirements, scrappage,
+  terminal stocks, and conservation checks.
+- Unit-and-estimand-aware multiplication and division. High-risk equations
+  require a semantic derivation and reject undeclared same-unit inputs.
+- Complete-manifest integrity hashes and default verification of manifest,
+  input, output, data-lineage, and experiment hashes.
+- Value-vintage semantics plus completeness audits for population, geography,
+  totality, time, and ratio denominators.
 - `ModuleDefinition<TParams, TState, TInputs, TOutputs>` — what a module author
   writes, and `defineModule`'s new parameter type. It differs from `Module` only
   in that `inputs`/`outputs` are optional: `defineModule` derives them from
@@ -108,6 +117,12 @@ onward. Before 1.0, minor versions may include breaking changes.
   adapters, collectors, standalone models, calibration, and v2 run manifests.
 
 ### Changed (behavior)
+- Standalone model semantics and model-contract audits are strict by default.
+  `completeModelSemanticContracts()` provides an auditable migration path from
+  complete unit schemas without mutating shared port objects; explicit opt-out
+  remains available for infrastructure fixtures.
+- Two-factor interactions over larger factorials now require explicit
+  conditioning or balanced mean marginalization.
 - The engine now runs each module's `validate()` at load time, throwing on
   invalid params and warning on warnings. Previously `validate()` was never
   called by the engine — a module relying on it for enforcement would have let

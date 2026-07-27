@@ -3,7 +3,11 @@ import type { EvidenceRecord, ValidationClaim } from './evidence.js';
 import { validateEvidence, validateValidationClaims } from './evidence.js';
 import type { Invariant, InvariantReport } from './validation.js';
 import { assertFiniteDeep, assertInvariants } from './validation.js';
-import type { PortContract, PortMeta } from './units.js';
+import type {
+  PortContract,
+  PortMeta,
+  QuantityPortMeta,
+} from './units.js';
 import {
   auditPortSemantics,
   assertPortContract,
@@ -77,6 +81,8 @@ export interface ModelRun<TInput, TOutput> {
     input: string;
     output: string;
   };
+  evidence: readonly EvidenceRecord[];
+  validationClaims: readonly ValidationClaim[];
   semanticLineage: {
     derivations: readonly { id: string; version: string }[];
     crosswalks: readonly { id: string; version: string }[];
@@ -95,6 +101,8 @@ export interface ModelContractAudit {
   semanticContracts: number;
   measurementContracts: number;
   missingSemanticPaths: string[];
+  incompleteSemanticPaths: string[];
+  semanticCompletenessErrors: string[];
 }
 
 export interface AuditableModelContract {
@@ -121,6 +129,8 @@ function walkModelContract(
       audit.semanticContracts += semantic.semanticContracts;
       audit.measurementContracts += semantic.measurementContracts;
       audit.missingSemanticPaths.push(...semantic.missingSemanticPaths);
+      audit.incompleteSemanticPaths.push(...semantic.incompleteSemanticPaths);
+      audit.semanticCompletenessErrors.push(...semantic.semanticCompletenessErrors);
     } catch (error) {
       audit.errors.push(error instanceof Error ? error.message : String(error));
     }
@@ -138,7 +148,7 @@ function walkModelContract(
 /** CI-friendly dimensional coverage audit for standalone model boundaries. */
 export function auditModelContracts(
   models: readonly AuditableModelContract[],
-  semanticValidation: SemanticValidationMode = 'if-present',
+  semanticValidation: SemanticValidationMode = 'required',
 ): ModelContractAudit {
   const audit: ModelContractAudit = {
     valid: true,
@@ -151,17 +161,284 @@ export function auditModelContracts(
     semanticContracts: 0,
     measurementContracts: 0,
     missingSemanticPaths: [],
+    incompleteSemanticPaths: [],
+    semanticCompletenessErrors: [],
   };
   for (const model of models) {
     walkModelContract(model.inputPorts, `model ${model.id}.input`, audit);
     walkModelContract(model.outputPorts, `model ${model.id}.output`, audit);
   }
   audit.missingSemanticPaths = [...new Set(audit.missingSemanticPaths)];
+  audit.incompleteSemanticPaths = [...new Set(audit.incompleteSemanticPaths)];
+  audit.semanticCompletenessErrors = [...new Set(audit.semanticCompletenessErrors)];
   if (semanticValidation === 'required') {
     audit.errors.push(...audit.missingSemanticPaths.map((path) => `${path}: missing estimand contract`));
+    audit.errors.push(...audit.semanticCompletenessErrors);
   }
   audit.valid = audit.errors.length === 0;
   return audit;
+}
+
+export interface SemanticBoundaryDefaults {
+  modelId: string;
+  modelVersion: string;
+  side: 'input' | 'output';
+}
+
+function semanticSlug(value: string): string {
+  return value
+    .replace(/^scenario[.[{]/i, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '') || 'value';
+}
+
+function inferMeasureKind(
+  path: string,
+  unit: string,
+): EstimandContract['measure']['kind'] {
+  const name = semanticSlug(path);
+  const explicitPerTime =
+    /\/(?:year|month|day|hour|quarter|week|yr|d)$/.test(unit);
+  if (unit === 'calendar-year' || unit === 'step-index') return 'index';
+  if (/index|multiple|multiplier|score|factor/.test(name)) return 'index';
+  if (explicitPerTime) {
+    return /^(?:hour|day|week|month|quarter|year)\//.test(unit)
+      ? 'count'
+      : unit === `fraction/${unit.split('/').at(-1)}` ||
+      unit === `1/${unit.split('/').at(-1)}` ||
+      /rate|growth|decay|elasticity|intensity/.test(name)
+      ? 'rate'
+      : 'flow';
+  }
+  if (unit === 'fraction' || unit === '%') return 'share';
+  if (
+    /share|fraction|probab|margin|uptime|utilization|availability|mix|weight|coverage|ratio/.test(name)
+  ) return 'share';
+  if (
+    /rate|growth|decay|elasticity|intensity|per-capita|[-.]per[-.]/.test(name)
+  ) return 'rate';
+  if (
+    /annual-sales|annual-units|revenue|expense|income|cash-flow|capex|depreciation|retirement|dispatch|arrival|shortfall/.test(name)
+  ) return 'flow';
+  if (/stock|inventory|storage|capacity|population|installed|bookvalue|intransit/.test(name)) {
+    return 'stock';
+  }
+  if (/(^|[.])counts?($|[.])|number-of|months-below|years-above/.test(name)) {
+    return 'count';
+  }
+  return 'level';
+}
+
+function inferInterval(path: string, unit: string): string | undefined {
+  for (const interval of ['quarter', 'month', 'week', 'day', 'hour', 'year'] as const) {
+    if (
+      unit.includes(`/${interval}`) ||
+      unit.includes(`${interval}^-1`) ||
+      path.toLowerCase().includes(`${interval}s[]`)
+    ) return interval === 'year' ? 'calendar-year' : `simulation-${interval}`;
+  }
+  if (/\/d(?:$|[)])/.test(unit) || unit === 'mb/d') return 'simulation-day';
+  if (/\/yr(?:$|[)])/.test(unit)) return 'calendar-year';
+  if (path.includes('[]')) return 'simulation-step';
+  return undefined;
+}
+
+function inferredEstimand(
+  path: string,
+  port: QuantityPortMeta,
+  defaults: SemanticBoundaryDefaults,
+): EstimandContract {
+  const canonicalPath = semanticSlug(path);
+  const kind = inferMeasureKind(path, port.unit);
+  const interval = inferInterval(path, port.unit);
+  const totality =
+    /increment|additional|newadoption|new-adoption|change|delta|shortfall|loss|added/.test(
+      canonicalPath,
+    )
+      ? 'incremental'
+      : 'total';
+  const aggregation =
+    kind === 'flow' || kind === 'count' ? 'sum' : 'mean';
+  const time: EstimandContract['time'] = interval
+    ? {
+        kind: 'interval',
+        interval,
+        aggregation,
+        calendar: interval === 'calendar-year' ? 'gregorian' : 'simulation-step',
+      }
+    : defaults.side === 'input'
+      ? { kind: 'timeless' }
+      : kind === 'stock' || kind === 'level' || kind === 'index'
+        ? { kind: 'instant', calendar: 'simulation-step' }
+        : {
+            kind: 'interval',
+            interval: 'simulation-horizon',
+            aggregation,
+            calendar: 'simulation-step',
+          };
+  const vintageBasis: NonNullable<EstimandContract['vintage']>['basis'] =
+    /opening|beginning|initial/.test(canonicalPath)
+      ? 'opening-stock'
+      : /ending|terminal/.test(canonicalPath)
+        ? 'closing-stock'
+        : defaults.side === 'input'
+          ? 'scenario-assumption'
+          : 'current-period';
+  return {
+    schemaVersion: 'tsimulation.estimand/v1',
+    id: `estimand.${semanticSlug(defaults.modelId)}.${canonicalPath}`,
+    version: defaults.modelVersion,
+    quantityKind: `simulation.${semanticSlug(defaults.modelId)}.${canonicalPath}`,
+    measure: {
+      kind,
+      totality,
+      accounting: /net|margin|balance|income|cashflow|cash-flow/.test(canonicalPath)
+        ? 'net'
+        : 'gross',
+    },
+    population: {
+      id: `population.${semanticSlug(defaults.modelId)}.${canonicalPath}`,
+      universe:
+        `Values represented by '${path}' within the ${defaults.modelId} modeled scenario boundary.`,
+    },
+    geography: {
+      id: `geo.${semanticSlug(defaults.modelId)}.scenario-boundary`,
+      boundaryVersion: `${defaults.modelId}-${defaults.modelVersion}`,
+    },
+    ...(kind === 'rate' || kind === 'share' || kind === 'index'
+      ? {
+          ratio: {
+            numerator: `${path} modeled numerator`,
+            denominator:
+              kind === 'share'
+                ? `${path} applicable modeled total`
+                : kind === 'rate'
+                  ? `${path} applicable exposure or time`
+                  : `${path} defined reference value`,
+          },
+        }
+      : {}),
+    time,
+    vintage: {
+      basis: vintageBasis,
+      convention:
+        vintageBasis === 'scenario-assumption'
+          ? 'scenario input as supplied for this run'
+          : 'simulation step associated with the boundary value',
+    },
+    description:
+      `Framework-completed boundary contract for ${defaults.modelId}.${path}.`,
+  };
+}
+
+function completeEstimand(
+  estimand: EstimandContract,
+  inferred: EstimandContract,
+): void {
+  estimand.measure = {
+    ...estimand.measure,
+    totality: estimand.measure.totality ?? inferred.measure.totality,
+    accounting: estimand.measure.accounting ?? inferred.measure.accounting,
+  };
+  estimand.population ??= inferred.population;
+  if (estimand.population && !estimand.population.universe) {
+    estimand.population = {
+      ...estimand.population,
+      universe: inferred.population!.universe,
+    };
+  }
+  estimand.geography ??= inferred.geography;
+  if (estimand.geography && !estimand.geography.boundaryVersion) {
+    estimand.geography = {
+      ...estimand.geography,
+      boundaryVersion: inferred.geography!.boundaryVersion,
+    };
+  }
+  if (
+    (estimand.measure.kind === 'rate' ||
+      estimand.measure.kind === 'share' ||
+      estimand.measure.kind === 'index') &&
+    !estimand.ratio
+  ) {
+    estimand.ratio = inferred.ratio ?? {
+      numerator: `${estimand.quantityKind} modeled numerator`,
+      denominator: `${estimand.quantityKind} defined reference value`,
+    };
+  }
+  estimand.time ??= inferred.time;
+  estimand.vintage ??= inferred.vintage;
+}
+
+function completeSemanticTree(
+  contract: unknown,
+  path: string,
+  defaults: SemanticBoundaryDefaults,
+): void {
+  if (isPortMeta(contract)) {
+    if (isQuantityPort(contract)) {
+      const inferred = inferredEstimand(path, contract, defaults);
+      if (contract.measurement) {
+        completeEstimand(contract.measurement.estimand, inferred);
+      }
+      if (contract.estimand) completeEstimand(contract.estimand, inferred);
+      else contract.estimand = contract.measurement?.estimand ?? inferred;
+      return;
+    }
+    if (isObjectPort(contract)) {
+      for (const [name, field] of Object.entries(
+        contract.fields as Readonly<Record<string, PortMeta>>,
+      )) {
+        completeSemanticTree(field, `${path}.${name}`, defaults);
+      }
+    } else if (isRecordPort(contract)) {
+      completeSemanticTree(contract.values, `${path}{value}`, defaults);
+    } else if (isVectorPort(contract)) {
+      completeSemanticTree(contract.items, `${path}[]`, defaults);
+    }
+    return;
+  }
+  if (typeof contract !== 'object' || contract === null) return;
+  for (const [name, field] of Object.entries(contract)) {
+    completeSemanticTree(field, name, defaults);
+  }
+}
+
+/**
+ * Complete every quantitative boundary leaf, preserving authored semantics
+ * and filling only missing fields. Intended for migrations: the resulting
+ * model is always strict and its generated contracts remain visible to audits.
+ */
+export function completeModelSemanticContracts<TInput, TOutput>(
+  definition: ModelDefinition<TInput, TOutput>,
+): ModelDefinition<TInput, TOutput> {
+  // Port schemas are commonly reused across models and between an input and
+  // an echoed output. Clone the whole semantic graph at once: this preserves
+  // intentional shared references within the definition while preventing one
+  // model's generated contracts from contaminating another definition.
+  const cloned = structuredClone({
+    inputPorts: definition.inputPorts,
+    outputPorts: definition.outputPorts,
+    semanticDerivations: definition.semanticDerivations,
+    semanticCrosswalks: definition.semanticCrosswalks,
+    measurementCrosswalks: definition.measurementCrosswalks,
+  });
+  completeSemanticTree(cloned.inputPorts, '', {
+    modelId: definition.id,
+    modelVersion: definition.version,
+    side: 'input',
+  });
+  completeSemanticTree(cloned.outputPorts, '', {
+    modelId: definition.id,
+    modelVersion: definition.version,
+    side: 'output',
+  });
+  return {
+    ...definition,
+    ...cloned,
+    semanticValidation: 'required',
+  };
 }
 
 function applyValidation(result: ValidationResult | void, context: string, warnings: string[]): void {
@@ -223,7 +500,8 @@ export function defineModel<TInput, TOutput>(
       validatePortMeta(port, `Model '${definition.id}' ${side} port '${name}'`);
     }
   }
-  if (definition.semanticValidation === 'required') {
+  const semanticValidation = definition.semanticValidation ?? 'required';
+  if (semanticValidation === 'required') {
     const semanticAudit = auditModelContracts([definition], 'required');
     if (!semanticAudit.valid) {
       throw new Error(
@@ -238,6 +516,13 @@ export function defineModel<TInput, TOutput>(
   const inputMeasurements = collectBoundaryMeasurements(definition.inputPorts);
   const outputMeasurements = collectBoundaryMeasurements(definition.outputPorts);
   const semanticIds = new Set<string>();
+  const availableDerivationInputs = new Set(
+    inputEstimands.map((estimand) => estimand.id),
+  );
+  const derivationDependencyIds = new Set(
+    (definition.semanticDerivations ?? [])
+      .flatMap((derivation) => derivation.inputEstimandIds),
+  );
   for (const derivation of definition.semanticDerivations ?? []) {
     validateSemanticDerivation(
       derivation,
@@ -247,21 +532,25 @@ export function defineModel<TInput, TOutput>(
       throw new Error(`Model '${definition.id}' has duplicate semantic lineage ID '${derivation.id}'`);
     }
     for (const inputId of derivation.inputEstimandIds) {
-      if (!inputEstimands.some((estimand) => estimand.id === inputId)) {
+      if (!availableDerivationInputs.has(inputId)) {
         throw new Error(
           `Model '${definition.id}' derivation '${derivation.id}' references input ` +
-          `estimand '${inputId}' that is absent from its input ports`,
+          `estimand '${inputId}' that is absent from its input ports and prior derivations`,
         );
       }
     }
-    if (!outputEstimands.some((estimand) =>
-      compareEstimands(estimand, derivation.outputEstimand).compatible
-    )) {
+    if (
+      !outputEstimands.some((estimand) =>
+        compareEstimands(estimand, derivation.outputEstimand).compatible
+      ) &&
+      !derivationDependencyIds.has(derivation.outputEstimand.id)
+    ) {
       throw new Error(
-        `Model '${definition.id}' derivation '${derivation.id}' output is absent from its ` +
-        'output ports',
+        `Model '${definition.id}' derivation '${derivation.id}' output is neither exposed ` +
+        'by an output port nor consumed by another derivation',
       );
     }
+    availableDerivationInputs.add(derivation.outputEstimand.id);
     semanticIds.add(derivation.id);
   }
   for (const crosswalk of definition.semanticCrosswalks ?? []) {
@@ -304,7 +593,7 @@ export function defineModel<TInput, TOutput>(
     }
     semanticIds.add(crosswalk.id);
   }
-  return definition;
+  return { ...definition, semanticValidation };
 }
 
 export function runModel<TInput, TOutput>(
@@ -340,6 +629,8 @@ export function runModel<TInput, TOutput>(
       input: stableHash(model.inputPorts),
       output: stableHash(model.outputPorts),
     },
+    evidence: model.evidence ?? [],
+    validationClaims: model.validationClaims ?? [],
     semanticLineage: {
       derivations: (model.semanticDerivations ?? []).map(({ id, version }) => ({
         id,

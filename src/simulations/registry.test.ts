@@ -64,7 +64,7 @@ function discoverSimulationEntrypoints(directory: string): string[] {
 }
 
 test('standalone model registry has recursive dimensional coverage', () => {
-  const audit = auditModelContracts(SIMULATION_MODELS);
+  const audit = auditModelContracts(SIMULATION_MODELS, 'required');
   assert.equal(audit.valid, true, audit.errors.join('\n'));
   assert.ok(audit.unitBearingContracts > 300);
   assert.ok(audit.structuredContracts > 50);
@@ -75,9 +75,16 @@ test('standalone model registry has recursive dimensional coverage', () => {
     'model war-ai-factorial.output.paths',
   ]);
   assert.equal(audit.opaqueContracts, 3);
+  assert.deepEqual(audit.missingSemanticPaths, []);
+  assert.deepEqual(audit.incompleteSemanticPaths, []);
+  assert.equal(
+    audit.semanticContracts,
+    audit.unitBearingContracts,
+    'every quantitative boundary must carry complete semantics',
+  );
 });
 
-test('migrated forecasting boundaries have complete semantic contracts', () => {
+test('forecasting boundaries preserve authored measurements under mandatory semantics', () => {
   const audit = auditModelContracts(
     [dataCenterGridModel, outbreakForecastModel],
     'required',

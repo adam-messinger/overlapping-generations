@@ -283,6 +283,7 @@ test('model contracts catch runtime drift beyond the declared TypeScript shape',
   const model = defineModel<{ x: number }, { y: number }>({
     id: 'drifting-model', version: '1', description: 'returns an undeclared field',
     inputPorts: { x: { unit: '1' } }, outputPorts: { y: { unit: '1' } },
+    semanticValidation: 'off',
     run: ({ x }) => ({ y: x, accidental: x } as { y: number }),
   });
   assert.throws(() => runModel(model, { x: 1 }), /accidental: value has no port contract/);

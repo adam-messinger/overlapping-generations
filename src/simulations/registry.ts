@@ -1,15 +1,20 @@
 import {
   ModelRegistry,
-  defineModel,
+  completeModelSemanticContracts,
+  defineModel as defineFrameworkModel,
   measurementPort,
   metadataPort,
   observationPort,
   opaquePort,
   unitPort,
   type EvidenceRecord,
+  type ModelDefinition,
   type ValidationClaim,
 } from 'tsimulation';
-import { outbreakForecastEstimands } from './semantic-contracts.js';
+import {
+  dataCenterEquationDerivations,
+  outbreakForecastEstimands,
+} from './semantic-contracts.js';
 import {
   AI_CAPITAL_CYCLE_SCENARIO_PORT,
   AI_CAPITAL_QUARTERS_PORT,
@@ -225,6 +230,12 @@ import {
   usDtc2024Measurement,
 } from './e-bike-motors/measurement-contracts.js';
 
+function defineModel<TInput, TOutput>(
+  definition: ModelDefinition<TInput, TOutput>,
+): ModelDefinition<TInput, TOutput> {
+  return defineFrameworkModel(completeModelSemanticContracts(definition));
+}
+
 const observed = (
   id: string,
   label: string,
@@ -428,6 +439,7 @@ export const dataCenterGridModel = defineModel<
   run: (scenario) => simulateDataCenterGrid(scenario),
   inputPorts: DATA_CENTER_GRID_SCENARIO_PORT.fields,
   outputPorts: DATA_CENTER_GRID_RESULT_PORT.fields,
+  semanticDerivations: Object.values(dataCenterEquationDerivations),
   invariants: [
     {
       id: 'capex-reconciliation',
@@ -713,6 +725,7 @@ export const aiCapitalCycleModel = defineModel<
     endingCumulativeNetCashBillion: unitPort('$B'),
     endingDebtBalanceBillion: unitPort('$B'),
     endingCapexReplacementCoverage: unitPort('1'),
+    endingNewCapexBookValueBillion: unitPort('$B'),
   },
   invariants: [
     {
@@ -1169,6 +1182,7 @@ export const maritimeNetworkModel = defineModel<MaritimeModelInput, MaritimeSimu
     params: MARITIME_PARAMS_PORT,
     monthly: MARITIME_MONTHS_PORT,
     annual: MARITIME_ANNUAL_ROWS_PORT,
+    terminalCapeOilInTransitMillionBarrels: unitPort('million-barrel'),
   },
   invariants: [{
     id: 'availability-range',

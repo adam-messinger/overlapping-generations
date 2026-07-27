@@ -77,6 +77,28 @@ test('regional, architecture, and supplier volumes reconcile every year', () => 
       assert.ok(row.entrantUnits <= row.entrantAddressableUnits + 1e-8);
       assert.ok(row.entrantShareOfAddressableMarket >= 0);
       assert.ok(row.entrantShareOfAddressableMarket <= 1);
+      assert.ok(
+        Math.abs(
+          row.endingInstalledStock -
+            (row.beginningInstalledStock -
+              row.retirements +
+              row.annualSales),
+        ) < 1e-6,
+      );
+      assert.ok(
+        Math.abs(
+          row.annualSales -
+            row.replacementSales -
+            row.newAdoptionSales,
+        ) < 1e-8,
+      );
+      assert.ok(
+        Math.abs(
+          row.retirements -
+            row.replacementSales -
+            row.unreplacedRetirements,
+        ) < 1e-8,
+      );
     }
     assert.ok(year.entrant.annualUnits <= year.entrant.factoryCapacity + 1e-8);
     assert.ok(
@@ -156,5 +178,30 @@ test('invalid regional identities fail before simulation', () => {
   assert.throws(
     () => simulateEbikeMotorMarket(scenario),
     /scenario\.regions\.us\.id must equal 'us'/,
+  );
+});
+
+test('a shrinking market retires vintages instead of preserving phantom stock', () => {
+  const scenario = structuredClone(ebikeMotorScenarios['full-stack']);
+  scenario.endYear = scenario.startYear + 2;
+  scenario.entrant.launchYear = scenario.startYear;
+  scenario.regions.us.annualPopulationGrowth = -0.5;
+  scenario.regions.us.saturationStockPerThousandPeople = 1;
+  scenario.regions.us.baseAnnualSales = 0;
+  const result = simulateEbikeMotorMarket(scenario);
+  const first = result.years[0].regions.us;
+  const last = result.years.at(-1)!.regions.us;
+  assert.ok(first.retirements > 0);
+  assert.equal(first.replacementSales, 0);
+  assert.equal(first.unreplacedRetirements, first.retirements);
+  assert.ok(last.endingInstalledStock < first.beginningInstalledStock);
+});
+
+test('fractional replacement lives are rejected before cohort accounting', () => {
+  const scenario = structuredClone(ebikeMotorScenarios['full-stack']);
+  scenario.regions.eu.replacementYears = 9.5;
+  assert.throws(
+    () => simulateEbikeMotorMarket(scenario),
+    /replacementYears must be an integer/,
   );
 });

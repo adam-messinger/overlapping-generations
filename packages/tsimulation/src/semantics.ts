@@ -91,6 +91,24 @@ export interface ValuationContract {
   exchangeRateBasis?: 'market' | 'ppp' | (string & {});
 }
 
+/**
+ * Declares which temporal vintage a modeled value represents. This is
+ * separate from temporal support: a calendar-year flow can be a current
+ * observation, a scenario assumption, or a cohort-vintage projection.
+ */
+export interface VintageContract {
+  basis:
+    | 'current-period'
+    | 'opening-stock'
+    | 'closing-stock'
+    | 'cohort'
+    | 'scenario-assumption'
+    | 'observation-release'
+    | 'structural-constant';
+  convention: string;
+  reference?: string;
+}
+
 export interface EstimandContract {
   schemaVersion: 'tsimulation.estimand/v1';
   /** Stable identifier for this estimand definition. */
@@ -104,6 +122,7 @@ export interface EstimandContract {
   geography?: GeographyContract;
   ratio?: RatioContract;
   time?: TemporalSupport;
+  vintage?: VintageContract;
   valuation?: ValuationContract;
   signConvention?: string;
   description?: string;
@@ -227,6 +246,11 @@ export interface EstimandComparison {
   targetHash: string;
 }
 
+export interface EstimandCompletenessIssue {
+  path: string;
+  message: string;
+}
+
 export interface MeasurementComparison {
   compatible: boolean;
   differences: readonly SemanticDifference[];
@@ -241,6 +265,7 @@ const MACHINE_FIELDS = [
   'geography',
   'ratio',
   'time',
+  'vintage',
   'valuation',
   'signConvention',
 ] as const;
@@ -318,6 +343,23 @@ export function validateEstimand(contract: EstimandContract, context = 'estimand
       requiredText(contract.geography.boundaryVersion, `${context}.geography.boundaryVersion`);
     }
   }
+  if (contract.vintage) {
+    if (!([
+      'current-period',
+      'opening-stock',
+      'closing-stock',
+      'cohort',
+      'scenario-assumption',
+      'observation-release',
+      'structural-constant',
+    ] as const).includes(contract.vintage.basis)) {
+      throw new Error(`${context}.vintage.basis is invalid`);
+    }
+    requiredText(contract.vintage.convention, `${context}.vintage.convention`);
+    if (contract.vintage.reference !== undefined) {
+      requiredText(contract.vintage.reference, `${context}.vintage.reference`);
+    }
+  }
   if (contract.ratio) {
     requiredText(contract.ratio.numerator, `${context}.ratio.numerator`);
     requiredText(contract.ratio.denominator, `${context}.ratio.denominator`);
@@ -336,6 +378,68 @@ export function validateEstimand(contract: EstimandContract, context = 'estimand
         (!Number.isInteger(contract.valuation.priceYear) || contract.valuation.priceYear < 0)) {
       throw new Error(`${context}.valuation.priceYear must be a non-negative integer`);
     }
+  }
+}
+
+/**
+ * Audit whether an estimand is specific enough to connect without guessing.
+ * Basic validation deliberately remains separate so a partially authored
+ * contract can be constructed and then completed at a model boundary.
+ */
+export function auditEstimandCompleteness(
+  contract: EstimandContract,
+  context = 'estimand',
+): readonly EstimandCompletenessIssue[] {
+  validateEstimand(contract, context);
+  const issues: EstimandCompletenessIssue[] = [];
+  const missing = (path: string, message: string): void => {
+    issues.push({ path: `${context}.${path}`, message });
+  };
+  if (!contract.population) {
+    missing('population', 'population boundary is required');
+  } else if (!contract.population.universe?.trim()) {
+    missing('population.universe', 'population universe is required');
+  }
+  if (!contract.geography) {
+    missing('geography', 'geography boundary is required');
+  } else if (!contract.geography.boundaryVersion?.trim()) {
+    missing('geography.boundaryVersion', 'geography boundary vintage is required');
+  }
+  if (contract.measure.totality === undefined) {
+    missing('measure.totality', 'total-versus-incremental status is required');
+  }
+  if (
+    (contract.measure.kind === 'rate' ||
+      contract.measure.kind === 'share' ||
+      contract.measure.kind === 'index') &&
+    !contract.ratio
+  ) {
+    missing('ratio', 'numerator and denominator are required for a rate, share, or index');
+  }
+  if (!contract.time) {
+    missing('time', 'temporal support is required');
+  } else if (
+    contract.time.kind !== 'timeless' &&
+    !contract.time.calendar?.trim()
+  ) {
+    missing('time.calendar', 'calendar convention is required');
+  }
+  if (!contract.vintage) {
+    missing('vintage', 'value-vintage convention is required');
+  }
+  return issues;
+}
+
+export function assertEstimandComplete(
+  contract: EstimandContract,
+  context = 'estimand',
+): void {
+  const issues = auditEstimandCompleteness(contract, context);
+  if (issues.length > 0) {
+    throw new Error(
+      `${context} is incomplete:\n` +
+      issues.map((issue) => `- ${issue.path}: ${issue.message}`).join('\n'),
+    );
   }
 }
 

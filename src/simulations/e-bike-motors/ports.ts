@@ -162,9 +162,17 @@ function regionalMotorYearPort(region: EbikeRegion) {
       'ebike',
       ebikeMotorEstimands.regionalInstalledStock[region],
     ),
+    retirements: measurementPort(
+      'ebike/year',
+      ebikeMotorEstimands.regionalRetirementFlow[region],
+    ),
     replacementSales: measurementPort(
       'ebike/year',
       ebikeMotorEstimands.regionalReplacementFlow[region],
+    ),
+    unreplacedRetirements: measurementPort(
+      'ebike/year',
+      ebikeMotorEstimands.regionalUnreplacedRetirementFlow[region],
     ),
     newAdoptionSales: measurementPort(
       'ebike/year',

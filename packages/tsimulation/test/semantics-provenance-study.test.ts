@@ -38,6 +38,7 @@ const totalSiteEnergy = defineEstimand({
   measure: { kind: 'flow', totality: 'total' },
   population: {
     id: 'facilities.us-data-centers',
+    universe: 'United States data-center facilities and their full-site electricity use.',
     inclusion: ['servers', 'cooling', 'power conversion'],
   },
   geography: { id: 'geo.us', boundaryVersion: '2020' },
@@ -46,6 +47,10 @@ const totalSiteEnergy = defineEstimand({
     interval: 'calendar-year',
     aggregation: 'sum',
     calendar: 'gregorian',
+  },
+  vintage: {
+    basis: 'current-period',
+    convention: 'Calendar year to which the reported energy flow applies.',
   },
 });
 
@@ -57,6 +62,7 @@ const incrementalServerEnergy = defineEstimand({
   measure: { kind: 'flow', totality: 'incremental' },
   population: {
     id: 'facilities.us-data-centers',
+    universe: 'United States data-center server equipment and its incremental electricity use.',
     inclusion: ['servers'],
     exclusion: ['cooling', 'power conversion'],
   },
@@ -66,6 +72,10 @@ const incrementalServerEnergy = defineEstimand({
     interval: 'calendar-year',
     aggregation: 'sum',
     calendar: 'gregorian',
+  },
+  vintage: {
+    basis: 'current-period',
+    convention: 'Calendar year to which the reported energy flow applies.',
   },
 });
 
@@ -417,6 +427,7 @@ const squareModel = defineModel<{ x: number }, { y: number }>({
   description: 'Study semantics test model.',
   inputPorts: { x: { unit: '1' } },
   outputPorts: { y: { unit: '1' } },
+  semanticValidation: 'off',
   run: ({ x }) => ({ y: x * x }),
 });
 

@@ -121,15 +121,105 @@ export function twoFactorInteraction<TInput, TOutput>(options: {
   controlB: string;
   treatmentB: string;
   outcome: (output: TOutput) => number;
+  /**
+   * Required for experiments with additional factors unless marginalize is
+   * selected. Every non-A/B factor must have an explicit conditioning level.
+   */
+  conditionOn?: Readonly<Record<string, string>>;
+  /** Average the four A×B cells over all matched levels of other factors. */
+  marginalize?: 'mean';
 }): TwoFactorInteraction {
-  const find = (a: string, b: string): number => {
-    const cell = options.experiment.cells.find((candidate) =>
-      candidate.levels[options.factorA] === a && candidate.levels[options.factorB] === b,
+  if (!options.experiment.factorNames.includes(options.factorA) ||
+      !options.experiment.factorNames.includes(options.factorB) ||
+      options.factorA === options.factorB) {
+    throw new Error('twoFactorInteraction requires two distinct experiment factors');
+  }
+  const otherFactors = options.experiment.factorNames.filter(
+    (factor) => factor !== options.factorA && factor !== options.factorB,
+  );
+  if (options.conditionOn && options.marginalize) {
+    throw new Error('Choose conditionOn or marginalize, not both');
+  }
+  if (
+    otherFactors.length > 0 &&
+    !options.marginalize &&
+    !otherFactors.every((factor) => options.conditionOn?.[factor] !== undefined)
+  ) {
+    throw new Error(
+      `Two-factor interaction is ambiguous with additional factors ` +
+      `[${otherFactors.join(', ')}]; supply conditionOn or marginalize: 'mean'`,
     );
-    if (!cell) throw new Error(`Missing factorial cell ${options.factorA}=${a}, ${options.factorB}=${b}`);
-    const value = options.outcome(cell.run.output);
-    if (!Number.isFinite(value)) throw new Error('Factorial outcome must be finite');
-    return value;
+  }
+  for (const factor of Object.keys(options.conditionOn ?? {})) {
+    if (!otherFactors.includes(factor)) {
+      throw new Error(`conditionOn references non-extra factor '${factor}'`);
+    }
+  }
+  const fullCellKeys = new Set<string>();
+  for (const cell of options.experiment.cells) {
+    const key = options.experiment.factorNames
+      .map((factor) => `${factor}=${cell.levels[factor]}`)
+      .join(',');
+    if (fullCellKeys.has(key)) {
+      throw new Error(`Factorial experiment has duplicate cell '${key}'`);
+    }
+    fullCellKeys.add(key);
+  }
+  if (options.marginalize && otherFactors.length > 0) {
+    const support = (a: string, b: string): string[] =>
+      options.experiment.cells
+        .filter((cell) =>
+          cell.levels[options.factorA] === a &&
+          cell.levels[options.factorB] === b
+        )
+        .map((cell) =>
+          otherFactors
+            .map((factor) => `${factor}=${cell.levels[factor]}`)
+            .join(','),
+        )
+        .sort();
+    const supports = [
+      support(options.controlA, options.controlB),
+      support(options.treatmentA, options.controlB),
+      support(options.controlA, options.treatmentB),
+      support(options.treatmentA, options.treatmentB),
+    ];
+    if (
+      supports[0].length === 0 ||
+      supports.some(
+        (candidate) =>
+          candidate.length !== supports[0].length ||
+          candidate.some((value, index) => value !== supports[0][index]),
+      )
+    ) {
+      throw new Error(
+        'Cannot marginalize a two-factor interaction over unbalanced extra-factor support',
+      );
+    }
+  }
+  const find = (a: string, b: string): number => {
+    const cells = options.experiment.cells.filter((candidate) =>
+      candidate.levels[options.factorA] === a &&
+      candidate.levels[options.factorB] === b &&
+      otherFactors.every((factor) =>
+        options.marginalize ||
+        candidate.levels[factor] === options.conditionOn?.[factor]
+      ),
+    );
+    if (cells.length === 0) {
+      throw new Error(`Missing factorial cell ${options.factorA}=${a}, ${options.factorB}=${b}`);
+    }
+    const values = cells.map((cell) => options.outcome(cell.run.output));
+    if (values.some((value) => !Number.isFinite(value))) {
+      throw new Error('Factorial outcome must be finite');
+    }
+    if (!options.marginalize && values.length !== 1) {
+      throw new Error(
+        `Conditioned factorial cell is not unique for ` +
+        `${options.factorA}=${a}, ${options.factorB}=${b}`,
+      );
+    }
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
   };
   const control = find(options.controlA, options.controlB);
   const factorAOnly = find(options.treatmentA, options.controlB);

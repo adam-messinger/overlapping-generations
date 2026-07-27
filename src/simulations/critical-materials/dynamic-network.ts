@@ -199,7 +199,7 @@ export function simulateDynamicNetwork(
     const measuredOutput = curtailmentNode
       ? outputRatios[curtailmentNode] ?? 1
       : weightedFinalOutput;
-    const threshold = options.curtailmentThreshold ?? 0.95;
+    const threshold = options.curtailmentThreshold ?? 0.98;
     if (firstCurtailmentMonth === null && measuredOutput < threshold) {
       firstCurtailmentMonth = month;
     } else if (

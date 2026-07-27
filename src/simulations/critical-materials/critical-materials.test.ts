@@ -104,4 +104,26 @@ test('empty dynamic supply paths are rejected rather than treated as normal supp
   })).toThrow("Supply path 'rare-earths' must not be empty");
 });
 
+test('omitted curtailment threshold executes the same 0.98 default that validation uses', () => {
+  const options = {
+    months: 6,
+    revision: 'v2' as const,
+    supplyPaths: {
+      'rare-earths': [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+    },
+    priceElasticity: 1,
+    pricePassThrough: 1,
+  };
+  const implicit = simulateDynamicNetwork(criticalMaterialNetwork, options);
+  const explicit = simulateDynamicNetwork(criticalMaterialNetwork, {
+    ...options,
+    curtailmentThreshold: 0.98,
+  });
+  expect(implicit.firstCurtailmentMonth).toBe(explicit.firstCurtailmentMonth);
+  expect(implicit.cumulativeWeightedOutputLoss).toBeCloseTo(
+    explicit.cumulativeWeightedOutputLoss,
+    12,
+  );
+});
+
 printSummary();

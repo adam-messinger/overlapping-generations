@@ -8,6 +8,14 @@ import {
   multiplyUnits,
   powUnit,
 } from './units.js';
+import {
+  assertEstimandComplete,
+  compareEstimands,
+  validateEstimand,
+  validateSemanticDerivation,
+  type EstimandContract,
+  type SemanticDerivation,
+} from './semantics.js';
 
 export interface UnitQuantity {
   value: number;
@@ -24,6 +32,10 @@ export interface UnitBalanceReport {
   tolerance: number;
 }
 
+export interface SemanticQuantity extends UnitQuantity {
+  estimand: EstimandContract;
+}
+
 function assertQuantity(quantity: UnitQuantity, context: string): void {
   if (!Number.isFinite(quantity.value)) throw new Error(`${context}: value must be finite`);
   if (!getUnit(quantity.unit)) throw new Error(`${context}: unknown unit '${quantity.unit}'`);
@@ -33,6 +45,141 @@ export function unitQuantity(value: number, unit: string, label?: string): UnitQ
   const result = { value, unit, ...(label ? { label } : {}) };
   assertQuantity(result, label ?? 'quantity');
   return result;
+}
+
+export function semanticQuantity(
+  value: number,
+  unit: string,
+  estimand: EstimandContract,
+  label?: string,
+): SemanticQuantity {
+  assertEstimandComplete(estimand, `${label ?? 'semantic quantity'} estimand`);
+  const quantity = unitQuantity(value, unit, label);
+  return { ...quantity, estimand };
+}
+
+export function convertSemanticQuantity(
+  quantity: SemanticQuantity,
+  targetUnit: string,
+): SemanticQuantity {
+  const converted = convertQuantity(quantity, targetUnit);
+  return { ...converted, estimand: quantity.estimand };
+}
+
+function assertDerivation(
+  inputs: readonly SemanticQuantity[],
+  outputEstimand: EstimandContract,
+  derivation: SemanticDerivation,
+  context: string,
+): void {
+  validateEstimand(outputEstimand, `${context} output estimand`);
+  validateSemanticDerivation(derivation, `${context} derivation`);
+  if (!compareEstimands(derivation.outputEstimand, outputEstimand).compatible) {
+    throw new Error(`${context}: derivation output does not match the equation output estimand`);
+  }
+  const declared = new Set(derivation.inputEstimandIds);
+  const supplied = new Set(inputs.map((input) => input.estimand.id));
+  for (const input of inputs) {
+    if (!declared.has(input.estimand.id)) {
+      throw new Error(
+        `${context}: derivation does not declare input estimand '${input.estimand.id}'`,
+      );
+    }
+  }
+  for (const inputId of declared) {
+    if (!supplied.has(inputId)) {
+      throw new Error(
+        `${context}: equation omits declared input estimand '${inputId}'`,
+      );
+    }
+  }
+}
+
+/**
+ * Multiplication with both dimensional and estimand checking. A changed
+ * estimand is explicit at the call site and may be backed by a registered
+ * SemanticDerivation.
+ */
+export function multiplySemanticQuantities(options: {
+  quantities: readonly SemanticQuantity[];
+  outputEstimand: EstimandContract;
+  targetUnit?: string;
+  derivation: SemanticDerivation;
+  label?: string;
+}): SemanticQuantity {
+  assertDerivation(
+    options.quantities,
+    options.outputEstimand,
+    options.derivation,
+    options.label ?? 'semantic product',
+  );
+  const product = multiplyQuantities(options.quantities, options.label);
+  const converted = options.targetUnit
+    ? convertQuantity(product, options.targetUnit)
+    : product;
+  return semanticQuantity(
+    converted.value,
+    converted.unit,
+    options.outputEstimand,
+    options.label,
+  );
+}
+
+export function divideSemanticQuantities(options: {
+  numerator: SemanticQuantity;
+  denominator: SemanticQuantity;
+  outputEstimand: EstimandContract;
+  targetUnit?: string;
+  derivation: SemanticDerivation;
+  label?: string;
+}): SemanticQuantity {
+  const inputs = [options.numerator, options.denominator];
+  assertDerivation(
+    inputs,
+    options.outputEstimand,
+    options.derivation,
+    options.label ?? 'semantic quotient',
+  );
+  const quotient = divideQuantities(
+    options.numerator,
+    options.denominator,
+    options.label,
+  );
+  const converted = options.targetUnit
+    ? convertQuantity(quotient, options.targetUnit)
+    : quotient;
+  return semanticQuantity(
+    converted.value,
+    converted.unit,
+    options.outputEstimand,
+    options.label,
+  );
+}
+
+/**
+ * Addition is only implicit for the same estimand. Combining different
+ * phenomena requires a separate explicit derivation rather than relying on
+ * unit compatibility alone.
+ */
+export function sumSemanticQuantities(
+  quantities: readonly SemanticQuantity[],
+  targetUnit = quantities[0]?.unit,
+  label?: string,
+): SemanticQuantity {
+  if (quantities.length === 0 || !targetUnit) {
+    throw new Error(`${label ?? 'semantic sum'} requires at least one quantity`);
+  }
+  const estimand = quantities[0].estimand;
+  for (const quantity of quantities.slice(1)) {
+    if (!compareEstimands(estimand, quantity.estimand).compatible) {
+      throw new Error(
+        `${label ?? 'semantic sum'}: cannot add different estimands ` +
+        `'${estimand.id}' and '${quantity.estimand.id}'`,
+      );
+    }
+  }
+  const summed = sumQuantities(quantities, targetUnit, label);
+  return semanticQuantity(summed.value, summed.unit, estimand, label);
 }
 
 export function convertQuantity(quantity: UnitQuantity, targetUnit: string): UnitQuantity {
