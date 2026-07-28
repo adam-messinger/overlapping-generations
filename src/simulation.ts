@@ -119,6 +119,28 @@ export interface YearResult {
   // Capital
   capitalStock: number;
   investment: number;
+  plannedInvestment: number;
+  unfundedInvestmentDemand: number;
+  unfundedFinancingDemand: number;
+  grossSavings: number;
+  laborCompensation: number;
+  operatingSurplus: number;
+  privateInterestPayments: number;
+  profitAfterInterestAndDepreciation: number;
+  profitRate: number;
+  retainedEarnings: number;
+  firmDividendPayments: number;
+  bankDividendPayments: number;
+  firmInternalFunds: number;
+  householdDisposableIncome: number;
+  householdSaving: number;
+  householdSavingRate: number;
+  firmGrossSaving: number;
+  governmentSaving: number;
+  bankSaving: number;
+  nationalSaving: number;
+  savingInvestmentResidual: number;
+  householdSavingLedgerResidual: number;
   savingsRate: number;
   regionalSavings: Record<Region, number>;
   stability: number;
@@ -131,16 +153,39 @@ export interface YearResult {
   // Intergenerational transfers
   retireeCost: number;        // $ trillions (pensions + healthcare for 65+)
   childCost: number;          // $ trillions (education for 0-19)
+  pensionTransfers: number;
+  retireeHealthcareConsumption: number;
+  educationConsumption: number;
+  governmentServiceConsumption: number;
   transferBurden: number;     // Fraction of GDP going to transfers
-  workerConsumption: number;  // $ trillions (GDP - investment - transfers - publicDebtService)
+  householdConsumption: number;
+  retireeConsumption: number;
+  workerConsumption: number;
+  nationalAccountsResidual: number;
 
   // Debt/credit
   publicDebtGDP: number;       // ratio (public debt / GDP)
   privateDebtGDP: number;      // ratio (private debt / GDP)
   totalDebtGDP: number;        // ratio (total debt / GDP)
-  publicDebtService: number;   // $T (interest on public debt)
-  creditImpulse: number;       // $T (net new private credit)
+  publicInterestPayments: number;
+  publicInterestToHouseholds: number;
+  publicInterestToBanks: number;
+  publicDebtService: number;   // Deprecated alias
+  grossLoanOriginations: number;
+  newInvestmentLoanOriginations: number;
+  refinancedPrincipal: number;
+  unfundedCreditDemand: number;
+  creditImpulse: number;       // Deprecated alias of new investment credit
+  principalRepayments: number;
+  loanWriteOffs: number;
+  netCreditCreation: number;
+  primaryDeficit: number;
+  netTaxes: number;
   debtRiskPremium: number;     // fraction added to interest rate
+  bankEquity: number;
+  bankEquityShortfall: number;
+  bankCapitalRatio: number;
+  financialLedgerResidual: number;
 
   // Five-year birth-cohort accounts
   cohortAccounts: Record<string, CohortAccount>;
@@ -230,6 +275,9 @@ export interface YearResult {
 
   // Production (biophysical)
   productionUsefulEnergy: number; // TWh/year
+  ayresWarrGdp: number;
+  keenEnergyGdp: number;
+  productionFunctionGap: number;
   energySystemOverhead: number;   // TWh/year
   capitalContribution: number;   // (K/K0)^alpha
   laborContribution: number;     // (L/L0)^beta
@@ -636,10 +684,15 @@ async function runCLI() {
   console.log(`Private debt/GDP 2100: ${(result.results[idx2100].privateDebtGDP * 100).toFixed(0)}%`);
   console.log(`Total debt/GDP 2025: ${(result.results[idx2025].totalDebtGDP * 100).toFixed(0)}%`);
   console.log(`Total debt/GDP 2100: ${(result.results[idx2100].totalDebtGDP * 100).toFixed(0)}%`);
-  console.log(`Debt service 2025: $${result.results[idx2025].publicDebtService.toFixed(1)}T`);
-  console.log(`Debt service 2100: $${result.results[idx2100].publicDebtService.toFixed(1)}T`);
-  console.log(`Credit impulse 2025: $${result.results[idx2025].creditImpulse.toFixed(1)}T`);
-  console.log(`Credit impulse 2100: $${result.results[idx2100].creditImpulse.toFixed(1)}T`);
+  console.log(`Public interest 2025: $${result.results[idx2025].publicInterestPayments.toFixed(1)}T`);
+  console.log(`Public interest 2100: $${result.results[idx2100].publicInterestPayments.toFixed(1)}T`);
+  console.log(`Gross loan originations 2025: $${result.results[idx2025].grossLoanOriginations.toFixed(1)}T`);
+  console.log(`New investment credit 2025: $${result.results[idx2025].newInvestmentLoanOriginations.toFixed(1)}T`);
+  console.log(`Refinanced principal 2025: $${result.results[idx2025].refinancedPrincipal.toFixed(1)}T`);
+  console.log(`Net credit creation 2025: $${result.results[idx2025].netCreditCreation.toFixed(1)}T`);
+  console.log(`Gross loan originations 2100: $${result.results[idx2100].grossLoanOriginations.toFixed(1)}T`);
+  console.log(`New investment credit 2100: $${result.results[idx2100].newInvestmentLoanOriginations.toFixed(1)}T`);
+  console.log(`Net credit creation 2100: $${result.results[idx2100].netCreditCreation.toFixed(1)}T`);
   console.log(`Risk premium 2025: ${(result.results[idx2025].debtRiskPremium * 100).toFixed(1)}pp`);
   console.log(`Risk premium 2100: ${(result.results[idx2100].debtRiskPremium * 100).toFixed(1)}pp`);
 

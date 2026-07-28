@@ -137,6 +137,9 @@ test('1990-2025 growth backcast reproduces observed world GDP', () => {
 test('year 0 normalizes GDP to initialGDP with unit contributions', () => {
   const { outputs } = yearZero();
   expect(outputs.gdp).toBeCloseTo(productionDefaults.initialGDP, 6);
+  expect(outputs.ayresWarrGdp).toBeCloseTo(productionDefaults.initialGDP, 6);
+  expect(outputs.keenEnergyGdp).toBeCloseTo(productionDefaults.initialGDP, 6);
+  expect(outputs.productionFunctionGap).toBeCloseTo(0, 9);
   expect(outputs.capitalContribution).toBeCloseTo(1, 9);
   expect(outputs.laborContribution).toBeCloseTo(1, 9);
   expect(outputs.energyContribution).toBeCloseTo(1, 9);
@@ -157,6 +160,101 @@ test('useful energy scales GDP with elasticity gamma', () => {
   // Expected 1.1^0.55; the end-use learning term drifts the ratio by <0.5%
   const expected = Math.pow(1.1, params.gamma);
   expect(Math.abs(ratio - expected) / expected).toBeLessThan(0.005);
+});
+
+test('Keen challenger uses the capital-energy composite exponent and can be selected', () => {
+  const params = productionModule.mergeParams({ keenEnergyWeight: 1 });
+  const base = yearZero(params);
+  const sameEnergy = productionModule.step(base.state, makeInputs(), params, 2026, 1);
+  const moreEnergy = productionModule.step(
+    base.state,
+    makeInputs({
+      totalGeneration: 27000 * 1.1,
+      nonElectricEnergy: 99000 * 1.1,
+      resourceEnergy: 3000 * 1.1,
+      energySystemOverhead: 2000 * 1.1,
+    }),
+    params,
+    2026,
+    1,
+  );
+  const expected = Math.pow(1.1, params.keenEnergyExponent);
+  expect(moreEnergy.outputs.gdp).toBeCloseTo(moreEnergy.outputs.keenEnergyGdp, 9);
+  expect(moreEnergy.outputs.gdp / sameEnergy.outputs.gdp).toBeCloseTo(expected, 6);
+});
+
+test('both production equations satisfy the essential zero-energy limit', () => {
+  const params = productionModule.mergeParams({});
+  const base = yearZero(params);
+  const zeroEnergy = productionModule.step(
+    base.state,
+    makeInputs({
+      totalGeneration: 0,
+      nonElectricEnergy: 0,
+      resourceEnergy: 0,
+      energySystemOverhead: 0,
+      cdrEnergy: 0,
+    }),
+    params,
+    2026,
+    1,
+  );
+  expect(zeroEnergy.outputs.productionUsefulEnergy).toBeCloseTo(0, 12);
+  expect(zeroEnergy.outputs.ayresWarrGdp).toBeCloseTo(0, 12);
+  expect(zeroEnergy.outputs.keenEnergyGdp).toBeCloseTo(0, 12);
+  expect(zeroEnergy.outputs.gdp).toBeCloseTo(0, 12);
+});
+
+test('zero useful energy remains essential when gamma is zero', () => {
+  const params = productionModule.mergeParams({ gamma: 0 });
+  const base = yearZero(params);
+  const zeroEnergy = productionModule.step(
+    base.state,
+    makeInputs({
+      totalGeneration: 0,
+      nonElectricEnergy: 0,
+      resourceEnergy: 0,
+      energySystemOverhead: 0,
+      cdrEnergy: 0,
+    }),
+    params,
+    2026,
+    1,
+  );
+  expect(zeroEnergy.outputs.energyContribution).toBeCloseTo(0, 12);
+  expect(zeroEnergy.outputs.ayresWarrGdp).toBeCloseTo(0, 12);
+  expect(zeroEnergy.outputs.gdp).toBeCloseTo(0, 12);
+});
+
+test('the challenger exposes disagreement about an independent capital term', () => {
+  const params = productionModule.mergeParams({});
+  const base = yearZero(params);
+  const higherCapital = productionModule.step(
+    base.state,
+    makeInputs({ capitalStock: 553 * 1.2 }),
+    params,
+    2026,
+    1,
+  );
+  const unchanged = productionModule.step(base.state, makeInputs(), params, 2026, 1);
+  expect(higherCapital.outputs.ayresWarrGdp).toBeGreaterThan(unchanged.outputs.ayresWarrGdp);
+  expect(higherCapital.outputs.keenEnergyGdp).toBeCloseTo(unchanged.outputs.keenEnergyGdp, 9);
+});
+
+test('production gap is a finite symmetric difference when Ayres-Warr GDP is zero', () => {
+  const params = productionModule.mergeParams({});
+  const base = yearZero(params);
+  const noCapital = productionModule.step(
+    base.state,
+    makeInputs({ capitalStock: 0 }),
+    params,
+    2026,
+    1,
+  );
+  expect(noCapital.outputs.ayresWarrGdp).toBeCloseTo(0, 12);
+  expect(noCapital.outputs.keenEnergyGdp).toBeGreaterThan(0);
+  expect(Number.isFinite(noCapital.outputs.productionFunctionGap)).toBeTrue();
+  expect(noCapital.outputs.productionFunctionGap).toBeCloseTo(2, 12);
 });
 
 test('a lower gamma weakens the energy-growth channel', () => {
@@ -227,6 +325,8 @@ test('validation rejects out-of-range elasticities and warns on increasing retur
   const increasing = productionModule.validate({ alpha: 0.5, beta: 0.4, gamma: 0.5 });
   expect(increasing.valid).toBeTrue();
   expect(increasing.warnings.length).toBeGreaterThan(0);
+  expect(productionModule.validate({ keenEnergyExponent: 0 }).valid).toBeFalse();
+  expect(productionModule.validate({ keenEnergyWeight: 1.1 }).valid).toBeFalse();
 });
 
 printSummary();

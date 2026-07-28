@@ -26,10 +26,11 @@ function makeInputs(overrides: Record<string, any> = {}) {
     nextCapitalStock,
     investment: overrides.investment ?? 42,
     generalInvestment,
-    creditImpulse: overrides.creditImpulse ?? 5,
+    newInvestmentLoanOriginations:
+      overrides.newInvestmentLoanOriginations ?? 5,
     privateDebtStock: overrides.privateDebtStock ?? 256,
     nextPrivateDebtStock: overrides.nextPrivateDebtStock ?? 248.2,
-    publicDebtService: overrides.publicDebtService ?? 8,
+    netTaxes: overrides.netTaxes ?? 23.6,
     regionalSavings: regional(0.25),
     regionalRetireeCost: regional(1.75),
     regionalChildCost: regional(0.20),
@@ -91,7 +92,7 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
     debtAgeWeight55to69: 0,
     debtAgeWeight70plus: 0,
   }, {
-    creditImpulse: 0,
+    newInvestmentLoanOriginations: 0,
     nextPrivateDebtStock: 256 * 0.95,
   }).outputs.regionalCohortAccounts.oecd;
   const old = runOne({
@@ -100,7 +101,7 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
     debtAgeWeight55to69: 0,
     debtAgeWeight70plus: 1,
   }, {
-    creditImpulse: 0,
+    newInvestmentLoanOriginations: 0,
     nextPrivateDebtStock: 256 * 0.95,
   }).outputs.regionalCohortAccounts.oecd;
   expect(shareAtOrAbove(old, 70, 'liabilities'))
@@ -152,7 +153,7 @@ test('cohort assets reconcile to the macro stock at any funder share', () => {
 test('cohort debt is amortized once by the macro debt transition', () => {
   const params = generationsModule.mergeParams({});
   const firstInputs = makeInputs({
-    creditImpulse: 0,
+    newInvestmentLoanOriginations: 0,
     privateDebtStock: 256,
     nextPrivateDebtStock: 256 * 0.95,
   });
@@ -166,7 +167,7 @@ test('cohort debt is amortized once by the macro debt transition', () => {
   const cohort = '1955-1959';
   const firstLiabilities = first.outputs.regionalCohortAccounts.oecd[cohort].liabilities;
   const second = generationsModule.step(first.state, makeInputs({
-    creditImpulse: 0,
+    newInvestmentLoanOriginations: 0,
     privateDebtStock: firstInputs.nextPrivateDebtStock,
     nextPrivateDebtStock: firstInputs.nextPrivateDebtStock * 0.95,
   }), params, 2026, 1);
@@ -174,7 +175,7 @@ test('cohort debt is amortized once by the macro debt transition', () => {
   expect(secondLiabilities / firstLiabilities).toBeCloseTo(0.95, 6);
 });
 
-test('education, retiree transfers, and worker taxes reconcile', () => {
+test('education, retiree transfers, and macro net-tax incidence reconcile', () => {
   const { outputs } = runOne();
   const accounts = Object.values(outputs.cohortAccounts);
   const education = accounts.reduce((sum, account) => sum + account.education, 0);
@@ -182,7 +183,34 @@ test('education, retiree transfers, and worker taxes reconcile', () => {
   const taxes = accounts.reduce((sum, account) => sum + account.taxes, 0);
   expect(education).toBeCloseTo(1.6, 6);
   expect(pensions).toBeCloseTo(14.0, 6);
-  expect(taxes).toBeCloseTo(23.6, 6);
+  expect(taxes).toBeCloseTo(makeInputs().netTaxes, 6);
+});
+
+test('balanced-budget replay taxes include dependent outlays and public interest', () => {
+  const gdp = 160;
+  const retireeOutlays = 0.10 * gdp;
+  const childOutlays = 0.05 * gdp;
+  const publicInterestOutlays = 0.02 * gdp;
+  const inOecd = (value: number): Record<Region, number> =>
+    Object.fromEntries(REGIONS.map(region => [
+      region,
+      region === 'oecd' ? value : 0,
+    ])) as Record<Region, number>;
+  const { outputs } = runOne({}, {
+    gdp,
+    regionalGdp: inOecd(gdp),
+    netTaxes: retireeOutlays + childOutlays + publicInterestOutlays,
+    regionalRetireeCost: inOecd(retireeOutlays),
+    regionalChildCost: inOecd(childOutlays),
+  });
+  const accounts = Object.values(outputs.cohortAccounts);
+  const taxes = accounts.reduce((sum, account) => sum + account.taxes, 0);
+  const transfers = accounts.reduce(
+    (sum, account) => sum + account.education + account.pensionHealthcare,
+    0,
+  );
+  expect(taxes).toBeCloseTo(0.17 * gdp, 6);
+  expect(taxes).toBeCloseTo(transfers + publicInterestOutlays, 6);
 });
 
 test('a tighter borrowing limit increases the borrowing-limit gap', () => {
@@ -203,7 +231,7 @@ test('lower investment increases the cohort funding gap at the same desired grow
   const lowInvestment = runOne({}, {
     investment: 12,
     generalInvestment: 10,
-    creditImpulse: 1,
+    newInvestmentLoanOriginations: 1,
     nextCapitalStock: 0.95 * 553 + 10,
   }).outputs;
   expect(lowInvestment.cohortFundingGap).toBeGreaterThan(highInvestment.cohortFundingGap);

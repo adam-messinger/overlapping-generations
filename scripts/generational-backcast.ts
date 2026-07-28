@@ -353,7 +353,18 @@ function runReplay(
     // funding proxy, not a national-accounts measure of fixed investment.
     const generalInvestment = Math.max(0, next.assets - current.assets * 0.95);
     const investment = generalInvestment / 0.85;
-    const creditImpulse = Math.max(0, next.liabilities - current.liabilities * 0.95);
+    const newInvestmentLoanOriginations = Math.max(
+      0,
+      next.liabilities - current.liabilities * 0.95,
+    );
+    const retireeOutlays = 0.10 * gdpTrillions;
+    const childOutlays = 0.05 * gdpTrillions;
+    const publicInterestOutlays = 0.02 * gdpTrillions;
+    // Preserve the replay's original balanced-budget incidence convention:
+    // workers finance dependent transfers and public interest. Unlike the
+    // forward macro model, this conditional replay does not supply an
+    // observed public-debt change from which to infer net bond issuance.
+    const netTaxes = retireeOutlays + childOutlays + publicInterestOutlays;
 
     const step = generationsModule.step(state, {
       regionalYoung: regionalRecord(young),
@@ -367,13 +378,13 @@ function runReplay(
       nextCapitalStock: next.assets,
       investment,
       generalInvestment,
-      creditImpulse,
+      newInvestmentLoanOriginations,
       privateDebtStock: current.liabilities,
       nextPrivateDebtStock: next.liabilities,
-      publicDebtService: 0.02 * gdpTrillions,
+      netTaxes,
       regionalSavings: regionalRecord(0.20),
-      regionalRetireeCost: regionalRecord(0.10 * gdpTrillions),
-      regionalChildCost: regionalRecord(0.05 * gdpTrillions),
+      regionalRetireeCost: regionalRecord(retireeOutlays),
+      regionalChildCost: regionalRecord(childOutlays),
     }, params, year, year - first);
 
     state = step.state;
@@ -419,10 +430,10 @@ function snapshotShares(
     nextCapitalStock: observed.assets * 0.95,
     investment: 0,
     generalInvestment: 0,
-    creditImpulse: 0,
+    newInvestmentLoanOriginations: 0,
     privateDebtStock: observed.liabilities,
     nextPrivateDebtStock: observed.liabilities * 0.95,
-    publicDebtService: 0,
+    netTaxes: 0,
     regionalSavings: regionalRecord(0),
     regionalRetireeCost: regionalRecord(0),
     regionalChildCost: regionalRecord(0),

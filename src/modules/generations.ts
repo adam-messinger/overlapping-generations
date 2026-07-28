@@ -91,10 +91,11 @@ interface GenerationsInputs {
   nextCapitalStock: number;
   investment: number;
   generalInvestment: number;
-  creditImpulse: number;
+  /** Net-new bank credit for investment; excludes refinanced principal. */
+  newInvestmentLoanOriginations: number;
   privateDebtStock: number;
   nextPrivateDebtStock: number;
-  publicDebtService: number;
+  netTaxes: number;
   regionalSavings: Record<Region, number>;
   regionalRetireeCost: Record<Region, number>;
   regionalChildCost: Record<Region, number>;
@@ -650,10 +651,10 @@ export const generationsModule: Module<
       nextCapitalStock: unitPort('$T'),
       investment: unitPort('$T/year'),
       generalInvestment: unitPort('$T/year'),
-      creditImpulse: unitPort('$T/year'),
+      newInvestmentLoanOriginations: unitPort('$T/year'),
       privateDebtStock: unitPort('$T'),
       nextPrivateDebtStock: unitPort('$T'),
-      publicDebtService: unitPort('$T/year'),
+      netTaxes: unitPort('$T/year'),
       regionalSavings: unitPort('fraction', 'record'),
       regionalRetireeCost: unitPort('$T/year', 'record'),
       regionalChildCost: unitPort('$T/year', 'record'),
@@ -760,20 +761,18 @@ export const generationsModule: Module<
       flows[key] = emptyFlows();
     }
 
-    // Annual income, taxes, and dependent transfers. Taxes are an incidence
-    // convention: workers finance transfers and public interest in proportion
-    // to their labor income. The macro capital module itself has no tax ledger.
+    // Annual income, taxes, and dependent transfers. The macro Godley ledger
+    // supplies net taxes; this diagnostic layer allocates their incidence to
+    // workers in proportion to labor income.
     for (const region of REGIONS) {
       const regionKeys = keys.filter(key => slices[key].region === region);
       const workingTotal = regionKeys.reduce((sum, key) => sum + slices[key].workingPopulation, 0);
       const youngTotal = regionKeys.reduce((sum, key) => sum + slices[key].youngPopulation, 0);
       const oldTotal = regionKeys.reduce((sum, key) => sum + slices[key].oldPopulation, 0);
       const regionLaborIncome = Math.max(0, inputs.regionalGdp[region]) * params.laborIncomeShare;
-      const debtServiceShare = inputs.gdp > 0
-        ? inputs.publicDebtService * Math.max(0, inputs.regionalGdp[region]) / inputs.gdp
+      const regionTaxes = inputs.gdp > 0
+        ? inputs.netTaxes * Math.max(0, inputs.regionalGdp[region]) / inputs.gdp
         : 0;
-      const regionTaxes = inputs.regionalRetireeCost[region] +
-        inputs.regionalChildCost[region] + debtServiceShare;
 
       for (const key of regionKeys) {
         const slice = slices[key];
@@ -912,7 +911,7 @@ export const generationsModule: Module<
       : 0;
     const generalCreditPool = Math.min(
       inputs.generalInvestment,
-      Math.max(0, inputs.creditImpulse * generalShare),
+      Math.max(0, inputs.newInvestmentLoanOriginations * generalShare),
     );
     const ownFundsPool = Math.max(0, inputs.generalInvestment - generalCreditPool);
     const ownFundsAllocation = allocatePool(ownFundsPool, savingScores, keys);
@@ -998,7 +997,11 @@ export const generationsModule: Module<
     // additional age-retention factor here previously erased retiree debt at
     // 60-98% per year, effectively amortizing it twice.
     const newCreditStock = integrateFlow(
-      unitQuantity(inputs.creditImpulse, '$T/year', 'new private credit'),
+      unitQuantity(
+        inputs.newInvestmentLoanOriginations,
+        '$T/year',
+        'net-new investment loan originations',
+      ),
       unitQuantity(1, 'year', 'annual timestep'),
       '$T',
       'new private liabilities',
