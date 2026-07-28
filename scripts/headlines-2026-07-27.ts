@@ -1,233 +1,185 @@
+import { runSimulation } from '../src/index.js';
 import {
-  evaluateChinaIndustrialProfits,
-  evaluateHurricaneInsuranceRisk,
-  evaluateOilPauseInflation,
+  evaluatePipelineAttrition,
+  evaluateSolarCoalCrossover,
+  evaluateVendorFinancingBackstop,
 } from '../src/simulations/news/headline-experiments-2026-07-27.js';
 
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
-const pp = (value: number): string => `${value.toFixed(2)}pp`;
-const money = (value: number): string => `$${value.toFixed(1)}B`;
+const billions = (value: number): string => `$${value.toFixed(0)}B`;
+const gw = (value: number): string => `${value.toFixed(1)} GW`;
 
 console.log('=== News-driven simulations: 2026-07-27 ===\n');
 console.log('Selected questions');
 console.table([
   {
-    headline: 'Oil tumbles after the U.S.-Iran pause',
-    estimand: 'first-year headline-inflation relief',
-    mechanism: 'oil path → retail pass-through → core/policy lags',
+    headline: "Nvidia weighs $250B backstop for OpenAI's 10 GW Ohio campus",
+    estimand: 'vendor-financing exposure and expected loss',
+    mechanism: 'contingent guarantee × monetization × wrong-way collateral',
   },
   {
-    headline: 'China industrial profits rise 18.7%',
-    estimand: 'sources of profit growth and export cushion',
-    mechanism: 'revenue × margin + sector contributions',
+    headline: '$130B of data centers blocked or delayed in early 2026',
+    estimand: 'net drag on the 194 GW-by-2035 path',
+    mechanism: 'capex semantics × relocation × queue phantoms vs firm capacity',
   },
   {
-    headline: 'El Nino may not be good news for insurers',
-    estimand: 'annual insured-loss distribution',
-    mechanism: 'landfalls × ordinary loss + rare metro strike',
+    headline: 'Solar passed coal in US electricity for the first month ever',
+    estimand: 'year of the first full-year solar-over-coal crossover',
+    mechanism: 'May seasonality × addition-driven solar growth × coal decline',
   },
 ]);
 
-const oil = evaluateOilPauseInflation();
-console.log('\n1. Oil pause and inflation');
+// ---------------------------------------------------------------------------
+const backstop = evaluateVendorFinancingBackstop();
+console.log('\n1. Nvidia backstop as vendor financing');
 console.table([
+  ...backstop.initialV1.benchmarkShares.map((row) => ({
+    entity: row.id,
+    'commitments / revenue': pct(row.commitmentsShareOfRevenue),
+  })),
   {
-    version: 'V1 spot shortcut',
-    oil: `${pct(oil.initialV1.spotOilPriceRelief)} lower`,
-    'first-year relief':
-      pp(oil.initialV1.instantaneousHeadlinePriceLevelReliefPctPoints),
-    interpretation: 'mistakes immediate price-level effect for annual CPI',
+    entity: 'nvidia backstop alone',
+    'commitments / revenue': pct(backstop.initialV1.backstopShareOfRevenue),
   },
   {
-    version: 'V2 one-month pause',
-    oil: `$${oil.case.pauseDayBrentUsdPerBarrel.toFixed(2)}/bbl for one month`,
-    'first-year relief':
-      pp(
-        oil.revisedV2.temporaryPause
-          .firstYearAverageHeadlineReliefPctPoints,
-      ),
-    interpretation: 'most stress returns before retail pass-through',
-  },
-  {
-    version: 'V2 six-month pause',
-    oil: `$${oil.case.pauseDayBrentUsdPerBarrel.toFixed(2)}/bbl for six months`,
-    'first-year relief':
-      pp(
-        oil.revisedV2.sustainedPause
-          .firstYearAverageHeadlineReliefPctPoints,
-      ),
-    interpretation: 'durable but partial inflation relief',
+    entity: 'nvidia incl. chip financing',
+    'commitments / revenue': pct(
+      backstop.initialV1.totalDiscussedShareOfRevenue,
+    ),
   },
 ]);
 console.log(
-  `Monday's price remained ${pct(
-    oil.initialV1.oilPriceStillAbovePrewar,
-  )} above the prewar close, leaving ${pct(
-    oil.initialV1.warPremiumShareRemaining,
-  )} of the modeled war premium in place.`,
+  `V1: the guarantee alone is ${backstop.initialV1.multipleOfLargestHistoricalRatio.toFixed(
+    1,
+  )}x Lucent's peak vendor-financing intensity — the "Lucent redux" reading.`,
+);
+console.table(
+  backstop.revisedV2.scenarioCoverage.map((row, index) => {
+    const scenario = backstop.case.monetizationScenarios[index];
+    return {
+      scenario: row.id,
+      weight: scenario?.weight ?? NaN,
+      'P(call)': pct(scenario?.callProbability ?? NaN),
+      [`revenue ${backstop.case.revenueReportYear}`]: billions(
+        row.projectedRevenueAtReportYearBillion,
+      ),
+      'covers lease in':
+        row.coverageYear ?? `never (by ${backstop.revisedV2.projectionEndYear})`,
+    };
+  }),
+);
+console.log(
+  `V2: the full-build lease is ${billions(
+    backstop.revisedV2.fullBuildAnnualLeasePaymentBillion,
+  )}/yr, needing ~${billions(
+    backstop.revisedV2.requiredLesseeRevenueBillion,
+  )} of lessee revenue. Probability-weighted expected loss ${billions(
+    backstop.revisedV2.expectedLossBillion,
+  )} (${pct(
+    backstop.revisedV2.expectedLossShareOfAnnualFreeCashFlow,
+  )} of one year's FCF); telecom-analog loss ${billions(
+    backstop.revisedV2.telecomAnalogLossBillion,
+  )}; worst case ${billions(
+    backstop.revisedV2.worstCaseLossBillion,
+  )} = ${backstop.revisedV2.worstCaseLossYearsOfFreeCashFlow.toFixed(
+    1,
+  )} years of FCF. ${pct(
+    backstop.revisedV2.guaranteedBuyerShareOfProjectCapex,
+  )} of project capex is chips sold by the guarantor.`,
 );
 
-const china = evaluateChinaIndustrialProfits();
-console.log('\n2. China industrial profits');
+// ---------------------------------------------------------------------------
+const attrition = evaluatePipelineAttrition();
+console.log('\n2. Blocked data centers vs the 2035 path');
+console.log(
+  `V1: ${gw(
+    attrition.initialV1.annualizedBlockedGwPerYear,
+  )}/yr annualized blocked vs ${gw(
+    attrition.requiredNetAdditionsGwPerYear,
+  )}/yr required -> "forecast infeasible" (${String(
+    attrition.initialV1.forecastLooksInfeasible,
+  )}).`,
+);
 console.table([
   {
-    version: 'V1 revenue-only',
-    'profit growth':
-      pct(china.initialV1.revenueOnlyPredictedProfitGrowth),
-    'miss vs observed':
-      pp(100 * china.initialV1.revenueOnlyGrowthErrorPctPoints),
-    interpretation: 'omits margin expansion',
+    channel: 'consent (net of phantoms + relocation)',
+    'avg-load drag GW/yr':
+      `${attrition.revisedV2.consentDragAverageLoadGwPerYearLow.toFixed(1)}-` +
+      attrition.revisedV2.consentDragAverageLoadGwPerYearHigh.toFixed(1),
   },
-  {
-    version: 'V2 observed',
-    'profit growth': pct(china.case.totalProfitGrowth),
-    'miss vs observed': pp(0),
-    interpretation: 'revenue × margin identity',
-  },
-  {
-    version: 'V2 without export growth',
-    'profit growth':
-      pct(
-        china.revisedV2.exportCounterfactualCentral
-          .counterfactualProfitGrowthWithoutExportGrowth,
-      ),
-    'miss vs observed':
-      pp(
-        100 *
-        china.revisedV2.exportCounterfactualCentral
-          .exportCushionPctPoints,
-      ),
-    interpretation: 'cross-system proxy, not a causal estimate',
-  },
-]);
-console.table([
-  {
-    component: 'revenue scale',
-    contribution:
-      pp(
-        100 *
-        china.revisedV2.shapleyGrowthDecomposition
-          .revenueChannelPctPoints,
-      ),
-    'share of growth':
-      pct(
-        1 -
-        china.revisedV2.shapleyGrowthDecomposition
-          .marginChannelShareOfProfitGrowth,
-      ),
-  },
-  {
-    component: 'margin expansion',
-    contribution:
-      pp(
-        100 *
-        china.revisedV2.shapleyGrowthDecomposition
-          .marginChannelPctPoints,
-      ),
-    'share of growth':
-      pct(
-        china.revisedV2.shapleyGrowthDecomposition
-          .marginChannelShareOfProfitGrowth,
-      ),
-  },
-  {
-    component: 'electronics + raw materials',
-    contribution:
-      pp(
-        100 *
-        (
-          china.revisedV2.sectorContribution
-            .electronicsPctPoints +
-          china.revisedV2.sectorContribution
-            .rawMaterialsPctPoints
-        ),
-      ),
-    'share of growth':
-      pct(
-        china.revisedV2.sectorContribution
-          .electronicsAndRawMaterialsShareOfGrowth,
-      ),
-  },
+  ...attrition.revisedV2.firmCapacityVariants.map((row) => ({
+    channel: `firm capacity (${row.sharedFirmBuildGw} GW shared build)`,
+    'avg-load drag GW/yr':
+      row.firmCapacityDragAverageLoadGwPerYear.toFixed(1),
+  })),
 ]);
 console.log(
-  `The export-growth cushion is about ${pp(
-    100 *
-    china.revisedV2.exportCounterfactualCentral
-      .exportCushionPctPoints,
-  )}, with a ${pp(
-    100 *
-    (
-      china.revisedV2.exportCounterfactualSensitivity.at(0)
-        ?.exportCushionPctPoints ?? 0
-    ),
-  )}–${pp(
-    100 *
-    (
-      china.revisedV2.exportCounterfactualSensitivity.at(-1)
-        ?.exportCushionPctPoints ?? 0
-    ),
-  )} bridge range.`,
+  `V2: the $130B is ${gw(attrition.revisedV2.blockedGwFullStack)}-${gw(
+    attrition.revisedV2.blockedGwFacilityOnly,
+  )} depending on whether announced value includes IT gear; gross blocking runs ${pct(
+    attrition.revisedV2.grossBlockedShareOfEmbeddedAttrition,
+  )} of the queue attrition the forecast already absorbs. Binding constraint: ${
+    attrition.revisedV2.bindingConstraint
+  }.`,
 );
 
-const hurricane = evaluateHurricaneInsuranceRisk();
-console.log('\n3. El Nino and hurricane insurance');
-console.table([
-  {
-    version: 'V1 named-storm scaling',
-    mean: money(hurricane.initialV1.expectedLossBillion),
-    median: 'not modeled',
-    p90: 'not modeled',
-    '$100B metro year':
-      'not modeled',
-    check:
-      `${pct(
-        hurricane.initialV1
-          .historicalMeanAbsolutePercentageError,
-      )} MAPE`,
-  },
-  {
-    version: 'V2 landfall/location distribution',
-    mean: money(hurricane.revisedV2.central.expectedLossBillion),
-    median: money(hurricane.revisedV2.central.medianLossBillion),
-    p90: money(hurricane.revisedV2.central.p90LossBillion),
-    '$100B metro year':
-      pct(
-        hurricane.revisedV2.central
-          .probabilityAtLeastOneMetroStrike,
-      ),
-    check:
-      `${pct(
-        hurricane.revisedV2
-          .historicalMechanismMeanAbsolutePercentageError,
-      )} conditional MAPE`,
-  },
-]);
+// ---------------------------------------------------------------------------
+const crossover = evaluateSolarCoalCrossover();
+console.log('\n3. Solar vs coal: monthly milestone, annual crossover');
 console.log(
-  `Expected loss is ${pct(
-    hurricane.revisedV2.central.expectedLossReduction,
-  )} below the recent average, but the 90th percentile is still ${money(
-    hurricane.revisedV2.central.p90LossBillion,
-  )}.`,
+  `V1: May 2026 solar/coal = ${crossover.initialV1.may2026SolarShareOfCoal.toFixed(
+    2,
+  )} -> "solar overtook coal in ${crossover.initialV1.claimedCrossoverYear}".`,
+);
+console.table(
+  crossover.revisedV2.annualSeries.slice(0, 5).map((row) => ({
+    year: row.year,
+    'solar TWh': Math.round(row.solarTwh),
+    'coal TWh': Math.round(row.coalTwh),
+  })),
+);
+console.log(
+  `V2: seasonal factors (May solar ${crossover.revisedV2.maySolarSeasonalFactor.toFixed(
+    2,
+  )}x, May coal ${crossover.revisedV2.mayCoalSeasonalFactor.toFixed(
+    2,
+  )}x) predict May 2026 at ${crossover.revisedV2.predictedMay2026SolarTwh.toFixed(
+    1,
+  )} vs ${crossover.revisedV2.predictedMay2026CoalTwh.toFixed(
+    1,
+  )} TWh (errors ${pct(crossover.revisedV2.may2026SolarPredictionError)}, ${pct(
+    crossover.revisedV2.may2026CoalPredictionError,
+  )}) and reproduce the monthly crossover. Annual crossover: ${String(
+    crossover.revisedV2.annualCrossoverYear,
+  )} (coal-decline sensitivity ${String(
+    crossover.revisedV2.annualCrossoverYearCoalDeclineLow,
+  )}-${String(
+    crossover.revisedV2.annualCrossoverYearCoalDeclineHigh,
+  )}); 2026 still has a ${crossover.revisedV2.annual2026SolarDeficitTwh.toFixed(
+    0,
+  )} TWh annual solar deficit.`,
+);
+
+// World-model comparison: the main simulation's global solar-vs-coal
+// electricity crossover, for contrast with the US-only story.
+const world = runSimulation();
+const worldCrossover = world.results.find(
+  (row) =>
+    (row.generation.solar ?? 0) > (row.generation.coal ?? 0),
+);
+console.log(
+  `World model tie-in: the baseline scenario's global electricity mix first puts solar above coal in ${
+    worldCrossover ? worldCrossover.year : 'no year in the horizon'
+  } (US-only stories lead the world by years).`,
 );
 
 console.log('\nWhere the models differ from conventional wisdom');
 console.log(
-  '- Oil: the relief story is directionally right, but duration dominates the one-day move. A one-month pause removes only about 0.04pp from average first-year headline inflation in this bridge; six months removes about 0.21pp.',
+  '- Nvidia backstop: the "Lucent redux" ratio is real - 5x the worst 2000 vendor-financing intensity, 12x including chip financing. But a priced contingency is not a booked loan: the expected loss is about a quarter of one year of free cash flow, and even a full call with collapsed GPU collateral is ~2 years of FCF - an earnings event, not a solvency event. The novel risk is concentration and circularity (70% of the project capex is chips sold by the guarantor), not the balance-sheet fragility that killed Lucent.',
 );
 console.log(
-  '- China: exports plausibly cushioned profits, but they are not the main accounting explanation. The central bridge assigns roughly 3.0pp of the 18.7% gain to export growth; margin expansion supplies about 63%, and electronics plus raw materials account for 92.5% of the gain.',
+  '- Blocked data centers: the $130B figure is consent, not a power shortage - and it is gross project value at announcement, so the GW at stake are 3-12 GW, not a year of the demand path. After phantoms and relocation, consent drag and firm-capacity drag are the same order of magnitude; neither alone breaks the 194 GW path, but together they are the difference between BNEF 2035 arriving on time and arriving ~2-4 years late.',
 );
 console.log(
-  '- Hurricanes: the article’s warning is supported as a statement about the tail, not the mean. The model cuts expected loss by about 38% in an El Nino year while retaining roughly a 12% chance of a present-day $100B metro strike.',
-);
-
-console.log('\nLimits');
-console.log(
-  '- Oil uses the existing stylized euro-area pass-through model; it is not a Fed or country-specific forecast.',
-);
-console.log(
-  '- China combines customs exports with the revenue universe of large industrial firms; the export result is a sensitivity bridge, not causal identification.',
-);
-console.log(
-  '- Hurricane location risk is inferred from aggregate historical loss and landfall averages; portfolio-level catastrophe modeling would require geocoded exposure and event catalogs.',
+  '- Solar vs coal: the May milestone is real but seasonal - solar runs ~1.2x its annual-average month in May while coal runs ~0.84x. On current addition rates the annual crossover lands in 2028 (2028-2029 under coal sensitivity), so "solar has overtaken coal" is about two years early as an annual claim - and the baseline world model puts the same global crossover around 2034, six years behind the US.',
 );

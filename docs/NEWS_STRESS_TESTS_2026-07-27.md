@@ -1,14 +1,15 @@
 # News-driven stress tests — 27 July 2026
 
-This pass screened the day's major economic, climate, technology, and market
-coverage for claims with a measurable outcome and at least one public
-calibration point. Three stories survived:
+This pass selects three stories from the 27 July news cycle that have a
+measurable target and a mechanism the simulation collection can represent:
 
-1. How much inflation relief follows from the oil-price drop after the
-   U.S.-Iran pause?
-2. Did exports do most of the work behind China's 18.7% industrial-profit
-   growth?
-3. Does a quieter El Nino hurricane season materially reduce insurers' risk?
+1. Nvidia is reportedly in talks to guarantee ~$250B of financing so OpenAI
+   can lease SB Energy's planned 10 GW Piketon, Ohio campus. Is this "Lucent
+   redux" vendor financing?
+2. More than 75 U.S. data-center projects worth ~$130B were blocked or
+   delayed in early 2026. Does that break the 194 GW-by-2035 demand path?
+3. Solar generated more U.S. electricity than coal in May 2026, the first
+   month on record. When does solar pass coal for a full year?
 
 Run the models with:
 
@@ -16,211 +17,186 @@ Run the models with:
 npm run news:2026-07-27
 ```
 
-The models are conditional stress tests. The oil result is a stylized
-euro-area pass-through comparison, the China export result bridges two
-different statistical universes, and the hurricane result is an aggregate
-loss distribution rather than a portfolio catastrophe model.
+These are conditional, first-order experiments. The backstop model prices a
+deal that is still in negotiation; the attrition and crossover models
+project from anchors that include estimated (not final) 2025 figures.
 
 ## Results at a glance
 
 | Story | Initial model | Failure exposed by the first pass | Revised result |
 |---|---|---|---|
-| Oil and inflation | Translate Monday's 8.1% Brent drop immediately into the consumer energy price level | A one-day futures price is not a durable monthly input, and consumer prices adjust with a lag | A one-month pause lowers average first-year headline inflation only 0.04pp versus renewed stress; a six-month pause lowers it 0.21pp |
-| China industrial profits | Treat 6.5% revenue growth, or 13.4% export growth, as profit growth | Profit is revenue times margin; both shortcuts miss the observed 18.7% gain, and neither represents sector mix | Margin expansion accounts for 11.83pp, or 63%, on a Shapley split; the central export bridge contributes about 2.98pp, with a 2.24-3.73pp range |
-| Hurricane insurance | Scale the recent $30B average loss by the forecast number of named storms | The shortcut has 99.6% mean absolute error on the article's 1992 and 2020 contrasts because it omits landfall location | Mean El Nino loss falls to $18.7B, but the median is only $6.4B and the 90th percentile is $104.8B; the modeled metro-strike probability is 11.8% |
+| Nvidia backstop | Divide the guarantee by the guarantor's revenue and compare to Lucent (24%), Nortel (10%), Cisco (11%) in 2000: Nvidia is at 116% alone, 278% with chip financing | A contingent lease guarantee is not a booked loan, and a ratio says nothing about absorption capacity or when the exposure could actually be called | Expected loss ~$25B ≈ 25% of one year of Nvidia FCF; a full call with collapsed GPU collateral ≈ 2.1 years of FCF. Earnings risk and circularity, not Lucent-style solvency risk |
+| Blocked data centers | Convert $130B to GW at facility cost, annualize: 47 GW/yr blocked vs 16 GW/yr required — "the forecast is infeasible" | Announced project values may include IT gear (3.7 vs 11.8 GW), blocked ≠ destroyed (phantom queue, relocation), and the forecast already absorbs ~24 GW/yr of queue attrition | Net consent drag 1.4–4.5 GW/yr of average load, comparable to the 1.5–5.3 GW/yr firm-capacity drag; both slow the path by years rather than breaking it |
+| Solar over coal | Read the May monthly crossover as the annual regime change: "solar overtook coal in 2026" | May is solar's ~1.20× month and coal's ~0.84× month; annual 2026 still has a ~190 TWh solar deficit | Annual crossover in 2028 (2028–2029 across coal sensitivities). The seasonal model reproduces the observed May 2026 values within 6–8% from 2025 anchors |
 
-## 1. The oil move is relief only if it persists
+## 1. The backstop is vendor financing — priced, it is an earnings risk
 
-The 27 July market story reported that the U.S. and Iran paused strikes after
-two weeks of attacks. Brent fell 8.14% to $88.90, Treasury yields declined,
-and investors marked down inflation risk. The same report emphasized that
-tensions remained high and quoted a market participant describing the pause
-as potentially very short-lived.
+The reported structure: Nvidia would guarantee ~$250B tied to the lease and
+construction debt of the $500B, 10 GW SB Energy campus in Piketon, Ohio that
+OpenAI would lease, with chip-purchase financing that could reach another
+$350B. Nvidia's FY2026 revenue was $215.9B and free cash flow $96.6B;
+OpenAI's annualized revenue is ~$25B.
 
-V1 reads the market move literally. Monday's price and percentage decline
-imply a pre-pause close of $96.78. The model uses the $67.02 last prewar close
-and the existing imported-energy bridge, in which oil supplies 55% of the
-composite shock. If the consumer energy subindex adjusted immediately and
-fully to its new target, the headline price level would be about 0.44
-percentage point lower.
+V1 reproduces the day's dominant take (the ratio):
 
-That number is not a first-year inflation forecast. It silently assumes:
-
-- the futures repricing persists;
-- retail energy prices jump to their new target immediately;
-- an oil move is the same thing as a whole imported-energy move; and
-- no renewed fighting reverses the decline.
-
-V2 runs the existing lagged energy-inflation model on three matched monthly
-paths. Each path holds the relevant price for six months and then decays
-toward the prewar level with an eight-month half-life. The temporary branch
-holds $88.90 for one month and then returns to the pre-pause stress path; the
-sustained branch holds $88.90 for all six months.
-
-| Path | Peak headline inflation | First-year average | Excess inflation over target, point-months | Relief versus stress |
-|---|---:|---:|---:|---:|
-| Pre-pause stress | 3.52% | 3.25% | 15.05 | — |
-| One-month pause | 3.50% | 3.22% | 14.62 | 0.04pp first-year average |
-| Six-month pause | 3.33% | 3.05% | 12.57 | 0.21pp first-year average |
-
-Monday's Brent quote was still 32.6% above the prewar close. In price
-distance, 73.5% of the modeled war premium remained after the selloff.
-
-The conventional market interpretation is directionally right: cheaper oil
-reduces the inflation impulse. The model's disagreement is about immediacy
-and scale. If the pause lasts one month, the first-year effect is about one
-tenth of the mark-to-market shortcut. Meaningful macro relief requires a
-durable de-escalation and restored physical supply, not just one favorable
-trading day.
-
-Sources: [Reuters' 27 July market report](https://au.investing.com/news/stock-market-news/shares-bonds-bounce-as-oil-skid-offers-inflation-relief-4552818),
-the [IEA July Oil Market Report](https://www.iea.org/reports/oil-market-report-july-2026),
-and the [prewar close reported by Kiplinger](https://www.kiplinger.com/investing/stocks/stocks-slip-as-alphabet-gets-ready-to-report-stock-market-today).
-
-## 2. Exports cushioned Chinese profits; margins did more
-
-China reported CNY3.95 trillion of profit at large industrial firms in the
-first half, up 18.7% from a year earlier. Reuters described resilient exports
-as cushioning sluggish domestic demand. The same release reported 6.5%
-industrial revenue growth, while customs reported 13.4% goods-export growth.
-
-V1 tries each growth rate as a profit model:
-
-| Shortcut | Predicted profit growth | Error versus 18.7% |
-|---|---:|---:|
-| Revenue growth equals profit growth | 6.5% | -12.2pp |
-| Export growth equals profit growth | 13.4% | -5.3pp |
-
-V2 starts from the identity:
-
-```text
-profit = operating revenue x operating margin
-```
-
-The current 5.70% operating margin and the reported revenue and profit growth
-imply a prior margin of 5.11%, or 11.46% margin growth. The exact multiplicative
-decomposition is:
-
-```text
-18.70% = 6.50% revenue + 11.46% margin + 0.74% interaction
-```
-
-Splitting the interaction equally gives a 6.87pp revenue contribution and an
-11.83pp margin contribution. Margin expansion therefore accounts for about
-63% of the aggregate gain.
-
-The sector data reveal even more concentration:
-
-| Sector block | Contribution to aggregate profit growth | Share of total gain |
-|---|---:|---:|
-| Electronics | 8.5pp | 45.5% |
-| Raw materials | 8.8pp | 47.1% |
-| All other industries combined | 1.4pp | 7.5% |
-
-This is compatible with strong external AI-hardware demand, but it is not the
-same claim as "exports caused the profit recovery." Raw-material gains also
-reflect commodity-price and margin effects, while automobile-manufacturing
-profit fell 19.5%.
-
-The export counterfactual is necessarily weaker. Customs exports and the
-operating revenue of above-designated-size industrial firms do not cover
-exactly the same entities or transactions. Using their prior-year ratio as a
-20.0% proxy says that, if export revenue had not grown while domestic revenue
-and margins followed the observed path, industrial profit growth would have
-been about 15.7% rather than 18.7%. Varying the export-revenue share from 15%
-to 25% gives a 2.24-3.73pp export cushion.
-
-The reporting's word "cushion" survives. A stronger claim that exports explain
-most of the 18.7% profit gain does not. The observable accounting points first
-to margin expansion and to an unusually concentrated electronics/raw-materials
-cycle.
-
-Sources: [Reuters' industrial-profit report](https://www.investing.com/news/economic-indicators/chinas-industrial-profit-growth-moderates-amid-patchy-recovery-4812940),
-the [National Bureau of Statistics first-half release](https://www.stats.gov.cn/english/PressRelease/202607/t20260715_1964120.html),
-the [NBS June industrial-production release](https://www.stats.gov.cn/english/PressRelease/202607/t20260717_1964159.html),
-and the [NBS sector-contribution figures](https://www.china.org.cn/china/Off_the_Wire/2026-07/27/content_118620327.shtml).
-
-## 3. A quieter hurricane season lowers the mean, not the tail enough
-
-Reuters reported a NOAA forecast of 8-14 named Atlantic storms, versus 14 in
-an average season. V1 scales the recent $30B average insured loss by the
-midpoint count:
-
-```text
-$30B x 11 / 14 = $23.6B
-```
-
-The implied range is $17.1B-$30.0B. The article itself supplies a sharp test
-of that shortcut:
-
-| Season | Named storms | Article's present-value insured loss | Count-scaled prediction | Absolute error |
-|---|---:|---:|---:|---:|
-| 1992, including Andrew | about 7 | about $100B | $15.0B | 85% |
-| 2020 | 30 | about $30B | $64.3B | 114% |
-
-Mean absolute percentage error is 99.6%. Named-storm count is a basin-activity
-measure, not a loss model.
-
-V2 separates three quantities:
-
-1. El Nino landfall frequency: 3.8 per year in Aon's 13-year composite,
-   versus 8.4 in La Nina years.
-2. Ordinary loss per landfall: $6.1B historical El Nino loss divided by 3.8
-   landfalls, or $1.61B.
-3. A rare high-value metro strike: $100B in present-day insured loss, matching
-   the article's Andrew and Miami/Tampa/Houston estimates.
-
-The metro-hit probability is calibrated so the same structure reproduces the
-recent $30B average at the midpoint of the El Nino and La Nina landfall rates.
-It is 3.31% per landfall. Poisson thinning then yields this El Nino-year
-distribution:
-
-| Statistic | Modeled insured loss |
+| Entity | Peak commitments / revenue |
 |---|---:|
-| Mean | $18.7B |
-| Median | $6.4B |
-| 90th percentile | $104.8B |
-| 95th percentile | $108.0B |
-| Probability of at least one metro strike | 11.8% |
+| Lucent FY2000 | 24.1% |
+| Nortel 2000 | 10.2% |
+| Cisco FY2001 | 10.8% |
+| Nvidia, backstop alone | 115.8% |
+| Nvidia, incl. chip financing | 277.9% |
 
-Halving or increasing the concentration probability by 50% moves expected
-loss from $12.4B to $25.0B and the metro-strike probability from 6.1% to
-17.2%.
+The intensity comparison is fair — this is 5× the worst vendor-financing
+ratio of the telecom bubble, from a single deal, for a single counterparty.
 
-The revised mechanism can conditionally reconstruct the two contrasts much
-better: one present-day metro strike produces $101.6B, while 12 ordinary 2020
-U.S. landfalls produce $19.3B versus the reported $30B. Conditional MAPE is
-18.7%, but this is not a predictive backtest: the location class is supplied
-after observing each season, and the calibration data overlap the historical
-period.
+V2 prices the guarantee instead of describing it:
 
-The model agrees with the article's central warning. A lower basin storm count
-does not guarantee a low-loss year. It adds one useful qualification: El Nino
-is still good news in expectation in this toy model, lowering the mean about
-38%. The remaining problem is a roughly one-in-nine present-day concentration
-tail, not an unchanged average.
+- **Serviceability.** At 8% over 15 years the full-build lease is ~$58B/yr,
+  requiring ~$195B of OpenAI revenue if this one campus can absorb 30% of a
+  compute budget. Reusing the AI capital-cycle model's monetization paths
+  (end-of-year run rates on its 2026 axis): fast covers the lease by 2030,
+  central by 2031 (about when full build would arrive), slow never does by
+  2035. The guarantee is a bet that the slow path does not happen.
+- **Expected loss.** Weighting the three paths (25/50/25) with per-path call
+  probabilities (2%/15%/60%), 60% drawn at distress, and wrong-way recovery
+  (20% in the slow world, where GPU resale collapses exactly when the call
+  happens): expected loss ≈ $25B, about a quarter of one year of FCF.
+  Applying the telecom bust's realized loss rate (35% of peak commitments)
+  to the drawn exposure gives $53B — same order.
+- **Absorption.** A full $250B call with worst-case recovery is ~$200B, or
+  2.1 years of Nvidia FCF. Lucent's ~$3.5B of losses hit a company with
+  negative FCF; that difference is why the ratio alone misleads.
 
-Sources: [Reuters' insurer analysis](https://www.investing.com/news/stock-market-news/analysiswhy-el-ninos-promise-of-a-quieter-hurricane-season-may-not-guarantee-good-news-for-insurers-4813365),
-[Aon's 2026 ENSO risk report](https://www.aon.com/getmedia/a205f3da-7119-41a2-9a8e-4255172509d9/El-Nino-US-Hurricane-Risk-report.pdf),
-[NOAA's 2026 outlook as reported by AP](https://apnews.com/article/hurricanes-atlantic-pacific-el-nino-damage-risk-419de66615c5eb9b2974ef14b4d2f50b),
-and [NOAA's 2020 landfall summary](https://www.aoml.noaa.gov/hurricane_blog/record-breaking-atlantic-hurricane-season-draws-to-an-end/).
+Where the model differs from conventional wisdom: both popular readings are
+wrong in opposite directions. "Lucent redux" overstates solvency risk — a
+guarantee from a company generating ~$97B of FCF is absorbable. "It's only a
+contingency, non-cash" understates it — the deal concentrates a
+triple-digit-billion single-name exposure whose collateral (GPUs, AI-shell
+real estate) is worth least in the states of the world where the call
+happens, and 70% of the project capex flows back to the guarantor as chip
+revenue. The right frame is a large written put on OpenAI monetization,
+sold to finance demand for the writer's own product — earnings-cyclical,
+circular, but not balance-sheet-fatal.
 
-## What the revision changed
+Sources: [Reuters/WSJ on the talks](https://finance.yahoo.com/technology/ai/articles/nvidia-talks-openai-guarantee-250-233930971.html),
+[project details](https://www.networkworld.com/article/4183513/openai-weighs-nvidia-backed-lease-for-10-gw-ohio-data-center-campus.html),
+[telecom vendor-financing history](https://tomtunguz.com/nvidia_nortel_vendor_financing_comparison/),
+[Nortel drawn balances](https://www.theglobeandmail.com/report-on-business/nortel-clients-give-warning-of-finances/article20454748/),
+[Nvidia FY2026 results](https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2026),
+and [OpenAI revenue](https://sacra.com/c/openai/).
 
-Across all three stories, V1 mapped the most salient headline number directly
-to the outcome: spot oil to inflation, exports to profit, and named storms to
-insured loss. V2 replaces those shortcuts with the missing stock or state:
+## 2. $130B blocked is a consent story, and smaller in GW than it sounds
 
-```text
-oil quote + duration + retail lag
-profit = revenue x margin, with sector mix
-insured loss = landfalls x location-conditioned severity
-```
+Data Center Watch's count — 75+ projects, ~$130B, first three months of
+2026 — is widely quoted next to "power shortage" framing. The tracker
+itself attributes the blocks to local opposition: zoning denials,
+moratoria, and at least 69 local bans.
 
-That revision changes the comparison with conventional wisdom in a consistent
-way. The headline mechanism remains directionally useful, but its magnitude
-depends on persistence, margins, and concentration—variables the headline
-statistic does not itself measure.
+V1 does the alarmed arithmetic: $130B ÷ $11B/GW ≈ 11.8 GW per quarter ≈
+47 GW/yr, three times the 15.9 GW/yr the BloombergNEF 35→194 GW path needs.
+Forecast infeasible.
+
+V2 fixes three accounting problems and then asks which constraint binds:
+
+1. **Capex semantics.** Announced "project value" sometimes includes IT
+   equipment. The same $130B is 11.8 GW at facility-only cost ($11B/GW) but
+   3.7 GW at full-stack cost ($35B/GW).
+2. **Blocked ≠ destroyed.** A blocked proposal only removes demand if it
+   would have materialized (utility queues realize ~40% of large-load
+   requests) and does not resite (an estimated 60% relocate). Net loss:
+   2.4–7.6 GW/yr of capacity, or 1.4–4.5 GW/yr of average load.
+3. **The forecast already absorbs attrition.** Hitting 15.9 GW/yr net at 40%
+   queue realization implies ~24 GW/yr of proposals failing anyway. Observed
+   gross blocking (~130% of that budget) is elevated but the queue is
+   deliberately oversubscribed.
+
+The existing data-center-grid model then supplies the competing constraint:
+if only 60 GW of shared firm capacity gets built by 2035 against the
+socialized-scenario requirement of ~144 GW, unserved average load is
+~53 GW — a 5.3 GW/yr drag, larger than consent. With 120 GW built the gap
+is ~15 GW (1.5 GW/yr), smaller than the consent channel's upper bound.
+
+| Channel | Average-load drag (GW/yr) |
+|---|---:|
+| Consent, net of phantoms and relocation | 1.4–4.5 |
+| Firm capacity, 60 GW shared build | 5.3 |
+| Firm capacity, 120 GW shared build | 1.5 |
+
+Where the model differs from conventional wisdom: the "power shortage
+blocked $130B of AI" framing misattributes a consent phenomenon, and the
+literal GW subtraction overstates it by roughly an order of magnitude. But
+the sanguine reading ("phantom queue, nothing real was lost") is also
+wrong: consent drag at the observed rate is the same size as a plausible
+firm-capacity shortfall, and the two channels compound — enough to push
+the 2035 path years late even though neither breaks it.
+
+Sources: [Data Center Watch tally](https://www.prnewswire.com/news-releases/130-billion-in-ai-data-centers-have-been-blocked-or-delayed-in-2026-302821568.html),
+[coverage with attribution to local opposition](https://www.tomshardware.com/tech-industry/artificial-intelligence/more-than-75-data-center-build-outs-worth-usd130-billion-have-been-successfully-blocked-in-the-first-four-months-of-2026-bipartisan-opposition-mounts-nationwide-over-fears-of-soaring-power-and-water-costs),
+and [the BNEF 2035 forecast](https://www.bloomberg.com/news/articles/2026-07-21/data-centers-on-track-to-suck-up-a-fifth-of-us-power-use-by-2035).
+
+## 3. Solar passed coal in May; the annual crossover is ~2028
+
+Ember's milestone is real: May 2026 solar 45.5 TWh (12.8% of generation)
+versus coal 43.4 TWh (12.2%), the first month on record with solar above
+coal. The headline reading treats this as the crossover.
+
+V2 separates season from trend:
+
+- May seasonal factors derived from 2025 anchors (solar ~390 TWh, coal
+  ~700 TWh estimated): solar's May runs 1.20× its average month, coal's
+  0.84×.
+- One-step validation: projecting 2025 annuals forward one year and applying
+  those factors predicts May 2026 at 48.1 TWh solar vs 46.8 TWh coal —
+  within 6–8% of the observed values, and correctly reproducing the monthly
+  crossover.
+- Annual projection: solar adds ~92 TWh/yr (44 GW of 2026 solar additions at
+  a 24% capacity factor), additions growing 5%/yr; coal declines 4%/yr
+  centrally (0 to −8% sensitivity, reflecting demand growth propping coal
+  against retirements).
+
+| Year | Solar TWh | Coal TWh |
+|---|---:|---:|
+| 2026 | 482 | 672 |
+| 2027 | 579 | 645 |
+| 2028 | 680 | 619 |
+| 2029 | 787 | 595 |
+
+The first full solar-over-coal year is 2028 centrally, 2029 if coal holds
+flat, and 2029–2030 if solar additions stall at ~70 TWh/yr. The monthly
+milestone leads the annual crossover by about two years — the same pattern
+as wind, which passed coal in monthly data in April 2019 but has still not
+passed it on an annual basis in years when coal rebounds.
+
+World-model tie-in: the repository's baseline scenario puts the *global*
+solar-over-coal electricity crossover at 2034 — the US story leads the
+world by roughly six years, mostly because Asian coal fleets are young.
+
+Where the model differs from conventional wisdom: "solar has overtaken
+coal" is premature by ~2 years as an annual claim for the US (2026 still
+carries a ~190 TWh annual deficit), but the direction is overdetermined —
+no plausible coal path avoids the crossover by 2030. The more durable
+correction runs the other way: coal generation *rose* in 2025–2026 on gas
+prices and demand growth even while its share fell, so share milestones say
+little about absolute emissions in the near term.
+
+Sources: [Ember on the May crossover](https://ember-energy.org/latest-updates/solar-overtakes-coal-in-us-electricity-for-the-first-month-on-record/),
+[EIA 2026 planned additions](https://pv-magazine-usa.com/2026/07/22/solar-and-storage-account-for-91-of-new-u-s-grid-capacity-in-first-half-of-2026/),
+and [EIA 2025 generation record](https://www.eia.gov/todayinenergy/detail.php?id=67284).
+
+## What most differs from conventional wisdom
+
+1. **Nvidia backstop:** the telecom-bubble ratio comparison is directionally
+   fair and quantitatively unprecedented, but the failure mode is different:
+   circular, concentrated earnings risk with wrong-way collateral — not the
+   thin-balance-sheet solvency spiral of 2001. Watch the call probability
+   (OpenAI monetization), not the notional.
+2. **Blocked data centers:** consent, not electrons, is what blocked $130B —
+   and correctly accounted, consent and firm capacity are similar-sized
+   drags that delay rather than derail the 2035 demand path.
+3. **Solar vs coal:** a seasonal first is two years ahead of the annual
+   fact; and because coal output is currently rising with demand, the
+   crossover is a share story, not yet an emissions story.
 
 Code:
 `src/simulations/news/headline-experiments-2026-07-27.ts`.

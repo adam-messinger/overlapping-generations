@@ -34,6 +34,8 @@
     "news:2026-07-25": "node --import tsx scripts/headlines-2026-07-25.ts",
     "news:2026-07-26": "node --import tsx scripts/headlines-2026-07-26.ts",
     "news:2026-07-27": "node --import tsx scripts/headlines-2026-07-27.ts",
+    "news:2026-07-27:macro-risk": "node --import tsx scripts/headlines-2026-07-27-macro-risk.ts",
+    "news:2026-07-27:all": "npm run news:2026-07-27 && npm run news:2026-07-27:macro-risk",
     "news:2026-07-28": "node --import tsx scripts/headlines-2026-07-28.ts",
     "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts"
   },
