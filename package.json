@@ -10,15 +10,17 @@
   "scripts": {
     "build": "tsc",
     "build:framework": "npm run build --workspace tsimulation",
+    "build:forecast-workbench": "npm run build --workspace forecast-workbench",
     "start": "npx tsx src/simulation.ts",
     "test:framework": "npm test --workspace tsimulation",
+    "test:forecast-workbench": "npm test --workspace forecast-workbench",
     "test:core": "npx tsc --noEmit && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
     "aging:status": "node --import tsx aging-places/scripts/international-status.ts",
     "preaging:global-city": "npm run build:framework",
     "aging:global-city": "node --import tsx aging-places/scripts/global-city.ts",
     "test:aging": "npm run aging:status && npx tsc --noEmit -p aging-places/tsconfig.json && find aging-places -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
-    "pretest": "npm run build:framework",
-    "test": "npm run test:framework && npm run test:core && npm run test:aging",
+    "pretest": "npm run build:framework && npm run build:forecast-workbench",
+    "test": "npm run test:framework && npm run test:forecast-workbench && npm run test:core && npm run test:aging",
     "precapture-baseline": "npm run build:framework",
     "capture-baseline": "npx tsx scripts/baseline.ts --output=baselines/current.json",
     "regression": "npm run capture-baseline && npx tsx scripts/compare-baselines.ts --strict baselines/reference.json baselines/current.json",
@@ -37,12 +39,18 @@
     "news:2026-07-27:macro-risk": "node --import tsx scripts/headlines-2026-07-27-macro-risk.ts",
     "news:2026-07-27:all": "npm run news:2026-07-27 && npm run news:2026-07-27:macro-risk",
     "news:2026-07-28": "node --import tsx scripts/headlines-2026-07-28.ts",
-    "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts"
+    "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts",
+    "forecast": "node --import tsx scripts/forecast.ts",
+    "forecast:outbreak-replay": "node --import tsx scripts/forecast-outbreak-replay.ts",
+    "forecast:data-center-replay": "node --import tsx scripts/forecast-data-center-replay.ts",
+    "forecast:hormuz-replay": "node --import tsx scripts/forecast-hormuz-replay.ts",
+    "forecast:news-replay": "node --import tsx scripts/forecast-news-2026-07-28-replay.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "forecast-workbench": "*",
     "tsimulation": "*"
   },
   "devDependencies": {

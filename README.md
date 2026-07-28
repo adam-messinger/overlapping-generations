@@ -10,8 +10,10 @@ event, monthly-network, calibration, ensemble, adapter, and provenance workflows
 without forcing them into the annual-module abstraction.
 
 This is an npm workspaces monorepo: `packages/tsimulation/` is the standalone,
-MIT-licensed engine (reusable for any discrete-time simulation), and the energy
-model in `src/` consumes it as a workspace dependency.
+MIT-licensed engine (reusable for any discrete-time simulation),
+`packages/forecast-workbench/` is the private point-in-time evidence and
+forecasting control plane, and the energy model in `src/` consumes the
+simulation engine as a workspace dependency.
 
 Key modeling commitments: Ayres–Warr biophysical production (useful energy as
 a primary growth factor), Wright's Law learning curves for solar/wind/battery,
@@ -49,6 +51,15 @@ npx tsx src/introspection.ts
 
 # Tests (typecheck + all module/integration suites)
 npm test
+
+# Forecast workbench and migrated forecasting/news replays
+npm run forecast -- help
+npm run forecast -- source-catalog \
+  --monitoring-started-at=2026-07-28T00:00:00.000Z
+npm run forecast -- replay outbreak \
+  --root=/tmp/outbreak-ledger \
+  --audit=/tmp/outbreak-audit \
+  --synthetic-resolution=1500
 
 # Regression against the blessed baseline
 npm run regression
@@ -100,6 +111,9 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   model, experiment, calibration, adapter, solver, evidence, and manifest APIs
   (no domain imports; reusable for other simulations; see its
   [README](packages/tsimulation/README.md))
+- [`packages/forecast-workbench/`](packages/forecast-workbench/) — the local
+  point-in-time evidence, sealed forecast, resolution, scoring, and audit
+  control plane ([architecture and operating guide](docs/FORECAST_WORKBENCH.md))
 - [`docs/SEMANTIC_MEASUREMENT_CONTRACTS.md`](docs/SEMANTIC_MEASUREMENT_CONTRACTS.md)
   — estimand, observation-regime, immutable data-lineage, crosswalk, and
   experiment-semantics design plus the first strict model migrations

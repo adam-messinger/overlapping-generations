@@ -166,6 +166,15 @@ between estimands.
 > snapshots, semantic lineage, and explicit experiment meanings are described
 > in [Semantic measurement contracts](../SEMANTIC_MEASUREMENT_CONTRACTS.md).
 > Forecast questions and update ledgers remain separate future work.
+>
+> Implementation follow-up (2026-07-28): this remaining layer is now
+> implemented in
+> [`packages/forecast-workbench`](../../packages/forecast-workbench/) and
+> documented in the
+> [point-in-time evidence and forecasting workbench guide](../FORECAST_WORKBENCH.md).
+> The three pilots have been migrated to frozen question, preflight, evidence,
+> model-adapter, update, conditional, trigger, and resolution records; the
+> outbreak replay also exercises scoring.
 
 The unit system worked. The dominant errors were quantities with compatible
 physical units but incompatible meanings:
@@ -325,6 +334,11 @@ outbreak, Hormuz-to-global, and global-to-city boundaries. Forecast questions,
 reference classes, update ledgers, aggregation, and resolution scoring remain
 future forecasting-workbench work.
 
+> Implementation follow-up (2026-07-28): those forecasting-workbench records
+> and controls now exist and the pilot replays use them. The paragraphs above
+> are retained as the original pilot diagnosis; current implementation status
+> is in [the workbench guide](../FORECAST_WORKBENCH.md).
+
 ## Bottom line
 
 The simulations materially improved all three forecasts, but in different
@@ -343,3 +357,9 @@ forecasting workbench. The highest-priority future layer is a resolvable
 forecast object and immutable update ledger, followed by reference-class and
 conditional-tree records, model-to-target discrepancy, aggregation, and
 resolution scoring.
+
+> Implementation follow-up (2026-07-28): the stated highest-priority layer,
+> including all items in that final sentence, has now been delivered locally.
+> Hosted identity/RBAC, a durable scheduler, managed key custody, controlled
+> network egress, and external market or paid-data integrations remain
+> production extensions rather than forecast-schema gaps.

@@ -18,60 +18,14 @@ import {
   dataCenterGridScenarios,
   simulateDataCenterGrid,
 } from '../src/simulations/news/data-center-grid.js';
-
-const SEED = 20_350_723;
-const DRAWS = 200_000;
-
-type ForecastBin = 'below 10%' | '10% to below 15%' | '15% to below 20%' | '20% or more';
-type SourceFamily = 'EIA general energy model' | 'LBNL specialized bottom-up model';
-type GrowthRegime = 'EIA path' | 'headwinds' | 'central' | 'lift-off';
-
-interface Draw {
-  share2030: number;
-  share2035: number;
-  relativeLogGrowth: number;
-  sourceFamily: SourceFamily;
-  growthRegime: GrowthRegime;
-}
-
-function mulberry32(seed: number): () => number {
-  return () => {
-    seed |= 0;
-    seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4_294_967_296;
-  };
-}
-
-function normal(random: () => number): number {
-  const u1 = Math.max(Number.EPSILON, random());
-  const u2 = random();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-}
-
-function logit(value: number): number {
-  return Math.log(value / (1 - value));
-}
-
-function logistic(value: number): number {
-  return 1 / (1 + Math.exp(-value));
-}
-
-function classify(share: number): ForecastBin {
-  if (share < 0.10) return 'below 10%';
-  if (share < 0.15) return '10% to below 15%';
-  if (share < 0.20) return '15% to below 20%';
-  return '20% or more';
-}
-
-function quantile(sorted: readonly number[], probability: number): number {
-  const index = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.floor(probability * sorted.length)),
-  );
-  return sorted[index];
-}
+import {
+  DATA_CENTER_FORECAST_DRAWS as DRAWS,
+  DATA_CENTER_FORECAST_SEED as SEED,
+  dataCenterConditionalProbability as conditionalProbability,
+  drawDataCenterForecasts,
+  summarizeDataCenterForecasts as summarize,
+  type DataCenterForecastDraw as Draw,
+} from '../src/simulations/news/data-center-forecast-mixture.js';
 
 /**
  * Question-specific evidence mixture.
@@ -91,87 +45,10 @@ function quantile(sorted: readonly number[], probability: number): number {
  * data-center/non-data-center electricity odds. The intentionally broad
  * distributions acknowledge historical forecast misses in both directions.
  */
-function drawForecasts(eiaWeight: number, seed = SEED): Draw[] {
-  const random = mulberry32(seed);
-  const draws: Draw[] = [];
-
-  for (let i = 0; i < DRAWS; i++) {
-    const isEia = random() < eiaWeight;
-    let share2030: number;
-    let relativeLogGrowth: number;
-    let sourceFamily: SourceFamily;
-    let growthRegime: GrowthRegime;
-
-    if (isEia) {
-      sourceFamily = 'EIA general energy model';
-      growthRegime = 'EIA path';
-      share2030 = logistic(logit(0.060) + 0.25 * normal(random));
-      relativeLogGrowth = 0.060 + 0.030 * normal(random);
-    } else {
-      sourceFamily = 'LBNL specialized bottom-up model';
-      share2030 = logistic(logit(0.118) + 0.23 * normal(random));
-      const regime = random();
-      if (regime < 0.30) {
-        growthRegime = 'headwinds';
-        relativeLogGrowth = 0.030 + 0.030 * normal(random);
-      } else if (regime < 0.80) {
-        growthRegime = 'central';
-        relativeLogGrowth = 0.100 + 0.035 * normal(random);
-      } else {
-        growthRegime = 'lift-off';
-        relativeLogGrowth = 0.170 + 0.040 * normal(random);
-      }
-    }
-
-    const share2035 = logistic(logit(share2030) + 5 * relativeLogGrowth);
-    draws.push({
-      share2030,
-      share2035,
-      relativeLogGrowth,
-      sourceFamily,
-      growthRegime,
-    });
-  }
-  return draws;
-}
-
-function summarize(draws: readonly Draw[]) {
-  const orderedBins: ForecastBin[] = [
-    'below 10%',
-    '10% to below 15%',
-    '15% to below 20%',
-    '20% or more',
-  ];
-  const binCounts = new Map<ForecastBin, number>(
-    orderedBins.map((bin) => [bin, 0]),
-  );
-  for (const draw of draws) {
-    const bin = classify(draw.share2035);
-    binCounts.set(bin, (binCounts.get(bin) ?? 0) + 1);
-  }
-  const shares = draws.map((draw) => draw.share2035).sort((a, b) => a - b);
-  return {
-    bins: Object.fromEntries(
-      orderedBins.map((bin) => [bin, (binCounts.get(bin) ?? 0) / draws.length]),
-    ) as Record<ForecastBin, number>,
-    p10: quantile(shares, 0.10),
-    median: quantile(shares, 0.50),
-    p90: quantile(shares, 0.90),
-  };
-}
-
-function conditionalProbability(
-  draws: readonly Draw[],
-  condition: (draw: Draw) => boolean,
-): { draws: number; pAtLeast20: number } {
-  const selected = draws.filter(condition);
-  return {
-    draws: selected.length,
-    pAtLeast20:
-      selected.filter((draw) => draw.share2035 >= 0.20).length /
-      selected.length,
-  };
-}
+const drawForecasts = (
+  eiaWeight: number,
+  seed = SEED,
+): Draw[] => drawDataCenterForecasts(eiaWeight, seed, DRAWS);
 
 const pct = (value: number): string => `${(100 * value).toFixed(1)}%`;
 
