@@ -1,5 +1,17 @@
 # Sensitivity of headline conclusions to the efficiency dial, γ, and damages
 
+> **July 27, 2026 monetary-circuit rescore:** after replacing “behavioral
+> saving + gross lending” with profit-led investment orders, internal firm
+> funds, net-new investment credit, and ex-post sectoral saving, the
+> regenerated γ×damage grid spans **$454T–$2.005Q**, with the default at
+> **$1.967Q**. The associated warming range is **2.59–2.68°C**. The bounded
+> profit response was calibrated to keep the previous baseline trajectory
+> recognizable and reduces the ±40% service-efficiency sweep from the former
+> unstable `$0.50Q–$7.87Q` range to `$1.16Q–$2.77Q`. The causal closure and
+> debt composition changed more than the default headline GDP level. The Keen
+> energy-essential structural challenger below uses the same circuit and is
+> not mixed into this Ayres–Warr γ grid.
+>
 > **July 22, 2026 composite-DC-capex rescore:** the earlier **$0.8–1.4Q**
 > headline band and the July 21 allocator-only figures are superseded. The
 > corrected allocator no longer gives clean grids a
@@ -17,14 +29,13 @@
 > **The dominant GDP-level dial remains `serviceEfficiencyGrowth`** (the
 > effective service-efficiency rate, coupled at runtime to demand's
 > GDP-weighted intensity decline). About one-third is structural change that
-> is not independently pinned. With loop gain ≈ α+γ ≈ 0.8, a small
-> growth-side residual is amplified strongly into the level; the allocator
-> correction reveals that exposure instead of suppressing it through regional
-> GDP shares.
+> is not independently pinned. The profit-led investment function now bounds
+> the former runaway capital feedback, but a ±40% rate sweep still moves 2100
+> GDP from about `$1.16Q` to `$2.77Q`.
 >
 > **A co-equal second dial is `robotIntegrationExponent`** (θ, the
 > integration-cost exponent in the endogenous robot deployment rule; default
-> 0.75), which now swings GDP 2100 ~1.9× over its plausible range. It replaced the
+> 0.75), which now swings GDP 2100 ~1.5× over its plausible range. It replaced the
 > old hard `robotSaturation` ceiling: automation is now deploy-while-profitable
 > (value vs cost), and θ — a JUDGMENT parameter — sets how fast integration
 > costs rise with density (see the θ section below and
@@ -83,8 +94,9 @@ That spread was substantially an accounting artifact — previously-electrified
 demand was counted at fuel-scale TWh, inflating useful-energy growth that γ
 then amplified into GDP.
 
-After the allocator and composite-DC-capex corrections, the γ×damage grid
-spans **$448T–$1,972T**, with the default cell at $1,898T (~3.4%/yr over
+After the allocator, composite-DC-capex, and accounting corrections, the
+γ×damage grid spans **$448T–$1,973T**, with the default cell at $1,899T
+(~3.4%/yr over
 2025–2100). The mainstream cost-share-γ/default-damage cell is $511T. GDP
 levels remain the model's weakest output: restoring regional output changes
 energy demand, which the Ayres-Warr loop then amplifies back into output.
@@ -94,7 +106,7 @@ illustrations, not forecasts.
 
 **The damage coefficient matters less than γ, but is no longer negligible.**
 At default γ, moving from the default coefficient to ~6× DICE cuts 2100 GDP
-from $1.898Q to $1.247Q (~34%); at mainstream γ the reduction is ~12%.
+from $1.899Q to $1.304Q (~31%); at mainstream γ the reduction is ~12%.
 This remains conditional on the endogenous transition holding warming near
 2.6 °C. In high-sensitivity/tipping
 scenarios where warming runs higher, the damage-coefficient choice becomes
@@ -113,6 +125,29 @@ first-order. Damage-side conclusions should always be checked against the
   output figures above are pinned by nothing and must be regenerated with
   the sweep after model changes.
 
+## Structural challenger: Keen’s capital-energy composite
+
+`keenEnergyWeight=1` selects a second production equation inspired by Keen,
+Ayres, and Standish (2019). Aggregate useful energy proxies their
+capital-utilization composite, with a two-thirds energy exponent and a
+one-third labor exponent. The default weight is zero, so the calibrated
+Ayres–Warr backcast and baseline remain the governing path.
+
+| Year | Ayres–Warr baseline | Keen shadow on baseline state | Full Keen-feedback path |
+|---|---:|---:|---:|
+| 2025 | $158.0T | $158.0T | $158.0T |
+| 2050 | $337.8T | $317.2T (-6.1%) | $294.2T (-12.9%) |
+| 2100 | $1,966.6T | $1,817.9T (-7.6%) | $1,056.8T (-46.3%) |
+
+The gap between the shadow and full-path comparisons measures feedback:
+lower challenger output reduces later profit, internal funds, investment,
+capital, and energy expansion. By 2100 the Ayres–Warr path needs no net-new
+investment credit, while the full Keen path still uses `$32.2T/year` and
+carries private debt equal to `135%` of GDP. This is not an error bar or a
+probability. The challenger has not been independently calibrated on a
+holdout, so carry it as structural uncertainty rather than averaging the
+equations. Both equations satisfy the zero-useful-energy limit exactly.
+
 ## The solar `softFloor`: the terminal clean-energy price dial
 
 Wright's Law is applied only to `cost0 − softFloor`, so by 2100 the learning
@@ -127,20 +162,20 @@ Sweep (baseline, battery floor held at 20; the battery floor is **inert** —
 
 | solar `softFloor` | Solar LCOE 2100 | Gen 2100 (TWh) | Fossil 2075 | Warming 2100 | GDP 2100 |
 |---|---|---|---|---|---|
-| **6** (aggressive) | **13.2** | 587,244 | 0.005 | 2.619 | 1,984 |
-| 9 | 16.8 | 567,757 | 0.005 | 2.630 | 1,954 |
-| **12 (default)** | **20.3** | 540,300 | 0.005 | 2.632 | 1,898 |
-| 18 | 27.1 | 511,857 | 0.011 | 2.662 | 1,845 |
-| **24** (high) | **33.8** | 506,500 | **0.025** | 2.725 | 1,856 |
+| **6** (aggressive) | **13.5** | 580,003 | 0.010 | 2.655 | 1,956 |
+| 9 | 17.0 | 572,153 | 0.010 | 2.663 | 1,963 |
+| **12 (default)** | **20.3** | 562,860 | 0.010 | 2.676 | 1,967 |
+| 18 | 26.7 | 552,517 | 0.017 | 2.707 | 1,982 |
+| **24** (high) | **32.9** | 554,401 | **0.031** | 2.781 | 2,026 |
 
 Two honest takeaways:
 
 1. **The floor governs the reported *price*, not the *transition*.** Terminal
-   solar LCOE tracks the floor closely (12.8 → 33.3 across the band), but generation,
-   GDP, and warming move much less than the price, but no longer negligibly:
-   generation varies ~16%, GDP ~8%, and warming ~0.11°C across the sweep.
+   solar LCOE tracks the floor closely (13.5 → 32.9 across the band), but generation,
+   GDP, and warming move much less than the price:
+   generation varies ~5%, GDP ~4%, and warming ~0.13°C across the sweep.
    Raising the floor grows the residual fossil tail (fossil 2075 rises to
-   2.4% at floor 24).
+   3.1% at floor 24).
 2. **Direction robust, terminal cost soft.** Report the transition shape without
    floor caveats, but treat the *terminal clean-energy price* as a band, biased
    toward the cheaper end. The default $12 is more likely too high than too low.
@@ -159,17 +194,18 @@ costs rise with density is not independently sourced; the default was
 originally calibrated so baseline 2100 density landed near the old default
 (~540/1,000). The allocator correction raises the untuned default to
 ~998/1,000 before DC capital was charged; the composite-capex rescore yields
-~922/1,000. θ has not been silently refit to offset either correction.
+~1,002/1,000 under the monetary-circuit rescore. θ has not been silently refit
+to offset any of these corrections.
 
 Sweep (baseline, post-endogenization):
 
 | θ | Robots 2100 (/1,000) | GDP 2100 | Gen 2100 (TWh) | WACC 2075 | Warming 2100 |
 |---|---|---|---|---|---|
-| 0.6 | 4,591 | 2,938 | 937,522 | 0.078 | 2.69 |
-| **0.75 (default)** | **922** | **1,898** | 540,300 | 0.071 | 2.63 |
-| 0.9 | 304 | 1,567 | 437,791 | 0.069 | 2.61 |
+| 0.6 | 4,126 | 2,551 | 824,453 | 0.094 | 2.71 |
+| **0.75 (default)** | **1,002** | **1,967** | 562,860 | 0.086 | 2.68 |
+| 0.9 | 350 | 1,713 | 479,575 | 0.083 | 2.66 |
 
-- **GDP 2100 swings ~1.9× across θ ∈ [0.6, 0.9]** — the same leverage the old
+- **GDP 2100 swings ~1.5× across θ ∈ [0.6, 0.9]** — the same leverage the old
   ceiling had, but the dial now has an economic interpretation (integration/
   adjustment-cost curvature) instead of being a bare fleet count, and the
   *near-term* path is pinned independently (IFR pace + the π(2025) ∈ [2, 3.5]

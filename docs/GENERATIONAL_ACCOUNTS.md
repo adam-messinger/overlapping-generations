@@ -37,15 +37,16 @@ very different balance sheets and constraints.
 
 ## Flow incidence
 
-The capital module does not contain an explicit tax system. The cohort layer
-therefore uses a visible incidence convention:
+The capital module's consolidated Godley ledger derives net taxes from
+government services, transfers, interest, and net bond issuance. The cohort
+layer applies a visible incidence convention:
 
 ```text
 regional labor income = laborIncomeShare * regional GDP
-worker taxes = retiree cost + child cost + allocated public debt service
+regional worker taxes = macro net taxes * regional GDP share
 ```
 
-Taxes are distributed across working cohorts in proportion to labor income.
+Regional taxes are distributed across working cohorts in proportion to labor income.
 Pension and healthcare spending goes to old cohorts; education goes to young
 cohorts. These allocations reconcile exactly to the capital module's regional
 and global flows.
@@ -72,7 +73,9 @@ labor income. End-of-period ledgers reconcile exactly to `nextCapitalStock`
 and `nextPrivateDebtStock`.
 The capital module's aggregate debt transition applies amortization once.
 Retained liabilities then preserve existing cohort shares, while newly issued
-credit is allocated separately to cohorts with demand and borrowing headroom.
+investment credit is allocated separately to cohorts with demand and borrowing
+headroom. Principal refinancing is excluded from that pool: it replaces an
+existing liability and cannot be assigned again as new cohort borrowing.
 
 Bequests are currently gross transfers of productive-asset ownership. Estate
 taxes, creditor seniority, trusts, and cross-border inheritance are not modeled.
@@ -102,7 +105,9 @@ funding gap = desired capital - funded capital
 ```
 
 The default borrowing limit is four times annual labor income. Available macro
-credit is allocated among cohorts with eligible demand.
+credit is the capital module's net-new investment-loan flow, not total
+originations including rolled principal, and is allocated among cohorts with
+eligible demand.
 
 Two gaps are reported:
 
@@ -134,10 +139,13 @@ therefore require external calibration before being compared with household
 wealth surveys; the lifecycle and scenario differences are the useful signal.
 
 The most defensible use is comparative: identify which cohorts bear flows and
-how constraint measures change across savings, credit, debt, demographic, and
-policy scenarios. A later version can feed calibrated cohort behavior back into
-capital accumulation once these diagnostics are validated against household
-wealth and debt data.
+how constraint measures change across desired saving, net-new credit, debt,
+demographic, and policy scenarios. Aggregate investment is now decided by the
+profit-led monetary circuit; the cohort module's “own funds” allocation remains
+a distributional ownership diagnostic and does not feed household desired
+saving back into macro investment. A later version can feed calibrated cohort
+behavior back into capital accumulation once these diagnostics are validated
+against household wealth and debt data.
 
 The first conditional historical replay and its reproducible data procedure are
 in [GENERATIONAL_BACKCAST.md](GENERATIONAL_BACKCAST.md).

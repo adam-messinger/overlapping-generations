@@ -90,19 +90,38 @@ Outdoor labor productivity is reduced by wet-bulb temperature exceeding survivab
 
 ### 2.5 Capital and Intergenerational Transfers
 
-GDP decomposes into four claims:
+GDP now uses a conventional final-expenditure identity:
 
 $$
-GDP = C_w + I + R + E_d
+GDP = C_h + I + G_{health} + G_{education}
 $$
 
-where $C_w$ is worker consumption, $I$ is investment, $R$ is retiree costs (pensions + healthcare), and $E_d$ is child costs (education). The transfer burden -- $(R + E_d)/GDP$ -- is the key fiscal metric.
+where $C_h$ is household consumption and $I$ is investment. Retiree healthcare
+and education are government-purchased final services. Pensions and public
+interest are cash transfers: they affect household income, taxes, saving
+capacity, and sector balance sheets, but are not added to GDP a second time.
+Household consumption is allocated between pension recipients and other
+households without a residual floor, so the identity closes exactly. The
+broader dependent-support burden -- pensions, retiree healthcare, and
+education as a share of GDP -- remains a key fiscal metric.
 
-Regional transfer premiums capture institutional variation: OECD pension generosity (35% of GDP/worker) versus Sub-Saharan Africa (5%). Investment is the residual after transfers, modulated by a Galbraith-Chen stability factor that suppresses savings under high uncertainty (climate damages, energy cost shocks).
+Regional transfer premiums capture institutional variation: OECD pension
+generosity (35% of GDP/worker) versus Sub-Saharan Africa (5%). Investment now
+uses a toy monetary circuit: after-interest firm profit determines bounded
+gross-investment orders; depreciation allowances and retained earnings provide
+internal funds; and banks create deposits for the remaining financing request,
+subject to interest and leverage constraints. Scheduled principal refinancing
+is separated from net-new investment credit. Feasible investment is capped by
+the final-use envelope, and financing or real-resource shortfalls are reported
+rather than hidden.
 
 Two mechanisms prevent the transfer burden from spiraling as populations age. First, retirement age adjusts: two-thirds of life expectancy gains translate into later retirement, reclassifying a fraction of the 65+ cohort as working. Second, wage indexation blends current and historical reference wages (70/30), so transfer costs grow more slowly than GDP when productivity rises.
 
-Savings rates respond to demographics: longer life expectancy increases the savings motive (log-diminishing), while higher dependency ratios reduce it (linear). This creates a demographic savings channel that partially self-corrects.
+Household saving is measured ex post as disposable income less consumption,
+and household, firm, government, and bank balances sum exactly to realized
+investment. Demographic saving propensities still respond to longevity and
+dependency and inform regional financing spreads and cohort allocation, but
+they are diagnostics rather than an independent aggregate investment fund.
 
 ### 2.6 Carbon Dioxide Removal
 

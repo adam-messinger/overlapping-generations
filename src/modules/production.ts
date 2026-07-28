@@ -16,6 +16,12 @@
  *   β = 0.15 (labor)
  *   γ = 0.55 (useful energy)
  *
+ * Challenger equation (Keen, Ayres & Standish 2019):
+ *   GDP_K = Y₀ × (E/E₀)^κ × (L/L₀)^(1-κ) × efficiency × (1-damages)
+ * where aggregate useful energy proxies the capital-energy composite K×E_K.
+ * It is reported beside the calibrated Ayres-Warr model and can be selected
+ * with keenEnergyWeight=1; the paper itself calls for further empirical work.
+ *
  * All inputs are lagged (from previous year), so production runs early in the
  * step order (after demographics). This breaks the GDP→demand→dispatch→energy→GDP
  * cycle cleanly.
@@ -38,6 +44,8 @@ export interface ProductionParams {
   alpha: number;              // Capital elasticity (0.25)
   beta: number;               // Labor elasticity (0.15)
   gamma: number;              // Useful energy elasticity (0.55)
+  keenEnergyExponent: number; // Energy/capital composite exponent (2/3)
+  keenEnergyWeight: number;   // 0=Ayres-Warr baseline, 1=Keen challenger
   initialGDP: number;         // $T (2025 global GDP)
   electricExergy: number;     // Exergy factor for electricity (0.95)
   thermalExergy: number;      // Exergy factor for direct fuel use (0.35)
@@ -74,6 +82,8 @@ export const productionDefaults: ProductionParams = {
   alpha: 0.25,
   beta: 0.15,
   gamma: 0.55,
+  keenEnergyExponent: 2 / 3,
+  keenEnergyWeight: 0,
   initialGDP: 158,            // $158T PPP (2025 global GDP, 2017 intl $)
   electricExergy: 0.95,       // Electricity is nearly pure useful work
   thermalExergy: 0.35,        // Thermal fuels ~35% exergy efficiency
@@ -169,6 +179,15 @@ export interface ProductionInputs {
 export interface ProductionOutputs {
   /** GDP from biophysical production function ($T) */
   gdp: number;
+  /** GDP under the calibrated Ayres-Warr equation ($T/year) */
+  ayresWarrGdp: number;
+  /** GDP under the Keen energy/capital-composite challenger ($T/year) */
+  keenEnergyGdp: number;
+  /**
+   * Symmetric relative difference between Keen and Ayres-Warr GDP:
+   * 2(Keen - AW) / (|Keen| + |AW|). Zero when both estimates are zero.
+   */
+  productionFunctionGap: number;
   /** Exergy-weighted useful energy (TWh) */
   productionUsefulEnergy: number;
   /** (K/K₀)^α */
@@ -217,8 +236,22 @@ export const productionModule: Module<
       range: { min: 0.05, max: 0.70, default: 0.55 },
       tier: 1 as const,
     },
+    keenEnergyExponent: {
+      description: 'Exponent on the aggregate useful-energy proxy for the capital-energy composite in the Keen-Ayres-Standish challenger. Their illustrative constant-returns specification uses 2/3.',
+      unit: 'fraction',
+      range: { min: 0.10, max: 0.95, default: 2 / 3 },
+      tier: 2 as const,
+      source: 'Keen, Ayres & Standish (2019), Energy and Economic Growth, Eq. 1.22',
+    },
+    keenEnergyWeight: {
+      description: 'Blend weight on the Keen energy-essential challenger. 0 preserves the calibrated Ayres-Warr baseline; 1 selects the challenger.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0 },
+      tier: 2 as const,
+      source: 'Scenario switch; not an empirically estimated mixture weight',
+    },
     serviceEfficiencyGrowth: {
-      description: 'Near-term growth rate of the effective service-efficiency index (= demand GDP-weighted intensity decline; coupled at runtime). THE dominant GDP-level dial: after the allocator and DC-capex corrections a +/-40% sweep spans roughly $0.5Q-$7.9Q in 2100, exposing an uncalibrated growth loop. Structural share decays post-2025. See docs/SENSITIVITY.md.',
+      description: 'Near-term growth rate of the effective service-efficiency index (= demand GDP-weighted intensity decline; coupled at runtime). A +/-40% sweep spans roughly $1.16Q-$2.77Q in 2100 under the bounded profit-led investment closure. Structural share decays post-2025. See docs/SENSITIVITY.md.',
       unit: 'fraction/year',
       range: { min: 0.005, max: 0.03, default: 0.0129 },
       tier: 1 as const,
@@ -256,6 +289,9 @@ export const productionModule: Module<
     },
     outputs: {
       gdp: unitPort('$T/year'),
+      ayresWarrGdp: unitPort('$T/year'),
+      keenEnergyGdp: unitPort('$T/year'),
+      productionFunctionGap: unitPort('fraction'),
       productionUsefulEnergy: unitPort('TWh/year'),
       capitalContribution: unitPort('1'),
       laborContribution: unitPort('1'),
@@ -277,6 +313,18 @@ export const productionModule: Module<
     }
     if (params.gamma !== undefined && (params.gamma < 0 || params.gamma > 1)) {
       errors.push('gamma must be between 0 and 1');
+    }
+    if (
+      params.keenEnergyExponent !== undefined
+      && (params.keenEnergyExponent < 0.10 || params.keenEnergyExponent > 0.95)
+    ) {
+      errors.push('keenEnergyExponent must be between 0.10 and 0.95');
+    }
+    if (
+      params.keenEnergyWeight !== undefined
+      && (params.keenEnergyWeight < 0 || params.keenEnergyWeight > 1)
+    ) {
+      errors.push('keenEnergyWeight must be between 0 and 1');
     }
     if (params.alpha !== undefined && params.beta !== undefined && params.gamma !== undefined) {
       const sum = params.alpha + params.beta + params.gamma;
@@ -410,7 +458,14 @@ export const productionModule: Module<
     // Production function components (normalized)
     const capitalContribution = Math.pow(capitalStock / safeK0, params.alpha);
     const laborContribution = Math.pow(augmentedWorkers / safeL0, params.beta);
-    const energyContribution = Math.pow(Math.max(0.01, productionUsefulEnergy / safeE0), params.gamma);
+    const energyRatio = Math.max(0, productionUsefulEnergy / safeE0);
+    const laborRatio = Math.max(0, augmentedWorkers / safeL0);
+    // Preserve the module's essential-energy invariant even for the supported
+    // gamma=0 edge case: JavaScript defines 0^0 as 1, but zero useful energy
+    // cannot support positive output in either production equation.
+    const energyContribution = energyRatio === 0
+      ? 0
+      : Math.pow(energyRatio, params.gamma);
 
     // =========================================================================
     // Endogenous efficiency (replaces exogenous TFP)
@@ -473,13 +528,37 @@ export const productionModule: Module<
     }
     const relativeDamageFactor = combinedDamageFactor / initialDamageFactor;
 
-    // GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × damage factors
-    const gdp = params.initialGDP
+    // Calibrated baseline:
+    // Y_AW = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × efficiency × damage.
+    const ayresWarrGdp = params.initialGDP
       * capitalContribution
       * laborContribution
       * energyContribution
       * efficiencyLevel
       * relativeDamageFactor;
+    // Challenger: aggregate useful energy proxies K×E_K in Keen, Ayres &
+    // Standish's capital-energy composite. This is an intentionally compact
+    // testable interpretation, not a claim that their equation is calibrated
+    // for this model's 2025-2100 data.
+    const keenEnergyContribution = Math.pow(energyRatio, params.keenEnergyExponent);
+    const keenLaborContribution = Math.pow(
+      laborRatio,
+      1 - params.keenEnergyExponent,
+    );
+    const keenEnergyGdp = params.initialGDP
+      * keenEnergyContribution
+      * keenLaborContribution
+      * efficiencyLevel
+      * relativeDamageFactor;
+    const gdp = (1 - params.keenEnergyWeight) * ayresWarrGdp
+      + params.keenEnergyWeight * keenEnergyGdp;
+    // A ratio to AW is undefined when AW is zero. The symmetric denominator
+    // keeps the diagnostic finite and treats either equation reaching zero
+    // consistently; its range is [-2, 2].
+    const productionFunctionScale = Math.abs(keenEnergyGdp) + Math.abs(ayresWarrGdp);
+    const productionFunctionGap = productionFunctionScale > 0
+      ? 2 * (keenEnergyGdp - ayresWarrGdp) / productionFunctionScale
+      : 0;
 
     return {
       state: {
@@ -491,6 +570,9 @@ export const productionModule: Module<
       },
       outputs: {
         gdp,
+        ayresWarrGdp,
+        keenEnergyGdp,
+        productionFunctionGap,
         productionUsefulEnergy,
         capitalContribution,
         laborContribution,

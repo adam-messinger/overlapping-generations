@@ -38,6 +38,11 @@ onward. Before 1.0, minor versions may include breaking changes.
   concept of a connection between module ports.
 
 ### Added
+- A counterparty-aware Godley ledger with sector and instrument balance checks,
+  exact stock transitions, and Markdown/Mermaid renderers.
+- Finite-difference Jacobians (central in the interior, one-sided at declared
+  lower bounds) and exact two-state discrete stability analysis with complex
+  eigenvalues and spectral-radius classification.
 - First-class vintage stock, straight-line depreciable-vintage, and in-transit
   ledgers with additions, delivery lags, scheduled retirements, scrappage,
   terminal stocks, and conservation checks.

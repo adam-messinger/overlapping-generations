@@ -134,7 +134,7 @@ export interface EnergyParams {
 
   /**
    * Endogenous capex share: when desired clean build exceeds the ramp
-   * budget, energy investment can compete for more of the savings pool.
+   * budget, energy investment can compete for more of the investment pool.
    * flex = fraction of the unmet desired spend the share expands to cover
    * (0 = exogenous ramp only, current behavior); cleanShareMax caps the
    * total share of investment energy capex may claim.
@@ -785,7 +785,7 @@ export const energyModule: Module<
       tier: 1 as const,
     },
     cleanShareFlex: {
-      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the savings pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). Expanded spend is debited from general capital formation via the lagged energyCapexSpend ledger (crowding-out is real). Used by the ai-energy-boom scenario.',
+      description: 'Endogenous energy-capex share: fraction of unmet desired clean build the investment share expands to cover, competing for the investment pool. 0 = exogenous 15%→30% ramp only (calibrated baseline). Expanded spend is debited from general capital formation via the lagged energyCapexSpend ledger (crowding-out is real). Used by the ai-energy-boom scenario.',
       unit: 'fraction',
       range: { min: 0, max: 1, default: 0 },
       tier: 1 as const,
@@ -1475,7 +1475,7 @@ export const energyModule: Module<
       }
 
       // Endogenous capex share: when desired build exceeds the ramp budget,
-      // energy investment competes for more of the savings pool — the share
+      // energy investment competes for more of the investment pool — the share
       // expands to cover cleanShareFlex of the unmet spend, capped at
       // cleanShareMax of regional investment. flex = 0 (default) preserves
       // the exogenous ramp exactly. Expanded spend IS debited from general

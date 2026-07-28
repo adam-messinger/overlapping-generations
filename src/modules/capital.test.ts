@@ -119,8 +119,8 @@ test('step year 0 returns correct K/Y ratio', () => {
 
 test('step year 0 returns correct savings rate', () => {
   const { outputs } = runYears(1);
-  // GDP-weighted global gross savings ~26-28% of GDP (World Bank WDI 2023);
-  // China's high rate carries its GDP share, not its population share
+  // GDP-weighted desired household-saving propensity ~26-28%;
+  // China's high rate carries its GDP share, not its population share.
   expect(outputs.savingsRate).toBeBetween(0.22, 0.32);
 });
 
@@ -132,8 +132,7 @@ test('step year 0 returns correct interest rate', () => {
 
 test('step year 0 returns correct investment', () => {
   const { outputs } = runYears(1);
-  // Investment = GDP × savingsRate × stability
-  // ~$158T × 0.27 × 1.0 ≈ $43T
+  // Profit-led orders plus bank finance retain the prior 2025 calibration.
   expect(outputs.investment).toBeBetween(35, 55);
 });
 
@@ -297,15 +296,19 @@ test('transfer burden is 10-30% in year 1', () => {
   expect(outputs.transferBurden).toBeBetween(0.10, 0.30);
 });
 
-test('GDP decomposition identity: I + retireeCost + childCost + workerConsumption + debtService ≈ GDP', () => {
+test('GDP expenditure identity is exact and excludes cash transfers and interest', () => {
   const { outputs } = runYears(1);
   const gdp = baselineGdp(0);
-  const sum = outputs.investment + outputs.retireeCost + outputs.childCost
-    + outputs.workerConsumption + outputs.publicDebtService;
-  expect(sum / gdp).toBeBetween(0.99, 1.05);
+  const sum = outputs.householdConsumption
+    + outputs.investment
+    + outputs.governmentServiceConsumption;
+  expect(sum).toBeCloseTo(gdp, 9);
+  expect(outputs.nationalAccountsResidual).toBeCloseTo(0, 9);
+  expect(outputs.pensionTransfers).toBeGreaterThan(0);
+  expect(outputs.publicInterestPayments).toBeGreaterThan(0);
 });
 
-test('higher pension rate → lower investment', () => {
+test('a tax-financed pension transfer does not remove aggregate investment finance', () => {
   // Default run
   const defaultParams = capitalModule.mergeParams({});
   let defaultState = capitalModule.init(defaultParams);
@@ -322,7 +325,10 @@ test('higher pension rate → lower investment', () => {
   let highState = capitalModule.init(highParams);
   const highResult = capitalModule.step(highState, defaultInputs, highParams, 2025, 0);
 
-  expect(highResult.outputs.investment).toBeLessThan(defaultResult.outputs.investment);
+  expect(highResult.outputs.pensionTransfers)
+    .toBeGreaterThan(defaultResult.outputs.pensionTransfers);
+  expect(highResult.outputs.investment)
+    .toBeCloseTo(defaultResult.outputs.investment, 9);
 });
 
 test('worker consumption is positive', () => {
@@ -428,9 +434,10 @@ test('lower wageIndexation reduces transfer burden growth', () => {
 test('GDP identity still holds with retirement age + wage indexation', () => {
   const { outputs } = runYears(25);
   const gdp = baselineGdp(24);
-  const sum = outputs.investment + outputs.retireeCost + outputs.childCost
-    + outputs.workerConsumption + outputs.publicDebtService;
-  expect(sum / gdp).toBeBetween(0.99, 1.05);
+  const sum = outputs.householdConsumption
+    + outputs.investment
+    + outputs.governmentServiceConsumption;
+  expect(sum).toBeCloseTo(gdp, 9);
 });
 
 test('validation catches invalid retirementAgeResponse', () => {
@@ -548,6 +555,17 @@ test('public debt service is positive', () => {
   expect(outputs.publicDebtService).toBeGreaterThan(0);
 });
 
+test('public interest follows the bond holder and bank income is distributed', () => {
+  const first = runYears(1).outputs;
+  const second = runYears(2).outputs;
+  expect(first.publicInterestToBanks).toBeCloseTo(0, 9);
+  expect(second.publicInterestToBanks).toBeGreaterThan(0);
+  expect(
+    second.publicInterestToBanks + second.publicInterestToHouseholds,
+  ).toBeCloseTo(second.publicInterestPayments, 9);
+  expect(second.bankSaving).toBeCloseTo(0, 9);
+});
+
 test('fiscal consolidation kicks in above 60% threshold', () => {
   // With default 90% public debt/GDP, fiscal consolidation is active
   const { outputs } = runYears(1);
@@ -593,14 +611,26 @@ test('fiscal reaction max saturates consolidation', () => {
 
 // --- Private debt ---
 
-test('credit impulse is positive in year 0', () => {
+test('gross loan originations are positive and distinct from net credit creation', () => {
   const { outputs } = runYears(1);
-  expect(outputs.creditImpulse).toBeGreaterThan(0);
+  expect(outputs.grossLoanOriginations).toBeGreaterThan(0);
+  expect(outputs.grossLoanOriginations).toBeCloseTo(
+    outputs.refinancedPrincipal + outputs.newInvestmentLoanOriginations,
+    8,
+  );
+  expect(outputs.netCreditCreation).toBeCloseTo(
+    outputs.grossLoanOriginations
+      - outputs.principalRepayments
+      - outputs.loanWriteOffs,
+    8,
+  );
+  expect(outputs.creditImpulse)
+    .toBeCloseTo(outputs.newInvestmentLoanOriginations, 12);
 });
 
 test('leverage damping reduces credit when private debt/GDP > threshold', () => {
   // Default: private debt/GDP = 1.60, threshold = 1.50
-  const defaultResult = runYears(1).outputs.creditImpulse;
+  const defaultResult = runYears(1).outputs.newInvestmentLoanOriginations;
 
   // Low initial leverage (below threshold → no damping)
   const lowParams = capitalModule.mergeParams({ initialPrivateDebtGDP: 1.0 });
@@ -608,7 +638,8 @@ test('leverage damping reduces credit when private debt/GDP > threshold', () => 
   const inputs = getCapitalInputs(0);
   const lowResult = capitalModule.step(lowState, inputs, lowParams, 2025, 0);
 
-  expect(lowResult.outputs.creditImpulse).toBeGreaterThan(defaultResult);
+  expect(lowResult.outputs.newInvestmentLoanOriginations)
+    .toBeGreaterThan(defaultResult);
 });
 
 test('spread factor reduces credit when r > g', () => {
@@ -627,12 +658,13 @@ test('spread factor reduces credit when r > g', () => {
   // Normal scenario
   const normalResult = runYears(1).outputs;
 
-  // High-debt scenario should have lower credit impulse
-  expect(highResult.outputs.creditImpulse).toBeLessThan(normalResult.creditImpulse);
+  // High-debt scenario should have lower net-new investment credit. Total
+  // originations can be larger because a larger debt stock refinances more.
+  expect(highResult.outputs.newInvestmentLoanOriginations)
+    .toBeLessThan(normalResult.newInvestmentLoanOriginations);
 });
 
-test('amortization reduces private debt stock', () => {
-  // Run 2 years, check that amortization occurs
+test('full principal rollover holds the debt stock flat without net-new credit', () => {
   const params = capitalModule.mergeParams({ baseCreditGrowth: 0 });  // No new credit
   let state = capitalModule.init(params);
   let outputs: any;
@@ -642,16 +674,20 @@ test('amortization reduces private debt stock', () => {
     state = result.state;
     outputs = result.outputs;
   }
-  // With zero credit growth, private debt/GDP should decline (amortization eats into it)
+  expect(outputs.nextPrivateDebtStock).toBeCloseTo(252.8, 6);
+  // GDP growth still lowers the debt ratio.
   expect(outputs.privateDebtGDP).toBeLessThan(1.60);
 });
 
-test('zero baseCreditGrowth produces zero credit impulse', () => {
+test('zero baseCreditGrowth stops new investment credit but still refinances principal', () => {
   const params = capitalModule.mergeParams({ baseCreditGrowth: 0 });
   let state = capitalModule.init(params);
   const inputs = getCapitalInputs(0);
   const result = capitalModule.step(state, inputs, params, 2025, 0);
-  expect(result.outputs.creditImpulse).toBeCloseTo(0, 6);
+  expect(result.outputs.newInvestmentLoanOriginations).toBeCloseTo(0, 6);
+  expect(result.outputs.refinancedPrincipal).toBeGreaterThan(0);
+  expect(result.outputs.grossLoanOriginations)
+    .toBeCloseTo(result.outputs.refinancedPrincipal, 8);
 });
 
 // --- Risk premium ---
@@ -688,7 +724,7 @@ test('risk premium flows into interest rate', () => {
 
 // --- Investment ---
 
-test('investment is augmented by credit impulse', () => {
+test('investment is augmented by net-new bank credit', () => {
   // Compare with zero credit
   const zeroCreditParams = capitalModule.mergeParams({ baseCreditGrowth: 0 });
   let zeroState = capitalModule.init(zeroCreditParams);
@@ -720,13 +756,67 @@ test('investment floors at zero', () => {
 
 // --- GDP identity ---
 
-test('GDP identity: I + retireeCost + childCost + workerConsumption + debtService ≈ GDP', () => {
+test('GDP identity has no consumption floor or transfer double count', () => {
   const { outputs } = runYears(1);
   const gdp = baselineGdp(0);
-  const sum = outputs.investment + outputs.retireeCost + outputs.childCost
-    + outputs.workerConsumption + outputs.publicDebtService;
-  // Allow some tolerance since workerConsumption has a 20% floor that may bind
-  expect(sum / gdp).toBeBetween(0.99, 1.05);
+  expect(
+    outputs.householdConsumption
+      + outputs.investment
+      + outputs.governmentServiceConsumption,
+  ).toBeCloseTo(gdp, 9);
+  expect(outputs.workerConsumption + outputs.retireeConsumption)
+    .toBeCloseTo(outputs.householdConsumption, 9);
+  expect(outputs.financialLedgerResidual).toBeCloseTo(0, 8);
+});
+
+test('sectoral saving is ex post and sums exactly to realized investment', () => {
+  const { outputs } = runYears(1);
+  expect(
+    outputs.householdSaving
+      + outputs.firmGrossSaving
+      + outputs.governmentSaving
+      + outputs.bankSaving,
+  ).toBeCloseTo(outputs.investment, 9);
+  expect(outputs.nationalSaving).toBeCloseTo(outputs.investment, 9);
+  expect(outputs.grossSavings).toBeCloseTo(outputs.nationalSaving, 12);
+  expect(outputs.savingInvestmentResidual).toBeCloseTo(0, 9);
+  expect(outputs.householdSavingLedgerResidual).toBeCloseTo(0, 9);
+});
+
+test('desired household saving is not added to bank credit as investment funding', () => {
+  const inputs = getCapitalInputs(0);
+  const lowParams = capitalModule.mergeParams({ savingsWorking: 0.20 });
+  const highParams = capitalModule.mergeParams({ savingsWorking: 0.65 });
+  const low = capitalModule.step(
+    capitalModule.init(lowParams),
+    inputs,
+    lowParams,
+    2025,
+    0,
+  ).outputs;
+  const high = capitalModule.step(
+    capitalModule.init(highParams),
+    inputs,
+    highParams,
+    2025,
+    0,
+  ).outputs;
+  expect(high.savingsRate).toBeGreaterThan(low.savingsRate);
+  expect(high.investment).toBeCloseTo(low.investment, 9);
+  expect(high.newInvestmentLoanOriginations)
+    .toBeCloseTo(low.newInvestmentLoanOriginations, 9);
+});
+
+test('principal refinancing is not counted as new investment finance', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.refinancedPrincipal)
+    .toBeCloseTo(outputs.principalRepayments, 9);
+  expect(
+    outputs.investment
+      <= outputs.firmInternalFunds
+        + outputs.newInvestmentLoanOriginations
+        + 1e-9,
+  ).toBeTrue();
 });
 
 // --- Stability over time ---
@@ -768,11 +858,11 @@ test('zero debt params approximately reproduce old investment', () => {
   const inputs = getCapitalInputs(0);
   const result = capitalModule.step(state, inputs, zeroDebtParams, 2025, 0);
 
-  // With zero debt: no risk premium, no credit impulse, no debt service
-  // Investment should be ~grossSavings only
+  // With zero debt: no risk premium, originations, or public interest.
+  // Positive operating surplus still supplies internal investment funds.
   expect(result.outputs.debtRiskPremium).toBeCloseTo(0, 6);
-  expect(result.outputs.creditImpulse).toBeCloseTo(0, 6);
-  expect(result.outputs.publicDebtService).toBeCloseTo(0, 6);
+  expect(result.outputs.grossLoanOriginations).toBeCloseTo(0, 6);
+  expect(result.outputs.publicInterestPayments).toBeCloseTo(0, 6);
   expect(result.outputs.investment).toBeGreaterThan(30); // Still substantial
 });
 
@@ -798,6 +888,33 @@ test('validation catches invalid privateAmortization', () => {
   expect(result.valid).toBe(false);
 });
 
+test('validation catches invalid financial substeps, defaults, and bank equity', () => {
+  expect(capitalModule.validate({ financialSubsteps: 2.5 }).valid).toBeFalse();
+  expect(capitalModule.validate({ privateDefaultRate: -0.01 }).valid).toBeFalse();
+  expect(capitalModule.validate({ bankEquityRatio: 0.5 }).valid).toBeFalse();
+  expect(capitalModule.validate({
+    openingHouseholdDepositShare: 1.1,
+  }).valid).toBeFalse();
+  expect(capitalModule.validate({ loanRolloverRate: 1.1 }).valid).toBeFalse();
+  expect(capitalModule.validate({ firmRetentionRate: -0.1 }).valid).toBeFalse();
+  expect(capitalModule.validate({
+    investmentProfitRateFloor: 0.04,
+    investmentProfitRateCeiling: 0.03,
+  }).valid).toBeFalse();
+});
+
+test('loan write-offs reduce private debt and bank equity without breaking accounting', () => {
+  const baseline = runYears(1).outputs;
+  const params = capitalModule.mergeParams({ privateDefaultRate: 0.20 });
+  const state = capitalModule.init(params);
+  const result = capitalModule.step(state, getCapitalInputs(0), params, 2025, 0);
+  expect(result.outputs.loanWriteOffs).toBeGreaterThan(0);
+  expect(result.outputs.nextPrivateDebtStock).toBeLessThan(baseline.nextPrivateDebtStock);
+  expect(result.outputs.bankEquity).toBeLessThan(baseline.bankEquity);
+  expect(result.outputs.bankEquityShortfall).toBeGreaterThan(0);
+  expect(result.outputs.financialLedgerResidual).toBeCloseTo(0, 8);
+});
+
 // --- Module Metadata ---
 
 console.log('\n--- Module Metadata ---\n');
@@ -820,7 +937,13 @@ test('module declares correct outputs', () => {
   expect(capitalModule.outputs.includes('retireeCost')).toBeTrue();
   expect(capitalModule.outputs.includes('transferBurden')).toBeTrue();
   expect(capitalModule.outputs.includes('publicDebtGDP')).toBeTrue();
-  expect(capitalModule.outputs.includes('creditImpulse')).toBeTrue();
+  expect(capitalModule.outputs.includes('grossLoanOriginations')).toBeTrue();
+  expect(capitalModule.outputs.includes('newInvestmentLoanOriginations')).toBeTrue();
+  expect(capitalModule.outputs.includes('netCreditCreation')).toBeTrue();
+  expect(capitalModule.outputs.includes('householdSaving')).toBeTrue();
+  expect(capitalModule.outputs.includes('savingInvestmentResidual')).toBeTrue();
+  expect(capitalModule.outputs.includes('nationalAccountsResidual')).toBeTrue();
+  expect(capitalModule.outputs.includes('financialLedgerResidual')).toBeTrue();
   expect(capitalModule.outputs.includes('debtRiskPremium')).toBeTrue();
 });
 

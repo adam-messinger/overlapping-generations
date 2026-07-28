@@ -391,7 +391,10 @@ function buildTransforms(
       outputType: unitPort('TWh/year', 'record'),
     },
 
-    // Regional investment from capital (weighted by savings rate × GDP share)
+    // Regional investment allocation (weighted by desired saving propensity
+    // × GDP share). This is a geographic allocation heuristic, not the macro
+    // funding closure: aggregate investment is already determined upstream by
+    // firm orders, internal funds, and bank credit.
     regionalInvestment: {
       fn: (outputs: Record<string, any>) => {
         const investment = requireOutput<number>(outputs, 'investment', 'regionalInvestment');
@@ -399,8 +402,8 @@ function buildTransforms(
         const regional = requireOutput<Record<Region, any>>(
           outputs, 'regional', 'regionalInvestment'
         );
-        // Savings are a fraction of income, so investable funds scale with
-        // current regional GDP—not a fixed 2025 market-GDP lookup table.
+        // The regional propensity is a dimensionless allocation weight, so it
+        // scales with current regional GDP—not a fixed 2025 lookup table.
         let totalWeight = 0;
         const weights: Record<Region, number> = {} as any;
         for (const r of REGIONS) {

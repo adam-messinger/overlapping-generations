@@ -59,11 +59,18 @@ The overshoot implication for the forward model: the baseline's 88% electrificat
 
 Even with energy supply growing at 4--5%/yr (matching historical primary energy growth), GDP only reached $27--44T by 2025 versus the observed $158T. The missing factor is capital stock growth.
 
-In the model, capital stock grew from $18T to $25T over 75 years. In reality, it grew from roughly $20T to $550T -- a 27x increase. The model funds investment purely from savings:
+In the model, capital stock grew from $18T to $25T over 75 years. In reality, it grew from roughly $20T to $550T -- a 27x increase. The original backcast funded investment purely from savings:
 
 ```
 Investment = GDP x (1 - transferBurden) x savingsRate x stability x netEnergyFactor
 ```
+
+The forward model now starts from firm investment orders and distinguishes
+internal firm funds, net-new bank credit, refinanced principal, repayments,
+write-offs, deposits, and bank equity. Household saving is calculated after
+income and expenditure; it is not added to bank lending as a second funding
+pot. The equation above is retained here as a diagnosis of the failed
+backcast, not as the current capital-module closure.
 
 With GDP stuck at $10--20T and savings rate at 20%, annual investment is $2--4T. Capital depreciates at 5%/yr, so net capital growth is minimal.
 
@@ -74,7 +81,12 @@ In the real world, the post-war period saw massive debt-financed capital accumul
 - **Consumer credit**: Mortgage debt enabled suburbanization, auto loans enabled mass motorization
 - **Developing-world borrowing**: World Bank, IMF, bilateral development aid -- external credit flowing to capital-poor economies
 
-Global debt-to-GDP grew from roughly 100% in 1950 to 350% by 2025. That extra 250% of GDP in credit creation funded capital accumulation far beyond what savings alone could provide. The Solow/Ayres-Warr framework's identity Investment = Savings fundamentally cannot reproduce this.
+Global debt-to-GDP grew from roughly 100% in 1950 to 350% by 2025. That extra
+leverage supported spending and capital accumulation that could not be
+represented by a prior-saving constraint. This does not mean accounting
+permits `I != S` ex post: sectoral balances still imply national saving equals
+realized investment. It means bank finance can causally precede the incomes
+from which saving is subsequently measured.
 
 **This is the single most important finding of the backcast exercise.** The GDP gap is not an energy calibration problem. Even with perfectly calibrated energy supply, the model produces ~$40T GDP versus $158T, because capital -- a 0.25 elasticity input to the production function -- barely grows without a credit channel.
 
@@ -147,28 +159,42 @@ The change to `buildLags()` that derives era-appropriate initial lag values from
 
 ## 6. The Debt Channel: Design Notes
 
-The binding constraint on the backcast is capital accumulation. The model needs a credit/debt mechanism where investment can exceed savings. Key design considerations:
+The binding constraint on the backcast is capital accumulation. The model
+needs a credit/debt mechanism in which investment finance can precede
+household saving, while ex-post national saving still reconciles to realized
+investment. Key design considerations:
 
 ### What debt does in a growth model
 
 1. **Pulls demand forward**: Credit creation allows investment today against future income. This is essential for infrastructure that pays off over decades (power plants, highways, housing).
 
-2. **Creates money**: In a fractional reserve system, bank lending creates deposits. This is how most money enters the economy. The model's current implicit assumption -- that investment equals savings -- corresponds to a gold-standard or commodity-money regime, not the post-Bretton Woods credit economy.
+2. **Creates money**: Commercial-bank lending creates matching loans and
+   deposits. The current forward model represents this directly. National
+   `saving = investment` still holds ex post, but it is an accounting result,
+   not a claim that households must save before a bank can finance a firm.
 
 3. **Amplifies both growth and contraction**: Debt enables faster capital accumulation during expansions but creates deleveraging pressure during contractions. The asymmetry between borrowing (voluntary) and deleveraging (forced) is a key source of business cycle dynamics.
 
-### Minimum viable debt model
+### Minimum viable debt model (historical proposal, now superseded)
 
 ```
-Investment = Savings + NetNewCredit
-NetNewCredit = CreditGrowthRate x ExistingDebt
-DebtService = InterestRate x TotalDebt
+Profit -> InvestmentOrders
+InternalFunds = DepreciationAllowance + RetainedEarnings
+InvestmentCredit = min(FinancingGap, BankCreditCapacity)
+Investment = min(Orders, InternalFunds + NetCashCredit, RealOutputEnvelope)
+HouseholdSaving = DisposableIncome - Consumption
+DebtChange = TotalOriginations - PrincipalRepayment - WriteOffs
 ```
 
 Where:
-- `CreditGrowthRate` responds to: interest rate (lower = more borrowing), GDP growth (higher = more optimism), debt/GDP ratio (higher = less willing to lend)
-- `DebtService` subtracts from consumption (or government spending), creating a fiscal drag
-- Debt-to-GDP ratio is a key state variable, tracked alongside capital stock
+- bank credit capacity responds to the interest-growth spread and private
+  leverage;
+- principal refinancing replaces maturing debt but does not finance new
+  investment;
+- private interest reduces firm profit and internal funds; principal repayment
+  destroys deposits unless refinanced;
+- default reduces borrower liabilities and bank equity one-for-one;
+- sectoral saving balances reconcile to realized investment exactly.
 
 The debt channel connects naturally to the existing WACC channel: higher debt levels → higher risk premiums → higher WACC → higher LCOE for capital-intensive sources (solar, nuclear). This creates a feedback from fiscal dynamics to energy transition speed.
 

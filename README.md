@@ -17,7 +17,12 @@ Key modeling commitments: Ayres–Warr biophysical production (useful energy as
 a primary growth factor), Wright's Law learning curves for solar/wind/battery,
 merit-order dispatch with VRE penetration limits, DICE-style climate damages
 with tipping points, Fernández-Villaverde demographic convergence, and an
-explicit intergenerational transfer + debt/credit channel.
+explicit intergenerational transfer + debt/credit channel. The capital block
+uses a profit-led monetary circuit: firms order investment, banks create
+deposits for the financing gap, and sectoral saving is measured ex post in a
+Godley-consistent ledger. A Keen–Ayres–Standish production equation is carried
+as a structural challenger; see
+[`docs/STEVE_KEEN_MODEL_AUDIT.md`](docs/STEVE_KEEN_MODEL_AUDIT.md).
 
 The diagnostic layer in `src/modules/generations.ts` allocates those
 flows to five-year birth-cohort balance sheets and reports borrowing-limit and

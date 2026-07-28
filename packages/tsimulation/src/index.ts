@@ -30,6 +30,8 @@ export * from './shock-ledger.js';
 export * from './manifest.js';
 export * from './liveness.js';
 export * from './stock-flow.js';
+export * from './godley.js';
+export * from './dynamics.js';
 export {
   assertCollectorContracts,
   auditCollectorContracts,

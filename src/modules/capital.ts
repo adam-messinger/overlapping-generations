@@ -1,23 +1,36 @@
 /**
  * Capital Module
  *
- * Savings, investment, and automation dynamics based on OLG lifecycle theory.
- * Includes an uncertainty-damping factor on savings (see Key equations).
+ * Capital, monetary-circuit, and automation dynamics.
+ *
+ * The demographic saving propensity remains an OLG distributional diagnostic,
+ * but it is not a pool that banks add to newly created credit. Firms place
+ * profit-responsive investment orders, use internal cash flow, and ask banks
+ * to create deposits for the remaining financing gap. Household saving is
+ * measured ex post from income less consumption.
  *
  * Key equations:
  * - Savings rate: Demographic-weighted average of cohort savings rates
  * - Stability: Φ = 1 / (1 + λ × uncertainty²)
- * - Transfers: RetireeCost + ChildCost (pensions, healthcare, education)
+ * - Government services: retiree healthcare + education
+ * - Cash transfers: pensions and public-debt interest (not GDP final uses)
  * - Interest rate: r = α × Y/K - δ + debtRiskPremium
- * - Investment: I = max(0, grossSavings + creditImpulse)
- * - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
+ * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
+ * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
+ * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
+ * - Household saving: S_h = disposableIncome - householdConsumption
+ * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
- * - Public debt: ΔD = primaryDeficit - fiscalConsolidation (interest tax-financed via the GDP identity's publicDebtService claim)
- * - Private debt: ΔD = creditImpulse - amortization
+ * - Public debt: ΔD = primaryDeficit - fiscalConsolidation
+ * - Private debt: ΔD = gross originations - principal repayments - write-offs
  *
  * Sources:
  * - Penn World Table: K/Y ratio ~3.5, global capital stock ~$420T
  * - OLG theory: Lifecycle savings rates by age cohort
+ * - Keen (2011): profit-responsive investment and bank-created deposits in a
+ *   monetary circuit; the bounded response here is a toy adaptation
+ * - Bank of England (2014): lending creates deposits and repayment destroys
+ *   deposit money
  * - Uncertainty damping Φ = 1/(1+λu²): an ad-hoc form inspired by
  *   Galbraith/Chen entropy economics; only this factor is implemented, and
  *   the framework's emphasized Jevons/rebound dynamics are absent
@@ -26,6 +39,7 @@
 import { Region, REGIONS } from '../domain-types.js';
 import {
   defineModule,
+  type GodleyLedgerState,
   integrateFlow,
   Module,
   subtractQuantities,
@@ -34,6 +48,12 @@ import {
   unitQuantity,
   validatedMerge,
 } from 'tsimulation';
+import { advanceCapitalFinance } from './capital-finance.js';
+import {
+  capitalBankCapitalRatio,
+  createCapitalGodleyLedger,
+  postCapitalGodleyYear,
+} from './capital-accounting.js';
 
 // =============================================================================
 // TYPES
@@ -51,6 +71,10 @@ export interface CapitalParams {
   // Production
   alpha: number;              // Capital share in Cobb-Douglas (~0.33)
   depreciation: number;       // Annual depreciation rate (~0.05)
+  firmRetentionRate: number;  // Share of positive after-interest profit retained
+  investmentProfitRateFloor: number; // Profit rate below which only replacement is ordered
+  investmentProfitRateCeiling: number; // Profit rate at which net investment response saturates
+  maximumNetInvestmentRate: number; // Maximum desired net investment / capital
 
   // OLG lifecycle savings rates
   savingsYoung: number;       // Ages 0-19: dependents (0)
@@ -98,6 +122,11 @@ export interface CapitalParams {
   leverageDamping: number;             // 1.5 (dampening above threshold)
   leverageThreshold: number;           // 1.50 (private debt/GDP where damping starts)
   privateAmortization: number;         // 0.05 (fraction of stock repaid per year ≈ 20yr avg maturity)
+  loanRolloverRate: number;             // Share of repaid principal refinanced
+  privateDefaultRate: number;          // Annual loan write-off rate (0 in baseline)
+  financialSubsteps: number;           // Within-year debt integration steps (4 = quarterly)
+  bankEquityRatio: number;             // Opening bank equity / assets
+  openingHouseholdDepositShare: number; // Initial deposits held by households
 
   // --- Risk premium ---
   debtRiskLambda: number;              // 0.03 (3bp per pp of excess total debt/GDP)
@@ -107,7 +136,7 @@ export interface CapitalParams {
   initialCapitalStock: number;    // $ trillions (2025)
 }
 
-interface CapitalState {
+export interface CapitalState {
   stock: number;              // Current capital stock ($ trillions)
   referenceGdpPerWorker: Record<Region, number>;  // Year-0 GDP/worker per region
   referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
@@ -116,9 +145,10 @@ interface CapitalState {
   publicDebt: number;         // $ trillions
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
+  financialLedger?: GodleyLedgerState;
 }
 
-interface CapitalInputs {
+export interface CapitalInputs {
   /** Realized energy capex $T (from energy, lagged). Unwired fallback: the internal burden-driven estimate (pre-ledger behavior) */
   energyCapexSpend?: number;
   /** Realized CDR spend $T (from cdr, lagged). Unwired fallback: 0 (free CDR — pre-ledger behavior) */
@@ -153,11 +183,35 @@ interface CapitalInputs {
   regionalLifeExpectancy?: Record<Region, number>;
 }
 
-interface CapitalOutputs {
+export interface CapitalOutputs {
   // Stock and flows
   stock: number;              // Capital stock ($ trillions)
   nextCapitalStock: number;   // End-of-period capital stock ($ trillions)
   investment: number;         // Annual investment ($ trillions)
+  plannedInvestment: number;  // Desired annual investment before final-use feasibility cap
+  unfundedInvestmentDemand: number; // Desired investment above the feasible final-use envelope
+  unfundedFinancingDemand: number; // Orders not covered by internal funds and net bank credit
+  grossSavings: number;       // Deprecated-compatible alias for ex-post national gross saving
+
+  // Monetary circuit and sectoral saving
+  laborCompensation: number;
+  operatingSurplus: number;
+  privateInterestPayments: number;
+  profitAfterInterestAndDepreciation: number;
+  profitRate: number;
+  retainedEarnings: number;
+  firmDividendPayments: number;
+  bankDividendPayments: number;
+  firmInternalFunds: number;
+  householdDisposableIncome: number;
+  householdSaving: number;
+  householdSavingRate: number;
+  firmGrossSaving: number;
+  governmentSaving: number;
+  bankSaving: number;
+  nationalSaving: number;
+  savingInvestmentResidual: number;
+  householdSavingLedgerResidual: number;
 
   // Rates
   savingsRate: number;        // Global aggregate savings rate
@@ -187,8 +241,18 @@ interface CapitalOutputs {
   childCost: number;            // $ trillions (education for 0-19)
   regionalRetireeCost: Record<Region, number>; // $ trillions by region
   regionalChildCost: Record<Region, number>;   // $ trillions by region
-  transferBurden: number;       // (retireeCost + childCost) / GDP, capped at 0.50
-  workerConsumption: number;    // $ trillions (GDP - investment - retireeCost - childCost - publicDebtService)
+  pensionTransfers: number;     // Cash pensions; redistribution, not a GDP final use
+  retireeHealthcareConsumption: number; // Government-purchased retiree healthcare
+  educationConsumption: number; // Government-purchased education services
+  governmentServiceConsumption: number; // Healthcare + education in GDP final uses
+  regionalPensionTransfers: Record<Region, number>;
+  regionalRetireeHealthcareConsumption: Record<Region, number>;
+  regionalEducationConsumption: Record<Region, number>;
+  transferBurden: number;       // Cash pensions + government dependent services / GDP
+  householdConsumption: number; // GDP - investment - government services
+  retireeConsumption: number;   // Household consumption allocated to pension recipients
+  workerConsumption: number;    // Remaining household consumption
+  nationalAccountsResidual: number; // GDP - C - I - G
 
   // Debt/credit
   publicDebtGDP: number;       // ratio
@@ -196,9 +260,27 @@ interface CapitalOutputs {
   totalDebtGDP: number;        // ratio
   privateDebtStock: number;    // Beginning-of-period private debt ($T)
   nextPrivateDebtStock: number;// End-of-period private debt ($T)
-  publicDebtService: number;   // $T (interest on public debt)
-  creditImpulse: number;       // $T (net new private credit)
+  publicDebtStock: number;     // Beginning-of-period public debt ($T)
+  nextPublicDebtStock: number; // End-of-period public debt ($T)
+  publicInterestPayments: number; // $T/year interest transfer to bondholders
+  publicInterestToHouseholds: number; // Direct interest on household-held bonds
+  publicInterestToBanks: number; // Interest on bank-held public bonds
+  publicDebtService: number;   // Deprecated alias for publicInterestPayments
+  grossLoanOriginations: number; // $T/year including refinanced principal
+  newInvestmentLoanOriginations: number; // $T/year of genuinely new investment credit
+  refinancedPrincipal: number; // $T/year of maturing principal rolled into new loans
+  unfundedCreditDemand: number; // $T/year requested investment credit not supplied
+  creditImpulse: number;       // Deprecated alias for newInvestmentLoanOriginations
+  principalRepayments: number; // $T/year of private-loan principal repaid
+  loanWriteOffs: number;       // $T/year of private loans written off
+  netCreditCreation: number;   // Change in private debt stock
+  primaryDeficit: number;      // Net public-debt issuance
+  netTaxes: number;            // Taxes net of rebates needed by the fiscal closure
   debtRiskPremium: number;     // fraction added to interest rate
+  bankEquity: number;          // Closing consolidated bank net worth
+  bankEquityShortfall: number; // Amount required to restore non-negative equity
+  bankCapitalRatio: number;    // Closing bank equity / bank assets
+  financialLedgerResidual: number; // Maximum Godley accounting residual
 }
 
 // =============================================================================
@@ -213,6 +295,13 @@ export const capitalDefaults: CapitalParams = {
   // and r tracks what capital is paid, not the fitted marginal product.
   alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
   depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
+  // Bounded toy version of Keen's profit-responsive investment function.
+  // These values keep the 2025 gross-investment rate near the pre-circuit
+  // calibration while making investment orders causally prior to saving.
+  firmRetentionRate: 0.90,
+  investmentProfitRateFloor: 0,
+  investmentProfitRateCeiling: 0.025,
+  maximumNetInvestmentRate: 0.038,
 
   // OLG lifecycle savings
   savingsYoung: 0.0,        // Dependents don't save
@@ -292,6 +381,17 @@ export const capitalDefaults: CapitalParams = {
   leverageDamping: 1.5,               // Dampening above threshold
   leverageThreshold: 1.50,            // Private debt/GDP where damping starts
   privateAmortization: 0.05,          // ~20yr avg maturity
+  // Baseline assumes scheduled principal is rolled over; scenarios can force
+  // deleveraging by lowering this ratio. Rollover creates no net spending power.
+  loanRolloverRate: 1,
+  // No baseline default mechanism is assumed. Scenarios must turn write-offs
+  // on explicitly; doing so hits bank equity one-for-one in the Godley ledger.
+  privateDefaultRate: 0,
+  financialSubsteps: 4,
+  // Scenario capitalization target, not a claim about a specific Basel
+  // regulatory numerator or risk-weighted denominator.
+  bankEquityRatio: 0.10,
+  openingHouseholdDepositShare: 0.50,
 
   // --- Risk premium ---
   debtRiskLambda: 0.03,               // 3bp per pp of excess total debt/GDP
@@ -354,20 +454,83 @@ function calculateSavingsRate(
 }
 
 /**
- * Uncertainty damping on savings: Φ = 1 / (1 + λ × uncertainty²).
+ * Uncertainty damping on desired net investment: Φ = 1 / (1 + λu²).
  * Provenance and scope in the module header's Key equations block.
  */
 function calculateStability(uncertainty: number, lambda: number): number {
   return 1 / (1 + lambda * uncertainty * uncertainty);
 }
 
-/**
- * Interest rate = marginal product of capital - depreciation
- * r = α × Y/K - δ
- */
-function calculateInterestRate(gdp: number, capital: number, params: CapitalParams): number {
-  if (capital <= 0) return params.depreciation; // Fallback
-  return params.alpha * gdp / capital - params.depreciation;
+interface FirmCircuit {
+  laborCompensation: number;
+  operatingSurplus: number;
+  depreciationAllowance: number;
+  profitAfterInterestAndDepreciation: number;
+  profitRate: number;
+  retainedEarnings: number;
+  firmDividendPayments: number;
+  firmGrossSaving: number;
+  firmInternalFunds: number;
+  plannedInvestment: number;
+}
+
+function calculateFirmCircuit(
+  gdp: number,
+  governmentServiceConsumption: number,
+  capitalStock: number,
+  privateInterestPayments: number,
+  stability: number,
+  netEnergyFactor: number,
+  params: CapitalParams,
+): FirmCircuit {
+  const marketOutput = Math.max(0, gdp - governmentServiceConsumption);
+  const operatingSurplus = params.alpha * marketOutput;
+  const laborCompensation = marketOutput - operatingSurplus;
+  const depreciationAllowance = params.depreciation * capitalStock;
+  const profitAfterInterestAndDepreciation =
+    operatingSurplus - privateInterestPayments - depreciationAllowance;
+  const profitRate = capitalStock > 0
+    ? profitAfterInterestAndDepreciation / capitalStock
+    : 0;
+
+  // Losses are retained by definition; only positive profit can be paid out.
+  const firmDividendPayments =
+    Math.max(0, profitAfterInterestAndDepreciation)
+    * (1 - params.firmRetentionRate);
+  const retainedEarnings =
+    profitAfterInterestAndDepreciation - firmDividendPayments;
+  const firmGrossSaving = depreciationAllowance + retainedEarnings;
+  const firmInternalFunds = Math.max(0, firmGrossSaving);
+
+  const responseWidth = Math.max(
+    Number.EPSILON,
+    params.investmentProfitRateCeiling - params.investmentProfitRateFloor,
+  );
+  const normalizedProfit = Math.max(0, Math.min(
+    1,
+    (profitRate - params.investmentProfitRateFloor) / responseWidth,
+  ));
+  const smoothProfitSignal =
+    normalizedProfit * normalizedProfit * (3 - 2 * normalizedProfit);
+  const desiredNetInvestment =
+    capitalStock
+    * params.maximumNetInvestmentRate
+    * smoothProfitSignal
+    * stability
+    * netEnergyFactor;
+
+  return {
+    laborCompensation,
+    operatingSurplus,
+    depreciationAllowance,
+    profitAfterInterestAndDepreciation,
+    profitRate,
+    retainedEarnings,
+    firmDividendPayments,
+    firmGrossSaving,
+    firmInternalFunds,
+    plannedInvestment: Math.max(0, depreciationAllowance + desiredNetInvestment),
+  };
 }
 
 /**
@@ -397,10 +560,28 @@ export const capitalModule: Module<
   CapitalOutputs
 > = defineModule<CapitalParams, CapitalState, CapitalInputs, CapitalOutputs>({
   name: 'capital',
-  description: 'OLG capital accumulation with demographic-weighted savings',
+  description: 'Profit-led capital accumulation with a stock-flow-consistent monetary circuit',
   defaults: capitalDefaults,
 
   paramMeta: {
+    firmRetentionRate: {
+      description: 'Share of positive firm profit retained after interest and depreciation; retained profit contributes internal investment finance.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.90 },
+      tier: 1 as const,
+    },
+    investmentProfitRateCeiling: {
+      description: 'Firm profit rate at which the bounded desired net-investment response reaches its maximum.',
+      unit: 'fraction/year',
+      range: { min: 0.005, max: 0.15, default: 0.025 },
+      tier: 1 as const,
+    },
+    maximumNetInvestmentRate: {
+      description: 'Maximum desired net investment as a fraction of the capital stock when the profit response saturates.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.20, default: 0.038 },
+      tier: 1 as const,
+    },
     savingsWorking: {
       paramName: 'savingsRateWorking',
       description: 'Savings rate for working-age population. Higher in aging societies.',
@@ -440,10 +621,16 @@ export const capitalModule: Module<
       tier: 1 as const,
     },
     baseCreditGrowth: {
-      description: 'New private credit as fraction of GDP per year. Higher → faster capital accumulation but more leverage risk.',
+      description: 'Bank capacity for net-new investment credit as a fraction of GDP per year. Principal refinancing is tracked separately.',
       unit: 'fraction/year',
       range: { min: 0, max: 0.10, default: 0.04 },
       tier: 1 as const,
+    },
+    loanRolloverRate: {
+      description: 'Share of scheduled private-loan principal refinanced. Refinancing replaces maturing debt without funding new investment.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 1 },
+      tier: 2 as const,
     },
     publicDeficitRate: {
       description: 'Structural primary deficit as fraction of GDP. Higher → more public debt accumulation.',
@@ -456,6 +643,30 @@ export const capitalModule: Module<
       unit: 'fraction/pp',
       range: { min: 0, max: 0.10, default: 0.03 },
       tier: 1 as const,
+    },
+    privateDefaultRate: {
+      description: 'Annual private-loan write-off rate. Write-offs reduce borrower liabilities and bank equity one-for-one.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.20, default: 0 },
+      tier: 2 as const,
+    },
+    financialSubsteps: {
+      description: 'Within-year integration steps for debt, risk-premium, repayment, and credit feedback.',
+      unit: 'steps/year',
+      range: { min: 1, max: 12, default: 4 },
+      tier: 2 as const,
+    },
+    bankEquityRatio: {
+      description: 'Opening consolidated bank equity as a share of bank assets; a scenario balance-sheet assumption.',
+      unit: 'fraction',
+      range: { min: 0.01, max: 0.30, default: 0.10 },
+      tier: 2 as const,
+    },
+    openingHouseholdDepositShare: {
+      description: 'Share of the opening bank-deposit stock held by households; the remainder is held by firms.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.50 },
+      tier: 2 as const,
     },
   },
 
@@ -481,6 +692,28 @@ export const capitalModule: Module<
       stock: unitPort('$T'),
       nextCapitalStock: unitPort('$T'),
       investment: unitPort('$T/year'),
+      plannedInvestment: unitPort('$T/year'),
+      unfundedInvestmentDemand: unitPort('$T/year'),
+      unfundedFinancingDemand: unitPort('$T/year'),
+      grossSavings: unitPort('$T/year'),
+      laborCompensation: unitPort('$T/year'),
+      operatingSurplus: unitPort('$T/year'),
+      privateInterestPayments: unitPort('$T/year'),
+      profitAfterInterestAndDepreciation: unitPort('$T/year'),
+      profitRate: unitPort('fraction/year'),
+      retainedEarnings: unitPort('$T/year'),
+      firmDividendPayments: unitPort('$T/year'),
+      bankDividendPayments: unitPort('$T/year'),
+      firmInternalFunds: unitPort('$T/year'),
+      householdDisposableIncome: unitPort('$T/year'),
+      householdSaving: unitPort('$T/year'),
+      householdSavingRate: unitPort('fraction'),
+      firmGrossSaving: unitPort('$T/year'),
+      governmentSaving: unitPort('$T/year'),
+      bankSaving: unitPort('$T/year'),
+      nationalSaving: unitPort('$T/year'),
+      savingInvestmentResidual: unitPort('$T/year'),
+      householdSavingLedgerResidual: unitPort('$T/year'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
       stability: unitPort('fraction'),
@@ -498,16 +731,44 @@ export const capitalModule: Module<
       childCost: unitPort('$T/year'),
       regionalRetireeCost: unitPort('$T/year', 'record'),
       regionalChildCost: unitPort('$T/year', 'record'),
+      pensionTransfers: unitPort('$T/year'),
+      retireeHealthcareConsumption: unitPort('$T/year'),
+      educationConsumption: unitPort('$T/year'),
+      governmentServiceConsumption: unitPort('$T/year'),
+      regionalPensionTransfers: unitPort('$T/year', 'record'),
+      regionalRetireeHealthcareConsumption: unitPort('$T/year', 'record'),
+      regionalEducationConsumption: unitPort('$T/year', 'record'),
       transferBurden: unitPort('fraction'),
+      householdConsumption: unitPort('$T/year'),
+      retireeConsumption: unitPort('$T/year'),
       workerConsumption: unitPort('$T/year'),
+      nationalAccountsResidual: unitPort('$T/year'),
       publicDebtGDP: unitPort('fraction'),
       privateDebtGDP: unitPort('fraction'),
       totalDebtGDP: unitPort('fraction'),
       privateDebtStock: unitPort('$T'),
       nextPrivateDebtStock: unitPort('$T'),
+      publicDebtStock: unitPort('$T'),
+      nextPublicDebtStock: unitPort('$T'),
+      publicInterestPayments: unitPort('$T/year'),
+      publicInterestToHouseholds: unitPort('$T/year'),
+      publicInterestToBanks: unitPort('$T/year'),
       publicDebtService: unitPort('$T/year'),
+      grossLoanOriginations: unitPort('$T/year'),
+      newInvestmentLoanOriginations: unitPort('$T/year'),
+      refinancedPrincipal: unitPort('$T/year'),
+      unfundedCreditDemand: unitPort('$T/year'),
       creditImpulse: unitPort('$T/year'),
+      principalRepayments: unitPort('$T/year'),
+      loanWriteOffs: unitPort('$T/year'),
+      netCreditCreation: unitPort('$T/year'),
+      primaryDeficit: unitPort('$T/year'),
+      netTaxes: unitPort('$T/year'),
       debtRiskPremium: unitPort('fraction'),
+      bankEquity: unitPort('$T'),
+      bankEquityShortfall: unitPort('$T'),
+      bankCapitalRatio: unitPort('fraction'),
+      financialLedgerResidual: unitPort('$T'),
     },
   },
 
@@ -525,6 +786,32 @@ export const capitalModule: Module<
       if (params.depreciation < 0.01 || params.depreciation > 0.15) {
         errors.push('Depreciation must be between 1% and 15%');
       }
+    }
+    if (
+      params.firmRetentionRate !== undefined
+      && (params.firmRetentionRate < 0 || params.firmRetentionRate > 1)
+    ) {
+      errors.push('firmRetentionRate must be between 0 and 1');
+    }
+    if (
+      params.maximumNetInvestmentRate !== undefined
+      && (
+        params.maximumNetInvestmentRate < 0
+        || params.maximumNetInvestmentRate > 0.20
+      )
+    ) {
+      errors.push('maximumNetInvestmentRate must be between 0 and 0.20');
+    }
+    const profitFloor =
+      params.investmentProfitRateFloor
+      ?? capitalDefaults.investmentProfitRateFloor;
+    const profitCeiling =
+      params.investmentProfitRateCeiling
+      ?? capitalDefaults.investmentProfitRateCeiling;
+    if (!Number.isFinite(profitFloor) || !Number.isFinite(profitCeiling)) {
+      errors.push('investment profit-rate bounds must be finite');
+    } else if (profitCeiling <= profitFloor) {
+      errors.push('investmentProfitRateCeiling must exceed investmentProfitRateFloor');
     }
 
     if (params.savingsWorking !== undefined) {
@@ -600,6 +887,40 @@ export const capitalModule: Module<
         errors.push('privateAmortization must be between 0.01 and 0.20');
       }
     }
+    if (
+      params.loanRolloverRate !== undefined
+      && (params.loanRolloverRate < 0 || params.loanRolloverRate > 1)
+    ) {
+      errors.push('loanRolloverRate must be between 0 and 1');
+    }
+    if (params.privateDefaultRate !== undefined) {
+      if (params.privateDefaultRate < 0 || params.privateDefaultRate > 0.20) {
+        errors.push('privateDefaultRate must be between 0 and 0.20');
+      }
+    }
+    if (params.financialSubsteps !== undefined) {
+      if (
+        !Number.isInteger(params.financialSubsteps)
+        || params.financialSubsteps < 1
+        || params.financialSubsteps > 12
+      ) {
+        errors.push('financialSubsteps must be an integer between 1 and 12');
+      }
+    }
+    if (params.bankEquityRatio !== undefined) {
+      if (params.bankEquityRatio < 0.01 || params.bankEquityRatio > 0.30) {
+        errors.push('bankEquityRatio must be between 0.01 and 0.30');
+      }
+    }
+    if (
+      params.openingHouseholdDepositShare !== undefined
+      && (
+        params.openingHouseholdDepositShare < 0
+        || params.openingHouseholdDepositShare > 1
+      )
+    ) {
+      errors.push('openingHouseholdDepositShare must be between 0 and 1');
+    }
 
     return { valid: errors.length === 0, errors, warnings };
   },
@@ -642,6 +963,7 @@ export const capitalModule: Module<
       publicDebt: 0,   // Initialized from GDP at yearIndex === 0
       privateDebt: 0,   // Initialized from GDP at yearIndex === 0
       previousGdp: 0,   // Initialized from inputs at yearIndex === 0
+      financialLedger: undefined,
     };
   },
 
@@ -696,11 +1018,24 @@ export const capitalModule: Module<
     const stability = calculateStability(uncertainty, params.stabilityLambda);
 
     // ==========================================================================
-    // Intergenerational transfers: pension + healthcare (old), education (young)
-    // With retirement age adjustment + wage indexation
+    // Intergenerational fiscal flows, with retirement-age adjustment and wage
+    // indexation. Pensions are cash transfers; healthcare and education are
+    // government purchases of final services. Keeping these categories
+    // separate prevents transfers from being added to GDP as if they were
+    // newly produced output.
     // ==========================================================================
-    let retireeCost = 0;
-    let childCost = 0;
+    let pensionTransfers = 0;
+    let retireeHealthcareConsumption = 0;
+    let educationConsumption = 0;
+    const regionalPensionTransfers = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
+    const regionalRetireeHealthcareConsumption = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
+    const regionalEducationConsumption = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
     const regionalRetireeCost = Object.fromEntries(
       REGIONS.map(r => [r, 0])
     ) as Record<Region, number>;
@@ -764,22 +1099,39 @@ export const capitalModule: Module<
       const effectiveGdpPerWorker = wi * currentGdpPerWorker + (1 - wi) * (refGdpPerWorker[r] ?? currentGdpPerWorker);
       const effectiveGdpPerCapita = wi * currentGdpPerCapita + (1 - wi) * (refGdpPerCapita[r] ?? currentGdpPerCapita);
 
-      // Use adjusted old population + blended GDP rates for transfer costs
-      const regionRetireeCost = adjustedOld *
-        (pensionRate * effectiveGdpPerWorker + healthcareRate * effectiveGdpPerCapita);
-      const regionChildCost = young * educationRate * effectiveGdpPerCapita;
+      const regionPensionTransfers =
+        adjustedOld * pensionRate * effectiveGdpPerWorker;
+      const regionRetireeHealthcare =
+        adjustedOld * healthcareRate * effectiveGdpPerCapita;
+      const regionEducation = young * educationRate * effectiveGdpPerCapita;
+      const regionRetireeCost = regionPensionTransfers + regionRetireeHealthcare;
+      const regionChildCost = regionEducation;
+      regionalPensionTransfers[r] = regionPensionTransfers;
+      regionalRetireeHealthcareConsumption[r] = regionRetireeHealthcare;
+      regionalEducationConsumption[r] = regionEducation;
       regionalRetireeCost[r] = regionRetireeCost;
       regionalChildCost[r] = regionChildCost;
-      retireeCost += regionRetireeCost;
-      childCost += regionChildCost;
+      pensionTransfers += regionPensionTransfers;
+      retireeHealthcareConsumption += regionRetireeHealthcare;
+      educationConsumption += regionEducation;
     }
 
-    // Uncapped: raw transfer share of GDP (peaks ~0.28 even in aging/high-debt
-    // stress runs, so the old 0.50 cap never bound — removed as dead headroom).
+    // Legacy aggregate names remain as transparent sums for downstream
+    // compatibility. New accounting code uses the disaggregated categories.
+    const retireeCost = pensionTransfers + retireeHealthcareConsumption;
+    const childCost = educationConsumption;
+    const governmentServiceConsumption =
+      retireeHealthcareConsumption + educationConsumption;
     const transferBurden = inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0;
 
     // ==========================================================================
-    // Debt/credit channel
+    // Keen-style monetary circuit (toy closure):
+    // expected profit -> investment orders -> bank financing -> income and
+    // payments -> ex-post saving -> debt service/default.
+    //
+    // Saving is deliberately not added to bank credit as a second funding
+    // pool. Internal firm cash flow and net new bank deposits finance orders;
+    // household and national saving are measured after expenditure occurs.
     // ==========================================================================
 
     // Initialize debt stocks at yearIndex === 0
@@ -792,69 +1144,236 @@ export const capitalModule: Module<
       previousGdp = inputs.gdp;
     }
 
-    // Debt ratios (use beginning-of-period stocks)
-    const publicDebtGDP = inputs.gdp > 0 ? publicDebt / inputs.gdp : 0;
-    const privateDebtGDP = inputs.gdp > 0 ? privateDebt / inputs.gdp : 0;
-    const totalDebtGDP = publicDebtGDP + privateDebtGDP;
-
-    // Risk premium: high debt → expensive borrowing (self-limiting)
-    const excessDebt = Math.max(0, totalDebtGDP - params.debtRiskThreshold);
-    const debtRiskPremium = params.debtRiskLambda * excessDebt;
-
-    // Interest rate = marginal product of capital + debt risk premium
-    const baseInterestRate = calculateInterestRate(inputs.gdp, state.stock, params);
-    const interestRate = baseInterestRate + debtRiskPremium;
-
-    // --- Public debt dynamics ---
-    // Debt service: interest on outstanding public debt (paid from GDP, not capitalized)
-    const publicDebtService = interestRate * publicDebt;
-    // Fiscal consolidation: primary surplus when debt/GDP exceeds threshold
-    const fiscalConsolidation = Math.min(
-      params.fiscalReactionMax * inputs.gdp,
-      Math.max(0, params.fiscalReactionCoeff * (publicDebtGDP - params.fiscalReactionThreshold) * inputs.gdp),
+    const financeState = { publicDebt, privateDebt, previousGdp };
+    const maximumFeasibleInvestment = Math.max(
+      0,
+      inputs.gdp - governmentServiceConsumption,
     );
-    // Primary deficit only (not interest) drives new debt accumulation.
-    // Interest is serviced from tax revenue (already captured as GDP burden).
-    const primaryDeficit = params.publicDeficitRate * inputs.gdp - fiscalConsolidation;
-
-    // --- Private debt / credit channel ---
-    const gdpGrowth = previousGdp > 0 ? (inputs.gdp - previousGdp) / previousGdp : 0;
-    // Floors at 0 (credit fully damped, never reversed) — definitional, not a
-    // chosen bound. The old 0.2/0.1 magic floors never bound: spreadFactor
-    // stays >=0.77 and leverageFactor =1.0 across every scenario (private debt
-    // amortizes below the damping threshold), so the specific values were dead.
-    const spreadFactor = Math.max(0, 1 - params.creditSensitivity * Math.max(0, interestRate - gdpGrowth));
-    const leverageFactor = Math.max(0, 1 - params.leverageDamping * Math.max(0, privateDebtGDP - params.leverageThreshold));
-    const creditImpulse = params.baseCreditGrowth * inputs.gdp * spreadFactor * leverageFactor;
-    const amortization = privateDebt * params.privateAmortization;
-
-    // --- Investment: gross savings + credit impulse ---
-    // Public debt service is a burden on GDP (like transfers)
-    const totalBurden = Math.min(0.50, transferBurden + (inputs.gdp > 0 ? publicDebtService / inputs.gdp : 0));
-    const availableGdp = inputs.gdp * (1 - totalBurden);
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
-    const grossSavings = availableGdp * savingsRate * stability * netEnergyFactor;
-    const investment = Math.max(0, sumQuantities([
-      unitQuantity(grossSavings, '$T/year', 'gross savings'),
-      unitQuantity(creditImpulse, '$T/year', 'credit impulse'),
-    ], '$T/year', 'gross investment').value);
 
-    // Worker consumption = residual (20% floor prevents negative)
-    const MIN_WORKER_CONSUMPTION_SHARE = 0.20;
-    const workerConsumptionResidual = subtractQuantities(
+    // Credit affects debt and interest within the year, while interest affects
+    // profit and the financing request. Iterate this small fixed point so the
+    // reported order, interest bill, and requested credit are mutually
+    // consistent rather than relying on an arbitrary call order.
+    let netNewCreditDemand = 0;
+    let finance = advanceCapitalFinance(
+      financeState,
+      {
+        gdp: inputs.gdp,
+        capitalStock: state.stock,
+        netNewCreditDemand,
+      },
+      params,
+    );
+    let firmCircuit = calculateFirmCircuit(
+      inputs.gdp,
+      governmentServiceConsumption,
+      state.stock,
+      finance.privateInterestPayments,
+      stability,
+      netEnergyFactor,
+      params,
+    );
+    for (let iteration = 0; iteration < 12; iteration++) {
+      const nextDemand = Math.max(
+        0,
+        Math.min(firmCircuit.plannedInvestment, maximumFeasibleInvestment)
+          - firmCircuit.firmInternalFunds,
+      );
+      if (
+        Math.abs(nextDemand - netNewCreditDemand)
+        <= 1e-10 * Math.max(1, nextDemand)
+      ) {
+        netNewCreditDemand = nextDemand;
+        break;
+      }
+      netNewCreditDemand = nextDemand;
+      finance = advanceCapitalFinance(
+        financeState,
+        {
+          gdp: inputs.gdp,
+          capitalStock: state.stock,
+          netNewCreditDemand,
+        },
+        params,
+      );
+      firmCircuit = calculateFirmCircuit(
+        inputs.gdp,
+        governmentServiceConsumption,
+        state.stock,
+        finance.privateInterestPayments,
+        stability,
+        netEnergyFactor,
+        params,
+      );
+    }
+    // One final evaluation associates the financial stocks and flows exactly
+    // with the converged financing request.
+    finance = advanceCapitalFinance(
+      financeState,
+      {
+        gdp: inputs.gdp,
+        capitalStock: state.stock,
+        netNewCreditDemand,
+      },
+      params,
+    );
+    firmCircuit = calculateFirmCircuit(
+      inputs.gdp,
+      governmentServiceConsumption,
+      state.stock,
+      finance.privateInterestPayments,
+      stability,
+      netEnergyFactor,
+      params,
+    );
+
+    const openingFinancialLedger = state.financialLedger ?? createCapitalGodleyLedger({
+      capitalStock: state.stock,
+      privateDebt,
+      publicDebt,
+      bankEquityRatio: params.bankEquityRatio,
+      householdDepositShare: params.openingHouseholdDepositShare,
+      step: yearIndex,
+    });
+    const publicDebtGDP = finance.openingPublicDebtGDP;
+    const privateDebtGDP = finance.openingPrivateDebtGDP;
+    const totalDebtGDP = finance.openingTotalDebtGDP;
+    const debtRiskPremium = finance.debtRiskPremium;
+    const interestRate = finance.interestRate;
+    const publicInterestPayments = finance.publicInterestPayments;
+    const openingBankPublicBonds =
+      openingFinancialLedger.balances['banks.publicBonds'] ?? 0;
+    const openingHouseholdPublicBonds =
+      openingFinancialLedger.balances['households.publicBonds'] ?? 0;
+    const openingPublicBondHoldings =
+      openingBankPublicBonds + openingHouseholdPublicBonds;
+    const publicInterestToBanks = openingPublicBondHoldings > 0
+      ? publicInterestPayments
+        * openingBankPublicBonds
+        / openingPublicBondHoldings
+      : 0;
+    const publicInterestToHouseholds =
+      publicInterestPayments - publicInterestToBanks;
+    const publicDebtService = publicInterestPayments;
+    const grossLoanOriginations = finance.grossLoanOriginations;
+    const newInvestmentLoanOriginations =
+      finance.newInvestmentLoanOriginations;
+    const refinancedPrincipal = finance.refinancedPrincipal;
+    const unfundedCreditDemand = finance.unfundedNetNewCreditDemand;
+    // Preserve the scale and economic content of the deprecated field: unlike
+    // total originations, this excludes mechanically rolled principal.
+    const creditImpulse = newInvestmentLoanOriginations;
+
+    const plannedInvestment = firmCircuit.plannedInvestment;
+    const netCashCredit =
+      grossLoanOriginations - finance.principalRepayments;
+    const financingAvailable = Math.max(
+      0,
+      firmCircuit.firmInternalFunds + netCashCredit,
+    );
+    const investment = Math.min(
+      plannedInvestment,
+      financingAvailable,
+      maximumFeasibleInvestment,
+    );
+    const unfundedFinancingDemand = Math.max(
+      0,
+      plannedInvestment - financingAvailable,
+    );
+    const unfundedInvestmentDemand = Math.max(
+      0,
+      plannedInvestment - investment,
+    );
+    // A fixed retention ratio can leave firms hoarding cash once internal
+    // funds exceed their actual orders. Distribute that surplus (up to
+    // positive retained profit) after the investment decision. This keeps the
+    // circuit closed without forcing households to borrow merely because
+    // firms have no profitable use for additional retained earnings.
+    const excessFirmCash = Math.min(
+      Math.max(
+        0,
+        firmCircuit.firmInternalFunds + netCashCredit - investment,
+      ),
+      Math.max(0, firmCircuit.retainedEarnings),
+    );
+    const firmDividendPayments =
+      firmCircuit.firmDividendPayments + excessFirmCash;
+    const retainedEarnings =
+      firmCircuit.retainedEarnings - excessFirmCash;
+    const firmGrossSaving =
+      firmCircuit.firmGrossSaving - excessFirmCash;
+    const householdConsumption = Math.max(
+      0,
+      subtractQuantities(
+        unitQuantity(inputs.gdp, '$T/year', 'GDP'),
+        [
+          unitQuantity(investment, '$T/year', 'investment'),
+          unitQuantity(
+            governmentServiceConsumption,
+            '$T/year',
+            'government service consumption',
+          ),
+        ],
+        'household-consumption residual',
+      ).value,
+    );
+    const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
+    const workerConsumption = householdConsumption - retireeConsumption;
+
+    // Fiscal closure and ex-post sectoral saving. Banks distribute current
+    // interest income; loan write-offs remain a balance-sheet loss rather than
+    // current income. The four sector balances therefore sum to realized
+    // investment, up to floating-point error.
+    const netTaxes =
+      governmentServiceConsumption
+      + pensionTransfers
+      + publicInterestPayments
+      - finance.publicDebtChange;
+    const bankInterestIncome =
+      finance.privateInterestPayments + publicInterestToBanks;
+    const bankDividendPayments = bankInterestIncome;
+    const householdDisposableIncome =
+      firmCircuit.laborCompensation
+      + firmDividendPayments
+      + bankDividendPayments
+      + governmentServiceConsumption
+      + pensionTransfers
+      + publicInterestToHouseholds
+      - netTaxes;
+    const householdSaving =
+      householdDisposableIncome - householdConsumption;
+    const householdSavingRate = householdDisposableIncome > 0
+      ? householdSaving / householdDisposableIncome
+      : 0;
+    const governmentSaving =
+      netTaxes
+      - governmentServiceConsumption
+      - pensionTransfers
+      - publicInterestPayments;
+    const bankSaving =
+      bankInterestIncome - bankDividendPayments;
+    const nationalSaving =
+      householdSaving
+      + firmGrossSaving
+      + governmentSaving
+      + bankSaving;
+    const grossSavings = nationalSaving;
+    const savingInvestmentResidual = nationalSaving - investment;
+
+    const nationalAccountsResidual = subtractQuantities(
       unitQuantity(inputs.gdp, '$T/year', 'GDP'),
       [
+        unitQuantity(householdConsumption, '$T/year', 'household consumption'),
         unitQuantity(investment, '$T/year', 'investment'),
-        unitQuantity(retireeCost, '$T/year', 'retiree cost'),
-        unitQuantity(childCost, '$T/year', 'child cost'),
-        unitQuantity(publicDebtService, '$T/year', 'public debt service'),
+        unitQuantity(
+          governmentServiceConsumption,
+          '$T/year',
+          'government service consumption',
+        ),
       ],
-      'worker-consumption residual',
+      'national-accounts residual',
     ).value;
-    const workerConsumption = Math.max(
-      MIN_WORKER_CONSUMPTION_SHARE * inputs.gdp,
-      workerConsumptionResidual,
-    );
 
     // Split investment between energy and general economy
     // When energy is scarce/expensive → more investment flows to energy
@@ -929,45 +1448,39 @@ export const capitalModule: Module<
       ? (newStock - state.stock) / state.stock
       : 0;
 
-    // Update debt stocks
-    // Public: ONLY the primary deficit accumulates. Interest is fully
-    // tax-financed by construction — publicDebtService is a first-class
-    // claim in the GDP identity (GDP = consumption + investment + transfers
-    // + publicDebtService), so capitalizing r-g interest here would
-    // double-count it and (with the debt risk premium feeding back into r)
-    // explode without bound. (The module once
-    // advertised d' = d x r/(1+g) + deficit while implementing tax-financed
-    // interest; the advertisement was wrong, not the ledger.) Consequence:
-    // debt spirals via interest capitalization are deliberately
-    // outside this model — debt stress shows up as a rising
-    // publicDebtService claim on GDP and the debtRiskPremium channel, not
-    // as runaway debt stocks. debt-populism results understate true
-    // spiral risk and say so in the scenario description.
-    const primaryDeficitStock = integrateFlow(
-      unitQuantity(primaryDeficit, '$T/year', 'primary deficit'),
-      unitQuantity(1, 'year', 'annual timestep'),
-      '$T',
-      'annual public-debt addition',
-    );
-    const newPublicDebt = Math.max(0, sumQuantities([
-      unitQuantity(publicDebt, '$T', 'opening public debt'),
-      primaryDeficitStock,
-    ], '$T', 'next public debt').value);
-    const netPrivateCredit = subtractQuantities(
-      unitQuantity(creditImpulse, '$T/year', 'credit impulse'),
-      [unitQuantity(amortization, '$T/year', 'private amortization')],
-      'net private credit flow',
-    );
-    const netPrivateDebtAddition = integrateFlow(
-      netPrivateCredit,
-      unitQuantity(1, 'year', 'annual timestep'),
-      '$T',
-      'annual private-debt addition',
-    );
-    const newPrivateDebt = Math.max(0, sumQuantities([
-      unitQuantity(privateDebt, '$T', 'opening private debt'),
-      netPrivateDebtAddition,
-    ], '$T', 'next private debt').value);
+    const newPublicDebt = finance.state.publicDebt;
+    const newPrivateDebt = finance.state.privateDebt;
+
+    const openingHouseholdNetWorth =
+      openingFinancialLedger.balances['households.netWorth'] ?? 0;
+    const financialPosting = postCapitalGodleyYear(openingFinancialLedger, {
+      depreciation: firmCircuit.depreciationAllowance,
+      generalInvestment,
+      laborCompensation: firmCircuit.laborCompensation,
+      householdConsumption,
+      grossLoanOriginations,
+      principalRepayments: finance.principalRepayments,
+      loanWriteOffs: finance.loanWriteOffs,
+      privateInterestPayments: finance.privateInterestPayments,
+      firmDividendPayments,
+      bankDividendPayments,
+      publicDebtChange: finance.publicDebtChange,
+      governmentServiceConsumption,
+      pensionTransfers,
+      publicInterestPayments,
+      publicInterestToBanks,
+      netTaxes,
+    });
+    const bankEquity =
+      financialPosting.state.balances['banks.netWorth'] ?? 0;
+    const bankEquityShortfall = Math.max(0, -bankEquity);
+    const bankCapitalRatio = capitalBankCapitalRatio(financialPosting.state);
+    const householdSavingLedgerResidual =
+      (
+        (financialPosting.state.balances['households.netWorth'] ?? 0)
+        - openingHouseholdNetWorth
+      )
+      - householdSaving;
 
     return {
       state: {
@@ -979,11 +1492,35 @@ export const capitalModule: Module<
         publicDebt: newPublicDebt,
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
+        financialLedger: financialPosting.state,
       },
       outputs: {
         stock: state.stock, // Output current stock (before update)
         nextCapitalStock: newStock,
         investment,
+        plannedInvestment,
+        unfundedInvestmentDemand,
+        unfundedFinancingDemand,
+        grossSavings,
+        laborCompensation: firmCircuit.laborCompensation,
+        operatingSurplus: firmCircuit.operatingSurplus,
+        privateInterestPayments: finance.privateInterestPayments,
+        profitAfterInterestAndDepreciation:
+          firmCircuit.profitAfterInterestAndDepreciation,
+        profitRate: firmCircuit.profitRate,
+        retainedEarnings,
+        firmDividendPayments,
+        bankDividendPayments,
+        firmInternalFunds: firmCircuit.firmInternalFunds,
+        householdDisposableIncome,
+        householdSaving,
+        householdSavingRate,
+        firmGrossSaving,
+        governmentSaving,
+        bankSaving,
+        nationalSaving,
+        savingInvestmentResidual,
+        householdSavingLedgerResidual,
         savingsRate,
         regionalSavings,
         stability,
@@ -1001,16 +1538,44 @@ export const capitalModule: Module<
         childCost,
         regionalRetireeCost,
         regionalChildCost,
+        pensionTransfers,
+        retireeHealthcareConsumption,
+        educationConsumption,
+        governmentServiceConsumption,
+        regionalPensionTransfers,
+        regionalRetireeHealthcareConsumption,
+        regionalEducationConsumption,
         transferBurden,
+        householdConsumption,
+        retireeConsumption,
         workerConsumption,
+        nationalAccountsResidual,
         publicDebtGDP,
         privateDebtGDP,
         totalDebtGDP,
         privateDebtStock: privateDebt,
         nextPrivateDebtStock: newPrivateDebt,
+        publicDebtStock: publicDebt,
+        nextPublicDebtStock: newPublicDebt,
+        publicInterestPayments,
+        publicInterestToHouseholds,
+        publicInterestToBanks,
         publicDebtService,
+        grossLoanOriginations,
+        newInvestmentLoanOriginations,
+        refinancedPrincipal,
+        unfundedCreditDemand,
         creditImpulse,
+        principalRepayments: finance.principalRepayments,
+        loanWriteOffs: finance.loanWriteOffs,
+        netCreditCreation: finance.netCreditCreation,
+        primaryDeficit: finance.primaryDeficit,
+        netTaxes,
         debtRiskPremium,
+        bankEquity,
+        bankEquityShortfall,
+        bankCapitalRatio,
+        financialLedgerResidual: financialPosting.report.maxResidual,
       },
     };
   },

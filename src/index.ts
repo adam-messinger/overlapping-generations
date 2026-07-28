@@ -16,6 +16,24 @@ export type { Scenario } from './scenario.js';
 export { demographicsModule, demographicsDefaults } from './modules/demographics.js';
 export { demandModule, demandDefaults } from './modules/demand.js';
 export { capitalModule, capitalDefaults } from './modules/capital.js';
+export type {
+  CapitalInputs,
+  CapitalOutputs,
+  CapitalParams,
+  CapitalState,
+} from './modules/capital.js';
+export { advanceCapitalFinance } from './modules/capital-finance.js';
+export type {
+  CapitalFinanceInputs,
+  CapitalFinanceParameters,
+  CapitalFinanceResult,
+  CapitalFinanceState,
+} from './modules/capital-finance.js';
+export {
+  capitalGodleyDefinition,
+  createCapitalGodleyLedger,
+  postCapitalGodleyYear,
+} from './modules/capital-accounting.js';
 export { generationsModule, generationsDefaults } from './modules/generations.js';
 export type { GenerationsParams, CohortAccount, CohortStatus } from './modules/generations.js';
 export { energyModule, energyDefaults } from './modules/energy.js';
@@ -40,6 +58,16 @@ export { runAutowired, initAutowired, stepAutowired, finalizeAutowired, buildOut
 export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AutowireState, AnyModule } from 'tsimulation';
 export type { PortMeta, PortValueType } from 'tsimulation';
 export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics } from './simulation-autowired.js';
+export {
+  analyzeFinancialLocalStability,
+  compareFinancialTimesteps,
+  scanDebtRatioBasin,
+} from './diagnostics/financial-stability.js';
+export {
+  MODEL_ACCOUNTING_APPLICABILITY,
+  assertCompleteAccountingApplicability,
+  renderAccountingApplicabilityMarkdown,
+} from './simulations/accounting-applicability.js';
 
 // Problem-solve separation (Julia SciML-inspired)
 export { defineSimulation, solve, init } from 'tsimulation';

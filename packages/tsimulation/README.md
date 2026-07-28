@@ -66,6 +66,8 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 | **Measurement** | A dataset field, observation procedure, coverage, and revision regime bound to an estimand. |
 | **Data snapshot** | An immutable retrieval vintage with canonical request metadata and exact SHA-256 content identity. |
 | **Manifest** | A stable record of model/code/data versions, hashes, calibration split, inputs, outputs, and diagnostics. |
+| **Godley ledger** | Sector balance sheets and transaction rows that enforce `assets - liabilities - equity = 0` plus cross-sector instrument counterparties. |
+| **Local stability** | A finite-difference Jacobian and exact two-state discrete eigenvalue analysis for inspecting a map near an operating point. |
 
 The engine advances in integer steps (labelled `startYear`..`endYear`, but the
 labels are just integers — use `0..N` for a generic horizon).
@@ -151,6 +153,23 @@ arrays:
   useful lives, depreciation, and terminal book value explicit.
 - `createTransitLedger()` / `advanceTransitLedger()` conserve dispatched,
   arrived, and terminal in-transit inventory, including fractional delays.
+
+Financial stocks use a stricter counterparty-aware ledger:
+
+- `defineGodleyLedger()` declares sector accounts as assets, liabilities, or
+  equity and optionally links asset/liability accounts by instrument.
+- `createGodleyLedger()` rejects opening sector or instrument imbalances.
+- `postGodleyTransactions()` requires every transaction to preserve each
+  affected sector's balance sheet and checks closing stocks against opening
+  stocks plus flows.
+- `renderGodleyTableMarkdown()` and `renderGodleyMermaid()` generate auditable
+  transaction views from the same executable definition.
+
+For a two-state discrete map, `finiteDifferenceJacobian()` and
+`analyzeDiscreteStability2D()` report the exact eigenvalues, spectral radius,
+and local stable/marginal/unstable classification. These are local numerical
+diagnostics; basin scans and timestep-convergence studies remain the model
+author's responsibility because their interpretation is domain-specific.
 
 ## Semantic and measurement contracts
 
