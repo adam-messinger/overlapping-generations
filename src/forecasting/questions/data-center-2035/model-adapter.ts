@@ -23,20 +23,32 @@ export async function runDataCenter2035ModelAdapter(options: {
   actor: { id: string; role: 'service' };
   evidenceArtifactIds: readonly string[];
   createdAt: string;
+  eiaWeight?: number;
+  checkpointId?: string;
   gitSha?: string;
   dirty?: boolean;
 }): Promise<{ recordId: string; modelForecast: ModelForecast }> {
+  const checkpointId = options.checkpointId?.trim();
+  const runLabel = checkpointId
+    ? `data-center-2035-question-mixture-${checkpointId}`
+    : 'data-center-2035-question-mixture';
+  const runId = checkpointId
+    ? `data-center-2035:model-mixture:${checkpointId}`
+    : 'data-center-2035:model-mixture';
+  const modelForecastId = checkpointId
+    ? `data-center-2035:model-conditioned:${checkpointId}`
+    : 'data-center-2035:model-conditioned';
   const input = {
-    eiaWeight: 0.25,
+    eiaWeight: options.eiaWeight ?? 0.25,
     draws: DATA_CENTER_FORECAST_DRAWS,
   };
   const run = runModel(dataCenterForecastMixtureModel, input, {
     seed: DATA_CENTER_FORECAST_SEED,
-    runLabel: 'data-center-2035-question-mixture',
+    runLabel,
   });
   const manifest = createRunManifest({
     run,
-    runId: 'data-center-2035:model-mixture',
+    runId,
     createdAt: options.createdAt,
     gitSha: options.gitSha,
     dirty: options.dirty,
@@ -69,7 +81,7 @@ export async function runDataCenter2035ModelAdapter(options: {
   };
   const modelForecast: ModelForecast = {
     schemaVersion: 'forecast-workbench.model-forecast/v1',
-    id: 'data-center-2035:model-conditioned',
+    id: modelForecastId,
     questionHash: canonicalSha256Id(dataCenter2035Question),
     createdAt: options.createdAt,
     runManifestArtifactId: manifestArtifact.id,

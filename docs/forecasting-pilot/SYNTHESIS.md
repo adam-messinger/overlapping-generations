@@ -1,6 +1,9 @@
 # Forecasting pilot synthesis
 
 **Forecast vintage:** 2026-07-23
+
+**Live refresh:** 2026-07-28; see
+[REFRESH_2026-07-28.md](REFRESH_2026-07-28.md)
 **Original-pilot constraint:** issue simulations could be repaired or adapted,
 but the reusable `tsimulation` framework was held fixed.
 **Post-pilot status:** the simulation-richness improvements exposed by the
@@ -48,6 +51,26 @@ contracts: all 66 carry estimands, the outbreak input carries a source-specific
 measurement binding, and no strict semantic path is missing. Hormuz and the
 global-to-city bridge additionally expose four named proxy/composition
 crosswalks.
+
+## 28 July point-in-time refresh
+
+The newly delivered workbench was then used, not merely replayed. One-shot
+connectors captured current CDC, EIA, Census, Straits.live, and Polymarket
+payloads and appended three new sealed checkpoints:
+
+- the outbreak model stayed at `97.1%` below 4,000 with a refreshed
+  resolver-scale point of `1,408`; the human bins stayed
+  `91 / 5 / 2.5 / 1 / 0.5%`;
+- rapid Census construction realization shifted the data-center structural
+  mixture to `19.2 / 26.3 / 27.8 / 26.7%`, while the already-wider human bins
+  stayed `18 / 25 / 29 / 28%`; and
+- physical Hormuz traffic remained `10` calls versus an `88` baseline, while
+  the easier liquid market moved to `56.5%`; a discounted comparator update
+  moved the human fixed-window forecast from `39%` to `41%` Yes.
+
+All three ledgers verify. No scheduler or background runner was installed.
+The evidence, model/human agreement, and conventional-wisdom comparison are
+reported in the [refresh note](REFRESH_2026-07-28.md).
 
 ## Forecasts
 

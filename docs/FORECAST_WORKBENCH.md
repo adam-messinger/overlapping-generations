@@ -91,6 +91,12 @@ npm run forecast -- replay outbreak \
   --audit=/tmp/outbreak-audit \
   --synthetic-resolution=1500
 
+# One-shot live updates; no scheduler or background process is installed.
+npm run forecast -- refresh outbreak
+npm run forecast -- refresh data-center
+npm run forecast -- refresh hormuz
+npm run forecast -- refresh all
+
 npm run forecast -- verify --root=/tmp/outbreak-ledger
 npm run forecast -- list --root=/tmp/outbreak-ledger --type=forecast
 npm run forecast -- show --root=/tmp/outbreak-ledger --id=sha256:...
@@ -102,6 +108,36 @@ npm run forecast -- export \
 
 Replay destinations are append-only histories. Use a new ledger directory for
 each replay rather than rerunning a historical import into an existing one.
+
+### One-shot pilot refreshes
+
+`refresh` is deliberately operator-invoked. It does not install a daemon,
+cron job, webhook, or notification service. With the default roots, the first
+call seeds the frozen 23 July historical replay and then appends a live
+checkpoint. Later calls append another acquisition/evidence/model/forecast
+chain without changing an earlier forecast.
+
+The command reads credential values from the process environment and, when
+present, `.env.forecast.local`. A different ignored local file can be selected
+with `--env-file=/path/to/file`. Values are resolved only onto the wire; CLI
+output and persisted sanitized requests contain credential references, not
+secrets.
+
+The current pilot refresh contracts are:
+
+| Pilot | Live inputs | Update behavior |
+|---|---|---|
+| Outbreak | CDC operational `mpgq-jmmr` and fixed-initial `vdzy-6i9v` USA rows | Rebuild the measurement crosswalk, rerun the adaptive residual model at the remaining 1–4 week horizon, expose the result, then seal a human update |
+| Data center | EIA AEO 2026 API paths and the Census private-construction seasonally adjusted history workbook | Preserve both low and high structural evidence, run an explicitly weighted model-family mixture, then seal a human update |
+| Hormuz | Straits.live's PortWatch mirror and carrier rollup plus the Polymarket Gamma market | Stop for manual review if a physical trigger has fired; otherwise partially transfer the easier comparator's log-odds move and seal an evidence update |
+
+The source parsers validate the forecast-specific fields, units, worksheet
+coordinates, market outcome labels, and target non-equivalence. Material
+schema changes or precommitted physical triggers stop the command instead of
+silently producing a new probability.
+
+The first completed live run is reported in
+[the 28 July refresh note](forecasting-pilot/REFRESH_2026-07-28.md).
 
 To sign and verify the current chain head:
 
@@ -140,6 +176,19 @@ It does not label today's revised history as a historical vintage.
 | CDC Socrata | Current-only; captures preserve later backfills | Optional app token |
 | NOAA NCEI CDO v2 | Current-only; captures establish future cutoffs | NOAA token |
 | LBNL Queued Up | Release-pinned named workbook/report | None |
+
+The three pilot refreshes also use narrow question-specific connectors for the
+Census Value of Construction Put in Place workbook, Straits.live, and
+Polymarket Gamma. These are not presented as universal catalog connectors:
+their parsers and normalized rows are intentionally tied to the forecast
+measurement contracts.
+
+Credential smoke tests on 28 July also confirmed the distinction between
+current and real-time-vintage data. An ALFRED `GDPC1` query for 2025 Q4 as
+known on 20 February 2026 returned `24,111.830`, while the current FRED history
+returned `24,055.749`. The EIA key was then used for the sealed data-center
+refresh. The Census construction workbook itself is public and unauthenticated;
+the Census key remains available for Census Data API datasets.
 
 For a current-only source, an as-of request before `monitoringStartedAt` is
 rejected. A caller supplies source-specific normalization to
@@ -220,9 +269,9 @@ The following are explicit limits, not silently missing features:
   classification, license, and access policy.
 - Forecast aggregation for continuous distributions requires a caller-supplied
   common grid; the package refuses to improvise one.
-- Prediction-market observations, forecaster assignment, market trading, and
-  paid-data purchasing are not connected. They can enter as versioned evidence
-  through the same acquisition and observation contracts, but credentials,
+- The Hormuz pilot has a read-only Polymarket Gamma observation connector.
+  General market discovery, authenticated positions, trading, forecaster
+  assignment, and paid-data purchasing are not connected. Credentials,
   commercial rights, and any state-changing market action need a separate
   authorized integration.
 

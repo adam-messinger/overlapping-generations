@@ -45,6 +45,7 @@ export interface OutbreakModelAdapterResult {
   recordId: string;
   modelForecast: ModelForecast;
   residualSamples: readonly number[];
+  resolverPointEstimate: number;
 }
 
 function empiricalBins(samples: readonly number[]): Prediction {
@@ -70,7 +71,18 @@ export async function runOutbreakModelAdapter(options: {
   workbench: ForecastWorkbench;
   actor: { id: string; role: 'service' };
   input: OutbreakModelAdapterInput;
+  checkpointId?: string;
 }): Promise<OutbreakModelAdapterResult> {
+  const checkpointId = options.checkpointId?.trim();
+  const runLabel = checkpointId
+    ? `outbreak-2026-08-15-${checkpointId}`
+    : 'outbreak-2026-08-15';
+  const runId = checkpointId
+    ? `outbreak-2026-08-15:model:${checkpointId}`
+    : 'outbreak-2026-08-15:model';
+  const modelForecastId = checkpointId
+    ? `outbreak-2026-08-15:model-conditioned:${checkpointId}`
+    : 'outbreak-2026-08-15:model-conditioned';
   const run = runModel(outbreakForecastModel, {
     values: options.input.values,
     model: options.input.model,
@@ -78,12 +90,12 @@ export async function runOutbreakModelAdapter(options: {
     horizon: options.input.horizon,
   }, {
     seed: 20260723,
-    runLabel: 'outbreak-2026-08-15',
+    runLabel,
   });
   const manifest = createRunManifest({
     run,
     createdAt: options.input.createdAt,
-    runId: 'outbreak-2026-08-15:model',
+    runId,
     gitSha: options.input.gitSha,
     dirty: options.input.dirty,
     snapshots: [options.input.operationalSnapshot],
@@ -102,6 +114,10 @@ export async function runOutbreakModelAdapter(options: {
     },
   );
   const forecast = run.output;
+  const resolverPointEstimate = mapOperationalToFixedInitialCount(
+    Math.max(0, Math.expm1(forecast.pointLog)),
+    options.input.correction,
+  );
   const residuals = historicalResiduals(
     options.input.values,
     options.input.model,
@@ -127,7 +143,7 @@ export async function runOutbreakModelAdapter(options: {
   const adapterImplementation = `${empiricalBins.toString()}\n${runOutbreakModelAdapter.toString()}`;
   const modelForecast: ModelForecast = {
     schemaVersion: 'forecast-workbench.model-forecast/v1',
-    id: 'outbreak-2026-08-15:model-conditioned',
+    id: modelForecastId,
     questionHash: canonicalSha256Id(outbreak2026Question),
     createdAt: options.input.createdAt,
     runManifestArtifactId: manifestArtifact.id,
@@ -172,5 +188,6 @@ export async function runOutbreakModelAdapter(options: {
     recordId: record.id,
     modelForecast,
     residualSamples: resolverSamples,
+    resolverPointEstimate,
   };
 }

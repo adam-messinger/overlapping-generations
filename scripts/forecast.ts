@@ -15,6 +15,11 @@ import { runDailyNews20260728Replay } from '../src/forecasting/news/2026-07-28/r
 import { runDataCenter2035Replay } from '../src/forecasting/questions/data-center-2035/replay.js';
 import { runHormuz2026Replay } from '../src/forecasting/questions/hormuz-2026/replay.js';
 import { runOutbreak2026Replay } from '../src/forecasting/questions/outbreak-2026/replay.js';
+import {
+  defaultRefreshRoot,
+  runForecastRefresh,
+  type RefreshPilot,
+} from '../src/forecasting/refresh/index.js';
 
 const HELP = `forecast-workbench operator CLI
 
@@ -30,6 +35,8 @@ Usage:
   npm run forecast -- replay <outbreak|data-center|hormuz|news>
       [--root=<ledger>] [--audit=<directory>]
       [--synthetic-resolution=<number>]
+  npm run forecast -- refresh <outbreak|data-center|hormuz|all>
+      [--root=<ledger>] [--env-file=<local env file>]
   npm run forecast -- sign-receipt --root=<ledger>
       --private-key=<PEM file> --public-key-id=<id> --issuer=<name>
       --output=<JSON file> [--external-anchor=<value>]
@@ -292,6 +299,42 @@ async function replayPilot(): Promise<void> {
   throw new Error(`Unknown replay pilot '${pilot}'`);
 }
 
+async function refreshPilot(): Promise<void> {
+  const requested = positionals[0];
+  if (
+    requested !== 'outbreak' &&
+    requested !== 'data-center' &&
+    requested !== 'hormuz' &&
+    requested !== 'all'
+  ) {
+    throw new Error(
+      'refresh requires outbreak, data-center, hormuz, or all',
+    );
+  }
+  if (requested === 'all' && option('root')) {
+    throw new Error(
+      'refresh all uses one default ledger per pilot; --root is only valid for a single pilot',
+    );
+  }
+  const pilots: RefreshPilot[] =
+    requested === 'all'
+      ? ['outbreak', 'data-center', 'hormuz']
+      : [requested];
+  const results = [];
+  for (const pilot of pilots) {
+    results.push(await runForecastRefresh({
+      pilot,
+      root: option('root')
+        ? resolve(option('root') as string)
+        : defaultRefreshRoot(pilot),
+      ...(option('env-file')
+        ? { envFile: resolve(option('env-file') as string) }
+        : {}),
+    }));
+  }
+  print(requested === 'all' ? { refreshed: results } : results[0]);
+}
+
 async function signReceipt(): Promise<void> {
   const root = requiredRoot();
   const privateKeyPath = resolve(requiredOption('private-key'));
@@ -359,6 +402,8 @@ async function main(): Promise<void> {
     sourceCatalog();
   } else if (command === 'replay') {
     await replayPilot();
+  } else if (command === 'refresh') {
+    await refreshPilot();
   } else if (command === 'sign-receipt') {
     await signReceipt();
   } else if (command === 'verify-receipt') {

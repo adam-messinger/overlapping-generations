@@ -111,6 +111,11 @@ from changes that belong in the reusable framework.
 Completed results and the cross-model framework audit are in
 [SYNTHESIS.md](SYNTHESIS.md).
 
+The first point-in-time live update using the delivered workbench is
+[REFRESH_2026-07-28.md](REFRESH_2026-07-28.md). It appends CDC, EIA, Census,
+Straits.live, and Polymarket evidence to the three historical pilot ledgers;
+it does not install an always-on monitor.
+
 ## Independent root priors
 
 These are recorded after question operationalization but before seeing each
