@@ -32,7 +32,10 @@
     "trade:network": "node --import tsx scripts/trade-network-tariff-scenario.ts",
     "news:2026-07-24": "node --import tsx scripts/headlines-2026-07-24.ts",
     "news:2026-07-25": "node --import tsx scripts/headlines-2026-07-25.ts",
-    "news:2026-07-26": "node --import tsx scripts/headlines-2026-07-26.ts"
+    "news:2026-07-26": "node --import tsx scripts/headlines-2026-07-26.ts",
+    "news:2026-07-27": "node --import tsx scripts/headlines-2026-07-27.ts",
+    "news:2026-07-28": "node --import tsx scripts/headlines-2026-07-28.ts",
+    "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts"
   },
   "engines": {
     "node": ">=20"
