@@ -18,6 +18,8 @@
     "aging:status": "node --import tsx aging-places/scripts/international-status.ts",
     "preaging:global-city": "npm run build:framework",
     "aging:global-city": "node --import tsx aging-places/scripts/global-city.ts",
+    "preaging:refresh": "npm run build:framework && npm run build:forecast-workbench",
+    "aging:refresh": "node --import tsx aging-places/scripts/refresh.ts",
     "test:aging": "npm run aging:status && npx tsc --noEmit -p aging-places/tsconfig.json && find aging-places -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
     "pretest": "npm run build:framework && npm run build:forecast-workbench",
     "test": "npm run test:framework && npm run test:forecast-workbench && npm run test:core && npm run test:aging",

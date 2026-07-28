@@ -7,8 +7,8 @@ import * as zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
-export const DATA_DIR = path.join(REPO_ROOT, 'data');
-export const OUT_DIR = path.join(REPO_ROOT, 'outputs');
+export const DATA_DIR = process.env.AGING_DATA_DIR ?? path.join(REPO_ROOT, 'data');
+export const OUT_DIR = process.env.AGING_OUTPUT_DIR ?? path.join(REPO_ROOT, 'outputs');
 /** Portable defaults. Both can be moved outside the repository with env vars. */
 export const SCRATCH = process.env.AGING_SCRATCH ?? path.join(REPO_ROOT, '.cache');
 export const RAW_DIR = process.env.AGING_RAW_DIR ?? path.join(REPO_ROOT, 'raw');

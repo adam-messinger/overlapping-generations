@@ -5,11 +5,13 @@
  *
  * Outputs:
  *   data/features2000.csv — year-2000 features + realized 2000-2025 ZHVI outcome
- *   data/features2023.csv — current features + current ZHVI level
+ *   data/features<VINTAGE>.csv — current features + current ZHVI level
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DATA_DIR, ensureDirs, parseCsv, readCsvAuto, writeCsv } from './lib.js';
+
+const CURRENT_VINTAGE = process.env.AGING_CURRENT_VINTAGE ?? '2023';
 
 // ---------------------------------------------------------------------------
 // Loading
@@ -170,7 +172,7 @@ function main(): void {
 
   // --- census years ---
   const c2000 = loadCsv('census2000.csv');
-  const c2023 = loadCsv('acs2023.csv');
+  const c2023 = loadCsv(`acs${CURRENT_VINTAGE}.csv`);
   const idx2000 = indexer(c2000.header);
   const idx2023 = indexer(c2023.header);
   const rows2000 = new Map(c2000.rows.map((r) => [r[idx2000('geoid')], r]));
@@ -207,9 +209,10 @@ function main(): void {
     return grid;
   };
   const uniGrid2000 = universityGrid(['universities2000.csv']);
-  const hasClean2023 = dataFileExists('universities2023.csv');
+  const hasClean2023 = dataFileExists(`universities${CURRENT_VINTAGE}.csv`);
   const uniGrid2023 = universityGrid(
-    hasClean2023 ? ['universities2023.csv'] : ['universities.csv'], !hasClean2023
+    hasClean2023 ? [`universities${CURRENT_VINTAGE}.csv`] : ['universities.csv'],
+    !hasClean2023,
   );
 
   // --- Zillow ---
@@ -333,7 +336,7 @@ function main(): void {
   writeCsv(path.join(DATA_DIR, 'features2000.csv.gz'), HEADER_2000, out2000);
 
   // -------------------------------------------------------------------------
-  // Epoch 2023 features
+  // Current-vintage features
   // -------------------------------------------------------------------------
   const out2023: (string | number | null)[][] = [];
   for (const [geoid, r] of rows2023) {
@@ -358,10 +361,23 @@ function main(): void {
     const [acc60, acc90, acc120] = grid2023.sumsWithin(p.lat, p.lon, RADII_KM);
     const [uni15, uni60] = uniGrid2023.sumsWithin(p.lat, p.lon, [15, 60]);
     const zrow = zhviFor(p);
+    const v2009 = zrow ? f(zrow[zi('v2009')]) : null;
+    const v2014 = zrow ? f(zrow[zi('v2014')]) : null;
     const v2015 = zrow ? f(zrow[zi('v2015')]) : null;
+    const v2019 = zrow ? f(zrow[zi('v2019')]) : null;
+    const v2024 = zrow ? f(zrow[zi('v2024')]) : null;
     const v2025 = zrow ? f(zrow[zi('v2025')]) : null;
     const medVal = g('medianValue');
     const medInc = g('medianHHInc');
+    const relativeMoe = (estimate: number | null, moe: number | null): number | null =>
+      estimate !== null && estimate !== 0 && moe !== null
+        ? Math.abs(moe / estimate)
+        : null;
+    const acsRelativeMoes = [
+      relativeMoe(pop, go('popMoe')),
+      relativeMoe(medInc, go('medianHHIncMoe')),
+      relativeMoe(go('pct65up'), go('pct65upMoe')),
+    ].filter((value): value is number => value !== null);
     out2023.push([
       geoid, p.name, p.state, p.county, p.lat, p.lon,
       pop,
@@ -386,7 +402,11 @@ function main(): void {
       pop > 0 ? +((g('collegeEnroll') ?? 0) / pop).toFixed(4) : null,
       units > 0 ? +(seasonal / units).toFixed(4) : null,
       units > 0 ? +(Math.max(0, vacant - seasonal) / units).toFixed(4) : null,
-      units > 0 ? +(((g('built2020up') ?? 0) + (g('built2010s') ?? 0)) / units).toFixed(4) : null, // 2010+ build share
+      units > 0
+        ? +((go('builtRecent') ?? (
+          (go('built2020up') ?? 0) + (go('built2010s') ?? 0)
+        )) / units).toFixed(4)
+        : null, // structures fully inside the source vintage's trailing ~15-year bins
       pop > 0 ? +((g('foreignBorn') ?? 0) / pop).toFixed(4) : null,
       medVal, medInc,
       g('households') !== null && (g('households') ?? 0) > 0 ? Math.round((g('aggHHInc') ?? 0) / (g('households') ?? 1)) : null, // meanHHInc via aggregate
@@ -398,7 +418,8 @@ function main(): void {
       Math.round(acc60[1]), Math.round(acc120[1]),
       Math.round(uni15[0]), Math.round(uni60[0]),
       g('medianAge'),
-      v2015, v2025,
+      acsRelativeMoes.length > 0 ? +Math.max(...acsRelativeMoes).toFixed(4) : null,
+      v2009, v2014, v2015, v2019, v2024, v2025,
       v2015 !== null && v2025 !== null && v2015 > 0 ? +Math.log(v2025 / v2015).toFixed(4) : null,
     ]);
   }
@@ -412,10 +433,15 @@ function main(): void {
     'medianValue', 'medianHHInc', 'meanHHInc', 'valueToIncome', 'prestigeVTI', 'density',
     'popAccess60', 'popAccess90', 'popAccess120', 'incAccess60', 'incAccess120',
     'uniEnroll15', 'uniEnroll60',
-    'medianAge',
-    'zhvi2015', 'zhvi2025', 'logGrowth15_25',
+    'medianAge', 'acsRelativeMoe',
+    'zhvi2009', 'zhvi2014', 'zhvi2015', 'zhvi2019', 'zhvi2024',
+    'zhvi2025', 'logGrowth15_25',
   ];
-  writeCsv(path.join(DATA_DIR, 'features2023.csv.gz'), HEADER_2023, out2023);
+  writeCsv(
+    path.join(DATA_DIR, `features${CURRENT_VINTAGE}.csv.gz`),
+    HEADER_2023,
+    out2023,
+  );
 }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));

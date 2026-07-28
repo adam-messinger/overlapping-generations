@@ -1,0 +1,327 @@
+{
+  "schemaVersion": "aging-places.rolling-origin-audit/v1",
+  "createdAt": "2026-07-28T20:15:28.385Z",
+  "status": "retrospective temporal audit; coefficients inspected here remain exploratory and do not replace data/model.json",
+  "currentForecastOrigin": {
+    "vintage": 2024,
+    "status": "frozen for future scoring; no post-2024 outcome used"
+  },
+  "universe": "Exact current place GEOID and Zillow-name-match intersection, origin population >=1,000, with June endpoint ZHVI.",
+  "windows": [
+    {
+      "origin": 2009,
+      "destination": 2014,
+      "n": 8947
+    },
+    {
+      "origin": 2014,
+      "destination": 2019,
+      "n": 10294
+    },
+    {
+      "origin": 2019,
+      "destination": 2024,
+      "n": 11120
+    }
+  ],
+  "features": {
+    "included": [
+      "repRatio",
+      "youngShare",
+      "share65",
+      "share45_64",
+      "share0_19",
+      "eduHealthShare",
+      "pubAdminShare",
+      "artsEmpShare",
+      "profInfoFireShare",
+      "armedShare",
+      "bachShare",
+      "gradShare",
+      "collegeShare",
+      "seasonalShare",
+      "distressVacancy",
+      "newBuildShare",
+      "foreignShare",
+      "valueToIncome",
+      "logIncome",
+      "logDensity",
+      "logPop"
+    ],
+    "excluded": [
+      "university proximity (historical IPEDS panel not yet captured)",
+      "60/120-minute population access (historical geography not yet reconstructed)",
+      "separate education and health employment shares (profile vintages expose a stable combined category)"
+    ],
+    "preprocessing": "Origin-relative z-scores; same-window CV estimates train statistics only. Temporal transfer applies weights to destination-origin-relative z-scores."
+  },
+  "sameWindowStateGroupedCrossValidation": {
+    "2009-2014": {
+      "n": 8947,
+      "meanAuc": 0.56,
+      "meanSpearman": 0.094,
+      "folds": [
+        {
+          "fold": 0,
+          "n": 2533,
+          "auc": 0.596,
+          "spearman": 0.138
+        },
+        {
+          "fold": 1,
+          "n": 2322,
+          "auc": 0.593,
+          "spearman": 0.21
+        },
+        {
+          "fold": 2,
+          "n": 1759,
+          "auc": 0.532,
+          "spearman": -0.04
+        },
+        {
+          "fold": 3,
+          "n": 1049,
+          "auc": 0.524,
+          "spearman": -0.02
+        },
+        {
+          "fold": 4,
+          "n": 1284,
+          "auc": 0.552,
+          "spearman": 0.181
+        }
+      ]
+    },
+    "2014-2019": {
+      "n": 10294,
+      "meanAuc": 0.699,
+      "meanSpearman": 0.33,
+      "folds": [
+        {
+          "fold": 0,
+          "n": 2905,
+          "auc": 0.684,
+          "spearman": 0.293
+        },
+        {
+          "fold": 1,
+          "n": 2712,
+          "auc": 0.673,
+          "spearman": 0.245
+        },
+        {
+          "fold": 2,
+          "n": 1982,
+          "auc": 0.719,
+          "spearman": 0.442
+        },
+        {
+          "fold": 3,
+          "n": 1210,
+          "auc": 0.736,
+          "spearman": 0.373
+        },
+        {
+          "fold": 4,
+          "n": 1485,
+          "auc": 0.682,
+          "spearman": 0.294
+        }
+      ]
+    },
+    "2019-2024": {
+      "n": 11120,
+      "meanAuc": 0.646,
+      "meanSpearman": 0.132,
+      "folds": [
+        {
+          "fold": 0,
+          "n": 3005,
+          "auc": 0.643,
+          "spearman": 0.22
+        },
+        {
+          "fold": 1,
+          "n": 2993,
+          "auc": 0.656,
+          "spearman": 0.154
+        },
+        {
+          "fold": 2,
+          "n": 2129,
+          "auc": 0.535,
+          "spearman": 0.029
+        },
+        {
+          "fold": 3,
+          "n": 1368,
+          "auc": 0.731,
+          "spearman": 0.111
+        },
+        {
+          "fold": 4,
+          "n": 1625,
+          "auc": 0.667,
+          "spearman": 0.144
+        }
+      ]
+    }
+  },
+  "temporalTransfer": [
+    {
+      "trainWindows": [
+        "2009-2014"
+      ],
+      "testWindow": "2014-2019",
+      "n": 10294,
+      "auc": 0.577,
+      "spearman": 0.037,
+      "laggedOutcomeN": 8765,
+      "laggedOutcomeAuc": 0.535,
+      "laggedOutcomeSpearman": 0.106
+    },
+    {
+      "trainWindows": [
+        "2009-2014",
+        "2014-2019"
+      ],
+      "testWindow": "2019-2024",
+      "n": 11120,
+      "auc": 0.537,
+      "spearman": 0.046,
+      "laggedOutcomeN": 10042,
+      "laggedOutcomeAuc": 0.601,
+      "laggedOutcomeSpearman": 0.235
+    }
+  ],
+  "oneExploratoryIteration": {
+    "trigger": "The full-core temporal-transfer Spearman correlations were near zero despite stronger same-window fits.",
+    "variants": [
+      {
+        "id": "slow-structural",
+        "rationale": "Remove arts/professional composition, value-to-income, and income level, which can encode period-specific housing and business cycles.",
+        "features": [
+          "repRatio",
+          "youngShare",
+          "share65",
+          "share45_64",
+          "share0_19",
+          "eduHealthShare",
+          "pubAdminShare",
+          "armedShare",
+          "bachShare",
+          "gradShare",
+          "collegeShare",
+          "seasonalShare",
+          "distressVacancy",
+          "newBuildShare",
+          "foreignShare",
+          "logDensity",
+          "logPop"
+        ],
+        "temporalTransfer": [
+          {
+            "trainWindows": [
+              "2009-2014"
+            ],
+            "testWindow": "2014-2019",
+            "n": 10294,
+            "auc": 0.593,
+            "spearman": 0.078,
+            "laggedOutcomeN": 8765,
+            "laggedOutcomeAuc": 0.535,
+            "laggedOutcomeSpearman": 0.106
+          },
+          {
+            "trainWindows": [
+              "2009-2014",
+              "2014-2019"
+            ],
+            "testWindow": "2019-2024",
+            "n": 11120,
+            "auc": 0.528,
+            "spearman": 0.045,
+            "laggedOutcomeN": 10042,
+            "laggedOutcomeAuc": 0.601,
+            "laggedOutcomeSpearman": 0.235
+          }
+        ],
+        "promotionRule": "Must beat the full-core model and lagged-growth baseline on both AUC and Spearman in both transfer windows.",
+        "passedPromotionRule": false
+      },
+      {
+        "id": "demography-only",
+        "rationale": "Ask whether the slow population-age stock alone transfers more reliably than the broader place model.",
+        "features": [
+          "repRatio",
+          "youngShare",
+          "share65",
+          "share45_64",
+          "share0_19",
+          "foreignShare",
+          "logDensity",
+          "logPop"
+        ],
+        "temporalTransfer": [
+          {
+            "trainWindows": [
+              "2009-2014"
+            ],
+            "testWindow": "2014-2019",
+            "n": 10294,
+            "auc": 0.623,
+            "spearman": 0.196,
+            "laggedOutcomeN": 8765,
+            "laggedOutcomeAuc": 0.535,
+            "laggedOutcomeSpearman": 0.106
+          },
+          {
+            "trainWindows": [
+              "2009-2014",
+              "2014-2019"
+            ],
+            "testWindow": "2019-2024",
+            "n": 11120,
+            "auc": 0.478,
+            "spearman": -0.036,
+            "laggedOutcomeN": 10042,
+            "laggedOutcomeAuc": 0.601,
+            "laggedOutcomeSpearman": 0.235
+          }
+        ],
+        "promotionRule": "Must beat the full-core model and lagged-growth baseline on both AUC and Spearman in both transfer windows.",
+        "passedPromotionRule": false
+      }
+    ],
+    "result": "No simplified variant passed the screen; retain the frozen model and narrow its interpretation rather than retuning coefficients."
+  },
+  "coefficientStability": [
+    {
+      "left": "2009-2014",
+      "right": "2014-2019",
+      "cosine": -0.185,
+      "signAgreement": 0.524
+    },
+    {
+      "left": "2014-2019",
+      "right": "2019-2024",
+      "cosine": 0.474,
+      "signAgreement": 0.714
+    },
+    {
+      "left": "2009-2014",
+      "right": "2019-2024",
+      "cosine": -0.503,
+      "signAgreement": 0.524
+    }
+  ],
+  "baseline": "Lagged local house-price growth is scored on the same exact-GEOID intersection.",
+  "limitations": [
+    "Retrospective windows were selected before this run but are not untouched prospective tests.",
+    "Current 2024 place identifiers and coordinates create survivorship and boundary-stability selection.",
+    "Zillow coverage is a selected housing-market subset and is not all Census places.",
+    "ACS estimates overlap within five-year windows and carry sampling error; MOEs are preserved but not used as regression weights.",
+    "National and state house-price shocks are not structural aging effects."
+  ]
+}

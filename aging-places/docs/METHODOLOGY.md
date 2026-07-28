@@ -31,6 +31,13 @@ There is no production blend.
 The exact tables, download pages, and demographic sources are linked in
 [REFERENCES.md](REFERENCES.md). `fetch-census.ts` documents every Census variable inline.
 
+The table describes the still-frozen production artifact. A separate audited
+[2024 point-in-time refresh](REFRESH_2024.md) captures ACS 2009, 2014, 2019,
+and 2020–2024 with release-specific semantic crosswalks and 90% margins of
+error, plus 2024 Gazetteer/IPEDS and a point-in-time Zillow file. It produces
+versioned side-by-side outputs without replacing the committed 2023 inputs or
+`model.json`.
+
 The 2000 and 2023 feature files contain 23,066 and 28,538 rows respectively. The simulation's
 population-at-least-250 current universe contains 24,525 rows. The historical validation universe
 requires population at least 1,000 and ZHVI at both endpoints, leaving 5,891 rows.
@@ -196,10 +203,19 @@ statistical/mechanism disagreement. `medium` marks high group-quarters share, se
 out-of-support predictors, or material disagreement. `high` only means none of these rule-based
 warnings fired; it is not a confidence interval.
 
+The 2024 versioned refresh also lowers confidence when the largest relative
+90% ACS MOE among population, household income, and 65+ share exceeds 10%,
+and marks it `low` above 25%. The legacy 2023 extract did not retain MOEs, so
+this additional check applies only to the refreshed output.
+
 ## 9. Main limitations
 
-- US coefficient relationships reverse sharply between the 2000–2012 and 2012–2025 outcome
-  windows; the historical-persistence score therefore has no demonstrated temporal portability.
+- The retrospective rolling-origin audit finds weak temporal portability. The
+  full ACS-core model transfers at AUC/Spearman 0.577/0.037 from 2009–2014 to
+  2014–2019 and 0.537/0.046 from pooled earlier windows to 2019–2024. In the
+  latter window, lagged local price growth is stronger (0.601/0.235). One
+  bounded simplification iteration did not pass the promotion rule, so no
+  coefficient changed.
 - State grouping is stricter than random-place validation, but neighboring cross-state metros and
   national shocks remain.
 - The current application assumes standardized feature ranks retain the same meaning across epochs.

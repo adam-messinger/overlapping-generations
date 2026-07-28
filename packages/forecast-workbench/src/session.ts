@@ -68,6 +68,10 @@ import {
   type NewsModelComparison,
   type NewsScreenRecord,
 } from './news-workflow.js';
+import {
+  validateDatasetSnapshot,
+  type DatasetSnapshot,
+} from './dataset-snapshots.js';
 
 interface SeriesState {
   forecast_required: number;
@@ -325,6 +329,73 @@ export class ForecastWorkbench {
       recordType: 'observation-version',
       record: version,
       classification,
+    });
+  }
+
+  async recordDatasetSnapshot(
+    actor: Actor,
+    snapshot: DatasetSnapshot,
+  ): Promise<RecordReference> {
+    validateDatasetSnapshot(snapshot);
+    if (await this.findLogicalRecordId<DatasetSnapshot>(
+      'dataset-snapshot',
+      snapshot.id,
+    )) {
+      throw new Error(`Dataset snapshot '${snapshot.id}' already exists`);
+    }
+    for (const recordId of snapshot.acquisitionReceiptIds) {
+      this.requireRecordType(
+        this.ledger.db(),
+        recordId,
+        'acquisition-receipt',
+      );
+    }
+    for (const artifactId of [
+      ...snapshot.dataArtifactIds,
+      ...snapshot.schemaArtifactIds,
+      ...snapshot.semanticCrosswalkArtifactIds,
+    ]) {
+      if (!await this.ledger.artifacts.has(artifactId)) {
+        throw new Error(`Missing dataset snapshot artifact '${artifactId}'`);
+      }
+    }
+    if (snapshot.predecessorSnapshotId) {
+      this.requireRecordType(
+        this.ledger.db(),
+        snapshot.predecessorSnapshotId,
+        'dataset-snapshot',
+      );
+      const predecessor = await this.ledger.getRecord<DatasetSnapshot>(
+        snapshot.predecessorSnapshotId,
+      );
+      if (predecessor.datasetId !== snapshot.datasetId) {
+        throw new Error(
+          'Dataset snapshot predecessor belongs to a different dataset',
+        );
+      }
+      if (Date.parse(predecessor.createdAt) > Date.parse(snapshot.createdAt)) {
+        throw new Error(
+          'Dataset snapshot predecessor was created after the new snapshot',
+        );
+      }
+    }
+    for (const recordId of this.ledger.listRecordIds('dataset-snapshot')) {
+      const existing = await this.ledger.getRecord<DatasetSnapshot>(recordId);
+      if (
+        existing.datasetId === snapshot.datasetId &&
+        existing.datasetVersion === snapshot.datasetVersion
+      ) {
+        throw new Error(
+          `Dataset '${snapshot.datasetId}' version '${snapshot.datasetVersion}' exists`,
+        );
+      }
+    }
+    return this.ledger.appendRecord({
+      actor,
+      kind: `dataset.${snapshot.change}`,
+      recordType: 'dataset-snapshot',
+      record: snapshot,
+      classification: snapshot.classification,
     });
   }
 

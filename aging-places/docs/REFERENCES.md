@@ -6,11 +6,14 @@ from model judgment. Access and vintage were last reviewed on 2026-07-16.
 ## US municipal data
 
 - US Census Bureau, [2023 Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.2023.html): place identifiers, land area, and representative coordinates.
+- US Census Bureau, [Gazetteer Files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html): the audited refresh pins the 2024 national place file while retaining 2020 place-to-county relationships.
 - US Census Bureau, [2020 geographic code files](https://www2.census.gov/geo/docs/reference/codes2020/): place-by-county crosswalk.
 - US Census Bureau, [Census Data API](https://www.census.gov/data/developers/data-sets.html): Census 2000 SF1/SF3 and ACS 2019–2023 tables. Exact table and variable IDs are enumerated in `scripts/fetch-census.ts`.
+- US Census Bureau, [ACS five-year API](https://api.census.gov/data.html): the point-in-time refresh captures 2009, 2014, 2019, and 2020–2024 place panels and each release's `variables.json`; `src/acs-panel.ts` resolves the saved semantic crosswalks and estimate/MOE pairs.
 - US Census Bureau, [ACS 2023 B26001 metadata](https://api.census.gov/data/2023/acs/acs5/groups/B26001.html): group-quarters population.
 - Zillow Research, [Housing Data](https://www.zillow.com/research/data/) and [ZHVI User Guide](https://www.zillow.com/research/zhvi-user-guide/): city-level, all-homes, middle-tier, smoothed and seasonally adjusted ZHVI. Zillow calls this a typical home value, not a median.
 - NCES, [IPEDS complete data files](https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx): HD2023, EFFY2023_DIST, FA2000HD, and EF2000A.
+- NCES, [IPEDS complete data files](https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx): the versioned 2024 refresh additionally pins HD2024 and EFFY2024_DIST.
 - NCES, [Distance Education in IPEDS](https://nces.ed.gov/ipeds/use-the-data/distance-education-in-ipeds): definitions used to remove exclusively online students from the current spatial enrollment measure.
 - USDA Economic Research Service, [Commuting Zones and Labor Market Areas](https://www.ers.usda.gov/data-products/commuting-zones-and-labor-market-areas): county membership for the start-period 2000 commuting zones and the 2020 sensitivity geography.
 - US Census Bureau, [1990–2000 Subcounty Population Estimates](https://www2.census.gov/programs-surveys/popest/tables/1990-2000/2000-subcounties-evaluation-estimates/): April 1990 population restated on January 2000 boundaries and April 2000 Census population, used for the lagged population-trend baseline and multi-county place assignment.

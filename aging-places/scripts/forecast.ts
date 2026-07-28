@@ -19,6 +19,8 @@ import {
 import { runAgingSim } from '../src/simulation.js';
 import { attractionModule } from '../src/modules/attraction.js';
 
+const CURRENT_VINTAGE = process.env.AGING_CURRENT_VINTAGE ?? '2023';
+
 function zVec(values: number[]): number[] {
   const present = values.filter(Number.isFinite);
   const mean = present.reduce((sum, value) => sum + value, 0) / Math.max(1, present.length);
@@ -36,6 +38,8 @@ export interface ConfidenceInputs {
   missingFeatureCount: number;
   extremeFeatureCount: number;
   modelDisagreement: number;
+  /** Largest relative 90% ACS MOE among population, income, and 65+ share. */
+  acsRelativeMoe?: number | null;
 }
 
 export function classifyConfidence(input: ConfidenceInputs): {
@@ -52,6 +56,11 @@ export function classifyConfidence(input: ConfidenceInputs): {
   if (input.missingFeatureCount > 5) hard.push('many missing predictors');
   else if (input.missingFeatureCount > 2) cautions.push('several missing predictors');
   if (input.extremeFeatureCount > 2) cautions.push('outside historical predictor support');
+  if ((input.acsRelativeMoe ?? 0) > 0.25) {
+    hard.push('high ACS sampling uncertainty');
+  } else if ((input.acsRelativeMoe ?? 0) > 0.10) {
+    cautions.push('ACS sampling uncertainty');
+  }
   if (input.modelDisagreement > 3) hard.push('large statistical/mechanism disagreement');
   else if (input.modelDisagreement > 2) cautions.push('statistical/mechanism disagreement');
   if (hard.length > 0) return { confidence: 'low', reasons: [...hard, ...cautions] };
@@ -106,7 +115,8 @@ export function main(): void {
   if (model.preprocessing !== 'epoch_zscore') {
     throw new Error(`unsupported model preprocessing: ${String(model.preprocessing)}`);
   }
-  const rows = loadFeatureRows('features2023.csv').filter((row) => row.pop >= 250);
+  const featureFile = `features${CURRENT_VINTAGE}.csv`;
+  const rows = loadFeatureRows(featureFile).filter((row) => row.pop >= 250);
   const rawMatrix = buildMatrix(rows);
   // Explicitly epoch-relative: nominal 2023 levels are not standardized with
   // year-2000 dollars. The model artifact records this preprocessing contract.
@@ -116,7 +126,12 @@ export function main(): void {
   const relativeGrowth = predictLinear(zMatrix, model.linW);
   const historicalPersistenceScore = zVec(historicalWinnerIndex);
 
-  const sim = runAgingSim({ epoch: '2023', years: 40, minPop: 250 });
+  const sim = runAgingSim({
+    epoch: '2023',
+    dataFile: featureFile,
+    years: 40,
+    minPop: 250,
+  });
   const simIndex = new Map(sim.data.statics.geoid.map((geoid, i) => [geoid, i]));
   const mechanismGrowth = rows.map((row) => {
     const index = simIndex.get(row.geoid);
@@ -190,6 +205,7 @@ export function main(): void {
       missingFeatureCount,
       extremeFeatureCount,
       modelDisagreement: disagreement,
+      acsRelativeMoe: row.raw.acsRelativeMoe,
     });
     return {
       geoid: row.geoid, name: row.name, state: row.state, pop: row.pop,

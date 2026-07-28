@@ -14,6 +14,9 @@ validated aging-resilience score.
 
 Start with [REPORT.md](docs/REPORT.md), then read [METHODOLOGY.md](docs/METHODOLOGY.md) and
 [BACKTEST.md](docs/BACKTEST.md). Data provenance is in [REFERENCES.md](docs/REFERENCES.md).
+The one-shot [2024 evidence refresh and temporal audit](docs/REFRESH_2024.md)
+is the current point-in-time update; it leaves the committed production
+snapshot and coefficients unchanged.
 Experimental global-simulation coupling is documented in
 [GLOBAL_INTEGRATION.md](docs/GLOBAL_INTEGRATION.md).
 The pre-registered external tests are documented in
@@ -93,6 +96,21 @@ Raw files default to `aging-places/raw/` and request cache files to
 `aging-places/.cache/`. Override them with `AGING_RAW_DIR` and `AGING_SCRATCH`. Zillow updates its
 series and occasionally changes download paths; set `AGING_ZHVI_URL` if needed. A fresh download
 is therefore a new data vintage, not a byte-for-byte recreation of the committed snapshot.
+
+### Audited one-shot refresh
+
+```bash
+npm run aging:refresh -- --vintage=2024
+```
+
+This captures raw payloads, queries, retrieval times, release schemas,
+semantic crosswalks, hashes, normalized datasets, and derived forecast
+artifacts in `var/forecast-workbench/aging-us`. Versioned working files go
+under ignored `data/snapshots/` and `outputs/snapshots/`; the compact
+comparison, rolling-origin audit, and report are checked in. The command is
+operator-invoked and installs no monitor, timer, or scheduled job. It uses the
+configured Census API key; the Gazetteer, IPEDS, and Zillow downloads require
+no additional account.
 
 ## Output semantics
 

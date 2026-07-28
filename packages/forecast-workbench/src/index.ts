@@ -15,3 +15,4 @@ export * from './scoring.js';
 export * from './audit.js';
 export * from './source-connectors.js';
 export * from './news-workflow.js';
+export * from './dataset-snapshots.js';

@@ -6,6 +6,8 @@ dist/
 !.env.example
 aging-places/.cache/
 aging-places/raw/
+aging-places/data/snapshots/
+aging-places/outputs/snapshots/
 var/forecast-workbench/
 
 # Regenerated on every regression run; reference.json is the checked-in blessed baseline

@@ -21,6 +21,7 @@ import type {
 } from './news-workflow.js';
 import type { ReferenceClassVersion } from './reference-classes.js';
 import type { ForecastLedger } from './ledger.js';
+import type { DatasetSnapshot } from './dataset-snapshots.js';
 
 export interface ChainHeadReceipt {
   schemaVersion: 'forecast-workbench.chain-receipt/v1';
@@ -228,6 +229,23 @@ export async function exportAuditBundle(options: {
         include ? undefined : record.accessPolicy ?? 'restricted source',
       );
       if (record.schemaArtifactId) add(record.schemaArtifactId, 'source-schema');
+    }
+    if (row.recordType === 'dataset-snapshot') {
+      const snapshot = record as DatasetSnapshot;
+      const include = snapshot.classification !== 'restricted' ||
+        options.includeRestricted === true;
+      const restriction = include
+        ? undefined
+        : snapshot.accessPolicy ?? 'restricted dataset';
+      snapshot.dataArtifactIds.forEach((id) =>
+        add(id, 'dataset-data', include, restriction)
+      );
+      snapshot.schemaArtifactIds.forEach((id) =>
+        add(id, 'dataset-schema', include, restriction)
+      );
+      snapshot.semanticCrosswalkArtifactIds.forEach((id) =>
+        add(id, 'dataset-semantic-crosswalk', include, restriction)
+      );
     }
   }
   await mkdir(options.destination, { recursive: true, mode: 0o700 });

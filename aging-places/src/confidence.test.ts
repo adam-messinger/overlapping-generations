@@ -25,4 +25,9 @@ test('moderate model disagreement is explicitly medium confidence', () => {
   expect(result.confidence).toBe('medium');
 });
 
+test('published ACS sampling uncertainty lowers confidence', () => {
+  expect(classifyConfidence({ ...sound, acsRelativeMoe: 0.15 }).confidence).toBe('medium');
+  expect(classifyConfidence({ ...sound, acsRelativeMoe: 0.30 }).confidence).toBe('low');
+});
+
 printSummary();

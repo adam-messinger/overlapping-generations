@@ -30,6 +30,9 @@ import {
 
 export interface AgingSimConfig {
   epoch: '2000' | '2023';
+  /** Override the feature artifact while retaining the epoch's calibrated
+   * national path. Used by immutable current-vintage refresh comparisons. */
+  dataFile?: string;
   years?: number;
   params?: Record<string, Record<string, unknown>>;
   minPop?: number;
@@ -205,7 +208,8 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
   if (cfg.macroPath) {
     assertNationalMacroPath(cfg.macroPath, startYear, startYear + years - 1);
   }
-  const file = cfg.epoch === '2000' ? 'features2000.csv' : 'features2023.csv';
+  const file = cfg.dataFile ??
+    (cfg.epoch === '2000' ? 'features2000.csv' : 'features2023.csv');
   const requestedHeadship = cfg.params?.market?.headship as Partial<Record<Cohort, number>> | undefined;
   const headship: Record<Cohort, number> = { ...DEFAULT_HEADSHIP, ...(requestedHeadship ?? {}) };
   const data = loadEpoch(file, cfg.minPop ?? 250, headship);

@@ -11,6 +11,7 @@ import {
   assuranceForProfile,
   beaConnector,
   captureHttpSource,
+  censusConnector,
   eiaConnector,
   fredConnector,
   publicDataConnectorCatalog,
@@ -68,6 +69,19 @@ test('the zero-cost connector catalog covers the promised official sources', () 
     connectors.find(({ sourceId }) => sourceId === 'lbnl.queued-up')
       ?.vintage.capability,
     'release-pinned',
+  );
+});
+
+test('Census connector emits one comma-delimited get parameter', () => {
+  const request = censusConnector().buildRequest({
+    datasetPath: '2024/acs/acs5/profile',
+    get: ['NAME', 'DP05_0001E', 'DP05_0001M'],
+    predicates: { for: 'place:*', in: 'state:06' },
+    releaseVintage: '2024',
+  });
+  assert.equal(
+    request.envelope.publicQuery?.get,
+    'NAME,DP05_0001E,DP05_0001M',
   );
 });
 

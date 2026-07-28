@@ -62,6 +62,12 @@ export interface ConnectorCaptureResult<Parsed> {
   parsed: Parsed;
 }
 
+export interface ConnectorArtifactCaptureResult<Parsed> {
+  acquisitionReceiptRecordId: string;
+  receipt: AcquisitionReceipt;
+  parsed: Parsed;
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
@@ -73,6 +79,7 @@ function envelope(options: {
   allowedHosts: readonly string[];
   maxBytes?: number;
   maxRedirects?: number;
+  timeoutMs?: number;
 }): SanitizedRequestEnvelope {
   return {
     schemaVersion: 'forecast-workbench.sanitized-request/v1',
@@ -82,7 +89,7 @@ function envelope(options: {
     ...(options.publicHeaders ? { publicHeaders: options.publicHeaders } : {}),
     credentialBindings: options.credentialBindings ?? [],
     allowedHosts: options.allowedHosts,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
     maxRedirects: options.maxRedirects ?? 2,
   };
@@ -302,6 +309,10 @@ export interface CensusQuery {
 
 export function censusConnector(
   apiKeyRef = 'census.default',
+  options: {
+    timeoutMs?: number;
+    maxBytes?: number;
+  } = {},
 ): HttpSourceConnector<CensusQuery> {
   return {
     id: 'census-data-api',
@@ -325,7 +336,12 @@ export function censusConnector(
         envelope: envelope({
           uri: `https://api.census.gov/data/${path}`,
           publicQuery: {
-            get: query.get.map((value) => requireIdentifier(value, 'Census variable')),
+            // The Census API defines `get` as one comma-delimited parameter.
+            // Repeating `get` is not equivalent on every Census gateway and
+            // can silently retain only the final variable.
+            get: query.get
+              .map((value) => requireIdentifier(value, 'Census variable'))
+              .join(','),
             ...(query.predicates ?? {}),
           },
           credentialBindings: [{
@@ -334,6 +350,8 @@ export function censusConnector(
             ref: apiKeyRef,
           }],
           allowedHosts: ['api.census.gov'],
+          timeoutMs: options.timeoutMs,
+          maxBytes: options.maxBytes,
         }),
         ...(query.releaseVintage
           ? { sourceEffectiveVintage: query.releaseVintage }
@@ -692,6 +710,70 @@ export async function captureHttpSource<Query, Parsed>(options: {
   auditHmacKey?: string | Uint8Array;
   runtime?: FetchRuntime;
 }): Promise<ConnectorCaptureResult<Parsed>> {
+  const captured = await captureHttpArtifact(options);
+  const normalized = options.normalize(captured.parsed, captured.receipt);
+  requireText(normalized.datasetId, 'normalized release datasetId');
+  if (normalized.publishedAt) {
+    requireIsoTimestamp(normalized.publishedAt, 'normalized release publishedAt');
+  }
+  const release = createSourceRelease({
+    id: `release:${canonicalSha256Id({
+      sourceId: options.connector.sourceId,
+      datasetId: normalized.datasetId,
+      acquisitionReceiptId: captured.acquisitionReceiptRecordId,
+      publishedAt: normalized.publishedAt,
+      sourceVersion: normalized.sourceVersion,
+    })}`,
+    sourceId: options.connector.sourceId,
+    datasetId: normalized.datasetId,
+    availableAt: captured.receipt.completedAt,
+    acquisitionReceiptId: captured.acquisitionReceiptRecordId,
+    publishedAt: normalized.publishedAt,
+    sourceVersion: normalized.sourceVersion,
+    publicationTimeBasis: normalized.publicationTimeBasis,
+  });
+  const releaseRecord = await options.workbench.recordSourceRelease(
+    options.actor,
+    release,
+  );
+  const observationVersions = diffObservationRelease({
+    release,
+    rows: normalized.rows,
+    previousByObservationKey: options.previousByObservationKey,
+    completeReplacement: normalized.completeReplacement,
+  });
+  const observationVersionRecordIds: string[] = [];
+  for (const version of observationVersions) {
+    const record = await options.workbench.recordObservationVersion(
+      options.actor,
+      version,
+      options.classification,
+    );
+    observationVersionRecordIds.push(record.id);
+  }
+  return {
+    acquisitionReceiptRecordId: captured.acquisitionReceiptRecordId,
+    receipt: captured.receipt,
+    releaseRecordId: releaseRecord.id,
+    release,
+    observationVersionRecordIds,
+    observationVersions,
+    parsed: captured.parsed,
+  };
+}
+
+export async function captureHttpArtifact<Query, Parsed>(options: {
+  workbench: ForecastWorkbench;
+  actor: Actor;
+  connector: HttpSourceConnector<Query, Parsed>;
+  query: Query;
+  credentialProvider: CredentialProvider;
+  classification?: DataClassification;
+  license?: string;
+  accessPolicy?: string;
+  auditHmacKey?: string | Uint8Array;
+  runtime?: FetchRuntime;
+}): Promise<ConnectorArtifactCaptureResult<Parsed>> {
   const built = options.connector.buildRequest(options.query);
   const asOfAssurance = assuranceForProfile(
     options.connector.vintage,
@@ -725,53 +807,9 @@ export async function captureHttpSource<Query, Parsed>(options: {
     acquired.receipt,
   );
   const parsed = options.connector.parse(acquired.raw);
-  const normalized = options.normalize(parsed, acquired.receipt);
-  requireText(normalized.datasetId, 'normalized release datasetId');
-  if (normalized.publishedAt) {
-    requireIsoTimestamp(normalized.publishedAt, 'normalized release publishedAt');
-  }
-  const release = createSourceRelease({
-    id: `release:${canonicalSha256Id({
-      sourceId: options.connector.sourceId,
-      datasetId: normalized.datasetId,
-      acquisitionReceiptId: receiptRecord.id,
-      publishedAt: normalized.publishedAt,
-      sourceVersion: normalized.sourceVersion,
-    })}`,
-    sourceId: options.connector.sourceId,
-    datasetId: normalized.datasetId,
-    availableAt: acquired.receipt.completedAt,
-    acquisitionReceiptId: receiptRecord.id,
-    publishedAt: normalized.publishedAt,
-    sourceVersion: normalized.sourceVersion,
-    publicationTimeBasis: normalized.publicationTimeBasis,
-  });
-  const releaseRecord = await options.workbench.recordSourceRelease(
-    options.actor,
-    release,
-  );
-  const observationVersions = diffObservationRelease({
-    release,
-    rows: normalized.rows,
-    previousByObservationKey: options.previousByObservationKey,
-    completeReplacement: normalized.completeReplacement,
-  });
-  const observationVersionRecordIds: string[] = [];
-  for (const version of observationVersions) {
-    const record = await options.workbench.recordObservationVersion(
-      options.actor,
-      version,
-      options.classification,
-    );
-    observationVersionRecordIds.push(record.id);
-  }
   return {
     acquisitionReceiptRecordId: receiptRecord.id,
     receipt: acquired.receipt,
-    releaseRecordId: releaseRecord.id,
-    release,
-    observationVersionRecordIds,
-    observationVersions,
     parsed,
   };
 }

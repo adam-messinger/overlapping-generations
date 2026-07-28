@@ -3,7 +3,7 @@
  *   data/places.csv        — GEOID, name, state, county, lat, lon, land area
  *   data/zhvi.csv          — Zillow ZHVI city-level annual series (June obs), 2000-2025
  *   data/universities2000.csv — contemporaneous IPEDS institutions + fall enrollment
- *   data/universities2023.csv — IPEDS institutions + campus-linked 12-month enrollment
+ *   data/universities<VINTAGE>.csv — IPEDS institutions + campus-linked 12-month enrollment
  *
  * Raw inputs live in aging-places/raw by default; fetch-static.ts builds that
  * directory. Set AGING_RAW_DIR to put the source files elsewhere.
@@ -12,9 +12,23 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DATA_DIR, RAW_DIR, ensureDirs, parseCsv, readCsvAuto, writeCsv, num } from './lib.js';
 
+const CURRENT_VINTAGE = process.env.AGING_CURRENT_VINTAGE ?? '2023';
+
+function rawFileCaseInsensitive(expected: string): string {
+  const exact = path.join(RAW_DIR, expected);
+  if (fs.existsSync(exact)) return expected;
+  const matched = fs.readdirSync(RAW_DIR)
+    .find((file) => file.toLowerCase() === expected.toLowerCase());
+  if (!matched) throw new Error(`missing raw input ${expected}`);
+  return matched;
+}
+
 function buildPlaces(): void {
-  // Gazetteer 2023: tab-delimited USPS GEOID ANSICODE NAME LSAD FUNCSTAT ALAND AWATER ALAND_SQMI AWATER_SQMI INTPTLAT INTPTLONG
-  const gaz = fs.readFileSync(path.join(RAW_DIR, '2023_Gaz_place_national.txt'), 'utf8')
+  // Gazetteer: tab-delimited USPS GEOID ANSICODE NAME LSAD FUNCSTAT ALAND AWATER ALAND_SQMI AWATER_SQMI INTPTLAT INTPTLONG
+  const gazetteer = rawFileCaseInsensitive(
+    `${CURRENT_VINTAGE}_Gaz_place_national.txt`,
+  );
+  const gaz = fs.readFileSync(path.join(RAW_DIR, gazetteer), 'utf8')
     .split('\n').filter((l) => l.trim());
   // Place->county crosswalk (2020): STATE|STATEFP|COUNTYFP|COUNTYNAME|PLACEFP|PLACENS|PLACENAME|TYPE|CLASSFP|FUNCSTAT
   const pbc = fs.readFileSync(path.join(RAW_DIR, 'place_by_county.txt'), 'utf8')
@@ -71,7 +85,10 @@ function buildZhvi(): void {
 }
 
 function cleanTextFile(file: string): string {
-  return fs.readFileSync(path.join(RAW_DIR, file), 'latin1').replace(/^﻿|^ï»¿/, '');
+  return fs.readFileSync(
+    path.join(RAW_DIR, rawFileCaseInsensitive(file)),
+    'latin1',
+  ).replace(/^﻿|^ï»¿/, '');
 }
 
 function buildPlaceCoordinateIndex(): Map<string, { lat: number; lon: number }> {
@@ -91,27 +108,29 @@ function buildPlaceCoordinateIndex(): Map<string, { lat: number; lon: number }> 
   return out;
 }
 
-function buildUniversities2023(): void {
-  const hd = parseCsv(cleanTextFile('HD2023.csv'));
+function buildUniversitiesCurrent(): void {
+  const hdName = `HD${CURRENT_VINTAGE}.csv`;
+  const distName = `EFFY${CURRENT_VINTAGE}_dist.csv`;
+  const hd = parseCsv(cleanTextFile(hdName));
   const h = hd[0].map((s) => s.toUpperCase());
   const col = (name: string): number => {
     const i = h.indexOf(name);
-    if (i === -1) throw new Error(`HD2023 missing column ${name}`);
+    if (i === -1) throw new Error(`${hdName} missing column ${name}`);
     return i;
   };
   const iUnit = col('UNITID'), iName = col('INSTNM'), iCity = col('CITY'), iSt = col('STABBR');
   const iLat = col('LATITUDE'), iLon = col('LONGITUD'), iSector = col('SECTOR'), iLevel = col('ICLEVEL');
-  // EFFY2023_DIST: 12-month unduplicated count by distance status.
+  // EFFY_DIST: 12-month unduplicated count by distance status.
   // EFFYDLEV=1 is all students. Campus-linked enrollment excludes students
   // taking every course remotely; students taking some online courses remain.
-  const dist = parseCsv(cleanTextFile('EFFY2023_dist.csv'));
+  const dist = parseCsv(cleanTextFile(distName));
   const dh = dist[0].map((s) => s.toUpperCase());
   const dUnit = dh.indexOf('UNITID');
   const dLev = dh.indexOf('EFFYDLEV');
   const dTotal = dh.indexOf('EFYDETOT');
   const dExclusive = dh.indexOf('EFYDEEXC');
   for (const [name, idx] of [['UNITID', dUnit], ['EFFYDLEV', dLev], ['EFYDETOT', dTotal], ['EFYDEEXC', dExclusive]] as const) {
-    if (idx === -1) throw new Error(`EFFY2023_dist missing column ${name}`);
+    if (idx === -1) throw new Error(`${distName} missing column ${name}`);
   }
   const enroll = new Map<string, { total: number; exclusiveOnline: number }>();
   for (const row of dist.slice(1)) {
@@ -140,7 +159,7 @@ function buildUniversities2023(): void {
       r[iSector], r[iLevel],
     ]);
   }
-  writeCsv(path.join(DATA_DIR, 'universities2023.csv.gz'), [
+  writeCsv(path.join(DATA_DIR, `universities${CURRENT_VINTAGE}.csv.gz`), [
     'unitid', 'name', 'city', 'state', 'lat', 'lon', 'enrollment',
     'exclusiveOnline', 'campusEnrollment', 'spatialEnrollment',
     'exclusiveOnlineShare', 'sector', 'iclevel',
@@ -173,7 +192,7 @@ function buildUniversities2000(): void {
     enrollment.set(row[eUnit], (num(row[eMale]) ?? 0) + (num(row[eFemale]) ?? 0));
   }
 
-  const current = parseCsv(cleanTextFile('HD2023.csv'));
+  const current = parseCsv(cleanTextFile(`HD${CURRENT_VINTAGE}.csv`));
   const ch = current[0].map((s) => s.toUpperCase());
   const cUnit = ch.indexOf('UNITID'), cLat = ch.indexOf('LATITUDE'), cLon = ch.indexOf('LONGITUD');
   const currentCoordinates = new Map<string, { lat: number; lon: number }>();
@@ -214,6 +233,8 @@ const only = process.argv.find((arg) => arg.startsWith('--only='))?.split('=')[1
 if (!only || only === 'places') buildPlaces();
 if (!only || only === 'zhvi') buildZhvi();
 if (!only || only === 'universities') {
-  buildUniversities2000();
-  buildUniversities2023();
+  // Historical inputs are only part of the legacy all-in-one build. A
+  // versioned refresh intentionally carries only the requested IPEDS vintage.
+  if (CURRENT_VINTAGE === '2023') buildUniversities2000();
+  buildUniversitiesCurrent();
 }
