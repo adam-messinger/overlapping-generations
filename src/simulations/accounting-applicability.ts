@@ -213,6 +213,19 @@ export const MODEL_ACCOUNTING_APPLICABILITY: readonly ModelAccountingApplicabili
       'Keep oil, LNG, fertilizer, storage, and delayed cargo in a unified physical ledger and map depletion, price, rerouting, and replenishment feedback basins.',
   },
   {
+    modelId: 'war-settlement-reserves',
+    scope: 'registry',
+    accountingTool: 'physical-conservation',
+    stockFlowFit: 'high',
+    nonlinearStabilityFit: 'high',
+    energyEssentialFit: 'direct',
+    priority: 'now',
+    recommendation:
+      'Hold crude reserves and both munitions magazines in one physical ledger with explicit ' +
+      'operational floors, then treat the settlement hazard as a separate, uncalibrated layer ' +
+      'that reads the ledger rather than a conserved quantity in it.',
+  },
+  {
     modelId: 'outbreak-preparedness',
     scope: 'registry',
     accountingTool: 'physical-conservation',
