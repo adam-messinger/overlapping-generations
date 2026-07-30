@@ -113,6 +113,56 @@ console.table(
   })),
 );
 
+// --- Is the reserve actually reachable? -------------------------------------
+
+console.log('\nSPR: headline barrels are not deliverable barrels');
+console.log('(GAO-26-106918: effective drawdown 2.7 of 4.415 mb/d design; Big Hill offline;');
+console.log('more than a quarter of inventory unavailable as of December 2025)\n');
+console.table(
+  result.months.slice(0, 12).map((m) => ({
+    month: `${m.year}-${String(m.month).padStart(2, '0')}`,
+    'headline mb': m.usSprMb.toFixed(1),
+    'deliverable mb': m.usSprDeliverableMb.toFixed(1),
+    'stranded mb': (m.usSprMb - m.usSprDeliverableMb).toFixed(1),
+    'plumbing cap mb/mo': m.usSprMaxDeliverableThisMonthMb.toFixed(0),
+    'actual draw mb/mo': (m.usSprDrawMbd * 30.4).toFixed(1),
+    'EPCA limited authority': m.limitedDrawdownAuthorityAvailable ? 'yes' : 'LOST',
+  })),
+);
+
+console.log('\nWhat the reserve could deliver if policy tried to surge');
+console.table(
+  [1, 2, 4, 8].map((multiplier) => {
+    const surged = simulateWarSettlement(scenario, { usSprSurgeMultiplier: multiplier });
+    const peak = Math.max(...surged.months.map((m) => m.usSprDrawMbd));
+    return {
+      'surge x scheduled': multiplier,
+      'requested mb/d': (0.707 * multiplier).toFixed(2),
+      'delivered mb/d': peak.toFixed(2),
+      'capped by plumbing': peak < 0.707 * multiplier - 1e-3 ? 'yes' : 'no',
+    };
+  }),
+);
+
+console.log('\nThe floor is genuinely disputed; here is what each candidate implies');
+console.table(
+  [
+    { floor: 70, basis: 'DOE 2026 cavern-mechanics claim, contested' },
+    { floor: 200, basis: 'model default, a practical operating judgment' },
+    { floor: 252.4, basis: 'EPCA limited-drawdown threshold' },
+    { floor: 300, basis: 'conventional industry practical limit' },
+  ].map(({ floor, basis }) => {
+    const run = simulateWarSettlement(scenario, { usSprMinimumOperableMb: floor });
+    const lowest = Math.min(...run.months.map((m) => m.usSprMb));
+    return {
+      'floor mb': floor,
+      basis,
+      'reserve bottoms at': lowest.toFixed(0),
+      'release completed': lowest <= 244 ? 'yes' : 'NO — floor binds first',
+    };
+  }),
+);
+
 // --- What binds, and when ---------------------------------------------------
 
 const monthName = (index: number | null): string => {
@@ -207,3 +257,7 @@ console.log('- Leakage is not modeled: a thinner interceptor magazine degrades c
 console.log('  model without inflicting the damage that would actually follow.');
 console.log('- Nuclear escalation, regime change, and third-party entry are out of scope. Each');
 console.log('  would dominate everything above if it happened.');
+console.log('- SPR barrels are discounted 10% against a Brent-priced shortfall because 60% of');
+console.log('  the reserve is sour and clears only through coking refineries. That discount is');
+console.log('  a judgment; for this particular shock it is probably generous to the downside,');
+console.log('  since Gulf medium sour is exactly the slate Hormuz removed.');

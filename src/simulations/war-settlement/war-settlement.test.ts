@@ -86,6 +86,60 @@ test('the SPR release honours its 172 mb authorization and its operable floor', 
   assert.ok(Math.abs(lowest - E.reserves.usSprPostReleaseMb) < 1);
 });
 
+test('stranded barrels are never drawn, and return when the outage ends', () => {
+  const result = simulateWarSettlement(central);
+  for (const m of result.months) {
+    assert.ok(
+      m.usSprDeliverableMb <= m.usSprMb + 1e-9,
+      `deliverable exceeds headline at month ${m.monthIndex}`,
+    );
+    assert.ok(
+      m.usSprDrawMbd * 30.4 <= m.usSprMaxDeliverableThisMonthMb + 1e-6,
+      `draw exceeds what the plumbing allows at month ${m.monthIndex}`,
+    );
+  }
+  const returns = defaultWarSettlementParams.usSprStrandedReturnsMonthIndex;
+  const before = result.months[returns - 1];
+  const after = result.months[returns];
+  assert.ok(
+    before.usSprMb - before.usSprDeliverableMb > 1,
+    'Big Hill barrels should be stranded before the outage ends',
+  );
+  assert.ok(
+    Math.abs(after.usSprMb - after.usSprDeliverableMb) < 1e-9,
+    'the whole reserve should be deliverable once Big Hill returns',
+  );
+});
+
+test('the physical draw-rate ceiling binds when policy tries to surge', () => {
+  const scheduled = simulateWarSettlement(central);
+  const surged = simulateWarSettlement(central, { usSprSurgeMultiplier: 8 });
+  const peak = (r: typeof scheduled): number =>
+    Math.max(...r.months.map((m) => m.usSprDrawMbd));
+  assert.ok(peak(scheduled) < defaultWarSettlementParams.usSprMaxDrawRateMbd);
+  assert.ok(
+    peak(surged) <= defaultWarSettlementParams.usSprMaxDrawRateMbd + 1e-9,
+    'a surge must not exceed the effective drawdown capability',
+  );
+  // The authorization is a volume, so surging spends it sooner, not more.
+  const total = (r: typeof scheduled): number =>
+    E.reserves.usSprDec2025Mb - Math.min(...r.months.map((m) => m.usSprMb));
+  assert.ok(Math.abs(total(scheduled) - total(surged)) < 1);
+});
+
+test('limited drawdown authority is lost when the reserve passes 252.4 mb', () => {
+  const result = simulateWarSettlement(central);
+  for (const m of result.months) {
+    assert.equal(
+      m.limitedDrawdownAuthorityAvailable,
+      m.usSprMb >= E.reserves.usSprLimitedDrawdownFloorMb,
+    );
+  }
+  const lost = result.months.find((m) => !m.limitedDrawdownAuthorityAvailable);
+  assert.ok(lost, 'the central case should cross the EPCA threshold in horizon');
+  assert.ok(lost.year === 2026, `crossed in ${lost.year}, expected 2026`);
+});
+
 test('the backcast reproduces the observed March-July record', () => {
   const values = backcastValues(simulateWarSettlement(central));
   for (const [name, target] of Object.entries(warSettlementTargets.development)) {

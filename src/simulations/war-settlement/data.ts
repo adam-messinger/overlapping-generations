@@ -59,6 +59,39 @@ export const warSettlementEvidence = {
     usSprWeeklyDrawMb: 3.7,
     /** SPR level entering the war (EIA, December 2025). */
     usSprDec2025Mb: 415,
+    /** GAO-26-106918: effective drawdown rate, against a 4.415 mb/d design. */
+    usSprEffectiveDrawRateMbd: 2.7,
+    usSprDesignDrawRateMbd: 4.415,
+    /** The SPR is required to sustain the design rate for this long. */
+    usSprDesignSustainDays: 90,
+    /** Site drawdown rates, December 2025: Big Hill is entirely offline. */
+    usSprSiteDrawRatesMbd: {
+      bryanMound: 1.500, // 100% of design
+      westHackberry: 0.750, // 58% of 1.300 design
+      bayouChoctaw: 0.450, // 87% of 0.515 design
+      bigHill: 0.000, // 0% of 1.100 design — construction outage
+    },
+    /** Big Hill inventory, stranded while the site is in outage. */
+    usSprBigHillMb: 90,
+    /** Return-to-service date for Big Hill barrels. */
+    usSprBigHillReturns: '2026-11',
+    /** GAO: share of inventory unavailable for drawdown as of December 2025. */
+    usSprUnavailableShare: 0.25,
+    /** EPCA limited-drawdown authority is unavailable below this level. A
+     *  severe-energy-supply-interruption finding carries no such floor. */
+    usSprLimitedDrawdownFloorMb: 252.4,
+    /** DOE's 2026 claim of a cavern-mechanics operational minimum, contested. */
+    usSprDoeCavernFloorMb: 70,
+    /** The level industry has conventionally treated as the practical limit. */
+    usSprConventionalFloorLowMb: 250,
+    usSprConventionalFloorHighMb: 300,
+    /** SPR crude is stored to this sweet/sour split by design. */
+    usSprSweetShare: 0.40,
+    usSprSourShare: 0.60,
+    /** Straight-run middle-distillate yield: Gulf medium sour versus light shale. */
+    gulfSourDistillateYield: 0.325,
+    /** Major maintenance backlog outstanding, December 2025. */
+    usSprMaintenanceBacklogMillionUsd: 230,
     /** March 2026 presidential order: total authorized release. */
     usSprAuthorizedReleaseMb: 172,
     /** Level implied once the authorized release is fully executed. */
@@ -227,8 +260,27 @@ export interface WarSettlementParams {
   supplyResponseRampMonths: number;
   /** SPR barrels released per month at full policy effort. */
   usSprMaxDrawPerMonthMb: number;
-  /** Minimum operable SPR volume: below this the caverns cannot deliver rate. */
+  /** Minimum operable SPR volume. Genuinely contested: DOE now claims about
+   *  70 mb on cavern mechanics, industry has long treated 250-300 mb as the
+   *  practical limit, and the 252.4 mb in statute binds only the limited
+   *  drawdown authority. Swept rather than asserted. */
   usSprMinimumOperableMb: number;
+  /** Ceiling on the physical draw rate, mb/d, before Big Hill returns. */
+  usSprMaxDrawRateMbd: number;
+  /** Rate recovered once the Big Hill outage ends. */
+  usSprDrawRateAfterBigHillMbd: number;
+  /** Barrels physically inaccessible while their site is in outage. */
+  usSprStrandedMb: number;
+  /** Month index at which stranded barrels return to service. */
+  usSprStrandedReturnsMonthIndex: number;
+  /** Multiplier on the scheduled release if policy tries to surge. 1 is the
+   *  observed scheduled tempo; above 1 the physical caps start to bind. */
+  usSprSurgeMultiplier: number;
+  /** How much of a released SPR barrel offsets a Brent-priced shortfall.
+   *  Below 1 because 60% of the reserve is sour and clears only through
+   *  coking refineries; not far below 1, because Gulf medium sour is exactly
+   *  the slate Hormuz removed and it out-yields light shale on distillate. */
+  sprBarrelEffectiveness: number;
   /** Chinese draw as a share of its own import shortfall. */
   chinaDrawCoverageShare: number;
   /** JUDGMENT: floor China will not draw below, as a share of the 2025 peak. */
@@ -335,7 +387,13 @@ export const defaultWarSettlementParams: WarSettlementParams = {
   nonGulfResponseMbd: 1.4, // US shale plus non-Gulf OPEC spare, EIA STEO scale
   supplyResponseRampMonths: 6,
   usSprMaxDrawPerMonthMb: 21.5, // 3.7 mb/wk observed; 172 mb runs ~8 months
-  usSprMinimumOperableMb: 200, // JUDGMENT: cavern pressure/delivery-rate floor
+  usSprMinimumOperableMb: 200, // JUDGMENT, swept over the 70-300 mb dispute
+  usSprMaxDrawRateMbd: 2.7, // GAO Dec 2025 effective capability
+  usSprDrawRateAfterBigHillMbd: 3.8, // 2.7 plus Big Hill's 1.1 mb/d design rate
+  usSprStrandedMb: 90, // Big Hill inventory, inaccessible during the outage
+  usSprStrandedReturnsMonthIndex: 8, // November 2026, from a March 2026 start
+  usSprSurgeMultiplier: 1,
+  sprBarrelEffectiveness: 0.90, // JUDGMENT
   chinaDrawCoverageShare: 0.85,
   chinaReserveFloorShare: 0.5, // JUDGMENT
   rowMaxDrawPerMonthMb: 12,

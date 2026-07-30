@@ -10,7 +10,7 @@ Four stocks are tracked to their operational floors:
 
 | Stock | Entering the war | Late July 2026 | Floor |
 |---|---:|---:|---:|
-| US Strategic Petroleum Reserve | 415 mb | 307.7 mb | 243 mb (authorization), 200 mb (operable) |
+| US Strategic Petroleum Reserve | 415 mb | 307.7 mb headline, **~218 mb deliverable** | 243 mb (authorization); operable floor disputed |
 | Chinese strategic + commercial crude | ~1,400 mb | ~1,150 mb | 700 mb (judgment) |
 | US high-end interceptors (THAAD + SM-3) | ~860 | ~650 | 516 (60% reserve requirement) |
 | US area interceptors (Patriot PAC-3) | ~2,850 | ~990 | 1,710 — **already breached** |
@@ -24,6 +24,71 @@ npm run war:settlement -- --scenario=escalation
 npm run war:settlement -- --scenario=negotiated-pause
 npm run war:settlement -- --scenario=iran-capitulates-hormuz
 ```
+
+## Is the reserve reachable and fungible?
+
+No, and not entirely. The headline SPR number overstates the usable buffer on
+three separate counts, and this is the single largest correction the model
+carries against a naive reading of the weekly EIA figure.
+
+**Access.** GAO-26-106918 found that as of December 2025 more than a quarter of
+SPR inventory was unavailable for drawdown, held behind construction and cavern
+outages. Big Hill — 90 mb, and 1.1 mb/d of design drawdown rate — is entirely
+offline, with return barrels scheduled from 1 November 2026. So the ~307.7 mb
+reported for the week ending 24 July 2026 is roughly **218 mb of deliverable
+crude**. When the authorized release completes at a headline 243 mb, the
+deliverable reserve is about **153 mb**: a 37% overstatement.
+
+**Rate.** Effective drawdown capability is 2.7 mb/d against a 4.415 mb/d design,
+61% of nameplate, with refill at 56%. Site by site: Bryan Mound 1.5 mb/d (100%
+of design), West Hackberry 0.75 (58%), Bayou Choctaw 0.45 (87%), Big Hill 0.
+The statutory design requirement is to sustain 4.4 mb/d for 90 days; the reserve
+cannot currently do that. At the observed release tempo — about 0.71 mb/d — the
+rate ceiling is nowhere near binding, which is why it did not show up in the
+backcast. It binds hard the moment policy tries to surge: the model delivers
+2.7 mb/d against a request of 5.7 and stops there. Much of the infrastructure is
+over four decades old against a $230 million maintenance backlog.
+
+Each drawdown also injects fresh water to displace oil, dissolving the salt
+walls and enlarging the caverns. Drawdowns are therefore partly irreversible:
+the reserve degrades as it is used, not merely as it empties.
+
+**Fungibility.** The reserve is roughly 40% sweet (max 0.5% sulfur) and 60%
+sour (about 1.4%). Sweet crude nearly any refinery can take; sour clears only
+through complex coking refineries, which is why the SPR sits where it does and
+feeds the Gulf Coast through three fixed systems — Seaway from Bryan Mound to
+Houston and Texas City, Texoma from Big Hill and West Hackberry to
+Beaumont–Port Arthur and Lake Charles, and Capline from Bayou Choctaw to Baton
+Rouge. Marine loading is a further hard constraint: Freeport 400 kb/d, Texas
+City 300 kb/d, Nederland 1.19 mb/d, Beaumont 200 kb/d — and Texoma's two feeder
+sites are the degraded ones.
+
+The direction of the fungibility effect is not the obvious one. Gulf medium
+sour is *exactly* the slate Hormuz removed, and it yields 30–35% straight-run
+middle distillate against meaningfully less from light shale, so for this
+particular shock the SPR holds close to the right barrels. What it does not do
+is offset a Brent-priced (light sweet) shortfall one for one. The model applies
+a 10% haircut on that account, flagged as judgment; for this shock that is
+probably generous to the downside. Drawdowns so far have been sour-weighted —
+the first 86 mb exchange was mostly sour — leaving the remaining mix at roughly
+its designed 60/40.
+
+**The floor is disputed, and the dispute is load-bearing.** Three numbers are in
+play. EPCA's 252.4 mb applies only to *limited* drawdown authority (≤30 mb per
+60 days); a severe-energy-supply-interruption finding, which a Hormuz closure
+plainly supports, carries no statutory floor at all. Industry has conventionally
+treated 250–300 mb as the practical limit. DOE in 2026 asserted a
+cavern-mechanics operational minimum of about 70 mb, which critics argue ignores
+both the rate collapse well above that level and the question of permanent
+cavern damage. The model defaults to 200 mb as a practical judgment and sweeps
+the others. The sweep produces a sharp result: **the announced release to 243 mb
+is only executable under the low floor.** At the conventional 250–300 mb limit
+the reserve bottoms out before the 172 mb is delivered.
+
+There is a second, cleaner threshold the model now tracks. The central case
+crosses below 252.4 mb in **October 2026**, at which point the United States
+permanently loses the small, fast, non-emergency SPR lever. Everything after
+that requires a presidential emergency finding.
 
 ## Structure
 
@@ -45,7 +110,9 @@ event. Each month:
    at 75% utilization and a ramping non-Gulf supply response. The residual is
    met by SPR, Chinese, rest-of-world and commercial inventory draws in that
    order, and whatever is left clears through a demand elasticity that rises
-   with the size of the shock.
+   with the size of the shock. The SPR draw is capped three separate ways —
+   stranded barrels, the 2.7 mb/d plumbing ceiling, and the 172 mb
+   authorization — and released barrels are discounted 10% for sourness.
 5. **US inflation.** Retail gasoline is crude passthrough plus a crack term
    driven by Hormuz *product* flow, which does not travel the bypass pipelines.
    Headline CPI is core plus the motor-fuel and other-energy contributions.
@@ -110,6 +177,7 @@ attempt-to-durable-settlement conversion below one-half.
 | Stock | Hits its floor |
 |---|---|
 | US Patriot below reserve requirement | April 2026 (already past) |
+| EPCA limited-drawdown authority lost | October 2026 |
 | US SPR authorization spent | November 2026 |
 | Iranian salvo below credibility floor | October 2026 |
 | US THAAD/SM-3 below reserve requirement | never in horizon |
@@ -182,14 +250,26 @@ and the date is not.
 - **Nuclear escalation, regime change, third-party entry.** Any of these would
   dominate every mechanism above.
 - **SPR reauthorization.** The March order is executed on schedule; whether
-  Congress or the White House authorizes a further release is not modeled. The
-  200 mb operable floor bounds anything that could follow.
+  the White House authorizes a further release is not modeled. Note that any
+  further release now requires an emergency finding, and that the deliverable
+  reserve behind it is roughly 153 mb, not the 243 mb headline.
+- **Refinery-level and marine-terminal routing.** Distribution capacity is
+  documented above but not simulated; the model treats a delivered barrel as
+  reaching the market, subject only to the sourness haircut.
 - **Distributional widening in Iran.** Dispersion is held at the pre-war Gini,
   so the poverty channel is, if anything, understated.
 - **Feedback into the main energy-climate model.** This is a standalone
   registry model; it does not drive the 2025–2100 simulation.
 
 ## Sources
+
+SPR condition: [GAO-26-106918](https://files.gao.gov/reports/GAO-26-106918/index.html),
+[DOE SPR distribution systems](https://www.energy.gov/ceser/articles/spr-distribution-systems),
+[DOE statutory drawdown authority](https://www.energy.gov/hgeo/opr/statutory-authority-spr-drawdown),
+[CRS on SPR authorization and drawdown policy](https://www.congress.gov/crs_external_products/R/PDF/R42460/R42460.16.pdf),
+[DOE SPR FAQs on the sweet/sour split](https://www.energy.gov/hgeo/opr/spr-faqs),
+[the sour crude problem](https://larrycjohnson.substack.com/p/part-ii-the-sour-crude-problem-how),
+[infrastructure strain explainer](https://discoveryalert.com.au/us-strategic-petroleum-reserve-infrastructure-strain-2026/).
 
 Reserves and prices: [EIA weekly SPR](https://energynow.com/2026/07/oil-stocks-in-us-strategic-petroleum-reserve-fall-by-3-7-million-barrels-to-lowest-level-since-1983/),
 [CNBC on SPR stress](https://www.cnbc.com/2026/07/28/us-strategic-petroleum-reserve-spr-iran-oil-strait-hormuz.html),

@@ -45,6 +45,13 @@ export interface WarSettlementMonth {
   chinaDrawMbd: number;
   rowDrawMbd: number;
   usSprMb: number;
+  /** Headline inventory less barrels stranded in a site outage. */
+  usSprDeliverableMb: number;
+  /** What the plumbing could deliver this month if policy asked for it, mb. */
+  usSprMaxDeliverableThisMonthMb: number;
+  /** False once the reserve drops below the 252.4 mb EPCA threshold, at which
+   *  point every further release needs a severe-supply-interruption finding. */
+  limitedDrawdownAuthorityAvailable: boolean;
   chinaReserveMb: number;
   rowReserveMb: number;
   /** True once the SPR authorization or the operable floor stops US draws. */
@@ -326,13 +333,26 @@ export function simulateWarSettlement(
     // The March 2026 order released a fixed 172 mb on a schedule; it is drawn
     // down at a steady tempo rather than metered against the monthly shortfall,
     // which is why the SPR kept falling through the June price trough.
-    const sprHeadroom = Math.max(0, usSpr - p.usSprMinimumOperableMb);
+    // Three separate limits, and they are not the same thing. Barrels sitting
+    // in a site that is in construction outage cannot be drawn at any price;
+    // the surface plumbing caps the rate; and the authorization caps the total.
+    const stranded = t >= p.usSprStrandedReturnsMonthIndex ? 0 : p.usSprStrandedMb;
+    const deliverable = Math.max(0, usSpr - stranded);
+    const rateMbd = t >= p.usSprStrandedReturnsMonthIndex
+      ? p.usSprDrawRateAfterBigHillMbd
+      : p.usSprMaxDrawRateMbd;
+    const rateCapMb = rateMbd * DAYS_PER_MONTH;
+    const sprHeadroom = Math.min(
+      Math.max(0, usSpr - p.usSprMinimumOperableMb),
+      deliverable,
+      rateCapMb,
+    );
     const authorizationLeft = Math.max(0, sprAuthorization - sprReleased);
     // The authorization, once issued, is executed on schedule: the reserve kept
     // falling 3.7 mb/week straight through the June price trough. Whether a
     // further authorization would follow is out of scope; the 200 mb operable
     // floor bounds anything that could.
-    const sprWanted = p.usSprMaxDrawPerMonthMb;
+    const sprWanted = p.usSprMaxDrawPerMonthMb * p.usSprSurgeMultiplier;
     const sprDrawMb = Math.min(sprWanted, sprHeadroom, authorizationLeft);
     // Exhausted means the stock or the authorization stopped the draw, not that
     // the price fell far enough that no draw was wanted.
@@ -361,7 +381,11 @@ export function simulateWarSettlement(
 
     // Commercial crude and product stocks are the largest and fastest buffer in
     // the system; leaving them out makes the March closure look apocalyptic.
-    const strategicMbd = (sprDrawMb + chinaDrawMb + rowDrawMb) / DAYS_PER_MONTH;
+    // SPR barrels are discounted: 60% of the reserve is sour and clears only
+    // through coking refineries, so a released barrel does not offset a
+    // Brent-priced shortfall one for one.
+    const strategicMbd =
+      (sprDrawMb * p.sprBarrelEffectiveness + chinaDrawMb + rowDrawMb) / DAYS_PER_MONTH;
     const commercialDrawMb = Math.min(
       p.commercialMaxDrawPerMonthMb,
       Math.max(0, commercialStock),
@@ -488,6 +512,10 @@ export function simulateWarSettlement(
       chinaDrawMbd: chinaDrawMb / DAYS_PER_MONTH,
       rowDrawMbd: rowDrawMb / DAYS_PER_MONTH,
       usSprMb: usSpr,
+      usSprDeliverableMb: Math.max(0, usSpr - stranded),
+      usSprMaxDeliverableThisMonthMb: Math.min(deliverable, rateCapMb),
+      limitedDrawdownAuthorityAvailable:
+        usSpr >= E.reserves.usSprLimitedDrawdownFloorMb,
       chinaReserveMb: chinaReserve,
       rowReserveMb: rowReserve,
       usSprExhausted,
