@@ -31,6 +31,13 @@ import type {
   DataCenterGridResult,
   DataCenterGridScenario,
 } from './news/data-center-grid.js';
+import './war-settlement/units.js';
+import {
+  SETTLEMENT_CHANNELS,
+  type WarSettlementParams,
+  type WarSettlementScenario,
+} from './war-settlement/data.js';
+import type { WarSettlementMonth, WarSettlementResult } from './war-settlement/model.js';
 import type {
   EnergyInflationMonth,
   EnergyInflationNetworkMonth,
@@ -1199,6 +1206,174 @@ export const WAR_AI_YEAR_PORT = objectPort<WarAiYearResult>({
   regionalAiCushionPctPoints: recordPort<number>(unitPort('percentage-point'), { keys: REGIONS }),
 });
 export const WAR_AI_YEARS_PORT = vectorPort<WarAiYearResult>(WAR_AI_YEAR_PORT);
+
+// War settlement -------------------------------------------------------------
+
+export const WAR_SETTLEMENT_SCENARIO_PORT = objectPort<WarSettlementScenario>({
+  id: metadataPort('string', 'War-settlement scenario identifier.'),
+  label: metadataPort('string', 'War-settlement scenario label.'),
+  description: metadataPort('string', 'War-settlement scenario description.'),
+  startYear: unitPort('calendar-year'),
+  startMonth: unitPort('calendar-month'),
+  months: unitPort('month'),
+  baseIntensityPath: vectorPort<number>(unitPort('fraction')),
+  hormuzThroughputPath: vectorPort<number>(unitPort('fraction')),
+});
+
+const SETTLEMENT_PRESSURES_PORT = objectPort<WarSettlementMonth['pressures']>({
+  usInflation: unitPort('1'),
+  iranPoverty: unitPort('1'),
+  usMagazine: unitPort('1'),
+  iranMagazine: unitPort('1'),
+});
+
+const SETTLEMENT_HAZARDS_PORT = recordPort<number>(unitPort('fraction/month'), {
+  keys: SETTLEMENT_CHANNELS,
+});
+
+export const WAR_SETTLEMENT_MONTH_PORT = objectPort<WarSettlementMonth>({
+  monthIndex: unitPort('month'),
+  year: unitPort('calendar-year'),
+  month: unitPort('calendar-month'),
+  intensity: unitPort('fraction'),
+  hormuzThroughput: unitPort('fraction'),
+  grossDeficitMbd: unitPort('mb/d'),
+  netDeficitMbd: unitPort('mb/d'),
+  usSprDrawMbd: unitPort('mb/d'),
+  chinaDrawMbd: unitPort('mb/d'),
+  rowDrawMbd: unitPort('mb/d'),
+  usSprMb: unitPort('million-barrel'),
+  usSprDeliverableMb: unitPort('million-barrel'),
+  usSprMaxDeliverableThisMonthMb: unitPort('million-barrel'),
+  limitedDrawdownAuthorityAvailable: metadataPort(
+    'boolean', 'SPR above the 252.4 mb EPCA limited-drawdown threshold.'),
+  chinaReserveMb: unitPort('million-barrel'),
+  rowReserveMb: unitPort('million-barrel'),
+  usSprExhausted: metadataPort('boolean', 'SPR authorization or operable floor binds.'),
+  brentUsdPerBarrel: unitPort('$/barrel'),
+  retailGasolineUsdPerGal: unitPort('$/USgal'),
+  energyCpiYoy: unitPort('fraction/year'),
+  headlineCpiYoy: unitPort('fraction/year'),
+  coreCpiYoy: unitPort('fraction/year'),
+  iranOilExportsMbd: unitPort('mb/d'),
+  iranOilRevenueBillionPerMonth: unitPort('$B/month'),
+  iranFiscalDeficitBillionPerMonth: unitPort('$B/month'),
+  iranMonthlyInflation: unitPort('fraction/month'),
+  iranRealIncomeIndex: unitPort('1'),
+  iranPovertyHeadcount: unitPort('fraction'),
+  iranRialDepreciation: unitPort('fraction'),
+  iranLaunches: unitPort('missile/month'),
+  iranMissileInventory: unitPort('missile'),
+  iranLaunchers: unitPort('launcher'),
+  iranSustainableSalvo: unitPort('missile/month'),
+  usHighEndInterceptors: unitPort('interceptor'),
+  usAreaInterceptors: unitPort('interceptor'),
+  usStandoffWeapons: unitPort('standoff-weapon'),
+  usMagazineCoverShare: unitPort('fraction'),
+  pressures: SETTLEMENT_PRESSURES_PORT,
+  channelHazards: SETTLEMENT_HAZARDS_PORT,
+  attemptHazard: unitPort('fraction/month'),
+  settlementHazard: unitPort('fraction/month'),
+  survival: unitPort('fraction'),
+  cumulativeSettlement: unitPort('fraction'),
+});
+
+export const WAR_SETTLEMENT_MONTHS_PORT = vectorPort<WarSettlementMonth>(WAR_SETTLEMENT_MONTH_PORT);
+
+export const WAR_SETTLEMENT_ATTRIBUTION_PORT = recordPort<number>(unitPort('fraction'), {
+  keys: SETTLEMENT_CHANNELS,
+});
+
+export const WAR_SETTLEMENT_QUANTILES_PORT = objectPort<
+  { p25: number | null; p50: number | null; p75: number | null }
+>({
+  p25: { ...unitPort('month'), nullable: true },
+  p50: { ...unitPort('month'), nullable: true },
+  p75: { ...unitPort('month'), nullable: true },
+});
+
+export const WAR_SETTLEMENT_QUANTILE_LABELS_PORT = objectPort<
+  { p25: string | null; p50: string | null; p75: string | null }
+>({
+  p25: { ...metadataPort('string', 'Calendar month label.'), nullable: true },
+  p50: { ...metadataPort('string', 'Calendar month label.'), nullable: true },
+  p75: { ...metadataPort('string', 'Calendar month label.'), nullable: true },
+});
+
+export const WAR_SETTLEMENT_BINDING_PORT = objectPort<WarSettlementResult['bindingMonths']>({
+  usSpr: { ...unitPort('month'), nullable: true },
+  chinaReserve: { ...unitPort('month'), nullable: true },
+  usHighEndInterceptors: { ...unitPort('month'), nullable: true },
+  usAreaInterceptors: { ...unitPort('month'), nullable: true },
+  iranMissiles: { ...unitPort('month'), nullable: true },
+});
+
+
+export const WAR_SETTLEMENT_PARAMS_FULL_PORT = objectPort<WarSettlementParams>({
+  basePriceUsdPerBarrel: unitPort('$/barrel'),
+  shortRunDemandElasticity: unitPort('1'),
+  elasticityMonthlyDrift: unitPort('1/month'),
+  nonGulfResponseMbd: unitPort('mb/d'),
+  supplyResponseRampMonths: unitPort('month'),
+  usSprMaxDrawPerMonthMb: unitPort('million-barrel/month'),
+  usSprMinimumOperableMb: unitPort('million-barrel'),
+  usSprMaxDrawRateMbd: unitPort('mb/d'),
+  usSprDrawRateAfterBigHillMbd: unitPort('mb/d'),
+  usSprStrandedMb: unitPort('million-barrel'),
+  usSprStrandedReturnsMonthIndex: unitPort('month'),
+  usSprSurgeMultiplier: unitPort('1'),
+  sprBarrelEffectiveness: unitPort('1'),
+  chinaDrawCoverageShare: unitPort('fraction'),
+  chinaReserveFloorShare: unitPort('fraction'),
+  rowMaxDrawPerMonthMb: unitPort('million-barrel/month'),
+  rowReserveFloorMb: unitPort('million-barrel'),
+  commercialStockMobilizableMb: unitPort('million-barrel'),
+  commercialMaxDrawPerMonthMb: unitPort('million-barrel/month'),
+  elasticityShockScale: unitPort('1'),
+  pumpBaseUsdPerGal: unitPort('$/USgal'),
+  crudePassthroughUsdPerGalPerBarrel: unitPort('$/USgal/($/barrel)'),
+  productCrackUsdPerGal: unitPort('$/USgal'),
+  cpiMotorFuelWeight: unitPort('fraction'),
+  cpiOtherEnergyWeight: unitPort('fraction'),
+  otherEnergyInflation: unitPort('fraction/year'),
+  coreInflationBaseline: unitPort('fraction/year'),
+  energyToCorePassthrough: unitPort('1'),
+  iranSanctionsDiscountUsd: unitPort('$/barrel'),
+  iranNonOilRevenueBillionPerMonth: unitPort('$B/month'),
+  iranSpendingBillionPerMonth: unitPort('$B/month'),
+  iranDeficitMonetizationShare: unitPort('fraction'),
+  iranBaseMoneyBillion: unitPort('$B'),
+  iranMoneyToInflation: unitPort('1'),
+  iranInflationToDepreciation: unitPort('1'),
+  iranWageIndexation: unitPort('fraction'),
+  iranPrewarPovertyHeadcount: unitPort('fraction'),
+  iranSortiesPerLauncherMonth: unitPort('missile/launcher/month'),
+  iranMaxInventoryDrawShare: unitPort('fraction/month'),
+  iranMissileAttritionShare: unitPort('fraction/month'),
+  iranLauncherAttritionShare: unitPort('fraction/month'),
+  iranLauncherReplacementPerMonth: unitPort('launcher/month'),
+  iranProductionSuppression: unitPort('fraction'),
+  interceptorsPerBallisticMissile: unitPort('interceptor/missile'),
+  ballisticEngagementShare: unitPort('fraction'),
+  areaInterceptorsPerDrone: unitPort('interceptor/drone'),
+  droneEngagementShare: unitPort('fraction'),
+  areaInterceptorsPerBallisticMissile: unitPort('interceptor/missile'),
+  usStrikeWeaponsPerMonth: unitPort('standoff-weapon/month'),
+  usInterceptorReserveShare: unitPort('fraction'),
+  iranCredibleSalvoPerMonth: unitPort('missile/month'),
+  maxMonthlyMagazineCommitShare: unitPort('fraction/month'),
+  baselineDiplomaticHazard: unitPort('fraction/month'),
+  usCpiTolerance: unitPort('fraction/year'),
+  gasolineSalienceUsdPerGal: unitPort('$/USgal'),
+  usInflationHazardWeight: unitPort('fraction/month'),
+  iranPovertyHazardWeight: unitPort('fraction/month'),
+  usMagazineHazardWeight: unitPort('fraction/month'),
+  iranMagazineHazardWeight: unitPort('fraction/month'),
+  hazardExponent: unitPort('1'),
+  maxChannelHazard: unitPort('fraction/month'),
+});
+
+export const WAR_SETTLEMENT_PARAMS_PORT = partialObjectPort(WAR_SETTLEMENT_PARAMS_FULL_PORT);
 
 // Exported only to make intentional string fields explicit at registry sites.
 export const STRING_ID_PORT = metadataPort('string', 'Identifier.');

@@ -54,6 +54,7 @@ export const SIMULATION_ENTRYPOINT_COVERAGE = {
   simulateMaritimeNetwork: { status: 'registered', modelId: 'multi-chokepoint-maritime' },
   simulateDefenseSourcing: { status: 'registered', modelId: 'defense-magnet-sourcing' },
   simulateHormuzDisruption: { status: 'registered', modelId: 'hormuz-stock-flow' },
+  simulateWarSettlement: { status: 'registered', modelId: 'war-settlement-reserves' },
   simulateOutbreakV2: { status: 'registered', modelId: 'outbreak-preparedness' },
   makeForecast: { status: 'registered', modelId: 'outbreak-probabilistic-forecast' },
   runWarAiExperiment: { status: 'registered', modelId: 'war-ai-factorial' },

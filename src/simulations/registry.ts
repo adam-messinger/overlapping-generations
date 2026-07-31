@@ -65,7 +65,21 @@ import {
   TARIFF_ACTION_PORT,
   TARIFF_SECTORS_PORT,
   WAR_AI_YEARS_PORT,
+  WAR_SETTLEMENT_ATTRIBUTION_PORT,
+  WAR_SETTLEMENT_BINDING_PORT,
+  WAR_SETTLEMENT_MONTHS_PORT,
+  WAR_SETTLEMENT_PARAMS_FULL_PORT,
+  WAR_SETTLEMENT_PARAMS_PORT,
+  WAR_SETTLEMENT_QUANTILES_PORT,
+  WAR_SETTLEMENT_QUANTILE_LABELS_PORT,
+  WAR_SETTLEMENT_SCENARIO_PORT,
 } from './registry-port-schemas.js';
+import {
+  warSettlementEvidence,
+  type WarSettlementParams,
+  type WarSettlementScenario,
+} from './war-settlement/data.js';
+import { simulateWarSettlement, type WarSettlementResult } from './war-settlement/model.js';
 import type { HeatAdaptation, HeatEvent } from './heat/data.js';
 import { heatEvidence } from './heat/data.js';
 import { simulateHeatEvent, type HeatSimulationResult } from './heat/model.js';
@@ -1907,6 +1921,91 @@ export const ebikeMotorMarketModel = defineModel<
   semanticDerivations: [bikeToDriveUnitDerivation],
 });
 
+export interface WarSettlementInput {
+  scenario: WarSettlementScenario;
+  overrides?: Partial<WarSettlementParams>;
+}
+
+export const warSettlementModel = defineModel<WarSettlementInput, WarSettlementResult>({
+  id: 'war-settlement-reserves',
+  version: '1.0.0',
+  description:
+    'Monthly oil-reserve and munitions-magazine depletion for the 2026 US-Iran war, ' +
+    'mapped to a competing-risk hazard of a durable settlement.',
+  run: ({ scenario, overrides }) => simulateWarSettlement(scenario, overrides),
+  inputPorts: {
+    scenario: WAR_SETTLEMENT_SCENARIO_PORT,
+    overrides: { ...WAR_SETTLEMENT_PARAMS_PORT, optional: true },
+  },
+  outputPorts: {
+    scenario: WAR_SETTLEMENT_SCENARIO_PORT,
+    params: WAR_SETTLEMENT_PARAMS_FULL_PORT,
+    months: WAR_SETTLEMENT_MONTHS_PORT,
+    unsettledProbability: unitPort('fraction', 'number'),
+    channelAttribution: WAR_SETTLEMENT_ATTRIBUTION_PORT,
+    quantileMonths: WAR_SETTLEMENT_QUANTILES_PORT,
+    quantileLabels: WAR_SETTLEMENT_QUANTILE_LABELS_PORT,
+    bindingMonths: WAR_SETTLEMENT_BINDING_PORT,
+  },
+  invariants: [
+    {
+      id: 'settlement-cdf-is-a-probability',
+      description: 'Cumulative settlement probability stays in [0,1] and never falls',
+      check: (result) => result.months.every((m, i) =>
+        m.cumulativeSettlement >= 0 && m.cumulativeSettlement <= 1 &&
+        (i === 0 || m.cumulativeSettlement >= result.months[i - 1].cumulativeSettlement - 1e-12)),
+    },
+    {
+      id: 'stocks-nonnegative',
+      description: 'No reserve or magazine goes negative',
+      check: (result) => result.months.every((m) =>
+        m.usSprMb >= 0 && m.chinaReserveMb >= 0 && m.iranMissileInventory >= 0 &&
+        m.usHighEndInterceptors >= 0 && m.usAreaInterceptors >= 0 && m.usStandoffWeapons >= 0),
+    },
+    {
+      id: 'spr-authorization-respected',
+      description: 'Cumulative SPR release never exceeds the 172 mb authorization',
+      check: (result) => result.months.every((m) =>
+        m.usSprMb >= warSettlementEvidence.reserves.usSprDec2025Mb -
+          warSettlementEvidence.reserves.usSprAuthorizedReleaseMb - 1e-6),
+    },
+  ],
+  evidence: [
+    observed('war-spr-level', 'EIA weekly SPR crude, week ending 24 July 2026',
+      warSettlementEvidence.sources.sprLevel, 'development', '2026-07-30',
+      undefined, warSettlementEvidence.reserves.usSprJul24Mb, 'mb'),
+    observed('war-interceptor-inventory', 'CSIS depleting missile-defense interceptor inventory',
+      warSettlementEvidence.sources.interceptorInventory, 'development', '2026-07-30'),
+    observed('war-patriot-depletion', 'Patriot stockpile depletion after the Iran war',
+      warSettlementEvidence.sources.patriotDepletion, 'development', '2026-07-30'),
+    observed('war-iran-arsenal', 'Iranian ballistic-missile arsenal in the 2026 conflict',
+      warSettlementEvidence.sources.iranArsenal, 'development', '2026-07-30'),
+    observed('war-us-cpi', 'BLS June 2026 consumer price index',
+      warSettlementEvidence.sources.usCpi, 'development', '2026-07-30',
+      undefined, warSettlementEvidence.usEconomy.cpiYoyJun2026, 'fraction/year'),
+    observed('war-iran-economy', 'Iranian rial, inflation and poverty, 2026',
+      warSettlementEvidence.sources.iranEconomy, 'development', '2026-07-30'),
+    observed('war-china-reserves', 'Chinese strategic and commercial crude stocks',
+      warSettlementEvidence.sources.chinaReserves, 'validation', '2026-07-30'),
+    observed('war-oil-price', 'Brent close, 29 July 2026',
+      warSettlementEvidence.sources.oilPrice, 'development', '2026-07-30',
+      undefined, warSettlementEvidence.oil.brentJul29, '$/bbl'),
+  ],
+  validationClaims: [
+    claim(
+      'same-event-fit',
+      'March-July 2026 stock and price backcast',
+      'Stock levels, prices and the June CPI print are all development targets: they were ' +
+      'used to set the defaults. China\'s remaining import cover is an untouched holdout that ' +
+      'passes; the World Bank March supply-loss figure is an untouched holdout that the model ' +
+      'misses low, and is reported as a miss. The settlement-hazard mapping is not calibrated ' +
+      'against anything and is swept, not estimated.',
+      ['war-spr-level', 'war-interceptor-inventory', 'war-patriot-depletion', 'war-iran-arsenal',
+        'war-us-cpi', 'war-iran-economy', 'war-china-reserves', 'war-oil-price'],
+    ),
+  ],
+});
+
 export const SIMULATION_MODELS = [
   heatEventModel,
   genericDrugModel,
@@ -1929,6 +2028,7 @@ export const SIMULATION_MODELS = [
   warAiModel,
   aviationInfrastructureModel,
   ebikeMotorMarketModel,
+  warSettlementModel,
 ] as const;
 
 export const simulationModelRegistry = new ModelRegistry();
