@@ -49,9 +49,34 @@ backcast. It binds hard the moment policy tries to surge: the model delivers
 2.7 mb/d against a request of 5.7 and stops there. Much of the infrastructure is
 over four decades old against a $230 million maintenance backlog.
 
-Each drawdown also injects fresh water to displace oil, dissolving the salt
-walls and enlarging the caverns. Drawdowns are therefore partly irreversible:
-the reserve degrades as it is used, not merely as it empties.
+**Cavern mechanics.** Oil is withdrawn by injecting raw, unsaturated water at
+the bottom of a cavern; the oil floats and is displaced up and out. On its way
+to saturation that water dissolves the surrounding salt, so every drawdown
+enlarges the cavern — Sandia models a complete drawdown as adding roughly 15%
+to cavern volume.
+
+The damage is not lost capacity; the caverns get bigger, not smaller. What
+degrades is the salt pillar between adjacent caverns, measured as the
+pillar-to-diameter ratio. The common industry standard is P/D above 1.0, and
+Sandia's Level III criterion requires P/D above 1.78 after five complete
+drawdowns, which is the design basis: about five full cycles over 25 years.
+
+Partial drawdowns are disproportionately damaging per barrel. Dissolution
+always begins at the bottom, where the water enters, so a full drawdown leaches
+roughly uniformly while a partial one concentrates leaching at the injection
+depth and distorts the cavern into a bottom bulge. The SPR has been used almost
+entirely in partial draws — fourteen removals of under 10 mb each between 1996
+and 2014 alone — producing deformation and salt falls the design basis did not
+contemplate. The 2026 release is another series of partial draws.
+
+This is why DOE's 70 mb "cavern mechanics" floor answers the wrong question.
+Sandia reports that **many SPR caverns already sit below the P/D 1.0 industry
+standard, or will after one or two full drawdowns.** The binding constraint is
+not how much oil remains in the caverns but how many drawdown cycles the salt
+webs can still take. A reserve can be well above any volume floor and
+simultaneously out of safe drawdowns. The model does not represent this: it
+tracks barrels and rates, not cumulative cycle damage, and therefore
+understates how constrained the reserve is.
 
 **Fungibility.** The reserve is roughly 40% sweet (max 0.5% sulfur) and 60%
 sour (about 1.4%). Sweet crude nearly any refinery can take; sour clears only
@@ -263,7 +288,10 @@ and the date is not.
 
 ## Sources
 
-SPR condition: [GAO-26-106918](https://files.gao.gov/reports/GAO-26-106918/index.html),
+SPR condition and cavern mechanics: [GAO-26-106918](https://files.gao.gov/reports/GAO-26-106918/index.html),
+[Sandia, Available Drawdowns for Each Oil Storage Cavern (2022)](https://www.osti.gov/biblio/1870557),
+[Sandia SAND2006-3002 on cavern integrity criteria](https://www.osti.gov/servlets/purl/888563/),
+[Sandia on raw-water/brine mixing in SPR caverns](https://www.osti.gov/biblio/1476726),
 [DOE SPR distribution systems](https://www.energy.gov/ceser/articles/spr-distribution-systems),
 [DOE statutory drawdown authority](https://www.energy.gov/hgeo/opr/statutory-authority-spr-drawdown),
 [CRS on SPR authorization and drawdown policy](https://www.congress.gov/crs_external_products/R/PDF/R42460/R42460.16.pdf),

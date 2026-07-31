@@ -92,6 +92,19 @@ export const warSettlementEvidence = {
     gulfSourDistillateYield: 0.325,
     /** Major maintenance backlog outstanding, December 2025. */
     usSprMaintenanceBacklogMillionUsd: 230,
+    /**
+     * Cavern mechanics. Drawdown injects raw water at the cavern bottom to
+     * float the oil out; the water dissolves salt on its way to saturation, so
+     * each complete drawdown adds about 15% to cavern volume. The design basis
+     * is roughly five complete cycles, with Sandia's Level III criterion
+     * requiring a pillar-to-diameter ratio above 1.78 after them. NOT MODELLED:
+     * the reserve is tracked in barrels and rates, not cumulative cycle damage,
+     * so the model understates how constrained the caverns are.
+     */
+    usSprVolumeGrowthPerFullDrawdown: 0.15,
+    usSprDesignDrawdownCycles: 5,
+    usSprPillarToDiameterCriterion: 1.78,
+    usSprPillarToDiameterIndustryStandard: 1.0,
     /** March 2026 presidential order: total authorized release. */
     usSprAuthorizedReleaseMb: 172,
     /** Level implied once the authorized release is fully executed. */
@@ -227,6 +240,11 @@ export const warSettlementEvidence = {
     sprLevel:
       'https://energynow.com/2026/07/oil-stocks-in-us-strategic-petroleum-reserve-fall-by-3-7-million-barrels-to-lowest-level-since-1983/',
     sprStress: 'https://www.cnbc.com/2026/07/28/us-strategic-petroleum-reserve-spr-iran-oil-strait-hormuz.html',
+    sprGao: 'https://files.gao.gov/reports/GAO-26-106918/index.html',
+    sprCavernDrawdowns: 'https://www.osti.gov/biblio/1870557',
+    sprCavernCriteria: 'https://www.osti.gov/servlets/purl/888563/',
+    sprDistribution: 'https://www.energy.gov/ceser/articles/spr-distribution-systems',
+    sprDrawdownAuthority: 'https://www.energy.gov/hgeo/opr/statutory-authority-spr-drawdown',
     chinaReserves: 'https://www.energypolicy.columbia.edu/?p=27032',
     chinaVsUsReserves:
       'https://finance.yahoo.com/sectors/energy/article/new-data-shows-china-came-into-the-iran-war-with-over-3x-the-strategic-oil-reserves-of-the-us-151438578.html',
