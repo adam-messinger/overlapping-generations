@@ -43,6 +43,8 @@
     "news:2026-07-27:macro-risk": "node --import tsx scripts/headlines-2026-07-27-macro-risk.ts",
     "news:2026-07-27:all": "npm run news:2026-07-27 && npm run news:2026-07-27:macro-risk",
     "news:2026-07-28": "node --import tsx scripts/headlines-2026-07-28.ts",
+    "prenews:2026-08-10": "npm run build:framework",
+    "news:2026-08-10": "node --import tsx scripts/headlines-2026-08-10.ts",
     "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts",
     "forecast": "node --import tsx scripts/forecast.ts",
     "forecast:outbreak-replay": "node --import tsx scripts/forecast-outbreak-replay.ts",
