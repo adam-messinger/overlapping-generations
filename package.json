@@ -45,6 +45,7 @@
     "news:2026-07-28": "node --import tsx scripts/headlines-2026-07-28.ts",
     "prenews:2026-08-10": "npm run build:framework",
     "news:2026-08-10": "node --import tsx scripts/headlines-2026-08-10.ts",
+    "news:2026-08-11": "node --import tsx scripts/headlines-2026-08-11.ts",
     "accounting:audit": "node --import tsx scripts/accounting-applicability-report.ts",
     "forecast": "node --import tsx scripts/forecast.ts",
     "forecast:outbreak-replay": "node --import tsx scripts/forecast-outbreak-replay.ts",
