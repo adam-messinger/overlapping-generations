@@ -496,10 +496,25 @@ export const energyDefaults: EnergyParams = {
     battery: 0.80,
   },
 
-  // Long-duration storage (iron-air, CAES, etc.): modeling assumptions —
-  // pre-commercial technology, costs anchored loosely to ~2x Li-ion
+  // Long-duration storage (iron-air, CAES, etc.). Costs are per kWh of ENERGY
+  // capacity at the 100-hour duration below — $/kWh figures are only comparable
+  // at equal duration, because the power block ($/kW) amortizes over more hours
+  // as duration stretches, so short-duration benchmarks must not be used here.
   longStorage: {
-    cost0: 300,                // $/kWh (2025, ~2x battery)
+    // $/kWh (2025, 100-hour, unsubsidized). Anchored on the only large
+    // contracted 100-hour system in the world: Form Energy iron-air for
+    // Google/Xcel at Pine Island MN, 300 MW / 30 GWh for ~$1B — ~$33/kWh net
+    // of incentives (Ribbit Power Letter, Jul 2026; energy-storage.news,
+    // Feb 2026). Grossed up ~1.7x for the US ITC that "net of incentives"
+    // implies and for a global fleet without Form's factory scale. Second
+    // source: A-CAES, the other commercial 100h+ class, contracts at
+    // $120/kWh for 100 MW+ builds at shorter durations, which falls well
+    // below that per kWh once spread over 100 hours (iScience, 2025).
+    // Form's stated floor is <$20/kWh; literature puts the competitiveness
+    // threshold for 100-hour systems at $10-20/kWh.
+    // Previously 300 — an unsourced "~2x Li-ion" guess that mis-anchored a
+    // 100-hour cost on 4-hour pack economics.
+    cost0: 55,
     alpha: 0.15,               // Slower learning than Li-ion
     growthRate: 0.25,          // Max annual growth rate
     duration: 100,             // 100 hours
@@ -956,6 +971,26 @@ export const energyModule: Module<
     }
     if (p.carbonPrice > 500) {
       warnings.push(`carbonPrice ${p.carbonPrice} unusually high`);
+    }
+
+    // Long-duration storage: $/kWh is quoted at longStorage.duration hours,
+    // so a value drawn from short-duration Li-ion benchmarks is a category
+    // error rather than an aggressive assumption.
+    const ls = { ...energyDefaults.longStorage, ...(params.longStorage ?? {}) };
+    if (ls.cost0 <= 0) {
+      errors.push('longStorage.cost0 must be positive');
+    }
+    if (ls.duration <= 0) {
+      errors.push('longStorage.duration must be positive');
+    }
+    if (ls.cost0 > 200 && ls.duration >= 100) {
+      warnings.push(
+        `longStorage.cost0 ${ls.cost0} $/kWh is high for ${ls.duration}-hour storage ` +
+        `(contracted iron-air ~$33/kWh net of incentives) — check it is not a 4-hour Li-ion figure`,
+      );
+    }
+    if (ls.alpha < 0 || ls.alpha > 1) {
+      errors.push('longStorage.alpha must be between 0 and 1');
     }
 
     // Endogenous capex share

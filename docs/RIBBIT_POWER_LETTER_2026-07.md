@@ -156,34 +156,56 @@ speed, which is exactly the window the queue governs.
 
 ## 4. Calibration checks the letter can actually settle
 
-### 4a. Long-duration storage — the sharpest single finding
+### 4a. Long-duration storage — fixed
 
-The model's `longStorage` block is explicitly flagged in-code as guesswork:
+**Status: corrected.** `longStorage.cost0` was 300 $/kWh, flagged in-code as
+"anchored loosely to ~2x Li-ion" with no source. That is a category error
+rather than an aggressive assumption: $/kWh is only meaningful at a stated
+duration, because the power block ($/kW) amortizes over more hours as duration
+stretches. The block declares `duration: 100`, so a 4-hour Li-ion pack price
+was the wrong benchmark. The letter makes exactly this point — "under four
+hours, the power block is most of the bill... past eight hours, the medium is
+most of the bill."
 
-```ts
-// Long-duration storage (iron-air, CAES, etc.): modeling assumptions —
-// pre-commercial technology, costs anchored loosely to ~2x Li-ion
-longStorage: { cost0: 300, alpha: 0.15, duration: 100, ... }
-```
+The letter supplies a contracted number at the matching duration: Form Energy
+iron-air for Google/Xcel at Pine Island, Minnesota — 300 MW / 30 GWh, exactly
+100 hours, ~$1B — which "pencils to roughly $33/kWh after incentives (not far
+off the sub-$20 target the company is working towards)." This is the only
+large contracted 100-hour system in the world, and it is corroborated
+independently ([energy-storage.news](https://www.energy-storage.news/google-minnesota-data-centre-energy-deal-includes-30gwh-multi-day-iron-air-batteries-from-form-energy/),
+[TechCrunch](https://techcrunch.com/2026/02/24/googles-new-1-9gw-clean-energy-deal-includes-massive-100-hour-battery/)).
 
-The letter supplies a real contracted number for that exact technology class
-and that exact duration: a Google-partnered 300 MW / 30 GWh system in
-Minnesota — 100 hours, matching the model's `duration: 100` — that "pencils to
-roughly $33/kWh after incentives."
+`cost0` is now **55 $/kWh**: the ~$33/kWh contracted price grossed up ~1.7x
+for the US ITC that "after incentives" implies and for a global fleet without
+Form's factory scale. Second source for the class is A-CAES, which contracts
+at ~$120/kWh for 100 MW+ builds at shorter durations and falls well below that
+per kWh once spread over 100 hours ([iScience, 2025](https://www.cell.com/iscience/fulltext/S2589-0042(25)02228-X)).
+Form's stated floor is <$20/kWh, and the literature puts the competitiveness
+threshold for 100-hour systems at $10–20/kWh.
 
-| | $/kWh |
-|---|---|
-| Letter, 2026 contracted (after incentives) | ~33 |
-| Model `longStorageCost`, 2025 | 300 |
-| Model, 2050 | 118 |
-| Model, 2100 | 47 |
+| `longStorageCost` $/kWh | 2025 | 2050 | 2075 | 2100 |
+|---|---|---|---|---|
+| Before | 300 | 118 | 56 | 47 |
+| After | 55 | 22 | 10 | 9 |
 
-Even grossing up for a 30–50% incentive, the letter's pre-incentive figure is
-roughly $50–65/kWh — a level the model does not reach until the 2070s. The
-model's LDES curve is off by close to an order of magnitude at the start
-point, and `cost0` is the one parameter here with no source behind it. This
-is worth fixing on its own; it will pull VRE penetration ceilings and system
-LCOE at high VRE share.
+The curve now enters the $10–20/kWh competitiveness band around 2050–2075
+rather than never.
+
+**But nothing else moved, and that is the real finding.** Regression across
+all seven blessed scenarios shows *zero* change on every metric. Tracing it:
+`longStorageCost` is computed at `energy.ts:1657` and emitted as an output at
+`energy.ts:1723`, and is then consumed by nothing. LDES deployment is sized
+purely by VRE share and a growth-rate cap (`longStorageFraction` from
+`vreShare`, `maxAdd = prevCap * growthRate`) with no cost gate, the capacity
+feeds dispatch through `longStorageBonusPerHour`, and the spend never enters
+`energyCapexSpend` or the capital ledger. So the model currently builds
+long-duration storage for free and at a rate independent of its price.
+
+That is a second, larger defect than the calibration, and it is why the
+correction is safe to make but does not yet buy anything. Wiring it up — LDES
+capex into the realized-spend ledger, and/or a cost gate on deployment — is a
+separate change with real dynamic consequences, and should be its own commit
+per the repo's one-mechanism-per-commit rule.
 
 ### 4b. Solar learning rate — the letter is the aggressive one
 
@@ -292,9 +314,11 @@ people who lose money if they are wrong about deployment rates.
 
 Read that way, it produces four asymmetric findings:
 
-1. **`longStorage.cost0 = 300` is probably wrong by ~5-9x.** The letter gives
-   a contracted price for the same technology at the same duration. Highest
-   confidence, smallest change, and the parameter had no source to begin with.
+1. **`longStorage.cost0 = 300` was wrong by ~5.5x — fixed, now 55 $/kWh**
+   (§4a). Correcting it surfaced a larger defect: `longStorageCost` is a dead
+   output. Nothing consumes it, so the model builds long-duration storage for
+   free and at a price-independent rate. Wiring it into the capex ledger and/or
+   gating deployment on cost is the follow-on change.
 2. **`dataCenterPowerSpendCeiling` brakes on the wrong variable.** Power is
    ~7% of AI datacenter TCO. A ceiling on the electricity bill cannot
    represent a buyer whose constraint is chips and delivery.

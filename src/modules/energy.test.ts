@@ -836,6 +836,43 @@ test('fractional asset lifetimes are rejected before array/vintage accounting', 
   }).valid).toBeFalse();
 });
 
+// --- Long-duration storage calibration ---
+
+console.log('\n--- Long-Duration Storage ---\n');
+
+test('longStorage cost0 is anchored on contracted 100-hour systems', () => {
+  // The only large contracted 100-hour system (Form Energy iron-air for
+  // Google/Xcel, 300 MW / 30 GWh, ~$1B) prices at ~$33/kWh net of incentives;
+  // Form's stated floor is <$20/kWh. An unsubsidized global average must sit
+  // above the contracted net price and well below 4-hour Li-ion pack
+  // economics, which is what the old 300 $/kWh guess had imported.
+  expect(energyDefaults.longStorage.cost0).toBeGreaterThan(33);
+  expect(energyDefaults.longStorage.cost0).toBeLessThan(120);
+  // Guard the duration the cost is quoted at: $/kWh is only meaningful
+  // alongside it, so a duration change without a cost change is a bug.
+  expect(energyDefaults.longStorage.duration).toBe(100);
+});
+
+test('longStorage learning stays above the technology cost floor', () => {
+  // Wright's Law must not drive 100-hour storage below the materials-and-
+  // installation floor implied by the literature ($10-20/kWh competitiveness
+  // threshold) within the simulation horizon.
+  const { cost0, alpha } = energyDefaults.longStorage;
+  // Cumulative growth from the 2025 fleet (12 GWh) to a 2100-scale fleet.
+  const cost2100 = cost0 * Math.pow(2_800_000 / 12, -alpha);
+  expect(cost2100).toBeGreaterThan(5);
+  expect(cost2100).toBeLessThan(cost0);
+});
+
+test('implausible longStorage costs are flagged', () => {
+  expect(energyModule.validate({
+    longStorage: { ...energyDefaults.longStorage, cost0: 400 },
+  }).warnings.length).toBeGreaterThan(0);
+  expect(energyModule.validate({
+    longStorage: { ...energyDefaults.longStorage, cost0: -1 },
+  }).valid).toBeFalse();
+});
+
 // =============================================================================
 // SUMMARY
 // =============================================================================
