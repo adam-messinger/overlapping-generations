@@ -15,7 +15,7 @@ export interface CalibratedOutbreak<P> {
   evaluation: EpisodeEvaluation;
 }
 
-function fitScale(
+export function fitScale(
   unitSeries: readonly number[],
   observations: readonly number[],
   weeks: number,
@@ -32,7 +32,7 @@ function fitScale(
   return Math.min(max, Math.max(min, numerator / denominator));
 }
 
-function scaledSeries(
+export function scaledSeries(
   series: OutbreakSeries,
   ascertainment: number,
   ifr: number,

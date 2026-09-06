@@ -55,7 +55,7 @@ and the [Wikipedia current-events portal](https://en.wikipedia.org/wiki/Portal:C
 
 | Story | Headline shortcut | Revision | Comparison with the day's narrative |
 |---|---|---|---|
-| Hormuz | 7% of transits means 7% of oil; "closed" is physical | The price alone does not identify the flow (two models reproduce $96 at 5% and 31%); the IEA's observed 410 mb draw is the discriminating series, and with a $96 price it implies roughly 25–45% of normal Gulf oil still reaching buyers | Disagrees with "closed" as a physical description; agrees that the situation is fragile: both models put Brent above $105 by December if nothing reopens, because the buffers holding $96 are thinning |
+| Hormuz | 7% of transits means 7% of oil; "closed" is physical | The price alone does not identify the flow (two models reproduce $96 at 5% and 31%); the IEA's observed 410 mb draw is the discriminating series, and with a $96 price it implies roughly 26–46% of normal Gulf oil still reaching buyers | Disagrees with "closed" as a physical description; agrees that the situation is fragile: both models put Brent above $105 by December if nothing reopens, because the buffers holding $96 are thinning |
 | Diesel and the Fed | +58% diesel across "a long list of goods" (+1.4pp headline); 162k jobs means overheating | The record is 84% crack spread; the increment since July adds ~0.17pp to headline over a year; base effects pull headline from ~3.9% in December to ~2.9% by June 2027 under any rule; the hiking rule costs 0.12pp of output for 0.001pp of inflation; the payroll trend exceeds 90k with 33% probability | Agrees that the print was a genuine surprise; disagrees that it changes the inflation outlook, which is dominated by arithmetic the Fed does not control |
 | Ebola | Doubling every 25 days; 202,000 confirmed by year-end | Weekly confirmed cases have been flat at ~630 since mid-July; the fitted Rt is 1.01; the plateau path gives ~17,000 confirmed and ~9,000 deaths by 31 December | Disagrees with "fastest growing"; agrees the outbreak is not controlled, and flags that a flat confirmed count is also what a laboratory-throughput ceiling produces |
 
@@ -81,7 +81,7 @@ in September (and $89 in late August):
 | Model | September throughput implied by $96 | Stock draw March–September |
 |---|---:|---:|
 | Settlement model (elasticity 0.06, $29/bbl war premium at full tempo) | 31% at 0.9 tempo | 1,432 mb |
-| Stock-flow model (elasticity 0.35, 4 mb/d draw cap) | 2–9% (price within $3 anywhere in the band) | 852 mb |
+| Stock-flow model (elasticity 0.35, 4 mb/d draw cap) | 2–10% (price within $3 anywhere in the band) | 852 mb |
 
 The stock-flow model is insensitive to throughput below 10% because its
 inventory draw is capped and its medium-run elasticity absorbs the rest. The
@@ -114,20 +114,24 @@ calibrated to it:
 
 Both over-draw, which means both overstate the physical shortfall, which means
 both understate the flow. The identity is simple: seaborne loss equals bypass
-plus non-Gulf response plus stock draw plus price-induced demand reduction. Only
-the elasticity is unobserved:
+plus non-Gulf response plus stock draw plus price-induced demand reduction. The
+bypass is taken at the settlement model's 75% utilization with the stock-flow
+model's one-month ramp, the non-Gulf response at the settlement model's
+six-month ramp (a March–July mean of 50%), and the price at the stock-flow
+calibration's fitted March, Q2, and July multiples (1.53× averaged). Only the
+elasticity is unobserved:
 
 | Demand elasticity | Demand reduction at the March–July average price (1.53×) | Physical loss | Implied Hormuz oil throughput |
 |---:|---:|---:|---:|
-| 0.10 | 4.3 mb/d | 7.0 mb/d | 45% |
-| 0.15 | 6.4 mb/d | 9.1 mb/d | 35% |
+| 0.10 | 4.3 mb/d | 7.0 mb/d | 46% |
+| 0.15 | 6.4 mb/d | 9.1 mb/d | 36% |
 | 0.20 | 8.5 mb/d | 11.2 mb/d | 26% |
 | 0.35 | 14.4 mb/d | 17.1 mb/d | 0% (rules the value out) |
 
 The elasticity of 0.35 that the stock-flow model uses in the medium run would
 require 14 mb/d of demand destruction, which did not happen, so the observed
 draw bounds the elasticity as well as the flow. The stock-anchored reading is
-25–45% of normal Gulf oil still reaching buyers, four to six times the vessel
+26–46% of normal Gulf oil still reaching buyers, four to six times the vessel
 count.
 
 ### The settlement clock
@@ -263,9 +267,11 @@ which is the "fastest on record" comparison.
 A model that carries the June–July growth over-predicts the last three weeks
 by 39%. Adding a mid-July stage, fitted only on the training weeks, improves
 the holdout by ten points; refitting it on all sixteen weeks puts the effective
-reproduction number at 1.01. Fitted ascertainment is 31% of infections (WHO
-says reported cases are at least half of reality) and the implied fatality among
-confirmed cases is 61% against 48% reported, a delay-structure artifact.
+reproduction number at 1.01. The seed of infections is set from the 246
+suspected cases at declaration rather than searched, because the fit scales
+cases freely and cannot identify the seed and ascertainment separately; the
+seed-invariant fatality among confirmed cases is 61% against 48% reported, a
+delay-structure artifact.
 
 The outbreak model gained an optional `additionalStages` field for this, so
 that a post-observation branch can be encoded without discarding the fitted
@@ -276,9 +282,9 @@ mid-July stage.
 | Branch | Rt | Confirmed cases | Confirmed deaths | Weekly cases, late December |
 |---|---:|---:|---:|---:|
 | V1 exponential | — | 202,000 | — | — |
-| Plateau continues | 1.01 | 17,300 | 9,000 | 650 |
-| Response strengthens 20% | 0.81 | 12,200 | 6,600 | 130 |
-| Response erodes 20% | 1.21 | 30,000 | 14,500 | 2,600 |
+| Plateau continues | 1.01 | 17,400 | 9,000 | 650 |
+| Response strengthens 20% | 0.81 | 12,300 | 6,600 | 130 |
+| Response erodes 20% | 1.21 | 30,200 | 14,600 | 2,600 |
 
 "Fastest growing on record" describes May through July. Since mid-July the
 confirmed count has been flat, and that is neither containment nor explosion.
@@ -321,7 +327,7 @@ cases, are the series that would distinguish a plateau from a ceiling.
   single 25bp move. The breakeven employment range is a judgment. The gasoline
   path for March–May and August is interpolated from reported anchors.
 - Ebola: weekly counts are interpolated between batched cumulative reports;
-  ascertainment and fatality are fitted observation parameters, not
-  epidemiological estimates; the second response stage is reduced-form; the
+  the seed and ascertainment are not separately identified, and fatality is a
+  fitted observation parameter, not an epidemiological estimate; the second response stage is reduced-form; the
   branches are scenarios, not forecasts, and a spatially shifting epidemic can
   look flat in aggregate while individual health zones are still growing.

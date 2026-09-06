@@ -493,10 +493,10 @@ export interface WarSettlementScenario {
 }
 
 /** Repeat `value` for `count` months. */
-const hold = (value: number, count: number): number[] => Array.from({ length: count }, () => value);
+export const hold = (value: number, count: number): number[] => Array.from({ length: count }, () => value);
 
 /** Linear ramp from `from` to `to` inclusive over `count` months. */
-const ramp = (from: number, to: number, count: number): number[] =>
+export const ramp = (from: number, to: number, count: number): number[] =>
   Array.from({ length: count }, (_, i) => from + ((to - from) * (i + 1)) / count);
 
 /**
@@ -510,8 +510,8 @@ const ramp = (from: number, to: number, count: number): number[] =>
  * January and February were close to normal, so March has to have been near a
  * total closure to produce that quarterly average.
  */
-const OBSERVED_INTENSITY = [1.0, 0.85, 0.70, 0.18, 0.75];
-const OBSERVED_THROUGHPUT = [0.15, 0.40, 0.58, 0.82, 0.72];
+export const OBSERVED_INTENSITY = [1.0, 0.85, 0.70, 0.18, 0.75];
+export const OBSERVED_THROUGHPUT = [0.15, 0.40, 0.58, 0.82, 0.72];
 
 export const warSettlementScenarios = {
   'attrition-continues': {

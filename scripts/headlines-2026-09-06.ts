@@ -3,6 +3,9 @@ import {
   evaluateEbolaTrajectory,
   evaluateHormuzClosureNarrative,
 } from '../src/simulations/news/headline-experiments-2026-09-06.js';
+import { warSettlementEvidence } from '../src/simulations/war-settlement/data.js';
+
+const HORMUZ_NORMAL_FLOW_MBD = warSettlementEvidence.oil.hormuzNormalFlowMbd;
 
 const pct = (value: number, digits = 1): string => `${(100 * value).toFixed(digits)}%`;
 const usd = (value: number, digits = 0): string => `$${value.toFixed(digits)}`;
@@ -45,7 +48,7 @@ console.table([
     reading: 'V2 settlement model inverted on $96',
     throughput: pct(hormuz.revisedV2.settlementModel.septemberThroughputImpliedByPrice),
     'seaborne loss mb/d': (
-      20.9 * (1 - hormuz.revisedV2.settlementModel.septemberThroughputImpliedByPrice)
+      HORMUZ_NORMAL_FLOW_MBD * (1 - hormuz.revisedV2.settlementModel.septemberThroughputImpliedByPrice)
     ).toFixed(1),
     'implied Brent': usd(hormuz.revisedV2.settlementModel.septemberBrentReproducedUsd),
   },
@@ -55,7 +58,7 @@ console.table([
       hormuz.revisedV2.stockFlowModel.throughputBandWithin3Usd.high,
     )} (±$3)`,
     'seaborne loss mb/d': (
-      20.9 * (1 - hormuz.revisedV2.stockFlowModel.septemberThroughputImpliedByPrice)
+      HORMUZ_NORMAL_FLOW_MBD * (1 - hormuz.revisedV2.stockFlowModel.septemberThroughputImpliedByPrice)
     ).toFixed(1),
     'implied Brent': usd(hormuz.revisedV2.stockFlowModel.septemberBrentReproducedUsd),
   },
@@ -64,7 +67,7 @@ console.table([
     .map((r) => ({
       reading: `V3 IEA stock identity, ε=${r.demandElasticity}`,
       throughput: pct(r.impliedHormuzThroughputShare),
-      'seaborne loss mb/d': (20.9 * (1 - r.impliedHormuzThroughputShare)).toFixed(1),
+      'seaborne loss mb/d': (HORMUZ_NORMAL_FLOW_MBD * (1 - r.impliedHormuzThroughputShare)).toFixed(1),
       'implied Brent': 'n/a (anchored on 410 mb draw)',
     })),
 ]);
@@ -238,7 +241,7 @@ console.log(
   )} tests/week: a flat confirmed count is also what a laboratory ceiling looks like.`,
 );
 console.log(
-  `Fitted ascertainment ${pct(ebola.revisedV2.fitted.ascertainment, 0)} of infections (WHO: reported cases at least half of reality); implied CFR among confirmed ${pct(
+  `Seed and ascertainment are not separately identified (the fit scales cases freely), so no ascertainment is reported; the seed-invariant deaths per confirmed case is ${pct(
     ebola.revisedV2.fitted.impliedConfirmedCaseFatality,
     0,
   )} vs 48% reported.`,

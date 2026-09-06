@@ -134,12 +134,16 @@ function validateV2(params: OutbreakV2Params): void {
   if (params.initialInfectious + params.initialExposed > params.population) {
     errors.push('initialInfectious + initialExposed must not exceed population');
   }
-  params.additionalStages?.forEach((stage, index) => {
+  params.additionalStages?.forEach((stage, index, stages) => {
     errors.push(
       ...validateNumber(stage.startDay, `additionalStages[${index}].startDay`, { min: 0 }),
       ...validateNumber(stage.multiplier, `additionalStages[${index}].multiplier`, { min: 0, max: 2 }),
       ...validateNumber(stage.rampDays, `additionalStages[${index}].rampDays`, { min: 0, exclusiveMin: true }),
     );
+    const previous = stages[index - 1];
+    if (previous && stage.startDay < previous.startDay) {
+      errors.push(`additionalStages[${index}].startDay must not precede the previous stage`);
+    }
   });
   if (params.countermeasure) {
     errors.push(

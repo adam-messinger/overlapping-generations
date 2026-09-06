@@ -107,7 +107,8 @@ test('Ebola: exponential extrapolation fails a plateau that an Rt-near-one fit r
   assert.ok(v2.evaluation.holdout.caseCumulativeError > 0.25);
   assert.ok(v2.twoStage.holdoutCumulativeErrorImprovement > 0);
   assert.ok(v2.finalFit.effectiveReproductionNumberNow > 0.9 && v2.finalFit.effectiveReproductionNumberNow < 1.1);
-  assert.ok(v2.fitted.ascertainment < 0.5);
+  // Deaths per confirmed case is seed-invariant and should sit near the 48% reported.
+  assert.ok(v2.fitted.impliedConfirmedCaseFatality > 0.35 && v2.fitted.impliedConfirmedCaseFatality < 0.75);
 
   const plateau = v2.projections.find((p) => p.id === 'plateau-continues');
   const erodes = v2.projections.find((p) => p.id === 'response-erodes');
