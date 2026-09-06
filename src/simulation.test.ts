@@ -267,6 +267,34 @@ test('cohort constraint assumptions do not feed back into the macro path', () =>
   );
 });
 
+test('human-capital ledger is reported and its parameters do not feed back into the macro path', () => {
+  const base = runSimulation({ startYear: 2025, endYear: 2030 });
+  const costly = runSimulation({
+    startYear: 2025,
+    endYear: 2030,
+    humanCapital: { rearingCostShare: 0.6, bands: { tertiary: { retirementAge: 50 } } } as any,
+  });
+  const baseFinal = base.results[base.results.length - 1];
+  const costlyFinal = costly.results[costly.results.length - 1];
+  expect(costlyFinal.gdp).toBeCloseTo(baseFinal.gdp, 8);
+  expect(costlyFinal.capitalStock).toBeCloseTo(baseFinal.capitalStock, 8);
+  expect(costlyFinal.population).toBeCloseTo(baseFinal.population, 6);
+  expect(costlyFinal.humanCapitalInvestment).toBeGreaterThan(baseFinal.humanCapitalInvestment);
+  expect(costlyFinal.humanCapitalByBand.tertiary.usefulLife).toBeLessThan(
+    baseFinal.humanCapitalByBand.tertiary.usefulLife,
+  );
+
+  // 2025 anchor: cost-based human-capital investment is on the order of a
+  // tenth of GDP (Kendrick 1976; Abraham 2010 puts formal education alone at
+  // 7-9% of US GDP), and the net stock is comparable to physical capital.
+  const first = base.results[0];
+  expect(first.humanCapitalInvestmentGdpShare).toBeBetween(0.06, 0.18);
+  expect(first.humanCapitalNetStockToPhysical).toBeBetween(0.3, 1.5);
+  const bandSum = (['primary', 'secondary', 'tertiary', 'advanced'] as const)
+    .reduce((sum, band) => sum + first.humanCapitalByBand[band].investment, 0);
+  expect(bandSum).toBeCloseTo(first.humanCapitalInvestment, 9);
+});
+
 // Baseline financing must reconcile. Explicit DC capex should also feed back
 // into the deliberately extreme AI boom through the shared capital ledger,
 // lowering the path relative to an otherwise identical free-DC-capex run.

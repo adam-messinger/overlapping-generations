@@ -22,6 +22,7 @@ overlapping-generations/           # workspaces monorepo root (private)
 │   │   ├── demand.ts
 │   │   ├── capital.ts
 │   │   ├── generations.ts
+│   │   ├── human-capital.ts
 │   │   ├── energy.ts
 │   │   ├── dispatch.ts
 │   │   ├── resources.ts
@@ -88,6 +89,7 @@ production ← lagged capital, lagged energy, lagged damages, lagged food stress
      ↓
    capital ← demographics, demand, lagged damages, regional life expectancy
      ├→ generations ← demographics, demand (diagnostic, no feedback)
+     ├→ humanCapital ← demographics, demand, capital (diagnostic, no feedback)
      ↓
    energy ← demand, capital
      ↓
@@ -218,6 +220,22 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Reconciles to macro capital/debt stocks but does not feed back into the macro path
 - See `docs/GENERATIONAL_ACCOUNTS.md` for equations and interpretation limits
 
+### Human-Capital Ledger (diagnostic, no feedback)
+- Cost-based (Kendrick) accounting: each year's workforce entrants are
+  capitalized at CURRENT REPLACEMENT COST (rearing through entry age +
+  schooling stages, all as multiples of regional GDP per capita), banded by
+  four education levels (primary / secondary / tertiary / advanced)
+- Straight-line depreciation over EXPECTED TIME IN THE WORKFORCE, not
+  retirement minus entry: a survival curve with death, disability,
+  domestic-role, and retirement exits (calibrated to Eurostat duration of
+  working life by attainment, ~32/37/39/38 yr in the OECD); pre-retirement
+  exits are written off at remaining book value
+- Retirement ages extend with life expectancy under capital's
+  `retirementAgeResponse` (read via param injection, one source of truth)
+- Entrants and the college split come from demographics' new
+  `regionalWorkforceEntrants` / `regionalEntrantCollegeShare` outputs
+- Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
+
 ## Scenarios
 
 | Scenario | Description |
@@ -299,6 +317,9 @@ const { result } = await runWithScenario('scenarios/net-zero.json');
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |
+| `humanCapitalInvestment` | $T | Pre-workforce cost embodied in this year's entrants (replacement cost) |
+| `humanCapitalDepreciation` | $T | Straight-line write-down over expected time in the workforce |
+| `humanCapitalByBand` | record | Entrants, unit cost, useful life, flows, stocks, exits by cause per education band |
 
 Full output list available via `describeOutputs()`.
 
@@ -314,3 +335,4 @@ here.
 - **DICE-2023/Howard-Sterner**: Climate damage function (quadratic midpoint)
 - **Schlenker/Roberts**: Climate-yield relationships (stylized transfer)
 - **Galbraith/Chen**: a single uncertainty-damping factor on savings (`stabilityLambda`); the full entropy-economics framework is NOT implemented
+- **Kendrick (1976)**: cost-based human-capital stock (rearing + schooling at replacement cost, depreciated over working life) — the `humanCapital` ledger; Eurostat duration-of-working-life and ILO participation gaps calibrate its exit hazards

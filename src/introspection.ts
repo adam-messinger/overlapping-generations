@@ -31,6 +31,7 @@ import { demandModule } from './modules/demand.js';
 import { demographicsModule } from './modules/demographics.js';
 import { capitalModule } from './modules/capital.js';
 import { generationsModule } from './modules/generations.js';
+import { humanCapitalModule } from './modules/human-capital.js';
 import { dispatchModule } from './modules/dispatch.js';
 import { productionModule } from './modules/production.js';
 import { resourcesModule } from './modules/resources.js';
@@ -66,6 +67,7 @@ const ALL_MODULES = [
   demographicsModule,
   capitalModule,
   generationsModule,
+  humanCapitalModule,
   dispatchModule,
   productionModule,
   resourcesModule,

@@ -20,3 +20,10 @@ export const FUELS: Fuel[] = ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biof
 /** Mineral types */
 export type Mineral = 'copper' | 'lithium' | 'rareEarths' | 'steel';
 export const MINERALS: Mineral[] = ['copper', 'lithium', 'rareEarths', 'steel'];
+
+/**
+ * Highest schooling stage completed at workforce entry. Ordered: each band
+ * completes every stage below it, so cumulative schooling cost is a prefix sum.
+ */
+export type EducationBand = 'primary' | 'secondary' | 'tertiary' | 'advanced';
+export const EDUCATION_BANDS: EducationBand[] = ['primary', 'secondary', 'tertiary', 'advanced'];
