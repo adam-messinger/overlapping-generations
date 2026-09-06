@@ -350,6 +350,14 @@ export interface DemographicsOutputs {
   regionalDependency: Record<Region, number>;
   regionalFertility: Record<Region, number>;
   regionalLifeExpectancy: Record<Region, number>;
+
+  // Education-split working stocks and this year's workforce entrants (the
+  // 1/20 of the young cohort that ages into working age; read by the
+  // human-capital ledger)
+  regionalWorkingCollege: Record<Region, number>;
+  regionalWorkingNonCollege: Record<Region, number>;
+  regionalWorkforceEntrants: Record<Region, number>;
+  regionalEntrantCollegeShare: Record<Region, number>;
 }
 
 // =============================================================================
@@ -565,6 +573,10 @@ export const demographicsModule: Module<
       regionalDependency: unitPort('fraction', 'record'),
       regionalFertility: unitPort('1', 'record'),
       regionalLifeExpectancy: unitPort('year', 'record'),
+      regionalWorkingCollege: unitPort('people', 'record'),
+      regionalWorkingNonCollege: unitPort('people', 'record'),
+      regionalWorkforceEntrants: unitPort('people/year', 'record'),
+      regionalEntrantCollegeShare: unitPort('fraction', 'record'),
     },
   },
 
@@ -700,6 +712,10 @@ export const demographicsModule: Module<
     const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
     const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
     const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingCollege: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingNonCollege: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkforceEntrants: Record<Region, number> = {} as Record<Region, number>;
+    const regionalEntrantCollegeShare: Record<Region, number> = {} as Record<Region, number>;
 
     // Migration conservation: scale receiving-region inflows so global net
     // migration is exactly zero (a closed world). Emigration supply
@@ -748,6 +764,20 @@ export const demographicsModule: Module<
 
       newRegions[region] = newState;
       regionalLifeExpectancy[region] = newState.lifeExpectancy;
+
+      // Workforce entrants: the same 1/20 of the pre-step young cohort that
+      // ageCohorts moves into working age, split by the same enrollment
+      // projection. Reported in year 0 too (no aging happens, but the
+      // entrant flow is a well-defined observable of the 2025 age structure).
+      regionalWorkforceEntrants[region] = regionState.young / 20;
+      regionalEntrantCollegeShare[region] = projectEnrollmentRate(
+        eduParams.enrollmentRate2025,
+        eduParams.enrollmentTarget,
+        eduParams.enrollmentGrowth,
+        yearIndex
+      );
+      regionalWorkingCollege[region] = newState.workingCollege;
+      regionalWorkingNonCollege[region] = newState.workingNonCollege;
 
       // Calculate regional outputs
       const workingPop = newState.working;
@@ -825,6 +855,9 @@ export const demographicsModule: Module<
           regionalWorking[region] *= scale;
           regionalOld[region] *= scale;
           regionalEffectiveWorkers[region] *= scale;
+          regionalWorkingCollege[region] *= scale;
+          regionalWorkingNonCollege[region] *= scale;
+          regionalWorkforceEntrants[region] *= scale;
         }
         totalPop *= scale;
         totalWorking *= scale;
@@ -853,6 +886,10 @@ export const demographicsModule: Module<
         regionalDependency,
         regionalFertility,
         regionalLifeExpectancy,
+        regionalWorkingCollege,
+        regionalWorkingNonCollege,
+        regionalWorkforceEntrants,
+        regionalEntrantCollegeShare,
       },
     };
   },

@@ -419,6 +419,59 @@ test('migration moves population between regions', () => {
     .toBeGreaterThan(withoutMigration.regionalPopulation.oecd);
 });
 
+// --- Workforce entrants and education-split stocks ---
+
+console.log('\n--- Workforce entrants ---\n');
+
+test('workforce entrants are 1/20 of the pre-step young cohort in every year', () => {
+  const params = demographicsModule.mergeParams({});
+  let state = demographicsModule.init(params);
+  for (let i = 0; i < 5; i++) {
+    const youngBefore = Object.fromEntries(REGIONS.map(r => [r, state.regions[r].young]));
+    const result = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i);
+    for (const region of REGIONS) {
+      expect(result.outputs.regionalWorkforceEntrants[region]).toBeCloseTo(youngBefore[region] / 20, 0);
+    }
+    state = result.state;
+  }
+});
+
+test('entrant college share follows the enrollment projection and rises toward its target', () => {
+  const first = runYears(1).outputs;
+  const later = runYears(40).outputs;
+  for (const region of REGIONS) {
+    const share2025 = first.regionalEntrantCollegeShare[region];
+    expect(share2025).toBeCloseTo(demographicsDefaults.education[region].enrollmentRate2025, 6);
+    expect(later.regionalEntrantCollegeShare[region]).toBeGreaterThan(share2025);
+    expect(later.regionalEntrantCollegeShare[region] <= demographicsDefaults.education[region].enrollmentTarget + 1e-9).toBeTrue();
+  }
+});
+
+test('education-split working stocks reconcile to the regional working cohort', () => {
+  for (const years of [1, 30]) {
+    const { outputs } = runYears(years);
+    for (const region of REGIONS) {
+      const split = outputs.regionalWorkingCollege[region] + outputs.regionalWorkingNonCollege[region];
+      expect(split).toBeCloseTo(outputs.regionalWorking[region], 0);
+    }
+  }
+});
+
+test('exogenous population scaling scales entrants and education-split stocks too', () => {
+  const params = demographicsModule.mergeParams({
+    exogenousPopulation: [{ year: 2025, total: 4e9 }, { year: 2100, total: 4e9 }],
+  });
+  const state = demographicsModule.init(params);
+  const { outputs } = demographicsModule.step(state, { temperature: 1.2 }, params, 2025, 0);
+  const totalWorking = REGIONS.reduce((sum, r) => sum + outputs.regionalWorking[r], 0);
+  const totalSplit = REGIONS.reduce(
+    (sum, r) => sum + outputs.regionalWorkingCollege[r] + outputs.regionalWorkingNonCollege[r], 0);
+  expect(totalSplit).toBeCloseTo(totalWorking, 0);
+  const totalYoung = REGIONS.reduce((sum, r) => sum + outputs.regionalYoung[r], 0);
+  const totalEntrants = REGIONS.reduce((sum, r) => sum + outputs.regionalWorkforceEntrants[r], 0);
+  expect(totalEntrants).toBeCloseTo(totalYoung / 20, 0);
+});
+
 // =============================================================================
 // SUMMARY
 // =============================================================================
