@@ -115,6 +115,12 @@ export interface HumanCapitalParams {
   hazards: ExitHazardParams;
   /** Annual room, board, and care per child as a fraction of GDP per capita */
   rearingCostShare: number;
+  /** Age at which the first schooling stage begins (ISCED 1 entry) */
+  schoolStartAge: number;
+  /** Age from which a student's time has an earnings opportunity cost */
+  foregoneEarningsFromAge: number;
+  /** Foregone earnings per student-year at or above that age, as a fraction of GDP per capita */
+  foregoneEarningsShare: number;
   /** Annual convergence rate of secondary completion toward its regional target */
   secondaryCompletionConvergence: number;
   /** Years spanned by the working-age cohort used to seed 2025 vintages */
@@ -213,6 +219,19 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   // out-of-pocket figure and the NTA total net of schooling, which is
   // priced separately above.
   rearingCostShare: 0.30,
+  // Foregone earnings: the cost-based accounts of Kendrick (1976), Eisner
+  // (1985), Abraham (2010), and Mallatt (BEA 2026) all count the earnings
+  // students give up while in school beyond the age at which they could
+  // work. Schooling starts at 6 (ISCED 1); the opportunity cost applies from
+  // 16 (Kendrick used 14; legal full-time working ages 15-16 in most OECD
+  // countries) at 0.45 of GDP per capita per student-year: US full-time
+  // median earnings at ages 18-24 ~$35k vs GDP/capita ~$82k (Census CPS
+  // 2023), and Mallatt values student time at CPS wages of same-age workers.
+  // Set foregoneEarningsShare to 0 for the explicit-outlay (USDA + OECD
+  // spending) measure alone.
+  schoolStartAge: 6,
+  foregoneEarningsFromAge: 16,
+  foregoneEarningsShare: 0.45,
   secondaryCompletionConvergence: 0.02, // ~35-yr half-life, same order as demographics' enrollment convergence
   initialWorkingSpan: 45,               // demographics' working cohort spans ages 20-64
   // Migrants are early-career: median age of new permanent migrants to OECD
@@ -314,8 +333,9 @@ export interface HumanCapitalOutputs {
 // =============================================================================
 
 /**
- * Replacement cost of one entrant in `band`: rearing through the entry age
- * plus every schooling stage up to and including the band's own stage, all
+ * Replacement cost of one entrant in `band`: rearing through the entry age,
+ * every schooling stage up to and including the band's own stage, and the
+ * earnings foregone in the school years at or above the working age, all
  * priced at today's GDP per capita.
  */
 export function unitReplacementCost(
@@ -324,12 +344,19 @@ export function unitReplacementCost(
   gdpPerCapita: number
 ): number {
   let schooling = 0;
+  let foregoneYears = 0;
+  let stageStart = params.schoolStartAge;
   for (const stage of EDUCATION_BANDS) {
-    schooling += params.bands[stage].stageYears * params.bands[stage].stageCostShare;
+    const years = params.bands[stage].stageYears;
+    schooling += years * params.bands[stage].stageCostShare;
+    // School years spent at or above the working age carry an opportunity cost
+    foregoneYears += Math.max(0, stageStart + years - Math.max(stageStart, params.foregoneEarningsFromAge));
+    stageStart += years;
     if (stage === band) break;
   }
   const rearing = params.rearingCostShare * params.bands[band].entryAge;
-  return gdpPerCapita * (rearing + schooling);
+  const foregone = params.foregoneEarningsShare * foregoneYears;
+  return gdpPerCapita * (rearing + schooling + foregone);
 }
 
 /**
@@ -663,6 +690,12 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
       range: { min: 0, max: 1, default: 0.30 },
       tier: 1 as const,
     },
+    foregoneEarningsShare: {
+      description: "Earnings a student forgoes per school year at or above the working age, as a fraction of GDP per capita (Kendrick/BEA convention; 0 = explicit outlays only).",
+      unit: 'fraction',
+      range: { min: 0, max: 1.5, default: 0.45 },
+      tier: 1 as const,
+    },
     migrantTenureScale: {
       description: 'Tenure profile of working-age migrants: exp(-years since entry / scale); 10 puts the mean mover ~10 years into a career.',
       unit: 'year',
@@ -777,6 +810,9 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
     };
 
     finiteIn('rearingCostShare', p.rearingCostShare, 0, 1);
+    finiteIn('schoolStartAge', p.schoolStartAge, 3, 10);
+    finiteIn('foregoneEarningsFromAge', p.foregoneEarningsFromAge, 10, 30);
+    finiteIn('foregoneEarningsShare', p.foregoneEarningsShare, 0, 1.5);
     finiteIn('secondaryCompletionConvergence', p.secondaryCompletionConvergence, 0, 1);
     finiteIn('initialWorkingSpan', p.initialWorkingSpan, 20, 60);
     finiteIn('migrantTenureScale', p.migrantTenureScale, 1, 45);

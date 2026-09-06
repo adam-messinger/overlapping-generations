@@ -53,7 +53,8 @@ regional postgraduate share.
 ```text
 unitCost[region][band] = GDP per capita[region]
                          x ( rearingCostShare x entryAge[band]
-                           + sum over stages <= band of stageYears x stageCostShare )
+                           + sum over stages <= band of stageYears x stageCostShare
+                           + foregoneEarningsShare x school years at or above foregoneEarningsFromAge )
 ```
 
 `rearingCostShare` (0.30) prices room, board, and care per child-year as a
@@ -67,6 +68,15 @@ student as a fraction of GDP per capita from OECD Education at a Glance 2023
 (primary 0.21, secondary 0.25, tertiary 0.38) and UNESCO UIS; the advanced
 stage is set above the tertiary average for research-intensive per-student
 costs.
+
+`foregoneEarningsShare` (0.45) prices the earnings a student gives up in
+each school year at or above the working age (`foregoneEarningsFromAge`,
+16; schooling starts at `schoolStartAge`, 6). Kendrick, Eisner, Abraham,
+and the BEA's 2026 accounts all count this opportunity cost; 0.45 of GDP
+per capita is the US full-time median wage at ages 18-24 relative to GDP
+per capita. It adds 2 school-years of cost to the secondary band, 6 to
+tertiary, and 9 to advanced, and nothing to primary. Set the share to 0 for
+an explicit-outlay measure.
 
 Because every cost is a multiple of current GDP per capita, the ledger is a
 **current-cost** (replacement-cost) account: the opening stock is revalued
@@ -179,7 +189,7 @@ steady state (constant entrants, cost, life):
 
 ## What the default path shows
 
-With default parameters the 2025 ledger capitalizes about 11% of world GDP a
+With default parameters the 2025 ledger capitalizes about 13% of world GDP a
 year in new entrants and charges about the same in depreciation plus
 write-offs. The flows diverge by region in the way the age structure implies:
 Sub-Saharan Africa, MENA, and India invest well above depreciation (a growing,
@@ -261,12 +271,11 @@ choices below are either standard practice or a documented departure from it.
    The ledger capitalizes room, board, and care through the band's entry age
    (16-26), the inclusive end of the range. A `rearingEndAge` cap would give a
    Kendrick-style sensitivity; with rearing removed, the 2025 investment
-   flow falls from about 11% to about 4% of world GDP.
-2. *Foregone earnings and parental time.* Kendrick, Eisner, Abraham, and
-   Mallatt all count students' foregone earnings and (Mallatt) parental time.
-   The ledger prices only explicit outlays, so its tertiary and advanced unit
-   costs are understated by roughly the entrant-age wage times years in
-   school (2-3 GDP per capita). This is the most defensible next addition.
+   flow falls from about 13% to about 6% of world GDP.
+2. *Parental time.* Kendrick, Eisner, Abraham, and Mallatt count students'
+   foregone earnings, which the ledger now includes
+   (`foregoneEarningsShare`); Mallatt also values parental time, which the
+   ledger still excludes.
 3. *Post-entry investment.* Kendrick and the Lisbon Council capitalize
    training and learning on the job, and the income evidence shows human
    capital appreciating to mid-career. The ledger is deliberately a
@@ -279,14 +288,15 @@ choices below are either standard practice or a documented departure from it.
    by band would be a small change but would make the schedule non-linear,
    so it is left as an explicit scenario choice rather than a default.
 5. *Magnitude check.* Mallatt's US cost-based investment is about 10% of
-   GDP for education alone including time costs; this ledger's 11% of world
-   GDP is rearing plus explicit schooling with no time costs. Adding item 2
-   would move the schooling component toward the BEA figure.
+   GDP for education alone including student and parent time; this ledger's
+   world figure is rearing plus schooling plus students' foregone earnings
+   (about 13% of GDP in 2025, 11% without the foregone earnings and 6%
+   without rearing).
 
 The recommendation is to keep the current structure (it is the cost-based
 perpetual inventory with the income-based school's treatment of working
-life), add foregone earnings as an optional stage cost, and expose rearing
-scope and obsolescence as sensitivity dials rather than change the defaults.
+life) and expose rearing scope and obsolescence as sensitivity dials rather
+than change the defaults.
 
 ## Interpretation limits
 
@@ -294,8 +304,6 @@ scope and obsolescence as sensitivity dials rather than change the defaults.
   earnings of a worker. The income-based (Jorgenson-Fraumeni) value of the
   same workforce would be several times larger and would respond to wage
   premia, which this ledger ignores.
-- **No foregone earnings.** Kendrick also counted the earnings students give
-  up while in school; this ledger prices only explicit rearing and schooling.
 - **Parental time is excluded.** Rearing cost is priced as consumption, not as
   the opportunity cost of caregivers' time.
 - **Exits are permanent.** A worker who leaves for a domestic role or a

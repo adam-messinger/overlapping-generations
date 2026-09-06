@@ -70,7 +70,8 @@ console.log('\n=== Human Capital Module Tests ===\n');
 // --- Replacement cost ---------------------------------------------------------
 
 test('replacement cost rises with each education band (prefix-sum schooling + longer rearing)', () => {
-  const costs = EDUCATION_BANDS.map(band => unitReplacementCost(humanCapitalDefaults, band, 50_000));
+  const outlaysOnly = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0 });
+  const costs = EDUCATION_BANDS.map(band => unitReplacementCost(outlaysOnly, band, 50_000));
   for (let i = 1; i < costs.length; i++) expect(costs[i]).toBeGreaterThan(costs[i - 1]);
   // primary: 16 yr x 0.30 rearing + 6 yr x 0.20 schooling = 6.0 x GDP/capita
   expect(costs[0]).toBeCloseTo(50_000 * (0.30 * 16 + 6 * 0.20), 6);
@@ -78,6 +79,23 @@ test('replacement cost rises with each education band (prefix-sum schooling + lo
   expect(costs[3]).toBeCloseTo(
     50_000 * (0.30 * 26 + 6 * 0.20 + 6 * 0.25 + 4 * 0.40 + 3 * 0.50), 6,
   );
+});
+
+test('foregone earnings price only the school years at or above the working age', () => {
+  const p = humanCapitalDefaults;
+  const outlaysOnly = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0 });
+  const extra = (band: EducationBand) =>
+    (unitReplacementCost(p, band, 50_000) - unitReplacementCost(outlaysOnly, band, 50_000)) / 50_000;
+  // Schooling runs 6-12 (primary), 12-18 (secondary), 18-22 (tertiary),
+  // 22-25 (advanced); the opportunity cost starts at 16.
+  expect(extra('primary')).toBeCloseTo(0, 9);
+  expect(extra('secondary')).toBeCloseTo(0.45 * 2, 9);
+  expect(extra('tertiary')).toBeCloseTo(0.45 * 6, 9);
+  expect(extra('advanced')).toBeCloseTo(0.45 * 9, 9);
+  // A later working age removes the secondary-stage cost entirely
+  const later = humanCapitalModule.mergeParams({ foregoneEarningsFromAge: 18 });
+  expect((unitReplacementCost(later, 'secondary', 50_000) - unitReplacementCost(outlaysOnly, 'secondary', 50_000)))
+    .toBeCloseTo(0, 6);
 });
 
 test('replacement cost scales linearly with GDP per capita', () => {
@@ -447,6 +465,7 @@ test('validation rejects out-of-range values', () => {
   expect(humanCapitalModule.validate({ bands: { primary: { retirementAge: 12 } } }).valid).toBeFalse();
   expect(humanCapitalModule.validate({ regions: { india: { domesticExitShare: 1.2 } } }).valid).toBeFalse();
   expect(humanCapitalModule.validate({ migrantTenureScale: 0 }).valid).toBeFalse();
+  expect(humanCapitalModule.validate({ foregoneEarningsShare: 2 }).valid).toBeFalse();
   expect(humanCapitalModule.validate({}).valid).toBeTrue();
   expect(() => humanCapitalModule.mergeParams({ rearingCostShare: -1 })).toThrow();
 });

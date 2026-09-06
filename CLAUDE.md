@@ -223,8 +223,10 @@ Do this before committing. Most fix-up commits in project history would have bee
 ### Human-Capital Ledger (diagnostic, no feedback)
 - Cost-based (Kendrick) accounting: each year's workforce entrants are
   capitalized at CURRENT REPLACEMENT COST (rearing through entry age +
-  schooling stages, all as multiples of regional GDP per capita), banded by
-  four education levels (primary / secondary / tertiary / advanced)
+  schooling stages + students' foregone earnings above age 16, all as
+  multiples of regional GDP per capita), banded by four education levels
+  (primary / secondary / tertiary / advanced); `foregoneEarningsShare` = 0
+  gives the explicit-outlay measure
 - Straight-line depreciation over EXPECTED TIME IN THE WORKFORCE, not
   retirement minus entry: a survival curve with death, disability,
   domestic-role, and retirement exits (calibrated to Eurostat duration of
