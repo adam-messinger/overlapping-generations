@@ -33,6 +33,8 @@ function makeInputs(overrides: Record<string, any> = {}) {
     regionalLifeExpectancy: regional(75),
     regionalGdpPerCapita: regional(20_000),
     regionalGdp: regional(2),
+    regionalWorkingMigrationCollege: regional(0),
+    regionalWorkingMigrationNonCollege: regional(0),
     gdp: 16,
     stock: 50,
     retirementAgeResponse: 0.67,
@@ -295,6 +297,81 @@ test('exits are attributed by cause and sum to the global exit flow', () => {
   expect(perEntrant('primary', 'domesticExits')).toBeGreaterThan(perEntrant('advanced', 'domesticExits'));
 });
 
+// --- Migration transfers ---------------------------------------------------------
+
+/** 0.2M/yr working-age movers from india to oecd, all secondary band. */
+function migrationInputs(extra: Record<string, any> = {}) {
+  const college = regional(0);
+  const nonCollege = regional(0);
+  nonCollege.india = -0.2e6;
+  nonCollege.oecd = 0.2e6;
+  return {
+    regionalWorkingMigrationCollege: college,
+    regionalWorkingMigrationNonCollege: nonCollege,
+    regionalGdpPerCapita: { ...regional(20_000), oecd: 60_000, india: 5_000 },
+    ...extra,
+  };
+}
+
+test('migration moves headcount between regional ledgers and conserves the world total', () => {
+  const still = runYears(20, NO_HAZARDS)[19];
+  const moved = runYears(20, NO_HAZARDS, () => migrationInputs())[19];
+  // Movers leave with a headcount-weighted tenure profile and land with the
+  // plain profile, so a few sit closer to retirement: conserved to ~1e-5.
+  const world = (out: any) => out.humanCapitalByBand.secondary.workersInService;
+  expect(Math.abs(world(moved) / world(still) - 1)).toBeLessThan(1e-4);
+  expect(moved.regionalHumanCapital.oecd.migrationNetPeople).toBeCloseTo(0.2e6, 0);
+  expect(moved.regionalHumanCapital.india.migrationNetPeople).toBeCloseTo(-0.2e6, 0);
+  // Destination stock grows, origin stock shrinks, relative to the no-migration run
+  expect(moved.regionalHumanCapital.oecd.netStock).toBeGreaterThan(still.regionalHumanCapital.oecd.netStock);
+  expect(moved.regionalHumanCapital.india.netStock).toBeLessThan(still.regionalHumanCapital.india.netStock);
+});
+
+test('migrants are revalued at destination cost: inflows exceed outflows when movers go to a richer region', () => {
+  const [out] = runYears(1, NO_HAZARDS, () => migrationInputs());
+  expect(out.regionalHumanCapital.oecd.migrationTransfer).toBeGreaterThan(0);
+  expect(out.regionalHumanCapital.india.migrationTransfer).toBeLessThan(0);
+  expect(out.humanCapitalMigrationInflows).toBeCloseTo(out.regionalHumanCapital.oecd.migrationTransfer, 9);
+  expect(out.humanCapitalMigrationOutflows).toBeCloseTo(-out.regionalHumanCapital.india.migrationTransfer, 9);
+  // Same people, same tenure profile, 12x the unit cost at destination
+  expect(out.humanCapitalMigrationInflows / out.humanCapitalMigrationOutflows).toBeCloseTo(12, 6);
+  expect(out.humanCapitalMigrationRevaluation).toBeCloseTo(
+    out.humanCapitalMigrationInflows - out.humanCapitalMigrationOutflows, 9);
+  // Reverse the direction: equal and opposite valuation
+  const swapped = migrationInputs();
+  swapped.regionalWorkingMigrationNonCollege = { ...regional(0), india: 0.2e6, oecd: -0.2e6 };
+  const [back] = runYears(1, NO_HAZARDS, () => swapped);
+  expect(back.humanCapitalMigrationRevaluation).toBeLessThan(0);
+});
+
+test('closure with migration: net stock change = investment + transfer - depreciation - write-offs per region', () => {
+  const outputs = runYears(15, {}, () => migrationInputs({ regionalEntrantCollegeShare: regional(0.3) }));
+  for (let i = 1; i < outputs.length; i++) {
+    for (const region of ['oecd', 'india', 'china'] as Region[]) {
+      const a = outputs[i - 1].regionalHumanCapital[region];
+      const b = outputs[i].regionalHumanCapital[region];
+      const delta = b.netStock - a.netStock;
+      expect(delta).toBeCloseTo(b.investment + b.migrationTransfer - b.depreciation - b.writeOffs, 6);
+    }
+    expect(outputs[i].regionalHumanCapital.china.migrationTransfer).toBe(0);
+  }
+});
+
+test('migrants skew early-career: a shorter tenure scale transfers more book value per mover', () => {
+  const young = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 3 }, () => migrationInputs())[0];
+  const old = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 40 }, () => migrationInputs())[0];
+  expect(young.humanCapitalMigrationOutflows).toBeGreaterThan(old.humanCapitalMigrationOutflows);
+});
+
+test('emigration cannot remove more than a ledger holds', () => {
+  const inputs = migrationInputs({ regionalWorkingNonCollege: regional(0), regionalWorkforceEntrants: regional(0) });
+  inputs.regionalWorkingMigrationNonCollege = { ...regional(0), india: -1e6, oecd: 1e6 };
+  const [out] = runYears(1, NO_HAZARDS, () => inputs);
+  expect(out.regionalHumanCapital.india.grossStock).toBeCloseTo(0, 9);
+  expect(out.humanCapitalMigrationOutflows).toBeCloseTo(0, 9);
+  expect(Number.isFinite(out.humanCapitalNetStock)).toBeTrue();
+});
+
 // --- Retirement age and life expectancy --------------------------------------
 
 test('retirement age extends with life-expectancy gains under the retirement-age response', () => {
@@ -379,6 +456,7 @@ test('validation rejects out-of-range values', () => {
   expect(humanCapitalModule.validate({ hazards: { mortalityBase: -0.1 } } as any).valid).toBeFalse();
   expect(humanCapitalModule.validate({ bands: { primary: { retirementAge: 12 } } } as any).valid).toBeFalse();
   expect(humanCapitalModule.validate({ regions: { india: { domesticExitShare: 1.2 } } } as any).valid).toBeFalse();
+  expect(humanCapitalModule.validate({ migrantTenureScale: 0 }).valid).toBeFalse();
   expect(humanCapitalModule.validate({}).valid).toBeTrue();
   expect(() => humanCapitalModule.mergeParams({ rearingCostShare: -1 })).toThrow();
 });

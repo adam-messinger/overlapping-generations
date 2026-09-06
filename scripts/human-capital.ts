@@ -53,18 +53,24 @@ function report(result: SimulationResult, label: string) {
 
   const first = result.results[0];
   const last = result.results[result.results.length - 1];
-  console.log(`\nBy region (${first.year} -> ${last.year}): investment, depreciation, net, inv/GDP`);
-  console.log('Region   inv0   dep0   net0  share0 |   inv1    dep1    net1  share1');
-  console.log('------  -----  -----  -----  ------ |  -----   -----   -----  ------');
+  console.log(`\nBy region (${first.year} -> ${last.year}): investment, depreciation + write-offs, net, migration transfer (at own cost), inv/GDP`);
+  console.log('Region   inv0  chg0   net0   mig0  share0 |   inv1    chg1    net1    mig1  share1');
+  console.log('------  -----  ----  -----  -----  ------ |  -----   -----   -----   -----  ------');
   for (const region of REGIONS) {
     const a = first.regionalHumanCapital[region];
     const b = last.regionalHumanCapital[region];
     console.log(
-      `${region.padEnd(6)}  ${a.investment.toFixed(2).padStart(5)}  ${a.depreciation.toFixed(2).padStart(5)}  ` +
-      `${(a.investment - a.depreciation - a.writeOffs).toFixed(2).padStart(5)}  ${fmtPct(a.investmentGdpShare)} |  ` +
-      `${b.investment.toFixed(1).padStart(5)}   ${b.depreciation.toFixed(1).padStart(5)}   ` +
-      `${(b.investment - b.depreciation - b.writeOffs).toFixed(1).padStart(5)}  ${fmtPct(b.investmentGdpShare)}`
+      `${region.padEnd(6)}  ${a.investment.toFixed(2).padStart(5)}  ${(a.depreciation + a.writeOffs).toFixed(2).padStart(4)}  ` +
+      `${(a.investment - a.depreciation - a.writeOffs).toFixed(2).padStart(5)}  ${a.migrationTransfer.toFixed(2).padStart(5)}  ${fmtPct(a.investmentGdpShare)} |  ` +
+      `${b.investment.toFixed(1).padStart(5)}   ${(b.depreciation + b.writeOffs).toFixed(1).padStart(5)}   ` +
+      `${(b.investment - b.depreciation - b.writeOffs).toFixed(1).padStart(5)}   ${b.migrationTransfer.toFixed(1).padStart(5)}  ${fmtPct(b.investmentGdpShare)}`
     );
+  }
+  console.log(`\nMigration (world): inflows at destination cost / outflows at origin cost / revaluation gain, $T/yr`);
+  for (const year of years) {
+    const row = result.results.find(r => r.year === year);
+    if (!row) continue;
+    console.log(`${year}  ${row.humanCapitalMigrationInflows.toFixed(2).padStart(6)}  ${row.humanCapitalMigrationOutflows.toFixed(2).padStart(6)}  ${row.humanCapitalMigrationRevaluation.toFixed(2).padStart(6)}`);
   }
 }
 

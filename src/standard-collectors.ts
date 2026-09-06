@@ -197,6 +197,9 @@ export const standardCollectors: CollectorConfig = {
     { source: 'humanCapitalNetStockToPhysical', unit: 'fraction', description: 'Net human-capital stock divided by the physical capital stock', module: 'humanCapital' },
     { source: 'workforceEntrants', unit: 'people/year', description: 'Global labor-market entrants (1/20 of the young cohort)', module: 'humanCapital' },
     { source: 'workforceExits', unit: 'people/year', description: 'Workforce exits for all causes: death, disability, domestic role, retirement', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationInflows', unit: '$T/year', description: 'Book value of working-age immigrants entering regional ledgers, at destination replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationOutflows', unit: '$T/year', description: 'Book value of working-age emigrants leaving regional ledgers, at origin replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationRevaluation', unit: '$T/year', description: 'World gain from revaluing migrants at destination rather than origin replacement cost (inflows - outflows)', module: 'humanCapital' },
     { source: 'humanCapitalByBand', description: 'Human-capital ledger by education band: entrants, unit cost, useful life, investment, depreciation, stocks', module: 'humanCapital' },
     { source: 'regionalHumanCapital', description: 'Human-capital ledger by region', module: 'humanCapital' },
 

@@ -127,10 +127,32 @@ assumption demographics makes when it ages 1/45 of the cohort out each year),
 thinned by the survival curve, so the seeded ledger starts in its steady
 state.
 
+## Migration transfers
+
+Demographics moves net migrants between regions every year (inflows rescaled
+so world net migration is zero; 80% working-age, 70% of those college). The
+ledger moves the corresponding headcount between regional vintage ledgers:
+
+- Emigrants are drawn from the origin's in-service vintages with a tenure
+  weight `headcount x exp(-yearsSinceEntry / migrantTenureScale)`, so movers
+  skew early-career (scale 10 years puts the mean mover about 10 years into
+  a career, consistent with the ~30-year median age of new permanent
+  migrants to OECD countries).
+- Immigrants are placed in the destination's vintages with the same profile.
+- Each region books the transfer at its **own** replacement cost and useful
+  life, at start-of-year book value. A worker moving from India to the OECD
+  therefore leaves a small write-down at origin and arrives as a large
+  addition at destination. The world-level difference is reported as
+  `humanCapitalMigrationRevaluation` (inflows at destination cost minus
+  outflows at origin cost). This is the brain-gain premium: the same person
+  is worth more to replace where replacement is expensive.
+
+Headcount is conserved; dollars are not, by design.
+
 ## Closure identities (tested)
 
 ```text
-netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment - depreciation - writeOffs
+netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment + migrationTransfer - depreciation - writeOffs   (per region)
 steady state (constant entrants, cost, life):
     depreciation + writeOffs = investment
     exits                    = entrants
@@ -149,8 +171,10 @@ steady state (constant entrants, cost, life):
 | `humanCapitalInvestmentGdpShare`, `humanCapitalDepreciationGdpShare` | fraction | flows relative to GDP |
 | `humanCapitalNetStockToPhysical` | ratio | net human-capital stock / physical capital stock |
 | `workforceEntrants`, `workforceExits` | people/yr | global entrants; exits for all causes including retirement |
+| `humanCapitalMigrationInflows`, `humanCapitalMigrationOutflows` | $T/yr | migrants' book value at destination cost / at origin cost |
+| `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
 | `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows, stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP |
+| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost |
 
 ## What the default path shows
 
@@ -284,9 +308,11 @@ scope and obsolescence as sensitivity dials rather than change the defaults.
 - **Entry timing.** All bands enter the ledger when demographics moves them
   into the working cohort at age 20; entry age differentiates cost and the
   age at which hazards apply, not the ledger's timing.
-- **Regional stocks drift from demographics.** Migrants arrive in a region's
-  working cohort without passing through its ledger, so regional (not global)
-  in-service headcounts differ from demographics' working stocks.
+- **Migrant age and education are assumed, not observed.** Movers carry
+  demographics' fixed 70% college share and a single exponential tenure
+  profile; there is no return migration, no origin-specific mix, and no
+  under-employment of immigrant skills (the ledger books an immigrant
+  graduate at the destination's full tertiary replacement cost).
 - **No obsolescence or retraining.** Depreciation is purely time-based;
   skills do not become obsolete faster in some bands than others.
 

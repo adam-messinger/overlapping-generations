@@ -44,6 +44,14 @@
  * ledger years that straddle the (non-integer) retirement age, so a slowly
  * rising retirement age does not make whole cohorts retire in lumps.
  *
+ * Migration: demographics' net working-age migration (by education) moves
+ * headcount between regional ledgers. Emigrants are drawn from the origin's
+ * vintages with a tenure profile that skews young (migrants are mostly
+ * early-career), immigrants are placed in the destination's vintages with
+ * the same profile. Each region books the transfer at its OWN replacement
+ * cost, so a worker moving from a low- to a high-cost region is revalued on
+ * arrival; the world-level difference is reported separately.
+ *
  * NO FEEDBACK: nothing here changes GDP, labor, capital, or demographics.
  * See docs/HUMAN_CAPITAL.md.
  */
@@ -110,6 +118,8 @@ export interface HumanCapitalParams {
   secondaryCompletionConvergence: number;
   /** Years spanned by the working-age cohort used to seed 2025 vintages */
   initialWorkingSpan: number;
+  /** Tenure profile of migrants: weight exp(-yearsSinceEntry / scale) */
+  migrantTenureScale: number;
 }
 
 export const humanCapitalDefaults: HumanCapitalParams = {
@@ -201,6 +211,12 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   rearingCostShare: 0.30,
   secondaryCompletionConvergence: 0.02, // ~35-yr half-life, same order as demographics' enrollment convergence
   initialWorkingSpan: 45,               // demographics' working cohort spans ages 20-64
+  // Migrants are early-career: median age of new permanent migrants to OECD
+  // countries ~29-30 (OECD International Migration Outlook 2023), UN DESA
+  // International Migrant Stock 2020 median age 36 for the stock. An
+  // exponential tenure weight with a 10-year scale gives a mean of ~10 years
+  // since entry (age ~30) among working-age movers.
+  migrantTenureScale: 10,
 };
 
 // =============================================================================
@@ -227,6 +243,9 @@ export interface HumanCapitalInputs {
   regionalLifeExpectancy: Record<Region, number>;
   regionalGdpPerCapita: Record<Region, number>;
   regionalGdp: Record<Region, number>;
+  /** Net working-age migration by education (people/year, + = inflow) */
+  regionalWorkingMigrationCollege: Record<Region, number>;
+  regionalWorkingMigrationNonCollege: Record<Region, number>;
   gdp: number;
   /** Physical capital stock ($T), for the human/physical capital ratio */
   stock: number;
@@ -258,6 +277,10 @@ export interface HumanCapitalRegionAccount {
   grossStock: number;
   netStock: number;
   investmentGdpShare: number;
+  /** Net working-age migrants moved into (+) or out of (-) this ledger */
+  migrationNetPeople: number;        // people/year
+  /** Book value of those migrants at this region's replacement cost (+ inflow) */
+  migrationTransfer: number;         // $T/year
 }
 
 export interface HumanCapitalOutputs {
@@ -272,6 +295,9 @@ export interface HumanCapitalOutputs {
   humanCapitalNetStockToPhysical: number;   // net HC stock / physical capital stock
   workforceEntrants: number;                // people/year
   workforceExits: number;                   // people/year, all causes incl. retirement
+  humanCapitalMigrationInflows: number;     // $T/year, immigrants' book value at destination cost
+  humanCapitalMigrationOutflows: number;    // $T/year, emigrants' book value at origin cost
+  humanCapitalMigrationRevaluation: number; // $T/year, inflows - outflows (destination vs origin cost)
   humanCapitalByBand: Record<EducationBand, HumanCapitalBandAccount>;
   regionalHumanCapital: Record<Region, HumanCapitalRegionAccount>;
 }
@@ -284,6 +310,7 @@ function emptyRegionAccount(): HumanCapitalRegionAccount {
   return {
     entrants: 0, investment: 0, depreciation: 0, writeOffs: 0,
     grossStock: 0, netStock: 0, investmentGdpShare: 0,
+    migrationNetPeople: 0, migrationTransfer: 0,
   };
 }
 
@@ -434,6 +461,12 @@ export const humanCapitalModule: Module<
       range: { min: 0, max: 1, default: 0.30 },
       tier: 1 as const,
     },
+    migrantTenureScale: {
+      description: 'Tenure profile of working-age migrants: exp(-years since entry / scale); 10 puts the mean mover ~10 years into a career.',
+      unit: 'year',
+      range: { min: 1, max: 45, default: 10 },
+      tier: 2 as const,
+    },
     hazards: {
       disabilityBase: {
         description: 'Annual disability-exit hazard at age 40 for secondary-educated workers (SSA award rates ~0.2-0.3%).',
@@ -504,6 +537,8 @@ export const humanCapitalModule: Module<
       regionalLifeExpectancy: unitPort('year', 'record'),
       regionalGdpPerCapita: unitPort('$/people/year', 'record'),
       regionalGdp: unitPort('$T/year', 'record'),
+      regionalWorkingMigrationCollege: unitPort('people/year', 'record'),
+      regionalWorkingMigrationNonCollege: unitPort('people/year', 'record'),
       gdp: unitPort('$T/year'),
       stock: unitPort('$T'),
       retirementAgeResponse: unitPort('fraction'),
@@ -520,6 +555,9 @@ export const humanCapitalModule: Module<
       humanCapitalNetStockToPhysical: unitPort('fraction'),
       workforceEntrants: unitPort('people/year'),
       workforceExits: unitPort('people/year'),
+      humanCapitalMigrationInflows: unitPort('$T/year'),
+      humanCapitalMigrationOutflows: unitPort('$T/year'),
+      humanCapitalMigrationRevaluation: unitPort('$T/year'),
       humanCapitalByBand: HUMAN_CAPITAL_BAND_PORT,
       regionalHumanCapital: HUMAN_CAPITAL_REGION_PORT,
     },
@@ -539,6 +577,7 @@ export const humanCapitalModule: Module<
     finiteIn('rearingCostShare', p.rearingCostShare, 0, 1);
     finiteIn('secondaryCompletionConvergence', p.secondaryCompletionConvergence, 0, 1);
     finiteIn('initialWorkingSpan', p.initialWorkingSpan, 20, 60);
+    finiteIn('migrantTenureScale', p.migrantTenureScale, 1, 45);
 
     const h = p.hazards;
     finiteIn('hazards.mortalityBase', h.mortalityBase, 0, 0.05);
@@ -607,6 +646,8 @@ export const humanCapitalModule: Module<
       unweighted[band] = { cost: 0, life: 0 };
     }
     const regional = {} as Record<Region, HumanCapitalRegionAccount>;
+    let migrationInflows = 0;
+    let migrationOutflows = 0;
 
     for (const region of REGIONS) {
       const account = emptyRegionAccount();
@@ -617,6 +658,19 @@ export const humanCapitalModule: Module<
 
       const entrants = Math.max(0, inputs.regionalWorkforceEntrants[region] ?? 0);
       const entrantShares = bandShares(params, region, inputs.regionalEntrantCollegeShare[region] ?? 0, yearIndex);
+      // Net working-age migrants by band: demographics' college / non-college
+      // split, then this region's advanced and secondary-completion shares
+      const migrantsCollege = inputs.regionalWorkingMigrationCollege[region] ?? 0;
+      const migrantsNonCollege = inputs.regionalWorkingMigrationNonCollege[region] ?? 0;
+      const r = params.regions[region];
+      const secondary = exponentialConvergence(
+        r.secondaryCompletionShare, r.secondaryCompletionTarget, params.secondaryCompletionConvergence, yearIndex);
+      const migrantShares: Record<EducationBand, number> = {
+        primary: migrantsNonCollege * (1 - secondary),
+        secondary: migrantsNonCollege * secondary,
+        tertiary: migrantsCollege * (1 - r.advancedShare),
+        advanced: migrantsCollege * r.advancedShare,
+      };
 
       vintages[region] = {} as Record<EducationBand, number[]>;
 
@@ -656,6 +710,29 @@ export const humanCapitalModule: Module<
         const bandEntrants = entrants * entrantShares[band];
         const aged = [bandEntrants, ...previous];   // index = years since entry
         const investment = bandEntrants * unitCost / 1e12;
+
+        // --- Migration: move headcount between regional ledgers ------------
+        // Net working-age migrants in this band, with a tenure profile that
+        // skews early-career. Emigrants leave with their book value at origin
+        // cost; immigrants are booked at this region's cost. Both are valued
+        // at start-of-year book value, before this year's exits and slice.
+        const bandMigrants = migrantShares[band];
+        let migrationTransfer = 0;
+        if (bandMigrants !== 0 && aged.length > 0) {
+          const weights = aged.map((headcount, age) =>
+            (bandMigrants < 0 ? headcount : 1) * Math.exp(-age / params.migrantTenureScale));
+          const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+          if (totalWeight > 0) {
+            for (let age = 0; age < aged.length; age++) {
+              // Emigrants cannot exceed the vintage; the shortfall is dropped
+              const move = bandMigrants < 0
+                ? -Math.min(aged[age], -bandMigrants * weights[age] / totalWeight)
+                : bandMigrants * weights[age] / totalWeight;
+              aged[age] += move;
+              migrationTransfer += move * unitCost * Math.max(0, 1 - age / usefulLife) / 1e12;
+            }
+          }
+        }
 
         // --- Exits, write-offs, straight-line depreciation, retirement ------
         let depreciation = 0;
@@ -742,6 +819,10 @@ export const humanCapitalModule: Module<
         account.writeOffs += writeOffs;
         account.grossStock += grossStock;
         account.netStock += netStock;
+        account.migrationNetPeople += bandMigrants;
+        account.migrationTransfer += migrationTransfer;
+        if (migrationTransfer > 0) migrationInflows += migrationTransfer;
+        else migrationOutflows -= migrationTransfer;
       }
 
       const regionGdp = inputs.regionalGdp[region] ?? 0;
@@ -785,6 +866,9 @@ export const humanCapitalModule: Module<
         humanCapitalNetStockToPhysical: inputs.stock > 0 ? netStock / inputs.stock : 0,
         workforceEntrants: entrants,
         workforceExits: exits,
+        humanCapitalMigrationInflows: migrationInflows,
+        humanCapitalMigrationOutflows: migrationOutflows,
+        humanCapitalMigrationRevaluation: migrationInflows - migrationOutflows,
         humanCapitalByBand: byBand,
         regionalHumanCapital: regional,
       },

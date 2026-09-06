@@ -222,6 +222,9 @@ export interface YearResult {
   humanCapitalNetStockToPhysical: number;   // net HC stock / physical capital stock
   workforceEntrants: number;                // people/year
   workforceExits: number;                   // people/year, all causes incl. retirement
+  humanCapitalMigrationInflows: number;     // $T/year, at destination replacement cost
+  humanCapitalMigrationOutflows: number;    // $T/year, at origin replacement cost
+  humanCapitalMigrationRevaluation: number; // $T/year, inflows - outflows
   humanCapitalByBand: Record<EducationBand, HumanCapitalBandAccount>;
   regionalHumanCapital: Record<Region, HumanCapitalRegionAccount>;
 

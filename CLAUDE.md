@@ -233,7 +233,10 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Retirement ages extend with life expectancy under capital's
   `retirementAgeResponse` (read via param injection, one source of truth)
 - Entrants and the college split come from demographics' new
-  `regionalWorkforceEntrants` / `regionalEntrantCollegeShare` outputs
+  `regionalWorkforceEntrants` / `regionalEntrantCollegeShare` outputs;
+  demographics' net working-age migration moves vintages between regional
+  ledgers, each region booking the transfer at its own replacement cost
+  (`humanCapitalMigrationRevaluation` = the world-level brain-gain premium)
 - Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
 
 ## Scenarios
