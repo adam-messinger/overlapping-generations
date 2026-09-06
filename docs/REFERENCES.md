@@ -301,7 +301,7 @@ macro path. See `docs/HUMAN_CAPITAL.md`.
 1. **Kendrick (1976)**
    Kendrick, J.W. (1976). *The Formation and Stocks of Total Capital.* New York: NBER / Columbia University Press.
 
-   The cost-based approach implemented here: human capital as the accumulated cost of rearing and educating a person, depreciated over working life. Kendrick also counts foregone earnings, which this ledger omits.
+   The cost-based approach implemented here: human capital as the accumulated cost of rearing and educating a person plus students' foregone earnings, depreciated over working life.
 
 2. **Jorgenson & Fraumeni (1989)**
    Jorgenson, D.W. & Fraumeni, B.M. (1989). "The Accumulation of Human and Nonhuman Capital, 1948-84." In *The Measurement of Saving, Investment, and Wealth*, NBER, 227-286.
