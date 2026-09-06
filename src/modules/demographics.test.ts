@@ -472,6 +472,23 @@ test('exogenous population scaling scales entrants and education-split stocks to
   expect(totalEntrants).toBeCloseTo(totalYoung / 20, 0);
 });
 
+test('working-age migration outputs sum to zero across regions and follow the 80/70 split', () => {
+  for (const years of [1, 20]) {
+    const { outputs } = runYears(years);
+    let net = 0;
+    for (const region of REGIONS) {
+      const college = outputs.regionalWorkingMigrationCollege[region];
+      const nonCollege = outputs.regionalWorkingMigrationNonCollege[region];
+      net += college + nonCollege;
+      if (Math.abs(nonCollege) > 0) expect(college / (college + nonCollege)).toBeCloseTo(0.70, 9);
+    }
+    expect(Math.abs(net) < 1).toBeTrue();
+    expect(outputs.regionalWorkingMigrationCollege.oecd).toBeGreaterThan(0);
+    expect(outputs.regionalWorkingMigrationCollege.india).toBeLessThan(0);
+    expect(outputs.regionalWorkingMigrationCollege.china).toBe(0);
+  }
+});
+
 // =============================================================================
 // SUMMARY
 // =============================================================================
