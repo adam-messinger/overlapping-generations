@@ -60,6 +60,7 @@ import {
   PARTIAL_MARITIME_PARAMS_PORT,
   PRICE_SHOCK_PORT,
   PROBABILISTIC_FORECAST_PORT,
+  RESPONSE_STAGES_PORT,
   SOVEREIGN_MARKETS_PORT,
   SOVEREIGN_SCENARIO_PORT,
   TARIFF_ACTION_PORT,
@@ -1306,6 +1307,7 @@ export const outbreakPreparednessModel = defineModel<OutbreakV2Params, OutbreakS
     severityHalfLifeDays: unitPort('day', 'number'),
     severityFloor: unitPort('fraction', 'number'),
     countermeasure: { ...COUNTERMEASURE_PORT, optional: true },
+    additionalStages: { ...RESPONSE_STAGES_PORT, optional: true },
   },
   outputPorts: {
     weeklyCases: unitPort('people/week', 'vector'),

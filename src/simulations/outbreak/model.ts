@@ -30,6 +30,17 @@ export interface CountermeasureParams {
   effectivenessAgainstInfection: number;
 }
 
+/**
+ * A later change in the contact multiplier, applied after the response and
+ * easing schedule. Stages are evaluated in order; each ramps linearly from the
+ * multiplier in force when it starts to its own value over `rampDays`.
+ */
+export interface ResponseStage {
+  startDay: number;
+  multiplier: number;
+  rampDays: number;
+}
+
 export interface OutbreakV2Params extends OutbreakV1Params {
   incubationDays: number;
   initialExposed: number;
@@ -46,6 +57,7 @@ export interface OutbreakV2Params extends OutbreakV1Params {
   severityHalfLifeDays: number;
   severityFloor: number;
   countermeasure?: CountermeasureParams;
+  additionalStages?: readonly ResponseStage[];
 }
 
 export interface FitMetrics {
@@ -122,6 +134,13 @@ function validateV2(params: OutbreakV2Params): void {
   if (params.initialInfectious + params.initialExposed > params.population) {
     errors.push('initialInfectious + initialExposed must not exceed population');
   }
+  params.additionalStages?.forEach((stage, index) => {
+    errors.push(
+      ...validateNumber(stage.startDay, `additionalStages[${index}].startDay`, { min: 0 }),
+      ...validateNumber(stage.multiplier, `additionalStages[${index}].multiplier`, { min: 0, max: 2 }),
+      ...validateNumber(stage.rampDays, `additionalStages[${index}].rampDays`, { min: 0, exclusiveMin: true }),
+    );
+  });
   if (params.countermeasure) {
     errors.push(
       ...validateNumber(params.countermeasure.startDay, 'countermeasure.startDay', { min: 0 }),
@@ -209,6 +228,16 @@ export function simulateOutbreakV1(params: OutbreakV1Params): OutbreakSeries {
 }
 
 function contactMultiplier(day: number, params: OutbreakV2Params): number {
+  let value = scheduledContactMultiplier(day, params);
+  for (const stage of params.additionalStages ?? []) {
+    if (day < stage.startDay) break;
+    const progress = clamp((day - stage.startDay + 1) / stage.rampDays, 0, 1);
+    value += progress * (stage.multiplier - value);
+  }
+  return value;
+}
+
+function scheduledContactMultiplier(day: number, params: OutbreakV2Params): number {
   if (day < params.responseStartDay) return 1;
   const responseProgress = clamp(
     (day - params.responseStartDay + 1) / params.responseRampDays,
