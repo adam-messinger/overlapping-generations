@@ -115,11 +115,9 @@ export interface HumanCapitalParams {
   hazards: ExitHazardParams;
   /** Annual room, board, and care per child as a fraction of GDP per capita */
   rearingCostShare: number;
-  /** Age at which the first schooling stage begins (ISCED 1 entry) */
-  schoolStartAge: number;
-  /** Age from which a student's time has an earnings opportunity cost */
+  /** Age from which a not-yet-working dependent's time has an earnings opportunity cost */
   foregoneEarningsFromAge: number;
-  /** Foregone earnings per student-year at or above that age, as a fraction of GDP per capita */
+  /** Foregone earnings per pre-entry year at or above that age, as a fraction of GDP per capita */
   foregoneEarningsShare: number;
   /** Annual convergence rate of secondary completion toward its regional target */
   secondaryCompletionConvergence: number;
@@ -222,14 +220,12 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   // Foregone earnings: the cost-based accounts of Kendrick (1976), Eisner
   // (1985), Abraham (2010), and Mallatt (BEA 2026) all count the earnings
   // students give up while in school beyond the age at which they could
-  // work. Schooling starts at 6 (ISCED 1); the opportunity cost applies from
-  // 16 (Kendrick used 14; legal full-time working ages 15-16 in most OECD
-  // countries) at 0.45 of GDP per capita per student-year: US full-time
-  // median earnings at ages 18-24 ~$35k vs GDP/capita ~$82k (Census CPS
-  // 2023), and Mallatt values student time at CPS wages of same-age workers.
-  // Set foregoneEarningsShare to 0 for the explicit-outlay (USDA + OECD
-  // spending) measure alone.
-  schoolStartAge: 6,
+  // work. Here every pre-entry year at or above 16 (Kendrick used 14; legal
+  // full-time working ages 15-16 in most OECD countries) costs 0.45 of GDP
+  // per capita: US full-time median earnings at ages 18-24 ~$35k vs
+  // GDP/capita ~$82k (Census CPS 2023); Mallatt values student time at CPS
+  // wages of same-age workers. Set foregoneEarningsShare to 0 for the
+  // explicit-outlay (USDA + OECD spending) measure alone.
   foregoneEarningsFromAge: 16,
   foregoneEarningsShare: 0.45,
   secondaryCompletionConvergence: 0.02, // ~35-yr half-life, same order as demographics' enrollment convergence
@@ -333,30 +329,32 @@ export interface HumanCapitalOutputs {
 // =============================================================================
 
 /**
- * Replacement cost of one entrant in `band`: rearing through the entry age,
- * every schooling stage up to and including the band's own stage, and the
- * earnings foregone in the school years at or above the working age, all
- * priced at today's GDP per capita.
+ * Replacement cost of one entrant in each band as a multiple of GDP per
+ * capita: rearing through the entry age, every schooling stage up to and
+ * including the band's own stage (a prefix sum over the ordered bands), and
+ * the earnings foregone in the pre-entry years at or above the working age.
+ * Region-independent, so step() computes it once per year.
  */
+function bandCostMultipliers(params: HumanCapitalParams): Record<EducationBand, number> {
+  const { rearingCostShare, foregoneEarningsFromAge, foregoneEarningsShare } = params;
+  const multipliers = {} as Record<EducationBand, number>;
+  let schooling = 0;
+  for (const band of EDUCATION_BANDS) {
+    const b = params.bands[band];
+    schooling += b.stageYears * b.stageCostShare;
+    const foregoneYears = Math.max(0, b.entryAge - foregoneEarningsFromAge);
+    multipliers[band] = rearingCostShare * b.entryAge + schooling + foregoneEarningsShare * foregoneYears;
+  }
+  return multipliers;
+}
+
+/** Replacement cost of one entrant in `band`, priced at today's GDP per capita. */
 export function unitReplacementCost(
   params: HumanCapitalParams,
   band: EducationBand,
   gdpPerCapita: number
 ): number {
-  let schooling = 0;
-  let foregoneYears = 0;
-  let stageStart = params.schoolStartAge;
-  for (const stage of EDUCATION_BANDS) {
-    const years = params.bands[stage].stageYears;
-    schooling += years * params.bands[stage].stageCostShare;
-    // School years spent at or above the working age carry an opportunity cost
-    foregoneYears += Math.max(0, stageStart + years - Math.max(stageStart, params.foregoneEarningsFromAge));
-    stageStart += years;
-    if (stage === band) break;
-  }
-  const rearing = params.rearingCostShare * params.bands[band].entryAge;
-  const foregone = params.foregoneEarningsShare * foregoneYears;
-  return gdpPerCapita * (rearing + schooling + foregone);
+  return bandCostMultipliers(params)[band] * gdpPerCapita;
 }
 
 /**
@@ -810,7 +808,6 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
     };
 
     finiteIn('rearingCostShare', p.rearingCostShare, 0, 1);
-    finiteIn('schoolStartAge', p.schoolStartAge, 3, 10);
     finiteIn('foregoneEarningsFromAge', p.foregoneEarningsFromAge, 10, 30);
     finiteIn('foregoneEarningsShare', p.foregoneEarningsShare, 0, 1.5);
     finiteIn('secondaryCompletionConvergence', p.secondaryCompletionConvergence, 0, 1);
@@ -889,6 +886,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
     let migrationOutflows = 0;
     const migrantTenureScale = params.migrantTenureScale;
     const initialWorkingSpan = params.initialWorkingSpan;
+    const costMultipliers = bandCostMultipliers(params);
 
     for (const region of REGIONS) {
       const account = emptyRegionAccount();
@@ -922,7 +920,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
           // Retirement age extends with life expectancy under the pension
           // block's rule, so the two never disagree about working life.
           retirementAge: cell.retirementAge + retirementExtension,
-          unitCost: unitReplacementCost(params, band, gdpPerCapita),
+          unitCost: costMultipliers[band] * gdpPerCapita,
           entrants: entrantsByBand[band],
           migrants: migrantsByBand[band],
           migrantTenureScale,

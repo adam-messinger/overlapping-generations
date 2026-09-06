@@ -54,7 +54,7 @@ regional postgraduate share.
 unitCost[region][band] = GDP per capita[region]
                          x ( rearingCostShare x entryAge[band]
                            + sum over stages <= band of stageYears x stageCostShare
-                           + foregoneEarningsShare x school years at or above foregoneEarningsFromAge )
+                           + foregoneEarningsShare x max(0, entryAge[band] - foregoneEarningsFromAge) )
 ```
 
 `rearingCostShare` (0.30) prices room, board, and care per child-year as a
@@ -69,14 +69,15 @@ student as a fraction of GDP per capita from OECD Education at a Glance 2023
 stage is set above the tertiary average for research-intensive per-student
 costs.
 
-`foregoneEarningsShare` (0.45) prices the earnings a student gives up in
-each school year at or above the working age (`foregoneEarningsFromAge`,
-16; schooling starts at `schoolStartAge`, 6). Kendrick, Eisner, Abraham,
-and the BEA's 2026 accounts all count this opportunity cost; 0.45 of GDP
-per capita is the US full-time median wage at ages 18-24 relative to GDP
-per capita. It adds 2 school-years of cost to the secondary band, 6 to
-tertiary, and 9 to advanced, and nothing to primary. Set the share to 0 for
-an explicit-outlay measure.
+`foregoneEarningsShare` (0.45) prices the earnings a not-yet-working
+dependent gives up in each pre-entry year at or above the working age
+(`foregoneEarningsFromAge`, 16). Kendrick, Eisner, Abraham, and the BEA's
+2026 accounts all count this opportunity cost; 0.45 of GDP per capita is
+the US full-time median wage at ages 18-24 relative to GDP per capita. It
+adds 2 years of cost to the secondary band, 6 to tertiary, and 10 to
+advanced, and nothing to primary. A single share understates the wage a
+degree holder forgoes in postgraduate years and overstates it at 16-18;
+set the share to 0 for an explicit-outlay measure.
 
 Because every cost is a multiple of current GDP per capita, the ledger is a
 **current-cost** (replacement-cost) account: the opening stock is revalued

@@ -18,6 +18,7 @@ import {
   expectedWorkingYears,
   exitHazards,
   type HumanCapitalOverrides,
+  type HumanCapitalParams,
 } from './human-capital.js';
 
 /** Inputs for a one-band world: every entrant is a secondary completer. */
@@ -81,21 +82,17 @@ test('replacement cost rises with each education band (prefix-sum schooling + lo
   );
 });
 
-test('foregone earnings price only the school years at or above the working age', () => {
-  const p = humanCapitalDefaults;
+test('foregone earnings price only the pre-entry years at or above the working age', () => {
   const outlaysOnly = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0 });
-  const extra = (band: EducationBand) =>
-    (unitReplacementCost(p, band, 50_000) - unitReplacementCost(outlaysOnly, band, 50_000)) / 50_000;
-  // Schooling runs 6-12 (primary), 12-18 (secondary), 18-22 (tertiary),
-  // 22-25 (advanced); the opportunity cost starts at 16.
-  expect(extra('primary')).toBeCloseTo(0, 9);
-  expect(extra('secondary')).toBeCloseTo(0.45 * 2, 9);
-  expect(extra('tertiary')).toBeCloseTo(0.45 * 6, 9);
-  expect(extra('advanced')).toBeCloseTo(0.45 * 9, 9);
-  // A later working age removes the secondary-stage cost entirely
-  const later = humanCapitalModule.mergeParams({ foregoneEarningsFromAge: 18 });
-  expect((unitReplacementCost(later, 'secondary', 50_000) - unitReplacementCost(outlaysOnly, 'secondary', 50_000)))
-    .toBeCloseTo(0, 6);
+  const extra = (params: HumanCapitalParams, band: EducationBand) =>
+    (unitReplacementCost(params, band, 50_000) - unitReplacementCost(outlaysOnly, band, 50_000)) / 50_000;
+  // Entry ages 16 / 18 / 22 / 26 against a working age of 16
+  expect(extra(humanCapitalDefaults, 'primary')).toBeCloseTo(0, 9);
+  expect(extra(humanCapitalDefaults, 'secondary')).toBeCloseTo(0.45 * 2, 9);
+  expect(extra(humanCapitalDefaults, 'tertiary')).toBeCloseTo(0.45 * 6, 9);
+  expect(extra(humanCapitalDefaults, 'advanced')).toBeCloseTo(0.45 * 10, 9);
+  // A working age equal to the entry age removes the cost entirely
+  expect(extra(humanCapitalModule.mergeParams({ foregoneEarningsFromAge: 18 }), 'secondary')).toBeCloseTo(0, 9);
 });
 
 test('replacement cost scales linearly with GDP per capita', () => {
