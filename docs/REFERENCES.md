@@ -311,7 +311,7 @@ macro path. See `docs/HUMAN_CAPITAL.md`.
 3. **Abraham (2010)**
    Abraham, K.G. (2010). "Accounting for Investments in Formal Education." *Survey of Current Business*, 90(6), 42-53.
 
-   BEA satellite-account treatment of education as investment; formal education alone is 7-9% of US GDP, the anchor for the ~11%-of-GDP total (rearing included) the ledger reports for 2025.
+   BEA satellite-account treatment of education as investment; formal education alone is 7-9% of US GDP, the anchor for the ~13%-of-GDP total (rearing and foregone earnings included) the ledger reports for 2025.
 
 ### Prior-Art Scan (September 2026)
 

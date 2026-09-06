@@ -102,7 +102,7 @@ export const demographicsDefaults: DemographicsParams = {
       young: 0.17,
       working: 0.66,
       old: 0.17,
-      migrationRate: 0.0,
+      migrationRate: -0.0002, // UN WPP 2024: net -0.2 to -0.3M/yr on 1.41B (students and skilled workers to the OECD)
     },
     india: {
       name: 'India + South Asia',

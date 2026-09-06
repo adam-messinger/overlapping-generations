@@ -485,7 +485,7 @@ test('working-age migration outputs sum to zero across regions and follow the 80
     expect(Math.abs(net) < 1).toBeTrue();
     expect(outputs.regionalWorkingMigrationCollege.oecd).toBeGreaterThan(0);
     expect(outputs.regionalWorkingMigrationCollege.india).toBeLessThan(0);
-    expect(outputs.regionalWorkingMigrationCollege.china).toBe(0);
+    expect(outputs.regionalWorkingMigrationCollege.china).toBeLessThan(0);
   }
 });
 
