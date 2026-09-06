@@ -350,6 +350,18 @@ export interface DemographicsOutputs {
   regionalDependency: Record<Region, number>;
   regionalFertility: Record<Region, number>;
   regionalLifeExpectancy: Record<Region, number>;
+
+  // Education-split working stocks and this year's workforce entrants (the
+  // 1/20 of the young cohort that ages into working age; read by the
+  // human-capital ledger)
+  regionalWorkingCollege: Record<Region, number>;
+  regionalWorkingNonCollege: Record<Region, number>;
+  regionalWorkforceEntrants: Record<Region, number>;
+  regionalEntrantCollegeShare: Record<Region, number>;
+  // Net working-age migration by education (people/year; positive = inflow,
+  // sums to zero across regions). Read by the human-capital ledger.
+  regionalWorkingMigrationCollege: Record<Region, number>;
+  regionalWorkingMigrationNonCollege: Record<Region, number>;
 }
 
 // =============================================================================
@@ -384,6 +396,48 @@ function projectWagePremium(
   return exponentialConvergence(initial, target, decayRate, years);
 }
 
+/** Net migrants: 80% working-age (70% of them college), 15% young, 5% old. */
+const WORKING_MIGRANT_SHARE = 0.8;
+const MIGRANT_COLLEGE_SHARE = 0.70;
+const YOUNG_MIGRANT_SHARE = 0.15;
+const OLD_MIGRANT_SHARE = 0.05;
+
+/**
+ * The flows a region's cohorts generate this year: entrants aging out of the
+ * young cohort, their college split, and net migration by cohort. One source
+ * for ageCohorts and for the reported outputs, so the two cannot drift.
+ */
+interface CohortFlows {
+  entrants: number;               // 1/20 of the young cohort turns 20
+  enrollRate: number;             // college share of entrants
+  migration: number;              // net migrants, all ages
+  workingMigrationCollege: number;
+  workingMigrationNonCollege: number;
+}
+
+function cohortFlows(
+  state: RegionState,
+  eduParams: RegionEduParams,
+  yearIndex: number,
+  effectiveMigrationRate: number
+): CohortFlows {
+  const migration = state.population * effectiveMigrationRate;
+  const working = migration * WORKING_MIGRANT_SHARE;
+  return {
+    // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
+    entrants: state.young / 20,
+    enrollRate: projectEnrollmentRate(
+      eduParams.enrollmentRate2025,
+      eduParams.enrollmentTarget,
+      eduParams.enrollmentGrowth,
+      yearIndex
+    ),
+    migration,
+    workingMigrationCollege: working * MIGRANT_COLLEGE_SHARE,
+    workingMigrationNonCollege: working * (1 - MIGRANT_COLLEGE_SHARE),
+  };
+}
+
 function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number): number {
   // Women 15-49 are roughly split between young (15-19) and working (20-49) cohorts
   // Approximate: 0.25 of young + 0.65 of working are women 15-49
@@ -399,9 +453,8 @@ function ageCohorts(
   state: RegionState,
   tfr: number,
   eduParams: RegionEduParams,
-  yearIndex: number,
   lifeExpectancyGrowth: number,
-  effectiveMigrationRate: number
+  flows: CohortFlows
 ): RegionState {
   const pop = state.population;
   const youngShare = state.young / pop;
@@ -411,9 +464,8 @@ function ageCohorts(
   const births = birthRateFromTFR(tfr, workingShare, youngShare) * pop;
 
   // Aging transitions - KEY: use correct cohort lengths
-  // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
   // Working cohort: 45 years (ages 20-64), so 1/45 age out per year
-  const agingOutOfYoung = state.young / 20;
+  const agingOutOfYoung = flows.entrants;
   const agingOutOfWorking = state.working / 45;
 
   // Deaths by cohort (proportional to mortality rates)
@@ -422,14 +474,8 @@ function ageCohorts(
 
   // === EDUCATION TRACKING ===
   // Split new workers by enrollment rate (determined at age 18-22)
-  const enrollRate = projectEnrollmentRate(
-    eduParams.enrollmentRate2025,
-    eduParams.enrollmentTarget,
-    eduParams.enrollmentGrowth,
-    yearIndex
-  );
-  const newCollegeWorkers = agingOutOfYoung * enrollRate;
-  const newNonCollegeWorkers = agingOutOfYoung * (1 - enrollRate);
+  const newCollegeWorkers = agingOutOfYoung * flows.enrollRate;
+  const newNonCollegeWorkers = agingOutOfYoung * (1 - flows.enrollRate);
 
   // Calculate aging out of working by education
   const totalWorking = state.workingCollege + state.workingNonCollege;
@@ -465,17 +511,13 @@ function ageCohorts(
 
   // Apply migration (primarily to working-age, 70% college for migrants).
   // Rate is pre-scaled by the caller so global net migration sums to zero.
-  const migration = pop * effectiveMigrationRate;
-  const migrationCollege = migration * 0.8 * 0.70;
-  const migrationNonCollege = migration * 0.8 * 0.30;
-
-  newWorkingCollege += migrationCollege;
-  newWorkingNonCollege += migrationNonCollege;
+  newWorkingCollege += flows.workingMigrationCollege;
+  newWorkingNonCollege += flows.workingMigrationNonCollege;
   newWorking = newWorkingCollege + newWorkingNonCollege;
-  newYoung += migration * 0.15;
-  newOld += migration * 0.05;
-  newOldCollege += migration * 0.05 * 0.5;
-  newOldNonCollege += migration * 0.05 * 0.5;
+  newYoung += flows.migration * YOUNG_MIGRANT_SHARE;
+  newOld += flows.migration * OLD_MIGRANT_SHARE;
+  newOldCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
+  newOldNonCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
 
   const newPop = newYoung + newWorking + newOld;
 
@@ -565,6 +607,12 @@ export const demographicsModule: Module<
       regionalDependency: unitPort('fraction', 'record'),
       regionalFertility: unitPort('1', 'record'),
       regionalLifeExpectancy: unitPort('year', 'record'),
+      regionalWorkingCollege: unitPort('people', 'record'),
+      regionalWorkingNonCollege: unitPort('people', 'record'),
+      regionalWorkforceEntrants: unitPort('people/year', 'record'),
+      regionalEntrantCollegeShare: unitPort('fraction', 'record'),
+      regionalWorkingMigrationCollege: unitPort('people/year', 'record'),
+      regionalWorkingMigrationNonCollege: unitPort('people/year', 'record'),
     },
   },
 
@@ -700,6 +748,12 @@ export const demographicsModule: Module<
     const regionalEffectiveWorkers: Record<Region, number> = {} as Record<Region, number>;
     const heatStressLoss: Record<Region, number> = {} as Record<Region, number>;
     const regionalLifeExpectancy: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingCollege: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingNonCollege: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkforceEntrants: Record<Region, number> = {} as Record<Region, number>;
+    const regionalEntrantCollegeShare: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingMigrationCollege: Record<Region, number> = {} as Record<Region, number>;
+    const regionalWorkingMigrationNonCollege: Record<Region, number> = {} as Record<Region, number>;
 
     // Migration conservation: scale receiving-region inflows so global net
     // migration is exactly zero (a closed world). Emigration supply
@@ -729,25 +783,30 @@ export const demographicsModule: Module<
 
       // For year 0 (2025), just output current state
       // For subsequent years, age forward
-      let newState: RegionState;
-      if (yearIndex === 0) {
-        newState = regionState;
-      } else {
-        // Inflows scale to match the emigration budget; with no receiving
-        // regions, outflows are zeroed too (net must be zero)
-        const effectiveMigrationRate = totalInflow === 0
-          ? 0
-          : (regionState._migrationRate > 0
-            ? regionState._migrationRate * inflowScale
-            : regionState._migrationRate);
-        newState = ageCohorts(
-          regionState, tfr, eduParams, yearIndex,
-          params.lifeExpectancyGrowth, effectiveMigrationRate
-        );
-      }
+      // Inflows scale to match the emigration budget; with no receiving
+      // regions, outflows are zeroed too (net must be zero)
+      const effectiveMigrationRate = totalInflow === 0
+        ? 0
+        : (regionState._migrationRate > 0
+          ? regionState._migrationRate * inflowScale
+          : regionState._migrationRate);
+      // Flows are reported in year 0 too (no aging happens, but the entrant
+      // and migration flows implied by the 2025 age structure are
+      // well-defined observables read by the human-capital ledger).
+      const flows = cohortFlows(regionState, eduParams, yearIndex, effectiveMigrationRate);
+      const newState = yearIndex === 0
+        ? regionState
+        : ageCohorts(regionState, tfr, eduParams, params.lifeExpectancyGrowth, flows);
+      regionalWorkforceEntrants[region] = flows.entrants;
+      regionalEntrantCollegeShare[region] = flows.enrollRate;
+      regionalWorkingMigrationCollege[region] = flows.workingMigrationCollege;
+      regionalWorkingMigrationNonCollege[region] = flows.workingMigrationNonCollege;
 
       newRegions[region] = newState;
       regionalLifeExpectancy[region] = newState.lifeExpectancy;
+
+      regionalWorkingCollege[region] = newState.workingCollege;
+      regionalWorkingNonCollege[region] = newState.workingNonCollege;
 
       // Calculate regional outputs
       const workingPop = newState.working;
@@ -825,6 +884,11 @@ export const demographicsModule: Module<
           regionalWorking[region] *= scale;
           regionalOld[region] *= scale;
           regionalEffectiveWorkers[region] *= scale;
+          regionalWorkingCollege[region] *= scale;
+          regionalWorkingNonCollege[region] *= scale;
+          regionalWorkforceEntrants[region] *= scale;
+          regionalWorkingMigrationCollege[region] *= scale;
+          regionalWorkingMigrationNonCollege[region] *= scale;
         }
         totalPop *= scale;
         totalWorking *= scale;
@@ -853,6 +917,12 @@ export const demographicsModule: Module<
         regionalDependency,
         regionalFertility,
         regionalLifeExpectancy,
+        regionalWorkingCollege,
+        regionalWorkingNonCollege,
+        regionalWorkforceEntrants,
+        regionalEntrantCollegeShare,
+        regionalWorkingMigrationCollege,
+        regionalWorkingMigrationNonCollege,
       },
     };
   },

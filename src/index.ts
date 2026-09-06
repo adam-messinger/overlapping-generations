@@ -36,6 +36,16 @@ export {
 } from './modules/capital-accounting.js';
 export { generationsModule, generationsDefaults } from './modules/generations.js';
 export type { GenerationsParams, CohortAccount, CohortStatus } from './modules/generations.js';
+export { humanCapitalModule, humanCapitalDefaults, unitReplacementCost } from './modules/human-capital.js';
+export type {
+  HumanCapitalParams,
+  HumanCapitalInputs,
+  HumanCapitalOutputs,
+  HumanCapitalBandAccount,
+  HumanCapitalRegionAccount,
+  EducationBandParams,
+  RegionHumanCapitalParams,
+} from './modules/human-capital.js';
 export { energyModule, energyDefaults } from './modules/energy.js';
 export { dispatchModule, dispatchDefaults } from './modules/dispatch.js';
 export { productionModule, productionDefaults } from './modules/production.js';
@@ -98,7 +108,8 @@ export { standardCollectors, computeEnergySystemOverhead } from './standard-coll
 export { getAtYear, extractTimeSeries } from './helpers.js';
 
 // Domain types
-export type { Region, EnergySource } from './domain-types.js';
+export type { Region, EnergySource, EducationBand } from './domain-types.js';
+export { EDUCATION_BANDS } from './domain-types.js';
 
 // Hormuz transport/energy bottleneck extension
 export { hormuzDefaults, hormuzScenarios } from './simulations/critical-materials/hormuz-data.js';

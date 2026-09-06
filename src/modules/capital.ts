@@ -241,6 +241,7 @@ export interface CapitalOutputs {
   childCost: number;            // $ trillions (education for 0-19)
   regionalRetireeCost: Record<Region, number>; // $ trillions by region
   regionalChildCost: Record<Region, number>;   // $ trillions by region
+  regionalRetirementAgeExtension: Record<Region, number>; // years added to retirement by LE gains
   pensionTransfers: number;     // Cash pensions; redistribution, not a GDP final use
   retireeHealthcareConsumption: number; // Government-purchased retiree healthcare
   educationConsumption: number; // Government-purchased education services
@@ -731,6 +732,7 @@ export const capitalModule: Module<
       childCost: unitPort('$T/year'),
       regionalRetireeCost: unitPort('$T/year', 'record'),
       regionalChildCost: unitPort('$T/year', 'record'),
+      regionalRetirementAgeExtension: unitPort('year', 'record'),
       pensionTransfers: unitPort('$T/year'),
       retireeHealthcareConsumption: unitPort('$T/year'),
       educationConsumption: unitPort('$T/year'),
@@ -1042,6 +1044,9 @@ export const capitalModule: Module<
     const regionalChildCost = Object.fromEntries(
       REGIONS.map(r => [r, 0])
     ) as Record<Region, number>;
+    const regionalRetirementAgeExtension = Object.fromEntries(
+      REGIONS.map(r => [r, 0])
+    ) as Record<Region, number>;
 
     // Capture reference values on first step (year 0)
     const refGdpPerWorker = { ...state.referenceGdpPerWorker };
@@ -1082,7 +1087,9 @@ export const capitalModule: Module<
       const currentLE = inputs.regionalLifeExpectancy?.[r] ?? 75;
       const baseLE = refLE[r] ?? 75;
       const leGain = Math.max(0, currentLE - baseLE);
-      const effectiveRetirementAge = 65 + params.retirementAgeResponse * leGain;
+      const retirementAgeExtension = params.retirementAgeResponse * leGain;
+      const effectiveRetirementAge = 65 + retirementAgeExtension;
+      regionalRetirementAgeExtension[r] = retirementAgeExtension;
       // Fraction of 65+ reclassified as working (capped at 0.5)
       const remainingOldSpan = currentLE - 65;
       const fractionStillWorking = remainingOldSpan > 0
@@ -1538,6 +1545,7 @@ export const capitalModule: Module<
         childCost,
         regionalRetireeCost,
         regionalChildCost,
+        regionalRetirementAgeExtension,
         pensionTransfers,
         retireeHealthcareConsumption,
         educationConsumption,

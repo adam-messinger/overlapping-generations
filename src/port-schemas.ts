@@ -12,7 +12,7 @@ import {
   recordPort,
   unitPort,
 } from 'tsimulation';
-import { ENERGY_SOURCES, REGIONS } from './domain-types.js';
+import { EDUCATION_BANDS, ENERGY_SOURCES, REGIONS } from './domain-types.js';
 
 type EnergyValues = Record<(typeof ENERGY_SOURCES)[number], number>;
 
@@ -313,4 +313,74 @@ export const COHORT_ACCOUNTS_PORT = recordPort<CohortRow>(
 export const REGIONAL_COHORT_ACCOUNTS_PORT = recordPort<Record<string, CohortRow>>(
   cohortMap,
   { keys: REGIONS, description: 'Cohort ledgers nested by region.' },
+);
+
+// =============================================================================
+// Human-capital ledger (education-banded, cost-based)
+// =============================================================================
+
+interface HumanCapitalBandRow {
+  entrants: number;
+  workersInService: number;
+  unitCost: number;
+  usefulLife: number;
+  investment: number;
+  depreciation: number;
+  writeOffs: number;
+  grossStock: number;
+  netStock: number;
+  deaths: number;
+  disabilityExits: number;
+  domesticExits: number;
+  retirements: number;
+}
+
+const humanCapitalBandRow = objectPort<HumanCapitalBandRow>({
+  entrants: unitPort('people/year'),
+  workersInService: unitPort('people'),
+  unitCost: unitPort('$/people'),
+  usefulLife: unitPort('year'),
+  investment: unitPort('$T/year'),
+  depreciation: unitPort('$T/year'),
+  writeOffs: unitPort('$T/year'),
+  grossStock: unitPort('$T'),
+  netStock: unitPort('$T'),
+  deaths: unitPort('people/year'),
+  disabilityExits: unitPort('people/year'),
+  domesticExits: unitPort('people/year'),
+  retirements: unitPort('people/year'),
+});
+
+export const HUMAN_CAPITAL_BAND_PORT = recordPort<HumanCapitalBandRow>(
+  humanCapitalBandRow,
+  { keys: EDUCATION_BANDS, description: 'Human-capital ledger by education band.' },
+);
+
+interface HumanCapitalRegionRow {
+  entrants: number;
+  investment: number;
+  depreciation: number;
+  writeOffs: number;
+  grossStock: number;
+  netStock: number;
+  investmentGdpShare: number;
+  migrationNetPeople: number;
+  migrationTransfer: number;
+}
+
+const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
+  entrants: unitPort('people/year'),
+  investment: unitPort('$T/year'),
+  depreciation: unitPort('$T/year'),
+  writeOffs: unitPort('$T/year'),
+  grossStock: unitPort('$T'),
+  netStock: unitPort('$T'),
+  investmentGdpShare: unitPort('fraction'),
+  migrationNetPeople: unitPort('people/year'),
+  migrationTransfer: unitPort('$T/year'),
+});
+
+export const HUMAN_CAPITAL_REGION_PORT = recordPort<HumanCapitalRegionRow>(
+  humanCapitalRegionRow,
+  { keys: REGIONS, description: 'Human-capital ledger by region.' },
 );

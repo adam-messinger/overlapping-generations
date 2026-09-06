@@ -3,12 +3,8 @@
  */
 
 import { REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary } from '../test-utils.js';
+import { test, expect, printSummary, regional } from '../test-utils.js';
 import { generationsModule } from './generations.js';
-
-function regional(value: number): Record<Region, number> {
-  return Object.fromEntries(REGIONS.map(region => [region, value])) as Record<Region, number>;
-}
 
 function makeInputs(overrides: Record<string, any> = {}) {
   const stock = overrides.stock ?? 553;

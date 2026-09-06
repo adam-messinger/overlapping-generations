@@ -13,6 +13,7 @@
  *      capital ← demographics, demand, lagged damages
  *          ↓
  *   generations ← demographics, demand, capital (diagnostic only)
+ *   humanCapital ← demographics, demand, capital (diagnostic only)
  *        ↓
  *      energy ← demand, capital
  *        ↓
@@ -31,12 +32,17 @@ import type { ProductionParams } from './modules/production.js';
 import type { DemandParams } from './modules/demand.js';
 import type { CapitalParams } from './modules/capital.js';
 import type { GenerationsParams, CohortAccount } from './modules/generations.js';
+import type {
+  HumanCapitalOverrides,
+  HumanCapitalBandAccount,
+  HumanCapitalRegionAccount,
+} from './modules/human-capital.js';
 import type { EnergyParams } from './modules/energy.js';
 import type { DispatchParams } from './modules/dispatch.js';
 import type { ResourcesParams } from './modules/resources.js';
 import type { ClimateParams } from './modules/climate.js';
 import type { CDRParams } from './modules/cdr.js';
-import type { Region, EnergySource } from './domain-types.js';
+import type { Region, EnergySource, EducationBand } from './domain-types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
 
 // =============================================================================
@@ -51,6 +57,7 @@ export interface SimulationParams {
   demand?: Partial<DemandParams>;
   capital?: Partial<CapitalParams>;
   generations?: Partial<GenerationsParams>;
+  humanCapital?: HumanCapitalOverrides;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
   resources?: Partial<ResourcesParams>;
@@ -202,6 +209,24 @@ export interface YearResult {
   cohortBequests: number;                  // $T/year
   cohortAssets: number;                    // end-of-period $T
   cohortLiabilities: number;               // end-of-period $T
+
+  // Human-capital ledger (education-banded, replacement cost)
+  humanCapitalInvestment: number;           // $T/year capitalized at workforce entry
+  humanCapitalDepreciation: number;         // $T/year straight-line over expected working life
+  humanCapitalWriteOffs: number;            // $T/year working-age mortality
+  humanCapitalNetInvestment: number;        // $T/year
+  humanCapitalGrossStock: number;           // $T end of year
+  humanCapitalNetStock: number;             // $T end of year
+  humanCapitalInvestmentGdpShare: number;   // fraction
+  humanCapitalDepreciationGdpShare: number; // fraction
+  humanCapitalNetStockToPhysical: number;   // net HC stock / physical capital stock
+  workforceEntrants: number;                // people/year
+  workforceExits: number;                   // people/year, all causes incl. retirement
+  humanCapitalMigrationInflows: number;     // $T/year, at destination replacement cost
+  humanCapitalMigrationOutflows: number;    // $T/year, at origin replacement cost
+  humanCapitalMigrationRevaluation: number; // $T/year, inflows - outflows
+  humanCapitalByBand: Record<EducationBand, HumanCapitalBandAccount>;
+  regionalHumanCapital: Record<Region, HumanCapitalRegionAccount>;
 
   // Energy
   lcoes: Record<EnergySource, number>;

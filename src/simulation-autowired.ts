@@ -37,6 +37,7 @@ import { productionModule } from './modules/production.js';
 import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
 import { generationsModule } from './modules/generations.js';
+import { humanCapitalModule } from './modules/human-capital.js';
 import { energyModule } from './modules/energy.js';
 import { dispatchModule } from './modules/dispatch.js';
 // expansion module dissolved into demand + production
@@ -56,6 +57,7 @@ export const ALL_MODULES: AnyModule[] = [
   demandModule,
   capitalModule,
   generationsModule,
+  humanCapitalModule,
   energyModule,
   dispatchModule,
   resourcesModule,
@@ -863,6 +865,7 @@ export function runAutowiredSimulation(
       demand: params.demand,
       capital: params.capital,
       generations: params.generations,
+      humanCapital: params.humanCapital,
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,

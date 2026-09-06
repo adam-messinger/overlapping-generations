@@ -185,6 +185,24 @@ export const standardCollectors: CollectorConfig = {
     { source: 'cohortAssets', unit: '$T', description: 'End-of-period productive capital owned across cohort accounts', module: 'generations' },
     { source: 'cohortLiabilities', unit: '$T', description: 'End-of-period private liabilities across cohort accounts', module: 'generations' },
 
+    // Human-capital ledger (education-banded, replacement cost, no feedback)
+    { source: 'humanCapitalInvestment', unit: '$T/year', description: 'Pre-workforce rearing and schooling cost embodied in this year\'s labor-market entrants, at current replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalDepreciation', unit: '$T/year', description: 'Straight-line depreciation of in-service human capital over expected time in the workforce, at current replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalWriteOffs', unit: '$T/year', description: 'Book value of human capital written off at pre-retirement exits (death, disability, domestic role)', module: 'humanCapital' },
+    { source: 'humanCapitalNetInvestment', unit: '$T/year', description: 'Human-capital investment less depreciation and write-offs', module: 'humanCapital' },
+    { source: 'humanCapitalGrossStock', unit: '$T', description: 'Replacement cost of the in-service workforce (vintages not yet fully depreciated)', module: 'humanCapital' },
+    { source: 'humanCapitalNetStock', unit: '$T', description: 'Net book value of in-service human capital at current replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalInvestmentGdpShare', unit: 'fraction', description: 'Human-capital investment as a share of GDP', module: 'humanCapital' },
+    { source: 'humanCapitalDepreciationGdpShare', unit: 'fraction', description: 'Human-capital depreciation as a share of GDP', module: 'humanCapital' },
+    { source: 'humanCapitalNetStockToPhysical', unit: 'fraction', description: 'Net human-capital stock divided by the physical capital stock', module: 'humanCapital' },
+    { source: 'workforceEntrants', unit: 'people/year', description: 'Global labor-market entrants (1/20 of the young cohort)', module: 'humanCapital' },
+    { source: 'workforceExits', unit: 'people/year', description: 'Workforce exits for all causes: death, disability, domestic role, retirement', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationInflows', unit: '$T/year', description: 'Book value of working-age immigrants entering regional ledgers, at destination replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationOutflows', unit: '$T/year', description: 'Book value of working-age emigrants leaving regional ledgers, at origin replacement cost', module: 'humanCapital' },
+    { source: 'humanCapitalMigrationRevaluation', unit: '$T/year', description: 'World gain from revaluing migrants at destination rather than origin replacement cost (inflows - outflows)', module: 'humanCapital' },
+    { source: 'humanCapitalByBand', description: 'Human-capital ledger by education band: entrants, unit cost, useful life, investment, depreciation, stocks', module: 'humanCapital' },
+    { source: 'regionalHumanCapital', description: 'Human-capital ledger by region', module: 'humanCapital' },
+
     // Energy
     { source: 'lcoes', description: 'Generator LCOEs and battery storage capital cost by source', module: 'energy' },
     { source: 'capacities', description: 'Installed generation power and battery energy capacity by source', module: 'energy' },

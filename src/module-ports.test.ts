@@ -44,6 +44,7 @@ test('module execution order is stable', () => {
     'cdr',
     'capital',
     'generations',
+    'humanCapital',
     'energy',
     'dispatch',
     'resources',

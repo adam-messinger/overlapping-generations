@@ -8,6 +8,7 @@
 import { readFile } from 'fs/promises';
 import { SimulationParams } from './simulation.js';
 import { ALL_MODULES } from './simulation-autowired.js';
+import { deepMerge } from './primitives/deep-merge.js';
 
 /** Each module's default param object, keyed by module name. Used to validate
  * scenario overrides against the real default SHAPE — recursively, so dead or
@@ -60,7 +61,11 @@ function validateOverrideKeys(
 /**
  * Scenario file format - mirrors SimulationParams with metadata
  */
-export interface Scenario {
+/**
+ * Scenario file format: SimulationParams plus metadata. Module sections are
+ * whatever ALL_MODULES declares, so a new module needs no edit here.
+ */
+export interface Scenario extends SimulationParams {
   /** Human-readable name */
   name: string;
 
@@ -73,22 +78,6 @@ export interface Scenario {
     source?: string;
     probability?: number;  // For probabilistic scenarios (e.g., Twin-Engine)
   };
-
-  /** Optional simulation range overrides */
-  startYear?: number;
-  endYear?: number;
-
-  // Module parameters (all optional - only specify overrides)
-  demographics?: SimulationParams['demographics'];
-  demand?: SimulationParams['demand'];
-  capital?: SimulationParams['capital'];
-  generations?: SimulationParams['generations'];
-  energy?: SimulationParams['energy'];
-  dispatch?: SimulationParams['dispatch'];
-  resources?: SimulationParams['resources'];
-  cdr?: SimulationParams['cdr'];
-  climate?: SimulationParams['climate'];
-  production?: SimulationParams['production'];
 }
 
 // =============================================================================
@@ -120,12 +109,10 @@ export function scenarioToParams(
   const params: SimulationParams = {};
   const unknownKeys = options.unknownKeys ?? 'error';
 
-  // Known top-level keys
+  // Known top-level keys: metadata, range, and one section per module
   const knownKeys = new Set([
-    'name', 'description', 'meta',
-    'demographics', 'demand', 'capital', 'energy',
-    'generations', 'dispatch', 'resources', 'cdr', 'climate', 'production',
-    'startYear', 'endYear',
+    'name', 'description', 'meta', 'startYear', 'endYear',
+    ...ALL_MODULES.map((m) => m.name),
   ]);
 
   for (const key of Object.keys(scenario)) {
@@ -149,48 +136,16 @@ export function scenarioToParams(
   if (scenario.startYear !== undefined) params.startYear = scenario.startYear;
   if (scenario.endYear !== undefined) params.endYear = scenario.endYear;
 
-  if (scenario.demographics) params.demographics = scenario.demographics;
-  if (scenario.demand) params.demand = scenario.demand;
-  if (scenario.capital) params.capital = scenario.capital;
-  if (scenario.generations) params.generations = scenario.generations;
-  if (scenario.energy) params.energy = scenario.energy;
-  if (scenario.dispatch) params.dispatch = scenario.dispatch;
-  if (scenario.resources) params.resources = scenario.resources;
-  if (scenario.cdr) params.cdr = scenario.cdr;
-  if (scenario.climate) params.climate = scenario.climate;
-  if (scenario.production) params.production = scenario.production;
+  for (const mod of ALL_MODULES) {
+    const key = mod.name as keyof SimulationParams;
+    const section = scenario[key];
+    if (section) (params as Record<string, unknown>)[key] = section;
+  }
 
   return params;
 }
 
-/**
- * Deep merge two objects (scenario params override defaults)
- */
-export function deepMerge<T extends object>(base: T, override: Partial<T>): T {
-  const result = { ...base };
-
-  for (const key of Object.keys(override) as Array<keyof T>) {
-    const overrideValue = override[key];
-    const baseValue = base[key];
-
-    if (
-      overrideValue !== undefined &&
-      typeof overrideValue === 'object' &&
-      overrideValue !== null &&
-      !Array.isArray(overrideValue) &&
-      typeof baseValue === 'object' &&
-      baseValue !== null &&
-      !Array.isArray(baseValue)
-    ) {
-      // Recursively merge nested objects
-      result[key] = deepMerge(baseValue as object, overrideValue as object) as T[keyof T];
-    } else if (overrideValue !== undefined) {
-      result[key] = overrideValue as T[keyof T];
-    }
-  }
-
-  return result;
-}
+export { deepMerge } from './primitives/deep-merge.js';
 
 /**
  * Load scenario and convert to params, with optional CLI overrides

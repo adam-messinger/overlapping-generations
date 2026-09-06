@@ -1,8 +1,9 @@
 # Overlapping Generations Energy Simulation
 
 A TypeScript simulation exploring energy transitions, demographics, debt, and
-climate from 2025 to 2100. Ten pure modules (demographics, production,
-demand, capital, generations, energy, dispatch, resources, CDR, climate) are composed by a
+climate from 2025 to 2100. Eleven pure modules (demographics, production,
+demand, capital, generations, human capital, energy, dispatch, resources, CDR,
+climate) are composed by a
 domain-independent simulation toolkit — the [`tsimulation`](packages/tsimulation/)
 package. Its module kernel resolves dependencies topologically and breaks
 feedback cycles with explicit lags; its sibling model/experiment layer supports
@@ -33,6 +34,13 @@ credit-rationing gaps without changing the macro path. See
 1989–2025 validation against Federal Reserve, World Bank, and National Transfer
 Accounts data is documented in
 [`docs/GENERATIONAL_BACKCAST.md`](docs/GENERATIONAL_BACKCAST.md).
+
+A second diagnostic layer, `src/modules/human-capital.ts`, keeps a cost-based
+human-capital ledger: the rearing and schooling investment embodied in each
+year's workforce entrants, capitalized at current replacement cost and
+depreciated straight-line over the expected time in the workforce (death,
+disability, domestic-role, and retirement exits), banded by education level.
+See [`docs/HUMAN_CAPITAL.md`](docs/HUMAN_CAPITAL.md) and `npm run human-capital`.
 
 ## Quick start
 

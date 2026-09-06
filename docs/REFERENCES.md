@@ -284,3 +284,61 @@ Adds water sub-model to resources module: climate-driven precipitation changes a
    Pastor, A.V., Ludwig, F., Biemans, H., Hoff, H., & Kabat, P. (2014). "Accounting for environmental flow requirements in global water assessments." *Hydrology and Earth System Sciences*, 18(12), 5041-5059. DOI: 10.5194/hess-18-5041-2014
 
    Environmental flow requirements = 25-46% of mean annual flow. Must discount supply by ~35% before computing available water.
+
+---
+
+## Iteration 8: Human-Capital Ledger
+
+Cost-based human-capital accounting (`src/modules/human-capital.ts`): each
+year's workforce entrants are capitalized at current replacement cost (rearing
+plus schooling, banded by education) and depreciated straight-line over the
+expected time in the workforce from a survival model with death, disability,
+domestic-role, and retirement exits. Diagnostic only; no feedback into the
+macro path. See `docs/HUMAN_CAPITAL.md`.
+
+### Primary References
+
+1. **Kendrick (1976)**
+   Kendrick, J.W. (1976). *The Formation and Stocks of Total Capital.* New York: NBER / Columbia University Press.
+
+   The cost-based approach implemented here: human capital as the accumulated cost of rearing and educating a person, depreciated over working life. Kendrick also counts foregone earnings, which this ledger omits.
+
+2. **Jorgenson & Fraumeni (1989)**
+   Jorgenson, D.W. & Fraumeni, B.M. (1989). "The Accumulation of Human and Nonhuman Capital, 1948-84." In *The Measurement of Saving, Investment, and Wealth*, NBER, 227-286.
+
+   The lifetime-income alternative. Cited to mark what the ledger deliberately does not do: value workers by discounted future earnings.
+
+3. **Abraham (2010)**
+   Abraham, K.G. (2010). "Accounting for Investments in Formal Education." *Survey of Current Business*, 90(6), 42-53.
+
+   BEA satellite-account treatment of education as investment; formal education alone is 7-9% of US GDP, the anchor for the ~11%-of-GDP total (rearing included) the ledger reports for 2025.
+
+### Prior-Art Scan (September 2026)
+
+No single paper combines this ledger's components; the nearest are:
+
+- **Mallatt (2026)**. Mallatt, J. "An Accounting Framework for Human Capital." BEA Working Paper 2026-6. Cost-based (education spending plus student and parent time, ~10% of adjusted GDP) and income-based US accounts 1994-2023; geometric depreciation from a 40-45 year cohort service life (4.4-7.5%/yr) with the caveat that declining-balance schedules over-depreciate human capital.
+- **Eisner (1985, 1989)**. *The Total Incomes System of Accounts.* Straight-line depreciation over a 50-year life — the convention this ledger follows.
+- **Graham & Webb (1979)**. "Stocks and Depreciation of Human Capital: New Evidence from a Present-Value Perspective." *Review of Income and Wealth* 25(2), 209-224. Appreciation to mid-career then near-straight-line decline; Kendrick's accelerated schedule over-depreciates.
+- **Judson (2002)**. "Measuring Human Capital Like Physical Capital: What Does It Tell Us?" *Bulletin of Economic Research* 54(3), 209-231. Attainment weighted by current per-student spending: a replacement-cost stock by education level.
+- **Le, Gibson & Oxley (2003)**. "Cost- and Income-based Measures of Human Capital." *Journal of Economic Surveys* 17(3), 271-307. Standard critique of cost-based measures (arbitrary investment/consumption split and depreciation rate).
+- **Boarini, Mira d'Ercole & Liu (2012)**. "Approaches to Measuring the Stock of Human Capital: A Review of Country Practices." OECD Statistics Working Paper 2012/04; **UNECE (2016)**, *Guide on Measuring Human Capital*. Cost-based is one of three accepted approaches; national applications in Finland (Kokkinen), Germany (Ewerhart), the Netherlands.
+- **Christian (2012)**, "Human Capital Accounting in the United States"; **Gu & Wong (2010)**, Statistics Canada 11F0027M no. 062; **World Bank (2021)**, *The Changing Wealth of Nations.* Income-based accounts whose survival-table, participation, and retirement-age machinery this ledger imports for its useful lives.
+- **Ederer (2006)**, *The European Human Capital Index*, Lisbon Council. Cost-based endowment (parental, school, university, adult, on-the-job) with obsolescence and a utilisation ratio.
+- **Arrazola & de Hevia (2004)**, *Applied Economics Letters* 11(3); **Weber (2014)**, *International Journal of Manpower* 35(5). Wage-based net skill depreciation ~1-1.5%/yr, lower with more education — the obsolescence term this ledger omits.
+
+### Calibration Sources
+
+4. **Eurostat (2023)**, *Duration of working life by sex and educational attainment* (`lfsi_dwl_a`). EU-27 2023: ISCED 0-2 ~31 years, ISCED 3-4 ~36, ISCED 5-8 ~40. The target for the survival model's expected working years by band.
+
+5. **ILO ILOSTAT (2023)**, labour force participation by sex and educational attainment. Male-female participation gaps set the regional domestic/non-participation exit shares; the attainment gradient sets the band multipliers.
+
+6. **US Social Security Administration (2022)**, *Annual Statistical Report on the SSDI Program.* Disability award rates by age (~2-3 per 1,000 insured at 40, ~15 at 60) and the ~25% lifetime disability probability before retirement.
+
+7. **Case, A. & Deaton, A. (2021)**. "Life expectancy in adulthood is falling for those without a BA degree, but as educational gaps have widened, racial gaps have narrowed." *PNAS*, 118(11). DOI: 10.1073/pnas.2024777118. Education gradient on working-age mortality.
+
+8. **Rutledge, M.S. (2018)**. "What Explains the Widening Gap in Retirement Ages by Education?" Center for Retirement Research at Boston College, IB#18-10. Retirement-age gap of 2-3 years between college and non-college workers.
+
+9. **OECD (2023)**, *Education at a Glance 2023* (spending per student as a share of GDP per capita, postgraduate share of tertiary attainment, graduation ages) and *Pensions at a Glance 2023* (effective labour-market exit ages).
+
+10. **USDA (2017)**, *Expenditures on Children by Families, 2015*; **Lee, R. & Mason, A. (2011)**, *Population Aging and the Generational Economy* (National Transfer Accounts). Two independent anchors for the rearing-cost share of GDP per capita.
