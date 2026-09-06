@@ -28,8 +28,8 @@
  *                entry, regional (female participation gap) with an
  *                education gradient
  *   retirement   everyone still active exits at the band's effective
- *                retirement age, which extends with life expectancy under
- *                capital's retirementAgeResponse rule
+ *                retirement age, which extends with life expectancy by the
+ *                capital module's regionalRetirementAgeExtension
  *   L = sum over t of S(t), S = survival in the workforce since entry.
  *
  * Ledger (per region, per band, per entry-year vintage):
@@ -59,7 +59,8 @@
 import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
 import { HUMAN_CAPITAL_BAND_PORT, HUMAN_CAPITAL_REGION_PORT } from '../port-schemas.js';
-import { exponentialConvergence } from '../primitives/math.js';
+import { clamp, exponentialConvergence } from '../primitives/math.js';
+import { deepMerge, DeepPartial } from '../primitives/deep-merge.js';
 
 // =============================================================================
 // PARAMETERS
@@ -121,6 +122,9 @@ export interface HumanCapitalParams {
   /** Tenure profile of migrants: weight exp(-yearsSinceEntry / scale) */
   migrantTenureScale: number;
 }
+
+/** Scenario / programmatic override shape: any nested subset of the params. */
+export type HumanCapitalOverrides = DeepPartial<HumanCapitalParams>;
 
 export const humanCapitalDefaults: HumanCapitalParams = {
   // Entry ages: primary-only entrants start work in mid-teens (ILO child and
@@ -219,14 +223,17 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   migrantTenureScale: 10,
 };
 
+/** Annual exit hazards are capped here so a vintage is never emptied in one year. */
+const MAX_ANNUAL_EXIT = 0.95;
+/** Cap on the cumulative domestic-exit share of a band's entrants. */
+const MAX_DOMESTIC_SHARE = 0.9;
+
 // =============================================================================
 // STATE
 // =============================================================================
 
 interface HumanCapitalState {
   initialized: boolean;
-  /** Reference (2025) life expectancy by region, for retirement-age extension */
-  referenceLifeExpectancy: Record<Region, number>;
   /** vintages[region][band][age] = surviving headcount that entered `age` years ago */
   vintages: Record<Region, Record<EducationBand, number[]>>;
 }
@@ -246,11 +253,11 @@ export interface HumanCapitalInputs {
   /** Net working-age migration by education (people/year, + = inflow) */
   regionalWorkingMigrationCollege: Record<Region, number>;
   regionalWorkingMigrationNonCollege: Record<Region, number>;
+  /** Years added to retirement ages by life-expectancy gains (capital's pension rule) */
+  regionalRetirementAgeExtension: Record<Region, number>;
   gdp: number;
   /** Physical capital stock ($T), for the human/physical capital ratio */
   stock: number;
-  /** Fraction of life-expectancy gains that extend working life (capital's rule) */
-  retirementAgeResponse: number;
 }
 
 export interface HumanCapitalBandAccount {
@@ -303,24 +310,8 @@ export interface HumanCapitalOutputs {
 }
 
 // =============================================================================
-// HELPERS
+// COSTS AND BAND SPLITS
 // =============================================================================
-
-function emptyRegionAccount(): HumanCapitalRegionAccount {
-  return {
-    entrants: 0, investment: 0, depreciation: 0, writeOffs: 0,
-    grossStock: 0, netStock: 0, investmentGdpShare: 0,
-    migrationNetPeople: 0, migrationTransfer: 0,
-  };
-}
-
-function emptyBandAccount(): HumanCapitalBandAccount {
-  return {
-    entrants: 0, workersInService: 0, unitCost: 0, usefulLife: 0,
-    investment: 0, depreciation: 0, writeOffs: 0, grossStock: 0, netStock: 0,
-    deaths: 0, disabilityExits: 0, domesticExits: 0, retirements: 0,
-  };
-}
 
 /**
  * Replacement cost of one entrant in `band`: rearing through the entry age
@@ -341,11 +332,16 @@ export function unitReplacementCost(
   return gdpPerCapita * (rearing + schooling);
 }
 
-/** Split a region's entrant (or stock) flow across the four bands. */
-function bandShares(
+/**
+ * Split a region's non-college and college headcounts across the four bands:
+ * the upper-secondary completion share (converging to its target) splits the
+ * non-college flow, the postgraduate share splits the college flow.
+ */
+function bandSplit(
   params: HumanCapitalParams,
   region: Region,
-  collegeShare: number,
+  nonCollege: number,
+  college: number,
   yearIndex: number
 ): Record<EducationBand, number> {
   const r = params.regions[region];
@@ -355,19 +351,88 @@ function bandShares(
     params.secondaryCompletionConvergence,
     yearIndex
   );
-  const college = Math.min(1, Math.max(0, collegeShare));
   return {
-    primary: (1 - college) * (1 - secondary),
-    secondary: (1 - college) * secondary,
+    primary: nonCollege * (1 - secondary),
+    secondary: nonCollege * secondary,
     tertiary: college * (1 - r.advancedShare),
     advanced: college * r.advancedShare,
   };
 }
 
+// =============================================================================
+// EXIT HAZARDS AND USEFUL LIFE
+// =============================================================================
+
+/**
+ * The plain-number inputs one (region, band) cell needs for its hazard curve.
+ * Read from params once per cell per step: the runner hands modules a
+ * read-tracking proxy of their params, and the hazard curve is evaluated
+ * for every vintage age, so reading through the proxy inside that loop was
+ * the single largest cost in the whole simulation.
+ */
+interface HazardCell {
+  entryAge: number;
+  retirementAge: number;
+  mortalityScale: number;     // mortalityBase x band multiplier
+  mortalityAgeSlope: number;
+  mortalityLifeExpectancySlope: number;
+  disabilityScale: number;    // disabilityBase x band multiplier
+  disabilityAgeSlope: number;
+  domesticShare: number;      // cumulative share of the vintage that exits
+  domesticExitWindow: number;
+}
+
+function hazardCell(params: HumanCapitalParams, region: Region, band: EducationBand): HazardCell {
+  const b = params.bands[band];
+  const h = params.hazards;
+  return {
+    entryAge: b.entryAge,
+    retirementAge: b.retirementAge,
+    mortalityScale: h.mortalityBase * b.mortalityMultiplier,
+    mortalityAgeSlope: h.mortalityAgeSlope,
+    mortalityLifeExpectancySlope: h.mortalityLifeExpectancySlope,
+    disabilityScale: h.disabilityBase * b.disabilityMultiplier,
+    disabilityAgeSlope: h.disabilityAgeSlope,
+    domesticShare: Math.min(MAX_DOMESTIC_SHARE, params.regions[region].domesticExitShare * b.domesticExitMultiplier),
+    domesticExitWindow: h.domesticExitWindow,
+  };
+}
+
+/** Annual exit hazards by cause; the three causes sum to `total`. */
 export interface ExitHazards {
   death: number;
   disability: number;
   domestic: number;
+  total: number;
+}
+
+/**
+ * Hazard rows for years 0..years-1 after entry. The causes are scaled
+ * proportionally so their sum never exceeds MAX_ANNUAL_EXIT, which keeps
+ * survival positive and lets exits be attributed by cause without a second
+ * cap downstream.
+ */
+function hazardTable(cell: HazardCell, lifeExpectancy: number, years: number): ExitHazards[] {
+  const lifeFactor = Math.exp(cell.mortalityLifeExpectancySlope * (75 - lifeExpectancy));
+  // Domestic/non-participation exits: a cumulative share of entrants over the
+  // first `domesticExitWindow` years, spread as a constant annual hazard.
+  const domesticAnnual = 1 - Math.pow(1 - cell.domesticShare, 1 / cell.domesticExitWindow);
+  const rows: ExitHazards[] = [];
+  for (let t = 0; t < years; t++) {
+    const age = cell.entryAge + t;
+    let death = cell.mortalityScale * Math.exp(cell.mortalityAgeSlope * (age - 40)) * lifeFactor;
+    let disability = cell.disabilityScale * Math.exp(cell.disabilityAgeSlope * (age - 40));
+    let domestic = t < cell.domesticExitWindow ? domesticAnnual : 0;
+    const sum = death + disability + domestic;
+    if (sum > MAX_ANNUAL_EXIT) {
+      const scale = MAX_ANNUAL_EXIT / sum;
+      death *= scale;
+      disability *= scale;
+      domestic *= scale;
+    }
+    rows.push({ death, disability, domestic, total: death + disability + domestic });
+  }
+  return rows;
 }
 
 /**
@@ -381,40 +446,30 @@ export function exitHazards(
   lifeExpectancy: number,
   yearsSinceEntry: number
 ): ExitHazards {
-  const b = params.bands[band];
-  const h = params.hazards;
-  const age = b.entryAge + yearsSinceEntry;
-  const death = h.mortalityBase
-    * Math.exp(h.mortalityAgeSlope * (age - 40))
-    * Math.exp(h.mortalityLifeExpectancySlope * (75 - lifeExpectancy))
-    * b.mortalityMultiplier;
-  const disability = h.disabilityBase
-    * Math.exp(h.disabilityAgeSlope * (age - 40))
-    * b.disabilityMultiplier;
-  // Domestic/non-participation exits: a cumulative share of entrants over the
-  // first `domesticExitWindow` years, spread as a constant annual hazard.
-  // Capped below one so a hazard never removes more than the vintage.
-  const domesticShare = Math.min(0.9, params.regions[region].domesticExitShare * b.domesticExitMultiplier);
-  const domestic = yearsSinceEntry < h.domesticExitWindow
-    ? 1 - Math.pow(1 - domesticShare, 1 / h.domesticExitWindow)
-    : 0;
-  return { death, disability, domestic };
-}
-
-/** Sum of hazards, capped so survival stays positive. */
-function totalHazard(hazards: ExitHazards): number {
-  return Math.min(0.95, hazards.death + hazards.disability + hazards.domestic);
+  return hazardTable(hazardCell(params, region, band), lifeExpectancy, yearsSinceEntry + 1)[yearsSinceEntry];
 }
 
 /**
  * Share of a vintage that has retired by the end of the ledger year in which
- * it is `age` years past entry. A vintage retires in ledger year
- * floor(maxYears) - 1 when maxYears is an integer, and is split across the
- * two straddling years otherwise, so the mean retirement index is
- * maxYears - 1 in both cases.
+ * it is `age` years past entry: a one-year ramp ending at maxYears - 1, so an
+ * integer maxYears retires the whole vintage in year floor(maxYears) - 1 and
+ * a fractional one splits it across the two straddling years.
  */
 function retiredShare(age: number, maxYears: number): number {
-  return Math.min(1, Math.max(0, age + 2 - maxYears));
+  return clamp(age + 2 - maxYears, 0, 1);
+}
+
+/** Expected years in the workforce: the survival curve integrated to the retirement age. */
+function expectedLife(entryAge: number, table: ExitHazards[], retirementAge: number): number {
+  const span = retirementAge - entryAge;
+  let survival = 1;
+  let years = 0;
+  for (let t = 0; t < span; t++) {
+    // Partial final year when the retirement age is not an integer offset
+    years += survival * Math.min(1, span - t);
+    survival *= 1 - table[t].total;
+  }
+  return Math.max(1, years);
 }
 
 /**
@@ -428,27 +483,174 @@ export function expectedWorkingYears(
   lifeExpectancy: number,
   retirementAge: number
 ): number {
-  const maxYears = Math.max(1, Math.ceil(retirementAge - params.bands[band].entryAge));
-  let survival = 1;
-  let years = 0;
-  for (let t = 0; t < maxYears; t++) {
-    // Partial final year when the retirement age is not an integer offset
-    years += survival * Math.min(1, retirementAge - params.bands[band].entryAge - t);
-    survival *= 1 - totalHazard(exitHazards(params, region, band, lifeExpectancy, t));
+  const cell = hazardCell(params, region, band);
+  const years = Math.max(1, Math.ceil(retirementAge - cell.entryAge));
+  return expectedLife(cell.entryAge, hazardTable(cell, lifeExpectancy, years), retirementAge);
+}
+
+// =============================================================================
+// ONE (REGION, BAND) CELL FOR ONE YEAR
+// =============================================================================
+
+interface CellInputs {
+  cell: HazardCell;
+  lifeExpectancy: number;
+  retirementAge: number;
+  unitCost: number;
+  entrants: number;
+  migrants: number;          // net working-age migrants (+ inflow)
+  migrantTenureScale: number;
+  /** Prior vintages, or the steady-state seed flow when the ledger is new */
+  previous: number[] | { seedFlow: number; initialWorkingSpan: number };
+}
+
+interface CellResult extends HumanCapitalBandAccount {
+  migrationTransfer: number;
+  surviving: number[];
+}
+
+const BAND_FLOW_KEYS = [
+  'entrants', 'workersInService', 'investment', 'depreciation', 'writeOffs',
+  'grossStock', 'netStock', 'deaths', 'disabilityExits', 'domesticExits', 'retirements',
+] as const;
+const REGION_FLOW_KEYS = [
+  'entrants', 'investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock',
+] as const;
+
+function emptyBandAccount(): HumanCapitalBandAccount {
+  return {
+    entrants: 0, workersInService: 0, unitCost: 0, usefulLife: 0,
+    investment: 0, depreciation: 0, writeOffs: 0, grossStock: 0, netStock: 0,
+    deaths: 0, disabilityExits: 0, domesticExits: 0, retirements: 0,
+  };
+}
+
+function emptyRegionAccount(): HumanCapitalRegionAccount {
+  return {
+    entrants: 0, investment: 0, depreciation: 0, writeOffs: 0,
+    grossStock: 0, netStock: 0, investmentGdpShare: 0,
+    migrationNetPeople: 0, migrationTransfer: 0,
+  };
+}
+
+/** Advance one region-band vintage ledger by one year. */
+function stepCell(input: CellInputs): CellResult {
+  const { cell, unitCost, retirementAge } = input;
+  const maxYears = retirementAge - cell.entryAge;
+  const horizon = Math.max(1, Math.ceil(maxYears));
+
+  // --- Seed 2025 vintages from the existing working stock -----------------
+  // A steady flow of stock/span people turning 20 per year (uniform age
+  // distribution over the working cohort, the same assumption demographics
+  // makes when it ages 1/45 out per year), thinned by the survival curve so
+  // the seeded ledger is in its steady state.
+  let previous: number[];
+  const table = hazardTable(cell, input.lifeExpectancy, Math.max(horizon,
+    Array.isArray(input.previous) ? input.previous.length + 1 : 0));
+  if (Array.isArray(input.previous)) {
+    previous = input.previous;
+  } else {
+    previous = [];
+    let survival = 1;
+    for (let age = 0; retiredShare(age, maxYears) < 1; age++) {
+      survival *= 1 - table[age].total;
+      previous.push(input.previous.seedFlow * survival * (1 - retiredShare(age, maxYears)));
+    }
   }
-  return Math.max(1, years);
+  const usefulLife = expectedLife(cell.entryAge, table, retirementAge);
+  const bookValue = (age: number) => unitCost * Math.max(0, 1 - age / usefulLife);
+
+  // --- Age the ledger, admit this year's entrants ---------------------------
+  const aged = [input.entrants, ...previous];   // index = years since entry
+  const result: CellResult = {
+    ...emptyBandAccount(),
+    entrants: input.entrants,
+    unitCost,
+    usefulLife,
+    investment: input.entrants * unitCost / 1e12,
+    migrationTransfer: 0,
+    surviving: [],
+  };
+
+  // --- Migration: move headcount between regional ledgers ------------------
+  // Net working-age migrants in this band, with a tenure profile that skews
+  // early-career. Emigrants leave with their book value at origin cost;
+  // immigrants are booked at this region's cost. Both are valued at
+  // start-of-year book value, before this year's exits and slice.
+  if (input.migrants !== 0) {
+    const weights = aged.map((headcount, age) =>
+      (input.migrants < 0 ? headcount : 1) * Math.exp(-age / input.migrantTenureScale));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    if (totalWeight > 0) {
+      for (let age = 0; age < aged.length; age++) {
+        // Emigrants cannot exceed the vintage; the shortfall is dropped
+        const move = input.migrants < 0
+          ? -Math.min(aged[age], -input.migrants * weights[age] / totalWeight)
+          : input.migrants * weights[age] / totalWeight;
+        aged[age] += move;
+        result.migrationTransfer += move * bookValue(age) / 1e12;
+      }
+    }
+  }
+
+  // --- Exits, write-offs, straight-line depreciation, retirement ------------
+  for (let age = 0; age < aged.length; age++) {
+    const headcount = aged[age];
+    const remainingBefore = bookValue(age);
+    const remainingAfter = bookValue(age + 1);
+
+    // Pre-retirement exits leave with their remaining book value
+    const h = table[age];
+    result.deaths += headcount * h.death;
+    result.disabilityExits += headcount * h.disability;
+    result.domesticExits += headcount * h.domestic;
+    result.writeOffs += headcount * h.total * remainingBefore / 1e12;
+    const alive = headcount * (1 - h.total);
+
+    // Straight-line slice on survivors, never below zero book value
+    result.depreciation += alive * Math.min(unitCost / usefulLife, remainingBefore) / 1e12;
+
+    // Retirement: the share of the vintage past the effective retirement
+    // age leaves the workforce. Any remaining book value of retirees (only
+    // when usefulLife ~ maxYears, i.e. no exit hazards) is taken as terminal
+    // depreciation so the ledger closes exactly.
+    const remaining = alive * (1 - retiredShare(age, maxYears));
+    const retiring = alive - remaining;
+    result.retirements += retiring;
+    result.depreciation += retiring * remainingAfter / 1e12;
+
+    // Still in service (possibly fully depreciated)
+    result.surviving.push(remaining);
+    result.workersInService += remaining;
+    result.grossStock += remaining * unitCost / 1e12;
+    result.netStock += remaining * remainingAfter / 1e12;
+  }
+  // Drop trailing retired vintages so the ledger never grows past the
+  // retirement horizon.
+  while (result.surviving.length > 0 && result.surviving[result.surviving.length - 1] === 0) {
+    result.surviving.pop();
+  }
+  return result;
 }
 
 // =============================================================================
 // MODULE
 // =============================================================================
 
-export const humanCapitalModule: Module<
+/** The generic Module contract, with validate/mergeParams accepting nested partial overrides. */
+export interface HumanCapitalModule extends Module<
   HumanCapitalParams,
   HumanCapitalState,
   HumanCapitalInputs,
   HumanCapitalOutputs
-> = defineModule<HumanCapitalParams, HumanCapitalState, HumanCapitalInputs, HumanCapitalOutputs>({
+> {
+  validate(params: HumanCapitalOverrides): ValidationResult;
+  mergeParams(partial: HumanCapitalOverrides): HumanCapitalParams;
+}
+
+export const humanCapitalModule: HumanCapitalModule = defineModule<
+  HumanCapitalParams, HumanCapitalState, HumanCapitalInputs, HumanCapitalOutputs
+>({
   name: 'humanCapital',
   description: 'Education-banded human-capital investment and straight-line depreciation over expected time in the workforce, at replacement cost',
 
@@ -539,9 +741,9 @@ export const humanCapitalModule: Module<
       regionalGdp: unitPort('$T/year', 'record'),
       regionalWorkingMigrationCollege: unitPort('people/year', 'record'),
       regionalWorkingMigrationNonCollege: unitPort('people/year', 'record'),
+      regionalRetirementAgeExtension: unitPort('year', 'record'),
       gdp: unitPort('$T/year'),
       stock: unitPort('$T'),
-      retirementAgeResponse: unitPort('fraction'),
     },
     outputs: {
       humanCapitalInvestment: unitPort('$T/year'),
@@ -563,10 +765,10 @@ export const humanCapitalModule: Module<
     },
   },
 
-  validate(partial: Partial<HumanCapitalParams>): ValidationResult {
+  validate(partial: HumanCapitalOverrides): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    const p = mergeDeep(partial);
+    const p = deepMerge(humanCapitalDefaults, partial);
 
     const finiteIn = (label: string, value: number, min: number, max: number) => {
       if (!Number.isFinite(value) || value < min || value > max) {
@@ -619,210 +821,93 @@ export const humanCapitalModule: Module<
     return { valid: errors.length === 0, errors, warnings };
   },
 
-  mergeParams(partial: Partial<HumanCapitalParams>): HumanCapitalParams {
-    return validatedMerge('humanCapital', this.validate, mergeDeep, partial);
+  mergeParams(partial: HumanCapitalOverrides): HumanCapitalParams {
+    // validatedMerge is typed on Partial<T>; both callbacks accept the deeper
+    // override shape, so the narrowing here is only for its signature.
+    return validatedMerge<HumanCapitalParams>(
+      'humanCapital',
+      this.validate,
+      p => deepMerge(humanCapitalDefaults, p),
+      partial as Partial<HumanCapitalParams>,
+    );
   },
 
   init(): HumanCapitalState {
-    return {
-      initialized: false,
-      referenceLifeExpectancy: {} as Record<Region, number>,
-      vintages: {} as Record<Region, Record<EducationBand, number[]>>,
-    };
+    return { initialized: false, vintages: {} as Record<Region, Record<EducationBand, number[]>> };
   },
 
   step(state, inputs, params, _year, yearIndex) {
-    const referenceLifeExpectancy = { ...state.referenceLifeExpectancy };
     const vintages = {} as Record<Region, Record<EducationBand, number[]>>;
-
     const byBand = {} as Record<EducationBand, HumanCapitalBandAccount>;
-    // Entrant-weighted averages of unit cost and useful life; the unweighted
+    // Entrant-weighted unit cost and useful life per band; the unweighted
     // regional mean is the fallback for a band with no entrants anywhere.
-    const weighted = {} as Record<EducationBand, { cost: number; life: number; weight: number }>;
-    const unweighted = {} as Record<EducationBand, { cost: number; life: number }>;
+    const meanCost = {} as Record<EducationBand, number>;
+    const meanLife = {} as Record<EducationBand, number>;
     for (const band of EDUCATION_BANDS) {
       byBand[band] = emptyBandAccount();
-      weighted[band] = { cost: 0, life: 0, weight: 0 };
-      unweighted[band] = { cost: 0, life: 0 };
+      meanCost[band] = 0;
+      meanLife[band] = 0;
     }
     const regional = {} as Record<Region, HumanCapitalRegionAccount>;
     let migrationInflows = 0;
     let migrationOutflows = 0;
+    const migrantTenureScale = params.migrantTenureScale;
+    const initialWorkingSpan = params.initialWorkingSpan;
 
     for (const region of REGIONS) {
       const account = emptyRegionAccount();
       const gdpPerCapita = Math.max(0, inputs.regionalGdpPerCapita[region] ?? 0);
       const lifeExpectancy = inputs.regionalLifeExpectancy[region] ?? 75;
-      if (!state.initialized) referenceLifeExpectancy[region] = lifeExpectancy;
-      const lifeGain = Math.max(0, lifeExpectancy - (referenceLifeExpectancy[region] ?? lifeExpectancy));
+      const retirementExtension = Math.max(0, inputs.regionalRetirementAgeExtension[region] ?? 0);
 
       const entrants = Math.max(0, inputs.regionalWorkforceEntrants[region] ?? 0);
-      const entrantShares = bandShares(params, region, inputs.regionalEntrantCollegeShare[region] ?? 0, yearIndex);
-      // Net working-age migrants by band: demographics' college / non-college
-      // split, then this region's advanced and secondary-completion shares
-      const migrantsCollege = inputs.regionalWorkingMigrationCollege[region] ?? 0;
-      const migrantsNonCollege = inputs.regionalWorkingMigrationNonCollege[region] ?? 0;
-      const r = params.regions[region];
-      const secondary = exponentialConvergence(
-        r.secondaryCompletionShare, r.secondaryCompletionTarget, params.secondaryCompletionConvergence, yearIndex);
-      const migrantShares: Record<EducationBand, number> = {
-        primary: migrantsNonCollege * (1 - secondary),
-        secondary: migrantsNonCollege * secondary,
-        tertiary: migrantsCollege * (1 - r.advancedShare),
-        advanced: migrantsCollege * r.advancedShare,
-      };
+      const college = clamp(inputs.regionalEntrantCollegeShare[region] ?? 0, 0, 1);
+      const entrantsByBand = bandSplit(params, region, entrants * (1 - college), entrants * college, yearIndex);
+      const migrantsByBand = bandSplit(
+        params, region,
+        inputs.regionalWorkingMigrationNonCollege[region] ?? 0,
+        inputs.regionalWorkingMigrationCollege[region] ?? 0,
+        yearIndex,
+      );
+      const stockByBand = state.initialized ? null : bandSplit(
+        params, region,
+        Math.max(0, inputs.regionalWorkingNonCollege[region] ?? 0),
+        Math.max(0, inputs.regionalWorkingCollege[region] ?? 0),
+        0,
+      );
 
       vintages[region] = {} as Record<EducationBand, number[]>;
 
       for (const band of EDUCATION_BANDS) {
-        const bandParams = params.bands[band];
-        // Retirement age extends with life expectancy under the pension
-        // block's rule, so the two never disagree about working life.
-        const retirementAge = bandParams.retirementAge + inputs.retirementAgeResponse * lifeGain;
-        const maxYears = retirementAge - bandParams.entryAge;
-        // Useful life: expected years actually spent in the workforce before
-        // exit for any cause (death, disability, domestic role, retirement).
-        const usefulLife = expectedWorkingYears(params, region, band, lifeExpectancy, retirementAge);
-        const unitCost = unitReplacementCost(params, band, gdpPerCapita);
-
-        // --- Seed 2025 vintages from the existing working stock -------------
-        // A steady flow of stock/span people turning 20 per year (uniform
-        // age distribution over the working cohort, the same assumption
-        // demographics makes when it ages 1/45 out per year), thinned by
-        // the survival curve so the seeded ledger is in its steady state.
-        let previous: number[];
-        if (state.initialized) {
-          previous = state.vintages[region]?.[band] ?? [];
-        } else {
-          const working = Math.max(0, (inputs.regionalWorkingCollege[region] ?? 0)) + Math.max(0, (inputs.regionalWorkingNonCollege[region] ?? 0));
-          const college = (inputs.regionalWorkingCollege[region] ?? 0) / Math.max(1e-9, working);
-          const stockShares = bandShares(params, region, college, 0);
-          const steadyFlow = working * stockShares[band] / params.initialWorkingSpan;
-          previous = [];
-          let survival = 1;
-          for (let age = 0; retiredShare(age, maxYears) < 1; age++) {
-            survival *= 1 - totalHazard(exitHazards(params, region, band, lifeExpectancy, age));
-            previous.push(steadyFlow * survival * (1 - retiredShare(age, maxYears)));
-          }
-        }
-
-        // --- Age the ledger, admit this year's entrants ---------------------
-        const bandEntrants = entrants * entrantShares[band];
-        const aged = [bandEntrants, ...previous];   // index = years since entry
-        const investment = bandEntrants * unitCost / 1e12;
-
-        // --- Migration: move headcount between regional ledgers ------------
-        // Net working-age migrants in this band, with a tenure profile that
-        // skews early-career. Emigrants leave with their book value at origin
-        // cost; immigrants are booked at this region's cost. Both are valued
-        // at start-of-year book value, before this year's exits and slice.
-        const bandMigrants = migrantShares[band];
-        let migrationTransfer = 0;
-        if (bandMigrants !== 0 && aged.length > 0) {
-          const weights = aged.map((headcount, age) =>
-            (bandMigrants < 0 ? headcount : 1) * Math.exp(-age / params.migrantTenureScale));
-          const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-          if (totalWeight > 0) {
-            for (let age = 0; age < aged.length; age++) {
-              // Emigrants cannot exceed the vintage; the shortfall is dropped
-              const move = bandMigrants < 0
-                ? -Math.min(aged[age], -bandMigrants * weights[age] / totalWeight)
-                : bandMigrants * weights[age] / totalWeight;
-              aged[age] += move;
-              migrationTransfer += move * unitCost * Math.max(0, 1 - age / usefulLife) / 1e12;
-            }
-          }
-        }
-
-        // --- Exits, write-offs, straight-line depreciation, retirement ------
-        let depreciation = 0;
-        let writeOffs = 0;
-        let grossStock = 0;
-        let netStock = 0;
-        let inService = 0;
-        let deaths = 0;
-        let disabilityExits = 0;
-        let domesticExits = 0;
-        let retirements = 0;
-        const surviving: number[] = [];
-        for (let age = 0; age < aged.length; age++) {
-          const headcount = aged[age];
-          if (headcount <= 0) { surviving.push(0); continue; }
-          const remainingBefore = unitCost * Math.max(0, 1 - age / usefulLife);
-
-          // Pre-retirement exits leave with their remaining book value
-          const hazards = exitHazards(params, region, band, lifeExpectancy, age);
-          const total = totalHazard(hazards);
-          const exits = headcount * total;
-          const scale = total > 0 ? exits / (hazards.death + hazards.disability + hazards.domestic) : 0;
-          deaths += hazards.death * scale;
-          disabilityExits += hazards.disability * scale;
-          domesticExits += hazards.domestic * scale;
-          writeOffs += exits * remainingBefore / 1e12;
-          const alive = headcount - exits;
-
-          // Straight-line slice on survivors, never below zero book value
-          const slice = Math.min(unitCost / usefulLife, remainingBefore);
-          depreciation += alive * slice / 1e12;
-          const remainingAfter = unitCost * Math.max(0, 1 - (age + 1) / usefulLife);
-
-          // Retirement: the share of the vintage past the effective retirement
-          // age leaves the workforce, spread across the two ledger years that
-          // straddle a non-integer retirement age. Any remaining book value of
-          // retirees (only when usefulLife ~ maxYears, i.e. no exit hazards)
-          // is taken as terminal depreciation so the ledger closes exactly.
-          const retiredBefore = retiredShare(age - 1, maxYears);
-          const retiredAfter = retiredShare(age, maxYears);
-          const remaining = retiredBefore >= 1
-            ? 0
-            : alive * (1 - retiredAfter) / (1 - retiredBefore);
-          const retiring = alive - remaining;
-          retirements += retiring;
-          depreciation += retiring * remainingAfter / 1e12;
-
-          if (remaining > 0) {
-            // Still in service (possibly fully depreciated)
-            surviving.push(remaining);
-            inService += remaining;
-            grossStock += remaining * unitCost / 1e12;
-            netStock += remaining * remainingAfter / 1e12;
-          } else {
-            surviving.push(0);
-          }
-        }
-        // Drop trailing retired vintages so the ledger never grows past the
-        // retirement horizon.
-        while (surviving.length > 0 && surviving[surviving.length - 1] === 0) surviving.pop();
-        vintages[region][band] = surviving;
+        const cell = hazardCell(params, region, band);
+        const result = stepCell({
+          cell,
+          lifeExpectancy,
+          // Retirement age extends with life expectancy under the pension
+          // block's rule, so the two never disagree about working life.
+          retirementAge: cell.retirementAge + retirementExtension,
+          unitCost: unitReplacementCost(params, band, gdpPerCapita),
+          entrants: entrantsByBand[band],
+          migrants: migrantsByBand[band],
+          migrantTenureScale,
+          previous: stockByBand
+            ? { seedFlow: stockByBand[band] / initialWorkingSpan, initialWorkingSpan }
+            : state.vintages[region]?.[band] ?? [],
+        });
+        vintages[region][band] = result.surviving;
 
         const b = byBand[band];
-        b.entrants += bandEntrants;
-        b.workersInService += inService;
-        b.investment += investment;
-        b.depreciation += depreciation;
-        b.writeOffs += writeOffs;
-        b.grossStock += grossStock;
-        b.netStock += netStock;
-        b.deaths += deaths;
-        b.disabilityExits += disabilityExits;
-        b.domesticExits += domesticExits;
-        b.retirements += retirements;
-        weighted[band].cost += unitCost * bandEntrants;
-        weighted[band].life += usefulLife * bandEntrants;
-        weighted[band].weight += bandEntrants;
-        unweighted[band].cost += unitCost / REGIONS.length;
-        unweighted[band].life += usefulLife / REGIONS.length;
+        for (const key of BAND_FLOW_KEYS) b[key] += result[key];
+        b.unitCost += result.unitCost * result.entrants;
+        b.usefulLife += result.usefulLife * result.entrants;
+        meanCost[band] += result.unitCost / REGIONS.length;
+        meanLife[band] += result.usefulLife / REGIONS.length;
 
-        account.entrants += bandEntrants;
-        account.investment += investment;
-        account.depreciation += depreciation;
-        account.writeOffs += writeOffs;
-        account.grossStock += grossStock;
-        account.netStock += netStock;
-        account.migrationNetPeople += bandMigrants;
-        account.migrationTransfer += migrationTransfer;
-        if (migrationTransfer > 0) migrationInflows += migrationTransfer;
-        else migrationOutflows -= migrationTransfer;
+        for (const key of REGION_FLOW_KEYS) account[key] += result[key];
+        account.migrationNetPeople += migrantsByBand[band];
+        account.migrationTransfer += result.migrationTransfer;
+        if (result.migrationTransfer > 0) migrationInflows += result.migrationTransfer;
+        else migrationOutflows -= result.migrationTransfer;
       }
 
       const regionGdp = inputs.regionalGdp[region] ?? 0;
@@ -830,42 +915,29 @@ export const humanCapitalModule: Module<
       regional[region] = account;
     }
 
-    let investment = 0;
-    let depreciation = 0;
-    let writeOffs = 0;
-    let grossStock = 0;
-    let netStock = 0;
-    let entrants = 0;
-    let exits = 0;
+    const total = emptyBandAccount();
     for (const band of EDUCATION_BANDS) {
       const b = byBand[band];
-      const w = weighted[band];
-      b.unitCost = w.weight > 0 ? w.cost / w.weight : unweighted[band].cost;
-      b.usefulLife = w.weight > 0 ? w.life / w.weight : unweighted[band].life;
-      investment += b.investment;
-      depreciation += b.depreciation;
-      writeOffs += b.writeOffs;
-      grossStock += b.grossStock;
-      netStock += b.netStock;
-      entrants += b.entrants;
-      exits += b.deaths + b.disabilityExits + b.domesticExits + b.retirements;
+      b.unitCost = b.entrants > 0 ? b.unitCost / b.entrants : meanCost[band];
+      b.usefulLife = b.entrants > 0 ? b.usefulLife / b.entrants : meanLife[band];
+      for (const key of BAND_FLOW_KEYS) total[key] += b[key];
     }
 
     const gdp = inputs.gdp;
     return {
-      state: { initialized: true, referenceLifeExpectancy, vintages },
+      state: { initialized: true, vintages },
       outputs: {
-        humanCapitalInvestment: investment,
-        humanCapitalDepreciation: depreciation,
-        humanCapitalWriteOffs: writeOffs,
-        humanCapitalNetInvestment: investment - depreciation - writeOffs,
-        humanCapitalGrossStock: grossStock,
-        humanCapitalNetStock: netStock,
-        humanCapitalInvestmentGdpShare: gdp > 0 ? investment / gdp : 0,
-        humanCapitalDepreciationGdpShare: gdp > 0 ? depreciation / gdp : 0,
-        humanCapitalNetStockToPhysical: inputs.stock > 0 ? netStock / inputs.stock : 0,
-        workforceEntrants: entrants,
-        workforceExits: exits,
+        humanCapitalInvestment: total.investment,
+        humanCapitalDepreciation: total.depreciation,
+        humanCapitalWriteOffs: total.writeOffs,
+        humanCapitalNetInvestment: total.investment - total.depreciation - total.writeOffs,
+        humanCapitalGrossStock: total.grossStock,
+        humanCapitalNetStock: total.netStock,
+        humanCapitalInvestmentGdpShare: gdp > 0 ? total.investment / gdp : 0,
+        humanCapitalDepreciationGdpShare: gdp > 0 ? total.depreciation / gdp : 0,
+        humanCapitalNetStockToPhysical: inputs.stock > 0 ? total.netStock / inputs.stock : 0,
+        workforceEntrants: total.entrants,
+        workforceExits: total.deaths + total.disabilityExits + total.domesticExits + total.retirements,
         humanCapitalMigrationInflows: migrationInflows,
         humanCapitalMigrationOutflows: migrationOutflows,
         humanCapitalMigrationRevaluation: migrationInflows - migrationOutflows,
@@ -875,32 +947,3 @@ export const humanCapitalModule: Module<
     };
   },
 });
-
-// =============================================================================
-// INTERNAL
-// =============================================================================
-
-/** Deep-merge a partial override onto the defaults (bands, regions, hazards per key). */
-function mergeDeep(partial: Partial<HumanCapitalParams>): HumanCapitalParams {
-  const result: HumanCapitalParams = { ...humanCapitalDefaults, ...partial };
-  if (partial.bands) {
-    result.bands = { ...humanCapitalDefaults.bands };
-    for (const band of EDUCATION_BANDS) {
-      if (partial.bands[band]) {
-        result.bands[band] = { ...humanCapitalDefaults.bands[band], ...partial.bands[band] };
-      }
-    }
-  }
-  if (partial.regions) {
-    result.regions = { ...humanCapitalDefaults.regions };
-    for (const region of REGIONS) {
-      if (partial.regions[region]) {
-        result.regions[region] = { ...humanCapitalDefaults.regions[region], ...partial.regions[region] };
-      }
-    }
-  }
-  if (partial.hazards) {
-    result.hazards = { ...humanCapitalDefaults.hazards, ...partial.hazards };
-  }
-  return result;
-}

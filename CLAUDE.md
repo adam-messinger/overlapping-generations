@@ -230,8 +230,8 @@ Do this before committing. Most fix-up commits in project history would have bee
   domestic-role, and retirement exits (calibrated to Eurostat duration of
   working life by attainment, ~32/37/39/38 yr in the OECD); pre-retirement
   exits are written off at remaining book value
-- Retirement ages extend with life expectancy under capital's
-  `retirementAgeResponse` (read via param injection, one source of truth)
+- Retirement ages extend with life expectancy by capital's
+  `regionalRetirementAgeExtension` output (one source of truth)
 - Entrants and the college split come from demographics' new
   `regionalWorkforceEntrants` / `regionalEntrantCollegeShare` outputs;
   demographics' net working-age migration moves vintages between regional

@@ -5,8 +5,15 @@
  * NaN-guarded: numeric assertions fail explicitly on NaN instead of silently passing.
  */
 
+import { REGIONS, type Region } from './domain-types.js';
+
 let passed = 0;
 let failed = 0;
+
+/** A per-region record with the same value everywhere (test fixtures). */
+export function regional(value: number): Record<Region, number> {
+  return Object.fromEntries(REGIONS.map(region => [region, value])) as Record<Region, number>;
+}
 
 export function test(name: string, fn: () => void) {
   try {

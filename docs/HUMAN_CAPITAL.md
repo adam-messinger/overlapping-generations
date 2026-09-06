@@ -91,7 +91,7 @@ L = sum over t < retirementAge - entryAge of S(t)
 | death | `mortalityBase x exp(0.08 x (age - 40)) x exp(0.06 x (75 - LE)) x band multiplier` | 0.2%/yr at 40 in a LE-75 population, ~1%/yr at 60 (HMD life tables); SSA/OECD working-age mortality ratio ~3x (WHO GHE 2021); education gradient ~1.5x (Case and Deaton 2021) |
 | disability | `disabilityBase x exp(0.06 x (age - 40)) x band multiplier` | SSA disability awards ~2-3 per 1,000 at 40 rising to ~15 at 60; a 20-year-old has ~25% chance of a disability spell before retirement; 2-3x for the least educated |
 | domestic / non-participation | constant hazard over the first 15 years after entry that removes `domesticExitShare x band multiplier` of the vintage | half the male-female participation gap relative to male participation (ILOSTAT 2023): OECD 0.12, China 0.09, India 0.29, LatAm 0.15, SE Asia 0.13, Russia+CIS 0.11, MENA 0.36, SSA 0.08; falls steeply with attainment |
-| retirement | everyone still active exits at the band's effective retirement age | OECD effective exit age ~64 (Pensions at a Glance 2023); college/non-college gap 2-3 yr (Rutledge 2018); extends with life expectancy under capital's `retirementAgeResponse` |
+| retirement | everyone still active exits at the band's effective retirement age | OECD effective exit age ~64 (Pensions at a Glance 2023); college/non-college gap 2-3 yr (Rutledge 2018); extends with life expectancy by capital's `regionalRetirementAgeExtension` |
 
 With the default hazards the OECD expected working lives are about 32, 37,
 39, and 38 years by band, against Eurostat's duration-of-working-life
@@ -99,8 +99,9 @@ indicator by attainment (EU-27, 2023: ISCED 0-2 about 31 years, ISCED 3-4
 about 36, ISCED 5-8 about 40). India and MENA are much lower for the primary
 and secondary bands because the domestic-role exit is large there.
 
-The retirement age rule is read from the capital module's parameters so the
-pension block and this ledger never disagree about working life.
+The extension of retirement ages with life expectancy is the capital
+module's `regionalRetirementAgeExtension` output, so the pension block and
+this ledger never disagree about working life.
 
 ## Depreciation and write-offs
 

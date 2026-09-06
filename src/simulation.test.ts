@@ -272,7 +272,7 @@ test('human-capital ledger is reported and its parameters do not feed back into 
   const costly = runSimulation({
     startYear: 2025,
     endYear: 2030,
-    humanCapital: { rearingCostShare: 0.6, bands: { tertiary: { retirementAge: 50 } } } as any,
+    humanCapital: { rearingCostShare: 0.6, bands: { tertiary: { retirementAge: 50 } } },
   });
   const baseFinal = base.results[base.results.length - 1];
   const costlyFinal = costly.results[costly.results.length - 1];

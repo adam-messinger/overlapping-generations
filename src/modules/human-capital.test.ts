@@ -10,18 +10,15 @@
  */
 
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary } from '../test-utils.js';
+import { test, expect, printSummary, regional } from '../test-utils.js';
 import {
   humanCapitalModule,
   humanCapitalDefaults,
   unitReplacementCost,
   expectedWorkingYears,
   exitHazards,
+  type HumanCapitalOverrides,
 } from './human-capital.js';
-
-function regional(value: number): Record<Region, number> {
-  return Object.fromEntries(REGIONS.map(region => [region, value])) as Record<Region, number>;
-}
 
 /** Inputs for a one-band world: every entrant is a secondary completer. */
 function makeInputs(overrides: Record<string, any> = {}) {
@@ -35,29 +32,29 @@ function makeInputs(overrides: Record<string, any> = {}) {
     regionalGdp: regional(2),
     regionalWorkingMigrationCollege: regional(0),
     regionalWorkingMigrationNonCollege: regional(0),
+    regionalRetirementAgeExtension: regional(0),
     gdp: 16,
     stock: 50,
-    retirementAgeResponse: 0.67,
     ...overrides,
   };
 }
 
-const ALL_SECONDARY = Object.fromEntries(REGIONS.map(region => [region, {
+const ALL_SECONDARY: HumanCapitalOverrides['regions'] = Object.fromEntries(REGIONS.map(region => [region, {
   secondaryCompletionShare: 1, secondaryCompletionTarget: 1, advancedShare: 0, domesticExitShare: 0,
-}])) as any;
+}]));
 
 /** One band, no exit hazards: useful life = retirement age - entry age exactly. */
-const NO_HAZARDS = {
+const NO_HAZARDS: HumanCapitalOverrides = {
   regions: ALL_SECONDARY,
   hazards: { mortalityBase: 0, disabilityBase: 0 },
 };
 
 function runYears(
   years: number,
-  paramOverrides: Record<string, any> = {},
+  paramOverrides: HumanCapitalOverrides = {},
   inputsFor: (yearIndex: number) => Record<string, any> = () => ({}),
 ) {
-  const params = humanCapitalModule.mergeParams(paramOverrides as any);
+  const params = humanCapitalModule.mergeParams(paramOverrides);
   let state = humanCapitalModule.init(params);
   const outputs: any[] = [];
   for (let i = 0; i < years; i++) {
@@ -113,7 +110,7 @@ test('OECD useful lives by band track Eurostat duration of working life (~31 / 3
 });
 
 test('every exit cause shortens useful life: death, disability, domestic role, retirement', () => {
-  const merge = (o: any) => humanCapitalModule.mergeParams(o);
+  const merge = (o: HumanCapitalOverrides) => humanCapitalModule.mergeParams(o);
   const base = expectedWorkingYears(merge(NO_HAZARDS), 'india', 'secondary', 71, 63);
   expect(base).toBeCloseTo(63 - 18, 9);
   const withDeath = expectedWorkingYears(merge({ ...NO_HAZARDS, hazards: { disabilityBase: 0 } }), 'india', 'secondary', 71, 63);
@@ -132,7 +129,7 @@ test('every exit cause shortens useful life: death, disability, domestic role, r
 
 test('exit hazards carry the documented gradients: age, life expectancy, education, region', () => {
   const p = humanCapitalDefaults;
-  const at = (region: Region, band: any, le: number, t: number) => exitHazards(p, region, band, le, t);
+  const at = (region: Region, band: EducationBand, le: number, t: number) => exitHazards(p, region, band, le, t);
   // Age: hazards rise with years since entry
   expect(at('oecd', 'secondary', 81, 30).death).toBeGreaterThan(at('oecd', 'secondary', 81, 5).death);
   expect(at('oecd', 'secondary', 81, 30).disability).toBeGreaterThan(at('oecd', 'secondary', 81, 5).disability);
@@ -187,10 +184,10 @@ test('steady state with hazards: depreciation plus write-offs equals investment'
   const out = outputs[59];
   expect(out.humanCapitalWriteOffs).toBeGreaterThan(0);
   expect(out.humanCapitalDepreciation + out.humanCapitalWriteOffs)
-    .toBeCloseTo(out.humanCapitalInvestment, 4);
-  expect(out.humanCapitalNetInvestment).toBeCloseTo(0, 4);
+    .toBeCloseTo(out.humanCapitalInvestment, 9);
+  expect(out.humanCapitalNetInvestment).toBeCloseTo(0, 9);
   // Entrants equal exits once the seeded ledger has fully turned over
-  expect(out.workforceExits).toBeCloseTo(out.workforceEntrants, -1);
+  expect(out.workforceExits).toBeCloseTo(out.workforceEntrants, 3);
 });
 
 test('steady state without hazards: net stock is half the gross stock, in service = entrants x (life - 1)', () => {
@@ -270,8 +267,7 @@ test('workers who outlive their expected working life stay in service at zero bo
   let untilRetirement = 0;
   let untilUsefulLife = 0;
   for (let t = 0; t < span - 1; t++) {
-    const h = exitHazards(params, 'oecd', 'secondary', 75, t);
-    survival *= 1 - (h.death + h.disability + h.domestic);
+    survival *= 1 - exitHazards(params, 'oecd', 'secondary', 75, t).total;
     untilRetirement += survival;
     if (t + 1 < band.usefulLife) untilUsefulLife += survival;
   }
@@ -299,15 +295,10 @@ test('exits are attributed by cause and sum to the global exit flow', () => {
 
 // --- Migration transfers ---------------------------------------------------------
 
-/** 0.2M/yr working-age movers from india to oecd, all secondary band. */
-function migrationInputs(extra: Record<string, any> = {}) {
-  const college = regional(0);
-  const nonCollege = regional(0);
-  nonCollege.india = -0.2e6;
-  nonCollege.oecd = 0.2e6;
+/** `people` working-age movers a year from one region to another, all secondary band. */
+function migrationInputs(from: Region = 'india', to: Region = 'oecd', people = 0.2e6, extra: Record<string, any> = {}) {
   return {
-    regionalWorkingMigrationCollege: college,
-    regionalWorkingMigrationNonCollege: nonCollege,
+    regionalWorkingMigrationNonCollege: { ...regional(0), [from]: -people, [to]: people },
     regionalGdpPerCapita: { ...regional(20_000), oecd: 60_000, india: 5_000 },
     ...extra,
   };
@@ -338,14 +329,12 @@ test('migrants are revalued at destination cost: inflows exceed outflows when mo
   expect(out.humanCapitalMigrationRevaluation).toBeCloseTo(
     out.humanCapitalMigrationInflows - out.humanCapitalMigrationOutflows, 9);
   // Reverse the direction: equal and opposite valuation
-  const swapped = migrationInputs();
-  swapped.regionalWorkingMigrationNonCollege = { ...regional(0), india: 0.2e6, oecd: -0.2e6 };
-  const [back] = runYears(1, NO_HAZARDS, () => swapped);
+  const [back] = runYears(1, NO_HAZARDS, () => migrationInputs('oecd', 'india'));
   expect(back.humanCapitalMigrationRevaluation).toBeLessThan(0);
 });
 
 test('closure with migration: net stock change = investment + transfer - depreciation - write-offs per region', () => {
-  const outputs = runYears(15, {}, () => migrationInputs({ regionalEntrantCollegeShare: regional(0.3) }));
+  const outputs = runYears(15, {}, () => migrationInputs('india', 'oecd', 0.2e6, { regionalEntrantCollegeShare: regional(0.3) }));
   for (let i = 1; i < outputs.length; i++) {
     for (const region of ['oecd', 'india', 'china'] as Region[]) {
       const a = outputs[i - 1].regionalHumanCapital[region];
@@ -364,9 +353,10 @@ test('migrants skew early-career: a shorter tenure scale transfers more book val
 });
 
 test('emigration cannot remove more than a ledger holds', () => {
-  const inputs = migrationInputs({ regionalWorkingNonCollege: regional(0), regionalWorkforceEntrants: regional(0) });
-  inputs.regionalWorkingMigrationNonCollege = { ...regional(0), india: -1e6, oecd: 1e6 };
-  const [out] = runYears(1, NO_HAZARDS, () => inputs);
+  const [out] = runYears(1, NO_HAZARDS, () => migrationInputs('india', 'oecd', 1e6, {
+    regionalWorkingNonCollege: regional(0),
+    regionalWorkforceEntrants: regional(0),
+  }));
   expect(out.regionalHumanCapital.india.grossStock).toBeCloseTo(0, 9);
   expect(out.humanCapitalMigrationOutflows).toBeCloseTo(0, 9);
   expect(Number.isFinite(out.humanCapitalNetStock)).toBeTrue();
@@ -374,8 +364,8 @@ test('emigration cannot remove more than a ledger holds', () => {
 
 // --- Retirement age and life expectancy --------------------------------------
 
-test('retirement age extends with life-expectancy gains under the retirement-age response', () => {
-  const outputs = runYears(2, NO_HAZARDS, i => ({ regionalLifeExpectancy: regional(i === 0 ? 75 : 78) }));
+test("retirement age extends by capital's life-expectancy extension", () => {
+  const outputs = runYears(2, NO_HAZARDS, i => ({ regionalRetirementAgeExtension: regional(i === 0 ? 0 : 0.67 * 3) }));
   const span = humanCapitalDefaults.bands.secondary.retirementAge - humanCapitalDefaults.bands.secondary.entryAge;
   expect(outputs[0].humanCapitalByBand.secondary.usefulLife).toBeCloseTo(span, 9);
   expect(outputs[1].humanCapitalByBand.secondary.usefulLife).toBeCloseTo(span + 0.67 * 3, 6);
@@ -440,7 +430,7 @@ test('mergeParams deep-merges band, region, and hazard overrides', () => {
     bands: { tertiary: { retirementAge: 70 } },
     regions: { ssa: { advancedShare: 0.2 } },
     hazards: { disabilityBase: 0.001 },
-  } as any);
+  });
   expect(params.bands.tertiary.retirementAge).toBe(70);
   expect(params.bands.tertiary.entryAge).toBe(humanCapitalDefaults.bands.tertiary.entryAge);
   expect(params.bands.primary.retirementAge).toBe(humanCapitalDefaults.bands.primary.retirementAge);
@@ -453,9 +443,9 @@ test('mergeParams deep-merges band, region, and hazard overrides', () => {
 
 test('validation rejects out-of-range values', () => {
   expect(humanCapitalModule.validate({ rearingCostShare: 1.5 }).valid).toBeFalse();
-  expect(humanCapitalModule.validate({ hazards: { mortalityBase: -0.1 } } as any).valid).toBeFalse();
-  expect(humanCapitalModule.validate({ bands: { primary: { retirementAge: 12 } } } as any).valid).toBeFalse();
-  expect(humanCapitalModule.validate({ regions: { india: { domesticExitShare: 1.2 } } } as any).valid).toBeFalse();
+  expect(humanCapitalModule.validate({ hazards: { mortalityBase: -0.1 } }).valid).toBeFalse();
+  expect(humanCapitalModule.validate({ bands: { primary: { retirementAge: 12 } } }).valid).toBeFalse();
+  expect(humanCapitalModule.validate({ regions: { india: { domesticExitShare: 1.2 } } }).valid).toBeFalse();
   expect(humanCapitalModule.validate({ migrantTenureScale: 0 }).valid).toBeFalse();
   expect(humanCapitalModule.validate({}).valid).toBeTrue();
   expect(() => humanCapitalModule.mergeParams({ rearingCostShare: -1 })).toThrow();

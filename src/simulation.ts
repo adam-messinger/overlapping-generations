@@ -33,7 +33,7 @@ import type { DemandParams } from './modules/demand.js';
 import type { CapitalParams } from './modules/capital.js';
 import type { GenerationsParams, CohortAccount } from './modules/generations.js';
 import type {
-  HumanCapitalParams,
+  HumanCapitalOverrides,
   HumanCapitalBandAccount,
   HumanCapitalRegionAccount,
 } from './modules/human-capital.js';
@@ -57,7 +57,7 @@ export interface SimulationParams {
   demand?: Partial<DemandParams>;
   capital?: Partial<CapitalParams>;
   generations?: Partial<GenerationsParams>;
-  humanCapital?: Partial<HumanCapitalParams>;
+  humanCapital?: HumanCapitalOverrides;
   energy?: Partial<EnergyParams>;
   dispatch?: Partial<DispatchParams>;
   resources?: Partial<ResourcesParams>;

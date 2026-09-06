@@ -22,20 +22,8 @@ import {
   type PortMeta,
 } from 'tsimulation';
 import { standardCollectors } from './standard-collectors.js';
-import { deepMerge } from './scenario.js';
-
-// Import all modules for auto-generated schema
-import { climateModule } from './modules/climate.js';
-import { energyModule } from './modules/energy.js';
-import { demandModule } from './modules/demand.js';
-import { demographicsModule } from './modules/demographics.js';
-import { capitalModule } from './modules/capital.js';
-import { generationsModule } from './modules/generations.js';
-import { humanCapitalModule } from './modules/human-capital.js';
-import { dispatchModule } from './modules/dispatch.js';
-import { productionModule } from './modules/production.js';
-import { resourcesModule } from './modules/resources.js';
-import { cdrModule } from './modules/cdr.js';
+import { deepMerge } from './primitives/deep-merge.js';
+import { ALL_MODULES } from './simulation-autowired.js';
 
 // =============================================================================
 // TYPES
@@ -55,24 +43,6 @@ export interface ParameterInfo {
 export interface ParameterSchema {
   [key: string]: ParameterInfo;
 }
-
-// =============================================================================
-// ALL MODULES (for auto-generation)
-// =============================================================================
-
-const ALL_MODULES = [
-  climateModule,
-  energyModule,
-  demandModule,
-  demographicsModule,
-  capitalModule,
-  generationsModule,
-  humanCapitalModule,
-  dispatchModule,
-  productionModule,
-  resourcesModule,
-  cdrModule,
-] as any[];
 
 // =============================================================================
 // SCHEMA (auto-generated from module paramMeta)

@@ -76,8 +76,7 @@ export const ALL_MODULES: AnyModule[] = [
 function buildTransforms(
   mergedEnergyParams: any,
   mergedProductionParams: any,
-  mergedDemandParams: any,
-  mergedCapitalParams: any
+  mergedDemandParams: any
 ) {
   // Mutable closure: captures gdpPerCapita2025 on first year
   let capturedGdpPerCapita2025 = 0;
@@ -160,17 +159,6 @@ function buildTransforms(
       dependsOn: [],
       inputTypes: {},
       outputType: unitPort('people/robot'),
-    },
-
-    // The human-capital ledger extends useful working lives with life
-    // expectancy under capital's retirement-age rule (one source of truth:
-    // a scenario that changes how pensions respond to longevity changes
-    // depreciation lives the same way). Param injection, as carbonPrice.
-    retirementAgeResponse: {
-      fn: () => mergedCapitalParams.retirementAgeResponse,
-      dependsOn: [],
-      inputTypes: {},
-      outputType: unitPort('fraction'),
     },
 
     // Regional GDP allocation uses the same labor exponent as aggregate
@@ -808,7 +796,6 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
     energyModule.mergeParams(params.energy ?? {}),
     productionModule.mergeParams(params.production ?? {}),
     demandModule.mergeParams(params.demand ?? {}),
-    capitalModule.mergeParams(params.capital ?? {}),
   );
   return auditConnectorContracts(ALL_MODULES, transforms, buildLags(params));
 }
@@ -832,13 +819,11 @@ export function runAutowiredSimulation(
   // efficiency-coupling below — the coupled keys don't touch this param.
   const mergedProductionParams = productionModule.mergeParams(params.production ?? {});
   const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
-  const mergedCapitalParams = capitalModule.mergeParams(params.capital ?? {});
 
   const transforms = buildTransforms(
     mergedEnergyParams,
     mergedProductionParams,
-    mergedDemandParams,
-    mergedCapitalParams
+    mergedDemandParams
   );
   const lags = buildLags(params);
 
@@ -915,7 +900,6 @@ export function runAutowiredSimulation(
         ]),
       ],
       climate: ['sensitivity'],
-      capital: ['retirementAgeResponse'],
     },
     // Fixed-point warm-up: flow lags (generation, non-electric energy,
     // overheads, damages, prices) get their year-0 self-consistent values
