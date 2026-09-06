@@ -136,7 +136,8 @@ const { result: nz } = await runWithScenario('scenarios/net-zero.json');
   ([materials](docs/CRITICAL_MATERIALS_NETWORK.md), [Hormuz](docs/HORMUZ_SIMULATION.md))
 - `src/simulations/{news,heat,drug-supply,trade,financial-contagion}/` — small
   news-driven stress tests with frozen backcasts and explicit scenario inputs
-  ([method, results, and limitations](docs/NEWS_STRESS_TESTS_2026-07-22.md))
+  ([method, results, and limitations](docs/NEWS_STRESS_TESTS_2026-07-22.md);
+  latest pass: [6 September 2026](docs/NEWS_STRESS_TESTS_2026-09-06.md))
 - `src/simulations/trade/network-*` — an exporter-by-HS6 trade graph with
   customs-policy incidence, supplier diversion and input-output propagation
   ([method, calibration, and July 2026 result](docs/TRADE_NETWORK_TARIFFS.md))

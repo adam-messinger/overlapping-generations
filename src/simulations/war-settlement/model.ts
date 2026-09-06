@@ -26,7 +26,7 @@ import {
 } from './data.js';
 
 const E = warSettlementEvidence;
-const DAYS_PER_MONTH = 30.4;
+export const DAYS_PER_MONTH = 30.4;
 
 export interface WarSettlementMonth {
   monthIndex: number;
@@ -154,14 +154,14 @@ const IRAN_DRONES_PER_MONTH = 580;
 const CHINA_HORMUZ_IMPORT_SHARE = 0.45;
 
 /** Bypass pipelines rarely run at nameplate; crude only, never products. */
-const BYPASS_UTILIZATION = 0.75;
+export const BYPASS_UTILIZATION = 0.75;
 
 /**
  * War-risk premium on Brent at full combat tempo, $/bbl. Fitted jointly with
  * the elasticity to the June trough and the 29 July close, and it carries the
  * part of the price that is expectation rather than physical shortfall.
  */
-const WAR_RISK_PREMIUM_USD = 29;
+export const WAR_RISK_PREMIUM_USD = 29;
 
 /**
  * Iranian export volume falls this much per unit of combat tempo. Set so that
@@ -187,7 +187,7 @@ const IRAN_INDEXATION_HALFLIFE_MONTHS = 12;
  */
 const SETTLEMENT_DURABILITY = 0.45;
 
-const monthLabel = (year: number, month: number): string => {
+export const monthLabel = (year: number, month: number): string => {
   const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${names[month - 1]} ${year}`;
 };

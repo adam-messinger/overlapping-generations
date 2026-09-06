@@ -121,7 +121,7 @@ import type {
   HormuzSimulationResult,
   RegionalHormuzMonthResult,
 } from './critical-materials/hormuz-model.js';
-import type { CountermeasureParams } from './outbreak/model.js';
+import type { CountermeasureParams, ResponseStage } from './outbreak/model.js';
 import {
   FORECAST_QUANTILES,
   type ProbabilisticForecast,
@@ -1155,6 +1155,14 @@ export const HORMUZ_WEBER_INFLATION_RESULT_PORT =
   });
 
 // Outbreak and composed macro experiment ------------------------------------
+
+export const RESPONSE_STAGE_PORT = objectPort<ResponseStage>({
+  startDay: unitPort('day'),
+  multiplier: unitPort('fraction'),
+  rampDays: unitPort('day'),
+});
+
+export const RESPONSE_STAGES_PORT = vectorPort<ResponseStage>(RESPONSE_STAGE_PORT);
 
 export const COUNTERMEASURE_PORT = objectPort<CountermeasureParams>({
   startDay: unitPort('day'),
