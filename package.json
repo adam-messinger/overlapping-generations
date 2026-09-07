@@ -35,6 +35,7 @@
     "trade:calibrate-network": "node --import tsx scripts/calibrate-trade-diversion.ts",
     "trade:network": "node --import tsx scripts/trade-network-tariff-scenario.ts",
     "human-capital": "node --import tsx scripts/human-capital.ts",
+    "human-capital:trajectory": "node --import tsx scripts/human-capital-trajectory.ts",
     "war:settlement": "node --import tsx scripts/war-settlement-scenario.ts",
     "prewar:settlement": "npm run build:framework",
     "news:2026-07-24": "node --import tsx scripts/headlines-2026-07-24.ts",

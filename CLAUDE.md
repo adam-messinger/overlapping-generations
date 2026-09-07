@@ -251,6 +251,8 @@ Do this before committing. Most fix-up commits in project history would have bee
   ledgers, each region booking the transfer at its own replacement cost
   (`humanCapitalMigrationRevaluation` = the world-level brain-gain premium)
 - Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
+- Trajectory (constant-cost stock by region, peak years, migration):
+  `npm run human-capital:trajectory`; see `docs/HUMAN_CAPITAL_TRAJECTORY.md`
 
 ## Scenarios
 
