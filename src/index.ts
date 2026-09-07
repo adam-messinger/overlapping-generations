@@ -6,7 +6,16 @@
 
 // Simulation
 export { runSimulation, runWithScenario } from './simulation.js';
-export type { SimulationParams, RunOptions, SimulationResult, SimulationMetrics, YearResult } from './simulation.js';
+export type {
+  SimulationParams,
+  RunOptions,
+  SimulationResult,
+  SimulationMetrics,
+  YearResult,
+  MacroSimulationResult,
+  MacroYearResult,
+  ScenarioRun,
+} from './simulation.js';
 
 // Scenario loader
 export { loadScenario, scenarioToParams, listScenarios, getScenarioPath, deepMerge } from './scenario.js';
@@ -68,6 +77,8 @@ export { runAutowired, initAutowired, stepAutowired, finalizeAutowired, buildOut
 export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireConfig, AutowireResult, AutowireState, AnyModule } from 'tsimulation';
 export type { PortMeta, PortValueType } from 'tsimulation';
 export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics } from './simulation-autowired.js';
+export { DIAGNOSTIC_MODULES, DIAGNOSTIC_FIELDS, MACRO_MODULES } from './simulation-autowired.js';
+export type { DiagnosticField } from './simulation-autowired.js';
 export {
   analyzeFinancialLocalStability,
   compareFinancialTimesteps,

@@ -44,6 +44,8 @@ import type { ClimateParams } from './modules/climate.js';
 import type { CDRParams } from './modules/cdr.js';
 import type { Region, EnergySource, EducationBand } from './domain-types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
+import type { DiagnosticField } from './simulation-autowired.js';
+
 
 // =============================================================================
 // TYPES
@@ -78,7 +80,18 @@ export interface SimulationParams {
  * cannot silently fail to reach the domain API.
  */
 export interface RunOptions
-  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads'> {}
+  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads'> {
+  /**
+   * Run the diagnostic ledgers (`generations`, `humanCapital`). Default true.
+   *
+   * They are pure diagnostics — nothing in the macro path reads their outputs
+   * — but they cost roughly 57% of a run, so ensembles and sweeps that only
+   * need macro results should turn them off. With `false`, their `YearResult`
+   * fields are absent and the return type narrows to `MacroSimulationResult`,
+   * so reading one is a compile error rather than a silent `undefined`.
+   */
+  diagnostics?: boolean;
+}
 
 export interface YearResult {
   year: number;
@@ -358,6 +371,23 @@ export interface SimulationResult {
   metrics: SimulationMetrics;
 }
 
+/** A scenario run: the scenario's identity plus its result. */
+export interface ScenarioRun<T> {
+  scenario: { name: string; description: string };
+  result: T;
+}
+
+/** A `YearResult` without the fields the diagnostic ledgers produce. */
+export type MacroYearResult = Omit<YearResult, DiagnosticField>;
+
+/** What a `diagnostics: false` run returns. Metrics are unaffected — no
+ *  metric aggregates a diagnostic source. */
+export interface MacroSimulationResult {
+  years: number[];
+  results: MacroYearResult[];
+  metrics: SimulationMetrics;
+}
+
 export interface SimulationMetrics {
   // Population
   peakPopulation: number;
@@ -390,9 +420,17 @@ export interface SimulationMetrics {
  * Delegates to the autowired simulation path.
  */
 export function runSimulation(
+  params?: SimulationParams,
+  options?: RunOptions & { diagnostics?: true },
+): SimulationResult;
+export function runSimulation(
+  params: SimulationParams | undefined,
+  options: RunOptions & { diagnostics: false },
+): MacroSimulationResult;
+export function runSimulation(
   params: SimulationParams = {},
-  options?: RunOptions
-): SimulationResult {
+  options?: RunOptions,
+): SimulationResult | MacroSimulationResult {
   return runAutowiredFull(params, options);
 }
 
@@ -402,8 +440,18 @@ export function runSimulation(
 export async function runWithScenario(
   scenarioPath: string,
   overrides?: SimulationParams,
-  options?: RunOptions
-): Promise<{ scenario: { name: string; description: string }; result: SimulationResult }> {
+  options?: RunOptions & { diagnostics?: true },
+): Promise<ScenarioRun<SimulationResult>>;
+export async function runWithScenario(
+  scenarioPath: string,
+  overrides: SimulationParams | undefined,
+  options: RunOptions & { diagnostics: false },
+): Promise<ScenarioRun<MacroSimulationResult>>;
+export async function runWithScenario(
+  scenarioPath: string,
+  overrides?: SimulationParams,
+  options?: RunOptions,
+): Promise<ScenarioRun<SimulationResult | MacroSimulationResult>> {
   const { loadScenario, scenarioToParams, deepMerge } = await import('./scenario.js');
 
   const scenario = await loadScenario(scenarioPath);
@@ -413,7 +461,7 @@ export async function runWithScenario(
     params = deepMerge(params, overrides);
   }
 
-  const result = runSimulation(params, options);
+  const result = runAutowiredFull(params, options);
 
   return {
     scenario: { name: scenario.name, description: scenario.description },

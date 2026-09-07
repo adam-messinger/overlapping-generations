@@ -23,7 +23,7 @@ import {
 } from 'tsimulation';
 import { standardCollectors } from './standard-collectors.js';
 import { deepMerge } from './primitives/deep-merge.js';
-import { ALL_MODULES } from './simulation-autowired.js';
+import { ALL_MODULES, DIAGNOSTIC_MODULES } from './simulation-autowired.js';
 
 // =============================================================================
 // TYPES
@@ -129,6 +129,11 @@ export interface OutputInfo {
   module: string;
   /** Authoritative recursive producer/output contract. */
   contract: PortMeta;
+  /**
+   * True for a field produced by a diagnostic-only module. Absent from a
+   * `runSimulation(params, { diagnostics: false })` run.
+   */
+  diagnostic?: boolean;
 }
 
 export interface OutputSchema {
@@ -163,6 +168,7 @@ export function describeOutputs(): OutputSchema {
       description: def.description,
       module: def.module ?? '',
       contract,
+      ...(DIAGNOSTIC_MODULES.includes(def.module as never) ? { diagnostic: true } : {}),
     };
   }
 

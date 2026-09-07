@@ -21,6 +21,7 @@ import {
   auditConnectorContracts,
   collectResults,
   unitPort,
+  type CollectorConfig,
 } from 'tsimulation';
 import {
   CARBON_PORT,
@@ -45,11 +46,53 @@ import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './domain-types.js';
-import type { SimulationParams, RunOptions, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
+import type {
+  SimulationParams,
+  RunOptions,
+  YearResult,
+  MacroYearResult,
+  SimulationMetrics,
+  SimulationResult,
+} from './simulation.js';
 
 // =============================================================================
 // MODULES
 // =============================================================================
+
+/**
+ * Modules that keep diagnostic ledgers only. Nothing in the macro path reads
+ * their outputs — they reconcile to the capital and debt stocks but do not
+ * feed back (CLAUDE.md, `docs/GENERATIONAL_ACCOUNTS.md`, `docs/HUMAN_CAPITAL.md`)
+ * — so a run that only needs macro results can omit them.
+ *
+ * They are not cheap: together they are roughly 57% of a default run, because
+ * they own the widest nested ports in the model (`cohortAccounts`,
+ * `regionalCohortAccounts`, `humanCapitalByBand`) and every leaf of those is
+ * unit-checked on every step.
+ *
+ * This list is hand-maintained deliberately. It cannot be derived from the
+ * dependency graph: `buildDependencyGraph` adds no edge for a lag-fed input,
+ * so `climate`, `dispatch`, `resources` and `cdr` are graph leaves too —
+ * pruning "modules nothing depends on" would delete the run's headline metric.
+ * What makes these two skippable is that no *collector* outside them reads
+ * them either, which is a domain fact, not a graph property.
+ */
+export const DIAGNOSTIC_MODULES = ['generations', 'humanCapital'] as const;
+
+/**
+ * `YearResult` fields the diagnostic modules produce, and so the fields absent
+ * from a `diagnostics: false` run. Derived from the modules' own output
+ * declarations — `Module.outputs` is typed `readonly (keyof TOutputs)[]`, which
+ * gives literal keys for `MacroYearResult` and the runtime list in one place.
+ */
+export type DiagnosticField =
+  | (typeof generationsModule.outputs)[number]
+  | (typeof humanCapitalModule.outputs)[number];
+
+export const DIAGNOSTIC_FIELDS: readonly DiagnosticField[] = [
+  ...generationsModule.outputs,
+  ...humanCapitalModule.outputs,
+];
 
 export const ALL_MODULES: AnyModule[] = [
   demographicsModule,
@@ -64,6 +107,67 @@ export const ALL_MODULES: AnyModule[] = [
   cdrModule,
   climateModule,
 ];
+
+const DIAGNOSTIC_MODULE_SET: ReadonlySet<string> = new Set(DIAGNOSTIC_MODULES);
+
+/** The macro path alone — see the bit-identity test in `simulation.test.ts`. */
+export const MACRO_MODULES: AnyModule[] = ALL_MODULES.filter(
+  (mod) => !DIAGNOSTIC_MODULE_SET.has(mod.name),
+);
+
+/**
+ * `standardCollectors` minus the entries fed by modules that will not run.
+ *
+ * Keyed on the owning module rather than on runtime absence: a collector whose
+ * `source` is simply misspelled must still fail loudly instead of being
+ * silently dropped.
+ */
+export const macroCollectors: CollectorConfig = {
+  ...standardCollectors,
+  timeseries: standardCollectors.timeseries.filter(
+    (entry) => entry.module === undefined || !DIAGNOSTIC_MODULE_SET.has(entry.module),
+  ),
+  metrics: standardCollectors.metrics?.filter(
+    (entry) => entry.source === undefined || !DIAGNOSTIC_MODULE_SET.has(entry.source),
+  ),
+};
+
+const modulesFor = (diagnostics: boolean) => (diagnostics ? ALL_MODULES : MACRO_MODULES);
+const collectorsFor = (diagnostics: boolean) =>
+  diagnostics ? standardCollectors : macroCollectors;
+
+/**
+ * The macro path on its own. Dropping the diagnostic ledgers cuts a run by
+ * roughly 57% and provably does not move a single macro number — see the
+ * bit-identity test in `simulation.test.ts`.
+ */
+/**
+ * Diagnostic-module parameters, or nothing when those modules are not running.
+ *
+ * Overrides for a module that will not run are dropped, so they are reported
+ * rather than silently ignored — the engine's own `paramLiveness` check cannot
+ * catch them, because the key never reaches it. Reported at the severity that
+ * option asks for, so an ensemble running with `'off'` gets no console noise
+ * and one running with `'error'` gets a throw.
+ */
+function diagnosticParams(
+  params: SimulationParams,
+  diagnostics: boolean,
+  liveness: NonNullable<RunOptions['paramLiveness']>,
+) {
+  if (diagnostics) {
+    return Object.fromEntries(DIAGNOSTIC_MODULES.map((key) => [key, params[key]]));
+  }
+  const supplied = DIAGNOSTIC_MODULES.filter((key) => params[key] !== undefined);
+  if (supplied.length > 0 && liveness !== 'off') {
+    const message =
+      `diagnostics: false — overrides for ${supplied.join(', ')} were dropped ` +
+      'because those modules did not run';
+    if (liveness === 'error') throw new Error(`[simulation] ${message}`);
+    console.warn(`[simulation] ${message}`);
+  }
+  return {};
+}
 
 // =============================================================================
 // BUILD TRANSFORMS AND LAGS
@@ -812,6 +916,7 @@ export function runAutowiredSimulation(
   options?: RunOptions
 ): AutowireResult {
   // Merge energy params to read carbon prices
+  const diagnostics = options?.diagnostics ?? true;
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
   // Merge production params to inject robotLaborEquivalent into demand's
   // deployment rule (one source of truth: a scenario overriding production's
@@ -856,7 +961,7 @@ export function runAutowiredSimulation(
   coupledCdr.tcre ??= cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
 
   return runAutowired({
-    modules: ALL_MODULES,
+    modules: modulesFor(diagnostics),
     transforms,
     lags,
     params: {
@@ -864,8 +969,7 @@ export function runAutowiredSimulation(
       production: coupledProduction,
       demand: params.demand,
       capital: params.capital,
-      generations: params.generations,
-      humanCapital: params.humanCapital,
+      ...diagnosticParams(params, diagnostics, options?.paramLiveness ?? 'warn'),
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
@@ -919,9 +1023,20 @@ export function runAutowiredSimulation(
 // YEAR RESULT MAPPING
 // =============================================================================
 
-/** Rows for every simulated year, from the one declaration of the schema. */
-export function toYearResults(result: AutowireResult): YearResult[] {
-  return collectResults(result, standardCollectors).timeseries as YearResult[];
+/**
+ * Rows for every simulated year, from the one declaration of the schema.
+ *
+ * `diagnostics` must match the run: collecting a macro-only result with the
+ * full collector set fails on the missing diagnostic sources.
+ */
+export function toYearResults(result: AutowireResult, diagnostics?: true): YearResult[];
+export function toYearResults(result: AutowireResult, diagnostics: false): MacroYearResult[];
+export function toYearResults(
+  result: AutowireResult,
+  diagnostics = true,
+): YearResult[] | MacroYearResult[] {
+  return collectResults(result, collectorsFor(diagnostics))
+    .timeseries as YearResult[];
 }
 
 // =============================================================================
@@ -956,8 +1071,8 @@ function toSimulationMetrics(metrics: Record<string, any>): SimulationMetrics {
   };
 }
 
-export function computeMetrics(result: AutowireResult): SimulationMetrics {
-  return toSimulationMetrics(collectResults(result, standardCollectors).metrics);
+export function computeMetrics(result: AutowireResult, diagnostics = true): SimulationMetrics {
+  return toSimulationMetrics(collectResults(result, collectorsFor(diagnostics)).metrics);
 }
 
 /**
@@ -970,7 +1085,10 @@ export function runAutowiredFull(
   const autowireResult = runAutowiredSimulation(params, options);
   // One pass: collectResults produces rows and metrics together, so calling
   // toYearResults and computeMetrics separately here would collect twice.
-  const collected = collectResults(autowireResult, standardCollectors);
+  const collected = collectResults(
+    autowireResult,
+    collectorsFor(options?.diagnostics ?? true),
+  );
   return {
     years: autowireResult.years,
     results: collected.timeseries as YearResult[],

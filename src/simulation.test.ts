@@ -9,7 +9,14 @@ import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
 import { runSimulation, type SimulationParams } from './simulation.js';
-import { runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
+import {
+  runAutowiredSimulation,
+  ALL_MODULES,
+  MACRO_MODULES,
+  DIAGNOSTIC_FIELDS,
+  DIAGNOSTIC_MODULES,
+  auditGlobalUnitContracts,
+} from './simulation-autowired.js';
 import {
   auditCollectorContracts,
   resolveKey,
@@ -401,6 +408,92 @@ test('no undeclared transform reads in real simulation', () => {
   } finally {
     console.warn = origWarn;
   }
+});
+
+// =============================================================================
+// DIAGNOSTIC LEDGERS DO NOT FEED BACK
+// =============================================================================
+
+/**
+ * Every numeric leaf of a value tree, as `path -> number`. Non-numeric leaves
+ * are ignored; the diagnostic fields being compared here are all numbers or
+ * nested records of numbers.
+ */
+function numericLeaves(value: unknown, path: string, into: Map<string, number>): void {
+  if (typeof value === 'number') { into.set(path, value); return; }
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, i) => numericLeaves(child, `${path}[${i}]`, into));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    numericLeaves(child, `${path}.${key}`, into);
+  }
+}
+
+/** Shared by the diagnostics tests below: four full-horizon runs would cost
+ *  ~2.6s of CI time to recompute what two deterministic runs already give. */
+const FULL_RUN = runSimulation();
+const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
+test('diagnostics: false leaves every macro number bit-identical', () => {
+  const withDiag = FULL_RUN;
+  const without = MACRO_RUN;
+
+  expect(without.results.length).toBe(withDiag.results.length);
+
+  const diagnostic = new Set<string>(DIAGNOSTIC_FIELDS);
+  const full = new Map<string, number>();
+  const macro = new Map<string, number>();
+
+  withDiag.results.forEach((row, i) => {
+    for (const [key, v] of Object.entries(row)) {
+      if (!diagnostic.has(key)) numericLeaves(v, `${i}.${key}`, full);
+    }
+  });
+  without.results.forEach((row, i) => {
+    for (const [key, v] of Object.entries(row)) numericLeaves(v, `${i}.${key}`, macro);
+  });
+  numericLeaves(withDiag.metrics, 'metrics', full);
+  numericLeaves(without.metrics, 'metrics', macro);
+
+  // A trivially small comparison would pass while proving nothing.
+  expect(full.size).toBeGreaterThan(30_000);
+  expect(macro.size).toBe(full.size);
+
+  const differing: string[] = [];
+  for (const [key, value] of full) {
+    if (!Object.is(value, macro.get(key))) differing.push(key);
+    if (differing.length > 5) break;
+  }
+  expect(differing).toEqual([]);
+});
+
+test('diagnostics: false drops exactly the diagnostic fields', () => {
+  const present = new Set(Object.keys(MACRO_RUN.results[0] as unknown as Record<string, unknown>));
+  expect(DIAGNOSTIC_FIELDS.filter((field: string) => present.has(field))).toEqual([]);
+
+  const expected = Object.keys(FULL_RUN.results[0] as unknown as Record<string, unknown>)
+    .filter(key => !DIAGNOSTIC_FIELDS.includes(key as never));
+  expect(expected.filter(key => !present.has(key))).toEqual([]);
+});
+
+test('DIAGNOSTIC_FIELDS matches the diagnostic collectors', () => {
+  const produced = new Set(
+    standardCollectors.timeseries
+      .filter(entry => DIAGNOSTIC_MODULES.includes(entry.module as never))
+      .map(entry => resolveKey(entry)),
+  );
+  const declared = new Set<string>(DIAGNOSTIC_FIELDS);
+
+  expect([...produced].filter(field => !declared.has(field))).toEqual([]);
+  expect([...declared].filter(field => !produced.has(field))).toEqual([]);
+});
+
+test('macro modules are the full set minus the diagnostic ones', () => {
+  expect(MACRO_MODULES.length).toBe(ALL_MODULES.length - DIAGNOSTIC_MODULES.length);
+  const names = new Set(MACRO_MODULES.map(m => m.name));
+  expect(DIAGNOSTIC_MODULES.filter((name: string) => names.has(name))).toEqual([]);
 });
 
 printSummary();

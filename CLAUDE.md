@@ -229,6 +229,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Desired versus funded productive-capital acquisition by cohort
 - Separates income-based borrowing-limit gaps from aggregate credit rationing
 - Reconciles to macro capital/debt stocks but does not feed back into the macro path
+- Skippable via `runSimulation(params, { diagnostics: false })` — see Programmatic Use
 - See `docs/GENERATIONAL_ACCOUNTS.md` for equations and interpretation limits
 
 ### Human-Capital Ledger (diagnostic, no feedback)
@@ -326,7 +327,34 @@ const result2 = runSimulation({
 
 // With scenario file
 const { result } = await runWithScenario('scenarios/net-zero.json');
+
+// Macro path only: skips the diagnostic ledgers (generations, humanCapital).
+// ~2.3x faster on its own, ~3.5x with the engine checks off as well. The
+// return type narrows to MacroSimulationResult, so reading a diagnostic field
+// off it is a compile error rather than a silent undefined.
+const fast = runSimulation({}, {
+  diagnostics: false,
+  connectorValidation: 'off',
+  paramLiveness: 'off',
+});
 ```
+
+### Run options vs. parameters
+
+`RunOptions` changes how much checking the engine does and which diagnostic
+modules run — never what the model computes. `diagnostics: false` is pinned
+bit-identical on the macro path by `simulation.test.ts` (35k+ numbers compared
+with `Object.is`); `connectorValidation` and `paramLiveness` only govern
+validation. Ensembles and sweeps should set all three — `scripts/parameter-sweep.ts`
+is the worked example.
+
+`DIAGNOSTIC_MODULES` lives beside `ALL_MODULES` in `simulation-autowired.ts`
+and is the only hand-maintained fact: the field list, the macro module set, the
+macro collector set, and `describeOutputs`' `diagnostic` flag all derive from
+it. The list cannot be derived from the dependency graph — `buildDependencyGraph`
+adds no edge for a lag-fed input, so `climate`, `dispatch`, `resources` and
+`cdr` are graph leaves too. What makes these two skippable is that no collector
+outside them reads them, which is a domain fact rather than a graph property.
 
 ## Key Outputs
 
