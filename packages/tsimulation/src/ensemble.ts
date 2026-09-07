@@ -1,4 +1,10 @@
 import type { ModelDefinition } from './model.js';
+import {
+  type TaskExecutor,
+  type TaskRef,
+  serialExecutor,
+  orderTaskResults,
+} from './executor.js';
 import { runModel } from './model.js';
 import {
   experimentInterpretation,
@@ -153,7 +159,7 @@ export interface NestedEnsembleResult<TOutput, TContext> {
   metrics: Readonly<Record<string, NestedMetricSummary>>;
 }
 
-export function runEnsemble<TInput, TOutput>(options: {
+export interface EnsembleOptions<TInput, TOutput> {
   model: ModelDefinition<TInput, TOutput>;
   draws: number;
   seed: number;
@@ -161,7 +167,70 @@ export function runEnsemble<TInput, TOutput>(options: {
   metrics: Readonly<Record<string, (output: TOutput) => number>>;
   quantiles?: readonly number[];
   experiment?: ExperimentContract;
-}): EnsembleResult<TOutput> {
+  /**
+   * Serializable handle to this model, for an out-of-process executor. Unused
+   * by the serial path; a worker pool requires it, since it cannot receive the
+   * model's functions across a thread boundary.
+   */
+  taskRef?: TaskRef;
+}
+
+/**
+ * Draw every sample up front, on the calling thread.
+ *
+ * The seeded RNG is consumed strictly in draw order, so this must stay
+ * sequential -- it is what makes a parallel run reproduce a serial one exactly.
+ * Only the model evaluations that follow are independent.
+ */
+export interface DrawnSample<TInput> {
+  input: TInput;
+  parameters: Readonly<Record<string, number>>;
+}
+
+/**
+ * Consume `count` draws from `random`, validating each against `experiment`.
+ *
+ * Shared by the flat and nested ensembles so the RNG contract has one shape.
+ * The nested case passes the same `random` across its cases, preserving its
+ * case-major, draw-minor stream order.
+ */
+function drawSamples<TInput>(
+  random: RandomSource,
+  count: number,
+  sample: (random: RandomSource, draw: number) => EnsembleSample<TInput>,
+  label: (draw: number) => string,
+  experiment?: ExperimentContract,
+): Array<DrawnSample<TInput>> {
+  const drawn: Array<DrawnSample<TInput>> = [];
+  for (let draw = 0; draw < count; draw++) {
+    const next = sample(random, draw);
+    if (experiment) {
+      validateExperimentSample(
+        experiment,
+        next.variables ?? next.parameters ?? {},
+        label(draw),
+      );
+    }
+    drawn.push({ input: next.input, parameters: next.parameters ?? {} });
+  }
+  return drawn;
+}
+
+function drawEnsembleSamples<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): Array<DrawnSample<TInput>> {
+  return drawSamples(
+    seededRandom(options.seed),
+    options.draws,
+    options.sample,
+    (draw) => `Ensemble draw ${draw}`,
+    options.experiment,
+  );
+}
+
+function validateEnsembleOptions<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): void {
   if (!Number.isInteger(options.draws) || options.draws < 1) throw new Error('Ensemble draws must be >= 1');
   if (options.experiment) {
     validateExperiment(options.experiment);
@@ -172,22 +241,16 @@ export function runEnsemble<TInput, TOutput>(options: {
       );
     }
   }
+}
+
+/** Aggregate finished draws. Shared by the serial and executor-driven paths. */
+function summarizeEnsemble<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  drawn: ReadonlyArray<DrawnSample<TInput>>,
+  outputs: TOutput[],
+): EnsembleResult<TOutput> {
+  const parameterRows = drawn.map((sample) => sample.parameters);
   const interpretation = experimentInterpretation(options.experiment);
-  const random = seededRandom(options.seed);
-  const outputs: TOutput[] = [];
-  const parameterRows: Array<Readonly<Record<string, number>>> = [];
-  for (let draw = 0; draw < options.draws; draw++) {
-    const sample = options.sample(random, draw);
-    if (options.experiment) {
-      validateExperimentSample(
-        options.experiment,
-        sample.variables ?? sample.parameters ?? {},
-        `Ensemble draw ${draw}`,
-      );
-    }
-    parameterRows.push(sample.parameters ?? {});
-    outputs.push(runModel(options.model, sample.input, { seed: options.seed, runLabel: `draw-${draw}` }).output);
-  }
   const probabilities = options.quantiles ?? [0.05, 0.5, 0.95];
   if (probabilities.some((probability) =>
     !Number.isFinite(probability) || probability < 0 || probability > 1
@@ -249,6 +312,66 @@ export function runEnsemble<TInput, TOutput>(options: {
 }
 
 /**
+ * One model evaluation, with the draw index attached to any failure.
+ *
+ * `runLabel` only reaches the ModelRun record, never an error message, so a
+ * model that throws on one draw out of a thousand otherwise gives no clue
+ * which. Rethrowing here makes the label do what it claims.
+ */
+function evaluateDraw<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  input: TInput,
+  draw: number,
+): TOutput {
+  try {
+    return runModel(options.model, input, {
+      seed: options.seed,
+      runLabel: `draw-${draw}`,
+    }).output;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Ensemble draw ${draw}: ${reason}`, { cause: error });
+  }
+}
+
+export function runEnsemble<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): EnsembleResult<TOutput> {
+  validateEnsembleOptions(options);
+  const drawn = drawEnsembleSamples(options);
+  const outputs = drawn.map((sample, draw) => evaluateDraw(options, sample.input, draw));
+  return summarizeEnsemble(options, drawn, outputs);
+}
+
+/**
+ * `runEnsemble` with the model evaluations handed to an executor.
+ *
+ * Identical to the serial form in every respect that affects results: the same
+ * validation, the same seeded draws in the same order, the same aggregation.
+ * Only the mapping differs, and results are reassembled by index, so
+ * `runEnsembleAsync(o, executor)` and `runEnsemble(o)` agree for any executor
+ * that runs each task once -- and one that does not is rejected by
+ * `orderTaskResults` rather than believed, so the agreement does not rest on
+ * an executor being well-behaved. `ensemble-executor.test.ts` pins both halves.
+ *
+ * Defaults to `serialExecutor`, so calling it without one is the serial path
+ * through the same code rather than a second implementation of it.
+ */
+export async function runEnsembleAsync<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  executor: TaskExecutor = serialExecutor,
+): Promise<EnsembleResult<TOutput>> {
+  validateEnsembleOptions(options);
+  const drawn = drawEnsembleSamples(options);
+  const pairs = await executor.map(drawn, {
+    run: (sample, draw) => evaluateDraw(options, sample.input, draw),
+    ...(options.taskRef ? { ref: options.taskRef } : {}),
+  });
+  const outputs = orderTaskResults(pairs, drawn.length, 'Ensemble');
+  return summarizeEnsemble(options, drawn, outputs);
+}
+
+/**
  * Preserve epistemic cases as an outer possibility set and aleatory
  * probability distributions as inner families. No single flattened CDF is
  * produced because that would silently assign probabilities to epistemic
@@ -292,21 +415,24 @@ export function runNestedEnsemble<TInput, TOutput, TContext>(options: {
   )) {
     throw new Error('Nested ensemble quantile levels must be finite and in [0, 1]');
   }
+  // Same split as the flat ensemble: draw the whole seeded stream first, in
+  // case-major/draw-minor order, then evaluate. Sharing one `random` across
+  // cases preserves that stream order. Left interleaved, this loop would be
+  // the one path a worker pool could not take -- and it is the expensive one,
+  // being cases x draws.
   const random = seededRandom(options.seed);
   const families = options.epistemicCases.map((epistemic) => {
-    const outputs: TOutput[] = [];
-    for (let draw = 0; draw < options.aleatoryDrawsPerCase; draw++) {
-      const sample = options.sample(epistemic, random, draw);
-      validateExperimentSample(
-        options.experiment,
-        sample.variables ?? sample.parameters ?? {},
-        `Nested ensemble case '${epistemic.id}' draw ${draw}`,
-      );
-      outputs.push(runModel(options.model, sample.input, {
-        seed: options.seed,
-        runLabel: `${epistemic.id}:draw-${draw}`,
-      }).output);
-    }
+    const drawn = drawSamples(
+      random,
+      options.aleatoryDrawsPerCase,
+      (rng, draw) => options.sample(epistemic, rng, draw),
+      (draw) => `Nested ensemble case '${epistemic.id}' draw ${draw}`,
+      options.experiment,
+    );
+    const outputs = drawn.map((sample, draw) => runModel(options.model, sample.input, {
+      seed: options.seed,
+      runLabel: `${epistemic.id}:draw-${draw}`,
+    }).output);
     return { epistemicCase: epistemic, outputs };
   });
   const metrics = Object.fromEntries(Object.entries(options.metrics).map(([name, metric]) => {

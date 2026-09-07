@@ -7,6 +7,35 @@ onward. Before 1.0, minor versions may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+- `TaskExecutor`, `TaskSpec`, `TaskRef`, `TaskResult`, `serialExecutor` and
+  `orderTaskResults`: an injection point for running a study's model
+  evaluations somewhere other than the calling thread. The core stays
+  synchronous and free of Node built-ins, so a concurrent implementation lives
+  outside it.
+- `runEnsembleAsync(options, executor)`, and `EnsembleOptions` as a named type.
+  `runEnsemble` is unchanged. The two share validation, drawing and
+  aggregation; only the mapping differs.
+
+  An executor returns `{ index, result }` pairs and the framework reassembles
+  them, rejecting any executor that drops, duplicates or invents a task. The
+  two invariants an out-of-process implementation must honour — every task run
+  exactly once, results matched by index rather than arrival — are therefore
+  enforced rather than documented.
+
+### Changed
+- An ensemble now draws and validates every sample before evaluating any
+  model, where previously the two interleaved. Results are identical, but a
+  sample that violates its experiment contract at draw *k* is now reported
+  even when an earlier draw's model would have thrown first, and `sample` is
+  called for every draw rather than stopping at the first model failure.
+  Required for off-thread evaluation, and it fails before spending compute.
+- An ensemble model failure is reported with the draw that caused it.
+  `runLabel` reached only the run record, so a model throwing on one draw in a
+  thousand gave no indication which.
+- `runNestedEnsemble` shares the flat ensemble's draw phase, so both consume
+  their seeded stream through one code path.
+
 ### Removed (breaking)
 - The `ConnectorSpec` port vocabulary. Module ports are now described with the
   same `PortMeta` types every other boundary already used, so a port is a port
