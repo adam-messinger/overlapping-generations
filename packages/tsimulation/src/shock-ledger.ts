@@ -1,4 +1,7 @@
-import { convertUnit, getUnit } from './units.js';
+import {
+  convertUnit,
+  isKnownUnit,
+} from './units.js';
 
 export type ShockOperation = 'add' | 'multiply' | 'min' | 'max' | 'replace';
 
@@ -36,7 +39,7 @@ export function composeShockLedger(shocks: readonly ScalarShock[]): ComposedShoc
     if (ids.has(shock.id)) throw new Error(`Duplicate shock ID '${shock.id}'`);
     ids.add(shock.id);
     if (!Number.isFinite(shock.value)) throw new Error(`Shock '${shock.id}' value must be finite`);
-    if (!getUnit(shock.unit)) throw new Error(`Shock '${shock.id}' uses unknown unit '${shock.unit}'`);
+    if (!isKnownUnit(shock.unit)) throw new Error(`Shock '${shock.id}' uses unknown unit '${shock.unit}'`);
     const key = keyFor(shock);
     if (shock.overlapGroup) {
       const overlapKey = `${key}\u0000${shock.overlapGroup}`;

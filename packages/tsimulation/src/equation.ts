@@ -4,9 +4,9 @@ import {
   areUnitsConvertible,
   convertUnit,
   divideUnits,
-  getUnit,
   multiplyUnits,
   powUnit,
+  isKnownUnit,
 } from './units.js';
 import {
   assertEstimandComplete,
@@ -38,7 +38,7 @@ export interface SemanticQuantity extends UnitQuantity {
 
 function assertQuantity(quantity: UnitQuantity, context: string): void {
   if (!Number.isFinite(quantity.value)) throw new Error(`${context}: value must be finite`);
-  if (!getUnit(quantity.unit)) throw new Error(`${context}: unknown unit '${quantity.unit}'`);
+  if (!isKnownUnit(quantity.unit)) throw new Error(`${context}: unknown unit '${quantity.unit}'`);
 }
 
 export function unitQuantity(value: number, unit: string, label?: string): UnitQuantity {

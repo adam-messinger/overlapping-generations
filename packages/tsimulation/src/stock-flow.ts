@@ -6,7 +6,9 @@
  * lags, and terminal stocks should not be reimplemented ad hoc in every model.
  */
 
-import { getUnit } from './units.js';
+import {
+  isKnownUnit,
+} from './units.js';
 
 const EPSILON = 1e-12;
 
@@ -23,7 +25,7 @@ function integer(value: number, context: string, min = 0): void {
 }
 
 function validUnit(unit: string, context: string): void {
-  if (!getUnit(unit)) throw new Error(`${context} has unknown unit '${unit}'`);
+  if (!isKnownUnit(unit)) throw new Error(`${context} has unknown unit '${unit}'`);
 }
 
 export type InitialRetirementProfile = 'uniform' | 'bullet';
