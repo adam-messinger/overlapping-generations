@@ -3,15 +3,30 @@
 **Adam Messinger**
 *Research Note, February 2026*
 
-> **Staleness note (July 2026):** the model has changed materially since this
-> note's runs — a full-codebase bug-fix pass, GDP-weighted savings
-> aggregation, regional financing spreads, R/P-calibrated fossil depletion,
-> non-CO2 forcing, and a reformed CDR deployment gate. Quantitative results
-> below (especially the scenario table in §3 and all warming/GDP/CDR figures)
-> describe the February 2026 model and should be regenerated before being
-> cited. The qualitative mechanisms remain as described except where flagged.
-> `docs/SENSITIVITY.md` documents which conclusions are robust to the two
-> most consequential parameter choices.
+> **Staleness note (July 2026, extended September 2026):** the model has changed
+> materially since this note's runs — a full-codebase bug-fix pass, GDP-weighted
+> savings aggregation, regional financing spreads, R/P-calibrated fossil
+> depletion, non-CO2 forcing, and a reformed CDR deployment gate. Quantitative
+> results below (especially the scenario table in §3 and all warming/GDP/CDR
+> figures) describe the February 2026 model and should be regenerated before
+> being cited. The qualitative mechanisms remain as described except where
+> flagged. `docs/SENSITIVITY.md` documents which conclusions are robust to the
+> two most consequential parameter choices.
+>
+> **September 2026 — demographics recalibrated.** The demographics module was
+> found to be running a medium-variant fertility path while describing itself as
+> the UN WPP 2024 low variant (world TFR 1.70 in 2100 against the low variant's
+> 1.36). It has been recalibrated to WPP low and given a two-band working cohort;
+> world population now peaks at 8.70bn in 2045 and ends at 6.95bn, against 8.95bn
+> in 2059 and 8.46bn before. This is upstream of everything. The third headline
+> result in the abstract below — that the fiscal burden of aging stabilizes at
+> **roughly 13% of GDP** — is the one to treat with most caution: on the
+> recalibrated demographics the transfer burden runs **9.2-9.8% of GDP** across
+> the century. The direction of that result (it stabilizes rather than spiralling,
+> because retirement ages track life expectancy) survives; the level does not.
+> Energy and climate results move much less: GDP 2050 +3.6%, GDP 2100 +0.6%,
+> warming 2100 -0.01°C on the default scenario. See
+> `docs/HUMAN_CAPITAL_TRAJECTORY.md` and `docs/HUMAN_CAPITAL_REPRODUCTION.md`.
 
 ---
 
