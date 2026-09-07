@@ -1,0 +1,123 @@
+{
+ "regions": {
+  "us": {
+   "pop2025": 346360650.99999994,
+   "young": 0.23492364033003285,
+   "workingYoung": 0.33778260799030546,
+   "workingOlder": 0.24314825242663038,
+   "old": 0.18414549925303153,
+   "lifeExpectancy": 79.614,
+   "migrationRate": 0.0037624298133623036,
+   "fertility": 1.419,
+   "fertilityFloor": 1.14,
+   "fertilityDecay": 0.2
+  },
+  "oecd-ex-us": {
+   "pop2025": 805469099.0000001,
+   "young": 0.19259400415558334,
+   "workingYoung": 0.3029572298961651,
+   "workingOlder": 0.27700781479638115,
+   "old": 0.2274409511518703,
+   "lifeExpectancy": 82.611,
+   "migrationRate": 0.002032945257243873,
+   "fertility": 1.113,
+   "fertilityFloor": 1.021,
+   "fertilityDecay": 0.2
+  },
+  "china": {
+   "pop2025": 1443959157.0,
+   "young": 0.2107805103243651,
+   "workingYoung": 0.3423898090214473,
+   "workingOlder": 0.29613914419048903,
+   "old": 0.15069053646369862,
+   "lifeExpectancy": 78.454,
+   "migrationRate": -0.00015616842406297678,
+   "fertility": 0.738,
+   "fertilityFloor": 0.738,
+   "fertilityDecay": 0.2
+  },
+  "india": {
+   "pop2025": 1986818518.9999998,
+   "young": 0.3534618030203694,
+   "workingYoung": 0.39573843885637755,
+   "workingOlder": 0.18194976417974495,
+   "old": 0.06884999394350824,
+   "lifeExpectancy": 72.055,
+   "migrationRate": -0.0006660445229995206,
+   "fertility": 1.93,
+   "fertilityFloor": 1.331,
+   "fertilityDecay": 0.0658
+  },
+  "latam": {
+   "pop2025": 665914779.0,
+   "young": 0.2976837836482377,
+   "workingYoung": 0.38175450525629495,
+   "workingOlder": 0.2185752180159978,
+   "old": 0.10198649307946958,
+   "lifeExpectancy": 75.997,
+   "migrationRate": -0.00041515841885213944,
+   "fertility": 1.573,
+   "fertilityFloor": 1.158,
+   "fertilityDecay": 0.1529
+  },
+  "seasia": {
+   "pop2025": 742407284.0,
+   "young": 0.31388569323358095,
+   "workingYoung": 0.3797433067749912,
+   "workingOlder": 0.2215075613401444,
+   "old": 0.08486343865128351,
+   "lifeExpectancy": 72.261,
+   "migrationRate": -0.00015374462991694032,
+   "fertility": 1.708,
+   "fertilityFloor": 1.222,
+   "fertilityDecay": 0.1114
+  },
+  "russia": {
+   "pop2025": 294994694.99999994,
+   "young": 0.271345181309108,
+   "workingYoung": 0.3437461443162563,
+   "workingOlder": 0.2408970439281968,
+   "old": 0.1440116304464391,
+   "lifeExpectancy": 73.598,
+   "migrationRate": 0.0009795662572873217,
+   "fertility": 1.698,
+   "fertilityFloor": 1.305,
+   "fertilityDecay": 0.087
+  },
+  "mena": {
+   "pop2025": 601642359.0,
+   "young": 0.3584624216926189,
+   "workingYoung": 0.3903222346084844,
+   "workingOlder": 0.1871429418419656,
+   "old": 0.06407240185693108,
+   "lifeExpectancy": 75.453,
+   "migrationRate": -0.00032910134282768626,
+   "fertility": 2.131,
+   "fertilityFloor": 1.294,
+   "fertilityDecay": 0.0478
+  },
+  "ssa": {
+   "pop2025": 1321596178.9999998,
+   "young": 0.5111222351680241,
+   "workingYoung": 0.34473294659850867,
+   "workingOlder": 0.1116529975984442,
+   "old": 0.03249182063502319,
+   "lifeExpectancy": 63.016,
+   "migrationRate": -0.00034947644505128406,
+   "fertility": 3.9,
+   "fertilityFloor": 1.453,
+   "fertilityDecay": 0.0392
+  }
+ },
+ "lifeExpectancyGrowth": 0.139,
+ "_fit": {
+  "span": 35.9,
+  "dy": 0.0015,
+  "d1": 0.001,
+  "d2": 0.004,
+  "by": 0.0,
+  "b1": 0.03,
+  "b2": 0.04
+ },
+ "_note": "Final two-band calibration applied to src/modules/demographics.ts. '_fit' holds the globals: childbearing span, 0-19 / 20-44 / 45-64 death rates at the LEx=75 reference, and their life-expectancy decay. Produced by scripts/repro/calibrate_demographics.py + demog_mirror2.py against UN WPP 2024 low."
+}

@@ -182,7 +182,21 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Fernández-Villaverde**: Fertility convergence to regional floors
 - **3-cohort model**: Young (0-19), Working (20-64), Old (65+)
 - **Education**: College share affects effective workers
-- **NOTE**: the resulting world path (peak ~8.95B in 2059, 8.5B in 2100) tracks the UN WPP 2024 *low* variant, ~18% below the medium variant by 2100 — a deliberate low-fertility-convergence choice that conditions labor, savings, capital, and demand throughout
+- **Two working bands**: the 20-64 cohort is carried as 20-44 and 45-64 so a
+  retirement wave propagates with a lag; a single stock draining at 1/45 a year
+  cannot track a non-uniform age pyramid. `working` is still their sum, so
+  downstream consumers are unchanged
+- **NOTE**: calibrated to the UN WPP 2024 *low* variant (peak 8.70B in 2045,
+  6.95B in 2100 against WPP low's 8.95B in 2052 and 6.97B). Fertility floors and
+  decay rates are fitted to WPP low's regional TFR paths; 2025 cohort shares,
+  life expectancy and migration rates are read off WPP low directly. World
+  population, 0-19, 20-64, 65+ and the entrant flow all stay within ~10% of WPP
+  low for the whole century. Regionally China is the worst case — WPP low takes
+  it to 0.41B by 2100 and two coarse bands reach only 0.64B — so read China's
+  late-century path as an upper bound. Before this calibration the module ran a
+  medium-variant fertility path (world TFR 1.70 in 2100 against WPP low's 1.36)
+  and ended the century 21% above WPP low, with an entrant flow nearly double
+  it; see `docs/HUMAN_CAPITAL_REPRODUCTION.md` §5.3
 
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**

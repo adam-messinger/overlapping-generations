@@ -1,3 +1,14 @@
+> **STALE — numbers predate the WPP-low demographics recalibration (2026-09).**
+> This note was written against demographics that ran a medium-variant fertility
+> path. The module has since been calibrated to the UN WPP 2024 low variant and
+> given a two-band working cohort, which moves this note's headline results:
+> the world constant-cost stock now peaks near **1.11 in the early 2040s** (not
+> 1.22 in 2063) and ends the century at **0.73**; the 2025-50 gain is **+$22T**
+> (not $44T); the US turns own-cohort negative in **2032** and total-negative in
+> **2041** (not 2064/2065); China ends at **-68%**, India peaks **2052 at 1.59**,
+> Sub-Saharan Africa peaks **2067 at 3.21**. Regenerate with
+> `npm run human-capital:trajectory`. The method sections below are unaffected.
+
 # The Century of Building Human Capital Is Over
 
 *Research note, September 2026. The 1925-2025 reconstruction is produced by

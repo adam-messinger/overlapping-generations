@@ -15,16 +15,25 @@ the US immigrant share hit their targets — but the world path does not. On the
 actual UN WPP 2024 low-fertility variant the world constant-cost stock peaks in
 **2032 at 1.04** and ends 2100 at **0.58**, against the study's **2063 at 1.22**.
 
-The cause is identified in §5.3, and it is not the one I first suspected. It is
-not the *level* of the study's population path but its **cohort dynamics**: the
-model's three-cohort demographics hold the world 0-19 cohort at 1.91bn in 2100
-against the WPP low variant's 1.11bn, so its entrant flow stays at 2.2-2.5% of
-the workforce for the whole century while WPP low's falls to 1.5% — against a
-replacement requirement of ~2.7%/yr. Driving my ledger with the model's own
-cohort output moves the world peak to **2066**, China's 2100 index to **-63%**
-against a -61% target, and India's peak to **2057** against 2056. What is left
-after that is the migration channel, which I cannot get above half the study's
-$36T.
+The cause is identified in §5.3, and it is not the one I first suspected. It was
+not the *level* of the study's population path but the **fertility assumption
+behind it**: the demographics module ran a medium-variant TFR path (world 1.70
+in 2100 against WPP low's 1.36), which held the 0-19 cohort 72% above the low
+variant by 2100 and the entrant flow at 2.2-2.5% of the workforce all century
+against a replacement requirement of ~2.7%/yr.
+
+> **Update (2026-09).** Acting on this finding, `src/modules/demographics.ts` has
+> been recalibrated to the UN WPP 2024 low variant and given a two-band working
+> cohort. The module now ends the century at 6.95bn against WPP low's 6.97bn
+> (it was 8.46bn), with every cohort and the entrant flow inside ~10% of WPP low.
+> The two implementations have converged accordingly: driving my ledger with the
+> recalibrated model's cohorts now gives a world peak of **2035 at 1.05** ending
+> at **0.68**, against my own WPP-low run's 2032 at 1.04 ending 0.58 — and the
+> study's own re-run now peaks near **1.11 in the early 2040s** and ends at
+> **0.73**, instead of 1.22 in 2063. The tables in §4 and §5 below are from my
+> independent implementation and are unchanged; the study-side figures they are
+> compared against are the pre-recalibration ones, which is what makes the
+> comparison legible.
 
 ## 1. Sources
 
@@ -183,8 +192,12 @@ they are diagnostics, never the primary run:
 
 | Run | World peak | 2100 | 2025-50 change |
 |---|---|---|---|
-| `model` — WPP low age shares rescaled to the model's regional **totals** | 2032 @ 1.047 | 0.722 | -11.2 |
-| `model-cohorts` — the model's own **young / working / entrant** cohorts | **2066 @ 1.084** | 1.028 | +14.6 |
+| `model` — WPP low age shares rescaled to the model's regional **totals** | 2032 @ 1.042 | 0.578 | -18.3 |
+| `model-cohorts` — the model's own **young / working / entrant** cohorts | 2035 @ 1.052 | 0.677 | +0.3 |
+
+(Both re-run against the recalibrated module. Before the recalibration they gave
+2032 @ 1.047 and **2066 @ 1.084** respectively — the second of which is what
+identified the fertility path as the cause.)
 
 World decomposition, constant 2025 cost, closing exactly:
 
