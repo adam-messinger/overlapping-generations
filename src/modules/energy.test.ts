@@ -9,6 +9,7 @@ import {
   energyModule,
   energyDefaults,
   levelizedStorageCostPerMWh,
+  getRegionalCapacityFactor,
   type EnergyParams,
 } from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
@@ -626,6 +627,29 @@ test('low interest rate produces minWACC floor', () => {
   const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
   // laggedInterestRate=0.005 + riskPremium=0.02 = 0.025, but minWACC=0.03
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
+});
+
+test('2025 wind fleet implied by the regional CF table lands on Ember/IEA 2024 generation', () => {
+  // referenceCF is derived from the same table in the module; this pins the
+  // table's external anchor (~2,400-2,500 TWh) rather than the arithmetic.
+  const wind = energyDefaults.sources.wind;
+  const twh = REGIONS.reduce((sum, region) =>
+    sum + energyDefaults.regional[region].capacityFactor!.wind! * wind.capacity2025[region] * 8760 / 1000, 0);
+  expect(twh).toBeBetween(2200, 2700);
+  expect(wind.referenceCF).toBeCloseTo(twh / (8.76 * REGIONS.reduce((sum, r) => sum + wind.capacity2025[r], 0)), 9);
+});
+
+test('regional wind LCOE is the reference LCOE scaled by referenceCF over the effective CF', () => {
+  const params = energyModule.mergeParams({ financingSpreadScale: 0 });
+  const state = energyModule.init(params);
+  const r = energyModule.step(state, createInputs(30000, 25), params, 2025, 0);
+  const wind = params.sources.wind;
+  for (const region of REGIONS) {
+    const effectiveCF = getRegionalCapacityFactor(params, region, 'wind', wind.capacity2025[region]);
+    expect(r.outputs.regionalLCOEs[region].wind * effectiveCF).toBeCloseTo(r.outputs.lcoes.wind * wind.referenceCF, 6);
+  }
+  // Fleet-CF dispersion is visible: Brazil-led LatAm wind is cheaper than China's
+  expect(r.outputs.regionalLCOEs.latam.wind).toBeLessThan(r.outputs.regionalLCOEs.china.wind);
 });
 
 test('fossil reserve budgets reproduce their stated R/P calibration', () => {
