@@ -9,7 +9,7 @@
  *   - Climate-adjusted growth: per-cap GDP growth less regional damages
  */
 import { runAutowiredSimulation } from '../src/simulation-autowired.js';
-import { getOutputsAtYear } from '../src/framework/autowire.js';
+import { getOutputsAtYear } from 'tsimulation';
 import { REGIONS, type Region } from '../src/domain-types.js';
 
 const REGION_LABEL: Record<Region, string> = {

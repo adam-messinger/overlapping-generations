@@ -1,5 +1,5 @@
 import { runAutowiredSimulation } from '../src/simulation-autowired.js';
-import { getOutputsAtYear } from '../src/framework/autowire.js';
+import { getOutputsAtYear } from 'tsimulation';
 import { REGIONS } from '../src/domain-types.js';
 
 const aw = runAutowiredSimulation({});
