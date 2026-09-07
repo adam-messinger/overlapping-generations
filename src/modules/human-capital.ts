@@ -58,7 +58,10 @@
  * early-career), immigrants are placed in the destination's vintages with
  * the same profile. Each region books the transfer at its OWN replacement
  * cost, so a worker moving from a low- to a high-cost region is revalued on
- * arrival; the world-level difference is reported separately.
+ * arrival; the world-level difference is reported separately. Post-2025
+ * immigrants stay tracked as a subset of the destination's vintages so their
+ * charge can be split from the region's own cohorts (docs/HUMAN_CAPITAL.md,
+ * "Migration transfers").
  *
  * NO FEEDBACK: nothing here changes GDP, labor, capital, or demographics.
  * See docs/HUMAN_CAPITAL.md.
@@ -265,6 +268,13 @@ interface HumanCapitalState {
   vintages: Record<Region, Record<EducationBand, number[]>>;
   /** lives[region][band] = the useful life the vintages were last written down over */
   lives: Record<Region, Record<EducationBand, number>>;
+  /**
+   * migrantVintages[region][band][age] = the part of vintages[..][age] that
+   * arrived by migration. A headcount subset is enough because migrants and
+   * natives in the same cell share unit cost, useful life, and hazards; a
+   * migrant-specific cost or hazard would need a second ledger instead.
+   */
+  migrantVintages: Record<Region, Record<EducationBand, number[]>>;
 }
 
 // =============================================================================
@@ -308,6 +318,7 @@ export interface HumanCapitalBandAccount {
 
 export interface HumanCapitalRegionAccount {
   entrants: number;
+  workersInService: number;  // people still in the workforce (incl. fully depreciated)
   investment: number;
   depreciation: number;
   writeOffs: number;
@@ -320,6 +331,14 @@ export interface HumanCapitalRegionAccount {
   migrationTransfer: number;         // $T/year
   /** Change in the opening stock's book value from this year's change in useful life */
   lifeRevaluation: number;           // $T/year
+  /** Depreciation charged on vintages that arrived by migration since the run began */
+  migrantDepreciation: number;       // $T/year
+  /** Write-offs on those vintages' pre-retirement exits */
+  migrantWriteOffs: number;          // $T/year
+  /** In-service headcount that arrived by migration since the run began */
+  migrantWorkers: number;            // people
+  /** investment - the charge on the region's own cohorts (depreciation + writeOffs less the migrant part) */
+  ownCohortNetInvestment: number;    // $T/year
 }
 
 export interface HumanCapitalOutputs {
@@ -547,19 +566,28 @@ interface CellInputs {
   previous: number[] | { seedFlow: number; initialWorkingSpan: number };
   /** Useful life the prior vintages were written down over (this year's when the ledger is new) */
   previousLife?: number;
+  /** The part of each prior vintage that arrived by migration (none when the ledger is new) */
+  previousMigrants?: number[];
 }
 
 interface CellResult extends HumanCapitalBandAccount {
   migrationTransfer: number;
+  migrantDepreciation: number;
+  migrantWriteOffs: number;
+  migrantWorkers: number;
   surviving: number[];
+  survivingMigrants: number[];
 }
 
 const BAND_FLOW_KEYS = [
   'entrants', 'workersInService', 'investment', 'depreciation', 'writeOffs', 'lifeRevaluation',
   'grossStock', 'netStock', 'deaths', 'disabilityExits', 'domesticExits', 'retirements',
 ] as const;
+// The migrant split is a regional line only: at the world level (and in the
+// band rows, which are world sums) migrants are own cohorts.
 const REGION_FLOW_KEYS = [
-  'entrants', 'investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock', 'lifeRevaluation',
+  'entrants', 'workersInService', 'investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock',
+  'lifeRevaluation', 'migrantDepreciation', 'migrantWriteOffs', 'migrantWorkers',
 ] as const;
 
 function emptyBandAccount(): HumanCapitalBandAccount {
@@ -572,9 +600,10 @@ function emptyBandAccount(): HumanCapitalBandAccount {
 
 function emptyRegionAccount(): HumanCapitalRegionAccount {
   return {
-    entrants: 0, investment: 0, depreciation: 0, writeOffs: 0,
+    entrants: 0, workersInService: 0, investment: 0, depreciation: 0, writeOffs: 0,
     grossStock: 0, netStock: 0, investmentGdpShare: 0,
     migrationNetPeople: 0, migrationTransfer: 0, lifeRevaluation: 0,
+    migrantDepreciation: 0, migrantWriteOffs: 0, migrantWorkers: 0, ownCohortNetInvestment: 0,
   };
 }
 
@@ -607,6 +636,8 @@ function stepCell(input: CellInputs): CellResult {
 
   // --- Age the ledger, admit this year's entrants ---------------------------
   const aged = [input.entrants, ...previous];   // index = years since entry
+  // The part of each vintage that arrived by migration; entrants never are
+  const agedMigrants = [0, ...(input.previousMigrants ?? previous.map(() => 0))];
   const result: CellResult = {
     ...emptyBandAccount(),
     entrants: input.entrants,
@@ -614,7 +645,11 @@ function stepCell(input: CellInputs): CellResult {
     usefulLife,
     investment: input.entrants * unitCost / 1e12,
     migrationTransfer: 0,
+    migrantDepreciation: 0,
+    migrantWriteOffs: 0,
+    migrantWorkers: 0,
     surviving: [],
+    survivingMigrants: [],
   };
 
   // --- Useful-life revaluation of the opening stock -------------------------
@@ -644,7 +679,10 @@ function stepCell(input: CellInputs): CellResult {
         const move = input.migrants < 0
           ? -Math.min(aged[age], -input.migrants * weights[age] / totalWeight)
           : input.migrants * weights[age] / totalWeight;
+        // Immigrants join the migrant subset; emigrants leave it in proportion
+        const migrantShare = move > 0 ? 1 : aged[age] > 0 ? agedMigrants[age] / aged[age] : 0;
         aged[age] += move;
+        agedMigrants[age] += move * migrantShare;
         result.migrationTransfer += move * bookValue(age) / 1e12;
       }
     }
@@ -653,6 +691,9 @@ function stepCell(input: CellInputs): CellResult {
   // --- Exits, write-offs, straight-line depreciation, retirement ------------
   for (let age = 0; age < aged.length; age++) {
     const headcount = aged[age];
+    // Exits and retirement apply to migrants and natives alike, so the
+    // migrant share of a vintage is fixed through this year's charges
+    const migrantShare = headcount > 0 ? agedMigrants[age] / headcount : 0;
     const remainingBefore = bookValue(age);
     const remainingAfter = bookValue(age + 1);
 
@@ -661,24 +702,28 @@ function stepCell(input: CellInputs): CellResult {
     result.deaths += headcount * h.death;
     result.disabilityExits += headcount * h.disability;
     result.domesticExits += headcount * h.domestic;
-    result.writeOffs += headcount * h.total * remainingBefore / 1e12;
+    const writeOffs = headcount * h.total * remainingBefore / 1e12;
+    result.writeOffs += writeOffs;
+    result.migrantWriteOffs += migrantShare * writeOffs;
     const alive = headcount * (1 - h.total);
 
-    // Straight-line slice on survivors, never below zero book value
-    result.depreciation += alive * Math.min(unitCost / usefulLife, remainingBefore) / 1e12;
-
-    // Retirement: the share of the vintage past the effective retirement
+    // Straight-line slice on survivors, never below zero book value; then
+    // retirement: the share of the vintage past the effective retirement
     // age leaves the workforce. Any remaining book value of retirees (only
     // when usefulLife ~ maxYears, i.e. no exit hazards) is taken as terminal
     // depreciation so the ledger closes exactly.
     const remaining = alive * (1 - retiredShare(age, maxYears));
     const retiring = alive - remaining;
     result.retirements += retiring;
-    result.depreciation += retiring * remainingAfter / 1e12;
+    const depreciation = (alive * Math.min(unitCost / usefulLife, remainingBefore) + retiring * remainingAfter) / 1e12;
+    result.depreciation += depreciation;
+    result.migrantDepreciation += migrantShare * depreciation;
 
     // Still in service (possibly fully depreciated)
     result.surviving.push(remaining);
+    result.survivingMigrants.push(remaining * migrantShare);
     result.workersInService += remaining;
+    result.migrantWorkers += remaining * migrantShare;
     result.grossStock += remaining * unitCost / 1e12;
     result.netStock += remaining * remainingAfter / 1e12;
   }
@@ -687,6 +732,7 @@ function stepCell(input: CellInputs): CellResult {
   while (result.surviving.length > 0 && result.surviving[result.surviving.length - 1] === 0) {
     result.surviving.pop();
   }
+  result.survivingMigrants.length = result.surviving.length;
   return result;
 }
 
@@ -903,12 +949,14 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
       initialized: false,
       vintages: {} as Record<Region, Record<EducationBand, number[]>>,
       lives: {} as Record<Region, Record<EducationBand, number>>,
+      migrantVintages: {} as Record<Region, Record<EducationBand, number[]>>,
     };
   },
 
   step(state, inputs, params, _year, yearIndex) {
     const vintages = {} as Record<Region, Record<EducationBand, number[]>>;
     const lives = {} as Record<Region, Record<EducationBand, number>>;
+    const migrantVintages = {} as Record<Region, Record<EducationBand, number[]>>;
     const byBand = {} as Record<EducationBand, HumanCapitalBandAccount>;
     // Entrant-weighted unit cost and useful life per band; the unweighted
     // regional mean is the fallback for a band with no entrants anywhere.
@@ -950,6 +998,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
 
       vintages[region] = {} as Record<EducationBand, number[]>;
       lives[region] = {} as Record<EducationBand, number>;
+      migrantVintages[region] = {} as Record<EducationBand, number[]>;
 
       for (const band of EDUCATION_BANDS) {
         const cell = hazardCell(params, region, band);
@@ -967,9 +1016,11 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
             ? { seedFlow: stockByBand[band] / initialWorkingSpan, initialWorkingSpan }
             : state.vintages[region]?.[band] ?? [],
           previousLife: state.lives[region]?.[band],
+          previousMigrants: state.migrantVintages[region]?.[band],
         });
         vintages[region][band] = result.surviving;
         lives[region][band] = result.usefulLife;
+        migrantVintages[region][band] = result.survivingMigrants;
 
         const b = byBand[band];
         for (const key of BAND_FLOW_KEYS) b[key] += result[key];
@@ -987,6 +1038,8 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
 
       const regionGdp = inputs.regionalGdp[region] ?? 0;
       account.investmentGdpShare = regionGdp > 0 ? account.investment / regionGdp : 0;
+      account.ownCohortNetInvestment = account.investment
+        - (account.depreciation + account.writeOffs - account.migrantDepreciation - account.migrantWriteOffs);
       regional[region] = account;
     }
 
@@ -1000,7 +1053,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
 
     const gdp = inputs.gdp;
     return {
-      state: { initialized: true, vintages, lives },
+      state: { initialized: true, vintages, lives, migrantVintages },
       outputs: {
         humanCapitalInvestment: total.investment,
         humanCapitalDepreciation: total.depreciation,

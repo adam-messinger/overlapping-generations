@@ -401,6 +401,67 @@ test('closure with migration: net stock change = investment + transfer - depreci
   }
 });
 
+test('immigrants are tracked as a subset of the destination ledger and charged separately', () => {
+  const still = runYears(20, { regions: ALL_SECONDARY });
+  const moved = runYears(20, { regions: ALL_SECONDARY }, () => migrationInputs());
+  for (let i = 0; i < 20; i++) {
+    // No migration: nothing in the subset, nothing charged on it
+    for (const region of REGIONS) {
+      const a = still[i].regionalHumanCapital[region];
+      expect(a.migrantWorkers).toBe(0);
+      expect(a.migrantDepreciation + a.migrantWriteOffs).toBe(0);
+    }
+    const dest = moved[i].regionalHumanCapital['oecd-ex-us'];
+    const origin = moved[i].regionalHumanCapital.india;
+    expect(dest.migrantWorkers).toBeGreaterThan(0);
+    expect(dest.migrantWorkers).toBeLessThan(dest.workersInService);
+    expect(dest.migrantDepreciation).toBeGreaterThan(0);
+    expect(dest.migrantWriteOffs).toBeGreaterThan(0);
+    // Emigrants leave from the origin's own cohorts: its subset stays empty
+    expect(origin.migrantWorkers).toBe(0);
+    expect(origin.migrantDepreciation + origin.migrantWriteOffs).toBe(0);
+    // Own-cohort net at the destination is exactly the no-migration net: the
+    // native vintages evolve identically, hazards being multiplicative by age
+    const stillNet = (a: any) => a.investment - a.depreciation - a.writeOffs;
+    expect(dest.ownCohortNetInvestment).toBeCloseTo(stillNet(still[i].regionalHumanCapital['oecd-ex-us']), 9);
+    // The origin's own cohorts are smaller, so its charge is below the no-migration run
+    expect(origin.depreciation + origin.writeOffs).toBeLessThan(
+      still[i].regionalHumanCapital.india.depreciation + still[i].regionalHumanCapital.india.writeOffs);
+  }
+});
+
+test('a one-year immigrant wave is charged off exactly over its remaining working life', () => {
+  // No hazards, constant cost: every dollar booked on arrival is either
+  // depreciated or taken as terminal depreciation at retirement, nothing else.
+  const span = humanCapitalDefaults.bands.secondary.retirementAge - humanCapitalDefaults.bands.secondary.entryAge;
+  const outputs = runYears(span + 2, NO_HAZARDS, i => i === 0
+    ? migrationInputs()
+    : migrationInputs('india', 'oecd-ex-us', 0));
+  const dest = (i: number) => outputs[i].regionalHumanCapital['oecd-ex-us'];
+  const charged = outputs.reduce((sum, out) =>
+    sum + out.regionalHumanCapital['oecd-ex-us'].migrantDepreciation + out.regionalHumanCapital['oecd-ex-us'].migrantWriteOffs, 0);
+  expect(charged).toBeCloseTo(dest(0).migrationTransfer, 9);
+  expect(dest(0).migrantWorkers).toBeGreaterThan(0);
+  expect(dest(span + 1).migrantWorkers).toBeCloseTo(0, 6);
+  // Migrants only ever leave the subset by exit; it never exceeds the ledger
+  for (let i = 1; i < outputs.length; i++) {
+    expect(dest(i).migrantWorkers).toBeLessThan(dest(i - 1).migrantWorkers + 1e-9);
+  }
+});
+
+test('immigrants who later emigrate leave the subset in proportion', () => {
+  // Inflow for 5 years, then the same region turns to net outflow
+  const outputs = runYears(10, NO_HAZARDS, i => i < 5
+    ? migrationInputs('india', 'oecd-ex-us')
+    : migrationInputs('oecd-ex-us', 'india'));
+  const dest = (i: number) => outputs[i].regionalHumanCapital['oecd-ex-us'];
+  expect(dest(5).migrantWorkers).toBeLessThan(dest(4).migrantWorkers);
+  for (let i = 5; i < 10; i++) {
+    expect(dest(i).migrantWorkers).toBeGreaterThan(0);
+    expect(dest(i).migrantWorkers).toBeLessThan(dest(i).workersInService);
+  }
+});
+
 test('migrants skew early-career: a shorter tenure scale transfers more book value per mover', () => {
   const young = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 3 }, () => migrationInputs())[0];
   const old = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 40 }, () => migrationInputs())[0];

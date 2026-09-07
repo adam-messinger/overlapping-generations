@@ -360,6 +360,7 @@ export const HUMAN_CAPITAL_BAND_PORT = recordPort<HumanCapitalBandRow>(
 
 interface HumanCapitalRegionRow {
   entrants: number;
+  workersInService: number;
   investment: number;
   depreciation: number;
   writeOffs: number;
@@ -369,10 +370,15 @@ interface HumanCapitalRegionRow {
   migrationNetPeople: number;
   migrationTransfer: number;
   lifeRevaluation: number;
+  migrantDepreciation: number;
+  migrantWriteOffs: number;
+  migrantWorkers: number;
+  ownCohortNetInvestment: number;
 }
 
 const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
   entrants: unitPort('people/year'),
+  workersInService: unitPort('people'),
   investment: unitPort('$T/year'),
   depreciation: unitPort('$T/year'),
   writeOffs: unitPort('$T/year'),
@@ -382,6 +388,10 @@ const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
   migrationNetPeople: unitPort('people/year'),
   migrationTransfer: unitPort('$T/year'),
   lifeRevaluation: unitPort('$T/year'),
+  migrantDepreciation: unitPort('$T/year'),
+  migrantWriteOffs: unitPort('$T/year'),
+  migrantWorkers: unitPort('people'),
+  ownCohortNetInvestment: unitPort('$T/year'),
 });
 
 export const HUMAN_CAPITAL_REGION_PORT = recordPort<HumanCapitalRegionRow>(

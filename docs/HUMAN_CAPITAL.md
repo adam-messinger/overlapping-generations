@@ -168,6 +168,26 @@ ledger moves the corresponding headcount between regional vintage ledgers:
 
 Headcount is conserved; dollars are not, by design.
 
+Each ledger also keeps the headcount that arrived by migration since the run
+began as a subset of its vintages. The subset ages, exits, and retires with
+the rest and is charged the same straight-line slice, so the depreciation
+and write-offs on immigrants' human capital (`migrantDepreciation`,
+`migrantWriteOffs`, with `migrantWorkers` in service) can be separated from
+the charge on a region's own cohorts:
+
+```text
+ownCohortNetInvestment = investment - (depreciation + writeOffs - migrantDepreciation - migrantWriteOffs)
+```
+
+Without this split, `investment - depreciation - writeOffs` charges the
+depreciation of every immigrant who arrived since 2025 against the region's
+own entrants, and a steady receiver drifts into "own-cohort" deficit as its
+immigrant stock accumulates. Emigrants are drawn from the migrant subset in
+proportion to its share of each vintage. The 2025 seed holds no migrants:
+people who arrived before the run started are own cohorts to the ledger
+(about a sixth of the US workforce is foreign-born), so the split is a
+post-2025 flow measure, not a nativity account.
+
 ## Closure identities (tested)
 
 ```text
@@ -207,7 +227,7 @@ question is what today's schedule implies for today's stock.
 | `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
 | `humanCapitalLifeRevaluation` | $T/yr | change in the opening stock's book value from this year's change in expected working life |
 | `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows (incl. life revaluation), stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost, life revaluation |
+| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, workers in service, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants, own-cohort net investment |
 
 ## What the default path shows
 
