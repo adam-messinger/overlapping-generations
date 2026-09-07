@@ -31,7 +31,12 @@ import {
   REGIONAL_DEMAND_PORT,
   REGIONAL_ENERGY_LCOE_PORT,
 } from './port-schemas.js';
-import { computeEnergySystemOverhead, standardCollectors } from './standard-collectors.js';
+import {
+  computeEnergySystemOverhead,
+  standardCollectors,
+  macroCollectors,
+  DIAGNOSTIC_MODULES,
+} from './standard-collectors.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
 import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
@@ -45,11 +50,20 @@ import { resourcesModule } from './modules/resources.js';
 import { cdrModule } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { Region, REGIONS, EnergySource, ENERGY_SOURCES } from './domain-types.js';
-import type { SimulationParams, RunOptions, YearResult, SimulationMetrics, SimulationResult } from './simulation.js';
+import type {
+  SimulationParams,
+  RunOptions,
+  YearResult,
+  MacroYearResult,
+  SimulationMetrics,
+  SimulationResult,
+} from './simulation.js';
 
 // =============================================================================
 // MODULES
 // =============================================================================
+
+const DIAGNOSTIC_MODULE_SET: ReadonlySet<string> = new Set(DIAGNOSTIC_MODULES);
 
 export const ALL_MODULES: AnyModule[] = [
   demographicsModule,
@@ -64,6 +78,44 @@ export const ALL_MODULES: AnyModule[] = [
   cdrModule,
   climateModule,
 ];
+
+/**
+ * The macro path on its own. Dropping the diagnostic ledgers cuts a run by
+ * roughly 57% and provably does not move a single macro number — see the
+ * bit-identity test in `simulation.test.ts`.
+ */
+export const MACRO_MODULES: AnyModule[] = ALL_MODULES.filter(
+  (mod) => !DIAGNOSTIC_MODULE_SET.has(mod.name),
+);
+
+/** Modules and collectors for a run, keyed on whether diagnostics are wanted. */
+function runComposition(diagnostics: boolean) {
+  return diagnostics
+    ? { modules: ALL_MODULES, collectors: standardCollectors }
+    : { modules: MACRO_MODULES, collectors: macroCollectors };
+}
+
+/**
+ * Diagnostic-module parameters, or nothing when those modules are not running.
+ *
+ * Overrides for a module that will not run are dropped, so they are reported
+ * rather than silently ignored — `paramLiveness` cannot catch them, because
+ * the key never reaches the engine.
+ */
+function diagnosticParams(params: SimulationParams, diagnostics: boolean) {
+  if (diagnostics) {
+    return { generations: params.generations, humanCapital: params.humanCapital };
+  }
+  const supplied = (['generations', 'humanCapital'] as const).filter(
+    (key) => params[key] !== undefined,
+  );
+  if (supplied.length > 0) {
+    console.warn(
+      `[simulation] diagnostics: false — ignoring overrides for ${supplied.join(', ')}`,
+    );
+  }
+  return {};
+}
 
 // =============================================================================
 // BUILD TRANSFORMS AND LAGS
@@ -856,7 +908,7 @@ export function runAutowiredSimulation(
   coupledCdr.tcre ??= cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
 
   return runAutowired({
-    modules: ALL_MODULES,
+    modules: runComposition(options?.diagnostics ?? true).modules,
     transforms,
     lags,
     params: {
@@ -864,8 +916,7 @@ export function runAutowiredSimulation(
       production: coupledProduction,
       demand: params.demand,
       capital: params.capital,
-      generations: params.generations,
-      humanCapital: params.humanCapital,
+      ...diagnosticParams(params, options?.diagnostics ?? true),
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
@@ -919,9 +970,20 @@ export function runAutowiredSimulation(
 // YEAR RESULT MAPPING
 // =============================================================================
 
-/** Rows for every simulated year, from the one declaration of the schema. */
-export function toYearResults(result: AutowireResult): YearResult[] {
-  return collectResults(result, standardCollectors).timeseries as YearResult[];
+/**
+ * Rows for every simulated year, from the one declaration of the schema.
+ *
+ * `diagnostics` must match the run: collecting a macro-only result with the
+ * full collector set fails on the missing diagnostic sources.
+ */
+export function toYearResults(result: AutowireResult, diagnostics?: true): YearResult[];
+export function toYearResults(result: AutowireResult, diagnostics: false): MacroYearResult[];
+export function toYearResults(
+  result: AutowireResult,
+  diagnostics = true,
+): YearResult[] | MacroYearResult[] {
+  return collectResults(result, runComposition(diagnostics).collectors)
+    .timeseries as YearResult[];
 }
 
 // =============================================================================
@@ -956,8 +1018,10 @@ function toSimulationMetrics(metrics: Record<string, any>): SimulationMetrics {
   };
 }
 
-export function computeMetrics(result: AutowireResult): SimulationMetrics {
-  return toSimulationMetrics(collectResults(result, standardCollectors).metrics);
+export function computeMetrics(result: AutowireResult, diagnostics = true): SimulationMetrics {
+  return toSimulationMetrics(
+    collectResults(result, runComposition(diagnostics).collectors).metrics,
+  );
 }
 
 /**
@@ -970,7 +1034,10 @@ export function runAutowiredFull(
   const autowireResult = runAutowiredSimulation(params, options);
   // One pass: collectResults produces rows and metrics together, so calling
   // toYearResults and computeMetrics separately here would collect twice.
-  const collected = collectResults(autowireResult, standardCollectors);
+  const collected = collectResults(
+    autowireResult,
+    runComposition(options?.diagnostics ?? true).collectors,
+  );
   return {
     years: autowireResult.years,
     results: collected.timeseries as YearResult[],

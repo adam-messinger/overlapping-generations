@@ -9,14 +9,24 @@ import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
 import { runSimulation, type SimulationParams } from './simulation.js';
-import { runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
+import {
+  runAutowiredSimulation,
+  ALL_MODULES,
+  MACRO_MODULES,
+  auditGlobalUnitContracts,
+} from './simulation-autowired.js';
 import {
   auditCollectorContracts,
   resolveKey,
   getOutputsAtYear,
 } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
-import { standardCollectors } from './standard-collectors.js';
+import {
+  standardCollectors,
+  DIAGNOSTIC_FIELDS,
+  DIAGNOSTIC_MODULES,
+  isDiagnosticCollector,
+} from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
@@ -401,6 +411,92 @@ test('no undeclared transform reads in real simulation', () => {
   } finally {
     console.warn = origWarn;
   }
+});
+
+// =============================================================================
+// DIAGNOSTIC LEDGERS DO NOT FEED BACK
+// =============================================================================
+
+/**
+ * Every numeric leaf of a value tree, as `path -> number`. Non-numeric leaves
+ * are ignored; the diagnostic fields being compared here are all numbers or
+ * nested records of numbers.
+ */
+function numericLeaves(value: unknown, path: string, into: Map<string, number>): void {
+  if (typeof value === 'number') { into.set(path, value); return; }
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, i) => numericLeaves(child, `${path}[${i}]`, into));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    numericLeaves(child, `${path}.${key}`, into);
+  }
+}
+
+test('diagnostics: false leaves every macro number bit-identical', () => {
+  const withDiag = runSimulation();
+  const without = runSimulation(undefined, { diagnostics: false });
+
+  expect(without.results.length).toBe(withDiag.results.length);
+
+  const diagnostic = new Set<string>(DIAGNOSTIC_FIELDS);
+  const full = new Map<string, number>();
+  const macro = new Map<string, number>();
+
+  withDiag.results.forEach((row, i) => {
+    for (const [key, v] of Object.entries(row)) {
+      if (!diagnostic.has(key)) numericLeaves(v, `${i}.${key}`, full);
+    }
+  });
+  without.results.forEach((row, i) => {
+    for (const [key, v] of Object.entries(row)) numericLeaves(v, `${i}.${key}`, macro);
+  });
+  numericLeaves(withDiag.metrics, 'metrics', full);
+  numericLeaves(without.metrics, 'metrics', macro);
+
+  // A trivially small comparison would pass while proving nothing.
+  expect(full.size).toBeGreaterThan(30_000);
+  expect(macro.size).toBe(full.size);
+
+  const differing: string[] = [];
+  for (const [key, value] of full) {
+    if (!Object.is(value, macro.get(key))) differing.push(key);
+    if (differing.length > 5) break;
+  }
+  expect(differing.join(', ')).toBe('');
+});
+
+test('diagnostics: false drops exactly the diagnostic fields', () => {
+  const without = runSimulation(undefined, { diagnostics: false });
+  const present = new Set(Object.keys(without.results[0] as unknown as Record<string, unknown>));
+  const leaked = DIAGNOSTIC_FIELDS.filter(field => present.has(field));
+  expect(leaked.join(', ')).toBe('');
+
+  const withDiag = runSimulation();
+  const expected = Object.keys(withDiag.results[0] as unknown as Record<string, unknown>)
+    .filter(key => !DIAGNOSTIC_FIELDS.includes(key as never));
+  expect(expected.filter(key => !present.has(key)).join(', ')).toBe('');
+});
+
+test('DIAGNOSTIC_FIELDS matches the diagnostic collectors', () => {
+  const fromCollectors = new Set(
+    standardCollectors.timeseries
+      .filter(entry => isDiagnosticCollector(entry))
+      .map(entry => entry.as ?? entry.source),
+  );
+  const declared = new Set<string>(DIAGNOSTIC_FIELDS);
+
+  const missing = [...fromCollectors].filter(field => !declared.has(field));
+  const extra = [...declared].filter(field => !fromCollectors.has(field));
+  expect(missing.join(', ')).toBe('');
+  expect(extra.join(', ')).toBe('');
+});
+
+test('macro modules are the full set minus the diagnostic ones', () => {
+  expect(MACRO_MODULES.length).toBe(ALL_MODULES.length - DIAGNOSTIC_MODULES.length);
+  const names = new Set(MACRO_MODULES.map(m => m.name));
+  expect(DIAGNOSTIC_MODULES.filter(name => names.has(name)).join(', ')).toBe('');
 });
 
 printSummary();

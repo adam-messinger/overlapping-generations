@@ -430,3 +430,94 @@ export const standardCollectors: CollectorConfig = {
     },
   ],
 };
+
+// =============================================================================
+// DIAGNOSTIC LEDGERS
+// =============================================================================
+
+/**
+ * Modules that keep diagnostic ledgers only. Nothing in the macro path reads
+ * their outputs — they reconcile to the capital and debt stocks but do not
+ * feed back (see CLAUDE.md, `docs/GENERATIONAL_ACCOUNTS.md`, `docs/HUMAN_CAPITAL.md`)
+ * — so a run that only needs macro results can omit them entirely.
+ *
+ * They are not cheap: together they account for roughly 57% of a default
+ * run, because they own the widest nested ports in the model
+ * (`cohortAccounts`, `regionalCohortAccounts`, `humanCapitalByBand`) and
+ * every one of those leaves is unit-checked on every step.
+ */
+export const DIAGNOSTIC_MODULES = ['generations', 'humanCapital'] as const;
+
+export type DiagnosticModule = (typeof DIAGNOSTIC_MODULES)[number];
+
+const DIAGNOSTIC_MODULE_SET: ReadonlySet<string> = new Set(DIAGNOSTIC_MODULES);
+
+/**
+ * `YearResult` fields produced by the diagnostic modules, and therefore absent
+ * from a `diagnostics: false` run.
+ *
+ * Declared rather than derived because it also drives the `MacroYearResult`
+ * type, which needs literal keys at compile time. `standard-collectors.test.ts`
+ * asserts this list is exactly the set of collector sources whose `module` is
+ * diagnostic, so the two cannot drift.
+ */
+export const DIAGNOSTIC_FIELDS = [
+  // generations
+  'cohortAccounts',
+  'regionalCohortAccounts',
+  'cohortDesiredCapital',
+  'cohortFundedCapital',
+  'cohortFundingGap',
+  'aggregateCapitalFundingGap',
+  'aggregateCapitalCoverage',
+  'cohortBorrowingLimitGap',
+  'cohortCreditRationingGap',
+  'constrainedWorkingShare',
+  'borrowingConstrainedWorkingShare',
+  'cohortBequests',
+  'cohortAssets',
+  'cohortLiabilities',
+  // humanCapital
+  'humanCapitalInvestment',
+  'humanCapitalDepreciation',
+  'humanCapitalWriteOffs',
+  'humanCapitalNetInvestment',
+  'humanCapitalGrossStock',
+  'humanCapitalNetStock',
+  'humanCapitalInvestmentGdpShare',
+  'humanCapitalDepreciationGdpShare',
+  'humanCapitalNetStockToPhysical',
+  'workforceEntrants',
+  'workforceExits',
+  'humanCapitalMigrationInflows',
+  'humanCapitalMigrationOutflows',
+  'humanCapitalMigrationRevaluation',
+  'humanCapitalByBand',
+  'regionalHumanCapital',
+] as const;
+
+export type DiagnosticField = (typeof DIAGNOSTIC_FIELDS)[number];
+
+/** True for a timeseries collector fed by a diagnostic module. */
+export function isDiagnosticCollector(entry: { module?: string }): boolean {
+  return entry.module !== undefined && DIAGNOSTIC_MODULE_SET.has(entry.module);
+}
+
+const DIAGNOSTIC_FIELD_SET: ReadonlySet<string> = new Set(DIAGNOSTIC_FIELDS);
+
+/**
+ * `standardCollectors` with the diagnostic entries removed, for runs that omit
+ * those modules. Derived from `standardCollectors` rather than written out, so
+ * a collector added there is automatically classified here.
+ *
+ * `MetricDef` carries no `module`, so metrics are filtered by whether they
+ * aggregate a diagnostic source. No metric does today; the filter keeps that
+ * from becoming a latent break if one is added.
+ */
+export const macroCollectors: CollectorConfig = {
+  ...standardCollectors,
+  timeseries: standardCollectors.timeseries.filter((entry) => !isDiagnosticCollector(entry)),
+  metrics: standardCollectors.metrics?.filter(
+    (entry) => entry.source === undefined || !DIAGNOSTIC_FIELD_SET.has(entry.source),
+  ),
+};
