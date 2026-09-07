@@ -189,8 +189,9 @@ export interface EnergyParams {
   /** Multiplier on all regional financing spreads (0 = frictionless capital markets) */
   financingSpreadScale: number;
 
-  /** Fraction of a region's savings-rate gap vs the world that passes into its
-   *  financing spread (Feldstein-Horioka home bias; 0 = perfect capital mobility) */
+  /** Fraction of the change since the start year in a region's savings-rate gap
+   *  vs the world that passes into its financing spread (Feldstein-Horioka home
+   *  bias; 0 = perfect capital mobility) */
   financingHomeBias: number;
 
   /** Fraction of LCOE that is capital cost, by source */
@@ -266,13 +267,8 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
  * tiers. The US and OECD ex-US share the advanced-economy tier; China's
  * cheap capital is a savings/state-credit story; Russia's spread reflects
  * sanctions-era isolation; MENA blends cheap Gulf auction finance with
- * expensive North African markets.
- *
- * At yearIndex 0 the model anchors each region's savings gap (world minus
- * regional savings rate) and reproduces these totals exactly; afterwards
- * the home-bias term (Feldstein & Horioka 1980) drifts the spread with the
- * change in that gap, so the calibration no longer depends on capital's
- * savings parameters.
+ * expensive North African markets. Reproduced exactly at yearIndex 0; the
+ * home-bias drift is described at the spread block in step.
  */
 const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
   us: -0.010,
@@ -510,8 +506,8 @@ export const energyDefaults: EnergyParams = {
   // Domestic savings scarcity raises the local cost of capital: savings and
   // investment stay correlated because capital is imperfectly mobile
   // (Feldstein & Horioka 1980; retention coefficients ~0.3-0.5 in recent
-  // decades). 0.15 maps savings-rate gaps to price, attributing roughly a
-  // third of the extreme regions' observed spread to savings scarcity.
+  // decades). 0.15 maps a change in the savings-rate gap to price; the
+  // observed start-year spreads themselves are taken as given.
   financingHomeBias: 0.15,
   capitalIntensity: {              // Fraction of LCOE that is capital cost
     solar: 0.85,
@@ -583,11 +579,7 @@ export interface EnergyState {
   /** Long-duration storage global cumulative (GWh, for learning) */
   longStorageCumulative: number;
 
-  /**
-   * World minus regional savings rate at yearIndex 0. Regional spreads equal
-   * their observed start-year totals there and drift by financingHomeBias x
-   * the change in the gap afterwards.
-   */
+  /** World minus regional savings rate at yearIndex 0 (see the spread block in step) */
   savingsGapAnchor: Record<Region, number>;
 }
 
@@ -890,7 +882,7 @@ export const energyModule: Module<
       tier: 1 as const,
     },
     financingHomeBias: {
-      description: 'Fraction of a region\'s savings-rate gap vs the world that passes into its financing spread. 0 = perfect capital mobility (Feldstein-Horioka home bias).',
+      description: 'Fraction of the change since the start year in a region\'s savings-rate gap vs the world that passes into its financing spread. 0 = perfect capital mobility (Feldstein-Horioka home bias).',
       unit: 'dimensionless',
       range: { min: 0, max: 1, default: 0.15 },
       tier: 2 as const,
@@ -1327,15 +1319,18 @@ export const energyModule: Module<
     // (Feldstein & Horioka 1980). The start-year gap is anchored in state.
     const regionalWACC = {} as Record<Region, number>;
     const regionalCrfRatio = {} as Record<Region, number>;
-    const savingsGapAnchor = yearIndex === 0 ? ({} as Record<Region, number>) : state.savingsGapAnchor;
-    for (const region of REGIONS) {
-      const regionalSavingsRate = inputs.regionalSavings?.[region];
-      const savingsGap = inputs.savingsRate !== undefined && regionalSavingsRate !== undefined
-        ? inputs.savingsRate - regionalSavingsRate
+    const savingsGap = (region: Region): number => {
+      const regionalRate = inputs.regionalSavings?.[region];
+      return inputs.savingsRate !== undefined && regionalRate !== undefined
+        ? inputs.savingsRate - regionalRate
         : 0;
-      if (yearIndex === 0) savingsGapAnchor[region] = savingsGap;
+    };
+    const savingsGapAnchor = yearIndex === 0
+      ? Object.fromEntries(REGIONS.map(r => [r, savingsGap(r)])) as Record<Region, number>
+      : state.savingsGapAnchor;
+    for (const region of REGIONS) {
       const spread = ((params.regional[region].financingSpread ?? 0) +
-        params.financingHomeBias * (savingsGap - savingsGapAnchor[region])) * params.financingSpreadScale;
+        params.financingHomeBias * (savingsGap(region) - savingsGapAnchor[region])) * params.financingSpreadScale;
       regionalWACC[region] = waccAt(spread);
       regionalCrfRatio[region] =
         capitalRecoveryFactor(regionalWACC[region], PROJECT_LIFE) / crfBase;

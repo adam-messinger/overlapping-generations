@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
-import { runSimulation } from './simulation.js';
+import { runSimulation, type SimulationParams } from './simulation.js';
 import { runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
 import {
   auditCollectorContracts,
@@ -88,7 +88,7 @@ test('2025 regional financing spreads equal the observed IEA table by constructi
   // totals in REGIONAL_FINANCING_SPREADS are reproduced exactly at yearIndex 0
   // whatever capital's savings calibration produces.
   const observed = energyDefaults.regional;
-  const check = (params: Parameters<typeof runSimulation>[0]) => {
+  const check = (params: SimulationParams) => {
     const r = runSimulation({ ...params, startYear: 2025, endYear: 2025 }).results[0];
     for (const region of REGIONS) {
       expect(r.regionalWACC[region] - r.effectiveWACC).toBeCloseTo(observed[region].financingSpread ?? 0, 9);
