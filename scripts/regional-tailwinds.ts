@@ -13,7 +13,8 @@ import { getOutputsAtYear } from '../src/framework/autowire.js';
 import { REGIONS, type Region } from '../src/domain-types.js';
 
 const REGION_LABEL: Record<Region, string> = {
-  oecd: 'OECD',
+  us: 'United States',
+  'oecd-ex-us': 'OECD ex-US',
   china: 'China',
   india: 'India',
   latam: 'Latin Am.',

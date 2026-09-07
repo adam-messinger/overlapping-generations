@@ -17,7 +17,7 @@ function run(label: string, overrides: SimulationParams) {
 
   console.log(`\n=== ${label} ===\n`);
   console.log(
-    'Year  | China GDP  | China Gr | China EI | OECD GDP  | OECD Gr | OECD EI | Grid   | Temp'
+    'Year  | China GDP  | China Gr | China EI | US GDP    | US Gr   | US EI   | Grid   | Temp'
   );
   console.log(
     '------|------------|----------|----------|-----------|---------|---------|--------|------'
@@ -28,7 +28,7 @@ function run(label: string, overrides: SimulationParams) {
     if (year % 10 === 0 || year === 2025) {
       const o = getOutputsAtYear(awResult, i);
       const cn = o.regional?.china;
-      const oc = o.regional?.oecd;
+      const oc = o.regional?.us;
       console.log(
         `${year}  ` +
         `| $${(cn?.gdp ?? 0).toFixed(1)}T`.padEnd(13) +
@@ -45,9 +45,9 @@ function run(label: string, overrides: SimulationParams) {
   const lastO = getOutputsAtYear(awResult, awResult.years.length - 1);
   const last = results[results.length - 1];
   console.log(`\n  China 2100 GDP: $${(lastO.regional?.china?.gdp ?? 0).toFixed(1)}T`);
-  console.log(`  OECD 2100 GDP:  $${(lastO.regional?.oecd?.gdp ?? 0).toFixed(1)}T`);
+  console.log(`  US 2100 GDP:    $${(lastO.regional?.us?.gdp ?? 0).toFixed(1)}T`);
   console.log(`  China 2100 EI:  ${(lastO.regional?.china?.energyIntensity ?? 0).toFixed(3)} MWh/$1k`);
-  console.log(`  OECD 2100 EI:   ${(lastO.regional?.oecd?.energyIntensity ?? 0).toFixed(3)} MWh/$1k`);
+  console.log(`  US 2100 EI:     ${(lastO.regional?.us?.energyIntensity ?? 0).toFixed(3)} MWh/$1k`);
   console.log(`  Global GDP:     $${last.gdp.toFixed(0)}T`);
   console.log(`  Warming:        ${last.temperature.toFixed(2)}°C`);
   console.log(`  Grid intensity: ${last.gridIntensity.toFixed(0)} kg/MWh`);
@@ -58,11 +58,11 @@ function run(label: string, overrides: SimulationParams) {
 run('BASELINE', {});
 
 // Carbon price only: China doubles down, US retreats
-run('CARBON PRICE ONLY: China $80, OECD $15', {
+run('CARBON PRICE ONLY: China $80, US $15', {
   energy: {
     regional: {
       china: { carbonPrice: 80 },
-      oecd: { carbonPrice: 15 },
+      us: { carbonPrice: 15 },
     },
   },
 });

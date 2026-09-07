@@ -27,7 +27,7 @@ async function main() {
 
   console.log('\n=== BASELINE SCENARIO ===');
   console.log('Electricity W per capita by region:\n');
-  console.log('Year     Global    OECD    China      EM     ROW');
+  console.log('Year     Global   OExUS    China      EM     ROW');
   console.log('----     ------    ----    -----      --     ---');
 
   for (const yr of keyYears) {
@@ -52,14 +52,14 @@ async function main() {
       }
 
       console.log(
-        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW.oecd.toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
+        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW['oecd-ex-us'].toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
       );
     }
   }
 
   console.log('\n=== REGIONAL DIVERGENCE SCENARIO ===');
-  console.log('(OECD fossil lock-in, China accelerated solar)\n');
-  console.log('Year     Global    OECD    China      EM     ROW');
+  console.log('(OECD ex-US fossil lock-in, China accelerated solar)\n');
+  console.log('Year     Global   OExUS    China      EM     ROW');
   console.log('----     ------    ----    -----      --     ---');
 
   for (const yr of keyYears) {
@@ -79,14 +79,14 @@ async function main() {
       }
 
       console.log(
-        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW.oecd.toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
+        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW['oecd-ex-us'].toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
       );
     }
   }
 
   // Show difference
   console.log('\n=== DIFFERENCE (Divergence - Baseline) ===');
-  console.log('Year     Global    OECD    China      EM     ROW');
+  console.log('Year     Global   OExUS    China      EM     ROW');
   console.log('----     ------    ----    -----      --     ---');
 
   for (const yr of keyYears) {
@@ -114,14 +114,14 @@ async function main() {
 
       const diff = {
         global: divGlobalW - baseGlobalW,
-        oecd: divW.oecd - baseW.oecd,
+        'oecd-ex-us': divW['oecd-ex-us'] - baseW['oecd-ex-us'],
         china: divW.china - baseW.china,
         em: divW.em - baseW.em,
         row: divW.row - baseW.row,
       };
       const sign = (n: number) => n >= 0 ? '+' : '';
       console.log(
-        `${yr}     ${sign(diff.global)}${diff.global.toFixed(0).padStart(5)}  ${sign(diff.oecd)}${diff.oecd.toFixed(0).padStart(5)}  ${sign(diff.china)}${diff.china.toFixed(0).padStart(5)}  ${sign(diff.em)}${diff.em.toFixed(0).padStart(5)}  ${sign(diff.row)}${diff.row.toFixed(0).padStart(5)}`
+        `${yr}     ${sign(diff.global)}${diff.global.toFixed(0).padStart(5)}  ${sign(diff['oecd-ex-us'])}${diff['oecd-ex-us'].toFixed(0).padStart(5)}  ${sign(diff.china)}${diff.china.toFixed(0).padStart(5)}  ${sign(diff.em)}${diff.em.toFixed(0).padStart(5)}  ${sign(diff.row)}${diff.row.toFixed(0).padStart(5)}`
       );
     }
   }

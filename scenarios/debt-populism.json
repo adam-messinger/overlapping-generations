@@ -40,7 +40,8 @@
     "publicDeficitRate": 0.06,
     "fiscalReactionCoeff": 0.01,
     "savingsPremium": {
-      "oecd": -0.05,
+      "us": -0.15,
+      "oecd-ex-us": 0.0,
       "china": 0.1,
       "india": -0.05,
       "latam": -0.1,

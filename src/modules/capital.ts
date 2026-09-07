@@ -310,12 +310,14 @@ export const capitalDefaults: CapitalParams = {
   savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
   // Regional premiums: calibrated to gross national savings differentials
-  // (World Bank WDI 2023: China ~44% of GDP, OECD ~22-24%, SSA ~18-20%).
+  // (World Bank WDI 2023: China ~44% of GDP, US ~17-18%, OECD ex-US ~25%
+  // (Japan 29, Germany 28, Korea 34, UK 15), SSA ~18-20%).
   // NOTE: the energy module's REGIONAL_FINANCING_SPREADS residuals are
   // derived from the 2025 savings rates these produce; changing them is
   // caught by the spread-calibration test in simulation.test.ts.
   savingsPremium: {
-    oecd: 0.00,             // Baseline
+    us: -0.10,              // US gross national savings ~17.6% GDP (WDI 2023), ~5pp below the OECD ex-US
+    'oecd-ex-us': 0.05,     // Japan/Germany/Korea surplus savers lift the ex-US OECD above the old blended baseline
     china: 0.15,            // +15% higher savings
     india: 0.02,            // Slightly above baseline
     latam: -0.05,           // Lower savings
@@ -333,9 +335,15 @@ export const capitalDefaults: CapitalParams = {
   // Regional transfer premiums (per-recipient rates as fractions of
   // GDP/capita), calibrated so aggregate spending reproduces OECD Pensions
   // at a Glance 2023 (public pensions ~7-9% GDP in OECD, <2% in SSA) and
-  // WHO/World Bank health expenditure shares
+  // WHO/World Bank health expenditure shares. US: public pensions ~7% GDP
+  // (SS 5.1% + federal/state plans) on a young age structure implies a
+  // higher per-retiree rate; per-capita public health spending on the old
+  // (Medicare + Medicaid LTC ~4% GDP) is ~2x the OECD ex-US (Health at a
+  // Glance 2023). The old-population-weighted blend of the two reproduces
+  // the previous OECD rates (0.35 / 0.10).
   transferPremium: {
-    oecd:   { pensionRate: 0.35, healthcareRate: 0.10, educationRate: 0.05 },
+    us:     { pensionRate: 0.38, healthcareRate: 0.16, educationRate: 0.05 },
+    'oecd-ex-us': { pensionRate: 0.34, healthcareRate: 0.08, educationRate: 0.05 },
     china:  { pensionRate: 0.25, healthcareRate: 0.06 },
     india:  { pensionRate: 0.10, healthcareRate: 0.03 },
     latam:  { pensionRate: 0.20, healthcareRate: 0.05 },
@@ -1075,7 +1083,7 @@ export const capitalModule: Module<
       const pop = inputs.regionalPopulation[r] ?? 0;
       const premium = params.transferPremium[r] ?? {};
 
-      // All 8 regions define these in transferPremium defaults (mergeParams
+      // All 9 regions define these in transferPremium defaults (mergeParams
       // deep-merges per region); ?? 0 keeps a malformed direct override from
       // turning retireeCost into NaN
       const pensionRate = premium.pensionRate ?? 0;

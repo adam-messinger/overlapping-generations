@@ -375,13 +375,21 @@ export const demandDefaults: DemandParams = {
   // split — so these carry the ~1.0-1.5%/yr residual. The previous
   // 0.3-0.8%/yr had no source and inflated 2050 final energy ~25%.
   regions: {
-    oecd: {
-      gdp2025: 62,              // $62T PPP (World Bank 2017 intl $)
-      tfpGrowth: 0.008,         // Residual TFP after useful work extraction (Ayres/Warr)
+    us: {
+      gdp2025: 24,              // $24T PPP (World Bank 2017 intl $; US real GDP 2017$ ~$23.5T 2025)
+      tfpGrowth: 0.010,         // Residual TFP: US labor productivity has outpaced Europe/Japan since 2005 (OECD Productivity Statistics)
       tfpDecay: 0.0,            // Mature economy - no convergence
-      energyIntensity: 0.63,    // MWh per $1000 GDP PPP (preserves ~39k TWh)
+      energyIntensity: 0.69,    // MWh per $1000 GDP PPP: US TFC ~16.5k TWh (IEA WEB 2023, ~42% of OECD final energy)
+      intensityDecline: 0.013,  // 1.3%/year
+      elecShareMultiplier2025: 1.04,  // US elec ~4.3k TWh gen 2024 (EIA/Ember) = ~26% of final energy
+    },
+    'oecd-ex-us': {
+      gdp2025: 38,              // $38T PPP (World Bank 2017 intl $; 62 model-OECD less the US)
+      tfpGrowth: 0.007,         // Residual TFP: Europe/Japan productivity growth below the US
+      tfpDecay: 0.0,            // Mature economy - no convergence
+      energyIntensity: 0.59,    // MWh per $1000 GDP PPP: ~22.5k TWh TFC (EU/Japan ~0.5, Mexico/Turkey/Korea higher); us + ex-us preserve the old ~39k TWh
       intensityDecline: 0.013,  // 1.3%/year (advanced economies ~1.5-2%/yr historical)
-      elecShareMultiplier2025: 1.07,  // OECD elec ~10.5k TWh gen 2024 (Ember); all multipliers scaled +5% so regional sums reconcile to the ~31.5k TWh world total
+      elecShareMultiplier2025: 1.09,  // ~6.2k TWh gen 2024 (Ember) = ~27.5% of final energy; all multipliers scaled +5% so regional sums reconcile to the ~31.5k TWh world total
     },
     china: {
       gdp2025: 33,              // $33T PPP

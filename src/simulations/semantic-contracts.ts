@@ -84,9 +84,9 @@ const world = {
 } as const;
 
 const oecdRegion = {
-  id: 'geo.oecd-model-region',
-  label: 'OECD aggregate model region',
-  boundaryVersion: 'global-model-region-v1',
+  id: 'geo.oecd-ex-us-model-region',
+  label: 'OECD ex-US aggregate model region',
+  boundaryVersion: 'global-model-region-v2',
 } as const;
 
 const euroArea = {

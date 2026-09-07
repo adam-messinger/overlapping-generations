@@ -73,24 +73,36 @@ export interface DemographicsParams {
 export const demographicsDefaults: DemographicsParams = {
   // Regional table: pop2025, fertility, life expectancy, and cohort shares
   // from UN World Population Prospects 2024 (medium variant, regions
-  // aggregated to this model's 8 groups); fertility floors/decay follow
+  // aggregated to this model's 9 groups); fertility floors/decay follow
   // Fernández-Villaverde's low-fertility convergence argument (see
   // docs/REFERENCES.md). migrationRate is the net annual rate as a fraction
   // of regional population, calibrated to UN WPP 2015-2023 net migration
-  // averages (OECD ~+4-5M/yr); inflows are rescaled at runtime so global
-  // net migration is zero.
+  // averages (US ~+1.2M/yr, rest of OECD ~+3M/yr); inflows are rescaled at
+  // runtime so global net migration is zero.
   regions: {
-    oecd: {
-      name: 'OECD',
-      pop2025: 1.14e9,
-      fertility: 1.55,
+    us: {
+      name: 'United States',
+      pop2025: 0.34e9,         // Census Bureau Vintage 2024: 340M Jan 2025
+      fertility: 1.62,         // CDC NVSS 2023 TFR 1.62
+      fertilityFloor: 1.4,     // Higher floor than Europe/East Asia (JFV: US immigration + religiosity)
+      fertilityDecay: 0.01,
+      lifeExpectancy: 79,      // CDC NVSS 2023: 78.4, recovering post-COVID
+      young: 0.24,             // Census 2023 ACS: 0-19 ~24.5%
+      working: 0.58,           // 20-64 ~58%
+      old: 0.18,               // 65+ ~17.7%
+      migrationRate: 0.0035,   // UN WPP 2024 / CBO 2025: net ~+1.2M/yr on 340M (relative share of the emigration budget)
+    },
+    'oecd-ex-us': {
+      name: 'OECD ex-US',
+      pop2025: 0.80e9,         // 1.14B model-OECD less the US
+      fertility: 1.5,          // Weighted: EU 1.4, Japan 1.2, Korea 0.7, Mexico 1.8, Turkey 1.5
       fertilityFloor: 1.3,
       fertilityDecay: 0.01,
-      lifeExpectancy: 81,
-      young: 0.20,
+      lifeExpectancy: 82,      // Japan 84.7, EU 81.5, Korea 83.5 (UN WPP 2024)
+      young: 0.18,             // Residual of the old 0.20/0.58/0.22 blend after removing the younger US
       working: 0.58,
-      old: 0.22,
-      migrationRate: 0.004,
+      old: 0.24,
+      migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers)
     },
     china: {
       name: 'China',
@@ -185,13 +197,24 @@ export const demographicsDefaults: DemographicsParams = {
   // as a global compromise). Trajectory params (targets, growth, decay)
   // are modeling assumptions.
   education: {
-    oecd: {
-      enrollmentRate2025: 0.75,
+    us: {
+      enrollmentRate2025: 0.79,  // UNESCO UIS 2022 tertiary gross enrollment, US ~79%
+      enrollmentTarget: 0.82,
+      enrollmentGrowth: 0.010,
+      collegeShare2025: 0.42,    // Census CPS 2023: 37.7% of 25+ bachelor's+, higher among 25-64
+      wagePremium2025: 1.7,      // OECD EAG 2024: US tertiary/upper-secondary earnings ~1.73
+      premiumTarget: 1.5,
+      premiumDecay: 0.003,
+      lifeBonusCollege: 4,       // Case & Deaton 2021: ~8yr BA/non-BA gap, halved
+      lifePenaltyNonCollege: 1,
+    },
+    'oecd-ex-us': {
+      enrollmentRate2025: 0.73,  // UNESCO UIS 2022: OECD ~75% incl. US; Mexico/Turkey pull the rest down
       enrollmentTarget: 0.80,
       enrollmentGrowth: 0.010,
-      collegeShare2025: 0.40,
-      wagePremium2025: 1.5,
-      premiumTarget: 1.4,
+      collegeShare2025: 0.39,    // OECD EAG 2024: tertiary attainment 25-64 ~40% ex-US
+      wagePremium2025: 1.45,     // OECD EAG 2024: OECD avg 1.54 with the US at 1.73
+      premiumTarget: 1.35,
       premiumDecay: 0.003,
       lifeBonusCollege: 3,
       lifePenaltyNonCollege: 1,
@@ -280,7 +303,8 @@ export const demographicsDefaults: DemographicsParams = {
 
   // Heat stress: wet-bulb temperature → outdoor labor productivity loss
   heatStress: {
-    oecd:   { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.15 },
+    us:     { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.14 },  // BLS: agriculture+construction ~6% of jobs; Gulf/Southeast humid summers
+    'oecd-ex-us': { baselineWetBulb: 24, warmingAmplification: 0.8, outdoorFraction: 0.16 },  // Mexico/Turkey/Southern Europe raise outdoor share
     china:  { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
     india:  { baselineWetBulb: 31, warmingAmplification: 1.2, outdoorFraction: 0.40 },
     latam:  { baselineWetBulb: 28, warmingAmplification: 1.0, outdoorFraction: 0.25 },
@@ -575,10 +599,19 @@ export const demographicsModule: Module<
 
   paramMeta: {
     regions: {
-      oecd: {
+      us: {
         fertilityFloor: {
-          paramName: 'oecdFertilityFloor',
-          description: 'Long-run fertility floor for OECD region. 2.1 = replacement level.',
+          paramName: 'usFertilityFloor',
+          description: 'Long-run fertility floor for the United States. 2.1 = replacement level.',
+          unit: 'children/woman',
+          range: { min: 1.0, max: 2.1, default: 1.4 },
+          tier: 1 as const,
+        },
+      },
+      'oecd-ex-us': {
+        fertilityFloor: {
+          paramName: 'oecdExUsFertilityFloor',
+          description: 'Long-run fertility floor for the OECD ex-US region. 2.1 = replacement level.',
           unit: 'children/woman',
           range: { min: 1.0, max: 2.1, default: 1.3 },
           tier: 1 as const,

@@ -69,8 +69,8 @@ test('a prolonged closure exposes an inventory cliff', () => {
 test('regional exposure makes India more physically constrained than Latin America', () => {
   const july = calibrated.result.months.find((row) => row.month === 7)!;
   expect(july.regional.india.oilAvailability)
-    .toBeLessThan(july.regional.oecd.oilAvailability);
-  expect(july.regional.oecd.oilAvailability)
+    .toBeLessThan(july.regional['oecd-ex-us'].oilAvailability);
+  expect(july.regional['oecd-ex-us'].oilAvailability)
     .toBeLessThan(july.regional.latam.oilAvailability);
   expect(july.regional.india.gasAvailability)
     .toBeLessThan(july.regional.russia.gasAvailability);
@@ -123,6 +123,13 @@ test('the annual bridge rejects an accidental same-year shock overwrite', () => 
   expect(() => buildHormuzGlobalOverrides(result, {
     demand: { commodityShocks: [{ year: 2026 }] },
   })).toThrow('conflicts with existing year 2026');
+});
+
+test('regional oil and gas consumption weights each partition world use (sum to 1)', () => {
+  const oil = REGIONS.reduce((sum, r) => sum + hormuzDefaults.regions[r].oilConsumptionWeight, 0);
+  const gas = REGIONS.reduce((sum, r) => sum + hormuzDefaults.regions[r].gasConsumptionWeight, 0);
+  expect(oil).toBeCloseTo(1, 9);
+  expect(gas).toBeCloseTo(1, 9);
 });
 
 printSummary();

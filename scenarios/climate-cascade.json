@@ -16,7 +16,8 @@
     "damageCoeff": 0.008,
     "tippingThreshold": 1.8,
     "regionalDamage": {
-      "oecd": 0.8,
+      "us": 0.9,
+      "oecd-ex-us": 0.75,
       "china": 1.0,
       "india": 2.0,
       "latam": 1.3,

@@ -31,15 +31,15 @@ function point(
   };
 }
 
-test('global bridge converts consecutive OECD GDP-per-capita levels into forward growth', () => {
+test('global bridge converts consecutive US GDP-per-capita levels into forward growth', () => {
   const global = runSimulation({ startYear: 2025, endYear: 2027 });
   const path = buildGlobalMacroPath(global);
   const current = global.results[0];
   const next = global.results[1];
   const currentPerCapita =
-    current.regionalGdp.oecd * 1e12 / current.regionalPopulation.oecd;
+    current.regionalGdp.us * 1e12 / current.regionalPopulation.us;
   const nextPerCapita =
-    next.regionalGdp.oecd * 1e12 / next.regionalPopulation.oecd;
+    next.regionalGdp.us * 1e12 / next.regionalPopulation.us;
   const expectedGrowth = nextPerCapita / currentPerCapita - 1;
 
   expect(Object.keys(path.points)).toHaveLength(2);

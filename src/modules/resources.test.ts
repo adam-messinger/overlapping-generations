@@ -8,6 +8,7 @@
 import { resourcesModule, resourcesDefaults } from './resources.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
+import { REGIONS } from '../domain-types.js';
 
 // Helper to create typical inputs
 function createInputs(options: {
@@ -355,5 +356,10 @@ test('module declares correct outputs', () => {
 // =============================================================================
 // SUMMARY
 // =============================================================================
+
+test('regional farmland shares partition world farmland (sum to 1)', () => {
+  const total = REGIONS.reduce((sum, r) => sum + resourcesDefaults.water.regional[r].farmlandShare, 0);
+  expect(total).toBeCloseTo(1, 9);
+});
 
 printSummary();

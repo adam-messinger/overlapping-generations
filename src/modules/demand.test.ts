@@ -81,13 +81,15 @@ test('init sets correct 2025 GDP shares', () => {
 
   // GDP shares should sum to 1.0
   expect(totalShare).toBeCloseTo(1.0, 2);
-  // OECD should have largest share (~39% of $158T PPP)
-  expect(state.regions.oecd.gdpShare).toBeBetween(0.35, 0.45);
+  // US ~15% and OECD ex-US ~24% of $158T PPP (together the old ~39% OECD share)
+  expect(state.regions.us.gdpShare).toBeBetween(0.12, 0.18);
+  expect(state.regions['oecd-ex-us'].gdpShare).toBeBetween(0.20, 0.28);
 });
 
 test('init sets correct energy intensity by region', () => {
   const state = demandModule.init(demandDefaults);
-  expect(state.regions.oecd.intensity).toBeCloseTo(0.63, 2);
+  expect(state.regions.us.intensity).toBeCloseTo(0.69, 2);
+  expect(state.regions['oecd-ex-us'].intensity).toBeCloseTo(0.59, 2);
   expect(state.regions.china.intensity).toBeCloseTo(1.11, 2);
   expect(state.regions.india.intensity).toBeCloseTo(0.65, 2);
   expect(state.regions.russia.intensity).toBeCloseTo(1.03, 2);
@@ -156,7 +158,7 @@ test('China GDP grows faster than OECD initially', () => {
   const year1 = runYears(1).outputs.regional;
   const year10 = runYears(10).outputs.regional;
 
-  const oecdGrowth = (year10.oecd.gdp - year1.oecd.gdp) / year1.oecd.gdp;
+  const oecdGrowth = (year10['oecd-ex-us'].gdp - year1['oecd-ex-us'].gdp) / year1['oecd-ex-us'].gdp;
   const chinaGrowth = (year10.china.gdp - year1.china.gdp) / year1.china.gdp;
 
   expect(chinaGrowth).toBeGreaterThan(oecdGrowth);
@@ -257,7 +259,7 @@ test('China energy intensity declines faster than OECD (catch-up)', () => {
 
   // China's intensity decline should be larger (faster catch-up)
   const chinaDecline = state10.regions.china.intensity - state50.regions.china.intensity;
-  const oecdDecline = state10.regions.oecd.intensity - state50.regions.oecd.intensity;
+  const oecdDecline = state10.regions['oecd-ex-us'].intensity - state50.regions['oecd-ex-us'].intensity;
   expect(chinaDecline).toBeGreaterThan(oecdDecline);
 });
 
@@ -266,8 +268,8 @@ test('China energy intensity declines faster than OECD (catch-up)', () => {
 console.log('\n--- Energy Intensity ---\n');
 
 test('energy intensity declines over time', () => {
-  const year1 = runYears(1).outputs.regional.oecd.energyIntensity;
-  const year25 = runYears(25).outputs.regional.oecd.energyIntensity;
+  const year1 = runYears(1).outputs.regional['oecd-ex-us'].energyIntensity;
+  const year25 = runYears(25).outputs.regional['oecd-ex-us'].energyIntensity;
 
   expect(year25).toBeLessThan(year1);
 });
@@ -276,7 +278,7 @@ test('China intensity declines faster than OECD', () => {
   const year1 = runYears(1).outputs.regional;
   const year25 = runYears(25).outputs.regional;
 
-  const oecdDecline = 1 - year25.oecd.energyIntensity / year1.oecd.energyIntensity;
+  const oecdDecline = 1 - year25['oecd-ex-us'].energyIntensity / year1['oecd-ex-us'].energyIntensity;
   const chinaDecline = 1 - year25.china.energyIntensity / year1.china.energyIntensity;
 
   expect(chinaDecline).toBeGreaterThan(oecdDecline);
@@ -363,7 +365,7 @@ test('validation catches negative GDP', () => {
   const result = demandModule.validate({
     regions: {
       ...demandDefaults.regions,
-      oecd: { ...demandDefaults.regions.oecd, gdp2025: -10 },
+      'oecd-ex-us': { ...demandDefaults.regions['oecd-ex-us'], gdp2025: -10 },
     },
   });
   expect(result.valid).toBe(false);

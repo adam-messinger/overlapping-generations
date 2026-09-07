@@ -55,10 +55,10 @@ function report(result: SimulationResult, label: string) {
   const first = result.results[0];
   const last = result.results[result.results.length - 1];
   console.log(`\nBy region (${first.year} -> ${last.year}): investment, depreciation + write-offs, net, migration transfer (at own cost), inv/GDP`);
-  console.log('Region   inv0  chg0   net0   mig0  share0 |   inv1    chg1    net1    mig1  share1');
-  console.log('------  -----  ----  -----  -----  ------ |  -----   -----   -----   -----  ------');
+  console.log('Region       inv0  chg0   net0   mig0  share0 |   inv1    chg1    net1    mig1  share1');
+  console.log('----------  -----  ----  -----  -----  ------ |  -----   -----   -----   -----  ------');
   for (const region of REGIONS) {
-    console.log(`${region.padEnd(6)}  ${regionCells(first, region, 2)} |  ${regionCells(last, region, 1)}`);
+    console.log(`${region.padEnd(10)}  ${regionCells(first, region, 2)} |  ${regionCells(last, region, 1)}`);
   }
 
   console.log('\nMigration (world): inflows at destination cost / outflows at origin cost / revaluation gain, $T/yr');

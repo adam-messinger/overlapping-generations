@@ -82,7 +82,7 @@ Non-electric fuel mix evolves via a logit model with inertia (~9-year half-life 
 
 ### 2.4 Demographics (Fernandez-Villaverde Convergence)
 
-Population is modeled as three cohorts (young 0--19, working 20--64, old 65+) across eight regions, with fertility converging exponentially to region-specific floors calibrated to Fernandez-Villaverde et al. (2023). China's TFR starts at 1.00 with a floor of 0.80; Sub-Saharan Africa starts at 4.30 and declines toward 1.80.
+Population is modeled as three cohorts (young 0--19, working 20--64, old 65+) across nine regions (the United States, OECD ex-US, China, India + South Asia, Latin America, SE Asia + Pacific, Russia + CIS, MENA, Sub-Saharan Africa), with fertility converging exponentially to region-specific floors calibrated to Fernandez-Villaverde et al. (2023). China's TFR starts at 1.00 with a floor of 0.80; Sub-Saharan Africa starts at 4.30 and declines toward 1.80.
 
 Global population peaks at 8.9 billion around 2057 and declines to 8.35 billion by 2100. Education tracks tertiary enrollment (logistic convergence to regional targets), producing an effective-worker measure that rises even as headcount falls.
 

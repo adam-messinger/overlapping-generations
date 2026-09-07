@@ -1,5 +1,6 @@
 import { runAutowiredSimulation } from '../src/simulation-autowired.js';
 import { getOutputsAtYear } from '../src/framework/autowire.js';
+import { REGIONS } from '../src/domain-types.js';
 
 const aw = runAutowiredSimulation({});
 const years = [2025, 2030, 2035, 2040, 2045, 2050, 2060, 2075, 2100];
@@ -36,10 +37,10 @@ if (i50 >= 0) {
   const o = getOutputsAtYear(aw, i50);
   const gen: any = o.regionalGeneration ?? {};
   const grid: any = o.regionalGridIntensity ?? {};
-  for (const r of ['oecd', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa']) {
+  for (const r of REGIONS) {
     const g = gen[r] ?? {};
     const total = Object.values(g).reduce((s: number, v: any) => s + (v ?? 0), 0) as number;
     const solar = (g.solar ?? 0) + (g.wind ?? 0);
-    console.log(`  ${r.padEnd(8)} grid=${(grid[r] ?? 0).toFixed(0)} kg/MWh  VRE share=${total > 0 ? ((solar / total) * 100).toFixed(0) : 0}%`);
+    console.log(`  ${r.padEnd(10)} grid=${(grid[r] ?? 0).toFixed(0)} kg/MWh  VRE share=${total > 0 ? ((solar / total) * 100).toFixed(0) : 0}%`);
   }
 }

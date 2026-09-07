@@ -11,7 +11,7 @@ import { Region, REGIONS } from '../domain-types.js';
  * total distributed through these shares.
  */
 const RAW_GDP_SHARES: Record<Region, number> = {
-  oecd: 0.47, china: 0.15, india: 0.11, latam: 0.07,
+  us: 0.26, 'oecd-ex-us': 0.21, china: 0.15, india: 0.11, latam: 0.07,  // IMF WEO 2025: US ~26% of world market GDP
   seasia: 0.06, russia: 0.03, mena: 0.04, ssa: 0.06,
 };
 

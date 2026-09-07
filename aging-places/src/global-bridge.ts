@@ -1,9 +1,9 @@
 /**
  * Explicit global -> US municipal integration boundary.
  *
- * The global model has an OECD region, not a US region. OECD GDP per capita
- * is therefore an auditable proxy for the national real-income path, not a
- * claim that the global model separately forecasts the United States.
+ * The global model's `us` region (broken out of the OECD in 2026) supplies
+ * the national real-income path by default. Its GDP per capita is still an
+ * auditable proxy: a nine-region macro path, not a validated US forecast.
  */
 import type { Region } from '../../src/domain-types.js';
 import {
@@ -68,7 +68,7 @@ function macroEstimand(id: string, spec: EstimandSpec): EstimandContract {
 const selectedRegionResidents = {
   id: 'population.global-model.selected-region-residents',
   label: 'Residents of the selected global-model region',
-  universe: 'People represented by the selected global-model region; OECD by default.',
+  universe: 'People represented by the selected global-model region; the United States by default.',
 } as const;
 
 const usMunicipalHouseholds = {
@@ -80,7 +80,7 @@ const usMunicipalHouseholds = {
 const selectedRegion = {
   id: 'geo.global-model.selected-region',
   label: 'Selected global-model region',
-  boundaryVersion: 'global-model-region-v1',
+  boundaryVersion: 'global-model-region-v2',
 } as const;
 
 const usMunicipalMarkets = {
@@ -228,13 +228,13 @@ const gdpToIncomeGrowth = defineSemanticCrosswalk({
   target: globalCityEstimands.municipalIncomeGrowth,
   method: 'Compute next/current annual GDP per capita minus one, then apply that rate to each included city.',
   assumptions: [
-    'OECD real PPP GDP per capita is the default proxy because the global model has no U.S.-only region.',
+    'US-region real PPP GDP per capita is the default proxy; the region is a nine-region global-model aggregate, not a national forecast.',
     'The same national proxy growth rate applies to every included municipality.',
     'Changes in household income track GDP per capita one-for-one before city-specific dynamics.',
   ],
   uncertainty: {
     kind: 'qualitative',
-    description: 'Proxy error includes OECD-versus-U.S., GDP-versus-household-income, and national-versus-city divergence.',
+    description: 'Proxy error includes model-region-versus-national-accounts, GDP-versus-household-income, and national-versus-city divergence.',
   },
 });
 
@@ -269,7 +269,7 @@ function buildGlobalMacroPathUnchecked(
   result: SimulationResult,
   options: GlobalMacroPathOptions = {},
 ): NationalMacroPath {
-  const region = options.region ?? 'oecd';
+  const region = options.region ?? 'us';
   const premium = options.housePriceIncomePremium ?? DEFAULT_HOUSE_PRICE_INCOME_PREMIUM;
   if (!Number.isFinite(premium) || premium < -0.05 || premium > 0.05) {
     throw new Error('global bridge: housePriceIncomePremium out of [-0.05,0.05]');

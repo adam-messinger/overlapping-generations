@@ -147,12 +147,12 @@ console.log('\n--- Regional Savings ---\n');
 
 test('China has higher savings rate than OECD', () => {
   const { outputs } = runYears(1);
-  expect(outputs.regionalSavings.china).toBeGreaterThan(outputs.regionalSavings.oecd);
+  expect(outputs.regionalSavings.china).toBeGreaterThan(outputs.regionalSavings['oecd-ex-us']);
 });
 
 test('SSA has lower savings rate than OECD', () => {
   const { outputs } = runYears(1);
-  expect(outputs.regionalSavings.ssa).toBeLessThan(outputs.regionalSavings.oecd);
+  expect(outputs.regionalSavings.ssa).toBeLessThan(outputs.regionalSavings['oecd-ex-us']);
 });
 
 test('all regional savings rates are reasonable', () => {

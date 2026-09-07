@@ -6,8 +6,8 @@
  */
 
 /** Region identifiers */
-export type Region = 'oecd' | 'china' | 'india' | 'latam' | 'seasia' | 'russia' | 'mena' | 'ssa';
-export const REGIONS: Region[] = ['oecd', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa'];
+export type Region = 'us' | 'oecd-ex-us' | 'china' | 'india' | 'latam' | 'seasia' | 'russia' | 'mena' | 'ssa';
+export const REGIONS: Region[] = ['us', 'oecd-ex-us', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa'];
 
 /** Energy source identifiers */
 export type EnergySource = 'solar' | 'wind' | 'gas' | 'coal' | 'nuclear' | 'hydro' | 'battery';

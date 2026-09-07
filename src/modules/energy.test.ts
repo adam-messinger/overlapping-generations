@@ -82,7 +82,8 @@ test('init sets correct 2025 solar capacity (sum of regional)', () => {
 
 test('init sets correct regional solar capacities', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.regional.oecd.solar.installed).toBe(600);
+  expect(state.regional.us.solar.installed).toBe(160);
+  expect(state.regional['oecd-ex-us'].solar.installed).toBe(440);
   expect(state.regional.china.solar.installed).toBe(600);
   expect(state.regional.india.solar.installed).toBe(90);
   expect(state.regional.ssa.solar.installed).toBe(8);
@@ -138,9 +139,9 @@ test('regional LCOE output exposes the prices used for regional investment', () 
     expect(outputs.regionalLCOEs[region].solar).toBeGreaterThan(0);
     expect(outputs.regionalLCOEs[region].gas).toBeGreaterThan(0);
   }
-  // Higher financing frictions make SSA solar costlier than OECD solar.
+  // Higher financing frictions make SSA solar costlier than US solar (same 0.22 CF).
   expect(outputs.regionalLCOEs.ssa.solar)
-    .toBeGreaterThan(outputs.regionalLCOEs.oecd.solar);
+    .toBeGreaterThan(outputs.regionalLCOEs.us.solar);
 });
 
 // --- Learning Curves ---
@@ -230,18 +231,18 @@ test('higher regional carbon price affects regional clean energy growth', () => 
   const lowCarbon = runYears(10, {
     regional: {
       ...energyDefaults.regional,
-      oecd: { ...energyDefaults.regional.oecd, carbonPrice: 20 },
+      'oecd-ex-us': { ...energyDefaults.regional['oecd-ex-us'], carbonPrice: 20 },
     },
   });
   const highCarbon = runYears(10, {
     regional: {
       ...energyDefaults.regional,
-      oecd: { ...energyDefaults.regional.oecd, carbonPrice: 200 },
+      'oecd-ex-us': { ...energyDefaults.regional['oecd-ex-us'], carbonPrice: 200 },
     },
   });
   // With high carbon price, more solar should be added in OECD
   // (because it becomes more competitive vs fossil)
-  expect(highCarbon.outputs.regionalAdditions.oecd.solar).toBeGreaterThan(0);
+  expect(highCarbon.outputs.regionalAdditions['oecd-ex-us'].solar).toBeGreaterThan(0);
 });
 
 test('global LCOE for fossil does not include carbon (regional)', () => {
@@ -270,7 +271,7 @@ test('regional carbon prices affect regional additions differently', () => {
   const { outputs } = runYears(10);
 
   // Both regions should have growing solar
-  expect(outputs.regionalAdditions.oecd.solar).toBeGreaterThan(0);
+  expect(outputs.regionalAdditions['oecd-ex-us'].solar).toBeGreaterThan(0);
   expect(outputs.regionalAdditions.china.solar).toBeGreaterThan(0);
 });
 
@@ -278,7 +279,7 @@ test('regional capacities are tracked separately', () => {
   const { outputs } = runYears(1);
 
   // Each region should have its own capacity values
-  expect(outputs.regionalCapacities.oecd.solar).toBeGreaterThan(0);
+  expect(outputs.regionalCapacities['oecd-ex-us'].solar).toBeGreaterThan(0);
   expect(outputs.regionalCapacities.china.solar).toBeGreaterThan(0);
   expect(outputs.regionalCapacities.india.solar).toBeGreaterThan(0);
   expect(outputs.regionalCapacities.ssa.solar).toBeGreaterThan(0);
@@ -406,7 +407,7 @@ test('investment constraint calculated from CAPEX', () => {
   const inputs = createInputs(30000, 1, 1.0);  // Only $1T investment
   const result = energyModule.step(state, inputs, params, 2025, 0);
 
-  // With $1T investment × 15% clean share = $150B clean budget spread across 8 regions
+  // With $1T investment × 15% clean share = $150B clean budget spread across 9 regions
   // Solar regional LCOE adjusted for site CF, so not all regions build aggressively
   // At $800M/GW CAPEX, budget constrains additions well below demand-driven target
   expect(result.outputs.additions.solar).toBeLessThan(200);
@@ -460,7 +461,7 @@ test('validation catches negative regional carbon price', () => {
   const result = energyModule.validate({
     regional: {
       ...energyDefaults.regional,
-      oecd: { ...energyDefaults.regional.oecd, carbonPrice: -10 },
+      'oecd-ex-us': { ...energyDefaults.regional['oecd-ex-us'], carbonPrice: -10 },
     },
   });
   expect(result.valid).toBe(false);
@@ -643,12 +644,12 @@ console.log('\n--- Regional Financing Spreads ---\n');
 
 test('regionalWACC equals global WACC plus the regional spread', () => {
   const params = energyModule.mergeParams({
-    regional: { oecd: { financingSpread: 0 }, ssa: { financingSpread: 0.06 } } as any,
+    regional: { 'oecd-ex-us': { financingSpread: 0 }, ssa: { financingSpread: 0.06 } } as any,
   });
   const state = energyModule.init(params);
   const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);
   expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.06, 6);
-  expect(r.outputs.regionalWACC.oecd).toBeCloseTo(r.outputs.effectiveWACC, 6);
+  expect(r.outputs.regionalWACC['oecd-ex-us']).toBeCloseTo(r.outputs.effectiveWACC, 6);
 });
 
 test('a positive financing spread suppresses regional solar additions', () => {
@@ -688,7 +689,7 @@ test('financingSpreadScale=0 neutralizes all regional spreads', () => {
 
 test('home bias raises WACC for savings-scarce regions and lowers it for savings-rich ones', () => {
   const params = energyModule.mergeParams({
-    regional: { oecd: { financingSpread: 0 }, china: { financingSpread: 0 }, ssa: { financingSpread: 0 } } as any,
+    regional: { 'oecd-ex-us': { financingSpread: 0 }, china: { financingSpread: 0 }, ssa: { financingSpread: 0 } } as any,
   });
   const state = energyModule.init(params);
   const savings = regional(0.25);
@@ -699,7 +700,7 @@ test('home bias raises WACC for savings-scarce regions and lowers it for savings
   // gap = world - region: ssa +0.15 * 0.15 = +2.25pp; china -0.17 * 0.15 = -2.55pp
   expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.15 * 0.15, 6);
   expect(r.outputs.regionalWACC.china).toBeCloseTo(r.outputs.effectiveWACC - 0.17 * 0.15, 6);
-  expect(r.outputs.regionalWACC.oecd).toBeCloseTo(r.outputs.effectiveWACC + 0.03 * 0.15, 6);
+  expect(r.outputs.regionalWACC['oecd-ex-us']).toBeCloseTo(r.outputs.effectiveWACC + 0.03 * 0.15, 6);
 });
 
 test('a savings increase in a region lowers its own WACC, all else equal', () => {
@@ -802,7 +803,7 @@ test('new capacity retires at exactly its declared integer lifetime', () => {
     lifetime: { ...energyDefaults.lifetime, solar: 2 },
   });
   let state = energyModule.init(params);
-  const cohortId = 'oecd-solar-2025';
+  const cohortId = 'oecd-ex-us-solar-2025';
   for (let yearIndex = 0; yearIndex <= 2; yearIndex++) {
     const result = energyModule.step(
       state,
@@ -813,7 +814,7 @@ test('new capacity retires at exactly its declared integer lifetime', () => {
     );
     state = result.state;
     if (yearIndex === 0) {
-      const cohort = state.regional.oecd.solar.vintages.cohorts.find(
+      const cohort = state.regional['oecd-ex-us'].solar.vintages.cohorts.find(
         (candidate) => candidate.id === cohortId,
       );
       expect(cohort !== undefined).toBeTrue();
@@ -821,7 +822,7 @@ test('new capacity retires at exactly its declared integer lifetime', () => {
     }
   }
   expect(
-    state.regional.oecd.solar.vintages.cohorts.some(
+    state.regional['oecd-ex-us'].solar.vintages.cohorts.some(
       (cohort) => cohort.id === cohortId,
     ),
   ).toBeFalse();

@@ -311,9 +311,13 @@ export const resourcesDefaults: ResourcesParams = {
   // not sourced point values
   water: {
     regional: {
-      oecd: {
+      us: {
+        vulnerability: 0.04,    // Low-moderate — Colorado basin, Ogallala depletion (USGS)
+        farmlandShare: 0.085,   // USDA ERS: ~410 Mha cropland + pasture of ~4.8 Gha world (FAOSTAT)
+      },
+      'oecd-ex-us': {
         vulnerability: 0.03,    // Low — temperate, good infrastructure
-        farmlandShare: 0.22,
+        farmlandShare: 0.135,   // Australia ~360 Mha (mostly rangeland), EU ~160, Mexico ~100, Canada ~60 (FAOSTAT)
       },
       china: {
         vulnerability: 0.06,    // Moderate — North China plains drying
