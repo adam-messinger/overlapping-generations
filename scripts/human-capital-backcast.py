@@ -3,9 +3,9 @@
 
 Companion to docs/HUMAN_CAPITAL_TRAJECTORY.md. The simulation starts in 2025, so
 the century before it is reconstructed from observed data and priced with the
-humanCapital ledger's replacement-cost multipliers (rearing + schooling +
-foregone earnings as multiples of GDP per capita: none 4.8, primary 6.0,
-secondary 9.0, tertiary 13.6, advanced 18.1; src/modules/human-capital.ts).
+humanCapital ledger's replacement-cost multipliers (USDA rearing + OECD schooling
+as multiples of GDP per capita: none 3.68, primary 4.88, secondary 6.84, tertiary 9.36,
+advanced 11.78; src/modules/human-capital.ts).
 
 Inputs (download into a directory and pass it as argv[1]):
   OUP_long_MF2564_v1.csv, OUP_long_MF1524_v1.csv   Lee and Lee (2016) attainment 1870-2010,
@@ -36,7 +36,7 @@ import pandas as pd, numpy as np, json, sys
 D = sys.argv[1]
 OUT = sys.argv[2] if len(sys.argv) > 2 else 'data/human-capital'
 YEARS = list(range(1925, 2030, 5))
-MULT = {'none': 4.8, 'primary': 6.0, 'secondary': 9.0, 'tertiary': 13.6, 'advanced': 18.1}
+MULT = {'none': 3.68, 'primary': 4.88, 'secondary': 6.84, 'tertiary': 9.36, 'advanced': 11.78}   # 0.23 x entry age + schooling stages (human-capital.ts defaults, Sept 2026)
 LIFE = {'none': 30, 'primary': 32, 'secondary': 37, 'tertiary': 39, 'advanced': 38}   # OECD expected working lives (docs/HUMAN_CAPITAL.md)
 ENTRY = {'none': 16, 'primary': 16, 'secondary': 18, 'tertiary': 22, 'advanced': 26}
 # China: Lee-Lee/Barro-Lee count completed tertiary at ~3% of ages 25-64 in 2015, far below the
