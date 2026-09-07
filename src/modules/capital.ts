@@ -311,9 +311,6 @@ export const capitalDefaults: CapitalParams = {
 
   // Regional premiums: calibrated to gross national savings differentials
   // (World Bank WDI 2023 gross national savings; per-region sources inline).
-  // NOTE: the energy module's REGIONAL_FINANCING_SPREADS residuals are
-  // derived from the 2025 savings rates these produce; changing them is
-  // caught by the spread-calibration test in simulation.test.ts.
   savingsPremium: {
     us: -0.10,              // US ~17.6% of GDP (WDI 2023)
     'oecd-ex-us': 0.05,     // ~25%: Japan 29, Germany 28, Korea 34, UK 15 (WDI 2023)
