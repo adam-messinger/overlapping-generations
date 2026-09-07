@@ -540,11 +540,9 @@ export function validateConnectorTypes(
         } else if (lagContract) {
           compare(provider.spec, lagContract, `${provider.module}.${lag.source} -> lag ${inputName}`);
           compare(lagContract, expected, `lag ${inputName} -> ${mod.name}.${inputName}`);
-          try {
-            assertPortValue(lag.initial, lagContract, `Lag '${inputName}' initial`);
-          } catch (error) {
-            warnings.push(error instanceof Error ? error.message : String(error));
-          }
+          // Initial values are checked once for every contracted lag by
+          // lagInitialWarnings below, not here: this branch only sees lags
+          // whose consumer declares an input contract.
         }
         continue;
       }
@@ -554,6 +552,7 @@ export function validateConnectorTypes(
     }
   }
 
+  warnings.push(...lagInitialWarnings(lags));
   return [...new Set(warnings)];
 }
 
@@ -946,13 +945,9 @@ export interface AutowireState {
 }
 
 /**
- * Initialize an auto-wired simulation (builds graph, inits states).
- * Returns mutable state for step-by-step execution.
- */
-/**
  * The part of a run's wiring that does not change while only lag *initial
- * values* are updated: the output registry, the contract audit, the wiring
- * checks, the dependency graph and its topological order.
+ * values* are updated: the contract audit, the wiring checks, the dependency
+ * graph and its topological order.
  *
  * Only the bootstrap fixed point needs this. It re-initializes the whole
  * simulation once per iteration to re-measure year 0, and without the split it
@@ -960,11 +955,22 @@ export interface AutowireState {
  * baseline, for wiring that is identical on every pass.
  */
 export interface CompiledWiring {
-  outputRegistry: Map<string, string>;
   sortedModules: AnyModule[];
 }
 
-export function compileWiring(config: AutowireConfig): CompiledWiring {
+/** The config fields a compiled wiring is derived from, and must be reused with. */
+export type WiringConfig = Pick<
+  AutowireConfig,
+  'modules' | 'transforms' | 'lags' | 'connectorValidation' | 'semanticValidation'
+>;
+
+/**
+ * Audit and resolve a config's wiring once, for callers that will instantiate
+ * it more than once. Reuse the result only with a config whose modules,
+ * transforms and lag *shape* are unchanged — bootstrapping's varying lag
+ * initials are fine, and `initAutowired` re-checks those on every compiled run.
+ */
+export function compileWiring(config: WiringConfig): CompiledWiring {
   const {
     modules,
     transforms = {},
@@ -976,33 +982,35 @@ export function compileWiring(config: AutowireConfig): CompiledWiring {
   const outputRegistry = buildOutputRegistry(modules);
 
   // Unit contracts are strict by default; callers must explicitly opt out.
-  const connectorWarnings = connectorValidation === 'off'
-    ? []
-    : validateConnectorTypes(modules, outputRegistry, transforms, lags, semanticValidation);
-  if (connectorWarnings.length > 0 && connectorValidation === 'error') {
-    throw new Error(`Connector contract errors:\n${connectorWarnings.join('\n')}`);
-  }
-  if (connectorValidation === 'warn') {
-    for (const warning of connectorWarnings) console.warn(`[autowire] ${warning}`);
-  }
+  reportConnectorWarnings(
+    connectorValidation === 'off'
+      ? []
+      : validateConnectorTypes(modules, outputRegistry, transforms, lags, semanticValidation),
+    connectorValidation,
+  );
 
   // Validate wiring: catch typos, missing sources, orphaned outputs
   validateWiring(modules, outputRegistry, transforms, lags);
 
   const graph = buildDependencyGraph(modules, outputRegistry, transforms, lags);
-  return { outputRegistry, sortedModules: topologicalSort(graph) };
+  return { sortedModules: topologicalSort(graph) };
 }
 
 /**
- * Re-check the one thing a compiled wiring cannot cover: lag *initial values*,
- * which the bootstrap fixed point replaces on every iteration. Mirrors the
- * warning/throw semantics `compileWiring` applies to the full audit.
+ * Shape check for every contracted lag's *initial value*.
+ *
+ * Split out because it is the one part of the connector audit that is not
+ * wiring-invariant: the bootstrap fixed point replaces these values on every
+ * pass, so a compiled wiring cannot vouch for them. `validateConnectorTypes`
+ * folds these warnings into the full audit; `initAutowired` runs it alone when
+ * the caller supplies a compiled wiring.
+ *
+ * Deliberately broader than the audit's other lag checks, which only reach a
+ * lag whose consumer declares an input contract and whose source has a
+ * contracted provider. Value conformance needs neither, and both of those are
+ * wiring-invariant anyway, so `compileWiring` has already reported them.
  */
-function validateLagInitials(
-  lags: Record<string, LagConfig>,
-  connectorValidation: NonNullable<AutowireConfig['connectorValidation']>,
-): void {
-  if (connectorValidation === 'off') return;
+export function lagInitialWarnings(lags: Record<string, LagConfig>): string[] {
   const warnings: string[] = [];
   for (const [name, lag] of Object.entries(lags)) {
     if (!lag.contract) continue;
@@ -1012,13 +1020,29 @@ function validateLagInitials(
       warnings.push(error instanceof Error ? error.message : String(error));
     }
   }
-  if (warnings.length === 0) return;
+  return warnings;
+}
+
+/** Apply the configured contract-error policy to a batch of warnings. */
+function reportConnectorWarnings(
+  warnings: readonly string[],
+  connectorValidation: NonNullable<AutowireConfig['connectorValidation']>,
+): void {
+  if (warnings.length === 0 || connectorValidation === 'off') return;
   if (connectorValidation === 'error') {
     throw new Error(`Connector contract errors:\n${warnings.join('\n')}`);
   }
   for (const warning of warnings) console.warn(`[autowire] ${warning}`);
 }
 
+/**
+ * Initialize an auto-wired simulation (builds graph, inits states).
+ * Returns mutable state for step-by-step execution.
+ *
+ * Pass `compiled` to skip the wiring audit when it has already been done for
+ * this wiring; lag initial values are re-checked regardless, since they are
+ * what a caller reusing a compilation is expected to vary.
+ */
 export function initAutowired(
   config: AutowireConfig,
   compiled?: CompiledWiring,
@@ -1049,7 +1073,7 @@ export function initAutowired(
   let sortedModules: AnyModule[];
   if (compiled) {
     sortedModules = compiled.sortedModules;
-    validateLagInitials(lags, connectorValidation);
+    reportConnectorWarnings(lagInitialWarnings(lags), connectorValidation);
   } else {
     sortedModules = compileWiring(config).sortedModules;
   }
@@ -1385,6 +1409,10 @@ function dampValue(previous: unknown, candidate: unknown, damping: number): unkn
 export function prepareAutowiredConfig(config: AutowireConfig): {
   config: AutowireConfig;
   diagnostics: BootstrapDiagnostics;
+  /** Reusable for the run proper: bootstrapping only changes lag initials,
+   *  which `initAutowired` re-checks for every compiled run. Absent when
+   *  bootstrapping is off, since nothing compiled anything. */
+  compiled?: CompiledWiring;
 } {
   const requested = config.bootstrapLags ?? 0;
   const lagNames = Object.entries(config.lags ?? {})
@@ -1445,18 +1473,18 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
 
   // The wiring is identical on every pass — only lag initials change — so
   // compile the graph and audit the contracts once instead of per iteration.
-  const compiled = compileWiring({ ...cfg, bootstrapLags: 0 });
+  const compiled = compileWiring(cfg);
 
   for (iterations = 1; iterations <= options.maxIterations; iterations++) {
-    // Warm-up passes produce scratch lag values, not results, and they re-step
-    // wiring `compiled` has already audited. Per-step port checking is
-    // redundant here: it cannot change a number, and the run proper still
-    // validates every year. `validateOutputs`' completeness and NaN guards are
+    // Init at the configured strictness so the damped initials this loop
+    // synthesizes are still shape-checked every pass — they are the one thing
+    // `compiled` cannot vouch for. Then drop to 'off' for the stepping itself:
+    // warm-ups produce scratch lag values rather than results and re-step
+    // wiring `compiled` has already audited, so per-step port checking cannot
+    // change a number. `validateOutputs`' completeness and NaN guards are
     // unconditional, so a diverging warm-up still fails loudly.
-    const warm = initAutowired(
-      { ...cfg, bootstrapLags: 0, connectorValidation: 'off' },
-      compiled,
-    );
+    const warm = initAutowired({ ...cfg, bootstrapLags: 0 }, compiled);
+    warm.connectorValidation = 'off';
     stepAutowired(warm);
     const newLags: Record<string, LagConfig> = {};
     residual = 0;
@@ -1500,13 +1528,13 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     if (options.onNonConvergence === 'throw') throw new Error(message);
     if (options.onNonConvergence === 'warn') console.warn(`[autowire] ${message}`);
   }
-  return { config: cfg, diagnostics };
+  return { config: cfg, diagnostics, compiled };
 }
 
 /** Initialize a run with the same lag preparation used by `runAutowired`. */
 export function initPreparedAutowired(config: AutowireConfig): AutowireState {
   const prepared = prepareAutowiredConfig(config);
-  const state = initAutowired(prepared.config);
+  const state = initAutowired(prepared.config, prepared.compiled);
   state.diagnostics = { bootstrap: prepared.diagnostics };
   return state;
 }

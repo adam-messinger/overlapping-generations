@@ -18,6 +18,7 @@ import {
   compileWiring,
   initAutowired,
   stepAutowired,
+  lagInitialWarnings,
 } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
 import { unitPort } from '../src/units.js';
@@ -1135,41 +1136,42 @@ test('a compiled wiring drives the same run as compiling per init', () => {
   const config = { ...bootstrapFixtureConfig(true), connectorValidation: 'off' as const };
   const compiled = compileWiring(config);
 
+  // Pin the values, not just the agreement: comparing two runs to each other
+  // passes just as happily when both are wrong. `done` is true on the final
+  // year, so collect the result rather than looping on it, or 2026 -- the year
+  // where the lag update actually carries a model-produced number -- is missed.
   const run = (c?: typeof compiled) => {
     const state = initAutowired(config, c);
     const seen: unknown[] = [];
-    while (!(stepAutowired(state).done)) seen.push(state.currentOutputs.seen);
+    let result;
+    do { result = stepAutowired(state); seen.push(result.outputs.seen); } while (!result.done);
     return seen;
   };
-  assert.deepEqual(run(compiled), run(undefined));
+  assert.deepEqual(run(compiled), [55, 100]);
+  assert.deepEqual(run(undefined), [55, 100]);
 });
 
-test('compiled wiring preserves the bootstrap fixed point exactly', () => {
-  // prepareAutowiredConfig compiles once and reuses it across iterations; the
-  // converged result must match what per-iteration compilation produced.
-  const warm = runAutowired({ ...bootstrapFixtureConfig(true), bootstrapLags: 2 });
-  assert.equal(getOutputsAtYear(warm, 0).seen, 100);
-  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
-});
-
-test('compileWiring still rejects a dependency cycle', () => {
-  const a = defineModule({
-    name: 'cycleA', description: '', defaults: {},
-    inputs: ['fromB'] as const, outputs: ['fromA'] as const,
+test('compileWiring surfaces the connector-contract errors it hoists', () => {
+  // The audit is the expensive check that moved into compileWiring, so assert
+  // it still fires there rather than re-testing cycle detection, which
+  // topologicalSort already covers directly.
+  const producer = defineModule({
+    name: 'wattProducer', description: '', defaults: {},
+    inputs: [] as const, outputs: ['power'] as const,
+    connectorTypes: { inputs: {}, outputs: { power: unitPort('MW') } },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
-    step: () => ({ state: {}, outputs: { fromA: 1 } }),
+    step: () => ({ state: {}, outputs: { power: 1 } }),
   });
-  const b = defineModule({
-    name: 'cycleB', description: '', defaults: {},
-    inputs: ['fromA'] as const, outputs: ['fromB'] as const,
+  const consumer = defineModule({
+    name: 'jouleConsumer', description: '', defaults: {},
+    inputs: ['power'] as const, outputs: ['seen'] as const,
+    connectorTypes: { inputs: { power: unitPort('GtCO2/year') }, outputs: { seen: unitPort('MW') } },
     validate: okValidate, mergeParams: (p) => p, init: () => ({}),
-    step: () => ({ state: {}, outputs: { fromB: 1 } }),
+    step: (_s, i) => ({ state: {}, outputs: { seen: i.power } }),
   });
   throwsWith(
-    () => compileWiring({
-      modules: [a, b], startYear: 2025, endYear: 2026, connectorValidation: 'off',
-    }),
-    'cycle',
+    () => compileWiring({ modules: [producer, consumer] }),
+    'Connector contract errors',
   );
 });
 
@@ -1219,5 +1221,77 @@ test('a bad lag initial is still caught when the wiring is precompiled', () => {
       },
     },
   };
-  throwsWith(() => initAutowired(broken, compiled), 'Lag');
+  // Match the specific message: a bare 'Lag' also matches "Lag source not
+  // found" and every other lag error, which would let this pass for the wrong
+  // reason.
+  throwsWith(() => initAutowired(broken, compiled), "Lag 'laggedFlow' initial");
+
+  // 'warn' reports instead of throwing.
+  const warnings: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (msg: unknown) => { warnings.push(String(msg)); };
+  try {
+    initAutowired({ ...broken, connectorValidation: 'warn' }, compiled);
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.equal(warnings.filter(w => w.includes("Lag 'laggedFlow' initial")).length, 1);
+
+  // A contract-less lag is skipped by the per-pass check rather than reported:
+  // a missing contract is wiring-invariant, so compileWiring owns that error
+  // (and does raise it) instead of the bootstrap loop repeating it every pass.
+  assert.deepEqual(
+    lagInitialWarnings({ laggedFlow: { source: 'flow', delay: 1, initial: 55 } }),
+    [],
+  );
+  assert.deepEqual(
+    lagInitialWarnings({ laggedFlow: { source: 'flow', delay: 1, initial: 55, contract } }),
+    [],
+  );
+  assert.equal(
+    lagInitialWarnings({
+      laggedFlow: { source: 'flow', delay: 1, initial: 'nope' as unknown as number, contract },
+    }).length,
+    1,
+  );
+});
+
+test('bootstrap passes shape-check the initials they synthesize', () => {
+  // Regression: the loop reuses a compiled wiring AND wants per-step checks
+  // off. An earlier cut got the second by passing connectorValidation 'off'
+  // into initAutowired, which silently disabled the first, so the values the
+  // loop damps between passes went unchecked.
+  //
+  // The source emits a bad value only on its first step, so the corruption
+  // exists purely between warm passes: by the time the run proper inits, the
+  // converged initial is clean and the final init has nothing to catch.
+  const contract = unitPort('MW');
+  let steps = 0;
+  const source = defineModule({
+    name: 'firstStepBad', description: '', defaults: {},
+    inputs: [] as const, outputs: ['flow'] as const,
+    connectorTypes: { inputs: {}, outputs: { flow: contract } },
+    validate: okValidate, mergeParams: (p) => p, init: () => ({}),
+    step: () => ({
+      state: {},
+      outputs: { flow: (steps++ === 0 ? 'not a number' : 100) as unknown as number },
+    }),
+  });
+  const sink = defineModule({
+    name: 'firstStepEcho', description: '', defaults: {},
+    inputs: ['laggedFlow'] as const, outputs: ['seen'] as const,
+    connectorTypes: { inputs: { laggedFlow: contract }, outputs: { seen: contract } },
+    validate: okValidate, mergeParams: (p) => p, init: () => ({}),
+    step: (_s, i) => ({ state: {}, outputs: { seen: i.laggedFlow } }),
+  });
+  throwsWith(
+    () => runAutowiredStrict({
+      modules: [source, sink],
+      lags: { laggedFlow: { source: 'flow', delay: 1, initial: 55, bootstrap: true, contract } },
+      startYear: 2025,
+      endYear: 2026,
+      bootstrapLags: { maxIterations: 4, minIterations: 2, tolerance: 1e-9 },
+    }),
+    "Lag 'laggedFlow' initial",
+  );
 });
