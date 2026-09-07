@@ -285,9 +285,31 @@ tracks:
 The model's world total is low-variant-like through mid-century (8.911bn in 2050
 against WPP low's 8.942bn) and only drifts above it later. But its **0-19 cohort
 is 72% above the low variant by 2100**, and its entrant flow falls only 20% over
-the century against WPP low's 58%. The three-cohort share-based structure never
-lets the age pyramid inverted by a fertility collapse propagate into the young
-cohort the way a cohort-component projection does.
+the century against WPP low's 58%.
+
+The cause is the fertility assumption, and the population is entirely endogenous
+— `DemographicsParams.exogenousPopulation` exists but is set nowhere outside
+`demographics.test.ts`, so nothing pins the path. Births are
+`TFR x (0.125 x young + 0.325 x working) / 32`, and each region's TFR converges
+exponentially from its 2025 value to a floor. Those floors are 1.3-1.8 outside
+China (US 1.4, OECD ex-US 1.3, India 1.4, LatAm 1.4, SE Asia 1.4, Russia 1.3,
+MENA 1.5, SSA 1.8, China 0.8), and the decay rates are slow enough that Sub-
+Saharan Africa — the largest population weight by 2100 — is still at TFR **2.358**
+in 2100, well above its own 1.8 floor. The population-weighted world TFR that
+results is a **medium-variant path**:
+
+| Year | Model TFR | WPP low TFR | WPP medium TFR | Model births/entrants | WPP low births | WPP medium births |
+|---|---|---|---|---|---|---|
+| 2025 | 2.19 | 1.99 | 2.24 | 119.2M | 117.6M | 132.4M |
+| 2050 | 1.95 | 1.61 | 2.10 | 116.3M | 96.4M | 132.6M |
+| 2075 | 1.80 | 1.47 | 1.94 | 106.7M | 69.4M | 123.1M |
+| 2100 | **1.70** | **1.36** | **1.84** | **95.7M** | **48.4M** | **110.0M** |
+
+The model's birth flow in 2100 is 88% of the WPP medium variant and 198% of the
+low variant. So `CLAUDE.md`'s "tracks the UN WPP 2024 *low* variant" holds for the
+world population *total* to about 2050 — where lower assumed mortality and the
+coarse aging arithmetic offset the higher births — but not for fertility, and not
+for the entrant flow, which is the only thing this ledger consumes.
 
 That is decisive for this ledger, because the replacement requirement is
 `1 / useful life` ≈ **2.7% of the workforce per year**. The model sits at
