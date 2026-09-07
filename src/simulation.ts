@@ -44,7 +44,8 @@ import type { ClimateParams } from './modules/climate.js';
 import type { CDRParams } from './modules/cdr.js';
 import type { Region, EnergySource, EducationBand } from './domain-types.js';
 import { runAutowiredFull } from './simulation-autowired.js';
-import type { DiagnosticField } from './standard-collectors.js';
+import type { DiagnosticField } from './simulation-autowired.js';
+
 
 // =============================================================================
 // TYPES
@@ -459,7 +460,7 @@ export async function runWithScenario(
     params = deepMerge(params, overrides);
   }
 
-  const result = runSimulation(params, options as RunOptions & { diagnostics?: true });
+  const result = runAutowiredFull(params, options);
 
   return {
     scenario: { name: scenario.name, description: scenario.description },

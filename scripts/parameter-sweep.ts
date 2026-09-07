@@ -18,7 +18,7 @@ import {
   scenarioToParams,
 } from '../src/index.js';
 import { deepMerge } from '../src/scenario.js';
-import type { RunOptions, SimulationResult, YearResult } from '../src/index.js';
+import type { RunOptions, MacroSimulationResult, MacroYearResult } from '../src/index.js';
 
 // =============================================================================
 // TYPES
@@ -27,7 +27,7 @@ import type { RunOptions, SimulationResult, YearResult } from '../src/index.js';
 interface MetricDef {
   name: string;
   unit: string;
-  extract: (r: SimulationResult) => number;
+  extract: (r: MacroSimulationResult) => number;
 }
 
 interface SweepResult {
@@ -50,7 +50,7 @@ interface ScenarioSweep {
 // METRICS TO MEASURE
 // =============================================================================
 
-const last = (r: SimulationResult): YearResult => r.results[r.results.length - 1];
+const last = (r: MacroSimulationResult): MacroYearResult => r.results[r.results.length - 1];
 
 const METRICS: MetricDef[] = [
   { name: 'warming2100', unit: '°C', extract: r => r.metrics.warming2100 },
@@ -130,8 +130,15 @@ function computePerturbations(schema: Record<string, any>): ParamPerturbation[] 
 // SWEEP ONE SCENARIO
 // =============================================================================
 
-/** Contracts are re-verified by each scenario's own validated baseline run. */
-const PERTURBATION_OPTIONS: RunOptions = { connectorValidation: 'off' };
+/**
+ * Contracts are re-verified by each scenario's own validated baseline run, and
+ * the sweep reads only `result.metrics`, which the diagnostic ledgers do not
+ * touch. Together these take a perturbation run from ~1.7s to ~0.5s.
+ */
+const PERTURBATION_OPTIONS = {
+  connectorValidation: 'off',
+  diagnostics: false,
+} as const satisfies RunOptions;
 
 function sweepScenario(
   scenarioName: string,
@@ -156,8 +163,8 @@ function sweepScenario(
   const skipped: string[] = [];
 
   for (const p of perturbations) {
-    let lowResult: SimulationResult;
-    let highResult: SimulationResult;
+    let lowResult: MacroSimulationResult;
+    let highResult: MacroSimulationResult;
 
     try {
       const lowOverride = buildMultiParams({ [p.name]: p.lowValue });

@@ -338,7 +338,16 @@ const fast = runSimulation({}, {
 modules run — never what the model computes. `diagnostics: false` is pinned
 bit-identical on the macro path by `simulation.test.ts` (35k+ numbers compared
 with `Object.is`); `connectorValidation` and `paramLiveness` only govern
-validation. Ensembles and sweeps should set all three.
+validation. Ensembles and sweeps should set all three — `scripts/parameter-sweep.ts`
+is the worked example.
+
+`DIAGNOSTIC_MODULES` lives beside `ALL_MODULES` in `simulation-autowired.ts`
+and is the only hand-maintained fact: the field list, the macro module set, the
+macro collector set, and `describeOutputs`' `diagnostic` flag all derive from
+it. The list cannot be derived from the dependency graph — `buildDependencyGraph`
+adds no edge for a lag-fed input, so `climate`, `dispatch`, `resources` and
+`cdr` are graph leaves too. What makes these two skippable is that no collector
+outside them reads them, which is a domain fact rather than a graph property.
 
 ## Key Outputs
 

@@ -13,6 +13,8 @@ import {
   runAutowiredSimulation,
   ALL_MODULES,
   MACRO_MODULES,
+  DIAGNOSTIC_FIELDS,
+  DIAGNOSTIC_MODULES,
   auditGlobalUnitContracts,
 } from './simulation-autowired.js';
 import {
@@ -21,12 +23,7 @@ import {
   getOutputsAtYear,
 } from 'tsimulation';
 import { scenarioToParams } from './scenario.js';
-import {
-  standardCollectors,
-  DIAGNOSTIC_FIELDS,
-  DIAGNOSTIC_MODULES,
-  isDiagnosticCollector,
-} from './standard-collectors.js';
+import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs } from './introspection.js';
@@ -434,9 +431,14 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
   }
 }
 
+/** Shared by the diagnostics tests below: four full-horizon runs would cost
+ *  ~2.6s of CI time to recompute what two deterministic runs already give. */
+const FULL_RUN = runSimulation();
+const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
 test('diagnostics: false leaves every macro number bit-identical', () => {
-  const withDiag = runSimulation();
-  const without = runSimulation(undefined, { diagnostics: false });
+  const withDiag = FULL_RUN;
+  const without = MACRO_RUN;
 
   expect(without.results.length).toBe(withDiag.results.length);
 
@@ -464,39 +466,34 @@ test('diagnostics: false leaves every macro number bit-identical', () => {
     if (!Object.is(value, macro.get(key))) differing.push(key);
     if (differing.length > 5) break;
   }
-  expect(differing.join(', ')).toBe('');
+  expect(differing).toEqual([]);
 });
 
 test('diagnostics: false drops exactly the diagnostic fields', () => {
-  const without = runSimulation(undefined, { diagnostics: false });
-  const present = new Set(Object.keys(without.results[0] as unknown as Record<string, unknown>));
-  const leaked = DIAGNOSTIC_FIELDS.filter(field => present.has(field));
-  expect(leaked.join(', ')).toBe('');
+  const present = new Set(Object.keys(MACRO_RUN.results[0] as unknown as Record<string, unknown>));
+  expect(DIAGNOSTIC_FIELDS.filter((field: string) => present.has(field))).toEqual([]);
 
-  const withDiag = runSimulation();
-  const expected = Object.keys(withDiag.results[0] as unknown as Record<string, unknown>)
+  const expected = Object.keys(FULL_RUN.results[0] as unknown as Record<string, unknown>)
     .filter(key => !DIAGNOSTIC_FIELDS.includes(key as never));
-  expect(expected.filter(key => !present.has(key)).join(', ')).toBe('');
+  expect(expected.filter(key => !present.has(key))).toEqual([]);
 });
 
 test('DIAGNOSTIC_FIELDS matches the diagnostic collectors', () => {
-  const fromCollectors = new Set(
+  const produced = new Set(
     standardCollectors.timeseries
-      .filter(entry => isDiagnosticCollector(entry))
-      .map(entry => entry.as ?? entry.source),
+      .filter(entry => DIAGNOSTIC_MODULES.includes(entry.module as never))
+      .map(entry => resolveKey(entry)),
   );
   const declared = new Set<string>(DIAGNOSTIC_FIELDS);
 
-  const missing = [...fromCollectors].filter(field => !declared.has(field));
-  const extra = [...declared].filter(field => !fromCollectors.has(field));
-  expect(missing.join(', ')).toBe('');
-  expect(extra.join(', ')).toBe('');
+  expect([...produced].filter(field => !declared.has(field))).toEqual([]);
+  expect([...declared].filter(field => !produced.has(field))).toEqual([]);
 });
 
 test('macro modules are the full set minus the diagnostic ones', () => {
   expect(MACRO_MODULES.length).toBe(ALL_MODULES.length - DIAGNOSTIC_MODULES.length);
   const names = new Set(MACRO_MODULES.map(m => m.name));
-  expect(DIAGNOSTIC_MODULES.filter(name => names.has(name)).join(', ')).toBe('');
+  expect(DIAGNOSTIC_MODULES.filter((name: string) => names.has(name))).toEqual([]);
 });
 
 printSummary();
