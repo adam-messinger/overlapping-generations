@@ -9,6 +9,19 @@
 export type Region = 'us' | 'oecd-ex-us' | 'china' | 'india' | 'latam' | 'seasia' | 'russia' | 'mena' | 'ssa';
 export const REGIONS: Region[] = ['us', 'oecd-ex-us', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa'];
 
+/** Display names for reports and scripts (row labels; column headers keep the short keys). */
+export const REGION_NAMES: Record<Region, string> = {
+  us: 'United States',
+  'oecd-ex-us': 'OECD ex-US',
+  china: 'China',
+  india: 'India + South Asia',
+  latam: 'Latin America',
+  seasia: 'SE Asia + Pacific',
+  russia: 'Russia + CIS',
+  mena: 'MENA',
+  ssa: 'Sub-Saharan Africa',
+};
+
 /** Energy source identifiers */
 export type EnergySource = 'solar' | 'wind' | 'gas' | 'coal' | 'nuclear' | 'hydro' | 'battery';
 export const ENERGY_SOURCES: EnergySource[] = ['solar', 'wind', 'gas', 'coal', 'nuclear', 'hydro', 'battery'];

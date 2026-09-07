@@ -10,19 +10,7 @@
  */
 import { runAutowiredSimulation } from '../src/simulation-autowired.js';
 import { getOutputsAtYear } from 'tsimulation';
-import { REGIONS, type Region } from '../src/domain-types.js';
-
-const REGION_LABEL: Record<Region, string> = {
-  us: 'United States',
-  'oecd-ex-us': 'OECD ex-US',
-  china: 'China',
-  india: 'India',
-  latam: 'Latin Am.',
-  seasia: 'SE Asia',
-  russia: 'Russia',
-  mena: 'MENA',
-  ssa: 'Sub-Sah. Africa',
-};
+import { REGIONS, REGION_NAMES, type Region } from '../src/domain-types.js';
 
 const aw = runAutowiredSimulation({});
 const years = aw.years;
@@ -199,7 +187,7 @@ console.log('-------------------------------------------------------------------
 console.log('Region              Pop25→Pop100    Working%   Dep25→Dep100  Fert  LifeExp');
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(20)}` +
     `${fmt.bn(row.pop2025)} → ${fmt.bn(row.pop2100)}   `.padEnd(16) +
     `${fmt.pct(row.workingShare2025, 0)}→${fmt.pct(row.workingShare2100, 0)}  `.padEnd(11) +
     `${fmt.pct(row.dependency2025, 0)}→${fmt.pct(row.dependency2100, 0)}    `.padEnd(14) +
@@ -213,7 +201,7 @@ console.log('-------------------------------------------------------------------
 console.log('Region              GDP25→GDP100      GDPpc25→GDPpc100      GDP CAGR  PCap CAGR');
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(20)}` +
     `${fmt.$T(row.gdp2025)} → ${fmt.$T(row.gdp2100)}   `.padEnd(18) +
     `${fmt.$k(row.gdpPerCap2025)} → ${fmt.$k(row.gdpPerCap2100)}     `.padEnd(22) +
     `${fmt.pct(row.gdpCagr, 2)}    `.padEnd(10) +
@@ -226,7 +214,7 @@ console.log('-------------------------------------------------------------------
 console.log('Region              GridInt 25→100        Fossil 25→100        EnInt 25→100');
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(20)}` +
     `${row.gridInt2025.toFixed(0)}→${row.gridInt2100.toFixed(0)} kg/MWh  `.padEnd(22) +
     `${fmt.pct(row.fossilShare2025, 0)}→${fmt.pct(row.fossilShare2100, 0)}    `.padEnd(21) +
     `${row.energyIntensity2025.toFixed(2)}→${row.energyIntensity2100.toFixed(2)}`
@@ -239,7 +227,7 @@ console.log('Rank  Region              Score    Econ     Demo     Decarb   Effic
 composite.forEach((c, i) => {
   console.log(
     `${(i + 1).toString().padStart(2)}.   ` +
-    `${REGION_LABEL[c.region].padEnd(20)}` +
+    `${REGION_NAMES[c.region].padEnd(20)}` +
     `${fmt.z(c.score)}    `.padEnd(9) +
     `${fmt.z(c.econ)}    `.padEnd(9) +
     `${fmt.z(c.demo)}    `.padEnd(9) +

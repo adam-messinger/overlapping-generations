@@ -109,7 +109,7 @@ export { getAtYear, extractTimeSeries } from './helpers.js';
 
 // Domain types
 export type { Region, EnergySource, EducationBand } from './domain-types.js';
-export { EDUCATION_BANDS } from './domain-types.js';
+export { EDUCATION_BANDS, REGIONS, REGION_NAMES } from './domain-types.js';
 
 // Hormuz transport/energy bottleneck extension
 export { hormuzDefaults, hormuzScenarios } from './simulations/critical-materials/hormuz-data.js';
