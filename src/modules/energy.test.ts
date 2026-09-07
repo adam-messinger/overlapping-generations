@@ -9,6 +9,7 @@ import {
   energyModule,
   energyDefaults,
   levelizedStorageCostPerMWh,
+  type EnergyParams,
 } from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
@@ -687,53 +688,67 @@ test('financingSpreadScale=0 neutralizes all regional spreads', () => {
   }
 });
 
-test('home bias raises WACC for savings-scarce regions and lowers it for savings-rich ones', () => {
-  const params = energyModule.mergeParams({
-    regional: { 'oecd-ex-us': { financingSpread: 0 }, china: { financingSpread: 0 }, ssa: { financingSpread: 0 } } as any,
-  });
-  const state = energyModule.init(params);
-  const savings = regional(0.25);
-  savings.china = 0.45;
-  savings.ssa = 0.13;
-  const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.28, regionalSavings: savings };
-  const r = energyModule.step(state, inputs, params, 2025, 0);
-  // gap = world - region: ssa +0.15 * 0.15 = +2.25pp; china -0.17 * 0.15 = -2.55pp
-  expect(r.outputs.regionalWACC.ssa).toBeCloseTo(r.outputs.effectiveWACC + 0.15 * 0.15, 6);
-  expect(r.outputs.regionalWACC.china).toBeCloseTo(r.outputs.effectiveWACC - 0.17 * 0.15, 6);
-  expect(r.outputs.regionalWACC['oecd-ex-us']).toBeCloseTo(r.outputs.effectiveWACC + 0.03 * 0.15, 6);
+/** Step year 0 with one savings vector, then year 1 with another; return both WACC outputs. */
+function stepWithSavings(params: EnergyParams, year0: Record<Region, number>, year1: Record<Region, number>, world = 0.28) {
+  const inputs = (savings: Record<Region, number>, i: number) =>
+    ({ ...createInputs(30000 + i * 500, 25 + i * 0.5, 1.0, 0, 0.05), savingsRate: world, regionalSavings: savings });
+  const first = energyModule.step(energyModule.init(params), inputs(year0, 0), params, 2025, 0);
+  const second = energyModule.step(first.state, inputs(year1, 1), params, 2026, 1);
+  return { first: first.outputs, second: second.outputs };
+}
+
+test('year-0 spreads equal the observed totals whatever the savings inputs', () => {
+  const params = energyModule.mergeParams({});
+  const savings = { ...regional(0.25), china: 0.45, ssa: 0.13 };
+  const { first } = stepWithSavings(params, savings, savings);
+  for (const region of REGIONS) {
+    expect(first.regionalWACC[region] - first.effectiveWACC)
+      .toBeCloseTo(params.regional[region].financingSpread ?? 0, 9);
+  }
+});
+
+test('home bias drifts the spread by financingHomeBias x the change in the savings gap', () => {
+  const params = energyModule.mergeParams({});
+  const year0 = regional(0.25);
+  // SSA savings fall 10pp (gap +0.10 -> spread +0.15 x 0.10); China's rise
+  // 10pp (a larger rise would push China's WACC onto the minWACC floor).
+  const year1 = { ...year0, ssa: 0.15, china: 0.35 };
+  const { second } = stepWithSavings(params, year0, year1);
+  const spread = (r: Region) => second.regionalWACC[r] - second.effectiveWACC;
+  expect(spread('ssa')).toBeCloseTo((params.regional.ssa.financingSpread ?? 0) + 0.15 * 0.10, 9);
+  expect(spread('china')).toBeCloseTo((params.regional.china.financingSpread ?? 0) - 0.15 * 0.10, 9);
+  expect(spread('india')).toBeCloseTo(params.regional.india.financingSpread ?? 0, 9);
 });
 
 test('a savings increase in a region lowers its own WACC, all else equal', () => {
   const params = energyModule.mergeParams({});
-  const state = energyModule.init(params);
-  const base = regional(0.25);
-  const run = (ssaSavings: number) => {
-    const regionalSavings = { ...base, ssa: ssaSavings };
-    const inputs = { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.25, regionalSavings };
-    return energyModule.step(state, inputs, params, 2025, 0).outputs.regionalWACC.ssa;
-  };
+  const year0 = regional(0.25);
+  const run = (ssaSavings: number) => stepWithSavings(params, year0, { ...year0, ssa: ssaSavings }).second.regionalWACC.ssa;
   expect(run(0.25)).toBeGreaterThan(run(0.35));
 });
 
-test('home bias 0 or missing savings inputs fall back to static spreads only', () => {
+test('home bias 0, spread scale 0, or missing savings inputs leave the observed spreads static', () => {
+  const year0 = regional(0.25);
+  const year1 = { ...year0, ssa: 0.10, china: 0.50 };
   const zeroBias = energyModule.mergeParams({ financingHomeBias: 0 });
-  const state = energyModule.init(zeroBias);
-  const savings = regional(0.10);
-  const withSavings = energyModule.step(
-    state,
-    { ...createInputs(30000, 25, 1.0, 0, 0.05), savingsRate: 0.30, regionalSavings: savings },
-    zeroBias, 2025, 0,
-  );
+  const { second } = stepWithSavings(zeroBias, year0, year1);
+  for (const region of REGIONS) {
+    expect(second.regionalWACC[region] - second.effectiveWACC)
+      .toBeCloseTo(zeroBias.regional[region].financingSpread ?? 0, 9);
+  }
+  const zeroScale = energyModule.mergeParams({ financingSpreadScale: 0 });
+  const scaled = stepWithSavings(zeroScale, year0, year1);
+  for (const region of REGIONS) {
+    expect(scaled.first.regionalWACC[region]).toBeCloseTo(scaled.first.effectiveWACC, 9);
+    expect(scaled.second.regionalWACC[region]).toBeCloseTo(scaled.second.effectiveWACC, 9);
+  }
   const defaults = energyModule.mergeParams({});
   const withoutSavings = energyModule.step(
     energyModule.init(defaults), createInputs(30000, 25, 1.0, 0, 0.05), defaults, 2025, 0,
   );
   for (const region of REGIONS) {
-    const staticSpread = defaults.regional[region].financingSpread ?? 0;
-    expect(withSavings.outputs.regionalWACC[region])
-      .toBeCloseTo(withSavings.outputs.effectiveWACC + staticSpread, 6);
     expect(withoutSavings.outputs.regionalWACC[region])
-      .toBeCloseTo(withoutSavings.outputs.effectiveWACC + staticSpread, 6);
+      .toBeCloseTo(withoutSavings.outputs.effectiveWACC + (defaults.regional[region].financingSpread ?? 0), 9);
   }
 });
 

@@ -5,6 +5,9 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { energyDefaults } from './modules/energy.js';
+import { capitalDefaults } from './modules/capital.js';
+import { REGIONS } from './domain-types.js';
 import { runSimulation } from './simulation.js';
 import { runAutowiredSimulation, ALL_MODULES, auditGlobalUnitContracts } from './simulation-autowired.js';
 import {
@@ -80,23 +83,19 @@ test('scenarioToParams strict mode rejects unknown top-level and nested keys', (
   } as never, { unknownKeys: 'error' })).toThrow('Unrecognized demand param "dataCenterBaseGrowt"');
 });
 
-test('2025 regional financing spreads reproduce the IEA-observed calibration', () => {
-  // Total spread = static residual (energy defaults) + financingHomeBias ×
-  // 2025 savings gap (capital outputs). The residuals were derived by hand
-  // from the observed totals, so this pins the cross-module calibration:
-  // changing capital's savings params or financingHomeBias without
-  // re-deriving the residuals breaks this test rather than silently
-  // decalibrating the spreads. See REGIONAL_FINANCING_SPREADS in energy.ts.
-  const observed: Record<string, number> = {
-    us: -0.010, 'oecd-ex-us': -0.010, china: -0.015, india: 0.020, latam: 0.030,
-    seasia: 0.025, russia: 0.050, mena: 0.010, ssa: 0.060,
+test('2025 regional financing spreads equal the observed IEA table by construction', () => {
+  // The start-year savings gap is anchored in energy state, so the observed
+  // totals in REGIONAL_FINANCING_SPREADS are reproduced exactly at yearIndex 0
+  // whatever capital's savings calibration produces.
+  const observed = energyDefaults.regional;
+  const check = (params: Parameters<typeof runSimulation>[0]) => {
+    const r = runSimulation({ ...params, startYear: 2025, endYear: 2025 }).results[0];
+    for (const region of REGIONS) {
+      expect(r.regionalWACC[region] - r.effectiveWACC).toBeCloseTo(observed[region].financingSpread ?? 0, 9);
+    }
   };
-  const result = runSimulation({ startYear: 2025, endYear: 2025 });
-  const r = result.results[0];
-  for (const [region, total] of Object.entries(observed)) {
-    const actual = r.regionalWACC[region as keyof typeof r.regionalWACC] - r.effectiveWACC;
-    expect(Math.abs(actual - total)).toBeLessThan(0.001);
-  }
+  check({});
+  check({ capital: { savingsPremium: { ...capitalDefaults.savingsPremium, china: 0.30, us: 0.10 } } });
 });
 
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {

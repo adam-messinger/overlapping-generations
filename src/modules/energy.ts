@@ -84,7 +84,7 @@ export interface RegionalEnergyParams {
   carbonPrice: number;                          // $/ton CO2
   maxGrowthRate?: Partial<Record<EnergySource, number>>;  // Policy constraints (overrides global)
   capacityFactor?: Partial<Record<EnergySource, number>>; // Resource quality (solar irradiance, etc.)
-  financingSpread?: number;                     // Financing cost spread over global rate (fraction, e.g. 0.06 = +6pp)
+  financingSpread?: number;                     // Observed start-year WACC spread over the global rate (fraction, e.g. 0.06 = +6pp); home bias drifts it thereafter
 }
 
 export interface EnergyParams {
@@ -256,51 +256,34 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
 };
 
 /**
- * Regional Financing Spreads — static risk residual (fraction, over the
- * global rate)
+ * Regional Financing Spreads — observed start-year WACC spread over the
+ * global rate (fraction)
  *
- * A region's total spread = static residual + financingHomeBias x (world
- * savings rate - regional savings rate). The observed totals are calibrated
- * to the IEA Cost of Capital Observatory (2024: nominal WACC ~6-7% advanced
- * economies vs ~10-15% EMDE, Africa highest) and Steffen (2020, Energy
- * Economics) renewable project-finance survey; IRENA Renewable Power
- * Generation Costs 2023 uses 3.5-11% WACC assumptions across country tiers.
+ * Calibrated to the IEA Cost of Capital Observatory (2024: nominal WACC
+ * ~6-7% advanced economies vs ~10-15% EMDE, Africa highest) and Steffen
+ * (2020, Energy Economics) renewable project-finance survey; IRENA Renewable
+ * Power Generation Costs 2023 uses 3.5-11% WACC assumptions across country
+ * tiers. The US and OECD ex-US share the advanced-economy tier; China's
+ * cheap capital is a savings/state-credit story; Russia's spread reflects
+ * sanctions-era isolation; MENA blends cheap Gulf auction finance with
+ * expensive North African markets.
  *
- * The static residuals below are the observed 2025 totals minus the
- * home-bias component at the model's 2025 savings rates (home bias 0.15,
- * world savings 29.4%), so 2025 total spreads reproduce the observed values
- * by construction and evolve thereafter with regional savings:
- *
- *   region      observed  savings gap  home-bias  static residual
- *   us          -0.010     +13.3pp      +0.020      -0.030
- *   oecd-ex-us  -0.010      -1.7pp      -0.0025     -0.0075
- *   china       -0.015     -15.3pp      -0.023      +0.008
- *   india       +0.020      +0.9pp      +0.001      +0.019
- *   latam       +0.030      +6.1pp      +0.009      +0.021
- *   seasia      +0.025      +3.1pp      +0.005      +0.020
- *   russia      +0.050      +4.5pp      +0.007      +0.043
- *   mena        +0.010      -2.1pp      -0.003      +0.013
- *   ssa         +0.060     +15.8pp      +0.024      +0.036
- *
- * The residual carries sovereign, currency, and off-taker risk: China's is
- * slightly positive (its cheap capital is entirely a savings/state-credit
- * story), Russia's stays large (sanctions-era isolation), MENA blends cheap
- * Gulf auction finance with expensive North African markets. The US residual
- * is the most negative: with a ~17% national savings rate its home-bias
- * term alone would price US energy finance like an emerging market, and the
- * residual carries the reserve-currency / deepest-capital-market offset
- * that keeps the observed US WACC in the advanced-economy tier.
+ * At yearIndex 0 the model anchors each region's savings gap (world minus
+ * regional savings rate) and reproduces these totals exactly; afterwards
+ * the home-bias term (Feldstein & Horioka 1980) drifts the spread with the
+ * change in that gap, so the calibration no longer depends on capital's
+ * savings parameters.
  */
 const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
-  us: -0.030,
-  'oecd-ex-us': -0.0075,
-  china: 0.008,
-  india: 0.019,
-  latam: 0.021,
-  seasia: 0.020,
-  russia: 0.043,
-  mena: 0.013,
-  ssa: 0.036,
+  us: -0.010,
+  'oecd-ex-us': -0.010,
+  china: -0.015,
+  india: 0.020,
+  latam: 0.030,
+  seasia: 0.025,
+  russia: 0.050,
+  mena: 0.010,
+  ssa: 0.060,
 };
 
 /**
@@ -599,6 +582,13 @@ export interface EnergyState {
 
   /** Long-duration storage global cumulative (GWh, for learning) */
   longStorageCumulative: number;
+
+  /**
+   * World minus regional savings rate at yearIndex 0. Regional spreads equal
+   * their observed start-year totals there and drift by financingHomeBias x
+   * the change in the gap afterwards.
+   */
+  savingsGapAnchor: Record<Region, number>;
 }
 
 // =============================================================================
@@ -1223,7 +1213,8 @@ export const energyModule: Module<
       longStorageCumulative += cap;
     }
 
-    return { regional, global, longStorageRegional, longStorageCumulative };
+    const savingsGapAnchor = Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
+    return { regional, global, longStorageRegional, longStorageCumulative, savingsGapAnchor };
   },
 
   step(state, inputs, params, year, yearIndex) {
@@ -1329,20 +1320,22 @@ export const energyModule: Module<
         : waccAdjustedLCOE(preWaccLcoes[source], source, crfGlobalRatio);
     }
 
-    // Regional financing spreads over the global rate: a static residual for
-    // sovereign/currency/off-taker risk (IEA Cost of Capital Observatory;
-    // Steffen 2020) plus a home-bias term — regions whose domestic savings
-    // are scarce relative to the world pool pay more for capital
-    // (Feldstein & Horioka 1980).
+    // Regional financing spreads over the global rate: the observed start-year
+    // total (IEA Cost of Capital Observatory; Steffen 2020) plus a home-bias
+    // drift — regions whose domestic savings become scarcer relative to the
+    // world pool than they were at the start pay more for capital
+    // (Feldstein & Horioka 1980). The start-year gap is anchored in state.
     const regionalWACC = {} as Record<Region, number>;
     const regionalCrfRatio = {} as Record<Region, number>;
+    const savingsGapAnchor = yearIndex === 0 ? ({} as Record<Region, number>) : state.savingsGapAnchor;
     for (const region of REGIONS) {
       const regionalSavingsRate = inputs.regionalSavings?.[region];
       const savingsGap = inputs.savingsRate !== undefined && regionalSavingsRate !== undefined
         ? inputs.savingsRate - regionalSavingsRate
         : 0;
+      if (yearIndex === 0) savingsGapAnchor[region] = savingsGap;
       const spread = ((params.regional[region].financingSpread ?? 0) +
-        params.financingHomeBias * savingsGap) * params.financingSpreadScale;
+        params.financingHomeBias * (savingsGap - savingsGapAnchor[region])) * params.financingSpreadScale;
       regionalWACC[region] = waccAt(spread);
       regionalCrfRatio[region] =
         capitalRecoveryFactor(regionalWACC[region], PROJECT_LIFE) / crfBase;
@@ -1766,6 +1759,7 @@ export const energyModule: Module<
         global: newGlobal,
         longStorageRegional: newLongStorageRegional,
         longStorageCumulative: longStorageCumulativeNew,
+        savingsGapAnchor,
       },
       outputs: {
         lcoes,

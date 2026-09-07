@@ -158,7 +158,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
 - **WACC**: Interest rate → WACC → LCOE channel (capital-intensive sources penalized when rates high)
-- **Regional financing spreads**: per-region WACC = global rate + static risk residual + home-bias term from the region's savings gap vs the world (Feldstein-Horioka, `financingHomeBias`); calibrated so 2025 totals match the IEA Cost of Capital Observatory, `financingSpreadScale` dials friction (0 = frictionless)
+- **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; the year-0 gap is anchored in energy state, so the calibration is independent of capital's savings params); `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
