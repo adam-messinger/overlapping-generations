@@ -369,6 +369,9 @@ interface HumanCapitalRegionRow {
   migrationNetPeople: number;
   migrationTransfer: number;
   lifeRevaluation: number;
+  migrantDepreciation: number;
+  migrantWriteOffs: number;
+  migrantWorkers: number;
 }
 
 const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
@@ -382,6 +385,9 @@ const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
   migrationNetPeople: unitPort('people/year'),
   migrationTransfer: unitPort('$T/year'),
   lifeRevaluation: unitPort('$T/year'),
+  migrantDepreciation: unitPort('$T/year'),
+  migrantWriteOffs: unitPort('$T/year'),
+  migrantWorkers: unitPort('people'),
 });
 
 export const HUMAN_CAPITAL_REGION_PORT = recordPort<HumanCapitalRegionRow>(
