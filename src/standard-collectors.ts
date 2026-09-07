@@ -200,6 +200,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'humanCapitalMigrationInflows', unit: '$T/year', description: 'Book value of working-age immigrants entering regional ledgers, at destination replacement cost', module: 'humanCapital' },
     { source: 'humanCapitalMigrationOutflows', unit: '$T/year', description: 'Book value of working-age emigrants leaving regional ledgers, at origin replacement cost', module: 'humanCapital' },
     { source: 'humanCapitalMigrationRevaluation', unit: '$T/year', description: 'World gain from revaluing migrants at destination rather than origin replacement cost (inflows - outflows)', module: 'humanCapital' },
+    { source: 'humanCapitalLifeRevaluation', unit: '$T/year', description: 'Change in the opening stock\'s book value from this year\'s change in expected working life (books the ledger\'s closure exactly)', module: 'humanCapital' },
     { source: 'humanCapitalByBand', description: 'Human-capital ledger by education band: entrants, unit cost, useful life, investment, depreciation, stocks', module: 'humanCapital' },
     { source: 'regionalHumanCapital', description: 'Human-capital ledger by region', module: 'humanCapital' },
 

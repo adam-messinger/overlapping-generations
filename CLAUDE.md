@@ -237,8 +237,9 @@ Do this before committing. Most fix-up commits in project history would have bee
   capitalized at CURRENT REPLACEMENT COST (USDA rearing through entry age +
   OECD schooling stages, as multiples of regional GDP per capita; the
   explicit-outlay scope), banded by four education levels (primary /
-  secondary / tertiary / advanced); `foregoneEarningsShare` = 0.45 adds
-  students' foregone earnings above age 16 (the Kendrick/BEA convention)
+  secondary / tertiary / advanced); `foregoneEarningsShare` defaults to 0
+  and at 0.45 adds students' foregone earnings above age 16 (the
+  Kendrick/BEA convention, a sensitivity dial)
 - Straight-line depreciation over EXPECTED TIME IN THE WORKFORCE, not
   retirement minus entry: a survival curve with death, disability,
   domestic-role, and retirement exits (calibrated to Eurostat duration of
@@ -250,7 +251,13 @@ Do this before committing. Most fix-up commits in project history would have bee
   `regionalWorkforceEntrants` / `regionalEntrantCollegeShare` outputs;
   demographics' net working-age migration moves vintages between regional
   ledgers, each region booking the transfer at its own replacement cost
-  (`humanCapitalMigrationRevaluation` = the world-level brain-gain premium)
+  (`humanCapitalMigrationRevaluation` = the world-level brain-gain premium);
+  post-2025 immigrants stay tracked as a subset so each region reports
+  `ownCohortNetInvestment` beside the total; a change in useful life is
+  booked as `lifeRevaluation` so the ledger closes exactly
+- The 2025 ledger is seeded with a uniform age distribution over the working
+  cohort (no age structure inside it), which sets each region's 2025 charge
+  and own-cohort turning point; the note discloses this
 - Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
 - Trajectory (constant-cost stock by region, peak years, migration):
   `npm run human-capital:trajectory`; see `docs/HUMAN_CAPITAL_TRAJECTORY.md`

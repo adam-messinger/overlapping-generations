@@ -10,7 +10,7 @@
  */
 
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary, regional, worldTotal } from '../test-utils.js';
+import { test, expect, printSummary, regional, sumRegional, worldTotal } from '../test-utils.js';
 
 import {
   humanCapitalModule,
@@ -18,6 +18,7 @@ import {
   unitReplacementCost,
   expectedWorkingYears,
   exitHazards,
+  noExitHazards,
   type HumanCapitalOverrides,
   type HumanCapitalParams,
 } from './human-capital.js';
@@ -49,10 +50,7 @@ const ALL_SECONDARY: HumanCapitalOverrides['regions'] = Object.fromEntries(REGIO
 }]));
 
 /** One band, no exit hazards: useful life = retirement age - entry age exactly. */
-const NO_HAZARDS: HumanCapitalOverrides = {
-  regions: ALL_SECONDARY,
-  hazards: { mortalityBase: 0, disabilityBase: 0 },
-};
+const NO_HAZARDS: HumanCapitalOverrides = { ...noExitHazards, regions: ALL_SECONDARY };
 
 function runYears(
   years: number,
@@ -230,7 +228,41 @@ test('closure: net stock change equals investment - depreciation - write-offs at
     const delta = outputs[i].humanCapitalNetStock - outputs[i - 1].humanCapitalNetStock;
     expect(delta).toBeCloseTo(outputs[i].humanCapitalNetInvestment, 6);
     expect(outputs[i].humanCapitalWriteOffs).toBeGreaterThan(0);
+    // Constant life expectancy and retirement age: nothing to revalue
+    expect(outputs[i].humanCapitalLifeRevaluation).toBe(0);
   }
+});
+
+test('closure with a changing useful life: the opening stock is re-priced on its own line', () => {
+  // Life expectancy and the retirement-age extension both rise, so every
+  // cell's expected working life moves each year. The straight-line schedule
+  // is over the CURRENT life, which re-prices the opening vintages; that
+  // revaluation is neither investment nor depreciation and is booked apart.
+  const outputs = runYears(30, {}, i => ({
+    regionalLifeExpectancy: regional(75 + 0.2 * i),
+    regionalRetirementAgeExtension: regional(0.1 * i),
+    regionalEntrantCollegeShare: regional(0.35),
+  }));
+  for (let i = 1; i < outputs.length; i++) {
+    for (const region of REGIONS) {
+      const a = outputs[i - 1].regionalHumanCapital[region];
+      const b = outputs[i].regionalHumanCapital[region];
+      expect(b.netStock - a.netStock).toBeCloseTo(
+        b.investment + b.migrationTransfer + b.lifeRevaluation - b.depreciation - b.writeOffs, 6);
+    }
+    // The band ledgers close the same way (no migration here, so no transfer term)
+    for (const band of EDUCATION_BANDS) {
+      const a = outputs[i - 1].humanCapitalByBand[band];
+      const b = outputs[i].humanCapitalByBand[band];
+      expect(b.netStock - a.netStock).toBeCloseTo(b.investment + b.lifeRevaluation - b.depreciation - b.writeOffs, 6);
+    }
+    // A longer life raises every vintage's remaining book value
+    expect(outputs[i].humanCapitalLifeRevaluation).toBeGreaterThan(0);
+  }
+  expect(outputs[29].humanCapitalLifeRevaluation).toBeCloseTo(
+    sumRegional(outputs[29].regionalHumanCapital, (r: { lifeRevaluation: number }) => r.lifeRevaluation), 9);
+  // The seed year has no prior schedule to revalue
+  expect(outputs[0].humanCapitalLifeRevaluation).toBe(0);
 });
 
 test('closure with revaluation: rising replacement cost revalues the opening stock', () => {
@@ -239,6 +271,7 @@ test('closure with revaluation: rising replacement cost revalues the opening sto
     const revalued = outputs[i - 1].humanCapitalNetStock * 1.03;
     const delta = outputs[i].humanCapitalNetStock - revalued;
     expect(delta).toBeCloseTo(outputs[i].humanCapitalNetInvestment, 6);
+    expect(outputs[i].humanCapitalLifeRevaluation).toBe(0);
   }
 });
 
@@ -366,6 +399,67 @@ test('closure with migration: net stock change = investment + transfer - depreci
   }
 });
 
+test('immigrants are tracked as a subset of the destination ledger and charged separately', () => {
+  const still = runYears(20, { regions: ALL_SECONDARY });
+  const moved = runYears(20, { regions: ALL_SECONDARY }, () => migrationInputs());
+  for (let i = 0; i < 20; i++) {
+    // No migration: nothing in the subset, nothing charged on it
+    for (const region of REGIONS) {
+      const a = still[i].regionalHumanCapital[region];
+      expect(a.migrantWorkers).toBe(0);
+      expect(a.migrantDepreciation + a.migrantWriteOffs).toBe(0);
+    }
+    const dest = moved[i].regionalHumanCapital['oecd-ex-us'];
+    const origin = moved[i].regionalHumanCapital.india;
+    expect(dest.migrantWorkers).toBeGreaterThan(0);
+    expect(dest.migrantWorkers).toBeLessThan(dest.workersInService);
+    expect(dest.migrantDepreciation).toBeGreaterThan(0);
+    expect(dest.migrantWriteOffs).toBeGreaterThan(0);
+    // Emigrants leave from the origin's own cohorts: its subset stays empty
+    expect(origin.migrantWorkers).toBe(0);
+    expect(origin.migrantDepreciation + origin.migrantWriteOffs).toBe(0);
+    // Own-cohort net at the destination is exactly the no-migration net: the
+    // native vintages evolve identically, hazards being multiplicative by age
+    const stillNet = (a: any) => a.investment - a.depreciation - a.writeOffs;
+    expect(dest.ownCohortNetInvestment).toBeCloseTo(stillNet(still[i].regionalHumanCapital['oecd-ex-us']), 9);
+    // The origin's own cohorts are smaller, so its charge is below the no-migration run
+    expect(origin.depreciation + origin.writeOffs).toBeLessThan(
+      still[i].regionalHumanCapital.india.depreciation + still[i].regionalHumanCapital.india.writeOffs);
+  }
+});
+
+test('a one-year immigrant wave is charged off exactly over its remaining working life', () => {
+  // No hazards, constant cost: every dollar booked on arrival is either
+  // depreciated or taken as terminal depreciation at retirement, nothing else.
+  const span = humanCapitalDefaults.bands.secondary.retirementAge - humanCapitalDefaults.bands.secondary.entryAge;
+  const outputs = runYears(span + 2, NO_HAZARDS, i => i === 0
+    ? migrationInputs()
+    : migrationInputs('india', 'oecd-ex-us', 0));
+  const dest = (i: number) => outputs[i].regionalHumanCapital['oecd-ex-us'];
+  const charged = outputs.reduce((sum, out) =>
+    sum + out.regionalHumanCapital['oecd-ex-us'].migrantDepreciation + out.regionalHumanCapital['oecd-ex-us'].migrantWriteOffs, 0);
+  expect(charged).toBeCloseTo(dest(0).migrationTransfer, 9);
+  expect(dest(0).migrantWorkers).toBeGreaterThan(0);
+  expect(dest(span + 1).migrantWorkers).toBeCloseTo(0, 6);
+  // Migrants only ever leave the subset by exit; it never exceeds the ledger
+  for (let i = 1; i < outputs.length; i++) {
+    expect(dest(i).migrantWorkers).toBeLessThan(dest(i - 1).migrantWorkers + 1e-9);
+  }
+});
+
+test('immigrants who later emigrate leave the subset in proportion', () => {
+  // Inflow for 5 years, then the same region turns to net outflow
+  const outputs = runYears(10, NO_HAZARDS, i => i < 5
+    ? migrationInputs('india', 'oecd-ex-us')
+    : migrationInputs('oecd-ex-us', 'india'));
+  const dest = (i: number) => outputs[i].regionalHumanCapital['oecd-ex-us'];
+  expect(dest(5).migrantWorkers).toBeLessThan(dest(4).migrantWorkers);
+  for (let i = 5; i < 10; i++) {
+    expect(dest(i).migrantWorkers).toBeGreaterThan(0);
+    expect(dest(i).migrantWorkers).toBeLessThan(dest(i).workersInService);
+  }
+});
+
 test('migrants skew early-career: a shorter tenure scale transfers more book value per mover', () => {
   const young = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 3 }, () => migrationInputs())[0];
   const old = runYears(1, { ...NO_HAZARDS, migrantTenureScale: 40 }, () => migrationInputs())[0];
@@ -412,7 +506,9 @@ test('regional and band ledgers both sum to the global ledger', () => {
     REGIONS.reduce((sum, region) => sum + out.regionalHumanCapital[region][field], 0);
   const sumBands = (field: string) =>
     EDUCATION_BANDS.reduce((sum, band) => sum + out.humanCapitalByBand[band][field], 0);
-  for (const field of ['investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock']) {
+  // Migration transfers are a regional line only (movement between regions
+  // within a band); every other flow is carried by both ledgers.
+  for (const field of ['investment', 'depreciation', 'writeOffs', 'lifeRevaluation', 'grossStock', 'netStock']) {
     expect(sumRegions(field)).toBeCloseTo(sumBands(field), 9);
   }
   expect(sumBands('investment')).toBeCloseTo(out.humanCapitalInvestment, 9);

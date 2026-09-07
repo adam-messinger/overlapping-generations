@@ -168,15 +168,48 @@ ledger moves the corresponding headcount between regional vintage ledgers:
 
 Headcount is conserved; dollars are not, by design.
 
+Each ledger also keeps the headcount that arrived by migration since the run
+began as a subset of its vintages. The subset ages, exits, and retires with
+the rest and is charged the same straight-line slice, so the depreciation
+and write-offs on immigrants' human capital (`migrantDepreciation`,
+`migrantWriteOffs`, with `migrantWorkers` in service) can be separated from
+the charge on a region's own cohorts:
+
+```text
+ownCohortNetInvestment = investment - (depreciation + writeOffs - migrantDepreciation - migrantWriteOffs)
+```
+
+Without this split, `investment - depreciation - writeOffs` charges the
+depreciation of every immigrant who arrived since 2025 against the region's
+own entrants, and a steady receiver drifts into "own-cohort" deficit as its
+immigrant stock accumulates. Emigrants are drawn from the migrant subset in
+proportion to its share of each vintage. The 2025 seed holds no migrants:
+people who arrived before the run started are own cohorts to the ledger
+(about a sixth of the US workforce is foreign-born), so the split is a
+post-2025 flow measure, not a nativity account.
+
 ## Closure identities (tested)
 
 ```text
-netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment + migrationTransfer - depreciation - writeOffs   (per region)
+netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment + migrationTransfer + lifeRevaluation
+             - depreciation - writeOffs                                                (per region)
+lifeRevaluation = sum over opening vintages of n x c_t x (max(0, 1 - age/L_t) - max(0, 1 - age/L_{t-1}))
 steady state (constant entrants, cost, life):
     depreciation + writeOffs = investment
     exits                    = entrants
     with no exit hazards:  netStock = grossStock / 2,  in service = entrants x (L - 1)
 ```
+
+Every vintage is written down over the *current* expected working life, so
+when that life moves (the retirement age extends with life expectancy, and
+the hazards move with it) the opening stock's remaining book value is
+re-priced. That change is neither investment nor depreciation and is booked
+on its own line, `lifeRevaluation`, so the identity holds exactly on the
+default path (about $0.3T a year worldwide in the late 2020s, $0.6T by 2050,
+all positive because working lives lengthen). The accounting-textbook
+alternative, freezing each vintage's life at entry, would change the
+depreciation charge itself and is deliberately not done: the ledger's
+question is what today's schedule implies for today's stock.
 
 ## Outputs
 
@@ -192,8 +225,9 @@ steady state (constant entrants, cost, life):
 | `workforceEntrants`, `workforceExits` | people/yr | global entrants; exits for all causes including retirement |
 | `humanCapitalMigrationInflows`, `humanCapitalMigrationOutflows` | $T/yr | migrants' book value at destination cost / at origin cost |
 | `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
-| `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows, stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost |
+| `humanCapitalLifeRevaluation` | $T/yr | change in the opening stock's book value from this year's change in expected working life |
+| `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows (incl. life revaluation), stocks, workers in service, exits by cause |
+| `regionalHumanCapital` | record | per region: entrants, flows, net investment, stocks, investment/GDP, workers in service, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants, own-cohort net investment |
 
 ## What the default path shows
 
@@ -328,6 +362,11 @@ earnings, rearing scope, and obsolescence as sensitivity dials.
 - **Hazards are stylized.** Age slopes and education gradients are single
   global shapes scaled by region only through life expectancy and the
   participation gap; there is no regional disability data behind them.
+- **The 2025 workforce is seeded, not observed.** Demographics carries no
+  age structure inside the working cohort, so the opening ledger spreads it
+  uniformly over the 45 working ages and thins it by the survival curve.
+  That seed sets every region's 2025 charge and the timing of its
+  own-cohort turn; `docs/HUMAN_CAPITAL_TRAJECTORY.md` sizes it by region.
 - **Entry timing.** All bands enter the ledger when demographics moves them
   into the working cohort at age 20; entry age differentiates cost and the
   age at which hazards apply, not the ledger's timing.
