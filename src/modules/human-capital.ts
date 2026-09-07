@@ -297,6 +297,7 @@ export interface HumanCapitalBandAccount {
   investment: number;        // $T/year
   depreciation: number;      // $T/year
   writeOffs: number;         // $T/year, book value of pre-retirement exits
+  lifeRevaluation: number;   // $T/year, opening stock re-priced for the change in useful life
   grossStock: number;        // $T
   netStock: number;          // $T
   deaths: number;            // people/year
@@ -550,12 +551,11 @@ interface CellInputs {
 
 interface CellResult extends HumanCapitalBandAccount {
   migrationTransfer: number;
-  lifeRevaluation: number;
   surviving: number[];
 }
 
 const BAND_FLOW_KEYS = [
-  'entrants', 'workersInService', 'investment', 'depreciation', 'writeOffs',
+  'entrants', 'workersInService', 'investment', 'depreciation', 'writeOffs', 'lifeRevaluation',
   'grossStock', 'netStock', 'deaths', 'disabilityExits', 'domesticExits', 'retirements',
 ] as const;
 const REGION_FLOW_KEYS = [
@@ -565,7 +565,7 @@ const REGION_FLOW_KEYS = [
 function emptyBandAccount(): HumanCapitalBandAccount {
   return {
     entrants: 0, workersInService: 0, unitCost: 0, usefulLife: 0,
-    investment: 0, depreciation: 0, writeOffs: 0, grossStock: 0, netStock: 0,
+    investment: 0, depreciation: 0, writeOffs: 0, lifeRevaluation: 0, grossStock: 0, netStock: 0,
     deaths: 0, disabilityExits: 0, domesticExits: 0, retirements: 0,
   };
 }
@@ -603,7 +603,7 @@ function stepCell(input: CellInputs): CellResult {
     }
   }
   const usefulLife = expectedLife(cell.entryAge, table, retirementAge);
-  const bookValue = (age: number) => unitCost * Math.max(0, 1 - age / usefulLife);
+  const bookValue = (age: number, life = usefulLife) => unitCost * Math.max(0, 1 - age / life);
 
   // --- Age the ledger, admit this year's entrants ---------------------------
   const aged = [input.entrants, ...previous];   // index = years since entry
@@ -614,7 +614,6 @@ function stepCell(input: CellInputs): CellResult {
     usefulLife,
     investment: input.entrants * unitCost / 1e12,
     migrationTransfer: 0,
-    lifeRevaluation: 0,
     surviving: [],
   };
 
@@ -626,7 +625,7 @@ function stepCell(input: CellInputs): CellResult {
   const previousLife = input.previousLife ?? usefulLife;
   if (previousLife !== usefulLife) {
     for (let age = 1; age < aged.length; age++) {
-      result.lifeRevaluation += aged[age] * (bookValue(age) - unitCost * Math.max(0, 1 - age / previousLife)) / 1e12;
+      result.lifeRevaluation += aged[age] * (bookValue(age) - bookValue(age, previousLife)) / 1e12;
     }
   }
 
@@ -1000,7 +999,6 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
     }
 
     const gdp = inputs.gdp;
-    const lifeRevaluation = REGIONS.reduce((sum, region) => sum + regional[region].lifeRevaluation, 0);
     return {
       state: { initialized: true, vintages, lives },
       outputs: {
@@ -1018,7 +1016,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
         humanCapitalMigrationInflows: migrationInflows,
         humanCapitalMigrationOutflows: migrationOutflows,
         humanCapitalMigrationRevaluation: migrationInflows - migrationOutflows,
-        humanCapitalLifeRevaluation: lifeRevaluation,
+        humanCapitalLifeRevaluation: total.lifeRevaluation,
         humanCapitalByBand: byBand,
         regionalHumanCapital: regional,
       },

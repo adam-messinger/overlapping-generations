@@ -10,7 +10,7 @@
  */
 
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary, regional, worldTotal } from '../test-utils.js';
+import { test, expect, printSummary, regional, sumRegional, worldTotal } from '../test-utils.js';
 
 import {
   humanCapitalModule,
@@ -245,7 +245,6 @@ test('closure with a changing useful life: the opening stock is re-priced on its
     regionalRetirementAgeExtension: regional(0.1 * i),
     regionalEntrantCollegeShare: regional(0.35),
   }));
-  let revalued = 0;
   for (let i = 1; i < outputs.length; i++) {
     for (const region of REGIONS) {
       const a = outputs[i - 1].regionalHumanCapital[region];
@@ -253,14 +252,17 @@ test('closure with a changing useful life: the opening stock is re-priced on its
       expect(b.netStock - a.netStock).toBeCloseTo(
         b.investment + b.migrationTransfer + b.lifeRevaluation - b.depreciation - b.writeOffs, 6);
     }
+    // The band ledgers close the same way (no migration here, so no transfer term)
+    for (const band of EDUCATION_BANDS) {
+      const a = outputs[i - 1].humanCapitalByBand[band];
+      const b = outputs[i].humanCapitalByBand[band];
+      expect(b.netStock - a.netStock).toBeCloseTo(b.investment + b.lifeRevaluation - b.depreciation - b.writeOffs, 6);
+    }
     // A longer life raises every vintage's remaining book value
     expect(outputs[i].humanCapitalLifeRevaluation).toBeGreaterThan(0);
-    revalued += outputs[i].humanCapitalLifeRevaluation;
   }
-  // Without the line the identity would be off by the cumulative revaluation
-  expect(revalued).toBeGreaterThan(0.01 * outputs[29].humanCapitalNetStock);
   expect(outputs[29].humanCapitalLifeRevaluation).toBeCloseTo(
-    REGIONS.reduce((sum, region) => sum + outputs[29].regionalHumanCapital[region].lifeRevaluation, 0), 9);
+    sumRegional(outputs[29].regionalHumanCapital, (r: { lifeRevaluation: number }) => r.lifeRevaluation), 9);
   // The seed year has no prior schedule to revalue
   expect(outputs[0].humanCapitalLifeRevaluation).toBe(0);
 });
@@ -445,9 +447,9 @@ test('regional and band ledgers both sum to the global ledger', () => {
     REGIONS.reduce((sum, region) => sum + out.regionalHumanCapital[region][field], 0);
   const sumBands = (field: string) =>
     EDUCATION_BANDS.reduce((sum, band) => sum + out.humanCapitalByBand[band][field], 0);
-  // Migration transfers and the life revaluation are regional lines only; the
-  // band rows carry the flows both ledgers share.
-  for (const field of ['investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock']) {
+  // Migration transfers are a regional line only (movement between regions
+  // within a band); every other flow is carried by both ledgers.
+  for (const field of ['investment', 'depreciation', 'writeOffs', 'lifeRevaluation', 'grossStock', 'netStock']) {
     expect(sumRegions(field)).toBeCloseTo(sumBands(field), 9);
   }
   expect(sumBands('investment')).toBeCloseTo(out.humanCapitalInvestment, 9);
