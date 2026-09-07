@@ -389,3 +389,58 @@ npx tsx scripts/repro/dump-model-demographics.ts
 `forecast_<spec>.csv` per specification. `dump-model-demographics.ts` refreshes
 `model_population.csv` and `model_cohorts.csv`, which feed
 `hc_forecast.run(variant="model")` and `run(variant="model-cohorts")`.
+
+## 7. Reading the migration channel as an import account
+
+The ledger books an arriving worker at the **destination's** replacement cost and
+writes it off at the **origin's**. That is an import of embodied human capital,
+and `scripts/repro/hc_imports.py` reads the channel as a trade account.
+
+**The price gap is large and robust.** Rearing and schooling one worker to the
+education mix that actually arrives costs, undepreciated:
+
+| | US prices | what the origins paid | discount |
+|---|---|---|---|
+| Maddison 2011 PPP $ | $561k | $81k | **86%** |
+| market exchange rates | $812k | $36k | **96%** |
+
+It barely moves with the migrant college share — 86% at the brief's 70% college
+and 86% at 45%, because the assumption shifts both sides together.
+
+**Volume and intensity, United States** (constant 2025 cost, WPP low):
+
+| Year | Domestic formation, % GDP | Imported, % GDP | Imported / paid-for | Imports as % of new work-years |
+|---|---|---|---|---|
+| 2030 | 8.26% | 1.54% | 18.6% | 15.7% |
+| 2050 | 4.95% | 1.29% | 26.1% | 20.7% |
+| 2075 | 3.00% | 1.06% | 35.4% | 26.1% |
+| 2100 | 2.03% | 0.73% | 35.8% | 26.4% |
+
+Cumulative 2026-2100: **76.7M workers**, **2.3bn remaining work-years**, **$31.2T**
+of rearing and schooling the US did not pay for, against $3.0T the origins
+actually spent on them and $110.7T of US domestic investment. The US ends the
+century acquiring about **28% more human capital than it pays for**.
+
+The suppliers are concentrated: India + South Asia 47% of the world emigrant
+pool and Sub-Saharan Africa 27%, at $69k and $30k per worker built.
+
+**But the rising import share is a collapsing denominator, not a growing
+numerator.** US imports are roughly flat at ~1M workers a year for the whole
+century — the WPP migration assumption is exogenous here. What rises is the
+share, because domestic formation falls from 8.3% to 2.0% of GDP as the
+home-grown cohorts shrink. On these numbers the US is not importing more; it is
+producing less.
+
+**Three limits on what this can support.**
+
+1. *It cannot test the causal claim.* Migration is an input to this ledger, read
+   off WPP, not a response to the price gap. Nothing here shows the US imports
+   *because* it is cheaper; making migration respond to the cost differential
+   would be a model change, and an interesting one.
+2. *It is capital accounting, not welfare.* The migrant captures most of the
+   return through wages. An 86% discount on the build cost is not 86% of the
+   asset's value accruing to the destination.
+3. *The origin side is a real write-off*, and it falls on the two poorest
+   suppliers. The world-level gain in §4's decomposition is a re-pricing, not
+   new human capital: the same person is simply worth more standing in a richer
+   labour market.

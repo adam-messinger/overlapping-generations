@@ -224,7 +224,9 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
 
     rows = []
     for r in L.REGIONS:
-        rows.append(dict(region=r, year=2025,
+        rows.append(dict(region=r, year=2025, mig_in_head=0.0, mig_out_head=0.0,
+                         mig_in_gross=0.0, mig_out_gross=0.0,
+                         mig_in_years=0.0, entrants=0.0, entrant_years=0.0,
                          stock=sum(v.n * bv(v, st[r].life) for v in st[r].vintages),
                          head=sum(v.n for v in st[r].vintages), imm_head=0.0,
                          investment=0.0, depreciation=0.0, writeoff=0.0,
@@ -276,12 +278,14 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
             ent = p019[(r, y)] / 20.0
             em = entrant_mix(r, ent25[r], y, adv, tgt, tertiary_tau)
             inv = 0.0
+            ent_years = 0.0
             for b in L.BANDS:
                 n = ent * em[b]
                 if n <= 0:
                     continue
                 s.vintages.append(Vintage(b, "own", n, c.unit_cost[b], 0.0))
                 inv += n * c.unit_cost[b]
+                ent_years += n * c.useful_life[b]
 
             m = mig.get((r, y), 0.0) * working_share if migration else 0.0
             if m >= 0:
@@ -289,6 +293,7 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
             else:
                 pool_out[r] = -m
             flows[r] = dict(dep=dep, wo=wo, reval=reval, inv=inv,
+                            ent_head=ent, ent_years=ent_years,
                             dep_own=dep_own, wo_own=wo_own,
                             dep_imm=dep_imm, wo_imm=wo_imm)
 
@@ -304,6 +309,11 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
 
         mig_out_val = {r: 0.0 for r in L.REGIONS}
         mig_in_val = {r: 0.0 for r in L.REGIONS}
+        mig_in_head = {r: 0.0 for r in L.REGIONS}
+        mig_out_head = {r: 0.0 for r in L.REGIONS}
+        mig_in_years = {r: 0.0 for r in L.REGIONS}
+        mig_out_gross = {r: 0.0 for r in L.REGIONS}
+        mig_in_gross = {r: 0.0 for r in L.REGIONS}
         for r, out in pool_out.items():
             s = st[r]
             a = adv[r]
@@ -325,6 +335,8 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
                         continue
                     leave = v.n * f
                     mig_out_val[r] += leave * bv(v, s.life)
+                    mig_out_head[r] += leave
+                    mig_out_gross[r] += leave * v.cost
                     v.n -= leave
         for r, inn in want_in.items():
             s = st[r]
@@ -342,6 +354,9 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
                     continue
                 v = Vintage(b, "imm", n, s.unit_cost[b], tenure)
                 mig_in_val[r] += n * bv(v, s.life)
+                mig_in_head[r] += n
+                mig_in_gross[r] += n * s.unit_cost[b]
+                mig_in_years[r] += n * max(0.0, s.life[b] - tenure)
                 s.vintages.append(v)
 
         for r in L.REGIONS:
@@ -353,6 +368,10 @@ def run(scale=None, rearing=L.REARING_SHARE, foregone=L.FOREGONE_SHARE,
                 imm_head=sum(v.n for v in s.vintages if v.cohort == "imm"),
                 investment=f["inv"], depreciation=f["dep"], writeoff=f["wo"],
                 mig_in=mig_in_val[r], mig_out=mig_out_val[r], revaluation=f["reval"],
+                mig_in_head=mig_in_head[r], mig_out_head=mig_out_head[r],
+                mig_in_years=mig_in_years[r], entrants=f["ent_head"],
+                mig_in_gross=mig_in_gross[r], mig_out_gross=mig_out_gross[r],
+                entrant_years=f["ent_years"],
                 charge_own=f["dep_own"] + f["wo_own"],
                 charge_imm=f["dep_imm"] + f["wo_imm"],
                 gdppc=gpath[(r, y)]))
