@@ -227,7 +227,7 @@ console.log('\n--- Carbon Pricing ---\n');
 
 test('higher regional carbon price affects regional clean energy growth', () => {
   // With regional carbon pricing, higher carbon prices in a region should
-  // make clean energy more competitive there. Test with OECD high carbon.
+  // make clean energy more competitive there. Test with OECD ex-US high carbon.
   const lowCarbon = runYears(10, {
     regional: {
       ...energyDefaults.regional,
@@ -240,7 +240,7 @@ test('higher regional carbon price affects regional clean energy growth', () => 
       'oecd-ex-us': { ...energyDefaults.regional['oecd-ex-us'], carbonPrice: 200 },
     },
   });
-  // With high carbon price, more solar should be added in OECD
+  // With high carbon price, more solar should be added in OECD ex-US
   // (because it becomes more competitive vs fossil)
   expect(highCarbon.outputs.regionalAdditions['oecd-ex-us'].solar).toBeGreaterThan(0);
 });
@@ -266,7 +266,7 @@ console.log('\n--- Regional Carbon Pricing ---\n');
 
 test('regional carbon prices affect regional additions differently', () => {
   // Test that different regional carbon prices lead to different outcomes
-  // China has lower carbon price (15) than OECD (50), so China should have
+  // China has lower carbon price (15) than OECD ex-US (65), so China should have
   // relatively less clean energy incentive at the margin
   const { outputs } = runYears(10);
 

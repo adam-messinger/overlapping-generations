@@ -1,4 +1,4 @@
-import { expect, printSummary, test } from '../../test-utils.js';
+import { expect, printSummary, sumRegional, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
 import { REGIONS } from '../../domain-types.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
@@ -126,10 +126,8 @@ test('the annual bridge rejects an accidental same-year shock overwrite', () => 
 });
 
 test('regional oil and gas consumption weights each partition world use (sum to 1)', () => {
-  const oil = REGIONS.reduce((sum, r) => sum + hormuzDefaults.regions[r].oilConsumptionWeight, 0);
-  const gas = REGIONS.reduce((sum, r) => sum + hormuzDefaults.regions[r].gasConsumptionWeight, 0);
-  expect(oil).toBeCloseTo(1, 9);
-  expect(gas).toBeCloseTo(1, 9);
+  expect(sumRegional(hormuzDefaults.regions, r => r.oilConsumptionWeight)).toBeCloseTo(1, 9);
+  expect(sumRegional(hormuzDefaults.regions, r => r.gasConsumptionWeight)).toBeCloseTo(1, 9);
 });
 
 printSummary();

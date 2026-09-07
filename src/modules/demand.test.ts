@@ -154,7 +154,7 @@ test('global GDP grows over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-test('China GDP grows faster than OECD initially', () => {
+test('China GDP grows faster than OECD ex-US initially', () => {
   const year1 = runYears(1).outputs.regional;
   const year10 = runYears(10).outputs.regional;
 
@@ -253,7 +253,7 @@ test('regional fossil share is no longer an allocator input', () => {
   expect(demandModule.inputs.includes('regionalReliabilityFactor')).toBeTrue();
 });
 
-test('China energy intensity declines faster than OECD (catch-up)', () => {
+test('China energy intensity declines faster than OECD ex-US (catch-up)', () => {
   const state10 = runYears(10).state;
   const state50 = runYears(50).state;
 
@@ -274,7 +274,7 @@ test('energy intensity declines over time', () => {
   expect(year25).toBeLessThan(year1);
 });
 
-test('China intensity declines faster than OECD', () => {
+test('China intensity declines faster than OECD ex-US', () => {
   const year1 = runYears(1).outputs.regional;
   const year25 = runYears(25).outputs.regional;
 

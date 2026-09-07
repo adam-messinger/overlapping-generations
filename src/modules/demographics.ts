@@ -77,8 +77,8 @@ export const demographicsDefaults: DemographicsParams = {
   // Fernández-Villaverde's low-fertility convergence argument (see
   // docs/REFERENCES.md). migrationRate is the net annual rate as a fraction
   // of regional population, calibrated to UN WPP 2015-2023 net migration
-  // averages (US ~+1.2M/yr, rest of OECD ~+3M/yr); inflows are rescaled at
-  // runtime so global net migration is zero.
+  // averages; inflows are rescaled at runtime so global net migration is
+  // zero.
   regions: {
     us: {
       name: 'United States',
@@ -99,7 +99,7 @@ export const demographicsDefaults: DemographicsParams = {
       fertilityFloor: 1.3,
       fertilityDecay: 0.01,
       lifeExpectancy: 82,      // Japan 84.7, EU 81.5, Korea 83.5 (UN WPP 2024)
-      young: 0.18,             // Residual of the old 0.20/0.58/0.22 blend after removing the younger US
+      young: 0.18,             // UN WPP 2024 aggregate of the member states less the US
       working: 0.58,
       old: 0.24,
       migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers)

@@ -310,14 +310,13 @@ export const capitalDefaults: CapitalParams = {
   savingsOld: 0,            // Explicit transfers now handle retirement consumption
 
   // Regional premiums: calibrated to gross national savings differentials
-  // (World Bank WDI 2023: China ~44% of GDP, US ~17-18%, OECD ex-US ~25%
-  // (Japan 29, Germany 28, Korea 34, UK 15), SSA ~18-20%).
+  // (World Bank WDI 2023 gross national savings; per-region sources inline).
   // NOTE: the energy module's REGIONAL_FINANCING_SPREADS residuals are
   // derived from the 2025 savings rates these produce; changing them is
   // caught by the spread-calibration test in simulation.test.ts.
   savingsPremium: {
-    us: -0.10,              // US gross national savings ~17.6% GDP (WDI 2023), ~5pp below the OECD ex-US
-    'oecd-ex-us': 0.05,     // Japan/Germany/Korea surplus savers lift the ex-US OECD above the old blended baseline
+    us: -0.10,              // US ~17.6% of GDP (WDI 2023)
+    'oecd-ex-us': 0.05,     // ~25%: Japan 29, Germany 28, Korea 34, UK 15 (WDI 2023)
     china: 0.15,            // +15% higher savings
     india: 0.02,            // Slightly above baseline
     latam: -0.05,           // Lower savings
@@ -337,10 +336,9 @@ export const capitalDefaults: CapitalParams = {
   // at a Glance 2023 (public pensions ~7-9% GDP in OECD, <2% in SSA) and
   // WHO/World Bank health expenditure shares. US: public pensions ~7% GDP
   // (SS 5.1% + federal/state plans) on a young age structure implies a
-  // higher per-retiree rate; per-capita public health spending on the old
-  // (Medicare + Medicaid LTC ~4% GDP) is ~2x the OECD ex-US (Health at a
-  // Glance 2023). The old-population-weighted blend of the two reproduces
-  // the previous OECD rates (0.35 / 0.10).
+  // higher per-retiree rate; public health spending on the old (Medicare +
+  // Medicaid LTC ~4% GDP) is ~2x the OECD ex-US per capita (Health at a
+  // Glance 2023).
   transferPremium: {
     us:     { pensionRate: 0.38, healthcareRate: 0.16, educationRate: 0.05 },
     'oecd-ex-us': { pensionRate: 0.34, healthcareRate: 0.08, educationRate: 0.05 },

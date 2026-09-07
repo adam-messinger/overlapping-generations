@@ -10,10 +10,8 @@
  */
 
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
+import { test, expect, printSummary, regional, worldTotal } from '../test-utils.js';
 
-// Test inputs give every region 1e6 entrants/yr.
-const WORLD_ENTRANTS = 1e6 * REGIONS.length;
-import { test, expect, printSummary, regional } from '../test-utils.js';
 import {
   humanCapitalModule,
   humanCapitalDefaults,
@@ -23,6 +21,9 @@ import {
   type HumanCapitalOverrides,
   type HumanCapitalParams,
 } from './human-capital.js';
+
+// Test inputs give every region 1e6 entrants/yr.
+const WORLD_ENTRANTS = worldTotal(1e6);
 
 /** Inputs for a one-band world: every entrant is a secondary completer. */
 function makeInputs(overrides: Record<string, any> = {}) {
@@ -116,7 +117,7 @@ test('useful life is the survival-weighted time to exit for any cause, not retir
   }
 });
 
-test('OECD useful lives by band track Eurostat duration of working life (~31 / 36 / 40 years)', () => {
+test('OECD ex-US useful lives by band track Eurostat duration of working life (~31 / 36 / 40 years)', () => {
   const p = humanCapitalDefaults;
   const life = (band: EducationBand) => expectedWorkingYears(p, 'oecd-ex-us', band, 81, p.bands[band].retirementAge);
   expect(life('primary')).toBeBetween(29, 34);

@@ -210,12 +210,12 @@ export interface EnergyParams {
 /**
  * Regional 2025 Capacity Defaults (GW; GWh for battery)
  *
- * Based on IEA World Energy Outlook 2024 and IRENA statistics.
- * 8-region split from original 4-region (EM → india+latam+seasia, ROW → russia+mena+ssa);
- * the OECD totals are split us / oecd-ex-us by 2024 fleet shares (EIA
- * Electric Power Monthly, IRENA Renewable Capacity Statistics 2025, PRIS):
+ * Based on IEA World Energy Outlook 2024 and IRENA statistics. Region
+ * lineage: 4 (OECD/China/EM/ROW) → 8 (EM → india+latam+seasia, ROW →
+ * russia+mena+ssa) → 9 (OECD → us + oecd-ex-us by 2024 fleet shares: EIA
+ * Electric Power Monthly, IRENA Renewable Capacity Statistics 2025, PRIS —
  * US ~26% of OECD solar, ~32% wind, ~52% gas, ~41% coal, ~35% nuclear,
- * ~18% hydro, ~55% battery GWh.
+ * ~18% hydro, ~55% battery GWh).
  */
 const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
   solar:   { us: 160, 'oecd-ex-us': 440, china: 600, india: 90,  latam: 40,  seasia: 35,  russia: 5,   mena: 30,  ssa: 8 },
@@ -266,7 +266,7 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
  *
  *   region      observed  savings gap  home-bias  static residual
  *   us          -0.010     +13.3pp      +0.020      -0.030
- *   oecd-ex-us  -0.010      -1.7pp      -0.003      -0.008
+ *   oecd-ex-us  -0.010      -1.7pp      -0.0025     -0.0075
  *   china       -0.015     -15.3pp      -0.023      +0.008
  *   india       +0.020      +0.9pp      +0.001      +0.019
  *   latam       +0.030      +6.1pp      +0.009      +0.021
@@ -297,15 +297,11 @@ const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
 };
 
 /**
- * Reference capacity factors at which the `eroi.solar` / `eroi.wind`
- * literature values hold. The dynamic EROI scales the base EROI by the
- * capacity-weighted fleet CF over these references, so they describe the
- * deployment sites the literature measured, not where modules are made
- * (manufacturing location enters the embodied-energy numerator, i.e. the
- * base EROI itself). Solar: Bhandari et al. (2015) meta-analysis
- * harmonized to 1,700 kWh/m²/yr insolation (~CF 0.18, southern
- * Europe/US); wind: Kubiszewski et al. (2010) at ~CF 0.30. These equal the
- * pre-split OECD anchors, so the term is unchanged by the US breakout.
+ * Deployment-site capacity factors at which the `eroi.solar` / `eroi.wind`
+ * literature values were measured; the dynamic EROI scales base EROI by the
+ * fleet's capacity-weighted CF over these. Solar: Bhandari et al. (2015)
+ * harmonized to 1,700 kWh/m²/yr (~CF 0.18); wind: Kubiszewski et al. (2010)
+ * at ~CF 0.30. Manufacturing location would enter the base EROI, not here.
  */
 const EROI_REFERENCE_CF = { solar: 0.18, wind: 0.30 };
 
@@ -327,6 +323,26 @@ const REGIONAL_SOLAR_CF: Record<Region, number> = {
   russia: 0.11,
   mena: 0.24,
   ssa: 0.22,
+};
+
+/**
+ * Regional Wind Capacity Factors
+ *
+ * US fleet ~0.34 (EIA Electric Power Monthly 2023); OECD ex-US ~0.27
+ * (WindEurope 2023: onshore 24%, offshore 38%; Japan/Korea lower). The
+ * other regions carry the model's long-standing 0.30 placeholder and are
+ * not yet fleet-calibrated (China ~0.25 and Brazil ~0.42 would move most).
+ */
+const REGIONAL_WIND_CF: Record<Region, number> = {
+  us: 0.34,
+  'oecd-ex-us': 0.27,
+  china: 0.30,
+  india: 0.30,
+  latam: 0.30,
+  seasia: 0.30,
+  russia: 0.30,
+  mena: 0.30,
+  ssa: 0.30,
 };
 
 export const energyDefaults: EnergyParams = {
@@ -409,20 +425,11 @@ export const energyDefaults: EnergyParams = {
   },
 
   // Regional policy parameters
-  regional: {
-    // Wind CFs: US fleet ~0.34 (EIA EPM 2023); OECD ex-US ~0.27 (WindEurope
-    // 2023 onshore 24% / offshore 38%, Japan/Korea lower). Other regions use
-    // the 0.30 default.
-    us:     { carbonPrice: REGIONAL_CARBON_PRICES.us,     capacityFactor: { solar: REGIONAL_SOLAR_CF.us, wind: 0.34 },     financingSpread: REGIONAL_FINANCING_SPREADS.us     },
-    'oecd-ex-us': { carbonPrice: REGIONAL_CARBON_PRICES['oecd-ex-us'], capacityFactor: { solar: REGIONAL_SOLAR_CF['oecd-ex-us'], wind: 0.27 }, financingSpread: REGIONAL_FINANCING_SPREADS['oecd-ex-us'] },
-    china:  { carbonPrice: REGIONAL_CARBON_PRICES.china,  capacityFactor: { solar: REGIONAL_SOLAR_CF.china },  financingSpread: REGIONAL_FINANCING_SPREADS.china  },
-    india:  { carbonPrice: REGIONAL_CARBON_PRICES.india,  capacityFactor: { solar: REGIONAL_SOLAR_CF.india },  financingSpread: REGIONAL_FINANCING_SPREADS.india  },
-    latam:  { carbonPrice: REGIONAL_CARBON_PRICES.latam,  capacityFactor: { solar: REGIONAL_SOLAR_CF.latam },  financingSpread: REGIONAL_FINANCING_SPREADS.latam  },
-    seasia: { carbonPrice: REGIONAL_CARBON_PRICES.seasia, capacityFactor: { solar: REGIONAL_SOLAR_CF.seasia }, financingSpread: REGIONAL_FINANCING_SPREADS.seasia },
-    russia: { carbonPrice: REGIONAL_CARBON_PRICES.russia, capacityFactor: { solar: REGIONAL_SOLAR_CF.russia }, financingSpread: REGIONAL_FINANCING_SPREADS.russia },
-    mena:   { carbonPrice: REGIONAL_CARBON_PRICES.mena,   capacityFactor: { solar: REGIONAL_SOLAR_CF.mena },   financingSpread: REGIONAL_FINANCING_SPREADS.mena   },
-    ssa:    { carbonPrice: REGIONAL_CARBON_PRICES.ssa,    capacityFactor: { solar: REGIONAL_SOLAR_CF.ssa },    financingSpread: REGIONAL_FINANCING_SPREADS.ssa    },
-  },
+  regional: Object.fromEntries(REGIONS.map(region => [region, {
+    carbonPrice: REGIONAL_CARBON_PRICES[region],
+    capacityFactor: { solar: REGIONAL_SOLAR_CF[region], wind: REGIONAL_WIND_CF[region] },
+    financingSpread: REGIONAL_FINANCING_SPREADS[region],
+  }])) as EnergyParams['regional'],
 
   // EROI assumptions (used for net energy fraction). Contested literature:
   // ranges span Weißbach et al. (2013, buffered vs unbuffered) to
@@ -900,7 +907,7 @@ export const energyModule: Module<
       us: {
         carbonPrice: {
           paramName: 'usCarbonPrice',
-          description: 'Carbon price for the United States (RGGI/California/Washington coverage plus IRA implicit credits, blended ~20).',
+          description: 'Carbon price for the United States (RGGI/California/Washington plus IRA implicit credits; see REGIONAL_CARBON_PRICES).',
           unit: '$/ton CO₂',
           range: { min: 0, max: 300, default: 20 },
           tier: 1 as const,
@@ -909,7 +916,7 @@ export const energyModule: Module<
       'oecd-ex-us': {
         carbonPrice: {
           paramName: 'oecdExUsCarbonPrice',
-          description: 'Carbon price for the OECD ex-US region (EU ETS ~70 dominates; UK/Canada ~50; Japan/Korea/Mexico near zero; blended ~65).',
+          description: 'Carbon price for the OECD ex-US region (EU ETS-dominated electricity-weighted blend; see REGIONAL_CARBON_PRICES).',
           unit: '$/ton CO₂',
           range: { min: 0, max: 300, default: 65 },
           tier: 1 as const,

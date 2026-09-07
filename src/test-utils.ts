@@ -15,6 +15,16 @@ export function regional(value: number): Record<Region, number> {
   return Object.fromEntries(REGIONS.map(region => [region, value])) as Record<Region, number>;
 }
 
+/** World total when every region carries the same per-region value (pairs with `regional`). */
+export function worldTotal(perRegion: number): number {
+  return perRegion * REGIONS.length;
+}
+
+/** Sum a per-region record, optionally projecting each region's entry first. */
+export function sumRegional<T>(record: Record<Region, T>, pick: (entry: T) => number = v => v as unknown as number): number {
+  return REGIONS.reduce((sum, region) => sum + pick(record[region]), 0);
+}
+
 export function test(name: string, fn: () => void) {
   try {
     fn();

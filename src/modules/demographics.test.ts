@@ -8,7 +8,7 @@
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { REGIONS } from '../domain-types.js';
 
-import { test, expect, printSummary } from '../test-utils.js';
+import { test, expect, printSummary, sumRegional } from '../test-utils.js';
 
 // Helper to run simulation for N years
 function runYears(years: number) {
@@ -60,15 +60,7 @@ test('init returns state with all regions', () => {
 
 test('init sets correct 2025 population', () => {
   const state = demographicsModule.init(demographicsDefaults);
-  const totalPop =
-    state.regions['oecd-ex-us'].population +
-    state.regions.china.population +
-    state.regions.india.population +
-    state.regions.latam.population +
-    state.regions.seasia.population +
-    state.regions.russia.population +
-    state.regions.mena.population +
-    state.regions.ssa.population;
+  const totalPop = sumRegional(state.regions, r => r.population);
 
   expect(totalPop / 1e9).toBeCloseTo(8.2, 0);
 });
@@ -414,7 +406,7 @@ test('migration composition effects stay small over 30 years', () => {
 test('migration moves population between regions', () => {
   const withMigration = runYears(20).outputs;
   const withoutMigration = runYearsWithParams(20, { migrationMultiplier: 0 }).outputs;
-  // OECD is the main receiving region — migration must raise its population
+  // OECD ex-US is the largest receiving region — migration must raise its population
   expect(withMigration.regionalPopulation['oecd-ex-us'])
     .toBeGreaterThan(withoutMigration.regionalPopulation['oecd-ex-us']);
 });

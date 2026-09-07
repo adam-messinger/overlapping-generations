@@ -3,7 +3,7 @@
  */
 
 import { REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary, regional } from '../test-utils.js';
+import { test, expect, printSummary, regional, worldTotal } from '../test-utils.js';
 import { generationsModule } from './generations.js';
 
 function makeInputs(overrides: Record<string, any> = {}) {
@@ -17,7 +17,7 @@ function makeInputs(overrides: Record<string, any> = {}) {
     regionalPopulation: regional(100e6),
     regionalLifeExpectancy: regional(75),
     regionalGdp: regional(20),
-    gdp: 20 * REGIONS.length,
+    gdp: worldTotal(20),
     stock,
     nextCapitalStock,
     investment: overrides.investment ?? 42,
@@ -26,7 +26,7 @@ function makeInputs(overrides: Record<string, any> = {}) {
       overrides.newInvestmentLoanOriginations ?? 5,
     privateDebtStock: overrides.privateDebtStock ?? 256,
     nextPrivateDebtStock: overrides.nextPrivateDebtStock ?? 248.2,
-    netTaxes: overrides.netTaxes ?? 2.95 * REGIONS.length,
+    netTaxes: overrides.netTaxes ?? worldTotal(2.95),
     regionalSavings: regional(0.25),
     regionalRetireeCost: regional(1.75),
     regionalChildCost: regional(0.20),
@@ -62,7 +62,7 @@ test('uses five-year birth cohorts and reconciles population', () => {
     expect(account.birthYearEnd - account.birthYearStart).toBe(4);
     totalPopulation += account.population;
   }
-  expect(totalPopulation).toBeCloseTo(100e6 * REGIONS.length, 2);
+  expect(totalPopulation).toBeCloseTo(worldTotal(100e6), 2);
 });
 
 test('end-of-period cohort assets and liabilities reconcile to macro stocks', () => {
@@ -177,8 +177,8 @@ test('education, retiree transfers, and macro net-tax incidence reconcile', () =
   const education = accounts.reduce((sum, account) => sum + account.education, 0);
   const pensions = accounts.reduce((sum, account) => sum + account.pensionHealthcare, 0);
   const taxes = accounts.reduce((sum, account) => sum + account.taxes, 0);
-  expect(education).toBeCloseTo(0.20 * REGIONS.length, 6);
-  expect(pensions).toBeCloseTo(1.75 * REGIONS.length, 6);
+  expect(education).toBeCloseTo(worldTotal(0.20), 6);
+  expect(pensions).toBeCloseTo(worldTotal(1.75), 6);
   expect(taxes).toBeCloseTo(makeInputs().netTaxes, 6);
 });
 
@@ -187,11 +187,7 @@ test('balanced-budget replay taxes include dependent outlays and public interest
   const retireeOutlays = 0.10 * gdp;
   const childOutlays = 0.05 * gdp;
   const publicInterestOutlays = 0.02 * gdp;
-  const inOecd = (value: number): Record<Region, number> =>
-    Object.fromEntries(REGIONS.map(region => [
-      region,
-      region === 'oecd-ex-us' ? value : 0,
-    ])) as Record<Region, number>;
+  const inOecd = (value: number): Record<Region, number> => ({ ...regional(0), 'oecd-ex-us': value });
   const { outputs } = runOne({}, {
     gdp,
     regionalGdp: inOecd(gdp),

@@ -1,11 +1,12 @@
 /**
  * Explicit global -> US municipal integration boundary.
  *
- * The global model's `us` region (broken out of the OECD in 2026) supplies
- * the national real-income path by default. Its GDP per capita is still an
- * auditable proxy: a nine-region macro path, not a validated US forecast.
+ * The global model's `us` region supplies the national real-income path by
+ * default. Its GDP per capita is still an auditable proxy: one region of a
+ * nine-region macro model, not a validated US forecast.
  */
 import type { Region } from '../../src/domain-types.js';
+import { GLOBAL_MODEL_REGION_BOUNDARY_VERSION } from '../../src/simulations/semantic-contracts.js';
 import {
   runSimulation,
   type SimulationParams,
@@ -80,7 +81,7 @@ const usMunicipalHouseholds = {
 const selectedRegion = {
   id: 'geo.global-model.selected-region',
   label: 'Selected global-model region',
-  boundaryVersion: 'global-model-region-v2',
+  boundaryVersion: GLOBAL_MODEL_REGION_BOUNDARY_VERSION,
 } as const;
 
 const usMunicipalMarkets = {
@@ -228,7 +229,7 @@ const gdpToIncomeGrowth = defineSemanticCrosswalk({
   target: globalCityEstimands.municipalIncomeGrowth,
   method: 'Compute next/current annual GDP per capita minus one, then apply that rate to each included city.',
   assumptions: [
-    'US-region real PPP GDP per capita is the default proxy; the region is a nine-region global-model aggregate, not a national forecast.',
+    'US-region real PPP GDP per capita is the default proxy; it is one region of a nine-region global model, not a national forecast.',
     'The same national proxy growth rate applies to every included municipality.',
     'Changes in household income track GDP per capita one-for-one before city-specific dynamics.',
   ],
