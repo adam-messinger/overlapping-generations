@@ -60,6 +60,9 @@ SPECS = {
     "primary": dict(),
     "blend": dict(variant="blend"),
     "medium": dict(variant="medium"),
+    # §5.3 diagnostics: driven by this repository's own demographics output
+    "model": dict(variant="model"),
+    "model_cohorts": dict(variant="model-cohorts"),
     "market": dict(prices="market"),
     "eurostat": dict(scale=L.HAZARD_SCALE_EUROSTAT),
     "nomig": dict(migration=False),

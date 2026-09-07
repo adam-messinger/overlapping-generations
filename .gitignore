@@ -17,3 +17,7 @@ baselines/current.json
 .claude/worktrees/
 _sweep_*.ts
 _probe*.ts
+
+# Python bytecode from scripts/repro/
+__pycache__/
+*.pyc

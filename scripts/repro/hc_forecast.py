@@ -92,13 +92,30 @@ BLEND_LAMBDA = 0.474
 
 def load_inputs(variant="low"):
     pop = pd.read_csv(f"{DATA}/pop_age.csv")
+    if variant == "model":
+        # Diagnostic only: rescale the WPP low age distribution so each region's
+        # total matches this repository's own demographics module (see
+        # data/human-capital-repro/model_population.csv, produced by running
+        # runSimulation and dumping regionalPopulation).  This is the one place
+        # the reproduction reads a study output, and it is used to test whether
+        # the demographic path explains the divergence -- never in the primary run.
+        mp = pd.read_csv(f"{DATA}/model_population.csv")
+        target = {(r.region, int(r.year)): float(r.population) for r in mp.itertuples()}
+        lo = pop[pop.series == "low"].copy()
+        tot = lo.groupby(["region", "year"]).pop_thousands.transform("sum") * 1e3
+        scale = [target.get((r, y), float("nan")) for r, y in zip(lo.region, lo.year)]
+        lo["pop_thousands"] = lo.pop_thousands * (pd.Series(scale, index=lo.index) / tot)
+        lo = lo.dropna(subset=["pop_thousands"])
+        lo["series"] = "model"
+        pop = pd.concat([pop, lo])
     if variant == "blend":
         lo = pop[pop.series == "low"].set_index(["region", "year", "agegrp"]).pop_thousands
         me = pop[pop.series == "medium"].set_index(["region", "year", "agegrp"]).pop_thousands
         mixed = (lo * (1 - BLEND_LAMBDA) + me * BLEND_LAMBDA).dropna().reset_index()
         mixed["series"] = "blend"
         pop = pd.concat([pop, mixed])
-    low = pop[(pop.series == variant) | ((pop.series == "estimate") & (pop.year < 2024))]
+    base = "low" if variant == "model-cohorts" else variant
+    low = pop[(pop.series == base) | ((pop.series == "estimate") & (pop.year < 2024))]
     p019, p2064, ptot = {}, {}, {}
     for (reg, yr), g in low.groupby(["region", "year"]):
         s = dict(zip(g.agegrp, g.pop_thousands))
@@ -106,6 +123,15 @@ def load_inputs(variant="low"):
         p019[(reg, yr)] = sum(v for k, v in s.items() if AGE_MID.get(k, 999) < 20) * 1e3
         p2064[(reg, yr)] = sum(v for k, v in s.items()
                                if 20 <= AGE_MID.get(k, 999) <= 64) * 1e3
+    if variant == "model-cohorts":
+        # Diagnostic only: replace the WPP cohorts with this repository's own
+        # demographics module output (regionalYoung / regionalWorking /
+        # regionalWorkforceEntrants).  Used to test whether the model's cohort
+        # dynamics, rather than its population level, explain the divergence.
+        mc = pd.read_csv(f"{DATA}/model_cohorts.csv")
+        for r in mc.itertuples():
+            p019[(r.region, int(r.year))] = float(r.young)
+            p2064[(r.region, int(r.year))] = float(r.working)
     le = pd.read_csv(f"{DATA}/life_expectancy.csv")
     lex = {(r.region, int(r.year)): float(r.life_expectancy) for r in le.itertuples()}
     mig = {(r.region, int(r.year)): float(r.net_migration_thousands) * 1e3

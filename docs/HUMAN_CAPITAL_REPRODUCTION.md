@@ -13,9 +13,18 @@ lands within rounding. The forecast reproduces the *architecture* — the ledger
 closes to a zero residual, the regional ordering is right, India's peak year and
 the US immigrant share hit their targets — but the world path does not. On the
 actual UN WPP 2024 low-fertility variant the world constant-cost stock peaks in
-**2032 at 1.04** and ends 2100 at **0.58**, against the study's **2063 at 1.22**
-and a migration-driven 2025-50 gain of $44T that I cannot get above +$16T. Two
-assumptions account for nearly all of it, and both are identified below.
+**2032 at 1.04** and ends 2100 at **0.58**, against the study's **2063 at 1.22**.
+
+The cause is identified in §5.3, and it is not the one I first suspected. It is
+not the *level* of the study's population path but its **cohort dynamics**: the
+model's three-cohort demographics hold the world 0-19 cohort at 1.91bn in 2100
+against the WPP low variant's 1.11bn, so its entrant flow stays at 2.2-2.5% of
+the workforce for the whole century while WPP low's falls to 1.5% — against a
+replacement requirement of ~2.7%/yr. Driving my ledger with the model's own
+cohort output moves the world peak to **2066**, China's 2100 index to **-63%**
+against a -61% target, and India's peak to **2057** against 2056. What is left
+after that is the migration channel, which I cannot get above half the study's
+$36T.
 
 ## 1. Sources
 
@@ -162,9 +171,20 @@ World constant-cost index (2025 = 1):
 | 2100 | 0.580 | 0.813 | 1.072 |
 | **peak** | **2032 @ 1.043** | 2035 @ 1.055 | **2063 @ 1.123** |
 
-\* "Blend" is 0.474 x medium + 0.526 x low, the mix whose world population path
-matches the 8.5bn in 2100 that this repository's own demographics module
-produces. See §5.
+\* "Blend" is 0.474 x medium + 0.526 x low, the mix whose world *total* population
+matches the 8.46bn in 2100 that this repository's own demographics module
+produces. It is shown because it is the obvious first guess, but §5.3 shows it
+reproduces India's peak year for the wrong reason — the level of the study's
+population path is not what matters.
+
+Two further runs replace the WPP cohorts with this repository's own demographics
+output. These are the only places the reproduction reads a study artefact, and
+they are diagnostics, never the primary run:
+
+| Run | World peak | 2100 | 2025-50 change |
+|---|---|---|---|
+| `model` — WPP low age shares rescaled to the model's regional **totals** | 2032 @ 1.047 | 0.722 | -11.2 |
+| `model-cohorts` — the model's own **young / working / entrant** cohorts | **2066 @ 1.084** | 1.028 | +14.6 |
 
 World decomposition, constant 2025 cost, closing exactly:
 
@@ -203,7 +223,7 @@ United States series (constant 2025 cost, $T):
 
 ## 5. Target check
 
-### Reproduced
+### 5.1 Reproduced
 
 | Target | Study | This reproduction |
 |---|---|---|
@@ -224,63 +244,98 @@ stock from $225T to $265T; rearing 0 cuts it to $92T; foregone earnings 0.45
 lifts it to $270T. None moves the world peak by more than three years and none
 moves a regional peak by more than two.
 
-### Not reproduced
+### 5.2 Not reproduced
 
 | Target | Study | This reproduction | Assumption I think explains it |
 |---|---|---|---|
-| World stock peaks **2063** at **1.22** | 2063 / 1.22 | 2032 / 1.043 | **The demographic path.** See below — on the WPP *medium* variant I get the peak in **2063** exactly. |
-| 2025-50 gain of **$44T** | +44 | **-16.3** | Same, compounded by the migration gap below. On the medium variant the 2025-50 change is **+22.7T**. |
-| ...of which **$1T** net investment | +1 | **-42.7** | Demographic path (medium: -3.8T) plus the seed level; see below. |
-| ...of which **$36T** migration re-pricing | +36 | **+16.1** | How the 80% working-age share and the 10-year tenure write-down are applied. Dropping the working-age haircut gives $20.1T; dropping the tenure write-down gives $22.6T; dropping both gives **$28.3T**. The remainder needs migration volumes above WPP's net-migration series. |
+| World stock peaks **2063** at **1.22** | 2063 / 1.22 | 2032 / 1.043 | **The model's cohort dynamics** (§5.3): on its own entrant cohorts the peak is **2066 @ 1.084**. |
+| 2025-50 gain of **$44T** | +44 | **-16.3** | Cohort dynamics (+$14.6T on the model's cohorts) plus the unresolved migration gap below. |
+| ...of which **$1T** net investment | +1 | **-42.7** | Cohort dynamics: -$11.9T on the model's own cohorts. |
+| ...of which **$36T** migration re-pricing | +36 | **+16.1** (on every demographic path) | How the 80% working-age share and the 10-year tenure write-down are applied. Dropping the working-age haircut gives $20.1T; dropping the tenure write-down gives $22.6T; dropping both gives **$28.3T**. The remainder needs migration volumes above WPP's net-migration series. |
 | ...of which **$7T** longer working lives | +7 | **+10.3** | Retirement indexation: I pass two-thirds of life-expectancy gains into the retirement age. A one-third rule would land near $7T. |
-| Net investment negative **from the 2040s** | 2040s | **2030** (low), 2034 (medium) | Seed level: see below. |
-| Net investment **-$26T** by 2100 | -26 | **-2.1T/yr** constant cost (cumulative 2026-2100: -167T) | Units. If the study's figure is an annual current-dollar flow, my -2.1T constant scaled by its GDP-per-capita path is roughly -$8 to -$10T — still short by a factor of ~3, tracking the same seed and demographic gaps. |
-| Migration off: peaks **1.09**, ends **0.92** | 1.09 / 0.92 | **1.027 / 0.532** (low); 1.080 / 1.024 (medium) | Demographic path. The medium variant brackets the target from above, the low variant from below. |
-| China **-61%** by 2100 | -61% | **-89%** (low) | Demographic path: the medium variant gives **-67%**, the blend -78%. |
-| US own-cohort net positive to **2064**, total to **2065** | 2064 / 2065 | **2027 / 2027** | Seed level. The one-year gap between the two turning years *is* reproduced (my own and total net are within $0.01T of each other at the crossing) — only the date is wrong. |
-| 2025 investment = charge = **$15.2T** | 15.2 = 15.2 | investment **$14.12T**, charge **$13.24T** | The GDP base ($145.7T Maddison 2011 PPP vs the study's implied $158T, +8.5%) explains the level. The 6.6% gap between investment and charge is the seed, below. |
+| Net investment negative **from the 2040s** | 2040s | **2030** | Cohort dynamics; the model's entrant/workforce ratio sits just under the 2.7%/yr replacement rate all century. |
+| Net investment **-$26T** by 2100 | -26 | **-2.1T/yr** constant cost (cumulative 2026-2100: -167T) | Units. If the study's figure is an annual current-dollar flow, my -2.1T constant scaled by its GDP-per-capita path is roughly -$8 to -$10T — still short by a factor of ~3, tracking the same cohort gap. |
+| Migration off: peaks **1.09**, ends **0.92** | 1.09 / 0.92 | **1.027 / 0.532** (low); 1.080 / 1.024 (medium) | Cohort dynamics, same as the with-migration case. |
+| China **-61%** by 2100 | -61% | **-89%** (low) | Cohort dynamics: the model's own cohorts give **-63%**. |
+| US own-cohort net positive to **2064**, total to **2065** | 2064 / 2065 | **2027 / 2027** | Cohort dynamics plus the 2025 seed (§5.3); on the model's cohorts total net instead stays positive to 2096, overshooting. The one-year gap between the two turning years *is* reproduced — only the date is wrong. |
+| 2025 investment = charge = **$15.2T** | 15.2 = 15.2 | investment **$14.12T**, charge **$13.24T** | The GDP base ($145.7T Maddison 2011 PPP vs the study's implied $158T, +8.5%) explains the level; the 6.6% investment/charge gap is the seed (§5.3). |
 | Working lives ~32/37/39/38 | 32/37/39/38 | **36.7/38.2/37.8/37.1** | The brief's own hazard multipliers under-disperse the bands; see §2. |
 
-### The two assumptions that carry almost all of it
+### 5.3 What actually explains it
 
-**(a) The demographic path is not the WPP low variant.** The brief says "UN WPP
-2024 low-fertility variant". The actual WPP 2024 low variant ends 2100 at
-**6.99bn**. This repository's own `CLAUDE.md` records its demographics as peaking
-at 8.95bn in 2059 and ending at **8.5bn** — 22% above the true low variant, and
-described there as "~18% below the medium variant". So the study's ledger is
-being driven by a materially less severe population path than the one the brief
-names. Running my ledger on the WPP **medium** variant moves the world peak to
-**2063** — the study's year exactly — lifts the 2100 index from 0.58 to 1.07,
-turns net investment negative in the 2030s rather than 2030, and brings China to
--67% against the -61% target. Running it on the blend that matches 8.5bn in 2100
-puts India's peak at **2056**, the study's year exactly. I take this as the
-single largest source of divergence, and I do not think it is a coding
-difference: it is that the brief's stated demographic input and the study's
-actual demographic input are not the same series.
+I first blamed the population *level*. `CLAUDE.md` records the model's
+demographics as peaking at 8.95bn in 2059 and ending at 8.5bn in 2100, and
+running the model confirms it exactly (8.950bn in 2059, 8.460bn in 2100) against
+a true WPP 2024 low variant of 6.99bn. That is a real 21% gap. **It is not the
+explanation.** Rescaling the WPP low age distribution so every region's total
+matches the model's own path moves the world peak from 2032 to 2032 — no change
+at all — and only lifts the 2100 index from 0.58 to 0.72.
 
-**(b) The 2025 seed and the entrant rule are not mutually consistent.** The brief
-says to seed uniformly over ages 20-64 thinned by the survival curve, and
-separately that 2025 investment equals the charge. Under my reading the seed's
-implied historical entrant flow is population(20-64)/45, while the 2025 entrant
-flow is population(0-19)/20. Worldwide those are 105M and 132M — but for the US
-they are 4.47M and 4.07M, a 9% deficit that puts the US ledger in the red from
-the first year and never lets it out. For the US to stay in own-cohort surplus
-to 2064 the seed has to be flow-consistent rather than population-consistent. I
-ran that variant: it fixes the balance at 2025 by construction but wrecks the
-regional indices (India's peak collapses from 1.60 to 1.07 and SSA's from x4.75
-to x1.44, because fast-growing regions get an inflated 2025 base), and it is
-clearly not what the study did. So the study is doing something in between that
-the brief does not describe.
+The difference is in the **shape of the cohorts, not the level**. Comparing the
+model's demographics module directly against the WPP low variant it says it
+tracks:
 
-**Not an explanation:** the price base. I first suspected the study valued at
+| Year | Model 0-19 (bn) | WPP low 0-19 | Model 20-64 | WPP low 20-64 | Model entrants/yr | WPP low entrants/yr | Model entrants / workforce | WPP low |
+|---|---|---|---|---|---|---|---|---|
+| 2025 | 2.383 | 2.646 | 4.813 | 4.707 | 119.2M | 132.3M | 2.48% | 2.81% |
+| 2050 | 2.320 | 1.998 | 4.759 | 5.366 | 116.3M | 99.9M | 2.44% | 1.86% |
+| 2075 | 2.126 | 1.521 | 4.591 | 4.744 | 106.7M | 76.0M | 2.32% | 1.60% |
+| 2100 | 1.905 | 1.110 | 4.303 | 3.644 | 95.7M | 55.5M | 2.22% | 1.52% |
+
+The model's world total is low-variant-like through mid-century (8.911bn in 2050
+against WPP low's 8.942bn) and only drifts above it later. But its **0-19 cohort
+is 72% above the low variant by 2100**, and its entrant flow falls only 20% over
+the century against WPP low's 58%. The three-cohort share-based structure never
+lets the age pyramid inverted by a fertility collapse propagate into the young
+cohort the way a cohort-component projection does.
+
+That is decisive for this ledger, because the replacement requirement is
+`1 / useful life` ≈ **2.7% of the workforce per year**. The model sits at
+2.2-2.5% for the whole century — a small, roughly constant shortfall, so net
+investment hovers near zero and turns negative in the 2040s, exactly as the study
+reports. WPP low falls to 1.5% — a large and widening shortfall, so my net
+investment goes deeply negative immediately and the stock peaks in 2032.
+
+Driving my ledger with the model's own `regionalYoung` / `regionalWorking` /
+`regionalWorkforceEntrants` output (`variant="model-cohorts"`) closes most of the
+gap:
+
+| Target | Study | WPP low (primary) | Model cohorts |
+|---|---|---|---|
+| World peak | 2063 @ 1.22 | 2032 @ 1.043 | **2066 @ 1.084** |
+| China 2100 | -61% | -89% | **-63%** |
+| India peak | 2056 @ 1.56 | 2054 @ 1.60 | **2057 @ 1.64** |
+| SSA 2100 | x3.9 | x4.31 | x5.16 |
+| US total net turns negative | 2065 | 2027 | 2096 |
+| 2025-50 change | +$44T | -$16.3T | +$14.6T |
+
+So the peak year, China and India are cohort dynamics. **The residual is the
+migration channel**, and it is the one difference I cannot attribute. The study
+puts $36T of its $44T 2025-50 gain on migration re-pricing; I get $16.1T on
+every demographic path I try, because the transfer is a per-migrant quantity that
+barely moves with the population assumption. Sensitivity on the two readings the
+brief leaves ambiguous: dropping the 80% working-age haircut gives $20.1T,
+dropping the 10-year tenure write-down gives $22.6T, dropping both gives
+**$28.3T**. Closing the rest needs gross migration volumes above WPP's net
+migration series.
+
+**Also not an explanation: the price base.** I suspected the study valued at
 market exchange rates rather than Maddison PPP, which would widen the
 destination/origin cost ratio and inflate the migration re-pricing. It does
 (migration 2025-50 goes from $16.1T to $21.5T), but the study's own 2025 numbers
 — $15.2T at 9.6% of GDP, implying world GDP of $158T against Maddison's $145.7T
 — put its price base within 9% of Maddison PPP, not at market rates. And within
 a region the constant-cost index is scale-invariant, so no price base changes a
-single regional peak year. I have left the variant in the code
-(`prices="market"`) but I do not think it is the answer.
+single regional peak year. The variant stays in the code (`prices="market"`) but
+it is not the answer.
+
+**A second-order difference: the 2025 seed.** Under my reading of "seed uniformly
+over ages 20-64 thinned by the survival curve", the seed's implied historical
+entrant flow is population(20-64)/45 while the 2025 entrant flow is
+population(0-19)/20. For the US those are 4.47M and 4.07M, a 9% deficit that puts
+the US ledger in the red from 2027. On the model's own cohorts the US instead
+stays in surplus to 2096 — overshooting the study's 2065 in the other direction —
+so the seed is a real but smaller discrepancy sitting on top of the cohort one.
 
 ## 6. Reproducing this
 
@@ -290,7 +345,12 @@ RAW=<dir with the raw downloads> python3 scripts/repro/hc_sources.py   # builds 
 python3 scripts/repro/hc_backcast.py
 python3 scripts/repro/hc_forecast.py
 python3 scripts/repro/hc_report.py    # the full specification matrix
+
+# the §5.3 diagnostics, which are the only step that reads a study artefact
+npx tsx scripts/repro/dump-model-demographics.ts
 ```
 
 `hc_report.py` writes `spec_matrix.csv` and `regional_peaks.csv` alongside one
-`forecast_<spec>.csv` per specification.
+`forecast_<spec>.csv` per specification. `dump-model-demographics.ts` refreshes
+`model_population.csv` and `model_cohorts.csv`, which feed
+`hc_forecast.run(variant="model")` and `run(variant="model-cohorts")`.
