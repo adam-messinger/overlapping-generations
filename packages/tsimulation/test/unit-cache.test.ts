@@ -2,9 +2,14 @@
  * Guards for unit-resolution caching.
  *
  * Contract validation resolves the same handful of unit strings at every port
- * on every step, so resolution is memoized. That is only safe because a
- * resolved unit is handed out as a private copy and because registering a new
- * unit invalidates a cached miss — these tests pin both.
+ * on every step, so resolution is memoized.
+ *
+ * Two things make that safe. Internal callers share the cached unit by
+ * reference and must not mutate it — it is frozen on the way into the cache,
+ * and its interned dimension signature depends on staying immutable — while
+ * only the public boundary (`getUnit`, `listUnits`) hands out a private copy,
+ * stripped of that internal signature. And registering a new unit invalidates
+ * a cached miss. These tests pin all of it.
  */
 
 import { test } from 'node:test';
@@ -54,8 +59,9 @@ test('a nested contract reused at two paths validates at both', () => {
   validatePortMeta(recordPort(leaf, { keys: ['y'] }), 'outer.two');
 });
 
-// Registers a process-global unit, so it runs last: it clears the resolution
-// cache and would otherwise perturb the tests above.
+// Registers a process-global unit, so this and the signature-registration test
+// below sit at the end: registering clears the resolution cache and would
+// otherwise perturb the tests above.
 test('registering a unit invalidates a previously cached miss', () => {
   const symbol = 'zorkmid';
   assert.equal(getUnit(symbol), undefined, 'unknown symbol should miss first');
@@ -112,6 +118,10 @@ test('signature comparison agrees with dimension-vector comparison', () => {
 });
 
 test('signatures survive a unit registered after the cache warmed', () => {
+  // The cache-invalidation half overlaps the miss-invalidation test above; what
+  // is new here is that the units resolved AFTER registration carry correct
+  // signatures. The first assertion only warms the cache with a miss.
+  //
   // registerUnit clears the resolution cache, so a compound built from the new
   // base must resolve with a correct signature rather than a stale one.
   assert.equal(areUnitsConvertible('zorkles/year', 'zorkles/year'), false);

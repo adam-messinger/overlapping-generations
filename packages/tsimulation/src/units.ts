@@ -301,9 +301,9 @@ interface ResolvedUnit extends UnitDefinition {
    *
    * Dimension comparison is the hottest thing in this module: `convertQuantity`
    * calls it for every unit-checked arithmetic operation a model performs, and
-   * deriving the key per comparison meant two `cleanDimensions` walks plus an
-   * `Object.entries`/sort/join on every one. Interning it makes the comparison
-   * a string equality.
+   * deriving the key per comparison meant two `cleanDimensions` walks and two
+   * `Object.entries`/sort/joins on every one, since the old comparison called
+   * `dimensionKey` on both operands. Interning makes it a string equality.
    *
    * Distinct from `dimension`, which for a registered unit is its declared
    * dimension name and for a parsed compound is already this key -- there was
@@ -354,6 +354,7 @@ export function registerUnit(definition: UnitDefinition): void {
   if (existing && JSON.stringify(existing) !== JSON.stringify(resolved)) {
     throw new Error(`Unit '${definition.symbol}' is already registered differently`);
   }
+  freezeUnit(resolved);
   definitions.set(definition.symbol, resolved);
   // A new base unit can turn a previously-unresolvable symbol (cached as
   // `undefined`) or a compound expression built from it into a hit.
@@ -490,7 +491,7 @@ function normalizeExpression(symbol: string): string {
 /** Misses are stored as null so one lookup distinguishes them from an absent key. */
 const resolutionCache = new Map<string, ResolvedUnit | null>();
 
-/** Callers may mutate what they get back, so every hit hands out a fresh copy. */
+/** Copy for the public boundary (`publicUnit`) and for parsed atoms. */
 function cloneResolved(unit: ResolvedUnit): ResolvedUnit {
   return { ...unit, dimensions: { ...unit.dimensions } };
 }
@@ -499,9 +500,10 @@ function cloneResolved(unit: ResolvedUnit): ResolvedUnit {
  * The cached resolved unit itself, with no defensive copy.
  *
  * Every caller here reads `signature`, `scale` and `offset` and discards the
- * object, so the copy bought nothing while costing two allocations per
- * comparison. `publicUnit` still copies for anyone outside this module, who
- * might keep or mutate what they are given.
+ * object, so the copy bought nothing while costing four allocations per
+ * comparison — two units, each with its own dimensions object. `publicUnit`
+ * still copies for anyone outside this module, who might keep or mutate what
+ * they are given.
  *
  * Never hand this return value out directly.
  */
@@ -509,9 +511,23 @@ function resolveUnitRef(symbol: string): ResolvedUnit | undefined {
   let cached = resolutionCache.get(symbol);
   if (cached === undefined) {
     cached = resolveUncached(symbol) ?? null;
+    if (cached) freezeUnit(cached);
     resolutionCache.set(symbol, cached);
   }
   return cached ?? undefined;
+}
+
+/**
+ * Shared units are frozen on the way into the cache.
+ *
+ * Nothing mutates a resolved unit today, and the interned `signature` depends
+ * on that staying true. Freezing makes a future violation a loud TypeError
+ * rather than silent cache corruption that would produce correct-looking
+ * numbers. Costs one freeze per unique symbol, never on the hot path.
+ */
+function freezeUnit(unit: ResolvedUnit): void {
+  Object.freeze(unit.dimensions);
+  Object.freeze(unit);
 }
 
 function resolveUncached(symbol: string): ResolvedUnit | undefined {
@@ -526,15 +542,22 @@ function resolveUncached(symbol: string): ResolvedUnit | undefined {
   }
 }
 
-/** Existence check for validators, avoiding the defensive copy getUnit owes callers. */
-function unitExists(symbol: string): boolean {
+/**
+ * Existence check for validators, avoiding the defensive copy `getUnit` owes
+ * its callers.
+ *
+ * Public because validators elsewhere in the package want exactly this and
+ * were reaching for `getUnit` — which builds and discards three objects per
+ * call — on paths that run once per unit-checked arithmetic operation.
+ */
+export function isKnownUnit(symbol: string): boolean {
   return resolveUnitRef(symbol) !== undefined;
 }
 
 /** Public shape: the interned `signature` is an internal cache, not API. */
 function publicUnit(unit: ResolvedUnit): UnitDefinition {
-  const { signature: _signature, ...rest } = cloneResolved(unit);
-  return rest;
+  const { signature: _signature, ...rest } = unit;
+  return { ...rest, dimensions: { ...unit.dimensions } };
 }
 
 export function getUnit(symbol: string): UnitDefinition | undefined {
@@ -644,7 +667,7 @@ export function validatePortMeta(port: PortMeta, context: string): void {
     return;
   }
   if (isQuantityPort(port)) {
-    if (!unitExists(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
+    if (!isKnownUnit(port.unit)) throw new Error(`${context}: unknown unit '${port.unit}'`);
     if (port.estimand) validateEstimand(port.estimand, `${context}.estimand`);
     if (port.measurement) {
       validateMeasurement(port.measurement, `${context}.measurement`);
