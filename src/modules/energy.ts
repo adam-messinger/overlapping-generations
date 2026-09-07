@@ -1631,8 +1631,7 @@ export const energyModule: Module<
     let effectiveWindCF = 0;
     let totalSolarCap = 0;
     let totalWindCap = 0;
-    const baseSolarCF = params.eroiReferenceCF.solar;
-    const baseWindCF = params.eroiReferenceCF.wind;
+    const { solar: refSolarCF, wind: refWindCF } = params.eroiReferenceCF;
 
     for (const region of REGIONS) {
       const solarCap = newRegional[region].solar.installed;
@@ -1644,15 +1643,13 @@ export const energyModule: Module<
       totalSolarCap += solarCap;
       totalWindCap += windCap;
     }
-    effectiveSolarCF = totalSolarCap > 0 ? effectiveSolarCF / totalSolarCap : baseSolarCF;
-    effectiveWindCF = totalWindCap > 0 ? effectiveWindCF / totalWindCap : baseWindCF;
+    effectiveSolarCF = totalSolarCap > 0 ? effectiveSolarCF / totalSolarCap : refSolarCF;
+    effectiveWindCF = totalWindCap > 0 ? effectiveWindCF / totalWindCap : refWindCF;
 
     // Update net energy fraction for solar/wind using dynamic EROI
-    // effectiveEROI = baseEROI × (avgEffectiveCF / baseCF)
-    const solarBaseEROI = params.eroi.solar;
-    const windBaseEROI = params.eroi.wind;
-    const dynamicSolarEROI = solarBaseEROI * (effectiveSolarCF / baseSolarCF);
-    const dynamicWindEROI = windBaseEROI * (effectiveWindCF / baseWindCF);
+    // effectiveEROI = eroi × (fleet CF / eroiReferenceCF)
+    const dynamicSolarEROI = params.eroi.solar * (effectiveSolarCF / refSolarCF);
+    const dynamicWindEROI = params.eroi.wind * (effectiveWindCF / refWindCF);
     netEnergyFraction.solar = dynamicSolarEROI > 1 ? 1 - 1 / dynamicSolarEROI : 0;
     netEnergyFraction.wind = dynamicWindEROI > 1 ? 1 - 1 / dynamicWindEROI : 0;
 

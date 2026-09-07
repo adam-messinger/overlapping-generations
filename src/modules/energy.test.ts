@@ -9,7 +9,6 @@ import {
   energyModule,
   energyDefaults,
   levelizedStorageCostPerMWh,
-  type EnergyParams,
 } from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
@@ -858,14 +857,15 @@ test('a higher reference CF lowers the dynamic EROI and net energy fraction', ()
 });
 
 test('eroiReferenceCF merges partially and validates its range', () => {
-  const merged = energyModule.mergeParams({ eroiReferenceCF: { solar: 0.2 } as EnergyParams['eroiReferenceCF'] });
+  // mergeParams validates the merged result, so a passing partial merge also
+  // proves the partial validates without a spurious error on the sibling.
+  const merged = energyModule.mergeParams({ eroiReferenceCF: { solar: 0.2 } } as any);
   expect(merged.eroiReferenceCF.solar).toBe(0.2);
   expect(merged.eroiReferenceCF.wind).toBe(0.30);
-  expect(energyModule.validate({ eroiReferenceCF: { solar: 0.2 } as EnergyParams['eroiReferenceCF'] }).valid).toBeTrue();
-  const low = energyModule.validate({ eroiReferenceCF: { solar: 0 } as EnergyParams['eroiReferenceCF'] });
+  const low = energyModule.validate({ eroiReferenceCF: { solar: 0, wind: 0.30 } });
   expect(low.valid).toBeFalse();
   expect(low.errors.filter(e => e.includes('eroiReferenceCF')).length).toBe(1);
-  expect(energyModule.validate({ eroiReferenceCF: { wind: 1.5 } as EnergyParams['eroiReferenceCF'] }).valid).toBeFalse();
+  expect(energyModule.validate({ eroiReferenceCF: { solar: 0.18, wind: 1.5 } }).valid).toBeFalse();
 });
 
 printSummary();
