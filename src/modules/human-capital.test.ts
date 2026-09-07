@@ -75,28 +75,29 @@ console.log('\n=== Human Capital Module Tests ===\n');
 // --- Replacement cost ---------------------------------------------------------
 
 test('replacement cost rises with each education band (prefix-sum schooling + longer rearing)', () => {
-  const outlaysOnly = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0 });
-  const costs = EDUCATION_BANDS.map(band => unitReplacementCost(outlaysOnly, band, 50_000));
+  // The default is the explicit-outlay measure: USDA rearing (0.23) plus schooling, no foregone earnings
+  const costs = EDUCATION_BANDS.map(band => unitReplacementCost(humanCapitalDefaults, band, 50_000));
   for (let i = 1; i < costs.length; i++) expect(costs[i]).toBeGreaterThan(costs[i - 1]);
-  // primary: 16 yr x 0.30 rearing + 6 yr x 0.20 schooling = 6.0 x GDP/capita
-  expect(costs[0]).toBeCloseTo(50_000 * (0.30 * 16 + 6 * 0.20), 6);
+  // primary: 16 yr x 0.23 rearing + 6 yr x 0.20 schooling = 4.88 x GDP/capita
+  expect(costs[0]).toBeCloseTo(50_000 * (0.23 * 16 + 6 * 0.20), 6);
   // advanced: 26 yr rearing + all four stages
   expect(costs[3]).toBeCloseTo(
-    50_000 * (0.30 * 26 + 6 * 0.20 + 6 * 0.25 + 4 * 0.40 + 3 * 0.50), 6,
+    50_000 * (0.23 * 26 + 6 * 0.20 + 6 * 0.25 + 4 * 0.40 + 3 * 0.50), 6,
   );
 });
 
 test('foregone earnings price only the pre-entry years at or above the working age', () => {
-  const outlaysOnly = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0 });
+  // The Kendrick/BEA convention prices student time at 0.45 of GDP per capita; the default (0) does not
+  const kendrick = humanCapitalModule.mergeParams({ foregoneEarningsShare: 0.45 });
   const extra = (params: HumanCapitalParams, band: EducationBand) =>
-    (unitReplacementCost(params, band, 50_000) - unitReplacementCost(outlaysOnly, band, 50_000)) / 50_000;
+    (unitReplacementCost(params, band, 50_000) - unitReplacementCost(humanCapitalDefaults, band, 50_000)) / 50_000;
   // Entry ages 16 / 18 / 22 / 26 against a working age of 16
-  expect(extra(humanCapitalDefaults, 'primary')).toBeCloseTo(0, 9);
-  expect(extra(humanCapitalDefaults, 'secondary')).toBeCloseTo(0.45 * 2, 9);
-  expect(extra(humanCapitalDefaults, 'tertiary')).toBeCloseTo(0.45 * 6, 9);
-  expect(extra(humanCapitalDefaults, 'advanced')).toBeCloseTo(0.45 * 10, 9);
+  expect(extra(kendrick, 'primary')).toBeCloseTo(0, 9);
+  expect(extra(kendrick, 'secondary')).toBeCloseTo(0.45 * 2, 9);
+  expect(extra(kendrick, 'tertiary')).toBeCloseTo(0.45 * 6, 9);
+  expect(extra(kendrick, 'advanced')).toBeCloseTo(0.45 * 10, 9);
   // A working age equal to the entry age removes the cost entirely
-  expect(extra(humanCapitalModule.mergeParams({ foregoneEarningsFromAge: 18 }), 'secondary')).toBeCloseTo(0, 9);
+  expect(extra(humanCapitalModule.mergeParams({ foregoneEarningsShare: 0.45, foregoneEarningsFromAge: 18 }), 'secondary')).toBeCloseTo(0, 9);
 });
 
 test('replacement cost scales linearly with GDP per capita', () => {
