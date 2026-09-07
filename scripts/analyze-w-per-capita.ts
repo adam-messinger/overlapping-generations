@@ -5,7 +5,7 @@
  */
 
 import { runSimulation, runWithScenario, type SimulationResult, type YearResult } from '../src/index.js';
-import { Region, REGIONS } from '../src/domain-types.js';
+import { Region, REGIONS, REGION_NAMES, REGION_NAME_WIDTH } from '../src/domain-types.js';
 
 const KEY_YEARS = [2025, 2040, 2060, 2080, 2100];
 const COL = 8;
@@ -42,7 +42,7 @@ function printTable(title: string, cells: (year: number) => { global: number; re
 function printRegional(title: string, values: Record<Region, number> | undefined, format: (n: number) => string) {
   console.log(`\n${title}`);
   if (!values) return;
-  for (const r of REGIONS) console.log(`  ${r.padEnd(11)} ${format(values[r])}`);
+  for (const r of REGIONS) console.log(`  ${REGION_NAMES[r].padEnd(REGION_NAME_WIDTH)} ${format(values[r])}`);
 }
 
 async function main() {

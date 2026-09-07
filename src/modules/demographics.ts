@@ -23,7 +23,6 @@ import { exponentialConvergence, logistic } from '../primitives/math.js';
 // =============================================================================
 
 export interface RegionDemoParams {
-  name: string;
   pop2025: number;           // Initial population
   fertility: number;         // TFR in 2025
   fertilityFloor: number;    // Long-term convergence target
@@ -81,7 +80,6 @@ export const demographicsDefaults: DemographicsParams = {
   // zero.
   regions: {
     us: {
-      name: 'United States',
       pop2025: 0.34e9,         // Census Bureau Vintage 2024: 340M Jan 2025
       fertility: 1.62,         // CDC NVSS 2023 TFR 1.62
       fertilityFloor: 1.4,     // Higher floor than Europe/East Asia (JFV: US immigration + religiosity)
@@ -93,7 +91,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: 0.0035,   // UN WPP 2024 / CBO 2025: net ~+1.2M/yr on 340M (relative share of the emigration budget)
     },
     'oecd-ex-us': {
-      name: 'OECD ex-US',
       pop2025: 0.80e9,         // 1.14B model-OECD less the US
       fertility: 1.5,          // Weighted: EU 1.4, Japan 1.2, Korea 0.7, Mexico 1.8, Turkey 1.5
       fertilityFloor: 1.3,
@@ -105,7 +102,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers)
     },
     china: {
-      name: 'China',
       pop2025: 1.41e9,
       fertility: 1.0,          // TFR 2023 (JFV: ultra-low, no recovery despite pro-natalist spending)
       fertilityFloor: 0.8,     // South Korea at 0.7
@@ -117,7 +113,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.0002, // UN WPP 2024: net -0.2 to -0.3M/yr on 1.41B (students and skilled workers to the OECD)
     },
     india: {
-      name: 'India + South Asia',
       pop2025: 1.97e9,
       fertility: 2.1,          // India crossed below replacement 2020; Pakistan/Bangladesh still above
       fertilityFloor: 1.4,
@@ -129,7 +124,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.001,
     },
     latam: {
-      name: 'Latin America',
       pop2025: 0.67e9,
       fertility: 1.8,          // 76% of countries below replacement (ECLAC 2024)
       fertilityFloor: 1.4,
@@ -141,7 +135,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.002,
     },
     seasia: {
-      name: 'SE Asia + Pacific',
       pop2025: 0.70e9,
       fertility: 2.1,
       fertilityFloor: 1.4,
@@ -153,7 +146,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.002,
     },
     russia: {
-      name: 'Russia + CIS',
       pop2025: 0.29e9,
       fertility: 1.6,          // Russia 1.5; Central Asian states (Uzbekistan 2.8, Tajikistan 3.6) pull up
       fertilityFloor: 1.3,
@@ -165,7 +157,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: -0.001,
     },
     mena: {
-      name: 'MENA',
       pop2025: 0.60e9,
       fertility: 2.5,          // Bifurcated: Turkey 1.5/Iran 1.45 vs Egypt 3.4/Iraq 3.5/Yemen 3.8
       fertilityFloor: 1.5,
@@ -177,7 +168,6 @@ export const demographicsDefaults: DemographicsParams = {
       migrationRate: 0.001,
     },
     ssa: {
-      name: 'Sub-Saharan Africa',
       pop2025: 1.38e9,
       fertility: 4.3,          // UN WPP 2024: TFR 4.34, JFV says "faster convergence than anticipated"
       fertilityFloor: 1.8,

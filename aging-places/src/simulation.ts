@@ -1,7 +1,7 @@
 /**
  * Composition root for the aging-places municipal simulation.
  *
- * Reuses the generic engine from src/framework (autowire: modules declare
+ * Reuses the generic engine from packages/tsimulation (autowire: modules declare
  * inputs/outputs; lags break the attraction<->market feedback loop exactly as
  * the energy simulation does for damages/LCOE).
  *

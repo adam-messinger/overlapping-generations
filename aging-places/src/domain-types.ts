@@ -1,6 +1,6 @@
 /**
  * Domain types for the aging-places municipal simulation.
- * (Domain-specific; the generic engine lives in ../../src/framework.)
+ * (Domain-specific; the generic engine lives in packages/tsimulation.)
  */
 
 /** Local age cohorts tracked per municipality. */

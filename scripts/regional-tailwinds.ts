@@ -9,20 +9,10 @@
  *   - Climate-adjusted growth: per-cap GDP growth less regional damages
  */
 import { runAutowiredSimulation } from '../src/simulation-autowired.js';
-import { getOutputsAtYear } from '../src/framework/autowire.js';
-import { REGIONS, type Region } from '../src/domain-types.js';
+import { getOutputsAtYear } from 'tsimulation';
+import { REGIONS, REGION_NAMES, REGION_NAME_WIDTH, type Region } from '../src/domain-types.js';
 
-const REGION_LABEL: Record<Region, string> = {
-  us: 'United States',
-  'oecd-ex-us': 'OECD ex-US',
-  china: 'China',
-  india: 'India',
-  latam: 'Latin Am.',
-  seasia: 'SE Asia',
-  russia: 'Russia',
-  mena: 'MENA',
-  ssa: 'Sub-Sah. Africa',
-};
+const REGION_HDR = 'Region'.padEnd(REGION_NAME_WIDTH + 2);
 
 const aw = runAutowiredSimulation({});
 const years = aw.years;
@@ -196,10 +186,10 @@ console.log('=============================================================\n');
 
 console.log('DEMOGRAPHICS');
 console.log('-----------------------------------------------------------------------------');
-console.log('Region              Pop25→Pop100    Working%   Dep25→Dep100  Fert  LifeExp');
+console.log(`${REGION_HDR}Pop25→Pop100    Working%   Dep25→Dep100  Fert  LifeExp`);
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(REGION_NAME_WIDTH + 2)}` +
     `${fmt.bn(row.pop2025)} → ${fmt.bn(row.pop2100)}   `.padEnd(16) +
     `${fmt.pct(row.workingShare2025, 0)}→${fmt.pct(row.workingShare2100, 0)}  `.padEnd(11) +
     `${fmt.pct(row.dependency2025, 0)}→${fmt.pct(row.dependency2100, 0)}    `.padEnd(14) +
@@ -210,10 +200,10 @@ for (const row of rows) {
 
 console.log('\nCONVERGENCE & GROWTH');
 console.log('-----------------------------------------------------------------------------');
-console.log('Region              GDP25→GDP100      GDPpc25→GDPpc100      GDP CAGR  PCap CAGR');
+console.log(`${REGION_HDR}GDP25→GDP100      GDPpc25→GDPpc100      GDP CAGR  PCap CAGR`);
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(REGION_NAME_WIDTH + 2)}` +
     `${fmt.$T(row.gdp2025)} → ${fmt.$T(row.gdp2100)}   `.padEnd(18) +
     `${fmt.$k(row.gdpPerCap2025)} → ${fmt.$k(row.gdpPerCap2100)}     `.padEnd(22) +
     `${fmt.pct(row.gdpCagr, 2)}    `.padEnd(10) +
@@ -223,10 +213,10 @@ for (const row of rows) {
 
 console.log('\nENERGY DECARBONIZATION');
 console.log('-----------------------------------------------------------------------------');
-console.log('Region              GridInt 25→100        Fossil 25→100        EnInt 25→100');
+console.log(`${REGION_HDR}GridInt 25→100        Fossil 25→100        EnInt 25→100`);
 for (const row of rows) {
   console.log(
-    `${REGION_LABEL[row.region].padEnd(20)}` +
+    `${REGION_NAMES[row.region].padEnd(REGION_NAME_WIDTH + 2)}` +
     `${row.gridInt2025.toFixed(0)}→${row.gridInt2100.toFixed(0)} kg/MWh  `.padEnd(22) +
     `${fmt.pct(row.fossilShare2025, 0)}→${fmt.pct(row.fossilShare2100, 0)}    `.padEnd(21) +
     `${row.energyIntensity2025.toFixed(2)}→${row.energyIntensity2100.toFixed(2)}`
@@ -235,11 +225,11 @@ for (const row of rows) {
 
 console.log('\nCOMPOSITE TAILWIND SCORE (z-scores, higher = more wind at back)');
 console.log('-----------------------------------------------------------------------------');
-console.log('Rank  Region              Score    Econ     Demo     Decarb   Efficiency');
+console.log(`Rank  ${REGION_HDR}Score    Econ     Demo     Decarb   Efficiency`);
 composite.forEach((c, i) => {
   console.log(
     `${(i + 1).toString().padStart(2)}.   ` +
-    `${REGION_LABEL[c.region].padEnd(20)}` +
+    `${REGION_NAMES[c.region].padEnd(REGION_NAME_WIDTH + 2)}` +
     `${fmt.z(c.score)}    `.padEnd(9) +
     `${fmt.z(c.econ)}    `.padEnd(9) +
     `${fmt.z(c.demo)}    `.padEnd(9) +
