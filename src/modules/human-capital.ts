@@ -36,8 +36,16 @@
  *   investment_t     = entrants_t x unitCost_t
  *   write-offs_t     = pre-retirement exits x remaining book value
  *   depreciation_t   = sum over survivors of min(unitCost_t / L_t, book value)
+ *   life revaluation = sum over opening vintages of n_v x unitCost_t
+ *                      x (max(0, 1 - age/L_t) - max(0, 1 - age/L_{t-1}))
  *   net stock (end)  = sum over vintages of n_v x unitCost_t x max(0, 1 - age/L_t)
  *   gross stock      = sum over in-service vintages of n_v x unitCost_t
+ * Every vintage is written down over the CURRENT expected working life, so a
+ * change in L (retirement age extending with life expectancy, hazards moving
+ * with it) re-prices the opening stock's remaining book value. That
+ * revaluation is booked on its own line so the ledger closes exactly:
+ *   netStock_t = netStock_{t-1} x (c_t/c_{t-1}) + investment + migration
+ *                + life revaluation - depreciation - write-offs
  * A vintage that outlives L is fully depreciated but stays in service (at
  * zero book value) until it retires — exactly like a fully depreciated
  * machine still on the floor. Retirement is fractional across the two
@@ -255,6 +263,8 @@ interface HumanCapitalState {
   initialized: boolean;
   /** vintages[region][band][age] = surviving headcount that entered `age` years ago */
   vintages: Record<Region, Record<EducationBand, number[]>>;
+  /** lives[region][band] = the useful life the vintages were last written down over */
+  lives: Record<Region, Record<EducationBand, number>>;
 }
 
 // =============================================================================
@@ -307,6 +317,8 @@ export interface HumanCapitalRegionAccount {
   migrationNetPeople: number;        // people/year
   /** Book value of those migrants at this region's replacement cost (+ inflow) */
   migrationTransfer: number;         // $T/year
+  /** Change in the opening stock's book value from this year's change in useful life */
+  lifeRevaluation: number;           // $T/year
 }
 
 export interface HumanCapitalOutputs {
@@ -324,6 +336,7 @@ export interface HumanCapitalOutputs {
   humanCapitalMigrationInflows: number;     // $T/year, immigrants' book value at destination cost
   humanCapitalMigrationOutflows: number;    // $T/year, emigrants' book value at origin cost
   humanCapitalMigrationRevaluation: number; // $T/year, inflows - outflows (destination vs origin cost)
+  humanCapitalLifeRevaluation: number;      // $T/year, opening stock re-priced for the change in useful life
   humanCapitalByBand: Record<EducationBand, HumanCapitalBandAccount>;
   regionalHumanCapital: Record<Region, HumanCapitalRegionAccount>;
 }
@@ -531,10 +544,13 @@ interface CellInputs {
   migrantTenureScale: number;
   /** Prior vintages, or the steady-state seed flow when the ledger is new */
   previous: number[] | { seedFlow: number; initialWorkingSpan: number };
+  /** Useful life the prior vintages were written down over (this year's when the ledger is new) */
+  previousLife?: number;
 }
 
 interface CellResult extends HumanCapitalBandAccount {
   migrationTransfer: number;
+  lifeRevaluation: number;
   surviving: number[];
 }
 
@@ -543,7 +559,7 @@ const BAND_FLOW_KEYS = [
   'grossStock', 'netStock', 'deaths', 'disabilityExits', 'domesticExits', 'retirements',
 ] as const;
 const REGION_FLOW_KEYS = [
-  'entrants', 'investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock',
+  'entrants', 'investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock', 'lifeRevaluation',
 ] as const;
 
 function emptyBandAccount(): HumanCapitalBandAccount {
@@ -558,7 +574,7 @@ function emptyRegionAccount(): HumanCapitalRegionAccount {
   return {
     entrants: 0, investment: 0, depreciation: 0, writeOffs: 0,
     grossStock: 0, netStock: 0, investmentGdpShare: 0,
-    migrationNetPeople: 0, migrationTransfer: 0,
+    migrationNetPeople: 0, migrationTransfer: 0, lifeRevaluation: 0,
   };
 }
 
@@ -598,8 +614,21 @@ function stepCell(input: CellInputs): CellResult {
     usefulLife,
     investment: input.entrants * unitCost / 1e12,
     migrationTransfer: 0,
+    lifeRevaluation: 0,
     surviving: [],
   };
+
+  // --- Useful-life revaluation of the opening stock -------------------------
+  // Last year closed each vintage at unitCost x (1 - age/L_{t-1}); this year
+  // opens it at the same age over L_t. The difference is neither investment
+  // nor depreciation, so it gets its own line (valued before migration, on the
+  // vintages that were actually on the books).
+  const previousLife = input.previousLife ?? usefulLife;
+  if (previousLife !== usefulLife) {
+    for (let age = 1; age < aged.length; age++) {
+      result.lifeRevaluation += aged[age] * (bookValue(age) - unitCost * Math.max(0, 1 - age / previousLife)) / 1e12;
+    }
+  }
 
   // --- Migration: move headcount between regional ledgers ------------------
   // Net working-age migrants in this band, with a tenure profile that skews
@@ -795,6 +824,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
       humanCapitalMigrationInflows: unitPort('$T/year'),
       humanCapitalMigrationOutflows: unitPort('$T/year'),
       humanCapitalMigrationRevaluation: unitPort('$T/year'),
+      humanCapitalLifeRevaluation: unitPort('$T/year'),
       humanCapitalByBand: HUMAN_CAPITAL_BAND_PORT,
       regionalHumanCapital: HUMAN_CAPITAL_REGION_PORT,
     },
@@ -870,11 +900,16 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
   },
 
   init(): HumanCapitalState {
-    return { initialized: false, vintages: {} as Record<Region, Record<EducationBand, number[]>> };
+    return {
+      initialized: false,
+      vintages: {} as Record<Region, Record<EducationBand, number[]>>,
+      lives: {} as Record<Region, Record<EducationBand, number>>,
+    };
   },
 
   step(state, inputs, params, _year, yearIndex) {
     const vintages = {} as Record<Region, Record<EducationBand, number[]>>;
+    const lives = {} as Record<Region, Record<EducationBand, number>>;
     const byBand = {} as Record<EducationBand, HumanCapitalBandAccount>;
     // Entrant-weighted unit cost and useful life per band; the unweighted
     // regional mean is the fallback for a band with no entrants anywhere.
@@ -915,6 +950,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
       );
 
       vintages[region] = {} as Record<EducationBand, number[]>;
+      lives[region] = {} as Record<EducationBand, number>;
 
       for (const band of EDUCATION_BANDS) {
         const cell = hazardCell(params, region, band);
@@ -931,8 +967,10 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
           previous: stockByBand
             ? { seedFlow: stockByBand[band] / initialWorkingSpan, initialWorkingSpan }
             : state.vintages[region]?.[band] ?? [],
+          previousLife: state.lives[region]?.[band],
         });
         vintages[region][band] = result.surviving;
+        lives[region][band] = result.usefulLife;
 
         const b = byBand[band];
         for (const key of BAND_FLOW_KEYS) b[key] += result[key];
@@ -962,8 +1000,9 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
     }
 
     const gdp = inputs.gdp;
+    const lifeRevaluation = REGIONS.reduce((sum, region) => sum + regional[region].lifeRevaluation, 0);
     return {
-      state: { initialized: true, vintages },
+      state: { initialized: true, vintages, lives },
       outputs: {
         humanCapitalInvestment: total.investment,
         humanCapitalDepreciation: total.depreciation,
@@ -979,6 +1018,7 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
         humanCapitalMigrationInflows: migrationInflows,
         humanCapitalMigrationOutflows: migrationOutflows,
         humanCapitalMigrationRevaluation: migrationInflows - migrationOutflows,
+        humanCapitalLifeRevaluation: lifeRevaluation,
         humanCapitalByBand: byBand,
         regionalHumanCapital: regional,
       },

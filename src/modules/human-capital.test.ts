@@ -230,7 +230,39 @@ test('closure: net stock change equals investment - depreciation - write-offs at
     const delta = outputs[i].humanCapitalNetStock - outputs[i - 1].humanCapitalNetStock;
     expect(delta).toBeCloseTo(outputs[i].humanCapitalNetInvestment, 6);
     expect(outputs[i].humanCapitalWriteOffs).toBeGreaterThan(0);
+    // Constant life expectancy and retirement age: nothing to revalue
+    expect(outputs[i].humanCapitalLifeRevaluation).toBe(0);
   }
+});
+
+test('closure with a changing useful life: the opening stock is re-priced on its own line', () => {
+  // Life expectancy and the retirement-age extension both rise, so every
+  // cell's expected working life moves each year. The straight-line schedule
+  // is over the CURRENT life, which re-prices the opening vintages; that
+  // revaluation is neither investment nor depreciation and is booked apart.
+  const outputs = runYears(30, {}, i => ({
+    regionalLifeExpectancy: regional(75 + 0.2 * i),
+    regionalRetirementAgeExtension: regional(0.1 * i),
+    regionalEntrantCollegeShare: regional(0.35),
+  }));
+  let revalued = 0;
+  for (let i = 1; i < outputs.length; i++) {
+    for (const region of REGIONS) {
+      const a = outputs[i - 1].regionalHumanCapital[region];
+      const b = outputs[i].regionalHumanCapital[region];
+      expect(b.netStock - a.netStock).toBeCloseTo(
+        b.investment + b.migrationTransfer + b.lifeRevaluation - b.depreciation - b.writeOffs, 6);
+    }
+    // A longer life raises every vintage's remaining book value
+    expect(outputs[i].humanCapitalLifeRevaluation).toBeGreaterThan(0);
+    revalued += outputs[i].humanCapitalLifeRevaluation;
+  }
+  // Without the line the identity would be off by the cumulative revaluation
+  expect(revalued).toBeGreaterThan(0.01 * outputs[29].humanCapitalNetStock);
+  expect(outputs[29].humanCapitalLifeRevaluation).toBeCloseTo(
+    REGIONS.reduce((sum, region) => sum + outputs[29].regionalHumanCapital[region].lifeRevaluation, 0), 9);
+  // The seed year has no prior schedule to revalue
+  expect(outputs[0].humanCapitalLifeRevaluation).toBe(0);
 });
 
 test('closure with revaluation: rising replacement cost revalues the opening stock', () => {
@@ -239,6 +271,7 @@ test('closure with revaluation: rising replacement cost revalues the opening sto
     const revalued = outputs[i - 1].humanCapitalNetStock * 1.03;
     const delta = outputs[i].humanCapitalNetStock - revalued;
     expect(delta).toBeCloseTo(outputs[i].humanCapitalNetInvestment, 6);
+    expect(outputs[i].humanCapitalLifeRevaluation).toBe(0);
   }
 });
 
@@ -412,6 +445,8 @@ test('regional and band ledgers both sum to the global ledger', () => {
     REGIONS.reduce((sum, region) => sum + out.regionalHumanCapital[region][field], 0);
   const sumBands = (field: string) =>
     EDUCATION_BANDS.reduce((sum, band) => sum + out.humanCapitalByBand[band][field], 0);
+  // Migration transfers and the life revaluation are regional lines only; the
+  // band rows carry the flows both ledgers share.
   for (const field of ['investment', 'depreciation', 'writeOffs', 'grossStock', 'netStock']) {
     expect(sumRegions(field)).toBeCloseTo(sumBands(field), 9);
   }

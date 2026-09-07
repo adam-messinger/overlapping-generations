@@ -171,12 +171,25 @@ Headcount is conserved; dollars are not, by design.
 ## Closure identities (tested)
 
 ```text
-netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment + migrationTransfer - depreciation - writeOffs   (per region)
+netStock_t = netStock_{t-1} x (c_t / c_{t-1}) + investment + migrationTransfer + lifeRevaluation
+             - depreciation - writeOffs                                                (per region)
+lifeRevaluation = sum over opening vintages of n x c_t x (max(0, 1 - age/L_t) - max(0, 1 - age/L_{t-1}))
 steady state (constant entrants, cost, life):
     depreciation + writeOffs = investment
     exits                    = entrants
     with no exit hazards:  netStock = grossStock / 2,  in service = entrants x (L - 1)
 ```
+
+Every vintage is written down over the *current* expected working life, so
+when that life moves (the retirement age extends with life expectancy, and
+the hazards move with it) the opening stock's remaining book value is
+re-priced. That change is neither investment nor depreciation and is booked
+on its own line, `lifeRevaluation`, so the identity holds exactly on the
+default path (about $0.3T a year worldwide in the late 2020s, $0.6T by 2050,
+all positive because working lives lengthen). The accounting-textbook
+alternative, freezing each vintage's life at entry, would change the
+depreciation charge itself and is deliberately not done: the ledger's
+question is what today's schedule implies for today's stock.
 
 ## Outputs
 
@@ -192,8 +205,9 @@ steady state (constant entrants, cost, life):
 | `workforceEntrants`, `workforceExits` | people/yr | global entrants; exits for all causes including retirement |
 | `humanCapitalMigrationInflows`, `humanCapitalMigrationOutflows` | $T/yr | migrants' book value at destination cost / at origin cost |
 | `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
+| `humanCapitalLifeRevaluation` | $T/yr | change in the opening stock's book value from this year's change in expected working life |
 | `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows, stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost |
+| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost, life revaluation |
 
 ## What the default path shows
 
