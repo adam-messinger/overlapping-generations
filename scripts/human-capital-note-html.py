@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Render docs/HUMAN_CAPITAL_TRAJECTORY.md (headings, paragraphs, tables, lists,
-inline code/bold/italic/links, and ![..](file.svg) figures inlined) to a
-self-contained HTML page for printing to PDF, e.g.:
+"""Render a docs/ markdown note (headings, paragraphs, tables, lists, inline
+code/bold/italic/links, and ![..](file.svg) figures inlined; the first H1 is the
+page title) to a self-contained HTML page for printing to PDF, e.g.:
 
   python3 scripts/human-capital-note-html.py docs/HUMAN_CAPITAL_TRAJECTORY.md > /tmp/note.html
   chromium --headless=new --no-pdf-header-footer --print-to-pdf=docs/HUMAN_CAPITAL_TRAJECTORY.pdf file:///tmp/note.html
@@ -15,7 +15,7 @@ def inline(t):
     t = re.sub(r'(?<![\w*])\*([^*]+)\*(?!\w)', r'<em>\1</em>', t)
     t = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', t)
     return t
-out=[]; i=0; para=[]; mode=None
+out=[]; i=0; para=[]
 def flush():
     global para
     if para: out.append('<p>'+inline(' '.join(s.strip() for s in para))+'</p>'); para=[]
@@ -70,4 +70,5 @@ a { color: #1a1a1a; text-decoration: none; }
 figure { margin: 8pt 0 10pt; page-break-inside: avoid; }
 figcaption { font-size: 8.5pt; color: #555; font-family: Helvetica, Arial, sans-serif; margin-top: 2pt; }
 """
-print(f'<!doctype html><html><head><meta charset="utf-8"><title>Are We Building Up or Drawing Down Human Capital?</title><style>{css}</style></head><body>' + '\n'.join(out) + '</body></html>')
+title = next((l[2:].strip() for l in src if l.startswith('# ')), os.path.basename(sys.argv[1]))
+print(f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(title)}</title><style>{css}</style></head><body>' + '\n'.join(out) + '</body></html>')

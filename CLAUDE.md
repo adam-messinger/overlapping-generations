@@ -255,6 +255,10 @@ Do this before committing. Most fix-up commits in project history would have bee
   `npm run human-capital:trajectory`; see `docs/HUMAN_CAPITAL_TRAJECTORY.md`
 - 1925-2025 reconstruction from Lee-Lee/Barro-Lee, UN WPP, and Maddison:
   `scripts/human-capital-backcast.py` (pandas; derived CSVs in `data/human-capital/`)
+- The reconstruction and `scripts/human-capital-figure.py` read the ledger's
+  constants and the model's constant-cost index from `data/human-capital/`,
+  written by `npm run human-capital:trajectory -- --emit=data/human-capital`;
+  `scripts/human-capital-note-html.py` renders a note for its PDF
 
 ## Scenarios
 

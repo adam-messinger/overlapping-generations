@@ -10,41 +10,47 @@
  * year of that quantity, the first year of net disinvestment, and the flows
  * with and without migration transfers.
  *
+ * With --emit=<dir> it also writes the two files the Python reconstruction
+ * and figure consume, so the ledger's constants have one source of truth:
+ *   <dir>/ledger-constants.json  band cost multipliers, entry ages, expected
+ *                                working lives (OECD ex-US), advanced-degree
+ *                                shares, regions, and 2025 population anchors
+ *   <dir>/model-index.csv        year x region constant-cost gross and net
+ *                                stock index (2025 = 1), plus the world
+ *
  * Companion to docs/HUMAN_CAPITAL_TRAJECTORY.md (the research note) and
  * docs/HUMAN_CAPITAL.md (the ledger's method).
  *
  * Usage:
  *   npx tsx scripts/human-capital-trajectory.ts [--scenario=baseline]
  *       [--years=2025,2050,2100] [--set=humanCapital.rearingCostShare=0]
+ *       [--emit=data/human-capital]
  */
 
+import { mkdirSync, writeFileSync } from 'fs';
 import { EDUCATION_BANDS, REGIONS, REGION_NAMES, REGION_NAME_WIDTH, type Region } from '../src/domain-types.js';
 import { runSimulation, runWithScenario, type SimulationParams, type SimulationResult, type YearResult } from '../src/simulation.js';
 import { getScenarioPath } from '../src/scenario.js';
-
-function arg(name: string): string | undefined {
-  const prefix = `--${name}=`;
-  return process.argv.find(a => a.startsWith(prefix))?.slice(prefix.length);
-}
+import { getAtYear } from '../src/helpers.js';
+import { deepMerge } from '../src/primitives/deep-merge.js';
+import { ComponentParams } from 'tsimulation';
+import { demographicsDefaults } from '../src/modules/demographics.js';
+import { expectedWorkingYears, humanCapitalDefaults, unitReplacementCost } from '../src/modules/human-capital.js';
+import { arg, fixed, millions, pct } from './report-format.js';
 
 const scenarioName = arg('scenario');
 const years = (arg('years') ?? '2025,2030,2040,2050,2060,2075,2100').split(',').map(Number);
 
-/** --set=module.param=value overrides (numbers only), applied on top of defaults or the scenario. */
+/** --set=module.param.path=value overrides (numbers only), applied on top of defaults or the scenario. */
 function overridesFromArgs(): SimulationParams {
-  const params: Record<string, Record<string, number>> = {};
+  let params: SimulationParams = {};
   for (const a of process.argv) {
     if (!a.startsWith('--set=')) continue;
     const [path, value] = a.slice('--set='.length).split('=');
-    const [module, key] = path.split('.');
-    (params[module] ??= {})[key] = Number(value);
+    params = deepMerge(params, ComponentParams.from({}).set(path, Number(value)).toParams() as SimulationParams);
   }
-  return params as SimulationParams;
+  return params;
 }
-
-const fixed = (digits: number, width: number) => (v: number) => v.toFixed(digits).padStart(width);
-const pct = (width: number) => (v: number) => `${(100 * v).toFixed(1)}%`.padStart(width);
-const millions = (width: number) => (v: number) => (v / 1e6).toFixed(1).padStart(width);
 
 /** Region's GDP per capita relative to the first simulated year: the ledger's unit-cost index. */
 function costIndex(row: YearResult, first: YearResult, region: Region): number {
@@ -62,7 +68,7 @@ function realNetStock(row: YearResult, first: YearResult): number {
 function report(result: SimulationResult, label: string) {
   const all = result.results;
   const first = all[0];
-  const rows = years.map(y => all.find(r => r.year === y)).filter((r): r is YearResult => r !== undefined);
+  const rows = years.map(y => getAtYear(result, y)).filter((r): r is YearResult => r !== undefined);
   const worldReal0 = realNetStock(first, first);
 
   console.log(`\n=== Human-capital trajectory: ${label} ===`);
@@ -72,8 +78,7 @@ function report(result: SimulationResult, label: string) {
   console.log('----  -----  ------  -------  ---------  -------  -------  --------------  ----  -----------  ----------------------------');
   for (const r of rows) {
     const real = realNetStock(r, first);
-    const bands = EDUCATION_BANDS.map(b => r.humanCapitalByBand[b].workersInService);
-    const workers = bands.reduce((a, b) => a + b, 0);
+    const workers = EDUCATION_BANDS.reduce((sum, b) => sum + r.humanCapitalByBand[b].workersInService, 0);
     const college = (r.humanCapitalByBand.tertiary.workersInService + r.humanCapitalByBand.advanced.workersInService) / workers;
     console.log(
       `${r.year}  ${fixed(1, 5)(r.humanCapitalInvestment)}  ${fixed(1, 6)(r.humanCapitalDepreciation + r.humanCapitalWriteOffs)}  ` +
@@ -120,14 +125,65 @@ function report(result: SimulationResult, label: string) {
   }
 }
 
+/**
+ * Write the ledger constants and the model's constant-cost index for the
+ * Python reconstruction (scripts/human-capital-backcast.py) and figure
+ * (scripts/human-capital-figure.py). Multipliers are the replacement cost of
+ * one entrant as a multiple of GDP per capita; 'none' is rearing to the
+ * primary entry age with no schooling. Working lives are the OECD ex-US
+ * expected years in the workforce at the 2025 life expectancy.
+ */
+function emit(result: SimulationResult, dir: string) {
+  const hc = humanCapitalDefaults;
+  const oecd = demographicsDefaults.regions['oecd-ex-us'];
+  const multipliers: Record<string, number> = { none: hc.rearingCostShare * hc.bands.primary.entryAge };
+  const entryAge: Record<string, number> = { none: hc.bands.primary.entryAge };
+  const workingLife: Record<string, number> = {};
+  for (const band of EDUCATION_BANDS) {
+    multipliers[band] = unitReplacementCost(hc, band, 1);
+    entryAge[band] = hc.bands[band].entryAge;
+    workingLife[band] = expectedWorkingYears(hc, 'oecd-ex-us', band, oecd.lifeExpectancy, hc.bands[band].retirementAge);
+  }
+  workingLife.none = workingLife.primary;
+  const advancedShare = Object.fromEntries(REGIONS.map(r => [r, hc.regions[r].advancedShare]));
+  const pop2025 = Object.fromEntries(REGIONS.map(r => [r, demographicsDefaults.regions[r].pop2025]));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/ledger-constants.json`, JSON.stringify(
+    { source: 'scripts/human-capital-trajectory.ts --emit', multipliers, entryAge, workingLife, advancedShare, regions: REGIONS, regionNames: REGION_NAMES, pop2025 },
+    null, 2,
+  ) + '\n');
+
+  const first = result.results[0];
+  const lines = ['year,region,gross_index,net_index'];
+  for (const r of result.results) {
+    let gross = 0, net = 0;
+    for (const region of REGIONS) {
+      const a = r.regionalHumanCapital[region], a0 = first.regionalHumanCapital[region], c = costIndex(r, first, region);
+      gross += a.grossStock / c; net += a.netStock / c;
+      lines.push(`${r.year},${region},${(a.grossStock / c / a0.grossStock).toFixed(6)},${(a.netStock / c / a0.netStock).toFixed(6)}`);
+    }
+    lines.push(`${r.year},world,${(gross / realGrossStock(first)).toFixed(6)},${(net / realNetStock(first, first)).toFixed(6)}`);
+  }
+  writeFileSync(`${dir}/model-index.csv`, lines.join('\n') + '\n');
+  console.log(`\nWrote ${dir}/ledger-constants.json and ${dir}/model-index.csv`);
+}
+
+function realGrossStock(first: YearResult): number {
+  return REGIONS.reduce((sum, region) => sum + first.regionalHumanCapital[region].grossStock, 0);
+}
+
 async function main() {
   const overrides = overridesFromArgs();
+  let result: SimulationResult, label: string;
   if (scenarioName) {
-    const { result, scenario } = await runWithScenario(getScenarioPath(scenarioName), overrides);
-    report(result, scenario.name);
+    const run = await runWithScenario(getScenarioPath(scenarioName), overrides);
+    result = run.result; label = run.scenario.name;
   } else {
-    report(runSimulation(overrides), 'default parameters');
+    result = runSimulation(overrides); label = 'default parameters';
   }
+  report(result, label);
+  const dir = arg('emit');
+  if (dir) emit(result, dir);
 }
 
 main().catch(err => {

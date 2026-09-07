@@ -13,20 +13,10 @@
 import { EDUCATION_BANDS, REGIONS, REGION_NAMES, REGION_NAME_WIDTH } from '../src/domain-types.js';
 import { runSimulation, runWithScenario, type SimulationResult, type YearResult } from '../src/simulation.js';
 import { getScenarioPath } from '../src/scenario.js';
-
-function arg(name: string): string | undefined {
-  const prefix = `--${name}=`;
-  return process.argv.find(a => a.startsWith(prefix))?.slice(prefix.length);
-}
+import { arg, fixed, millions, thousands, pct } from './report-format.js';
 
 const scenarioName = arg('scenario');
 const years = (arg('years') ?? '2025,2035,2050,2075,2100').split(',').map(Number);
-
-/** Fixed-width cell formatters: value -> padded string. */
-const fixed = (digits: number, width: number) => (v: number) => v.toFixed(digits).padStart(width);
-const millions = (width: number) => (v: number) => (v / 1e6).toFixed(1).padStart(width);
-const thousands = (width: number) => (v: number) => (v / 1e3).toFixed(0).padStart(width);
-const pct = (width: number) => (v: number) => `${(100 * v).toFixed(1)}%`.padStart(width);
 
 function report(result: SimulationResult, label: string) {
   const rows = years

@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 """Small-multiples figure for docs/HUMAN_CAPITAL_TRAJECTORY.md: constant-cost gross
 human-capital stock (people x education at fixed 2025 regional unit costs), 2025 = 1,
-1925-2025 from data/human-capital/backcast-regions.csv (scripts/human-capital-backcast.py)
-and 2025-2100 from the model's regional gross stock deflated by GDP per capita
-(the same index scripts/human-capital-trajectory.ts prints). Writes an SVG.
+1925-2025 from the reconstruction (backcast-regions.csv, backcast-world.csv) and
+2025-2100 from the model's gross stock deflated by GDP per capita (model-index.csv,
+written by `npm run human-capital:trajectory -- --emit=<dir>`). Writes an SVG.
 
-Usage: python3 scripts/human-capital-figure.py <model-gross-index.csv> <out.svg>
-where the first argument is a year x region CSV of the model's index (2025 = 1)."""
-import csv, math, sys
-model_csv, out = sys.argv[1], sys.argv[2]
-NAMES = {'world': 'World', 'us': 'United States', 'oecd-ex-us': 'OECD ex-US', 'china': 'China', 'india': 'India + South Asia',
-         'latam': 'Latin America', 'seasia': 'SE Asia + Pacific', 'russia': 'Russia + CIS', 'mena': 'MENA', 'ssa': 'Sub-Saharan Africa'}
-ORDER = ['world', 'us', 'oecd-ex-us', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa']
-hist = {k: {} for k in ORDER}
-for r in csv.DictReader(open('data/human-capital/backcast-regions.csv')):
+Usage: python3 scripts/human-capital-figure.py <data dir> <out.svg>"""
+import csv, json, math, sys
+data, out = sys.argv[1], sys.argv[2]
+constants = json.load(open(f'{data}/ledger-constants.json'))
+NAMES = {'world': 'World', **constants['regionNames']}
+hist = {k: {} for k in NAMES}
+for r in csv.DictReader(open(f'{data}/backcast-regions.csv')):
     hist[r['region']][int(r['year'])] = float(r['gross_const'])
-for r in csv.DictReader(open('data/human-capital/backcast-world.csv')):
+for r in csv.DictReader(open(f'{data}/backcast-world.csv')):
     hist['world'][int(r['year'])] = float(r['gross_const'])
-for k in ORDER:
+for k in NAMES:
     base = hist[k][2025]; hist[k] = {y: v / base for y, v in sorted(hist[k].items())}
-proj = {k: {} for k in ORDER}
-for r in csv.DictReader(open(model_csv)):
-    for k in ORDER: proj[k][int(r['year'])] = float(r[k])
+proj = {k: {} for k in NAMES}
+for r in csv.DictReader(open(f'{data}/model-index.csv')):
+    proj[r['region']][int(r['year'])] = float(r['gross_index'])
 
 # layout: 2 rows x 5 panels, log y
 W, H = 1040, 560; cols, rows = 5, 2; ml, mt, gx, gy = 44, 62, 22, 54
@@ -35,7 +33,7 @@ o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}"
      f'<rect width="{W}" height="{H}" fill="{SURF}"/>',
      f'<text x="{ml}" y="14" font-size="12" font-weight="600" fill="{INK}">Human capital at constant cost, 2025 = 1 (log scale)</text>',
      f'<text x="{ml}" y="26" fill="{INK2}">People aged 25-64 x education, priced at each region\'s 2025 replacement cost. Dark line: reconstructed 1925-2025. Light line: model 2025-2100.</text>']
-for i, k in enumerate(ORDER):
+for i, k in enumerate(NAMES):
     c, r = i % cols, i // cols
     x0 = ml + c * (pw + gx); y0 = mt + r * (ph + gy)
     for t in ticks:

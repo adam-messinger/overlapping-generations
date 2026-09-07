@@ -231,23 +231,23 @@ net stock:
 
 | Region | 1950 | 1975 | 2000 | 2025 | 2050 | 2075 | 2100 | Net / gross 1950 | Net / gross 2025 |
 |---|---|---|---|---|---|---|---|---|---|
-| United States | 0.31 | 0.51 | 0.84 | 1.00 | 1.33 | 1.41 | 1.43 | 0.36 | 0.39 |
+| United States | 0.31 | 0.51 | 0.84 | 1.00 | 1.33 | 1.41 | 1.43 | 0.35 | 0.38 |
 | OECD ex-US | 0.34 | 0.59 | 0.98 | 1.00 | 1.23 | 1.35 | 1.39 | 0.27 | 0.33 |
-| China | 0.11 | 0.25 | 0.75 | 1.00 | 0.72 | 0.54 | 0.39 | 0.26 | 0.35 |
-| India + South Asia | 0.09 | 0.16 | 0.48 | 1.00 | 1.53 | 1.43 | 1.20 | 0.28 | 0.38 |
-| Latin America | 0.10 | 0.22 | 0.60 | 1.00 | 1.10 | 1.01 | 0.84 | 0.30 | 0.36 |
-| SE Asia + Pacific | 0.09 | 0.20 | 0.53 | 1.00 | 1.19 | 1.14 | 0.94 | 0.30 | 0.35 |
-| Russia + CIS | 0.25 | 0.53 | 0.92 | 1.00 | 0.92 | 0.82 | 0.68 | 0.30 | 0.38 |
-| MENA | 0.05 | 0.12 | 0.41 | 1.00 | 1.89 | 2.00 | 1.89 | 0.27 | 0.39 |
-| Sub-Saharan Africa | 0.08 | 0.15 | 0.40 | 1.00 | 2.82 | 3.64 | 3.89 | 0.28 | 0.38 |
-| World | 0.20 | 0.36 | 0.75 | 1.00 | 1.19 | 1.20 | 1.14 | 0.30 | 0.36 |
+| China | 0.12 | 0.26 | 0.75 | 1.00 | 0.72 | 0.54 | 0.39 | 0.28 | 0.34 |
+| India + South Asia | 0.10 | 0.17 | 0.49 | 1.00 | 1.53 | 1.43 | 1.20 | 0.30 | 0.37 |
+| Latin America | 0.10 | 0.22 | 0.60 | 1.00 | 1.10 | 1.01 | 0.84 | 0.31 | 0.35 |
+| SE Asia + Pacific | 0.10 | 0.21 | 0.54 | 1.00 | 1.19 | 1.14 | 0.94 | 0.31 | 0.35 |
+| Russia + CIS | 0.26 | 0.53 | 0.91 | 1.00 | 0.92 | 0.82 | 0.68 | 0.30 | 0.38 |
+| MENA | 0.06 | 0.12 | 0.42 | 1.00 | 1.89 | 2.00 | 1.89 | 0.29 | 0.38 |
+| Sub-Saharan Africa | 0.08 | 0.15 | 0.40 | 1.00 | 2.82 | 3.64 | 3.89 | 0.30 | 0.38 |
+| World | 0.20 | 0.37 | 0.75 | 1.00 | 1.19 | 1.20 | 1.14 | 0.30 | 0.35 |
 
-The net stock grew faster than the gross one (2.2% a year for the world
+The net stock grew faster than the gross one (2.1% a year for the world
 since 1950 against 1.9%), because the book value of the workforce rose
-from 30% to 36% of replacement cost as it filled with recent,
+from 30% to 35% of replacement cost as it filled with recent,
 better-educated entrants; the OECD ex-US has been flat on a net basis
 since 2000 and Russia + CIS nearly so. The model's net stock in 2025 is
-44% of gross, above the reconstruction's 36%, because it prices the
+44% of gross, above the reconstruction's 35%, because it prices the
 in-service workforce rather than everyone aged 25-64. The two series agree
 on direction and turning points, so the splice does not depend on the
 gross/net choice.
