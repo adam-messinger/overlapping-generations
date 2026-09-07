@@ -83,10 +83,13 @@ const world = {
   boundaryVersion: 'global-model-boundary-v1',
 } as const;
 
-const oecdRegion = {
-  id: 'geo.oecd-model-region',
-  label: 'OECD aggregate model region',
-  boundaryVersion: 'global-model-region-v1',
+/** Bumped whenever the set or boundaries of the global model's regions change. */
+export const GLOBAL_MODEL_REGION_BOUNDARY_VERSION = 'global-model-region-v2';
+
+const oecdExUsRegion = {
+  id: 'geo.oecd-ex-us-model-region',
+  label: 'OECD ex-US aggregate model region',
+  boundaryVersion: GLOBAL_MODEL_REGION_BOUNDARY_VERSION,
 } as const;
 
 const euroArea = {
@@ -677,11 +680,11 @@ const globalCommodityMarket = {
   universe: 'Modeled global intended consumption in the traded oil or gas market.',
 } as const;
 
-const oecdCommodityMarket = {
+const oecdExUsCommodityMarket = {
   id: 'population.oecd-traded-energy-market',
-  label: 'OECD aggregate traded oil and gas market',
+  label: 'OECD ex-US aggregate traded oil and gas market',
   universe:
-    'Modeled oil and gas prices faced by the OECD aggregate region after global clearing and regional scarcity premia.',
+    'Modeled oil and gas prices faced by the OECD ex-US aggregate region after global clearing and regional scarcity premia.',
 } as const;
 
 const euroAreaConsumerBasket = {
@@ -792,8 +795,8 @@ export const hormuzEstimands = {
     {
       quantityKind: 'price.oecd-oil-price-multiple',
       measure: { kind: 'index' },
-      population: oecdCommodityMarket,
-      geography: oecdRegion,
+      population: oecdExUsCommodityMarket,
+      geography: oecdExUsRegion,
       ratio: {
         numerator: 'scenario-oecd-oil-price',
         denominator: 'counterfactual-oecd-oil-price',
@@ -806,8 +809,8 @@ export const hormuzEstimands = {
     {
       quantityKind: 'price.oecd-gas-price-multiple',
       measure: { kind: 'index' },
-      population: oecdCommodityMarket,
-      geography: oecdRegion,
+      population: oecdExUsCommodityMarket,
+      geography: oecdExUsRegion,
       ratio: {
         numerator: 'scenario-oecd-gas-price',
         denominator: 'counterfactual-oecd-gas-price',
@@ -985,7 +988,7 @@ function weberEnergyCrosswalk(
     target,
     method,
     assumptions: [
-      'The OECD aggregate regional price is used as a euro-area import-price proxy.',
+      'The OECD ex-US aggregate regional price is used as a euro-area import-price proxy.',
       'Oil and gas basket shares and Weber sector-chain allocations are explicit bridge parameters.',
       'Published Weber total-requirements exposures are transported to the current euro-area scenario.',
     ],
@@ -1007,14 +1010,14 @@ export const hormuzWeberCrosswalks = {
     'crosswalk.hormuz-weber.oil-to-import-energy-composite',
     energyPriceSources.oil,
     weberEnergyInflationEstimands.importEnergyPriceMultiple,
-    'Map the modeled OECD oil-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
+    'Map the modeled OECD ex-US oil-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
     '1 + oilShare * (oilMultiple - 1) + gasShare * (gasMultiple - 1).',
   ),
   gasToImportEnergy: weberEnergyCrosswalk(
     'crosswalk.hormuz-weber.gas-to-import-energy-composite',
     energyPriceSources.gas,
     weberEnergyInflationEstimands.importEnergyPriceMultiple,
-    'Map the modeled OECD gas-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
+    'Map the modeled OECD ex-US gas-price multiple into its fixed-share contribution to the euro-area import-energy composite.',
     '1 + oilShare * (oilMultiple - 1) + gasShare * (gasMultiple - 1).',
   ),
   oilToNetworkImpact: weberEnergyCrosswalk(

@@ -8,7 +8,7 @@
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { REGIONS } from '../domain-types.js';
 
-import { test, expect, printSummary } from '../test-utils.js';
+import { test, expect, printSummary, sumRegional } from '../test-utils.js';
 
 // Helper to run simulation for N years
 function runYears(years: number) {
@@ -60,15 +60,7 @@ test('init returns state with all regions', () => {
 
 test('init sets correct 2025 population', () => {
   const state = demographicsModule.init(demographicsDefaults);
-  const totalPop =
-    state.regions.oecd.population +
-    state.regions.china.population +
-    state.regions.india.population +
-    state.regions.latam.population +
-    state.regions.seasia.population +
-    state.regions.russia.population +
-    state.regions.mena.population +
-    state.regions.ssa.population;
+  const totalPop = sumRegional(state.regions, r => r.population);
 
   expect(totalPop / 1e9).toBeCloseTo(8.2, 0);
 });
@@ -272,8 +264,8 @@ test('validation catches cohorts not summing to 1', () => {
   const result = demographicsModule.validate({
     regions: {
       ...demographicsDefaults.regions,
-      oecd: {
-        ...demographicsDefaults.regions.oecd,
+      'oecd-ex-us': {
+        ...demographicsDefaults.regions['oecd-ex-us'],
         young: 0.5,
         working: 0.5,
         old: 0.5, // Sums to 1.5
@@ -370,13 +362,13 @@ test('interpolation between data points', () => {
 test('age structure preserved after scaling', () => {
   // Run without exogenous to get baseline ratios
   const baseline = runYears(10);
-  const baseYoungShare = baseline.outputs.regionalYoung.oecd / baseline.outputs.regionalPopulation.oecd;
+  const baseYoungShare = baseline.outputs.regionalYoung['oecd-ex-us'] / baseline.outputs.regionalPopulation['oecd-ex-us'];
 
   // Run with exogenous population (doubled)
   const scaled = runYearsWithParams(10, {
     exogenousPopulation: [{ year: 2025, total: 16e9 }, { year: 2050, total: 20e9 }],
   });
-  const scaledYoungShare = scaled.outputs.regionalYoung.oecd / scaled.outputs.regionalPopulation.oecd;
+  const scaledYoungShare = scaled.outputs.regionalYoung['oecd-ex-us'] / scaled.outputs.regionalPopulation['oecd-ex-us'];
 
   // Ratios should be the same (scaling is uniform)
   expect(Math.abs(scaledYoungShare - baseYoungShare)).toBeLessThan(0.01);
@@ -414,9 +406,9 @@ test('migration composition effects stay small over 30 years', () => {
 test('migration moves population between regions', () => {
   const withMigration = runYears(20).outputs;
   const withoutMigration = runYearsWithParams(20, { migrationMultiplier: 0 }).outputs;
-  // OECD is the main receiving region — migration must raise its population
-  expect(withMigration.regionalPopulation.oecd)
-    .toBeGreaterThan(withoutMigration.regionalPopulation.oecd);
+  // OECD ex-US is the largest receiving region — migration must raise its population
+  expect(withMigration.regionalPopulation['oecd-ex-us'])
+    .toBeGreaterThan(withoutMigration.regionalPopulation['oecd-ex-us']);
 });
 
 // --- Workforce entrants and education-split stocks ---
@@ -483,7 +475,7 @@ test('working-age migration outputs sum to zero across regions and follow the 80
       if (Math.abs(nonCollege) > 0) expect(college / (college + nonCollege)).toBeCloseTo(0.70, 9);
     }
     expect(Math.abs(net) < 1).toBeTrue();
-    expect(outputs.regionalWorkingMigrationCollege.oecd).toBeGreaterThan(0);
+    expect(outputs.regionalWorkingMigrationCollege['oecd-ex-us']).toBeGreaterThan(0);
     expect(outputs.regionalWorkingMigrationCollege.india).toBeLessThan(0);
     expect(outputs.regionalWorkingMigrationCollege.china).toBeLessThan(0);
   }

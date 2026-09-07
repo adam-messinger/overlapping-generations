@@ -99,7 +99,7 @@ export interface HormuzWeberInflationResult {
 
 export const defaultWeberEnergyBridgeOptions: WeberEnergyBridgeOptions = {
   horizonMonths: 36,
-  region: 'oecd',
+  region: 'oecd-ex-us',
   oilInputShare: 0.55,
   gasInputShare: 0.45,
   // Oil maps mostly through refined petroleum; gas maps mostly through

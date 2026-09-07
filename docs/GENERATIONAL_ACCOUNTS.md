@@ -31,7 +31,7 @@ Each regional cohort ledger carries:
 - own funds, allocated credit, desired capital, and funding gaps;
 - cumulative taxes, transfers, bequests, and unfunded capital acquisition.
 
-Global cohort accounts are sums of the eight regional accounts. Regional
+Global cohort accounts are sums of the nine regional accounts. Regional
 accounts remain available because a globally aggregated birth cohort can hide
 very different balance sheets and constraints.
 

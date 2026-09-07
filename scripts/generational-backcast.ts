@@ -224,7 +224,7 @@ function lastAvailable(series: Map<number, number>, year: number): number {
   throw new Error(`No value at or shortly before ${year}`);
 }
 
-function regionalRecord(value: number, activeRegion: Region = 'oecd'): Record<Region, number> {
+function regionalRecord(value: number, activeRegion: Region = 'us'): Record<Region, number> {
   return Object.fromEntries(REGIONS.map(region => [region, region === activeRegion ? value : 0])) as
     Record<Region, number>;
 }
@@ -390,7 +390,7 @@ function runReplay(
     state = step.state;
     replay.push({
       year: year + 1,
-      accounts: step.outputs.regionalCohortAccounts.oecd,
+      accounts: step.outputs.regionalCohortAccounts.us,
       constrainedWorkingShare: step.outputs.constrainedWorkingShare,
       borrowingConstrainedWorkingShare: step.outputs.borrowingConstrainedWorkingShare,
       aggregateCapitalCoverage: step.outputs.aggregateCapitalCoverage,
@@ -438,7 +438,7 @@ function snapshotShares(
     regionalRetireeCost: regionalRecord(0),
     regionalChildCost: regionalRecord(0),
   }, params, year, 0);
-  return shares(groupModelAccounts(step.outputs.regionalCohortAccounts.oecd), field);
+  return shares(groupModelAccounts(step.outputs.regionalCohortAccounts.us), field);
 }
 
 function snapshotFit(
@@ -921,12 +921,12 @@ function main(): void {
     endYear: 2025,
     generations: ageProfiles,
   }).results[0];
-  const baselineGrouped = groupModelAccounts(baseline2025.regionalCohortAccounts.oecd);
+  const baselineGrouped = groupModelAccounts(baseline2025.regionalCohortAccounts.us);
   if (dfa.has(2025)) {
-    printShareTable('2025 current global-model/OECD asset shares', dfa.get(2025)!.groups, baselineGrouped, 'assets');
-    printShareTable('2025 current global-model/OECD liability shares', dfa.get(2025)!.groups, baselineGrouped, 'liabilities');
+    printShareTable('2025 current global-model/US asset shares', dfa.get(2025)!.groups, baselineGrouped, 'assets');
+    printShareTable('2025 current global-model/US liability shares', dfa.get(2025)!.groups, baselineGrouped, 'liabilities');
     console.log(
-      `2025 current global-model/OECD liability-share MAE: ` +
+      `2025 current global-model/US liability-share MAE: ` +
       `${singleYearMae(dfa.get(2025)!.groups, baselineGrouped, 'liabilities').toFixed(1)}pp`,
     );
   }

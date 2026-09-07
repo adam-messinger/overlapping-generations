@@ -59,7 +59,7 @@ test('scenarioToParams warns on dead NESTED keys but not on valid Partial option
         sources: { solar: { growthRate: 0.3 } },
         carbonPriceTYPO: 1,
         // valid Partial optional absent from defaults — must NOT warn
-        regional: { oecd: { maxGrowthRate: { solar: 0.1 } } },
+        regional: { 'oecd-ex-us': { maxGrowthRate: { solar: 0.1 } } },
       },
     } as never, { unknownKeys: 'warn' });
   } finally {
@@ -88,7 +88,7 @@ test('2025 regional financing spreads reproduce the IEA-observed calibration', (
   // re-deriving the residuals breaks this test rather than silently
   // decalibrating the spreads. See REGIONAL_FINANCING_SPREADS in energy.ts.
   const observed: Record<string, number> = {
-    oecd: -0.010, china: -0.015, india: 0.020, latam: 0.030,
+    us: -0.010, 'oecd-ex-us': -0.010, china: -0.015, india: 0.020, latam: 0.030,
     seasia: 0.025, russia: 0.050, mena: 0.010, ssa: 0.060,
   };
   const result = runSimulation({ startYear: 2025, endYear: 2025 });

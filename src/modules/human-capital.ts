@@ -176,12 +176,14 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   // domesticExitShare: share of secondary-band entrants who leave (or never
   // join) the workforce for domestic/caregiving or other non-participation
   // reasons, taken as half the male-female participation gap relative to
-  // male participation (ILO ILOSTAT 2023 LFPR, ages 15+): OECD 80/65 ->
-  // 0.09 (+0.03 for prime-age male non-participation), China 74/61 -> 0.09,
+  // male participation (ILO ILOSTAT 2023 LFPR, ages 15+): US 68/57 -> 0.08
+  // (+0.03 for prime-age male non-participation), OECD ex-US ~79/63 -> 0.10
+  // (+0.03; Japan/Korea/Mexico/Turkey/Italy gaps), China 74/61 -> 0.09,
   // India 77/33 -> 0.29, LatAm 75/52 -> 0.15, SE Asia 79/58 -> 0.13, Russia+
   // CIS 70/55 -> 0.11, MENA 70/20 -> 0.36, SSA 72/60 -> 0.08.
   regions: {
-    oecd:   { secondaryCompletionShare: 0.75, secondaryCompletionTarget: 0.90, advancedShare: 0.30, domesticExitShare: 0.12 },
+    us:     { secondaryCompletionShare: 0.90, secondaryCompletionTarget: 0.95, advancedShare: 0.35, domesticExitShare: 0.11 },  // Census 2023: 91% of 25+ HS complete; NCES 2023: ~0.9M master's+ per ~2.0M bachelor's
+    'oecd-ex-us': { secondaryCompletionShare: 0.70, secondaryCompletionTarget: 0.90, advancedShare: 0.28, domesticExitShare: 0.13 },  // OECD EAG 2024 upper-secondary attainment ex-US (Mexico/Turkey/Southern Europe low)
     china:  { secondaryCompletionShare: 0.65, secondaryCompletionTarget: 0.90, advancedShare: 0.15, domesticExitShare: 0.09 },
     india:  { secondaryCompletionShare: 0.45, secondaryCompletionTarget: 0.80, advancedShare: 0.15, domesticExitShare: 0.29 },
     latam:  { secondaryCompletionShare: 0.55, secondaryCompletionTarget: 0.85, advancedShare: 0.10, domesticExitShare: 0.15 },

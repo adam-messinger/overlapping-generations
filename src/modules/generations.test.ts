@@ -3,7 +3,7 @@
  */
 
 import { REGIONS, Region } from '../domain-types.js';
-import { test, expect, printSummary, regional } from '../test-utils.js';
+import { test, expect, printSummary, regional, worldTotal } from '../test-utils.js';
 import { generationsModule } from './generations.js';
 
 function makeInputs(overrides: Record<string, any> = {}) {
@@ -17,7 +17,7 @@ function makeInputs(overrides: Record<string, any> = {}) {
     regionalPopulation: regional(100e6),
     regionalLifeExpectancy: regional(75),
     regionalGdp: regional(20),
-    gdp: 160,
+    gdp: worldTotal(20),
     stock,
     nextCapitalStock,
     investment: overrides.investment ?? 42,
@@ -26,7 +26,7 @@ function makeInputs(overrides: Record<string, any> = {}) {
       overrides.newInvestmentLoanOriginations ?? 5,
     privateDebtStock: overrides.privateDebtStock ?? 256,
     nextPrivateDebtStock: overrides.nextPrivateDebtStock ?? 248.2,
-    netTaxes: overrides.netTaxes ?? 23.6,
+    netTaxes: overrides.netTaxes ?? worldTotal(2.95),
     regionalSavings: regional(0.25),
     regionalRetireeCost: regional(1.75),
     regionalChildCost: regional(0.20),
@@ -62,7 +62,7 @@ test('uses five-year birth cohorts and reconciles population', () => {
     expect(account.birthYearEnd - account.birthYearStart).toBe(4);
     totalPopulation += account.population;
   }
-  expect(totalPopulation).toBeCloseTo(800e6, 2);
+  expect(totalPopulation).toBeCloseTo(worldTotal(100e6), 2);
 });
 
 test('end-of-period cohort assets and liabilities reconcile to macro stocks', () => {
@@ -74,7 +74,7 @@ test('end-of-period cohort assets and liabilities reconcile to macro stocks', ()
 
 test('retired cohorts can retain outstanding liabilities without labor income', () => {
   const { outputs } = runOne();
-  const oecdAccounts = Object.values(outputs.regionalCohortAccounts.oecd);
+  const oecdAccounts = Object.values(outputs.regionalCohortAccounts['oecd-ex-us']);
   const retiredLiabilities = oecdAccounts
     .filter(account => account.oldPopulation > 0)
     .reduce((sum, account) => sum + account.liabilities, 0);
@@ -90,7 +90,7 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
   }, {
     newInvestmentLoanOriginations: 0,
     nextPrivateDebtStock: 256 * 0.95,
-  }).outputs.regionalCohortAccounts.oecd;
+  }).outputs.regionalCohortAccounts['oecd-ex-us'];
   const old = runOne({
     debtAgeWeight20to39: 0,
     debtAgeWeight40to54: 0,
@@ -99,7 +99,7 @@ test('scenario debt-age weights shift the initial liability allocation', () => {
   }, {
     newInvestmentLoanOriginations: 0,
     nextPrivateDebtStock: 256 * 0.95,
-  }).outputs.regionalCohortAccounts.oecd;
+  }).outputs.regionalCohortAccounts['oecd-ex-us'];
   expect(shareAtOrAbove(old, 70, 'liabilities'))
     .toBeGreaterThan(shareAtOrAbove(young, 70, 'liabilities'));
 });
@@ -114,7 +114,7 @@ test('scenario asset-age weights shift the initial asset allocation', () => {
     generalInvestment: 0,
     investment: 0,
     nextCapitalStock: 553 * 0.95,
-  }).outputs.regionalCohortAccounts.oecd;
+  }).outputs.regionalCohortAccounts['oecd-ex-us'];
   const old = runOne({
     assetAgeWeight20to39: 0,
     assetAgeWeight40to54: 0,
@@ -124,14 +124,14 @@ test('scenario asset-age weights shift the initial asset allocation', () => {
     generalInvestment: 0,
     investment: 0,
     nextCapitalStock: 553 * 0.95,
-  }).outputs.regionalCohortAccounts.oecd;
+  }).outputs.regionalCohortAccounts['oecd-ex-us'];
   expect(shareAtOrAbove(old, 70, 'assets'))
     .toBeGreaterThan(shareAtOrAbove(young, 70, 'assets'));
 });
 
 test('a lower funder share leaves more new-capital ownership with incumbent owners', () => {
   const retiredShare = (funderShare: number): number => shareAtOrAbove(
-    runOne({ newCapitalFunderShare: funderShare }).outputs.regionalCohortAccounts.oecd,
+    runOne({ newCapitalFunderShare: funderShare }).outputs.regionalCohortAccounts['oecd-ex-us'],
     65,
     'assets',
   );
@@ -161,13 +161,13 @@ test('cohort debt is amortized once by the macro debt transition', () => {
     0,
   );
   const cohort = '1955-1959';
-  const firstLiabilities = first.outputs.regionalCohortAccounts.oecd[cohort].liabilities;
+  const firstLiabilities = first.outputs.regionalCohortAccounts['oecd-ex-us'][cohort].liabilities;
   const second = generationsModule.step(first.state, makeInputs({
     newInvestmentLoanOriginations: 0,
     privateDebtStock: firstInputs.nextPrivateDebtStock,
     nextPrivateDebtStock: firstInputs.nextPrivateDebtStock * 0.95,
   }), params, 2026, 1);
-  const secondLiabilities = second.outputs.regionalCohortAccounts.oecd[cohort].liabilities;
+  const secondLiabilities = second.outputs.regionalCohortAccounts['oecd-ex-us'][cohort].liabilities;
   expect(secondLiabilities / firstLiabilities).toBeCloseTo(0.95, 6);
 });
 
@@ -177,8 +177,8 @@ test('education, retiree transfers, and macro net-tax incidence reconcile', () =
   const education = accounts.reduce((sum, account) => sum + account.education, 0);
   const pensions = accounts.reduce((sum, account) => sum + account.pensionHealthcare, 0);
   const taxes = accounts.reduce((sum, account) => sum + account.taxes, 0);
-  expect(education).toBeCloseTo(1.6, 6);
-  expect(pensions).toBeCloseTo(14.0, 6);
+  expect(education).toBeCloseTo(worldTotal(0.20), 6);
+  expect(pensions).toBeCloseTo(worldTotal(1.75), 6);
   expect(taxes).toBeCloseTo(makeInputs().netTaxes, 6);
 });
 
@@ -187,11 +187,7 @@ test('balanced-budget replay taxes include dependent outlays and public interest
   const retireeOutlays = 0.10 * gdp;
   const childOutlays = 0.05 * gdp;
   const publicInterestOutlays = 0.02 * gdp;
-  const inOecd = (value: number): Record<Region, number> =>
-    Object.fromEntries(REGIONS.map(region => [
-      region,
-      region === 'oecd' ? value : 0,
-    ])) as Record<Region, number>;
+  const inOecd = (value: number): Record<Region, number> => ({ ...regional(0), 'oecd-ex-us': value });
   const { outputs } = runOne({}, {
     gdp,
     regionalGdp: inOecd(gdp),

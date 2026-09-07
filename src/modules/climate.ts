@@ -99,7 +99,8 @@ export const climateDefaults: ClimateParams = {
   damageCoeff: 0.00536,
   maxDamage: 0.50,
   regionalDamage: {
-    oecd: 0.8,
+    us: 0.9,         // Hsiang et al. 2017: ~1.2% GDP/°C, above Europe; Southern states near the Burke et al. optimum
+    'oecd-ex-us': 0.75, // Canada/Northern Europe/Japan sit below the US on the Burke et al. curve
     china: 1.0,
     india: 1.5,      // Extreme heat and water stress
     latam: 1.0,

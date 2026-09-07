@@ -167,6 +167,16 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Tipping points**: Damage acceleration above threshold temperature
 - **Carbon cycle**: Cumulative emissions → CO2 ppm → temperature
 
+### Regions
+- Nine regions (`REGIONS` in `domain-types.ts`): `us`, `oecd-ex-us`, `china`,
+  `india` (+ South Asia), `latam`, `seasia` (+ Pacific), `russia` (+ CIS),
+  `mena`, `ssa`. The US was broken out of the OECD aggregate in 2026; every
+  per-region table splits the old OECD row so the us + oecd-ex-us blend
+  reproduces it (population, GDP, capacity, carbon price, savings, transfers,
+  damages, farmland, Hormuz exposure), with US-specific sources inline
+- Hyphenated key: quote it in object literals (`'oecd-ex-us': ...`) and
+  scenario JSON; Tier-1 param names camel-case it (`oecdExUsCarbonPrice`)
+
 ### Demographics
 - **Fernández-Villaverde**: Fertility convergence to regional floors
 - **3-cohort model**: Young (0-19), Working (20-64), Old (65+)

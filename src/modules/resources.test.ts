@@ -7,7 +7,7 @@
 
 import { resourcesModule, resourcesDefaults } from './resources.js';
 
-import { test, expect, printSummary } from '../test-utils.js';
+import { test, expect, printSummary, sumRegional } from '../test-utils.js';
 
 // Helper to create typical inputs
 function createInputs(options: {
@@ -350,6 +350,10 @@ test('module declares correct outputs', () => {
   expect(resourcesModule.outputs.includes('land')).toBeTrue();
   expect(resourcesModule.outputs.includes('carbon')).toBeTrue();
   expect(resourcesModule.outputs.includes('food')).toBeTrue();
+});
+
+test('regional farmland shares partition world farmland (sum to 1)', () => {
+  expect(sumRegional(resourcesDefaults.water.regional, r => r.farmlandShare)).toBeCloseTo(1, 9);
 });
 
 // =============================================================================

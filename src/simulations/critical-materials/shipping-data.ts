@@ -64,7 +64,8 @@ export const maritimeDefaults: MaritimeNetworkParams = {
   importInflationPpPer100Hours: 0.5,
   importInflationLagMonths: 5,
   regionalTradeExposure: {
-    oecd: 0.80,
+    us: 0.70,           // Transpacific/transatlantic lanes; Suez carries a minority of US container imports
+    'oecd-ex-us': 0.85, // Europe and Japan/Korea sit at both ends of the Asia-Europe Suez lane
     china: 0.70,
     india: 0.60,
     latam: 0.35,

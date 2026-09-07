@@ -174,15 +174,28 @@ export const hormuzDefaults: HormuzModelParams = {
   // Regional splits are transparent model judgments. Weighted oil exposure is
   // 19.6% of world use, close to EIA's 20% global anchor. Gas exposure is much
   // smaller because LNG is only part of total gas use.
+  // us / oecd-ex-us: US Gulf crude imports ~0.5 mb/d of 20 (EIA), no LNG
+  // imports, net petroleum exporter; Japan/Korea take ~80-90% of crude via
+  // Hormuz and 100% of gas as LNG, Europe ~15% / ~40%.
   regions: {
-    oecd: {
-      hormuzOilShareOfUse: 0.12,
-      lngShareOfGasUse: 0.18,
+    us: {
+      hormuzOilShareOfUse: 0.025,
+      lngShareOfGasUse: 0,
+      hormuzShareOfLng: 0,
+      physicalVulnerability: 0.60,
+      oilConsumptionWeight: 0.17,
+      gasConsumptionWeight: 0.20,
+      oilTermsOfTradeSensitivity: 0.002,
+      gulfShutInGdpSensitivity: 0,
+    },
+    'oecd-ex-us': {
+      hormuzOilShareOfUse: 0.20,
+      lngShareOfGasUse: 0.38,
       hormuzShareOfLng: 0.15,
-      physicalVulnerability: 0.75,
-      oilConsumptionWeight: 0.38,
-      gasConsumptionWeight: 0.38,
-      oilTermsOfTradeSensitivity: -0.010,
+      physicalVulnerability: 0.85,
+      oilConsumptionWeight: 0.21,
+      gasConsumptionWeight: 0.18,
+      oilTermsOfTradeSensitivity: -0.018,
       gulfShutInGdpSensitivity: 0,
     },
     china: {

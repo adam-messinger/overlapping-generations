@@ -80,7 +80,7 @@ console.log('\n--- Basic Dispatch ---\n');
 test('total generation covers demand x grid-loss factor (small shortfall ok)', () => {
   const { outputs } = runDispatch();
   // Required generation = delivered demand x gridLossFactor: T&D losses +
-  // station own use. With 8 regions, small shortfalls possible from
+  // station own use. With 9 regions, small shortfalls possible from
   // regional distribution.
   const required = 25000 * dispatchDefaults.gridLossFactor;
   expect(outputs.totalGeneration).toBeBetween(required - 2500, required + 100);

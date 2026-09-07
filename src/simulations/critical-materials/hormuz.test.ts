@@ -1,4 +1,4 @@
-import { expect, printSummary, test } from '../../test-utils.js';
+import { expect, printSummary, sumRegional, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
 import { REGIONS } from '../../domain-types.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
@@ -69,8 +69,8 @@ test('a prolonged closure exposes an inventory cliff', () => {
 test('regional exposure makes India more physically constrained than Latin America', () => {
   const july = calibrated.result.months.find((row) => row.month === 7)!;
   expect(july.regional.india.oilAvailability)
-    .toBeLessThan(july.regional.oecd.oilAvailability);
-  expect(july.regional.oecd.oilAvailability)
+    .toBeLessThan(july.regional['oecd-ex-us'].oilAvailability);
+  expect(july.regional['oecd-ex-us'].oilAvailability)
     .toBeLessThan(july.regional.latam.oilAvailability);
   expect(july.regional.india.gasAvailability)
     .toBeLessThan(july.regional.russia.gasAvailability);
@@ -123,6 +123,11 @@ test('the annual bridge rejects an accidental same-year shock overwrite', () => 
   expect(() => buildHormuzGlobalOverrides(result, {
     demand: { commodityShocks: [{ year: 2026 }] },
   })).toThrow('conflicts with existing year 2026');
+});
+
+test('regional oil and gas consumption weights each partition world use (sum to 1)', () => {
+  expect(sumRegional(hormuzDefaults.regions, r => r.oilConsumptionWeight)).toBeCloseTo(1, 9);
+  expect(sumRegional(hormuzDefaults.regions, r => r.gasConsumptionWeight)).toBeCloseTo(1, 9);
 });
 
 printSummary();

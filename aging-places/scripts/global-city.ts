@@ -46,8 +46,8 @@ function main(): void {
   const initialIncomeTotal = sum(coupled.city.data.statics.income0);
   const firstGlobal = coupled.global.results[0];
   const lastGlobal = coupled.global.results[coupled.global.results.length - 1];
-  const firstOecdShare = regionalGdpShare(firstGlobal, 'oecd');
-  const lastOecdShare = regionalGdpShare(lastGlobal, 'oecd');
+  const firstUsShare = regionalGdpShare(firstGlobal, 'us');
+  const lastUsShare = regionalGdpShare(lastGlobal, 'us');
 
   console.log(JSON.stringify({
     horizon: {
@@ -70,12 +70,12 @@ function main(): void {
         lastGlobal.gdp,
         years,
       ).toFixed(4),
-      oecdGdpShare: {
-        first: +firstOecdShare.toFixed(4),
-        last: +lastOecdShare.toFixed(4),
-        changePercentagePoints: +((lastOecdShare - firstOecdShare) * 100).toFixed(1),
+      usGdpShare: {
+        first: +firstUsShare.toFixed(4),
+        last: +lastUsShare.toFixed(4),
+        changePercentagePoints: +((lastUsShare - firstUsShare) * 100).toFixed(1),
       },
-      warning: 'OECD GDP per capita is a model-derived proxy; it is not a validated US income forecast.',
+      warning: 'US-region GDP per capita is a model-derived proxy; it is not a validated US income forecast.',
     },
     city: {
       standalone: {

@@ -1,164 +1,82 @@
 /**
- * Analyze W per capita by region across scenarios
+ * Analyze electricity W per capita by region across scenarios
  *
  * Usage: npx tsx scripts/analyze-w-per-capita.ts
  */
 
-import { runSimulation, runWithScenario } from '../src/index.js';
+import { runSimulation, runWithScenario, type SimulationResult, type YearResult } from '../src/index.js';
 import { Region, REGIONS } from '../src/domain-types.js';
 
-async function main() {
-  console.log('Analyzing W per capita by region...\n');
+const KEY_YEARS = [2025, 2040, 2060, 2080, 2100];
+const COL = 8;
 
-  // Run baseline
+/** Global final energy (kWh/day per capita → W) and regional electricity W per capita. */
+function wattsPerCapita(row: YearResult): { global: number; regional: Record<Region, number> } {
+  const regional = {} as Record<Region, number>;
+  for (const r of REGIONS) {
+    const generation = row.regionalGeneration?.[r] as Record<string, number> | undefined;
+    const genTWh = generation ? Object.values(generation).reduce((a, b) => a + b, 0) : 0;
+    const pop = row.regionalPopulation?.[r] ?? 0;
+    // TWh × 1e12 Wh / (pop × 8760 h) = W per capita
+    regional[r] = pop > 0 ? genTWh * 1e12 / (pop * 8760) : 0;
+  }
+  return { global: (row.finalEnergyPerCapitaDay ?? 0) * 1000 / 24, regional };
+}
+
+const rowAt = (result: SimulationResult, year: number) => result.results.find(y => y.year === year);
+const header = () => {
+  console.log(`Year   ${'Global'.padStart(COL)}${REGIONS.map(r => r.padStart(COL + 3)).join('')}`);
+};
+const signed = (n: number) => (n >= 0 ? '+' : '') + n.toFixed(0);
+
+function printTable(title: string, cells: (year: number) => { global: number; regional: Record<Region, number> } | undefined, format = (n: number) => n.toFixed(0)) {
+  console.log(`\n=== ${title} ===`);
+  header();
+  for (const year of KEY_YEARS) {
+    const w = cells(year);
+    if (!w) continue;
+    console.log(`${year}   ${format(w.global).padStart(COL)}${REGIONS.map(r => format(w.regional[r]).padStart(COL + 3)).join('')}`);
+  }
+}
+
+function printRegional(title: string, values: Record<Region, number> | undefined, format: (n: number) => string) {
+  console.log(`\n${title}`);
+  if (!values) return;
+  for (const r of REGIONS) console.log(`  ${r.padEnd(11)} ${format(values[r])}`);
+}
+
+async function main() {
+  console.log('Analyzing electricity W per capita by region...\n');
   console.log('Running baseline scenario...');
   const baseline = runSimulation();
-
-  // Run regional divergence
   console.log('Running regional-divergence scenario...');
   const { result: divergence } = await runWithScenario('scenarios/regional-divergence.json');
 
-  // Key years to compare
-  const keyYears = [2025, 2040, 2060, 2080, 2100];
+  const at = (result: SimulationResult) => (year: number) => {
+    const row = rowAt(result, year);
+    return row ? wattsPerCapita(row) : undefined;
+  };
+  printTable('BASELINE SCENARIO: electricity W per capita', at(baseline));
+  printTable('REGIONAL DIVERGENCE (US fossil lock-in, China accelerated solar)', at(divergence));
+  printTable('DIFFERENCE (Divergence - Baseline)', year => {
+    const base = at(baseline)(year);
+    const div = at(divergence)(year);
+    if (!base || !div) return undefined;
+    const regional = {} as Record<Region, number>;
+    for (const r of REGIONS) regional[r] = div.regional[r] - base.regional[r];
+    return { global: div.global - base.global, regional };
+  }, signed);
 
-  // Electricity W per capita by region
-  // TWh × 1e12 Wh / (population × 8760 hours) = W per capita
-  // = TWh × 1e12 / (pop × 8760)
-
-  console.log('\n=== BASELINE SCENARIO ===');
-  console.log('Electricity W per capita by region:\n');
-  console.log('Year     Global    OECD    China      EM     ROW');
-  console.log('----     ------    ----    -----      --     ---');
-
-  for (const yr of keyYears) {
-    const data = baseline.results.find((y: any) => y.year === yr) as any;
-    if (data) {
-      // Global W/capita from finalEnergyPerCapitaDay (kWh/day → W)
-      const globalW = (data.finalEnergyPerCapitaDay ?? 0) * 1000 / 24;
-
-      // Regional electricity W/capita using actual regional generation
-      const regionalW: Record<string, number> = {};
-
-      for (const r of REGIONS) {
-        // Get total generation for this region (TWh)
-        const regionGen = data.regionalGeneration?.[r] as Record<string, number> | undefined;
-        const genTWh = regionGen
-          ? Object.values(regionGen).reduce((a, b) => a + b, 0)
-          : 0;
-        // Get population (actual count)
-        const pop = data.regionalPopulation?.[r] ?? 0;
-        // Calculate W per capita: TWh × 1e12 Wh / (pop × 8760 hours)
-        regionalW[r] = pop > 0 ? genTWh * 1e12 / (pop * 8760) : 0;
-      }
-
-      console.log(
-        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW.oecd.toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
-      );
-    }
-  }
-
-  console.log('\n=== REGIONAL DIVERGENCE SCENARIO ===');
-  console.log('(OECD fossil lock-in, China accelerated solar)\n');
-  console.log('Year     Global    OECD    China      EM     ROW');
-  console.log('----     ------    ----    -----      --     ---');
-
-  for (const yr of keyYears) {
-    const data = divergence.results.find((y: any) => y.year === yr) as any;
-    if (data) {
-      const globalW = (data.finalEnergyPerCapitaDay ?? 0) * 1000 / 24;
-
-      const regionalW: Record<string, number> = {};
-
-      for (const r of REGIONS) {
-        const regionGen = data.regionalGeneration?.[r] as Record<string, number> | undefined;
-        const genTWh = regionGen
-          ? Object.values(regionGen).reduce((a, b) => a + b, 0)
-          : 0;
-        const pop = data.regionalPopulation?.[r] ?? 0;
-        regionalW[r] = pop > 0 ? genTWh * 1e12 / (pop * 8760) : 0;
-      }
-
-      console.log(
-        `${yr}     ${globalW.toFixed(0).padStart(6)}  ${regionalW.oecd.toFixed(0).padStart(6)}  ${regionalW.china.toFixed(0).padStart(6)}  ${regionalW.em.toFixed(0).padStart(6)}  ${regionalW.row.toFixed(0).padStart(6)}`
-      );
-    }
-  }
-
-  // Show difference
-  console.log('\n=== DIFFERENCE (Divergence - Baseline) ===');
-  console.log('Year     Global    OECD    China      EM     ROW');
-  console.log('----     ------    ----    -----      --     ---');
-
-  for (const yr of keyYears) {
-    const base = baseline.results.find((y: any) => y.year === yr) as any;
-    const div = divergence.results.find((y: any) => y.year === yr) as any;
-    if (base && div) {
-      const baseGlobalW = (base.finalEnergyPerCapitaDay ?? 0) * 1000 / 24;
-      const divGlobalW = (div.finalEnergyPerCapitaDay ?? 0) * 1000 / 24;
-
-      const baseW: Record<string, number> = {};
-      const divW: Record<string, number> = {};
-
-      for (const r of REGIONS) {
-        const basePop = base.regionalPopulation?.[r] ?? 0;
-        const divPop = div.regionalPopulation?.[r] ?? 0;
-
-        const baseRegionGen = base.regionalGeneration?.[r] as Record<string, number> | undefined;
-        const divRegionGen = div.regionalGeneration?.[r] as Record<string, number> | undefined;
-        const baseGenTWh = baseRegionGen ? Object.values(baseRegionGen).reduce((a, b) => a + b, 0) : 0;
-        const divGenTWh = divRegionGen ? Object.values(divRegionGen).reduce((a, b) => a + b, 0) : 0;
-
-        baseW[r] = basePop > 0 ? baseGenTWh * 1e12 / (basePop * 8760) : 0;
-        divW[r] = divPop > 0 ? divGenTWh * 1e12 / (divPop * 8760) : 0;
-      }
-
-      const diff = {
-        global: divGlobalW - baseGlobalW,
-        oecd: divW.oecd - baseW.oecd,
-        china: divW.china - baseW.china,
-        em: divW.em - baseW.em,
-        row: divW.row - baseW.row,
-      };
-      const sign = (n: number) => n >= 0 ? '+' : '';
-      console.log(
-        `${yr}     ${sign(diff.global)}${diff.global.toFixed(0).padStart(5)}  ${sign(diff.oecd)}${diff.oecd.toFixed(0).padStart(5)}  ${sign(diff.china)}${diff.china.toFixed(0).padStart(5)}  ${sign(diff.em)}${diff.em.toFixed(0).padStart(5)}  ${sign(diff.row)}${diff.row.toFixed(0).padStart(5)}`
-      );
-    }
-  }
-
-  // Also show fossil share comparison
+  const base2050 = rowAt(baseline, 2050);
+  const div2050 = rowAt(divergence, 2050);
+  const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  const kg = (n: number) => n.toFixed(0);
   console.log('\n=== FOSSIL SHARE BY REGION (2050) ===');
-  const base2050 = baseline.results.find((y: any) => y.year === 2050) as any;
-  console.log('\nBaseline:');
-  if (base2050?.regionalFossilShare) {
-    for (const r of REGIONS) {
-      console.log(`  ${r.toUpperCase().padEnd(6)}: ${(base2050.regionalFossilShare[r] * 100).toFixed(1)}%`);
-    }
-  }
-
-  const div2050 = divergence.results.find((y: any) => y.year === 2050) as any;
-  console.log('\nDivergence:');
-  if (div2050?.regionalFossilShare) {
-    for (const r of REGIONS) {
-      console.log(`  ${r.toUpperCase().padEnd(6)}: ${(div2050.regionalFossilShare[r] * 100).toFixed(1)}%`);
-    }
-  }
-
-  // Show grid intensity
-  console.log('\n=== GRID INTENSITY BY REGION (kg CO₂/MWh) ===');
-  console.log('\nBaseline 2050:');
-  if (base2050?.regionalGridIntensity) {
-    for (const r of REGIONS) {
-      console.log(`  ${r.toUpperCase().padEnd(6)}: ${base2050.regionalGridIntensity[r].toFixed(0)}`);
-    }
-  }
-
-  console.log('\nDivergence 2050:');
-  if (div2050?.regionalGridIntensity) {
-    for (const r of REGIONS) {
-      console.log(`  ${r.toUpperCase().padEnd(6)}: ${div2050.regionalGridIntensity[r].toFixed(0)}`);
-    }
-  }
+  printRegional('Baseline:', base2050?.regionalFossilShare, pct);
+  printRegional('Divergence:', div2050?.regionalFossilShare, pct);
+  console.log('\n=== GRID INTENSITY BY REGION (kg CO₂/MWh, 2050) ===');
+  printRegional('Baseline:', base2050?.regionalGridIntensity, kg);
+  printRegional('Divergence:', div2050?.regionalGridIntensity, kg);
 }
 
 main().catch(console.error);
