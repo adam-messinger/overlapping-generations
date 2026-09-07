@@ -154,7 +154,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 ## Key Models
 
 ### Energy
-- **Solar/Wind**: Wright's Law learning curves (α=0.36 solar, α=0.23 wind); regional capacity factors are fleet-calibrated (`REGIONAL_SOLAR_CF` / `REGIONAL_WIND_CF`; wind `referenceCF` = the capacity-weighted 2025 fleet CF so `cost0` stays the fleet-average LCOE), then degraded by site depletion with cumulative build
+- **Solar/Wind**: Wright's Law learning curves (α=0.36 solar, α=0.23 wind); regional wind CFs are 2024 fleet averages and wind `referenceCF` is derived as their fleet-weighted mean (solar's table is still mixed-convention; depletion counts build from zero — both follow-ups noted at `RegionalEnergyParams.capacityFactor`)
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
 - **WACC**: Interest rate → WACC → LCOE channel (capital-intensive sources penalized when rates high)
