@@ -10,7 +10,7 @@
  *   npx tsx scripts/human-capital.ts [--scenario=baseline] [--years=2025,2050,2100]
  */
 
-import { EDUCATION_BANDS, REGIONS, REGION_NAMES } from '../src/domain-types.js';
+import { EDUCATION_BANDS, REGIONS, REGION_NAMES, REGION_NAME_WIDTH } from '../src/domain-types.js';
 import { runSimulation, runWithScenario, type SimulationResult, type YearResult } from '../src/simulation.js';
 import { getScenarioPath } from '../src/scenario.js';
 
@@ -55,10 +55,10 @@ function report(result: SimulationResult, label: string) {
   const first = result.results[0];
   const last = result.results[result.results.length - 1];
   console.log(`\nBy region (${first.year} -> ${last.year}): investment, depreciation + write-offs, net, migration transfer (at own cost), inv/GDP`);
-  console.log('Region               inv0  chg0   net0   mig0  share0 |   inv1    chg1    net1    mig1  share1');
-  console.log('------------------  -----  ----  -----  -----  ------ |  -----   -----   -----   -----  ------');
+  console.log(`${'Region'.padEnd(REGION_NAME_WIDTH)}   inv0  chg0   net0   mig0  share0 |   inv1    chg1    net1    mig1  share1`);
+  console.log(`${'-'.repeat(REGION_NAME_WIDTH)}  -----  ----  -----  -----  ------ |  -----   -----   -----   -----  ------`);
   for (const region of REGIONS) {
-    console.log(`${REGION_NAMES[region].padEnd(18)}  ${regionCells(first, region, 2)} |  ${regionCells(last, region, 1)}`);
+    console.log(`${REGION_NAMES[region].padEnd(REGION_NAME_WIDTH)}  ${regionCells(first, region, 2)} |  ${regionCells(last, region, 1)}`);
   }
 
   console.log('\nMigration (world): inflows at destination cost / outflows at origin cost / revaluation gain, $T/yr');

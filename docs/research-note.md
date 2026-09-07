@@ -44,7 +44,7 @@ Demographics --> Production --> Demand --> Capital --> Energy -->
 
 Each module is a pure function implementing `init(params) -> state` and `step(state, inputs, params) -> {state, outputs}`. Modules communicate only through declared inputs and outputs, wired automatically by a dependency-resolving framework. Feedback loops (e.g., climate damages affecting GDP affecting emissions) operate through one-year lags.
 
-The system tracks approximately 95 output fields per year across eight world regions: OECD, China, India+South Asia, Latin America, Southeast Asia, Russia+CIS, MENA, and Sub-Saharan Africa.
+The system tracks approximately 95 output fields per year across nine world regions: the United States, OECD ex-US, China, India+South Asia, Latin America, Southeast Asia+Pacific, Russia+CIS, MENA, and Sub-Saharan Africa.
 
 ### 2.1 Production (Biophysical Cobb-Douglas)
 

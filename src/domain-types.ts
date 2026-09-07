@@ -21,6 +21,8 @@ export const REGION_NAMES: Record<Region, string> = {
   mena: 'MENA',
   ssa: 'Sub-Saharan Africa',
 };
+/** Column width that fits every REGION_NAMES entry (row labels: `REGION_NAMES[r].padEnd(REGION_NAME_WIDTH)`). */
+export const REGION_NAME_WIDTH = Math.max(...Object.values(REGION_NAMES).map(name => name.length));
 
 /** Energy source identifiers */
 export type EnergySource = 'solar' | 'wind' | 'gas' | 'coal' | 'nuclear' | 'hydro' | 'battery';
