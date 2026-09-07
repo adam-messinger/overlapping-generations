@@ -1,0 +1,68 @@
+{
+  "source": "scripts/human-capital-trajectory.ts --emit",
+  "multipliers": {
+    "none": 3.68,
+    "primary": 4.880000000000001,
+    "secondary": 6.840000000000001,
+    "tertiary": 9.360000000000001,
+    "advanced": 11.780000000000001
+  },
+  "entryAge": {
+    "none": 16,
+    "primary": 16,
+    "secondary": 18,
+    "tertiary": 22,
+    "advanced": 26
+  },
+  "workingLife": {
+    "primary": 31.763660603968642,
+    "secondary": 36.44667335769511,
+    "tertiary": 38.55973427718789,
+    "advanced": 37.72511815628131,
+    "none": 31.763660603968642
+  },
+  "advancedShare": {
+    "us": 0.35,
+    "oecd-ex-us": 0.28,
+    "china": 0.15,
+    "india": 0.15,
+    "latam": 0.1,
+    "seasia": 0.1,
+    "russia": 0.25,
+    "mena": 0.12,
+    "ssa": 0.08
+  },
+  "regions": [
+    "us",
+    "oecd-ex-us",
+    "china",
+    "india",
+    "latam",
+    "seasia",
+    "russia",
+    "mena",
+    "ssa"
+  ],
+  "regionNames": {
+    "us": "United States",
+    "oecd-ex-us": "OECD ex-US",
+    "china": "China",
+    "india": "India + South Asia",
+    "latam": "Latin America",
+    "seasia": "SE Asia + Pacific",
+    "russia": "Russia + CIS",
+    "mena": "MENA",
+    "ssa": "Sub-Saharan Africa"
+  },
+  "pop2025": {
+    "us": 340000000,
+    "oecd-ex-us": 800000000,
+    "china": 1410000000,
+    "india": 1970000000,
+    "latam": 670000000,
+    "seasia": 700000000,
+    "russia": 290000000,
+    "mena": 600000000,
+    "ssa": 1380000000
+  }
+}

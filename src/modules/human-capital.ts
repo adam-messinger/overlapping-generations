@@ -212,24 +212,26 @@ export const humanCapitalDefaults: HumanCapitalParams = {
   },
   // Room, board, and care per child-year as a fraction of GDP per capita.
   // USDA Expenditures on Children by Families (2017 report, 2015 data):
-  // ~$13k/yr for a middle-income two-child family vs. US GDP/capita ~$57k
-  // -> 0.23 (out-of-pocket only, excludes public schooling and parental
-  // time). National Transfer Accounts (Lee & Mason 2011): child consumption
-  // incl. public education ~0.45-0.50 of GDP/capita. 0.30 sits between the
-  // out-of-pocket figure and the NTA total net of schooling, which is
-  // priced separately above.
-  rearingCostShare: 0.30,
-  // Foregone earnings: the cost-based accounts of Kendrick (1976), Eisner
-  // (1985), Abraham (2010), and Mallatt (BEA 2026) all count the earnings
-  // students give up while in school beyond the age at which they could
-  // work. Here every pre-entry year at or above 16 (Kendrick used 14; legal
-  // full-time working ages 15-16 in most OECD countries) costs 0.45 of GDP
-  // per capita: US full-time median earnings at ages 18-24 ~$35k vs
-  // GDP/capita ~$82k (Census CPS 2023); Mallatt values student time at CPS
-  // wages of same-age workers. Set foregoneEarningsShare to 0 for the
-  // explicit-outlay (USDA + OECD spending) measure alone.
+  // $233,610 through age 17 for a middle-income married-couple family,
+  // ~$13k/yr against US GDP/capita ~$57k -> 0.23, out-of-pocket only
+  // (excludes public schooling, priced separately above, and parental
+  // time). The G7-BRIC cost-based account (v4, Sept 2026) uses the same
+  // anchor: US care through 18 of $295,711 against GDP/capita ~$70.6k =
+  // 0.23. National Transfer Accounts child consumption incl. public
+  // education (Lee & Mason 2011) is ~0.45-0.50 and is the upper bound.
+  rearingCostShare: 0.23,
+  // Foregone earnings: Kendrick (1976), Eisner (1985), Abraham (2010) and
+  // Mallatt (BEA 2026) count the earnings students give up while in school
+  // beyond the age at which they could work. The default is the
+  // explicit-outlay measure (USDA rearing + OECD spending per student) and
+  // prices this opportunity cost at 0; the UNECE Guide on Measuring Human
+  // Capital (2016) and the G7-BRIC account treat it as out of scope for a
+  // cost-based stock. Set foregoneEarningsShare to 0.45 (US full-time
+  // median earnings at ages 18-24 ~$35k vs GDP/capita ~$82k, Census CPS
+  // 2023) for the Kendrick/BEA convention; it applies to every pre-entry
+  // year at or above foregoneEarningsFromAge (16; Kendrick used 14).
   foregoneEarningsFromAge: 16,
-  foregoneEarningsShare: 0.45,
+  foregoneEarningsShare: 0,
   secondaryCompletionConvergence: 0.02, // ~35-yr half-life, same order as demographics' enrollment convergence
   initialWorkingSpan: 45,               // demographics' working cohort spans ages 20-64
   // Migrants are early-career: median age of new permanent migrants to OECD
@@ -685,15 +687,15 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
 
   paramMeta: {
     rearingCostShare: {
-      description: 'Annual room, board, and care per child as a fraction of GDP per capita. USDA out-of-pocket ~0.23; NTA child consumption ~0.45 incl. schooling.',
+      description: 'Annual room, board, and care per child as a fraction of GDP per capita. USDA out-of-pocket 0.23 (default); NTA child consumption ~0.45 incl. schooling.',
       unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.30 },
+      range: { min: 0, max: 1, default: 0.23 },
       tier: 1 as const,
     },
     foregoneEarningsShare: {
-      description: "Earnings a student forgoes per school year at or above the working age, as a fraction of GDP per capita (Kendrick/BEA convention; 0 = explicit outlays only).",
+      description: "Earnings a student forgoes per school year at or above the working age, as a fraction of GDP per capita. 0 (default) = explicit outlays only; 0.45 = the Kendrick/BEA convention.",
       unit: 'fraction',
-      range: { min: 0, max: 1.5, default: 0.45 },
+      range: { min: 0, max: 1.5, default: 0 },
       tier: 1 as const,
     },
     migrantTenureScale: {

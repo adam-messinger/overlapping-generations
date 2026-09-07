@@ -57,11 +57,15 @@ unitCost[region][band] = GDP per capita[region]
                            + foregoneEarningsShare x max(0, entryAge[band] - foregoneEarningsFromAge) )
 ```
 
-`rearingCostShare` (0.30) prices room, board, and care per child-year as a
-fraction of GDP per capita. The USDA's out-of-pocket estimate for a
-middle-income US family is about 0.23 of GDP per capita; National Transfer
-Accounts child consumption including public education is about 0.45-0.50. The
-default sits between them because schooling is priced separately.
+`rearingCostShare` (0.23) prices room, board, and care per child-year as a
+fraction of GDP per capita, at the USDA's out-of-pocket estimate for a
+middle-income US family (*Expenditures on Children by Families*, 2017:
+$233,610 through age 17, about $13k a year against GDP per capita of about
+$57k). The G7-BRIC cost-based account (September 2026) uses the same
+anchor. National Transfer Accounts child consumption including public
+education is about 0.45-0.50 of GDP per capita and is the upper bound;
+0.30, the midpoint net of schooling, was the default before September
+2026.
 
 Per-student schooling costs use total (public plus private) spending per
 student as a fraction of GDP per capita from OECD Education at a Glance 2023
@@ -69,15 +73,18 @@ student as a fraction of GDP per capita from OECD Education at a Glance 2023
 stage is set above the tertiary average for research-intensive per-student
 costs.
 
-`foregoneEarningsShare` (0.45) prices the earnings a not-yet-working
-dependent gives up in each pre-entry year at or above the working age
-(`foregoneEarningsFromAge`, 16). Kendrick, Eisner, Abraham, and the BEA's
-2026 accounts all count this opportunity cost; 0.45 of GDP per capita is
-the US full-time median wage at ages 18-24 relative to GDP per capita. It
-adds 2 years of cost to the secondary band, 6 to tertiary, and 10 to
-advanced, and nothing to primary. A single share understates the wage a
-degree holder forgoes in postgraduate years and overstates it at 16-18;
-set the share to 0 for an explicit-outlay measure.
+`foregoneEarningsShare` (0 by default) prices the earnings a
+not-yet-working dependent gives up in each pre-entry year at or above the
+working age (`foregoneEarningsFromAge`, 16). The default is the
+explicit-outlay measure: rearing plus spending per student, with the
+opportunity cost of student time out of scope, as in the UNECE guide and
+the G7-BRIC account. Kendrick, Eisner, Abraham, and the BEA's 2026
+accounts do count it; setting the share to 0.45 of GDP per capita (the US
+full-time median wage at ages 18-24 relative to GDP per capita) gives that
+convention. At 0.45 it adds 2 years of cost to the secondary band, 6 to
+tertiary, and 10 to advanced, and nothing to primary; a single share
+understates the wage a degree holder forgoes in postgraduate years and
+overstates it at 16-18.
 
 Because every cost is a multiple of current GDP per capita, the ledger is a
 **current-cost** (replacement-cost) account: the opening stock is revalued
@@ -190,9 +197,9 @@ steady state (constant entrants, cost, life):
 
 ## What the default path shows
 
-With default parameters the 2025 ledger capitalizes about 13% of world GDP a
-year in new entrants and charges about the same in depreciation plus
-write-offs. The flows diverge by region in the way the age structure implies:
+With default parameters the 2025 ledger capitalizes about 10% of world GDP a
+year in new entrants and charges the same in depreciation plus write-offs,
+so the world is at break-even on a net basis from the start of the run. The flows diverge by region in the way the age structure implies:
 Sub-Saharan Africa, MENA, and India invest well above depreciation (a growing,
 younger workforce), while China and the OECD already charge more than they
 add. Globally the tertiary band overtakes the secondary band as the largest
@@ -272,11 +279,15 @@ choices below are either standard practice or a documented departure from it.
    The ledger capitalizes room, board, and care through the band's entry age
    (16-26), the inclusive end of the range. A `rearingEndAge` cap would give a
    Kendrick-style sensitivity; with rearing removed, the 2025 investment
-   flow falls from about 13% to about 6% of world GDP.
-2. *Parental time.* Kendrick, Eisner, Abraham, and Mallatt count students'
-   foregone earnings, which the ledger now includes
-   (`foregoneEarningsShare`); Mallatt also values parental time, which the
-   ledger still excludes.
+   flow falls from about 10% to about 4% of world GDP.
+2. *Student and parental time.* Kendrick, Eisner, Abraham, and Mallatt
+   count students' foregone earnings, which the ledger can price
+   (`foregoneEarningsShare`) but excludes by default, following the UNECE
+   guide's explicit-cost scope; at the Kendrick/BEA share of 0.45 the 2025
+   flow is about 12% of world GDP and the world's net investment stays
+   positive until 2046 instead of turning negative at once, because the
+   opportunity cost weights the young, tertiary-heavy cohorts. Mallatt also
+   values parental time, which the ledger excludes.
 3. *Post-entry investment.* Kendrick and the Lisbon Council capitalize
    training and learning on the job, and the income evidence shows human
    capital appreciating to mid-career. The ledger is deliberately a
@@ -290,14 +301,16 @@ choices below are either standard practice or a documented departure from it.
    so it is left as an explicit scenario choice rather than a default.
 5. *Magnitude check.* Mallatt's US cost-based investment is about 10% of
    GDP for education alone including student and parent time; this ledger's
-   world figure is rearing plus schooling plus students' foregone earnings
-   (about 13% of GDP in 2025, 11% without the foregone earnings and 6%
-   without rearing).
+   world figure is rearing plus schooling (about 10% of GDP in 2025; 12%
+   with students' foregone earnings, 11% with rearing at the NTA-midpoint
+   0.30, and 4% without rearing). The G7-BRIC account's 2025 US investment
+   of $2.4T is within 15% of this ledger's $2.7T on the same scope, the
+   remainder being its participation filter at entry.
 
 The recommendation is to keep the current structure (it is the cost-based
 perpetual inventory with the income-based school's treatment of working
-life) and expose rearing scope and obsolescence as sensitivity dials rather
-than change the defaults.
+life) and keep the explicit-outlay scope as the default, with foregone
+earnings, rearing scope, and obsolescence as sensitivity dials.
 
 ## Interpretation limits
 

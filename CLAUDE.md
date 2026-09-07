@@ -233,11 +233,11 @@ Do this before committing. Most fix-up commits in project history would have bee
 
 ### Human-Capital Ledger (diagnostic, no feedback)
 - Cost-based (Kendrick) accounting: each year's workforce entrants are
-  capitalized at CURRENT REPLACEMENT COST (rearing through entry age +
-  schooling stages + students' foregone earnings above age 16, all as
-  multiples of regional GDP per capita), banded by four education levels
-  (primary / secondary / tertiary / advanced); `foregoneEarningsShare` = 0
-  gives the explicit-outlay measure
+  capitalized at CURRENT REPLACEMENT COST (USDA rearing through entry age +
+  OECD schooling stages, as multiples of regional GDP per capita; the
+  explicit-outlay scope), banded by four education levels (primary /
+  secondary / tertiary / advanced); `foregoneEarningsShare` = 0.45 adds
+  students' foregone earnings above age 16 (the Kendrick/BEA convention)
 - Straight-line depreciation over EXPECTED TIME IN THE WORKFORCE, not
   retirement minus entry: a survival curve with death, disability,
   domestic-role, and retirement exits (calibrated to Eurostat duration of
@@ -251,6 +251,14 @@ Do this before committing. Most fix-up commits in project history would have bee
   ledgers, each region booking the transfer at its own replacement cost
   (`humanCapitalMigrationRevaluation` = the world-level brain-gain premium)
 - Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
+- Trajectory (constant-cost stock by region, peak years, migration):
+  `npm run human-capital:trajectory`; see `docs/HUMAN_CAPITAL_TRAJECTORY.md`
+- 1925-2025 reconstruction from Lee-Lee/Barro-Lee, UN WPP, and Maddison:
+  `scripts/human-capital-backcast.py` (pandas; derived CSVs in `data/human-capital/`)
+- The reconstruction and `scripts/human-capital-figure.py` read the ledger's
+  constants and the model's constant-cost index from `data/human-capital/`,
+  written by `npm run human-capital:trajectory -- --emit=data/human-capital`;
+  `scripts/human-capital-note-html.py` renders a note for its PDF
 
 ## Scenarios
 
