@@ -95,9 +95,29 @@ This folder contains reference materials for the simulation's demographics and c
 
 ## Key Papers and Resources
 
-### 1. Fernández-Villaverde Slides: "The Demographic Future of Humanity"
-- URL: https://sas.upenn.edu/~jesusfv/Slides_London.pdf
-- Key insights: Global TFR already below replacement, population peaks 2050-2060, then declines
+### 1. Fernández-Villaverde Slides: "The Demographic Future of Humanity: Facts and Consequences"
+- Jesús Fernández-Villaverde (Penn / NBER / CEPR), **31 May 2025**
+- URL: https://www.sas.upenn.edu/~jesusfv/Slides_London.pdf
+- Key claims, quoted from the deck:
+  - "2023 was likely the first year in human history when our fertility rate fell
+    below the replacement rate."
+  - World TFR 2024 "likely to be around 2.17 instead of 2.25"; world replacement
+    rate "around 2.21" — so humanity is "already below the replacement rate".
+  - "The world population will start falling c. 2055."
+  - **"A more likely scenario, given current policy, is that the peak of world
+    population would be around 2055. By the way, this is the low-fertility
+    scenario from the WPP 2024."** This is the sentence the model's demographics
+    are calibrated against: FV endorses the WPP 2024 **low** variant, not the
+    medium.
+  - He also thinks UN *levels* are too high, not just the fertility path: recent
+    censuses put Brazil at 203M rather than 212M and Paraguay at 6.1M rather than
+    6.9M, and he suspects the same for much of Africa. Correcting Brazil alone
+    moves the UN medium peak from 2084 to 2080.
+  - Stated current TFRs: China ~1.1, India ~1.9, and "most likely it is already
+    the case that TFR_US > TFR_Mexico".
+  - Migration accelerates origin-country decline: "Colombia's population is
+    already declining due to high migration to the U.S. and Spain" — the same
+    origin-side write-off the human-capital ledger books.
 
 ### 2. NBER Working Paper 29480: "Demographic Transitions Across Time and Space"
 - URL: https://www.nber.org/papers/w29480
@@ -120,12 +140,25 @@ This folder contains reference materials for the simulation's demographics and c
 
 ## Model Calibration Targets (from sources above)
 
-| Metric | Target | Source |
-|--------|--------|--------|
-| Global Pop 2025 | ~8.3B | Current data |
-| Population Peak | ~9.5B, 2055-2060 | Fernández-Villaverde |
-| Pop 2100 | ~8-9B (declining) | Fernández-Villaverde |
-| China 2100 | ~700M (50% decline) | Fernández-Villaverde |
+> **Corrected September 2026.** The three Fernández-Villaverde rows below used to
+> read "peak ~9.5B in 2055-2060", "2100 ~8-9B" and "China 2100 ~700M". Those do
+> not match his May 2025 position, which explicitly endorses the WPP 2024 **low**
+> variant (peak ~8.95B in 2052, 6.97B in 2100). They appear to have come from an
+> earlier, milder reading, and the demographics module was calibrated to them —
+> which is how it ended up running a medium-variant fertility path while
+> describing itself as low-variant. Targets restated below against the primary
+> source and WPP 2024 low.
+
+| Metric | Target | Source | Model (Sept 2026) |
+|--------|--------|--------|-------------------|
+| Global Pop 2025 | ~8.2B | UN WPP 2024 | 8.21B |
+| World TFR, today | 2.17 (replacement 2.21) | FV May 2025 slides | 1.90 — WPP low front-loads its fertility cut, so the model starts below observed |
+| Population peak | ~8.95B in 2052 (WPP low); FV says "around 2055" | FV endorses WPP low | 8.70B in 2045 |
+| Population starts falling | c. 2055 | FV May 2025 slides | 2046 |
+| Pop 2100 | ~6.97B | UN WPP 2024 low | 6.95B |
+| China 2100 | ~0.41B | UN WPP 2024 low | 0.64B (two coarse working bands cannot follow China's inversion; upper bound) |
+| China TFR today | ~1.1 | FV May 2025 slides | 0.77 (WPP low's assumption, below FV's estimate of the actual) |
+| India TFR today | ~1.9 | FV May 2025 slides | 1.93 |
 | Global Dependency 2075 | ~44% | Model projection |
 | China steepest aging | Yes | Low TFR effect |
 | China college share 2025 | ~22% | World Bank |
