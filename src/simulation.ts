@@ -225,6 +225,7 @@ export interface YearResult {
   humanCapitalMigrationInflows: number;     // $T/year, at destination replacement cost
   humanCapitalMigrationOutflows: number;    // $T/year, at origin replacement cost
   humanCapitalMigrationRevaluation: number; // $T/year, inflows - outflows
+  humanCapitalLifeRevaluation: number;      // $T/year, opening stock re-priced for the change in useful life
   humanCapitalByBand: Record<EducationBand, HumanCapitalBandAccount>;
   regionalHumanCapital: Record<Region, HumanCapitalRegionAccount>;
 

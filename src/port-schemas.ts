@@ -327,6 +327,7 @@ interface HumanCapitalBandRow {
   investment: number;
   depreciation: number;
   writeOffs: number;
+  lifeRevaluation: number;
   grossStock: number;
   netStock: number;
   deaths: number;
@@ -343,6 +344,7 @@ const humanCapitalBandRow = objectPort<HumanCapitalBandRow>({
   investment: unitPort('$T/year'),
   depreciation: unitPort('$T/year'),
   writeOffs: unitPort('$T/year'),
+  lifeRevaluation: unitPort('$T/year'),
   grossStock: unitPort('$T'),
   netStock: unitPort('$T'),
   deaths: unitPort('people/year'),
@@ -366,6 +368,7 @@ interface HumanCapitalRegionRow {
   investmentGdpShare: number;
   migrationNetPeople: number;
   migrationTransfer: number;
+  lifeRevaluation: number;
 }
 
 const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
@@ -378,6 +381,7 @@ const humanCapitalRegionRow = objectPort<HumanCapitalRegionRow>({
   investmentGdpShare: unitPort('fraction'),
   migrationNetPeople: unitPort('people/year'),
   migrationTransfer: unitPort('$T/year'),
+  lifeRevaluation: unitPort('$T/year'),
 });
 
 export const HUMAN_CAPITAL_REGION_PORT = recordPort<HumanCapitalRegionRow>(
