@@ -15,8 +15,12 @@ import {
   validateWiring,
   yearZeroFallback,
   optionalOutput,
+  compileWiring,
+  initAutowired,
+  stepAutowired,
 } from '../src/autowire.js';
 import { defineModule } from '../src/module.js';
+import { unitPort } from '../src/units.js';
 import { okValidate, throwsWith } from './helpers.js';
 
 // Most tests in this file predate unit contracts and exercise unrelated
@@ -1121,4 +1125,99 @@ test('external parameter reads cover transform/composition closures', () => {
     result.diagnostics?.parameterLiveness?.externalParams.unreadOverridePaths,
     [],
   );
+});
+
+// =============================================================================
+// COMPILED WIRING (bootstrap reuse)
+// =============================================================================
+
+test('a compiled wiring drives the same run as compiling per init', () => {
+  const config = { ...bootstrapFixtureConfig(true), connectorValidation: 'off' as const };
+  const compiled = compileWiring(config);
+
+  const run = (c?: typeof compiled) => {
+    const state = initAutowired(config, c);
+    const seen: unknown[] = [];
+    while (!(stepAutowired(state).done)) seen.push(state.currentOutputs.seen);
+    return seen;
+  };
+  assert.deepEqual(run(compiled), run(undefined));
+});
+
+test('compiled wiring preserves the bootstrap fixed point exactly', () => {
+  // prepareAutowiredConfig compiles once and reuses it across iterations; the
+  // converged result must match what per-iteration compilation produced.
+  const warm = runAutowired({ ...bootstrapFixtureConfig(true), bootstrapLags: 2 });
+  assert.equal(getOutputsAtYear(warm, 0).seen, 100);
+  assert.equal(getOutputsAtYear(warm, 1).seen, 100);
+});
+
+test('compileWiring still rejects a dependency cycle', () => {
+  const a = defineModule({
+    name: 'cycleA', description: '', defaults: {},
+    inputs: ['fromB'] as const, outputs: ['fromA'] as const,
+    validate: okValidate, mergeParams: (p) => p, init: () => ({}),
+    step: () => ({ state: {}, outputs: { fromA: 1 } }),
+  });
+  const b = defineModule({
+    name: 'cycleB', description: '', defaults: {},
+    inputs: ['fromA'] as const, outputs: ['fromB'] as const,
+    validate: okValidate, mergeParams: (p) => p, init: () => ({}),
+    step: () => ({ state: {}, outputs: { fromB: 1 } }),
+  });
+  throwsWith(
+    () => compileWiring({
+      modules: [a, b], startYear: 2025, endYear: 2026, connectorValidation: 'off',
+    }),
+    'cycle',
+  );
+});
+
+test('a bad lag initial is still caught when the wiring is precompiled', () => {
+  // The per-iteration path skips the full audit, so lag initials -- the one
+  // thing the bootstrap loop varies -- get their own check.
+  const contract = unitPort('MW');
+  const source = defineModule({
+    name: 'contractedFlow',
+    description: 'Contracted constant source',
+    defaults: {},
+    inputs: [] as const,
+    outputs: ['flow'] as const,
+    connectorTypes: { inputs: {}, outputs: { flow: contract } },
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: () => ({ state: {}, outputs: { flow: 100 } }),
+  });
+  const sink = defineModule({
+    name: 'contractedEcho',
+    description: 'Contracted lagged echo',
+    defaults: {},
+    inputs: ['laggedFlow'] as const,
+    outputs: ['seen'] as const,
+    connectorTypes: { inputs: { laggedFlow: contract }, outputs: { seen: contract } },
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_s, inputs) => ({ state: {}, outputs: { seen: inputs.laggedFlow } }),
+  });
+  const config = {
+    modules: [source, sink],
+    lags: {
+      laggedFlow: { source: 'flow', delay: 1, initial: 55, bootstrap: true, contract },
+    },
+    startYear: 2025,
+    endYear: 2026,
+  };
+  const compiled = compileWiring(config);
+  const broken = {
+    ...config,
+    lags: {
+      laggedFlow: {
+        ...config.lags.laggedFlow,
+        initial: 'not a number' as unknown as number,
+      },
+    },
+  };
+  throwsWith(() => initAutowired(broken, compiled), 'Lag');
 });
