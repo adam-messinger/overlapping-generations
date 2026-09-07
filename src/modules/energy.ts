@@ -305,21 +305,22 @@ const REGIONAL_SOLAR_CF: Record<Region, number> = {
 /**
  * Regional Wind Capacity Factors
  *
- * US fleet ~0.34 (EIA Electric Power Monthly 2023); OECD ex-US ~0.27
- * (WindEurope 2023: onshore 24%, offshore 38%; Japan/Korea lower). The
- * other regions carry the model's long-standing 0.30 placeholder and are
- * not yet fleet-calibrated (China ~0.25 and Brazil ~0.42 would move most).
+ * Convention (same as the fleet-sourced solar rows): the 2024 FLEET-average
+ * CF, i.e. what the installed turbines actually delivered net of curtailment.
+ * Site depletion then degrades it with cumulative build from the 2025 level,
+ * as for solar. Sanity check: 988 GW x 0.276 x 8,760 h = 2,390 TWh vs
+ * Ember/IEA 2024 global wind ~2,400-2,500 TWh.
  */
 const REGIONAL_WIND_CF: Record<Region, number> = {
-  us: 0.34,
-  'oecd-ex-us': 0.27,
-  china: 0.30,
-  india: 0.30,
-  latam: 0.30,
-  seasia: 0.30,
-  russia: 0.30,
-  mena: 0.30,
-  ssa: 0.30,
+  us: 0.34,           // EIA Electric Power Monthly 2023 fleet CF 33.5%; LBNL Land-Based Wind Market Report 2024 ~34%
+  'oecd-ex-us': 0.27, // WindEurope 2023: onshore 24%, offshore 38%; IEA Wind TCP 2023 Japan/Korea ~22%
+  china: 0.25,        // NEA 2023: 2,225 utilization hours = 0.254; Ember 2024 generation / IRENA 2024 capacity ~0.25
+  india: 0.23,        // CEA 2023-24 wind CUF 22-24%; Ember 2024 ~80 TWh on ~45 GW = 0.21
+  latam: 0.40,        // ONS/ABEEólica 2023 Brazil fleet ~0.42; CAMMESA Argentina ~0.45; Mexico ~0.35; capacity-weighted ~0.40
+  seasia: 0.25,       // Vietnam EVN/ERAV 2023 onshore+nearshore ~0.25-0.28 net of curtailment; Thailand/Philippines ~0.22 (weakly sourced, ~5 GW)
+  russia: 0.30,       // SO UPS annual report: Ulyanovsk/Rostov fleets 28-33%; KEGOC Kazakhstan ~0.30 (weakly sourced, ~2 GW)
+  mena: 0.36,         // NREA Egypt Gulf of Suez ~0.40-0.45 (older Zafarana ~0.32); ONEE Morocco ~0.35-0.40; Saudi Dumat al-Jandal ~0.40
+  ssa: 0.35,          // Eskom/CSIR South Africa REIPPP fleet ~0.34; Kenya Lake Turkana ~0.55-0.65 (0.3 GW); Ethiopia ~0.30
 };
 
 export const energyDefaults: EnergyParams = {
@@ -338,7 +339,7 @@ export const energyDefaults: EnergyParams = {
       cost0: 35,             // $/MWh unsubsidized onshore, Lazard LCOE+ 2024 low-mid; hardware $20 + soft $15
       alpha: 0.23,           // ~15% learning/doubling; lit. range 10-19% — see sources/energy-learning-rates.md
       softFloor: 15,         // $/MWh BOS/soft-cost floor (> solar: complex install, maintenance). Contested — wide band. See interface note.
-      referenceCF: 0.30,     // CF adjustment for site quality degradation
+      referenceCF: 0.28,     // Capacity-weighted 2025 fleet CF of REGIONAL_WIND_CF (0.276): cost0 is the fleet-average LCOE, regional CFs only redistribute it. Pinned in energy.test.ts
       capacity2025: REGIONAL_CAPACITY_2025.wind,
       carbonIntensity: 0,
     },
