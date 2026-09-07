@@ -1,4 +1,5 @@
 import type { ModelDefinition } from './model.js';
+import { type TaskExecutor, serialExecutor } from './executor.js';
 import { runModel } from './model.js';
 import {
   experimentInterpretation,
@@ -153,7 +154,7 @@ export interface NestedEnsembleResult<TOutput, TContext> {
   metrics: Readonly<Record<string, NestedMetricSummary>>;
 }
 
-export function runEnsemble<TInput, TOutput>(options: {
+export interface EnsembleOptions<TInput, TOutput> {
   model: ModelDefinition<TInput, TOutput>;
   draws: number;
   seed: number;
@@ -161,7 +162,37 @@ export function runEnsemble<TInput, TOutput>(options: {
   metrics: Readonly<Record<string, (output: TOutput) => number>>;
   quantiles?: readonly number[];
   experiment?: ExperimentContract;
-}): EnsembleResult<TOutput> {
+}
+
+/**
+ * Draw every sample up front, on the calling thread.
+ *
+ * The seeded RNG is consumed strictly in draw order, so this must stay
+ * sequential -- it is what makes a parallel run reproduce a serial one exactly.
+ * Only the model evaluations that follow are independent.
+ */
+function drawEnsembleSamples<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): Array<{ input: TInput; parameters: Readonly<Record<string, number>> }> {
+  const random = seededRandom(options.seed);
+  const drawn = [];
+  for (let draw = 0; draw < options.draws; draw++) {
+    const sample = options.sample(random, draw);
+    if (options.experiment) {
+      validateExperimentSample(
+        options.experiment,
+        sample.variables ?? sample.parameters ?? {},
+        `Ensemble draw ${draw}`,
+      );
+    }
+    drawn.push({ input: sample.input, parameters: sample.parameters ?? {} });
+  }
+  return drawn;
+}
+
+function validateEnsembleOptions<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): void {
   if (!Number.isInteger(options.draws) || options.draws < 1) throw new Error('Ensemble draws must be >= 1');
   if (options.experiment) {
     validateExperiment(options.experiment);
@@ -172,22 +203,15 @@ export function runEnsemble<TInput, TOutput>(options: {
       );
     }
   }
+}
+
+/** Aggregate finished draws. Shared by the serial and executor-driven paths. */
+function summarizeEnsemble<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  parameterRows: Array<Readonly<Record<string, number>>>,
+  outputs: TOutput[],
+): EnsembleResult<TOutput> {
   const interpretation = experimentInterpretation(options.experiment);
-  const random = seededRandom(options.seed);
-  const outputs: TOutput[] = [];
-  const parameterRows: Array<Readonly<Record<string, number>>> = [];
-  for (let draw = 0; draw < options.draws; draw++) {
-    const sample = options.sample(random, draw);
-    if (options.experiment) {
-      validateExperimentSample(
-        options.experiment,
-        sample.variables ?? sample.parameters ?? {},
-        `Ensemble draw ${draw}`,
-      );
-    }
-    parameterRows.push(sample.parameters ?? {});
-    outputs.push(runModel(options.model, sample.input, { seed: options.seed, runLabel: `draw-${draw}` }).output);
-  }
   const probabilities = options.quantiles ?? [0.05, 0.5, 0.95];
   if (probabilities.some((probability) =>
     !Number.isFinite(probability) || probability < 0 || probability > 1
@@ -246,6 +270,50 @@ export function runEnsemble<TInput, TOutput>(options: {
     ...(options.experiment ? { experiment: options.experiment } : {}),
     interpretation,
   };
+}
+
+/** One model evaluation, labelled so a failure names the draw that caused it. */
+function evaluateDraw<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  input: TInput,
+  draw: number,
+): TOutput {
+  return runModel(options.model, input, { seed: options.seed, runLabel: `draw-${draw}` }).output;
+}
+
+export function runEnsemble<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+): EnsembleResult<TOutput> {
+  validateEnsembleOptions(options);
+  const drawn = drawEnsembleSamples(options);
+  const outputs = drawn.map((sample, draw) => evaluateDraw(options, sample.input, draw));
+  return summarizeEnsemble(options, drawn.map((sample) => sample.parameters), outputs);
+}
+
+/**
+ * `runEnsemble` with the model evaluations handed to an executor.
+ *
+ * Identical to the serial form in every respect that affects results: the same
+ * validation, the same seeded draws in the same order, the same aggregation.
+ * Only the mapping differs, and `TaskExecutor` requires input-order results, so
+ * `runEnsembleAsync(o, executor)` and `runEnsemble(o)` agree for any executor.
+ * `ensemble-executor.test.ts` pins that against an executor that deliberately
+ * finishes out of order.
+ *
+ * Defaults to `serialExecutor`, so calling it without one is the serial path
+ * through the same code rather than a second implementation of it.
+ */
+export async function runEnsembleAsync<TInput, TOutput>(
+  options: EnsembleOptions<TInput, TOutput>,
+  executor: TaskExecutor = serialExecutor,
+): Promise<EnsembleResult<TOutput>> {
+  validateEnsembleOptions(options);
+  const drawn = drawEnsembleSamples(options);
+  const outputs = await executor.map(
+    drawn,
+    (sample, draw) => evaluateDraw(options, sample.input, draw),
+  );
+  return summarizeEnsemble(options, drawn.map((sample) => sample.parameters), outputs);
 }
 
 /**

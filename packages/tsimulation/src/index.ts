@@ -25,6 +25,7 @@ export * from './adapter.js';
 export * from './calibration.js';
 export * from './experiment.js';
 export * from './study.js';
+export * from './executor.js';
 export * from './ensemble.js';
 export * from './shock-ledger.js';
 export * from './manifest.js';
