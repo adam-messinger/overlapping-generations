@@ -318,6 +318,115 @@ foregone earnings excluded it is 11.3%.
   stock becomes a slight rise to 2048 without rearing; the four regional
   groups are unchanged in both cases.
 
+## Reconciliation with the G7-BRIC spreadsheet
+
+The G7-BRIC human-capital model (v4, 4 September 2026) is a single-year
+2025 account for eleven countries in billions of 2024 PPP dollars, with five
+or six education bands per country. It capitalizes paid care and schooling
+only (no student opportunity cost, no unpaid care), applies participation
+at entry, amortizes straight-line over effective exit age minus entry age
+(41-45 years in the G7, 32-42 in the BRICs) with WHO age-specific mortality
+and no other pre-retirement exits, and values migrants at remaining book
+value at age 32 with the domestic education mix. The two models agree on
+every sign and on the ordering of countries; they differ in level by a
+known set of conventions, listed below.
+
+2025 flows in $T at current cost, and the end-2025 net stock. Model regions
+are wider than the spreadsheet's countries: India + South Asia, Russia +
+CIS, and OECD ex-US (all Europe, Japan, Korea, Canada, Australia, New
+Zealand, Israel) against India, Russia, and the six non-US G7 members.
+
+| | Entrants (M) | Investment | Depreciation + write-offs | Own-cohort net | Migration | Net incl. migration | Net stock |
+|---|---|---|---|---|---|---|---|
+| **United States**: spreadsheet | 3.64 | 2.41 | 2.42 | -0.01 | +0.36 | +0.35 | 55.7 |
+| model, default | 4.08 | 3.98 | 3.57 | +0.40 | +0.91 | +1.31 | 60.5 |
+| model, spreadsheet conventions | 4.08 | 2.72 | 2.54 | +0.18 | +0.65 | +0.83 | 55.0 |
+| **China**: spreadsheet | 11.97 | 1.80 | 1.90 | -0.10 | -0.01 | -0.11 | 38.0 |
+| model, default | 11.99 | 3.31 | 4.47 | -1.16 | -0.05 | -1.21 | 73.4 |
+| model, spreadsheet conventions | 11.99 | 2.34 | 3.34 | -1.00 | -0.04 | -1.04 | 72.1 |
+| **India**: spreadsheet | 17.0 | 0.87 | 0.70 | +0.17 | -0.01 | +0.16 | 13.6 |
+| model (India + South Asia), default | 31.5 | 2.41 | 1.78 | +0.63 | -0.12 | +0.51 | 19.9 |
+| model, spreadsheet conventions | 31.5 | 1.78 | 1.34 | +0.44 | -0.09 | +0.35 | 29.5 |
+| **Russia**: spreadsheet | 1.31 | 0.30 | 0.42 | -0.12 | -0.02 | -0.14 | 7.5 |
+| model (Russia + CIS), default | 3.19 | 0.98 | 1.03 | -0.05 | -0.06 | -0.10 | 16.8 |
+| model, spreadsheet conventions | 3.19 | 0.68 | 0.74 | -0.06 | -0.04 | -0.10 | 16.1 |
+| **G7 ex-US**: spreadsheet (six countries) | 3.96 | 1.69 | 2.08 | -0.39 | +0.19 | -0.20 | 44.2 |
+| model (OECD ex-US), default | 7.20 | 4.46 | 5.28 | -0.83 | +1.59 | +0.76 | 86.1 |
+| model, spreadsheet conventions | 7.20 | 3.08 | 3.80 | -0.72 | +1.15 | +0.43 | 82.1 |
+
+"Spreadsheet conventions" is the model rerun with `foregoneEarningsShare`
+0, `rearingCostShare` 0.23 (the spreadsheet's US care cost through 18 is
+23% of GDP per capita, the USDA out-of-pocket figure; the model's default
+0.30 is the midpoint between that and National Transfer Accounts child
+consumption), and the exit hazards switched off so that useful life is
+retirement age minus entry age, as in the spreadsheet.
+
+**The US bridge.** The model's $3.98T of 2025 investment becomes the
+spreadsheet's $2.41T in three steps: removing students' foregone earnings
+takes off $0.81T, the lower care cost $0.45T, and the spreadsheet's
+participation-at-entry (3.64M effective entrants against 4.08M) $0.30T,
+leaving $2.43T. Depreciation goes from $3.57T to $2.54T on the same cost
+and life conventions, and to $2.42T with the participation adjustment. The
+net stock matches at $55T once the cost scope matches. On its own basis,
+the model's US own-cohort net is +$0.18T against the spreadsheet's -$0.01T:
+both say the US is at break-even on its own children in 2025 and positive
+only because of immigration.
+
+**Where the models agree.** China, Russia and the non-US G7 are net
+disinvestors on their own cohorts in both; India is a net investor in both;
+the US is at zero. The China entrant count is identical (12.0M), because
+both take the cohort turning 20 from the same UN age structure, and the
+spreadsheet's entrant tertiary share for China (55%) is close to the
+model's 61%, both far above the Lee-Lee figure the reconstruction had to
+override.
+
+**Where they differ, and why.**
+
+1. *Cost scope.* Foregone earnings and the 30% care share make the model's
+   unit costs about 1.45 times the spreadsheet's for the US. For China,
+   the spreadsheet also scales care by household consumption relative to
+   the US rather than by GDP per capita, which halves it again (China's
+   consumption share of GDP is about 38% against the US's 68%); this is
+   most of the gap in China's stock ($38T against $54T on matched cost
+   scope) and depreciation.
+2. *Useful life and exits.* The spreadsheet amortizes over 41-45 years and
+   charges only mortality. The model's expected working lives are 28-39
+   years because they net out disability and domestic-role exits, which it
+   writes off at book value. That is why the model's charge exceeds the
+   spreadsheet's by more than its investment does, and why its own-cohort
+   net is more negative for China (-$1.0T against -$0.1T on matched costs).
+   The spreadsheet's note that net "still excludes unestimated disability
+   and unscheduled retirement" and its break-even sensitivity (a 0.16%
+   annual non-fatal loss would erase the G7's net) point at the same
+   mechanism from the other side.
+3. *Migration.* This is the one substantive disagreement. The spreadsheet's
+   G7 ex-US is a net disinvestor even after migration (-$0.20T); the
+   model's OECD ex-US turns positive (+$0.76T). Two assumptions drive it.
+   The model's demographics move 3.4M net working-age migrants a year into
+   the OECD ex-US and 1.27M into the US, against the spreadsheet's 1.1M
+   and 0.73M effective (1.3M times a 70% working-age share and 80%
+   participation). And the model books migrants with a 70% college share
+   at the destination's full replacement cost, about $716k each for the
+   US, against the spreadsheet's domestic mix at remaining value at age
+   32, about $500k. Together they make the model's migration transfer 2.5
+   times the spreadsheet's for the US and 8 times for the OECD ex-US. The
+   spreadsheet's treatment is the more conservative and the better
+   documented; the model's college-share and full-cost assumptions are the
+   two places in this note where the reader should discount.
+4. *Scope of the regions.* The model's India + South Asia has 1.9 times
+   the spreadsheet's Indian entrants, and Russia + CIS 2.4 times Russia's,
+   because Pakistan, Bangladesh and Central Asia are young; the regional
+   Russia net is near zero where the spreadsheet's Russia is clearly
+   negative. The spreadsheet's country figures are the better read of
+   Russia itself.
+
+None of the note's conclusions turn on the level. The peak years, the
+regional ordering, and the US dependence on immigration come from
+demographics and the education mix, which the two models share. What the
+spreadsheet changes is the size of the immigration offset for the rich
+regions: on its conventions, the US stays marginally positive and the rest
+of the G7 does not.
+
 ## What the result does not say
 
 - Cost is not value. A lifetime-income (Jorgenson-Fraumeni) account would be
@@ -369,6 +478,10 @@ foregone earnings excluded it is 11.3%.
 - UN DESA, *World Population Prospects 2024*, population by 5-year age
   group, medium variant; Maddison Project Database 2023 (GDP per capita,
   2011$) and Our World in Data population series (Gapminder/HYDE/UN).
+- *G7-BRIC human-capital model v4* (Google Sheets, 4 September 2026):
+  2025 flows for the G7 and BRICs from World Bank cohorts, OECD Education
+  and Pensions at a Glance, WHO life tables, and national migration
+  statistics.
 - `docs/HUMAN_CAPITAL.md` for the ledger's method, calibration, and prior
   art (Kendrick 1976; Eisner 1985; Mallatt 2026; Eurostat duration of
   working life).
