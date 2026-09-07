@@ -362,6 +362,13 @@ earnings, rearing scope, and obsolescence as sensitivity dials.
 - **Hazards are stylized.** Age slopes and education gradients are single
   global shapes scaled by region only through life expectancy and the
   participation gap; there is no regional disability data behind them.
+- **The 2025 workforce is seeded, not observed.** Demographics carries no
+  age structure inside the working cohort, so the opening ledger spreads it
+  uniformly over the 45 working ages and thins it by the survival curve.
+  That seed sets every region's 2025 charge and the timing of its
+  own-cohort turn (the OECD ex-US and China open in deficit because their
+  seeded vintages exceed their entrant flows; the US opens near balance);
+  real age structures are lumpier, so the timing is approximate.
 - **Entry timing.** All bands enter the ledger when demographics moves them
   into the working cohort at age 20; entry age differentiates cost and the
   age at which hazards apply, not the ledger's timing.
