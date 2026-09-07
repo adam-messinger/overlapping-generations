@@ -78,6 +78,12 @@ export type { TransformFn, TransformConfig, TransformEntry, LagConfig, AutowireC
 export type { PortMeta, PortValueType } from 'tsimulation';
 export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics } from './simulation-autowired.js';
 export { DIAGNOSTIC_MODULES, DIAGNOSTIC_FIELDS, MACRO_MODULES } from './simulation-autowired.js';
+export {
+  energyEnsembleModel,
+  ENERGY_ENSEMBLE_BOUNDS,
+  ENERGY_ENSEMBLE_DEFAULTS,
+} from './ensemble-model.js';
+export type { EnergyEnsembleInput, EnergyEnsembleOutput } from './ensemble-model.js';
 export type { DiagnosticField } from './simulation-autowired.js';
 export {
   analyzeFinancialLocalStability,
