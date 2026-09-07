@@ -115,8 +115,7 @@ Three things stand out.
 ## By region
 
 Constant-cost net stock index (2025 = 1), the peak year of that index, the
-first year own-cohort net investment is negative, the first year total net
-investment (own cohorts, immigrants' charge, and migration transfers) is
+first years own-cohort and total net investment (as defined above) are
 negative, and the change in annual entrants over the century.
 
 | Region | 2030 | 2050 | 2075 | 2100 | Peak | Peak level | Own cohorts < 0 | Total < 0 | Entrants 2100 / 2025 |
@@ -545,8 +544,7 @@ of the G7 does not.
   so "own-cohort" means post-2025 births, not nativity.
 - Longer working lives raise the book value of everyone already at work.
   The ledger books that revaluation on its own line so the accounts close;
-  it is $7T of the world's $44T constant-cost gain to 2050 and is a
-  schedule change, not investment.
+  it is a schedule change, not investment.
 - The reconstruction prices everyone aged 25-64, not the in-service
   workforce: the model nets out domestic-role and disability exits, the
   reconstruction cannot, because participation by age and education is not

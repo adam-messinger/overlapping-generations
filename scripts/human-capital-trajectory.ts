@@ -46,22 +46,17 @@ import { getAtYear } from '../src/helpers.js';
 import { deepMerge } from '../src/primitives/deep-merge.js';
 import { ComponentParams } from 'tsimulation';
 import { demographicsDefaults } from '../src/modules/demographics.js';
-import { expectedWorkingYears, humanCapitalDefaults, unitReplacementCost } from '../src/modules/human-capital.js';
+import { expectedWorkingYears, humanCapitalDefaults, noExitHazards, unitReplacementCost } from '../src/modules/human-capital.js';
 import { arg, fixed, millions, pct } from './report-format.js';
 
 const scenarioName = arg('scenario');
 const years = (arg('years') ?? '2025,2030,2040,2050,2060,2075,2100').split(',').map(Number);
 
-const NO_EXIT_HAZARDS: SimulationParams = {
-  humanCapital: {
-    hazards: { mortalityBase: 0, disabilityBase: 0 },
-    regions: Object.fromEntries(REGIONS.map(r => [r, { domesticExitShare: 0 }])),
-  },
-};
+const noExitHazardsFlag = process.argv.includes('--no-exit-hazards');
 
 /** --set=module.param.path=value overrides (numbers only), applied on top of defaults or the scenario. */
 function overridesFromArgs(): SimulationParams {
-  let params: SimulationParams = process.argv.includes('--no-exit-hazards') ? NO_EXIT_HAZARDS : {};
+  let params: SimulationParams = noExitHazardsFlag ? { humanCapital: noExitHazards } : {};
   for (const a of process.argv) {
     if (!a.startsWith('--set=')) continue;
     const [path, value] = a.slice('--set='.length).split('=');
@@ -76,15 +71,20 @@ function costIndex(row: YearResult, first: YearResult, region: Region): number {
   return gdppc(row) / gdppc(first);
 }
 
-/** A regional flow or stock summed over regions at constant first-year unit costs. */
-function deflatedSum(row: YearResult, first: YearResult, pick: (a: YearResult['regionalHumanCapital'][Region]) => number): number {
-  let total = 0;
-  for (const region of REGIONS) total += pick(row.regionalHumanCapital[region]) / costIndex(row, first, region);
-  return total;
-}
+type RegionAccount = YearResult['regionalHumanCapital'][Region];
 
-const ledgerNet = (a: YearResult['regionalHumanCapital'][Region]) => a.investment - a.depreciation - a.writeOffs;
-const totalNet = (a: YearResult['regionalHumanCapital'][Region]) => ledgerNet(a) + a.migrationTransfer;
+/** Regional flows or stocks summed over regions at constant first-year unit costs, one pass per row. */
+function deflatedSums(row: YearResult, first: YearResult, picks: ((a: RegionAccount) => number)[]): number[] {
+  const totals = picks.map(() => 0);
+  for (const region of REGIONS) {
+    const a = row.regionalHumanCapital[region], c = costIndex(row, first, region);
+    picks.forEach((pick, i) => { totals[i] += pick(a) / c; });
+  }
+  return totals;
+}
+const deflatedSum = (row: YearResult, first: YearResult, pick: (a: RegionAccount) => number) => deflatedSums(row, first, [pick])[0];
+
+const totalNet = (a: RegionAccount) => a.netInvestment + a.migrationTransfer;
 
 function report(result: SimulationResult, label: string) {
   const all = result.results;
@@ -114,18 +114,17 @@ function report(result: SimulationResult, label: string) {
   // year's regional cost index; the three lines below account for all of it.
   console.log(`\nChange in the world constant-cost net stock since ${first.year} ($T at ${first.year} cost): the ledger's own net investment,`);
   console.log('migration transfers (movers re-booked at destination cost), and the useful-life revaluation, each deflated by its region\'s cost index');
-  console.log('Year  net inv  migration  life reval     sum  actual  residual');
-  console.log('----  -------  ---------  ----------  ------  ------  --------');
+  console.log('Year  cum net inv  cum migration  cum life reval     sum  actual  residual');
+  console.log('----  -----------  -------------  --------------  ------  ------  --------');
   let cumNet = 0, cumMig = 0, cumLife = 0;
   for (const r of all) {
     if (r.year === first.year) continue;
-    cumNet += deflatedSum(r, first, ledgerNet);
-    cumMig += deflatedSum(r, first, a => a.migrationTransfer);
-    cumLife += deflatedSum(r, first, a => a.lifeRevaluation);
+    const [net, mig, life] = deflatedSums(r, first, [a => a.netInvestment, a => a.migrationTransfer, a => a.lifeRevaluation]);
+    cumNet += net; cumMig += mig; cumLife += life;
     if (!years.includes(r.year)) continue;
     const actual = realNet(r) - worldReal0;
     console.log(
-      `${r.year}  ${fixed(1, 7)(cumNet)}  ${fixed(1, 9)(cumMig)}  ${fixed(1, 10)(cumLife)}  ${fixed(1, 6)(cumNet + cumMig + cumLife)}  ` +
+      `${r.year}  ${fixed(1, 11)(cumNet)}  ${fixed(1, 13)(cumMig)}  ${fixed(1, 14)(cumLife)}  ${fixed(1, 6)(cumNet + cumMig + cumLife)}  ` +
       `${fixed(1, 6)(actual)}  ${fixed(1, 8)(actual - cumNet - cumMig - cumLife)}`
     );
   }
@@ -221,7 +220,7 @@ async function main() {
   } else {
     result = runSimulation(overrides); label = 'default parameters';
   }
-  if (process.argv.includes('--no-exit-hazards')) label += ', no exit hazards';
+  if (noExitHazardsFlag) label += ', no exit hazards';
   report(result, label);
   const dir = arg('emit');
   if (dir) emit(result, dir);

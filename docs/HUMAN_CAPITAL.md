@@ -227,7 +227,7 @@ question is what today's schedule implies for today's stock.
 | `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
 | `humanCapitalLifeRevaluation` | $T/yr | change in the opening stock's book value from this year's change in expected working life |
 | `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows (incl. life revaluation), stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, workers in service, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants, own-cohort net investment |
+| `regionalHumanCapital` | record | per region: entrants, flows, net investment, stocks, investment/GDP, workers in service, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants, own-cohort net investment |
 
 ## What the default path shows
 
@@ -366,9 +366,7 @@ earnings, rearing scope, and obsolescence as sensitivity dials.
   age structure inside the working cohort, so the opening ledger spreads it
   uniformly over the 45 working ages and thins it by the survival curve.
   That seed sets every region's 2025 charge and the timing of its
-  own-cohort turn (the OECD ex-US and China open in deficit because their
-  seeded vintages exceed their entrant flows; the US opens near balance);
-  real age structures are lumpier, so the timing is approximate.
+  own-cohort turn; `docs/HUMAN_CAPITAL_TRAJECTORY.md` sizes it by region.
 - **Entry timing.** All bands enter the ledger when demographics moves them
   into the working cohort at age 20; entry age differentiates cost and the
   age at which hazards apply, not the ledger's timing.
