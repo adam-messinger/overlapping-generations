@@ -1,7 +1,9 @@
 # Are We Building Up or Drawing Down Human Capital?
 
-*Research note, September 2026. Generated with `npm run human-capital:trajectory`
-(default parameters; scenario and sensitivity runs noted where used).*
+*Research note, September 2026. Projections generated with
+`npm run human-capital:trajectory` (default parameters; scenario and sensitivity
+runs noted where used); the 1925-2025 reconstruction with
+`scripts/human-capital-backcast.py`.*
 
 ## Question
 
@@ -135,30 +137,129 @@ the US constant-cost stock peaks in 2049 at 1.10 and ends the century at
 result is therefore an immigration-policy result at least as much as a
 demographic one.
 
+## The prior 100 years
+
+The simulation starts in 2025 and cannot run backwards, so the century before
+it is reconstructed from observed data and priced with the same ledger. The
+stock is people aged 25-64 times their education (Lee and Lee's long-run
+attainment series, 1870-2040, and Barro-Lee by age group), valued at the
+ledger's replacement-cost multipliers; entrants are the population aged 20-24
+divided by five, with the attainment mix of the cohort five years on. Costs
+are multiples of GDP per capita (Maddison), so investment and stock relative
+to GDP depend only on demographics and education, and the constant-cost stock
+holds each region's 2025 unit cost fixed. Method and sources are in the
+script header; the reconstruction is gross (no age-based write-down), so the
+splice with the model uses the model's gross stock at constant cost.
+
+![Human capital at constant cost, 1925-2100, by region](human-capital-trajectory-figure.svg)
+
+| Year | Population 25-64 (M) | Entrants (M/yr) | Tertiary share of 25-64 | Entrants / population | Investment / GDP | Gross stock / GDP | Constant-cost stock (2025 = 1) |
+|---|---|---|---|---|---|---|---|
+| 1925 | 769 | 35 | 1% | 1.8% | 11.7% | 2.6 | 0.16 |
+| 1950 | 1,042 | 44 | 1% | 1.8% | 12.3% | 3.1 | 0.22 |
+| 1975 | 1,575 | 72 | 3% | 1.8% | 14.7% | 3.3 | 0.37 |
+| 2000 | 2,778 | 104 | 8% | 1.7% | 14.5% | 4.4 | 0.70 |
+| 2010 | 3,342 | 124 | 10% | 1.8% | 15.8% | 4.6 | 0.85 |
+| 2025 | 4,083 | 125 | 10% | 1.5% | 14.1% | 4.9 | 1.00 |
+
+The world's stock of pre-workforce human capital grew about sixfold over the
+century, 1.9% a year: 1.7 points of that is more people of working age and
+0.2 points is more education per person. Growth accelerated through each
+quarter-century to a peak of 2.6% a year in 1975-2000, then slowed to 1.4%
+in 2000-2025 and 0.9% in the last decade. The model's 1.1% for the late
+2020s, falling to zero by the 2060s, is the continuation of that
+deceleration, not a break from it.
+
+Constant-cost stock index (2025 = 1), reconstruction to 2025 and model after:
+
+| Region | 1925 | 1950 | 1975 | 2000 | 2025 | 2050 | 2075 | 2100 | 1925-2025 (%/yr) | 2025-2100 (%/yr) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| United States | 0.22 | 0.32 | 0.50 | 0.81 | 1.00 | 1.33 | 1.52 | 1.55 | +1.5 | +0.6 |
+| OECD ex-US | 0.21 | 0.31 | 0.48 | 0.79 | 1.00 | 1.26 | 1.43 | 1.50 | +1.6 | +0.5 |
+| China | 0.13 | 0.16 | 0.28 | 0.70 | 1.00 | 0.84 | 0.63 | 0.46 | +2.0 | -1.0 |
+| India + South Asia | 0.09 | 0.12 | 0.21 | 0.51 | 1.00 | 1.37 | 1.53 | 1.31 | +2.4 | +0.4 |
+| Latin America | 0.07 | 0.13 | 0.26 | 0.59 | 1.00 | 1.08 | 1.07 | 0.91 | +2.7 | -0.1 |
+| SE Asia + Pacific | 0.06 | 0.11 | 0.21 | 0.51 | 1.00 | 1.14 | 1.20 | 1.03 | +2.8 | +0.0 |
+| Russia + CIS | 0.21 | 0.30 | 0.56 | 0.89 | 1.00 | 0.96 | 0.88 | 0.75 | +1.6 | -0.4 |
+| MENA | 0.05 | 0.07 | 0.13 | 0.39 | 1.00 | 1.64 | 2.09 | 2.03 | +3.0 | +0.9 |
+| Sub-Saharan Africa | 0.05 | 0.10 | 0.19 | 0.43 | 1.00 | 2.33 | 3.68 | 4.12 | +3.0 | +1.9 |
+| World | 0.16 | 0.22 | 0.37 | 0.70 | 1.00 | 1.19 | 1.29 | 1.24 | +1.9 | +0.3 |
+
+Every region built human capital in every quarter-century of the last
+hundred years; the only setbacks in the series are Russia + CIS in 1940-1945
+and again after 2020.
+The century ahead is the first in which any region draws down. China's
+reversal is the sharpest in the table: from the fastest builder of
+1975-2000 (3.7% a year) to a 1% a year decline. Russia + CIS has already
+stalled, with its 2025 stock below 2015. The regions that grew fastest in
+the past century (MENA, Sub-Saharan Africa, SE Asia, Latin America, all
+around 3% a year) are the ones with the most building left, and only
+Sub-Saharan Africa keeps anything like its historical pace.
+
 ## Are we spending more or less than we used to?
 
-The simulation starts in 2025 and cannot backcast this ledger, so the
-history is outside the model. The pattern it projects forward, though, is the
-one already visible in the data.
+Investment in new entrants as a share of GDP, reconstructed:
 
-- Per child, spending is up. Total US education spending has held at about
-  5.4 to 5.6% of GDP in recent years, having peaked at 6.7% in 2009 (World
-  Bank/UIS series), while the US birth cohort fell from 4.32M in 2007 to
-  3.63M in 2024 (NCHS). Fewer children, roughly the same share of a larger
-  economy: more per child, less in aggregate relative to output.
-- As a share of GDP, the world is spending less. World government education
-  spending was 4.16% of GDP in 2019 and 3.51% in 2023 (World Bank, from
-  UNESCO UIS).
+| Region | 1925 | 1950 | 1975 | 2000 | 2010 | 2025 |
+|---|---|---|---|---|---|---|
+| United States | 15.6% | 13.9% | 18.6% | 15.2% | 16.4% | 15.4% |
+| OECD ex-US | 10.9% | 11.8% | 13.5% | 13.8% | 13.5% | 12.8% |
+| China | 9.6% | 11.0% | 15.6% | 13.8% | 18.4% | 11.9% |
+| India + South Asia | 7.5% | 9.6% | 11.4% | 14.6% | 15.7% | 16.6% |
+| Latin America | 10.5% | 10.8% | 12.8% | 15.1% | 15.2% | 14.8% |
+| SE Asia + Pacific | 9.9% | 10.6% | 11.9% | 15.2% | 15.8% | 15.9% |
+| Russia + CIS | 15.8% | 17.9% | 17.3% | 17.4% | 20.7% | 13.2% |
+| MENA | 9.7% | 9.3% | 11.3% | 15.7% | 17.7% | 16.8% |
+| Sub-Saharan Africa | 6.3% | 9.7% | 10.5% | 12.7% | 13.2% | 15.8% |
+| World | 11.7% | 12.3% | 14.7% | 14.5% | 15.8% | 14.1% |
 
-The ledger's 13.5% of GDP is not comparable to those 4 to 6% education
-shares: it also counts rearing to entry age and students' foregone earnings.
-With rearing excluded the 2025 flow is 6.3% of GDP, close to the US total
-education share, and with foregone earnings excluded it is 11.3%.
+The world spends more of its output on new human capital than it did a
+century ago, and less than it did fifteen years ago. The share rose from
+under 12% of GDP in 1925 to a peak near 16% in 2010 as the education mix
+upgraded faster than cohorts shrank, and has since fallen back to 14% as
+the youth share of population dropped from 1.8% to 1.5%. Per entrant, the
+world spends 1.7 times its 1925 multiple of GDP per capita on rearing and
+schooling (5.7 to 9.6 times GDP per capita), and GDP per capita is itself
+far higher. The model's 13.5% for
+2025 sits within a point of the reconstruction, and its slow decline to 11%
+by 2100 continues the post-2010 slide.
 
-The model's forward answer is the same at every scope: the world spends a
-slowly falling share of GDP on new human capital, spends more on each unit,
-and from the 2040s (2050 without rearing, 2025 without foregone earnings)
-charges more depreciation than it capitalizes.
+The United States:
+
+| Year | Entrants (M/yr) | Entrants / population | Entrant tertiary share | Workforce 25-64 (M) | Tertiary share of 25-64 | Investment / GDP | Constant-cost stock (2025 = 1) |
+|---|---|---|---|---|---|---|---|
+| 1925 | 2.09 | 1.87% | 8% | 54 | 5% | 15.6% | 0.22 |
+| 1940 | 2.39 | 1.85% | 10% | 65 | 6% | 16.4% | 0.27 |
+| 1950 | 2.35 | 1.53% | 13% | 77 | 8% | 13.9% | 0.32 |
+| 1960 | 2.22 | 1.23% | 16% | 84 | 10% | 11.8% | 0.37 |
+| 1970 | 3.47 | 1.67% | 25% | 92 | 14% | 17.4% | 0.44 |
+| 1980 | 4.35 | 1.89% | 32% | 110 | 22% | 20.5% | 0.57 |
+| 1990 | 3.86 | 1.52% | 33% | 131 | 28% | 16.8% | 0.70 |
+| 2000 | 3.89 | 1.38% | 33% | 148 | 29% | 15.2% | 0.81 |
+| 2010 | 4.46 | 1.44% | 41% | 166 | 33% | 16.4% | 0.92 |
+| 2020 | 4.45 | 1.31% | 40% | 178 | 33% | 15.0% | 1.00 |
+| 2025 | 4.61 | 1.34% | 40% | 178 | 33% | 15.4% | 1.00 |
+
+The US series has one large hump: the baby boom entering the workforce
+with the first mass college cohorts, which took investment from under 12%
+of GDP in 1960 to over 20% in 1980. Since then the share has drifted between
+15% and 17%, more education per entrant offsetting a falling youth share.
+The stock grew 1.5% a year over the century (1.2 points people, 0.3
+education), but only 0.4% a year in the last decade, and the 25-64
+population has been flat since 2020. The reconstruction reaches 2025 with
+the US stock already at a plateau; the model's 1.1% a year growth to 2050
+therefore rests on its immigration assumption and on entrants' college
+share continuing to rise, as the previous section shows.
+
+Outside data say the same. Total US education spending has held at about
+5.4 to 5.6% of GDP in recent years, having peaked at 6.7% in 2009 (World
+Bank/UIS series), while the US birth cohort fell from 4.32M in 2007 to 3.63M
+in 2024 (NCHS). World government education spending was 4.16% of GDP in
+2019 and 3.51% in 2023 (World Bank, from UNESCO UIS). The ledger's 14% is
+not comparable to those 4 to 6% education shares: it also counts rearing to
+entry age and students' foregone earnings. With rearing excluded the model's
+2025 flow is 6.3% of GDP, close to the US total education share, and with
+foregone earnings excluded it is 11.3%.
 
 ## Robustness
 
@@ -186,6 +287,17 @@ charges more depreciation than it capitalizes.
 - Immigrants are booked at the destination's full replacement cost with no
   under-employment discount, so the rich-region migration transfers are an
   upper bound.
+- The reconstruction is a gross, population-based stock (everyone aged
+  25-64, not the in-service workforce), with no age-based write-down and no
+  migration accounting. Its regional groupings follow the model's nine
+  regions, with all of Europe outside the CIS placed in OECD ex-US. Lee-Lee
+  and Barro-Lee count China's completed tertiary attainment at about 3% of
+  ages 25-64 in 2015 and 7% in 2025, well below the 2020 census figure of
+  about 15% with junior college or above; China's stock growth since 2000 and
+  its 2025 education level are therefore understated, which makes its
+  projected decline, if anything, start from a higher base. Before 1950 the
+  covered countries are scaled to regional population totals, which assumes
+  uncovered countries had the covered average attainment.
 - Demographics follow the UN WPP 2024 low variant, so entrant cohorts
   outside Sub-Saharan Africa shrink faster than a medium-variant path would
   give; the medium variant would delay every peak year but not remove the
@@ -199,6 +311,13 @@ charges more depreciation than it capitalizes.
 - NCHS, *Births in the United States, 2024* (Data Brief 535) and *National
   Vital Statistics Reports* 74(1): 4,316,233 births in 2007, 3,628,934 in
   2024, total fertility rate 1.63.
+- Lee, J.-W. and Lee, H. (2016). "Human Capital in the Long Run." *Journal
+  of Development Economics* 122: attainment by level for ages 15-24 and
+  25-64, 1870-2010, with projections to 2040 (OUP long-run files); Barro, R.
+  and Lee, J.-W. (2013), v3 dataset by 10-year age group, 1950-2015.
+- UN DESA, *World Population Prospects 2024*, population by 5-year age
+  group, medium variant; Maddison Project Database 2023 (GDP per capita,
+  2011$) and Our World in Data population series (Gapminder/HYDE/UN).
 - `docs/HUMAN_CAPITAL.md` for the ledger's method, calibration, and prior
   art (Kendrick 1976; Eisner 1985; Mallatt 2026; Eurostat duration of
   working life).

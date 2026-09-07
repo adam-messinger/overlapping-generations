@@ -253,6 +253,8 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Report: `npm run human-capital`; see `docs/HUMAN_CAPITAL.md`
 - Trajectory (constant-cost stock by region, peak years, migration):
   `npm run human-capital:trajectory`; see `docs/HUMAN_CAPITAL_TRAJECTORY.md`
+- 1925-2025 reconstruction from Lee-Lee/Barro-Lee, UN WPP, and Maddison:
+  `scripts/human-capital-backcast.py` (pandas; derived CSVs in `data/human-capital/`)
 
 ## Scenarios
 
