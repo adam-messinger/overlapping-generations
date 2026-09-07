@@ -96,6 +96,13 @@ export interface EnergyParams {
   /** EROI assumptions by source (non-fossil used directly; fossil uses depletion) */
   eroi: Record<EnergySource, number>;
 
+  /**
+   * Deployment-site capacity factors at which `eroi.solar` / `eroi.wind`
+   * were measured. Dynamic EROI = eroi × fleetCF / eroiReferenceCF, so a
+   * scenario that swaps EROI sources must move this with them.
+   */
+  eroiReferenceCF: { solar: number; wind: number };
+
   /** Global carbon price (fallback if regional not specified) - DEPRECATED, use regional */
   carbonPrice: number;
 
@@ -297,15 +304,6 @@ const REGIONAL_FINANCING_SPREADS: Record<Region, number> = {
 };
 
 /**
- * Deployment-site capacity factors at which the `eroi.solar` / `eroi.wind`
- * literature values were measured; the dynamic EROI scales base EROI by the
- * fleet's capacity-weighted CF over these. Solar: Bhandari et al. (2015)
- * harmonized to 1,700 kWh/m²/yr (~CF 0.18); wind: Kubiszewski et al. (2010)
- * at ~CF 0.30. Manufacturing location would enter the base EROI, not here.
- */
-const EROI_REFERENCE_CF = { solar: 0.18, wind: 0.30 };
-
-/**
  * Regional Solar Capacity Factors
  *
  * Based on latitude and irradiance. MENA has world's best solar (0.24).
@@ -443,6 +441,10 @@ export const energyDefaults: EnergyParams = {
     gas: 30,
     coal: 25,
   },
+  // Reference CFs for the eroi values above: solar from Bhandari et al.
+  // (2015) harmonized to 1,700 kWh/m²/yr (~CF 0.18); wind from Kubiszewski
+  // et al. (2010) at ~CF 0.30. Manufacturing location enters eroi, not here.
+  eroiReferenceCF: { solar: 0.18, wind: 0.30 },
 
   // Global fallback carbon price (DEPRECATED - use regional)
   carbonPrice: 35,
@@ -985,6 +987,7 @@ export const energyModule: Module<
       ...energyDefaults,
       ...params,
       eroi: { ...energyDefaults.eroi, ...(params.eroi ?? {}) },
+      eroiReferenceCF: { ...energyDefaults.eroiReferenceCF, ...(params.eroiReferenceCF ?? {}) },
       lifetime: { ...energyDefaults.lifetime, ...(params.lifetime ?? {}) },
     };
 
@@ -1036,6 +1039,14 @@ export const energyModule: Module<
       const eroi = p.eroi[source];
       if (eroi !== undefined && eroi <= 1) {
         errors.push(`eroi.${source} must be > 1`);
+      }
+    }
+    for (const source of ['solar', 'wind'] as const) {
+      const cf = p.eroiReferenceCF[source];
+      // No real PV or wind fleet sits below CF 0.05; the floor also keeps the
+      // dynamic-EROI ratio from exploding.
+      if (!Number.isFinite(cf) || cf < 0.05 || cf > 1) {
+        errors.push(`eroiReferenceCF.${source} must be between 0.05 and 1`);
       }
     }
 
@@ -1141,6 +1152,9 @@ export const energyModule: Module<
       }
       if (p.eroi) {
         result.eroi = { ...energyDefaults.eroi, ...p.eroi };
+      }
+      if (p.eroiReferenceCF) {
+        result.eroiReferenceCF = { ...energyDefaults.eroiReferenceCF, ...p.eroiReferenceCF };
       }
       if (p.capacityCeiling) {
         result.capacityCeiling = { ...energyDefaults.capacityCeiling, ...p.capacityCeiling };
@@ -1617,8 +1631,7 @@ export const energyModule: Module<
     let effectiveWindCF = 0;
     let totalSolarCap = 0;
     let totalWindCap = 0;
-    const baseSolarCF = EROI_REFERENCE_CF.solar;
-    const baseWindCF = EROI_REFERENCE_CF.wind;
+    const { solar: refSolarCF, wind: refWindCF } = params.eroiReferenceCF;
 
     for (const region of REGIONS) {
       const solarCap = newRegional[region].solar.installed;
@@ -1630,15 +1643,13 @@ export const energyModule: Module<
       totalSolarCap += solarCap;
       totalWindCap += windCap;
     }
-    effectiveSolarCF = totalSolarCap > 0 ? effectiveSolarCF / totalSolarCap : baseSolarCF;
-    effectiveWindCF = totalWindCap > 0 ? effectiveWindCF / totalWindCap : baseWindCF;
+    effectiveSolarCF = totalSolarCap > 0 ? effectiveSolarCF / totalSolarCap : refSolarCF;
+    effectiveWindCF = totalWindCap > 0 ? effectiveWindCF / totalWindCap : refWindCF;
 
     // Update net energy fraction for solar/wind using dynamic EROI
-    // effectiveEROI = baseEROI × (avgEffectiveCF / baseCF)
-    const solarBaseEROI = params.eroi.solar;
-    const windBaseEROI = params.eroi.wind;
-    const dynamicSolarEROI = solarBaseEROI * (effectiveSolarCF / Math.max(0.01, baseSolarCF));
-    const dynamicWindEROI = windBaseEROI * (effectiveWindCF / Math.max(0.01, baseWindCF));
+    // effectiveEROI = eroi × (fleet CF / eroiReferenceCF)
+    const dynamicSolarEROI = params.eroi.solar * (effectiveSolarCF / refSolarCF);
+    const dynamicWindEROI = params.eroi.wind * (effectiveWindCF / refWindCF);
     netEnergyFraction.solar = dynamicSolarEROI > 1 ? 1 - 1 / dynamicSolarEROI : 0;
     netEnergyFraction.wind = dynamicWindEROI > 1 ? 1 - 1 / dynamicWindEROI : 0;
 

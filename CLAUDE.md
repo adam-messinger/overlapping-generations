@@ -161,6 +161,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Regional financing spreads**: per-region WACC = global rate + static risk residual + home-bias term from the region's savings gap vs the world (Feldstein-Horioka, `financingHomeBias`); calibrated so 2025 totals match the IEA Cost of Capital Observatory, `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
+- **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
 ### Climate
 - **DICE-2023**: Quadratic damage function with regional multipliers

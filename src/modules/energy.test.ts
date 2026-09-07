@@ -838,4 +838,34 @@ test('fractional asset lifetimes are rejected before array/vintage accounting', 
 // SUMMARY
 // =============================================================================
 
+console.log('\n--- EROI Reference CF ---\n');
+
+test('dynamic EROI is base EROI scaled by fleet CF over the reference CF', () => {
+  const params = energyModule.mergeParams({});
+  const { outputs } = runYears(5);
+  const expectSolar = 1 - 1 / (params.eroi.solar * outputs.effectiveSolarCF / params.eroiReferenceCF.solar);
+  const expectWind = 1 - 1 / (params.eroi.wind * outputs.effectiveWindCF / params.eroiReferenceCF.wind);
+  expect(outputs.netEnergyFraction.solar).toBeCloseTo(expectSolar, 12);
+  expect(outputs.netEnergyFraction.wind).toBeCloseTo(expectWind, 12);
+});
+
+test('a higher reference CF lowers the dynamic EROI and net energy fraction', () => {
+  const base = runYears(5).outputs;
+  const doubled = runYears(5, { eroiReferenceCF: { solar: 0.36, wind: 0.30 } }).outputs;
+  expect(doubled.netEnergyFraction.solar).toBeLessThan(base.netEnergyFraction.solar);
+  expect(doubled.netEnergyFraction.wind).toBeCloseTo(base.netEnergyFraction.wind, 12);
+});
+
+test('eroiReferenceCF merges partially and validates its range', () => {
+  // mergeParams validates the merged result, so a passing partial merge also
+  // proves the partial validates without a spurious error on the sibling.
+  const merged = energyModule.mergeParams({ eroiReferenceCF: { solar: 0.2 } } as any);
+  expect(merged.eroiReferenceCF.solar).toBe(0.2);
+  expect(merged.eroiReferenceCF.wind).toBe(0.30);
+  const low = energyModule.validate({ eroiReferenceCF: { solar: 0, wind: 0.30 } });
+  expect(low.valid).toBeFalse();
+  expect(low.errors.filter(e => e.includes('eroiReferenceCF')).length).toBe(1);
+  expect(energyModule.validate({ eroiReferenceCF: { solar: 0.18, wind: 1.5 } }).valid).toBeFalse();
+});
+
 printSummary();
