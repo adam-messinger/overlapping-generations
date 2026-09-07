@@ -19,6 +19,7 @@ import {
 } from '../src/index.js';
 import { deepMerge } from '../src/scenario.js';
 import type { RunOptions, MacroSimulationResult, MacroYearResult } from '../src/index.js';
+import { DIAGNOSTIC_MODULES } from '../src/index.js';
 
 // =============================================================================
 // TYPES
@@ -106,11 +107,26 @@ interface ParamPerturbation {
   highValue: number | boolean;
 }
 
+/**
+ * Parameters owned by a module this sweep does not run.
+ *
+ * The sweep measures macro metrics with `diagnostics: false`, so a
+ * `generations` or `humanCapital` parameter cannot move anything it reads.
+ * Perturbing them anyway would report them as dead alongside genuinely inert
+ * macro knobs, which is a different and much more interesting finding — the
+ * report has to keep the two apart.
+ */
+function isDiagnosticParam(info: { path?: string }): boolean {
+  const owner = info.path?.split('.')[0];
+  return owner !== undefined && DIAGNOSTIC_MODULES.includes(owner as never);
+}
+
 function computePerturbations(schema: Record<string, any>): ParamPerturbation[] {
   const perturbations: ParamPerturbation[] = [];
 
   for (const name of Object.keys(schema)) {
     const info = schema[name];
+    if (isDiagnosticParam(info)) continue;
 
     if (info.type === 'boolean') {
       perturbations.push({ name, lowValue: false, highValue: true });
@@ -217,7 +233,18 @@ async function main() {
   const t0 = Date.now();
   const schema = describeParameters();
   const perturbations = computePerturbations(schema);
-  console.log(`Found ${Object.keys(schema).length} Tier-1 parameters, ${perturbations.length} perturbable\n`);
+  const skipped = Object.keys(schema).filter(name => isDiagnosticParam(schema[name]));
+  console.log(`Found ${Object.keys(schema).length} Tier-1 parameters, ${perturbations.length} perturbable`);
+  if (skipped.length > 0) {
+    console.log(
+      `Not swept: ${skipped.length} parameter(s) owned by the diagnostic ledgers ` +
+      `(${DIAGNOSTIC_MODULES.join(', ')}), which this sweep does not run — ` +
+      `they cannot move a macro metric, so reporting them as "dead" would ` +
+      `conflate them with genuinely inert macro knobs:`,
+    );
+    for (const name of skipped) console.log(`  ${name}  (${schema[name].path})`);
+  }
+  console.log();
 
   // ---- BUILD SCENARIO LIST ----
   const scenarioFiles = (await listScenarios()).filter(s => !s.startsWith('test-'));
