@@ -59,9 +59,8 @@ function report(result: SimulationResult, label: string) {
 
 function regionCells(row: YearResult, region: (typeof REGIONS)[number], digits: number): string {
   const a = row.regionalHumanCapital[region];
-  const charge = a.depreciation + a.writeOffs;
   const f = fixed(digits, 5);
-  return `${f(a.investment)}  ${fixed(digits, 4)(charge)}  ${f(a.investment - charge)}  ${f(a.migrationTransfer)}  ${pct(6)(a.investmentGdpShare)}`;
+  return `${f(a.investment)}  ${fixed(digits, 4)(a.depreciation + a.writeOffs)}  ${f(a.netInvestment)}  ${f(a.migrationTransfer)}  ${pct(6)(a.investmentGdpShare)}`;
 }
 
 function printBands(row: YearResult) {

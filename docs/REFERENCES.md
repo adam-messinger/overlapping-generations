@@ -301,7 +301,7 @@ macro path. See `docs/HUMAN_CAPITAL.md`.
 1. **Kendrick (1976)**
    Kendrick, J.W. (1976). *The Formation and Stocks of Total Capital.* New York: NBER / Columbia University Press.
 
-   The cost-based approach implemented here: human capital as the accumulated cost of rearing and educating a person plus students' foregone earnings, depreciated over working life.
+   The cost-based approach implemented here: human capital as the accumulated cost of rearing and educating a person, depreciated over working life. Kendrick also counted students' foregone earnings, which the ledger prices only as a sensitivity (`foregoneEarningsShare`, 0 by default).
 
 2. **Jorgenson & Fraumeni (1989)**
    Jorgenson, D.W. & Fraumeni, B.M. (1989). "The Accumulation of Human and Nonhuman Capital, 1948-84." In *The Measurement of Saving, Investment, and Wealth*, NBER, 227-286.
@@ -311,7 +311,7 @@ macro path. See `docs/HUMAN_CAPITAL.md`.
 3. **Abraham (2010)**
    Abraham, K.G. (2010). "Accounting for Investments in Formal Education." *Survey of Current Business*, 90(6), 42-53.
 
-   BEA satellite-account treatment of education as investment; formal education alone is 7-9% of US GDP, the anchor for the ~13%-of-GDP total (rearing and foregone earnings included) the ledger reports for 2025.
+   BEA satellite-account treatment of education as investment; formal education alone is 7-9% of US GDP, the anchor for the ~10%-of-GDP total (rearing included, foregone earnings excluded) the ledger reports for the world in 2025, and 11% for the US.
 
 ### Prior-Art Scan (September 2026)
 

@@ -18,6 +18,7 @@ import {
   unitReplacementCost,
   expectedWorkingYears,
   exitHazards,
+  noExitHazards,
   type HumanCapitalOverrides,
   type HumanCapitalParams,
 } from './human-capital.js';
@@ -49,10 +50,7 @@ const ALL_SECONDARY: HumanCapitalOverrides['regions'] = Object.fromEntries(REGIO
 }]));
 
 /** One band, no exit hazards: useful life = retirement age - entry age exactly. */
-const NO_HAZARDS: HumanCapitalOverrides = {
-  regions: ALL_SECONDARY,
-  hazards: { mortalityBase: 0, disabilityBase: 0 },
-};
+const NO_HAZARDS: HumanCapitalOverrides = { ...noExitHazards, regions: ALL_SECONDARY };
 
 function runYears(
   years: number,

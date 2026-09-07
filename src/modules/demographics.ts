@@ -88,7 +88,7 @@ export const demographicsDefaults: DemographicsParams = {
       young: 0.24,             // Census 2023 ACS: 0-19 ~24.5%
       working: 0.58,           // 20-64 ~58%
       old: 0.18,               // 65+ ~17.7%
-      migrationRate: 0.0035,   // UN WPP 2024 / CBO 2025: net ~+1.2M/yr on 340M (relative share of the emigration budget)
+      migrationRate: 0.0035,   // UN WPP 2024 / CBO 2025: net ~+1.2M/yr on 340M (relative share of the emigration budget; the closed-world rescale books ~1.6M/yr, see docs/HUMAN_CAPITAL_TRAJECTORY.md)
     },
     'oecd-ex-us': {
       pop2025: 0.80e9,         // 1.14B model-OECD less the US
@@ -99,7 +99,7 @@ export const demographicsDefaults: DemographicsParams = {
       young: 0.18,             // UN WPP 2024 aggregate of the member states less the US
       working: 0.58,
       old: 0.24,
-      migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers)
+      migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers; the closed-world rescale books ~4.3M/yr)
     },
     china: {
       pop2025: 1.41e9,

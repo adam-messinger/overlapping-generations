@@ -141,6 +141,17 @@ export interface HumanCapitalParams {
 /** Scenario / programmatic override shape: any nested subset of the params. */
 export type HumanCapitalOverrides = DeepPartial<HumanCapitalParams>;
 
+/**
+ * Overrides that switch off death, disability, and domestic-role exits
+ * everywhere, so useful life is retirement age minus entry age and there are
+ * no write-offs (the G7-BRIC spreadsheet's convention). Shared by the tests
+ * and the trajectory script's --no-exit-hazards flag.
+ */
+export const noExitHazards: HumanCapitalOverrides = {
+  hazards: { mortalityBase: 0, disabilityBase: 0 },
+  regions: Object.fromEntries(REGIONS.map(r => [r, { domesticExitShare: 0 }])),
+};
+
 export const humanCapitalDefaults: HumanCapitalParams = {
   // Entry ages: primary-only entrants start work in mid-teens (ILO child and
   // adolescent labour statistics; legal minimum working ages 14-16), secondary
@@ -325,6 +336,8 @@ export interface HumanCapitalRegionAccount {
   grossStock: number;
   netStock: number;
   investmentGdpShare: number;
+  /** investment - depreciation - writeOffs (the charge on everyone in service, immigrants included) */
+  netInvestment: number;             // $T/year
   /** Net working-age migrants moved into (+) or out of (-) this ledger */
   migrationNetPeople: number;        // people/year
   /** Book value of those migrants at this region's replacement cost (+ inflow) */
@@ -601,7 +614,7 @@ function emptyBandAccount(): HumanCapitalBandAccount {
 function emptyRegionAccount(): HumanCapitalRegionAccount {
   return {
     entrants: 0, workersInService: 0, investment: 0, depreciation: 0, writeOffs: 0,
-    grossStock: 0, netStock: 0, investmentGdpShare: 0,
+    grossStock: 0, netStock: 0, investmentGdpShare: 0, netInvestment: 0,
     migrationNetPeople: 0, migrationTransfer: 0, lifeRevaluation: 0,
     migrantDepreciation: 0, migrantWriteOffs: 0, migrantWorkers: 0, ownCohortNetInvestment: 0,
   };
@@ -1038,8 +1051,8 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
 
       const regionGdp = inputs.regionalGdp[region] ?? 0;
       account.investmentGdpShare = regionGdp > 0 ? account.investment / regionGdp : 0;
-      account.ownCohortNetInvestment = account.investment
-        - (account.depreciation + account.writeOffs - account.migrantDepreciation - account.migrantWriteOffs);
+      account.netInvestment = account.investment - account.depreciation - account.writeOffs;
+      account.ownCohortNetInvestment = account.netInvestment + account.migrantDepreciation + account.migrantWriteOffs;
       regional[region] = account;
     }
 
