@@ -71,8 +71,7 @@ test('init sets correct cohort structure', () => {
   // Check that cohorts sum to population
   for (const region of REGIONS) {
     const r = state.regions[region];
-    const working = r.w1College + r.w1NonCollege + r.w2College + r.w2NonCollege;
-    const cohortSum = r.young + working + r.old;
+    const cohortSum = r.ages.reduce((a: number, b: number) => a + b, 0);
     expect(cohortSum / r.population).toBeCloseTo(1.0, 2);
   }
 });
@@ -80,17 +79,18 @@ test('init sets correct cohort structure', () => {
 test('init sets education splits', () => {
   const state = demographicsModule.init(demographicsDefaults);
 
-  // Check that each working band splits cleanly into college / non-college
+  // College counts sit inside each age group, only at working age and above,
+  // and tilt toward the younger workers.
   for (const region of REGIONS) {
     const r = state.regions[region];
-    const w1 = r.w1College + r.w1NonCollege;
-    const w2 = r.w2College + r.w2NonCollege;
-    expect(w1).toBeGreaterThan(0);
-    expect(w2).toBeGreaterThan(0);
-    const share = demographicsDefaults.education[region].collegeShare2025;
-    // the younger band carries a higher college share than the older one
-    expect(r.w1College / w1).toBeGreaterThan(r.w2College / w2);
-    expect(r.w1College / w1).toBeGreaterThan(share * 0.999);
+    expect(r.ages).toHaveLength(21);
+    expect(r.college).toHaveLength(21);
+    for (let g = 0; g < 21; g++) {
+      expect(r.college[g]).toBeLessThan(r.ages[g] + 1);
+      if (g < 4) expect(r.college[g]).toBe(0);
+    }
+    // 20-24 carries a higher college share than the retired groups
+    expect(r.college[4] / r.ages[4]).toBeGreaterThan(r.college[13] / r.ages[13]);
   }
 });
 
@@ -197,17 +197,17 @@ test('2100 population tracks WPP low (6.97B) and is declining', () => {
 // and two coarse working bands cannot follow a pyramid that inverted this hard,
 // so the module lands near 0.64B (-56%). Pinned at what the module does, with
 // the gap to WPP low recorded here rather than hidden.
-test('China 2100 population ~0.64B (WPP low: 0.41B)', () => {
+test('China 2100 population ~0.50B (WPP low: 0.41B)', () => {
   const year76 = runYears(76).outputs.regionalPopulation.china;
-  expect(year76 / 1e9).toBeBetween(0.55, 0.72);
+  expect(year76 / 1e9).toBeBetween(0.44, 0.56);
 });
 
-test('China declines by half or more (WPP low: -72%)', () => {
+test('China declines by about two thirds (WPP low: -72%)', () => {
   const year1 = runYears(1).outputs.regionalPopulation.china;
   const year76 = runYears(76).outputs.regionalPopulation.china;
   const decline = (year1 - year76) / year1;
 
-  expect(decline).toBeBetween(0.50, 0.62);
+  expect(decline).toBeBetween(0.60, 0.70);
 });
 
 test('dependency ratio 2075 ~44-46%', () => {
@@ -215,9 +215,13 @@ test('dependency ratio 2075 ~44-46%', () => {
   expect(year51).toBeBetween(0.44, 0.48);
 });
 
-test('college share 2050 ~32-36%', () => {
+// Not an external target: a self-consistency pin. Resolving the age structure
+// raised it from ~34% to ~40%, because the least-educated oldest workers now
+// retire on schedule instead of draining in proportion to their stock share,
+// so the education transition runs at its true pace rather than a damped one.
+test('college share 2050 ~40%', () => {
   const year26 = runYears(26).outputs.collegeShare;
-  expect(year26).toBeBetween(0.32, 0.38);
+  expect(year26).toBeBetween(0.36, 0.43);
 });
 
 // --- Regional Fertility ---
@@ -281,10 +285,8 @@ test('validation catches cohorts not summing to 1', () => {
       ...demographicsDefaults.regions,
       'oecd-ex-us': {
         ...demographicsDefaults.regions['oecd-ex-us'],
-        young: 0.5,
-        workingYoung: 0.3,
-        workingOlder: 0.2,
-        old: 0.5, // Sums to 1.5
+        // Sums to 1.5, not 1.0
+        ageDistribution: new Array(21).fill(1.5 / 21),
       },
     },
   });
@@ -431,14 +433,14 @@ test('migration moves population between regions', () => {
 
 console.log('\n--- Workforce entrants ---\n');
 
-test('workforce entrants are 1/20 of the pre-step young cohort in every year', () => {
+test('workforce entrants are a fifth of the pre-step 15-19 group in every year', () => {
   const params = demographicsModule.mergeParams({});
   let state = demographicsModule.init(params);
   for (let i = 0; i < 5; i++) {
-    const youngBefore = Object.fromEntries(REGIONS.map(r => [r, state.regions[r].young]));
+    const teens = Object.fromEntries(REGIONS.map(r => [r, state.regions[r].ages[3]]));
     const result = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i);
     for (const region of REGIONS) {
-      expect(result.outputs.regionalWorkforceEntrants[region]).toBeCloseTo(youngBefore[region] / 20, 0);
+      expect(result.outputs.regionalWorkforceEntrants[region]).toBeCloseTo(teens[region] / 5, 0);
     }
     state = result.state;
   }
@@ -475,9 +477,10 @@ test('exogenous population scaling scales entrants and education-split stocks to
   const totalSplit = REGIONS.reduce(
     (sum, r) => sum + outputs.regionalWorkingCollege[r] + outputs.regionalWorkingNonCollege[r], 0);
   expect(totalSplit).toBeCloseTo(totalWorking, 0);
-  const totalYoung = REGIONS.reduce((sum, r) => sum + outputs.regionalYoung[r], 0);
+  const totalTeens = REGIONS.reduce((sum, r) => sum + state.regions[r].ages[3], 0);
   const totalEntrants = REGIONS.reduce((sum, r) => sum + outputs.regionalWorkforceEntrants[r], 0);
-  expect(totalEntrants).toBeCloseTo(totalYoung / 20, 0);
+  const scale = 4e9 / REGIONS.reduce((sum, r) => sum + state.regions[r].population, 0);
+  expect(totalEntrants).toBeCloseTo((totalTeens / 5) * scale, 0);
 });
 
 test('working-age migration outputs sum to zero across regions and follow the 80/70 split', () => {

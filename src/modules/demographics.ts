@@ -28,10 +28,11 @@ export interface RegionDemoParams {
   fertilityFloor: number;    // Long-term convergence target
   fertilityDecay: number;    // Annual convergence rate
   lifeExpectancy: number;    // Years
-  young: number;             // 0-19 share
-  workingYoung: number;      // 20-44 share (the childbearing band)
-  workingOlder: number;      // 45-64 share
-  old: number;               // 65+ share
+  /**
+   * Share of the region's 2025 population in each five-year age group:
+   * 0-4, 5-9, ... 95-99, 100+ (21 entries, summing to 1).
+   */
+  ageDistribution: number[];
   migrationRate: number;     // Net migration rate
 }
 
@@ -81,112 +82,130 @@ export const demographicsDefaults: DemographicsParams = {
   // zero.
   regions: {
     us: {
-      pop2025: 0.3464e9,    // US Census Vintage 2024 / UN WPP 2024 low variant, 2025
+      pop2025: 0.3464e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.419,        // TFR 2025, WPP low variant
       fertilityFloor: 1.140,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.2000,
       lifeExpectancy: 79.6,     // UN WPP 2024, 2025
-      young: 0.2349,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3378,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2431,    // 45-64 share
-      old: 0.1841,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.05119, 0.05699, 0.06080, 0.06590, 0.06657, 0.06536, 0.06919,
+        0.06959, 0.06701, 0.06193, 0.05919, 0.05980, 0.06217, 0.05790,
+        0.04769, 0.03665, 0.02256, 0.01226, 0.00551, 0.00153, 0.00021,
+      ],
       migrationRate: 0.00376, // WPP low mean net migration / population 2025-2100
     },
     'oecd-ex-us': {
-      pop2025: 0.8055e9,    // UN WPP 2024 low, member states less the US, 2025
+      pop2025: 0.8058e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.113,        // TFR 2025, WPP low variant
       fertilityFloor: 1.021,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.2000,
       lifeExpectancy: 82.6,     // UN WPP 2024, 2025
-      young: 0.1926,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3030,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2770,    // 45-64 share
-      old: 0.2274,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.04027, 0.04767, 0.05126, 0.05332, 0.05446, 0.05764, 0.06092,
+        0.06363, 0.06619, 0.06823, 0.07139, 0.07027, 0.06702, 0.06080,
+        0.05379, 0.04710, 0.03207, 0.02117, 0.00974, 0.00267, 0.00039,
+      ],
       migrationRate: 0.00203, // WPP low mean net migration / population 2025-2100
     },
     china: {
-      pop2025: 1.4440e9,    // UN WPP 2024 low, incl. Hong Kong, Macao, Taiwan, 2025
+      pop2025: 1.4440e9,   // UN WPP 2024 low variant, 2025
       fertility: 0.766,        // TFR 2025, WPP low variant (incl. HK/Macao/Taiwan)
       fertilityFloor: 0.740,   // WPP low has China rising slightly after 2050; the
       // module's monotone convergence takes the flat best fit instead
       fertilityDecay: 0.0400,
       lifeExpectancy: 78.5,     // UN WPP 2024, 2025
-      young: 0.2108,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3424,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2961,    // 45-64 share
-      old: 0.1507,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.03126, 0.05648, 0.06351, 0.05953, 0.05563, 0.05858, 0.06973,
+        0.08567, 0.07276, 0.06574, 0.08133, 0.08245, 0.06661, 0.05005,
+        0.04635, 0.02780, 0.01526, 0.00789, 0.00284, 0.00049, 0.00004,
+      ],
       migrationRate: -0.00016, // WPP low mean net migration / population 2025-2100
     },
     india: {
-      pop2025: 1.9868e9,    // UN WPP 2024 low, India + South Asia, 2025
+      pop2025: 1.9869e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.930,        // TFR 2025, WPP low variant
       fertilityFloor: 1.331,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.0658,
       lifeExpectancy: 72.1,     // UN WPP 2024, 2025
-      young: 0.3535,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3957,    // 20-44 share, WPP low 2025
-      workingOlder: 0.1819,    // 45-64 share
-      old: 0.0688,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.08427, 0.08796, 0.09030, 0.09093, 0.08997, 0.08526, 0.07974,
+        0.07407, 0.06670, 0.05682, 0.04908, 0.04150, 0.03455, 0.02732,
+        0.01959, 0.01163, 0.00627, 0.00290, 0.00095, 0.00019, 0.00002,
+      ],
       migrationRate: -0.00067, // WPP low mean net migration / population 2025-2100
     },
     latam: {
-      pop2025: 0.6659e9,    // UN WPP 2024 low, Latin America and the Caribbean, 2025
+      pop2025: 0.6660e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.573,        // TFR 2025, WPP low variant
       fertilityFloor: 1.158,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.1529,
       lifeExpectancy: 76.0,     // UN WPP 2024, 2025
-      young: 0.2977,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3818,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2186,    // 45-64 share
-      old: 0.1020,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.06664, 0.07447, 0.07801, 0.07854, 0.07924, 0.07947, 0.07773,
+        0.07478, 0.07051, 0.06422, 0.05769, 0.05140, 0.04525, 0.03641,
+        0.02740, 0.01872, 0.01123, 0.00563, 0.00208, 0.00051, 0.00007,
+      ],
       migrationRate: -0.00042, // WPP low mean net migration / population 2025-2100
     },
     seasia: {
-      pop2025: 0.7424e9,    // UN WPP 2024 low, SE Asia + Pacific, 2025
+      pop2025: 0.7424e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.708,        // TFR 2025, WPP low variant
       fertilityFloor: 1.222,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.1114,
       lifeExpectancy: 72.3,     // UN WPP 2024, 2025
-      young: 0.3139,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3797,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2215,    // 45-64 share
-      old: 0.0849,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.07008, 0.07905, 0.08388, 0.08086, 0.07769, 0.07744, 0.07761,
+        0.07499, 0.07199, 0.06470, 0.05912, 0.05309, 0.04459, 0.03439,
+        0.02309, 0.01421, 0.00780, 0.00379, 0.00130, 0.00028, 0.00004,
+      ],
       migrationRate: -0.00015, // WPP low mean net migration / population 2025-2100
     },
     russia: {
-      pop2025: 0.2950e9,    // UN WPP 2024 low, Russia + CIS, 2025
+      pop2025: 0.2950e9,   // UN WPP 2024 low variant, 2025
       fertility: 1.698,        // TFR 2025, WPP low variant
       fertilityFloor: 1.305,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.0870,
       lifeExpectancy: 73.6,     // UN WPP 2024, 2025
-      young: 0.2713,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3437,    // 20-44 share, WPP low 2025
-      workingOlder: 0.2409,    // 45-64 share
-      old: 0.1440,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.06196, 0.07095, 0.07373, 0.06467, 0.05655, 0.05714, 0.06968,
+        0.08391, 0.07642, 0.06732, 0.06055, 0.05480, 0.05819, 0.05288,
+        0.03960, 0.02491, 0.01146, 0.01091, 0.00320, 0.00102, 0.00012,
+      ],
       migrationRate: 0.00098, // WPP low mean net migration / population 2025-2100
     },
     mena: {
-      pop2025: 0.6016e9,    // UN WPP 2024 low, MENA incl. Iran and Turkiye, 2025
+      pop2025: 0.6016e9,   // UN WPP 2024 low variant, 2025
       fertility: 2.131,        // TFR 2025, WPP low variant
       fertilityFloor: 1.294,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.0478,
       lifeExpectancy: 75.5,     // UN WPP 2024, 2025
-      young: 0.3585,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3903,    // 20-44 share, WPP low 2025
-      workingOlder: 0.1871,    // 45-64 share
-      old: 0.0641,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.08639, 0.09346, 0.09412, 0.08449, 0.07821, 0.07876, 0.08036,
+        0.08002, 0.07296, 0.06137, 0.05013, 0.04168, 0.03396, 0.02526,
+        0.01855, 0.01117, 0.00574, 0.00249, 0.00074, 0.00013, 0.00001,
+      ],
       migrationRate: -0.00033, // WPP low mean net migration / population 2025-2100
     },
     ssa: {
-      pop2025: 1.3216e9,    // UN WPP 2024 low, Sub-Saharan Africa incl. Sudan, 2025
+      pop2025: 1.3216e9,   // UN WPP 2024 low variant, 2025
       fertility: 3.900,        // TFR 2025, WPP low variant
       fertilityFloor: 1.453,   // floor/decay fitted to the WPP low TFR path to 2100
       fertilityDecay: 0.0392,
       lifeExpectancy: 63.0,     // UN WPP 2024, 2025
-      young: 0.5111,           // 0-19 share, WPP low 2025
-      workingYoung: 0.3447,    // 20-44 share, WPP low 2025
-      workingOlder: 0.1117,    // 45-64 share
-      old: 0.0325,             // 65+ share
+      // 2025 age structure, UN WPP 2024 low: 0-4, 5-9 ... 95-99, 100+
+      ageDistribution: [
+        0.14552, 0.13403, 0.12228, 0.10928, 0.09369, 0.07915, 0.06725,
+        0.05700, 0.04764, 0.03856, 0.03046, 0.02402, 0.01860, 0.01368,
+        0.00920, 0.00543, 0.00272, 0.00108, 0.00031, 0.00006, 0.00001,
+      ],
       migrationRate: -0.00035, // WPP low mean net migration / population 2025-2100
     },
   },
@@ -324,18 +343,11 @@ export const demographicsDefaults: DemographicsParams = {
 
 interface RegionState {
   population: number;
-  // Absolute cohort counts. The working cohort is carried as two bands,
-  // 20-44 and 45-64, so a retirement wave propagates with a lag instead of
-  // draining at a flat 1/45 a year; `working` is their sum.
-  young: number;
-  old: number;
-  // Education splits (absolute counts), per working band
-  w1College: number;
-  w1NonCollege: number;
-  w2College: number;
-  w2NonCollege: number;
-  oldCollege: number;
-  oldNonCollege: number;
+  // Absolute headcount in each five-year age group, and how many of them hold
+  // a tertiary qualification. Both are length N_AGE_GROUPS; the education
+  // arrays are zero below the workforce entry group.
+  ages: number[];
+  college: number[];
   // Other state
   lifeExpectancy: number;
   // Cached params for projections
@@ -433,53 +445,52 @@ const OLD_MIGRANT_SHARE = 0.05;
 const W1_MIGRANT_SHARE = 0.75;
 
 // =============================================================================
-// COHORT TRANSITION AND MORTALITY CONSTANTS
+// AGE STRUCTURE, FERTILITY AND MORTALITY
 //
-// Calibrated to the UN WPP 2024 low-fertility variant aggregated to these nine
-// regions, 2025-2100 (scripts/repro/calibrate_demographics.py). The working
-// cohort is two bands so that the 45-64 bulge retires as a wave; a single
-// 20-64 stock draining at 1/45 a year cannot track a non-uniform age pyramid.
+// The population is carried as five-year age groups (0-4 ... 95-99 plus an
+// open-ended 100+), so a cohort moves through the structure at 1/5 a year
+// rather than draining at a flat rate across a 20- or 45-year band. The coarse
+// versions of this module could not track a non-uniform age pyramid: they bled
+// people out of the childbearing ages a decade early, which cost births, which
+// compounded. Calibrated to the UN WPP 2024 low-fertility variant aggregated to
+// these nine regions, 2025-2100 (scripts/repro/calibrate_demographics.py and
+// scripts/repro/demog_mirror3.py).
 // =============================================================================
-const W1_SPAN = 25;   // ages 20-44
-const W2_SPAN = 20;   // ages 45-64
+const N_AGE_GROUPS = 21;      // 0-4 ... 95-99, 100+
+const AGE_GROUP_SPAN = 5;
+const WORK_FIRST = 4;         // 20-24
+const WORK_LAST = 12;         // 60-64
+const OLD_FIRST = 13;         // 65-69
+const FERTILE_FIRST = 3;      // 15-19
+const FERTILE_LAST = 9;       // 45-49
 
 /**
- * Childbearing exposure. 15-19 is ~28% of the 0-19 cohort and 45-49 ~28% of
- * the 45-64 band (UN WPP 2024 age structure); all of 20-44 is in the window.
- * The span is the effective 15-49 window, fitted to WPP low births (35.9 yr
- * against a nominal 35).
+ * Age-specific fertility as a share of the TFR, 15-19 through 45-49. The shape
+ * is the standard world ASFR distribution; the scale is fitted so the formula
+ * reproduces WPP low births (R2 0.999, world drift within 2% across the century).
  */
-const EXPOSURE_YOUNG = 0.28;
-const EXPOSURE_W1 = 1.0;
-const EXPOSURE_W2 = 0.28;
-const CHILDBEARING_SPAN = 35.9;
+const ASFR_SHARE = [0.07, 0.2, 0.26, 0.24, 0.15, 0.07, 0.01];
+const ASFR_SCALE = 0.9971;
 
 /**
- * Annual death rates at the LEx = 75 reference, falling with life expectancy.
- * Fitted within demographically plausible bands: 0-19 0.05-0.30%, 20-44
- * 0.10-0.25%, 45-64 0.40-0.90% a year.
+ * Annual death rate by age group at a life expectancy of 75, and the rate at
+ * which each group's mortality falls as life expectancy rises. Fitted to WPP
+ * low five-year cohort survival on world totals (regional ratios confound net
+ * migration with death), shifted to group midpoints -- a cohort survival ratio
+ * reflects mortality centred half a group older than the group it starts in,
+ * which at old ages is a ~20% level error -- then level-scaled so total deaths
+ * match WPP low within 3%.
  */
-const YOUNG_DEATH_RATE = 0.0015;
-const W1_DEATH_RATE = 0.0010;
-const W2_DEATH_RATE = 0.0040;
-const W1_DEATH_LE_DECAY = 0.03;
-const W2_DEATH_LE_DECAY = 0.04;
-const DEATH_REFERENCE_LE = 75;
+const MORTALITY = [0.0022655, 0.0011493, 0.0007347, 0.0001183, 7.48e-05, 0.0006757, 0.0019803, 0.0026052, 0.0033682, 0.0043062, 0.0058475, 0.0083135, 0.0120498, 0.0179335, 0.0272456, 0.042497, 0.0680744, 0.1097959, 0.1743085, 0.2577304, 0.4198243];
+const MORTALITY_LE_DECAY = [0.15, 0.11273, 0.10938, 0.07191, 0.07526, 0.09996, 0.03602, 0.01856, 0.02285, 0.03898, 0.0513, 0.0577, 0.06094, 0.09305, 0.09332, 0.09271, 0.09185, 0.08835, 0.0769, 0.06281, 0.08253];
+const MORTALITY_REFERENCE_LE = 75;
 
-/**
- * Effective remaining life at 65, which sets the old cohort's exit rate. The
- * module previously used LEx - 55, which overstates remaining life at 65 by
- * ~10 years once LEx reaches 90 and so let the old cohort accumulate without
- * limit. Regressing UN WPP 2024 LE65 on LEx across the nine regions, 2025-2100
- * gives 0.539 * LEx - 23.14 (R2 0.944, max residual 2.8 yr). The intercept
- * used here is looser than that: 1/LE65 is the 65+ death rate only in a
- * stationary population, and this one is far from stationary while the large
- * mid-century cohorts age in, so -20.5 is the value that keeps the modelled
- * 65+ stock on the WPP low path through that transition (old cohort within
- * about 10% of WPP low, 2025-2100).
- */
-const LE65_SLOPE = 0.539;
-const LE65_INTERCEPT = -20.5;
+/** Working-age arrivals by age group, 20-24 through 60-64. */
+const MIGRANT_AGE_WEIGHTS = [0.26, 0.26, 0.19, 0.12, 0.08, 0.05, 0.03, 0.01, 0.0];
+
+/** Relative mortality of college vs non-college within an age group. */
+const COLLEGE_MORTALITY_TILT = 0.02;
+
 
 /**
  * The flows a region's cohorts generate this year: entrants aging out of the
@@ -503,8 +514,8 @@ function cohortFlows(
   const migration = state.population * effectiveMigrationRate;
   const working = migration * WORKING_MIGRANT_SHARE;
   return {
-    // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
-    entrants: state.young / 20,
+    // Entrants are the 15-19 group aging into 20-24: a fifth of it each year.
+    entrants: state.ages[FERTILE_FIRST] / AGE_GROUP_SPAN,
     enrollRate: projectEnrollmentRate(
       eduParams.enrollmentRate2025,
       eduParams.enrollmentTarget,
@@ -518,19 +529,22 @@ function cohortFlows(
 }
 
 /**
- * Births from the TFR and the cohorts in the 15-49 window. With the working
- * cohort split at 45, the 20-44 band *is* the core childbearing range, so the
- * exposure weights are structural rather than stylized.
+ * Births from the TFR and the women in each five-year childbearing group.
+ * TFR = 5 * sum(ASFR_g), so births = sum_g (TFR * share_g / 5) * women_g, and
+ * women are taken as half of each group.
  */
-function birthsFromTFR(tfr: number, young: number, w1: number, w2: number): number {
-  const womenOfChildbearingAge =
-    (EXPOSURE_YOUNG * young + EXPOSURE_W1 * w1 + EXPOSURE_W2 * w2) * 0.5;
-  return (tfr * womenOfChildbearingAge) / CHILDBEARING_SPAN;
+function birthsFromTFR(tfr: number, ages: number[]): number {
+  let exposure = 0;
+  for (let g = FERTILE_FIRST; g <= FERTILE_LAST; g++) {
+    exposure += ASFR_SHARE[g - FERTILE_FIRST] * ages[g];
+  }
+  return tfr * 0.1 * ASFR_SCALE * exposure;
 }
 
-/** Remaining life expectancy at 65 implied by a region's life expectancy. */
-function remainingLifeAt65(lifeExpectancy: number): number {
-  return Math.max(10, LE65_SLOPE * lifeExpectancy + LE65_INTERCEPT);
+/** Annual death rate for an age group at a given life expectancy. */
+function mortalityRate(group: number, lifeExpectancy: number): number {
+  return MORTALITY[group]
+    * Math.exp(-MORTALITY_LE_DECAY[group] * (lifeExpectancy - MORTALITY_REFERENCE_LE));
 }
 
 function ageCohorts(
@@ -540,79 +554,78 @@ function ageCohorts(
   lifeExpectancyGrowth: number,
   flows: CohortFlows
 ): RegionState {
-  const w1 = state.w1College + state.w1NonCollege;
-  const w2 = state.w2College + state.w2NonCollege;
+  const le = state.lifeExpectancy;
+  const births = birthsFromTFR(tfr, state.ages);
 
-  const births = birthsFromTFR(tfr, state.young, w1, w2);
+  const ages = new Array<number>(N_AGE_GROUPS).fill(0);
+  const college = new Array<number>(N_AGE_GROUPS).fill(0);
 
-  // Aging transitions: each band drains over its own width, so the 45-64
-  // bulge reaches 65 as a wave rather than immediately.
-  const agingOutOfYoung = flows.entrants;
-  const agingOutOfW1 = w1 / W1_SPAN;
-  const agingOutOfW2 = w2 / W2_SPAN;
+  for (let g = 0; g < N_AGE_GROUPS; g++) {
+    const n = state.ages[g];
+    const c = state.college[g];
+    const m = mortalityRate(g, le);
 
-  // Working-age and child mortality, falling with life expectancy.
-  const leGap = state.lifeExpectancy - DEATH_REFERENCE_LE;
-  const w1DeathRate = W1_DEATH_RATE * Math.exp(-W1_DEATH_LE_DECAY * leGap);
-  const w2DeathRate = W2_DEATH_RATE * Math.exp(-W2_DEATH_LE_DECAY * leGap);
-  const youngDeaths = state.young * YOUNG_DEATH_RATE;
+    // Deaths, split so college mortality is lower while the group total is
+    // exactly n * m -- the schedule's calibration is preserved.
+    const share = n > 0 ? c / n : 0;
+    const rc = Math.exp(-COLLEGE_MORTALITY_TILT * eduParams.lifeBonusCollege);
+    const rn = Math.exp(COLLEGE_MORTALITY_TILT * eduParams.lifePenaltyNonCollege);
+    const z = share * rc + (1 - share) * rn;
+    const deaths = n * m;
+    const collegeDeaths = z > 0 ? deaths * (share * rc) / z : 0;
 
-  // === EDUCATION TRACKING ===
-  const newCollegeWorkers = agingOutOfYoung * flows.enrollRate;
-  const newNonCollegeWorkers = agingOutOfYoung * (1 - flows.enrollRate);
-  const collegeShareW1 = w1 > 0 ? state.w1College / w1 : flows.enrollRate;
-  const collegeShareW2 = w2 > 0 ? state.w2College / w2 : collegeShareW1;
+    // Aging: a fifth of each group moves up, except the open-ended top group.
+    const leaving = g === N_AGE_GROUPS - 1 ? 0 : n / AGE_GROUP_SPAN;
+    const leavingCollege = n > 0 ? leaving * share : 0;
 
-  // Old cohort deaths with differential mortality
-  const remainingLEat65Base = remainingLifeAt65(state.lifeExpectancy);
-  const remainingLEat65College = remainingLEat65Base + eduParams.lifeBonusCollege * 0.5;
-  const remainingLEat65NonCollege = Math.max(
-    8, remainingLEat65Base - eduParams.lifePenaltyNonCollege * 0.5);
+    ages[g] += Math.max(0, n - leaving - deaths);
+    college[g] += Math.max(0, c - leavingCollege - collegeDeaths);
+    if (g < N_AGE_GROUPS - 1) {
+      ages[g + 1] += leaving;
+      // Entrants pick up their education on entering the workforce group.
+      college[g + 1] += g + 1 === WORK_FIRST ? leaving * flows.enrollRate : leavingCollege;
+    }
+  }
+  ages[0] += births;
 
-  const oldDeathsCollege = Math.min(state.oldCollege / remainingLEat65College, state.oldCollege);
-  const oldDeathsNonCollege = Math.min(
-    state.oldNonCollege / remainingLEat65NonCollege, state.oldNonCollege);
+  // Migration: 80% working-age (70% of them college) spread over the working
+  // groups, 15% young pro rata, 5% old pro rata.
+  const mig = flows.migration;
+  for (let j = 0; j < MIGRANT_AGE_WEIGHTS.length; j++) {
+    const n = mig * WORKING_MIGRANT_SHARE * MIGRANT_AGE_WEIGHTS[j];
+    ages[WORK_FIRST + j] += n;
+    college[WORK_FIRST + j] += n * MIGRANT_COLLEGE_SHARE;
+  }
+  let youngTotal = 0;
+  for (let g = 0; g < WORK_FIRST; g++) youngTotal += ages[g];
+  if (youngTotal > 0) {
+    for (let g = 0; g < WORK_FIRST; g++) {
+      ages[g] += mig * YOUNG_MIGRANT_SHARE * (ages[g] / youngTotal);
+    }
+  }
+  let oldTotal = 0;
+  for (let g = OLD_FIRST; g < N_AGE_GROUPS; g++) oldTotal += ages[g];
+  if (oldTotal > 0) {
+    for (let g = OLD_FIRST; g < N_AGE_GROUPS; g++) {
+      const w = ages[g] / oldTotal;
+      ages[g] += mig * OLD_MIGRANT_SHARE * w;
+      college[g] += mig * OLD_MIGRANT_SHARE * w * 0.5;
+    }
+  }
 
-  // === COHORT UPDATES ===
-  let w1College = Math.max(0, state.w1College + newCollegeWorkers
-    - agingOutOfW1 * collegeShareW1 - state.w1College * w1DeathRate);
-  let w1NonCollege = Math.max(0, state.w1NonCollege + newNonCollegeWorkers
-    - agingOutOfW1 * (1 - collegeShareW1) - state.w1NonCollege * w1DeathRate);
-  let w2College = Math.max(0, state.w2College + agingOutOfW1 * collegeShareW1
-    - agingOutOfW2 * collegeShareW2 - state.w2College * w2DeathRate);
-  let w2NonCollege = Math.max(0, state.w2NonCollege + agingOutOfW1 * (1 - collegeShareW1)
-    - agingOutOfW2 * (1 - collegeShareW2) - state.w2NonCollege * w2DeathRate);
-  let newOldCollege = Math.max(0, state.oldCollege + agingOutOfW2 * collegeShareW2 - oldDeathsCollege);
-  let newOldNonCollege = Math.max(0, state.oldNonCollege
-    + agingOutOfW2 * (1 - collegeShareW2) - oldDeathsNonCollege);
-  let newYoung = Math.max(0, state.young + births - agingOutOfYoung - youngDeaths);
+  for (let g = 0; g < N_AGE_GROUPS; g++) {
+    ages[g] = Math.max(0, ages[g]);
+    college[g] = Math.min(Math.max(0, college[g]), ages[g]);
+  }
 
-  // Apply migration (primarily working-age, skewed to the younger band and
-  // 70% college). Rate is pre-scaled so global net migration sums to zero.
-  const migW1 = flows.migration * WORKING_MIGRANT_SHARE * W1_MIGRANT_SHARE;
-  const migW2 = flows.migration * WORKING_MIGRANT_SHARE * (1 - W1_MIGRANT_SHARE);
-  w1College += migW1 * MIGRANT_COLLEGE_SHARE;
-  w1NonCollege += migW1 * (1 - MIGRANT_COLLEGE_SHARE);
-  w2College += migW2 * MIGRANT_COLLEGE_SHARE;
-  w2NonCollege += migW2 * (1 - MIGRANT_COLLEGE_SHARE);
-  newYoung += flows.migration * YOUNG_MIGRANT_SHARE;
-  newOldCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
-  newOldNonCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
-
-  const newWorking = w1College + w1NonCollege + w2College + w2NonCollege;
-  const newOld = newOldCollege + newOldNonCollege;
+  let population = 0;
+  for (const n of ages) population += n;
 
   return {
-    population: newYoung + newWorking + newOld,
-    young: newYoung,
-    old: newOld,
-    w1College,
-    w1NonCollege,
-    w2College,
-    w2NonCollege,
-    oldCollege: newOldCollege,
-    oldNonCollege: newOldNonCollege,
-    lifeExpectancy: state.lifeExpectancy + lifeExpectancyGrowth,
+    population,
+    ages,
+    college,
+    lifeExpectancy: le + lifeExpectancyGrowth,
     _fertility0: state._fertility0,
     _fertilityFloor: state._fertilityFloor,
     _fertilityDecay: state._fertilityDecay,
@@ -721,9 +734,13 @@ export const demographicsModule: Module<
         warnings.push(`${region}.fertilityFloor ${r.fertilityFloor} very low`);
       }
 
-      const cohortSum = r.young + r.workingYoung + r.workingOlder + r.old;
+      if (r.ageDistribution.length !== N_AGE_GROUPS) {
+        errors.push(
+          `${region}.ageDistribution has ${r.ageDistribution.length} groups, expected ${N_AGE_GROUPS}`);
+      }
+      const cohortSum = r.ageDistribution.reduce((a, b) => a + b, 0);
       if (Math.abs(cohortSum - 1.0) > 0.01) {
-        errors.push(`${region} cohort shares sum to ${cohortSum}, should be 1.0`);
+        errors.push(`${region} age shares sum to ${cohortSum}, should be 1.0`);
       }
     }
 
@@ -786,29 +803,19 @@ export const demographicsModule: Module<
 
       // Initialize with ABSOLUTE counts, not shares
       const pop = r.pop2025;
-      const youngAbs = r.young * pop;
-      const w1Abs = r.workingYoung * pop;
-      const w2Abs = r.workingOlder * pop;
-      const oldAbs = r.old * pop;
-
-      // Education splits. The older working band carries a lower college
-      // share than the younger one: attainment has risen with each cohort.
-      const w1Share = Math.min(1, e.collegeShare2025 * 1.15);
-      const w2Share = Math.max(0, e.collegeShare2025 * 0.8);
-      // Elderly college share starts lower (they got degrees decades ago)
-      const oldCollege = oldAbs * e.collegeShare2025 * 0.5;
-      const oldNonCollege = oldAbs - oldCollege;
+      const ages = r.ageDistribution.map((share) => share * pop);
+      // College share by age: attainment has risen with each cohort, so the
+      // youngest workers carry more of it and the retired carry least.
+      const college = ages.map((n, g) => {
+        if (g < WORK_FIRST) return 0;
+        const tilt = g >= OLD_FIRST ? 0.5 : 1.15 - 0.05 * (g - WORK_FIRST);
+        return n * Math.min(1, Math.max(0, e.collegeShare2025 * tilt));
+      });
 
       regions[region] = {
         population: pop,
-        young: youngAbs,
-        old: oldAbs,
-        w1College: w1Abs * w1Share,
-        w1NonCollege: w1Abs * (1 - w1Share),
-        w2College: w2Abs * w2Share,
-        w2NonCollege: w2Abs * (1 - w2Share),
-        oldCollege,
-        oldNonCollege,
+        ages,
+        college,
         lifeExpectancy: r.lifeExpectancy,
         // Cache effective params
         _fertility0: r.fertility,
@@ -899,17 +906,27 @@ export const demographicsModule: Module<
       newRegions[region] = newState;
       regionalLifeExpectancy[region] = newState.lifeExpectancy;
 
-      const workingCollegeAbs = newState.w1College + newState.w2College;
-      const workingNonCollegeAbs = newState.w1NonCollege + newState.w2NonCollege;
+      let workingCollegeAbs = 0;
+      let workingAbs = 0;
+      let youngAbs = 0;
+      let oldAbs = 0;
+      for (let g = 0; g < N_AGE_GROUPS; g++) {
+        if (g < WORK_FIRST) youngAbs += newState.ages[g];
+        else if (g <= WORK_LAST) {
+          workingAbs += newState.ages[g];
+          workingCollegeAbs += newState.college[g];
+        } else oldAbs += newState.ages[g];
+      }
+      const workingNonCollegeAbs = workingAbs - workingCollegeAbs;
       regionalWorkingCollege[region] = workingCollegeAbs;
       regionalWorkingNonCollege[region] = workingNonCollegeAbs;
 
       // Calculate regional outputs
-      const workingPop = workingCollegeAbs + workingNonCollegeAbs;
-      const oldPop = newState.old;
+      const workingPop = workingAbs;
+      const oldPop = oldAbs;
 
       regionalPopulation[region] = newState.population;
-      regionalYoung[region] = newState.young;
+      regionalYoung[region] = youngAbs;
       regionalWorking[region] = workingPop;
       regionalOld[region] = oldPop;
       regionalDependency[region] = workingPop > 0 ? oldPop / workingPop : 0;
@@ -968,14 +985,10 @@ export const demographicsModule: Module<
         for (const region of REGIONS) {
           const rs = newRegions[region];
           rs.population *= scale;
-          rs.young *= scale;
-          rs.w1College *= scale;
-          rs.w1NonCollege *= scale;
-          rs.w2College *= scale;
-          rs.w2NonCollege *= scale;
-          rs.old *= scale;
-          rs.oldCollege *= scale;
-          rs.oldNonCollege *= scale;
+          for (let g = 0; g < N_AGE_GROUPS; g++) {
+            rs.ages[g] *= scale;
+            rs.college[g] *= scale;
+          }
           regionalPopulation[region] *= scale;
           regionalYoung[region] *= scale;
           regionalWorking[region] *= scale;

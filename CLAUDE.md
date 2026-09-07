@@ -182,21 +182,26 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Fernández-Villaverde**: Fertility convergence to regional floors
 - **3-cohort model**: Young (0-19), Working (20-64), Old (65+)
 - **Education**: College share affects effective workers
-- **Two working bands**: the 20-64 cohort is carried as 20-44 and 45-64 so a
-  retirement wave propagates with a lag; a single stock draining at 1/45 a year
-  cannot track a non-uniform age pyramid. `working` is still their sum, so
-  downstream consumers are unchanged
-- **NOTE**: calibrated to the UN WPP 2024 *low* variant (peak 8.70B in 2045,
-  6.95B in 2100 against WPP low's 8.95B in 2052 and 6.97B). Fertility floors and
-  decay rates are fitted to WPP low's regional TFR paths; 2025 cohort shares,
-  life expectancy and migration rates are read off WPP low directly. World
-  population, 0-19, 20-64, 65+ and the entrant flow all stay within ~10% of WPP
-  low for the whole century. Regionally China is the worst case — WPP low takes
-  it to 0.41B by 2100 and two coarse bands reach only 0.64B — so read China's
-  late-century path as an upper bound. Before this calibration the module ran a
+- **Five-year age groups**: the population is carried as 0-4 ... 95-99 plus an
+  open-ended 100+, so a cohort moves through the structure at 1/5 a year.
+  Earlier versions drained a single 20-64 stock at a flat 1/45 (then two bands
+  at 1/25 and 1/20), which cannot track a non-uniform age pyramid: it bled
+  people out of the childbearing ages a decade early, which cost births, which
+  compounded. `young`, `working`, `old` and the education-split outputs are
+  sums over the groups, so downstream consumers are unchanged. Workforce
+  entrants are the 15-19 group aging into 20-24, not a 1/20 slice of 0-19
+- **NOTE**: calibrated to the UN WPP 2024 *low* variant, and it now tracks it:
+  world population peaks at 8.88B in 2049 and ends at 6.93B, against WPP low's
+  8.95B in 2052 and 6.97B, staying within 2% of it for the whole century; the
+  0-19, 20-64 and 65+ cohorts stay within about 6%. Fertility floors and decay
+  rates are fitted to WPP low's regional TFR paths; the 2025 age distribution,
+  life expectancy and migration rates are read off WPP low directly; the ASFR
+  shape and the age-specific mortality schedule are fitted to WPP low births and
+  cohort survival. China is the one region to read with care (0.49B in 2100
+  against WPP low's 0.41B). Before September 2026 the module ran a
   medium-variant fertility path (world TFR 1.70 in 2100 against WPP low's 1.36)
-  and ended the century 21% above WPP low, with an entrant flow nearly double
-  it; see `docs/HUMAN_CAPITAL_REPRODUCTION.md` §5.3
+  and ended the century 21% above WPP low; see
+  `docs/HUMAN_CAPITAL_REPRODUCTION.md` §5.3
 
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**

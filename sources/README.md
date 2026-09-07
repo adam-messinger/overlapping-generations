@@ -153,10 +153,10 @@ This folder contains reference materials for the simulation's demographics and c
 |--------|--------|--------|-------------------|
 | Global Pop 2025 | ~8.2B | UN WPP 2024 | 8.21B |
 | World TFR, today | 2.17 (replacement 2.21) | FV May 2025 slides | 1.90 — WPP low front-loads its fertility cut, so the model starts below observed |
-| Population peak | ~8.95B in 2052 (WPP low); FV says "around 2055" | FV endorses WPP low | 8.70B in 2045 |
-| Population starts falling | c. 2055 | FV May 2025 slides | 2046 |
-| Pop 2100 | ~6.97B | UN WPP 2024 low | 6.95B |
-| China 2100 | ~0.41B | UN WPP 2024 low | 0.64B (two coarse working bands cannot follow China's inversion; upper bound) |
+| Population peak | ~8.95B in 2052 (WPP low); FV says "around 2055" | FV endorses WPP low | 8.88B in 2049 |
+| Population starts falling | c. 2055 | FV May 2025 slides | 2050 |
+| Pop 2100 | ~6.97B | UN WPP 2024 low | 6.93B |
+| China 2100 | ~0.41B | UN WPP 2024 low | 0.49B (the age-resolved rewrite cut this from 0.64B; still an upper bound) |
 | China TFR today | ~1.1 | FV May 2025 slides | 0.77 (WPP low's assumption, below FV's estimate of the actual) |
 | India TFR today | ~1.9 | FV May 2025 slides | 1.93 |
 | Global Dependency 2075 | ~44% | Model projection |
@@ -219,4 +219,4 @@ This folder contains reference materials for the simulation's demographics and c
 | China wage premium 2025 | 1.8× | Higher scarcity |
 | College life bonus (OECD) | +3 years | Chetty et al. |
 | China college peak | ~2040 | 15 years after total peak |
-| Global college share 2050 | ~36% | Model projection |
+| Global college share 2050 | ~40% | Model projection (was ~36% before the age-resolved rewrite; see src/modules/demographics.test.ts) |

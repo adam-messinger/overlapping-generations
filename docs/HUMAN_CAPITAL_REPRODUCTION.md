@@ -22,10 +22,13 @@ in 2100 against WPP low's 1.36), which held the 0-19 cohort 72% above the low
 variant by 2100 and the entrant flow at 2.2-2.5% of the workforce all century
 against a replacement requirement of ~2.7%/yr.
 
-> **Update (2026-09).** Acting on this finding, `src/modules/demographics.ts` has
-> been recalibrated to the UN WPP 2024 low variant and given a two-band working
-> cohort. The module now ends the century at 6.95bn against WPP low's 6.97bn
-> (it was 8.46bn), with every cohort and the entrant flow inside ~10% of WPP low.
+> **Update (2026-09).** Acting on this finding, `src/modules/demographics.ts` was
+> recalibrated to the UN WPP 2024 low variant and then rewritten onto five-year
+> age groups, because coarse cohorts could not track the age pyramid however well
+> fertility was calibrated: a flat drain out of a 20- or 25-year band bled people
+> out of the childbearing ages a decade early, which cost births, which
+> compounded. The module now peaks at 8.88bn in 2049 and ends at 6.93bn, against
+> WPP low's 8.95bn in 2052 and 6.97bn, staying within 2% of it all century.
 > The two implementations have converged accordingly: driving my ledger with the
 > recalibrated model's cohorts now gives a world peak of **2035 at 1.05** ending
 > at **0.68**, against my own WPP-low run's 2032 at 1.04 ending 0.58 — and the
@@ -192,12 +195,16 @@ they are diagnostics, never the primary run:
 
 | Run | World peak | 2100 | 2025-50 change |
 |---|---|---|---|
-| `model` — WPP low age shares rescaled to the model's regional **totals** | 2032 @ 1.042 | 0.578 | -18.3 |
-| `model-cohorts` — the model's own **young / working / entrant** cohorts | 2035 @ 1.052 | 0.677 | +0.3 |
+| `model-cohorts` — the model's own **young / working / entrant** cohorts | 2032 @ 1.042 | 0.584 | -18.0 |
 
-(Both re-run against the recalibrated module. Before the recalibration they gave
-2032 @ 1.047 and **2066 @ 1.084** respectively — the second of which is what
-identified the fertility path as the cause.)
+Re-run against the age-resolved module, that diagnostic now lands almost exactly
+on my own WPP-low run (2032 @ 1.043, ending 0.580). The demographic difference
+between the two implementations is gone; what remains between my ledger and the
+study's own (which peaks at 1.20 in 2041 and ends at 0.71) is the ledger itself —
+principally the 2025 seed discussed below, not the population path.
+
+Before any of the demographic work, the same diagnostic gave **2066 @ 1.084**,
+which is what identified the fertility path as the original cause.
 
 World decomposition, constant 2025 cost, closing exactly:
 

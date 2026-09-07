@@ -4,9 +4,12 @@
 `scripts/human-capital-backcast.py`; the 2025-2100 projection by
 `npm run human-capital:trajectory` on the model's default parameters. The
 projection was regenerated in September 2026 after the demographics module was
-recalibrated to the UN WPP 2024 low-fertility variant and given a two-band
-working cohort; the module had been running a medium-variant fertility path,
-which moved every forecast number in this note. The reconstruction is
+rewritten onto five-year age groups and calibrated to the UN WPP 2024
+low-fertility variant; it had been running a medium-variant fertility path on
+cohorts far too coarse to track an age pyramid, and both changes moved every
+forecast number in this note. The module now holds world population within 2% of
+WPP low for the whole century (peak 8.88bn in 2049 against WPP low's 8.95bn in
+2052; 6.93bn in 2100 against 6.97bn). The reconstruction is
 data-driven and unchanged. An independent reproduction of the whole exercise,
 written from the specification against separately fetched sources, is in
 `docs/HUMAN_CAPITAL_REPRODUCTION.md`.*
@@ -22,31 +25,30 @@ working-age population grew between five- and sixfold, 1.7% a year, of which
 1.6 points was more people of working age and 0.1 was more education per
 person. The growth accelerated to 2.5% a year in 1975-2000, slowed to 1.4% in 2000-2025,
 and to 0.8% in the last decade. In 2025 the ledger still capitalizes
-slightly more than it charges: $16.7T of new entrants against $14.9T of
-depreciation and write-offs, 10.6% of world GDP going in. That is the last
-decade in which it does.
+more than it charges: $17.7T of new entrants against $14.9T of depreciation and
+write-offs, 11.2% of world GDP going in. That lasts about fifteen more years.
 
 From here the model's demographics, recalibrated to the UN WPP 2024
-low-fertility variant, take net investment negative from 2041 and to -$36T a
-year by 2100. The stock of people-times-education still shows an 11% rise to a
-plateau across 2039-2046, but almost none of that is new human capital: through
-2050 the gain is $22T at 2025 cost, of which *minus* $5T is net investment, $17T
-is migrants re-priced at their destination's higher replacement cost, and $10T
-is the longer working lives of people already at work. With migration switched
-off the world stock peaks 8% up around 2040 and ends the century 36% below
-today. What is being built is education rather than headcount: entrants fall
-from 132M to 62M a year while the tertiary share of the workforce goes from a
-quarter to three-fifths.
+low-fertility variant, take net investment negative from 2041 and to -$46T a
+year by 2100. The stock of people-times-education rises 20% to a peak in 2041,
+but much of that is not new human capital: through 2050 the gain is $41T at 2025
+cost, of which $14T is net investment, $17T is migrants re-priced at their
+destination's higher replacement cost, and $10T is the longer working lives of
+people already at work. With migration switched off the world stock peaks 16% up
+around 2040 and ends the century 40% below today. What is being built is
+education rather than headcount: entrants fall from 132M to 63M a year while the
+tertiary share of the workforce goes from just under a quarter to nearly
+three-fifths.
 
-The regions divide four ways. China and Russia are drawing down now, China by
-68% by 2100. India, Latin America, and South-East Asia build to the 2040s and
-early 2050s and give it back; the Middle East peaks in 2053 and holds.
-Sub-Saharan Africa builds to the 2060s. The United States and the rest of the
-OECD grow only through immigration: the US stops covering the wear on its own
-cohorts (its own births, not immigrants) in 2032, and the immigrants it books on
-top become a quarter of its workforce by 2100, at which point their own
-depreciation absorbs the inflow. Spending on new entrants starts at 10.6% of
-GDP, near where it has been for a century, and slips to 6.2% by 2100. The ledger
+The regions divide four ways. China turns first, in 2034, and is down 77% by
+2100. India, Latin America, and South-East Asia build to the 2040s and early
+2050s and give it back; the Middle East peaks in 2054 and holds. Sub-Saharan
+Africa builds to 2076. The United States and the rest of the OECD grow only
+through immigration: the US stops covering the wear on its own cohorts (its own
+births, not immigrants) in 2038, and the immigrants it books on top become a
+quarter of its workforce by 2100, at which point their own depreciation absorbs
+the inflow. Spending on new entrants starts at 11.2% of GDP, above where it has
+been for a century, and slips to 5.8% by 2100. The ledger
 is cost, not value; it says nothing about what the people can do, only what it
 took to make them.
 
@@ -276,147 +278,131 @@ transfer itself: the same people re-priced at destination cost.
 
 | Year | Investment $T | Depreciation + write-offs $T | Net $T | Investment / GDP | Constant-cost net stock (2025 = 1) | Entrants (M) | Tertiary+ share of workforce |
 |------|------|------|------|------|------|------|------|
-| 2025 | 16.7 | 14.9 | +1.8 | 10.6% | 1.00 | 132.3 | 24% |
-| 2030 | 18.2 | 17.0 | +1.2 | 10.3% | 1.06 | 127.1 | 28% |
-| 2040 | 22.2 | 23.4 | -1.2 | 9.2% | 1.11 | 114.5 | 37% |
-| 2050 | 28.3 | 33.2 | -4.9 | 8.2% | 1.09 | 103.1 | 45% |
-| 2060 | 35.9 | 45.3 | -9.3 | 7.6% | 1.03 | 92.9 | 52% |
-| 2075 | 50.2 | 66.1 | -15.9 | 6.9% | 0.91 | 79.5 | 59% |
-| 2100 | 115.1 | 151.3 | -36.2 | 6.2% | 0.73 | 61.6 | 59% |
+| 2025 | 17.7 | 14.9 | +2.8 | 11.2% | 1.00 | 131.8 | 23% |
+| 2030 | 20.3 | 17.2 | +3.2 | 11.4% | 1.09 | 134.2 | 28% |
+| 2040 | 24.4 | 24.7 | -0.3 | 9.9% | 1.20 | 123.3 | 38% |
+| 2050 | 29.5 | 35.6 | -6.1 | 8.4% | 1.18 | 109.6 | 46% |
+| 2060 | 36.7 | 49.0 | -12.3 | 7.5% | 1.10 | 99.4 | 52% |
+| 2075 | 48.9 | 69.0 | -20.1 | 6.7% | 0.93 | 85.0 | 59% |
+| 2100 | 106.8 | 153.0 | -46.2 | 5.8% | 0.71 | 63.1 | 58% |
 
-The constant-cost stock rises for two decades while net investment is turning
+The constant-cost stock rises for fifteen years while net investment is turning
 negative, and it is worth being exact about why. Its change from 2025 splits
 into three lines, each deflated by its region's cost index, and they sum to the
 change without residual:
 
 | Cumulative since 2025, $T at 2025 cost | 2030 | 2040 | 2050 | 2060 | 2075 | 2100 |
 |---|---|---|---|---|---|---|
-| Net investment (investment less all charges) | +7.6 | +9.3 | -5.3 | -30.6 | -76.3 | -141.5 |
-| Migration transfers (movers re-booked at destination cost) | +3.2 | +9.9 | +17.0 | +24.3 | +35.2 | +52.1 |
-| Useful-life revaluation (longer working lives raise remaining book value) | +1.9 | +5.8 | +9.8 | +14.0 | +20.1 | +28.3 |
-| Change in the constant-cost stock | +12.7 | +25.0 | +21.6 | +7.6 | -21.1 | -61.0 |
+| Net investment (investment less all charges) | +14.7 | +29.0 | +14.1 | -17.1 | -73.1 | -149.7 |
+| Migration transfers (movers re-booked at destination cost) | +3.2 | +9.9 | +17.2 | +24.8 | +36.2 | +54.0 |
+| Useful-life revaluation (longer working lives raise remaining book value) | +1.9 | +5.8 | +9.9 | +14.3 | +20.9 | +29.4 |
+| Change in the constant-cost stock | +19.7 | +44.7 | +41.3 | +22.0 | -16.0 | -66.3 |
 
 Three things stand out.
 
-1. **The build is ending now, not at mid-century.** At current cost the ledger
-   capitalizes $1.8T more than it charges in 2025, closes that gap over the
-   2030s, and first runs a sustained deficit in 2041, widening to -$36T a year
-   by 2100. The constant-cost stock rises about 1% a year through the early
-   2030s, flattens on a plateau at 1.11 across 2039-2046, and then falls about
-   0.6% a year to end 27% below 2025. Almost none of the rise to the plateau is
-   new human capital: the table above puts $17T of the $22T gain to 2050 in
-   migration transfers and $10T in lengthening working lives, against *minus*
-   $5T of net investment. The migration line is the same people re-priced: a
-   graduate who moves from India to the OECD is written down at Indian cost and
-   written up at OECD cost, and the world stock rises by the difference. With
-   migration switched off the world constant-cost stock peaks at 1.08 around
-   2040 and ends the century at 0.64. The honest world reading is that the
-   quantity of people-times-education turns down in the 2040s, and the reported
-   rise before then is mostly about where the people are priced.
+1. **The build is ending, and it ends in the 2040s.** At current cost the ledger
+   capitalizes $2.8T more than it charges in 2025, closes that gap over the
+   2030s, and first runs a sustained deficit in 2041, widening to -$46T a year by
+   2100. The constant-cost stock rises about 1.5% a year through the 2030s, peaks
+   in 2041 at 1.20, and then falls about 0.7% a year to end 29% below 2025. Much
+   of the rise is not new human capital: the table above puts $17T of the $41T
+   gain to 2050 in migration transfers and $10T in lengthening working lives,
+   against $14T of net investment. The migration line is the same people
+   re-priced: a graduate who moves from India to the OECD is written down at
+   Indian cost and written up at OECD cost, and the world stock rises by the
+   difference. With migration switched off the world constant-cost stock peaks at
+   1.16 around 2040 and ends the century at 0.60.
 2. **What is being built is education, not headcount.** Entrants fall from 132M
-   to 62M a year -- a 53% decline -- while the tertiary-plus share of the
-   in-service workforce goes from a quarter to three-fifths. A tertiary entrant
-   carries about twice the cost of a secondary one in the world average, because
-   tertiary entrants are concentrated in richer regions. Composition is doing
-   all the work: by the 2070s the tertiary headcount is itself falling.
-3. **The spending share slides, and further than before.** Investment runs 10.6%
-   of GDP now and 6.2% in 2100. Entrant cohorts shrink faster than GDP while
-   per-entrant cost tracks income, so spending on entrants loses more than four
-   points of GDP over the century -- a steeper slide than the reconstruction's
-   post-2010 drift, and the clearest single statement that the century of
-   building is over.
+   to 63M a year -- a 52% decline -- while the tertiary-plus share of the
+   in-service workforce goes from just under a quarter to nearly three-fifths. A
+   tertiary entrant carries about twice the cost of a secondary one in the world
+   average, because tertiary entrants are concentrated in richer regions.
+   Composition is doing all the work: by the 2070s the tertiary headcount is
+   itself falling.
+3. **The spending share slides, and steeply.** Investment runs 11.2% of GDP now
+   and 5.8% in 2100. Entrant cohorts shrink faster than GDP while per-entrant
+   cost tracks income, so spending on entrants loses more than five points of GDP
+   over the century -- far steeper than the reconstruction's post-2010 drift, and
+   the clearest single statement that the century of building is over.
 
 ### Regions
 
 Constant-cost net stock index (2025 = 1), the peak year of that index, the
 first years own-cohort and total net investment are negative, and the change
-in annual entrants over the century. The world is in surplus in 2025 (+$1.8T)
+in annual entrants over the century. The world is in surplus in 2025 (+$2.8T)
 and first runs a sustained deficit in 2041; at the world level the two nets
 coincide.
 
 | Region | 2030 | 2050 | 2075 | 2100 | Peak | Peak level | Own cohorts < 0 | Total < 0 | Entrants 2100 / 2025 |
 |--------|------|------|------|------|------|------|------|------|------|
-| United States | 1.06 | 1.11 | 0.99 | 0.90 | 2044 | 1.12 | 2032 | 2041 | 0.53 |
-| OECD ex-US | 1.00 | 0.90 | 0.73 | 0.59 | 2026 | 1.00 | 2025 | 2025 | 0.41 |
-| China | 0.97 | 0.77 | 0.50 | 0.32 | 2025 | 1.00 | 2025 | 2025 | 0.21 |
-| India + South Asia | 1.19 | 1.58 | 1.36 | 1.08 | 2052 | 1.59 | 2055 | 2052 | 0.42 |
-| Latin America | 1.09 | 1.16 | 0.90 | 0.68 | 2043 | 1.18 | 2044 | 2042 | 0.34 |
-| SE Asia + Pacific | 1.11 | 1.25 | 1.03 | 0.80 | 2047 | 1.26 | 2047 | 2046 | 0.38 |
-| Russia + CIS | 1.07 | 1.14 | 0.98 | 0.82 | 2045 | 1.15 | 2041 | 2043 | 0.48 |
-| MENA | 1.22 | 1.68 | 1.46 | 1.16 | 2053 | 1.68 | 2054 | 2053 | 0.46 |
-| Sub-Saharan Africa | 1.46 | 2.91 | 3.17 | 2.81 | 2067 | 3.21 | 2066 | 2065 | 0.70 |
-| World | 1.06 | 1.09 | 0.91 | 0.73 | 2039-46 | 1.11 | 2041 | 2041 | 0.47 |
+| United States | 1.10 | 1.20 | 1.03 | 0.89 | 2045 | 1.21 | 2038 | 2043 | 0.45 |
+| OECD ex-US | 1.03 | 0.96 | 0.72 | 0.54 | 2036 | 1.04 | 2025 | 2035 | 0.31 |
+| China | 1.02 | 0.84 | 0.44 | 0.23 | 2034 | 1.03 | 2034 | 2034 | 0.11 |
+| India + South Asia | 1.22 | 1.74 | 1.48 | 1.11 | 2053 | 1.75 | 2055 | 2053 | 0.40 |
+| Latin America | 1.13 | 1.28 | 0.94 | 0.63 | 2045 | 1.30 | 2046 | 2044 | 0.28 |
+| SE Asia + Pacific | 1.13 | 1.37 | 1.07 | 0.76 | 2047 | 1.37 | 2047 | 2047 | 0.33 |
+| Russia + CIS | 1.08 | 1.21 | 0.99 | 0.79 | 2045 | 1.22 | 2044 | 2045 | 0.46 |
+| MENA | 1.23 | 1.84 | 1.63 | 1.25 | 2054 | 1.86 | 2055 | 2054 | 0.50 |
+| Sub-Saharan Africa | 1.39 | 3.01 | 3.69 | 3.44 | 2076 | 3.69 | 2076 | 2074 | 0.98 |
+| World | 1.09 | 1.18 | 0.93 | 0.71 | 2041 | 1.20 | 2041 | 2041 | 0.48 |
 
-The regions fall into four groups.
+The regions fall into three groups.
 
-- **Drawing down from today: China, Russia + CIS.** China charges more
-  depreciation than it capitalizes in every year of the run. Its entrant cohort
-  falls by nearly four-fifths and its constant-cost stock by 68% by 2100, even
-  though the rising college share means each entrant embodies more. In current
-  dollars the Chinese stock still rises roughly sevenfold, which is the
-  revaluation trap: a shrinking, better-educated workforce repriced at higher
-  income looks like accumulation. Russia + CIS turns later and more gently,
-  peaking in 2045. The century ahead is the first in which any region draws down
-  by choice of fertility rather than by catastrophe.
-- **Building to the 2040s and early 2050s, then drawing down: India + South
-  Asia, Latin America, SE Asia + Pacific, MENA.** These are the
-  demographic-dividend regions, and the dividend is shorter than it looked
-  before the demographic recalibration. India peaks in 2052 at 1.59 times its
-  2025 stock and gives back nearly all of the gain by 2100. MENA peaks highest
-  outside Africa, at 1.68 in 2053, and holds above its 2025 level. India, Latin
-  America, and SE Asia are net exporters of trained people, written down at
-  origin cost as they leave.
-- **Building longest: Sub-Saharan Africa.** Its stock triples to a 2067 peak and
-  is still 2.8 times its 2025 level in 2100, from a base that is 3% of the world
-  total. It is the last region to turn, in 2066, and the only one whose entrant
-  flow in 2100 is within 30% of today's. Under the previous demographics it
-  never turned at all; that result did not survive the low-variant fertility
-  path.
-- **Growing only on immigration: United States, OECD ex-US.** Neither rich-region
-  stock is above its 2025 level at the end of the century. The US covers its own
-  charge only until 2032 and peaks in 2044 at 1.12; the OECD ex-US is in
-  own-cohort deficit from the start and never recovers, ending at 0.59. Working-
-  age arrivals booked at the destination's replacement cost add $0.4T a year to
-  the US and $0.3T to the OECD ex-US in 2025, rising with income, and are what
-  keeps the US total net positive to 2041. Those arrivals are then depreciated
-  where they landed: by 2100 the charge on post-2025 immigrants is $5.5T in the
-  US against a $5.3T transfer, and the inflow no longer covers its own wear.
+- **Turning first: China, OECD ex-US.** China peaks in 2034, barely above its
+  2025 level, and then falls hard: its entrant cohort ends the century at a ninth
+  of today's and its constant-cost stock 77% below. In current dollars the
+  Chinese stock still rises several-fold, which is the revaluation trap: a
+  shrinking, better-educated workforce repriced at higher income looks like
+  accumulation. The OECD ex-US is in own-cohort deficit from the start, peaks in
+  2036 on immigration alone, and ends at 0.54. The century ahead is the first in
+  which any region draws down by choice of fertility rather than by catastrophe.
+- **Building to the 2040s and mid-2050s, then drawing down: India + South Asia,
+  MENA, SE Asia + Pacific, Latin America, Russia + CIS, the United States.** The
+  demographic-dividend regions peak between 2045 and 2055 and give most of it
+  back. India peaks in 2053 at 1.75 times its 2025 stock and ends at 1.11; MENA
+  peaks highest outside Africa at 1.86 in 2054 and still holds 1.25 in 2100.
+  India, Latin America, and SE Asia are net exporters of trained people, written
+  down at origin cost as they leave. The United States belongs here only because
+  of immigration: on its own cohorts it turns in 2038.
+- **Building longest: Sub-Saharan Africa.** Its stock nearly quadruples to a 2076
+  peak and is still 3.4 times its 2025 level in 2100, from a base that is 3% of
+  the world total. It is the last region to turn, in 2076, and the only one whose
+  entrant flow in 2100 is essentially unchanged from today's (0.98).
 
 ### The United States
 
 | Year | Entrants (M) | Investment $T | Charge $T | of which on post-2025 immigrants | Own-cohort net $T | Migration transfer $T | Total net $T | Investment / GDP |
 |------|------|------|------|------|------|------|------|------|
-| 2025 | 4.1 | 2.67 | 2.54 | 0.02 | +0.14 | 0.41 | +0.54 | 11.1% |
-| 2030 | 3.9 | 2.79 | 2.85 | 0.10 | +0.04 | 0.47 | +0.40 | 10.5% |
-| 2040 | 3.4 | 3.24 | 3.87 | 0.35 | -0.28 | 0.67 | +0.04 | 9.3% |
-| 2050 | 3.1 | 4.01 | 5.36 | 0.74 | -0.61 | 0.96 | -0.38 | 8.4% |
-| 2060 | 2.8 | 4.89 | 6.97 | 1.21 | -0.87 | 1.30 | -0.78 | 7.9% |
-| 2075 | 2.5 | 6.77 | 9.92 | 2.00 | -1.15 | 1.99 | -1.15 | 7.3% |
-| 2100 | 2.1 | 16.45 | 24.17 | 5.54 | -2.18 | 5.25 | -2.47 | 6.8% |
+| 2025 | 4.6 | 2.99 | 2.53 | 0.02 | +0.48 | 0.41 | +0.87 | 12.5% |
+| 2030 | 4.3 | 3.10 | 2.88 | 0.10 | +0.33 | 0.47 | +0.69 | 11.7% |
+| 2040 | 3.7 | 3.55 | 4.04 | 0.35 | -0.14 | 0.68 | +0.19 | 10.0% |
+| 2050 | 3.2 | 4.24 | 5.70 | 0.75 | -0.71 | 1.00 | -0.46 | 8.7% |
+| 2060 | 2.9 | 5.07 | 7.49 | 1.26 | -1.16 | 1.38 | -1.04 | 7.9% |
+| 2075 | 2.5 | 6.71 | 10.29 | 2.07 | -1.50 | 2.11 | -1.47 | 7.2% |
+| 2100 | 2.0 | 15.89 | 24.77 | 6.01 | -2.87 | 5.65 | -3.23 | 6.5% |
 
 The US invests a larger share of GDP than any region in 2025 except MENA and
 Sub-Saharan Africa, because its entrants are expensive (a college share above
 40% and the world's highest GDP per capita) rather than numerous. Its entrant
-cohort falls by nearly half over the century, from 4.1M to 2.1M a year.
+cohort falls by more than half over the century, from 4.6M to 2.0M a year.
 
-The US covers the charge on its own cohorts with a surplus of only $0.14T in
-2025, and that surplus is gone by 2032. What follows is a widening own-cohort
-deficit against a stock whose depreciation rises with income. The migration
-transfer is worth about a fifth of gross additions throughout, and it is what
-keeps total net positive for another nine years, to 2041. It also builds a stock
-that has to be written down: the charge on post-2025 immigrants goes from $0.02T
-in 2025 to $2.0T in 2075 and $5.5T in 2100, by which point it exceeds the $5.3T
-transfer that brought them in. With migration switched off everywhere, which
-also removes migrants' children from future cohorts
-(`--set=demographics.migrationMultiplier=0`), US entrants fall by 63% instead of
-47%, own-cohort net turns negative in 2031, and the US constant-cost stock peaks
-in 2032 at 1.02 and ends the century at 0.72 instead of 0.90.
+The US covers the charge on its own cohorts with a surplus of $0.48T in 2025,
+and that surplus is gone by 2038. What follows is a widening own-cohort deficit
+against a stock whose depreciation rises with income. The migration transfer is
+worth about a fifth of gross additions throughout, and it keeps total net
+positive for another five years, to 2043. It also builds a stock that has to be
+written down: the charge on post-2025 immigrants goes from $0.02T in 2025 to
+$2.1T in 2075 and $6.0T in 2100, by which point it exceeds the $5.7T transfer
+that brought them in. With migration switched off everywhere, which also removes
+migrants' children from future cohorts
+(`--set=demographics.migrationMultiplier=0`), US entrants fall by 73% instead of
+55%, own-cohort net turns negative in 2037, and the US constant-cost stock peaks
+in 2037 at 1.08 and ends the century at 0.72 instead of 0.89.
 
 The US result is therefore an immigration-policy result more than a demographic
-one, and more so than it looked before the recalibration: on its own children
-the US is drawing down from the early 2030s, and everything that keeps its stock
-near its 2025 level for two more decades is immigration and immigrants'
-children.
+one: on its own children the US is drawing down from the late 2030s, and
+everything that keeps its stock above its 2025 level into the 2050s is
+immigration and immigrants' children.
 
 The size of that immigration assumption deserves stating. The demographics
 module's US migration rate is calibrated to net immigration of about 1.2M a year
@@ -450,11 +436,11 @@ Three things follow, and one does not.
 
 - **The rising import share is a collapsing denominator.** US arrivals stay near
   1M working-age people a year for the whole century. What rises is their share:
-  post-2025 immigrants go from 0.5% of the US workforce to 24% by 2100, and the
+  post-2025 immigrants go from 0.5% of the US workforce to 25% by 2100, and the
   migration transfer goes from a fifth of gross additions to more than the whole
   of net additions. On these numbers the US is not importing more; it is
   producing less.
-- **The world gain is a re-pricing, not new human capital.** The $52T that
+- **The world gain is a re-pricing, not new human capital.** The $54T that
   migration adds to the world constant-cost stock by 2100 is the same people
   standing in a richer labour market. Nobody was reared or schooled twice.
 - **The origin side is a real write-off**, and it falls on the suppliers least
@@ -478,55 +464,57 @@ build cost is not 84% of the asset's value accruing to the destination.
   peak years to the default run; only the dollar values differ, because those
   scenario files leave demographics untouched. The human-capital trajectory in
   this model is a demographic and education result, not an energy one.
-- **Demographics move everything.** This is the sensitivity the earlier version
-  of this note did not report, because it did not know it had one. Recalibrating
-  the demographics module from its medium-variant fertility path to the UN WPP
-  2024 low variant moved the world peak from 1.22 in 2063 to 1.11 across
-  2039-2046, the 2100 index from 1.14 to 0.73, the 2025-50 gain from $44T to
-  $22T, and the US own-cohort turn from 2064 to 2032. No cost-scope or scenario
-  assumption in this note comes close to that. The projection's conclusions are
-  a demographic input at least as much as an accounting method.
-- **Cost scope shifts levels and the world turning point, not the regional
+- **Demographics move everything.** This is the sensitivity the first version of
+  this note did not report, because it did not know it had one. The module has
+  since been rewritten twice: from a medium-variant fertility path on a single
+  20-64 cohort, to WPP-low fertility on two working bands, to WPP-low fertility
+  on five-year age groups. Those changes moved the world peak from 1.22 in 2063,
+  to 1.11 across 2039-2046, to **1.20 in 2041**; the 2100 index from 1.14 to 0.73
+  to **0.71**; and the US own-cohort turn from 2064 to 2032 to **2038**. No
+  cost-scope or scenario assumption in this note comes within an order of
+  magnitude of that. The projection's conclusions rest on the demographic input
+  at least as much as on the accounting method.
+- **Cost scope shifts levels and the world peak level, not the regional
   ordering.** Adding students' foregone earnings at the Kendrick/BEA share
-  (`foregoneEarningsShare` 0.45) raises the 2025 flow to 13.0% of GDP and lifts
-  the world peak to 1.15; pricing rearing at the National Transfer Accounts
-  midpoint (0.30) gives 12.4% and a 1.10 peak; removing rearing gives 4.5% and a
-  1.19 peak. Regional peak years move by at most three years in every case
-  (Latin America and SE Asia, three years later with rearing removed), the four
-  regional groups are unchanged, and the US own-cohort turn stays within
-  2031-2036.
+  (`foregoneEarningsShare` 0.45) raises the 2025 flow to 13.8% of GDP and the
+  world peak to 1.25; pricing rearing at the National Transfer Accounts midpoint
+  (0.30) gives 13.2% and a 1.19 peak; removing rearing gives 4.8% and a 1.29 peak
+  that arrives in 2050 rather than 2040. Regional peak years move by at most
+  three years in every case (Sub-Saharan Africa, 2076 to 2078 with rearing
+  removed), the regional grouping is unchanged, and the US own-cohort turn stays
+  within 2038-2040.
 
 ## Conclusion
 
 The world spent a century building human capital at an accelerating pace and has
 now stopped. The reconstruction shows the stock of people times education
 growing in every quarter-century since 1925 in every region but one, fastest in
-1975-2000, and slowing since; the projection shows the ledger barely in surplus
-in 2025, net investment negative from 2041, and a constant-cost stock whose
-plateau in the early 2040s is the re-pricing of migrants and the lengthening of
+1975-2000, and slowing since; the projection shows the ledger in modest
+surplus in 2025, net investment negative from 2041, and a constant-cost stock
+that peaks in 2041 and gives back more than all of its gain by 2100, with much
+of the rise to that peak being the re-pricing of migrants and the lengthening of
 working lives rather than new human capital. The result is demographic and
 educational, not energy or climate related: the energy scenarios leave it
 untouched, and the cost-scope sensitivities move levels, not turning points or
 ordering. It is, however, highly sensitive to the demographic input, which is
-the main lesson of the September 2026 revision.
+the main lesson of the September 2026 revisions.
 
 Three readings follow.
 
 - **Composition is doing the work, and it runs out.** Entrants fall by more
   than half while the tertiary share of the workforce more than doubles, so the
-  stock holds its value on fewer, costlier people into the 2040s and then loses
-  it. Any policy question about "investing in human capital" is, on this
+  stock holds its value on fewer, costlier people to 2041 and then loses it. Any policy question about "investing in human capital" is, on this
   measure, a question about education per entrant, because the number of
   entrants is already set by births that have happened.
 - **The rich regions do not grow; they import.** The US draws down on its own
-  cohorts from 2032 and stays near its 2025 level for another decade only
-  because it books working-age arrivals at its own replacement cost -- about
-  $614k a worker against the $96k the origins paid. The OECD ex-US does the same
+  cohorts from 2038 and stays above its 2025 level into the 2050s only because it
+  books working-age arrivals at its own replacement cost -- about $614k a worker
+  against the $96k the origins paid. The OECD ex-US does the same
   on a larger flow and still declines. The source regions write the same people
   down at their own cost, and the world's reported gain is the price difference,
   not new human capital.
 - **Spending is the thing that is actually falling.** The world put 9 to 12% of
-  GDP into new entrants for a hundred years; the projection takes it to 6.2%.
+  GDP into new entrants for a hundred years; the projection takes it to 5.8%.
   That is entrant cohorts shrinking relative to output, with spending per entrant
   rising throughout -- so it is not a policy retreat, and it is not reversible by
   spending more per head.
@@ -574,11 +562,12 @@ What the result does not say:
   India before 1950 rest on Lee-Lee's Soviet-era and British-India series,
   used only as ratios, and should be read as rough.
 - Demographics follow the UN WPP 2024 low variant, and after the September 2026
-  recalibration they follow it closely: world population, the 0-19, 20-64 and
-  65+ cohorts, and the entrant flow all stay within about 10% of WPP low for the
-  whole century. China is the exception and the one to read with care -- WPP low
-  takes it to 0.41bn by 2100 and the module's two coarse working bands reach
-  0.64bn, so China's late-century stock here is an upper bound. A medium-variant
+  rewrite onto five-year age groups they follow it closely: world population, the 0-19, 20-64 and
+  65+ cohorts, and the entrant flow all stay within a few percent of WPP low for
+  the whole century, and the population peak lands in 2049 against WPP low's
+  2052. China remains the one to read with care -- WPP low takes it to 0.41bn by
+  2100 and the module reaches 0.49bn, so China's late-century stock here is still
+  a modest upper bound. A medium-variant
   path would delay every peak year and lift every level, but not change the
   ordering; the projection is a low-variant result and should be read as one.
 
