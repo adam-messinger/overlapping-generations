@@ -80,7 +80,6 @@ export { runAutowiredSimulation, runAutowiredFull, toYearResults, computeMetrics
 export { DIAGNOSTIC_MODULES, DIAGNOSTIC_FIELDS, MACRO_MODULES } from './simulation-autowired.js';
 export {
   energyEnsembleModel,
-  toSimulationParams,
   ENERGY_ENSEMBLE_BOUNDS,
   ENERGY_ENSEMBLE_DEFAULTS,
 } from './ensemble-model.js';

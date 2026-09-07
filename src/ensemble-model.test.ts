@@ -7,20 +7,16 @@
 
 import { runModel, runEnsemble } from 'tsimulation';
 import { runSimulation } from './simulation.js';
+import { describeParameters } from './introspection.js';
 import {
   energyEnsembleModel,
   ENERGY_ENSEMBLE_DEFAULTS,
   ENERGY_ENSEMBLE_BOUNDS,
+  STUDY_OPTIONS,
   toSimulationParams,
   type EnergyEnsembleInput,
 } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
-
-const STUDY_OPTIONS = {
-  diagnostics: false,
-  connectorValidation: 'off',
-  paramLiveness: 'off',
-} as const;
 
 const METRICS = [
   'warming2050', 'warming2100', 'gdp2050', 'gdp2100', 'peakEmissions', 'fossilShareFinal',
@@ -70,13 +66,81 @@ test('every sampled parameter actually moves an output', () => {
   const inert: string[] = [];
   for (const name of Object.keys(ENERGY_ENSEMBLE_BOUNDS) as Array<keyof EnergyEnsembleInput>) {
     const [low, high] = ENERGY_ENSEMBLE_BOUNDS[name];
+    // Quartiles, not the near-edges: at 0.1 of its range robotIntegrationExponent
+    // landed 0.01 above a divergence, so the probe passed on luck.
     const atLow = runModel(energyEnsembleModel,
-      { ...ENERGY_ENSEMBLE_DEFAULTS, [name]: low + 0.1 * (high - low) }).output;
+      { ...ENERGY_ENSEMBLE_DEFAULTS, [name]: low + 0.25 * (high - low) }).output;
     const atHigh = runModel(energyEnsembleModel,
-      { ...ENERGY_ENSEMBLE_DEFAULTS, [name]: low + 0.9 * (high - low) }).output;
+      { ...ENERGY_ENSEMBLE_DEFAULTS, [name]: low + 0.75 * (high - low) }).output;
     if (METRICS.every(key => Object.is(atLow[key], atHigh[key]))) inert.push(name);
   }
   expect(inert.join(', ')).toBe('');
+});
+
+test('the declared box is feasible where it interacts most', () => {
+  // A study draws from this box; a draw the model cannot complete aborts the
+  // whole ensemble, because runEnsemble has no partial-failure path.
+  //
+  // The Tier-1 range for robotIntegrationExponent starts at 0.3, but the model
+  // diverges below ~0.385 (demand.energyBurden reaches Infinity before 2100),
+  // and the corners that fail are those where it meets extreme gamma and
+  // efficiency. Sweeping all 128 corners of the 7-D box found 64 failures at
+  // theta 0.3, 3 at 0.45, 2 at 0.5 and none at 0.55 — hence the floor.
+  //
+  // Only the three interacting parameters are swept here; the full 128-corner
+  // sweep takes ~50s and lives in the PR record rather than the suite.
+  const interacting = ['robotIntegrationExponent', 'gamma', 'efficiencyMultiplier'] as const;
+  const failures: string[] = [];
+  for (let mask = 0; mask < (1 << interacting.length); mask++) {
+    const input = { ...ENERGY_ENSEMBLE_DEFAULTS };
+    interacting.forEach((name, i) => {
+      const [low, high] = ENERGY_ENSEMBLE_BOUNDS[name];
+      input[name] = (mask >> i) & 1 ? high : low;
+    });
+    try {
+      runModel(energyEnsembleModel, input);
+    } catch (error) {
+      failures.push(
+        `${interacting.map(n => `${n}=${input[n]}`).join(' ')}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  expect(failures.join(' | ')).toBe('');
+});
+
+test('bounds and defaults track the model declarations they claim to mirror', () => {
+  // Derived rather than hand-written, so this asserts the derivation is wired
+  // to the right names -- the failure it guards is a study silently drawing
+  // from a range the model no longer declares.
+  const schema = describeParameters();
+  const tier1: Array<[keyof EnergyEnsembleInput, string]> = [
+    ['gamma', 'gamma'],
+    ['climateSensitivity', 'climateSensitivity'],
+    ['tippingThreshold', 'tippingThreshold'],
+    ['solarLearningRate', 'solarAlpha'],
+    ['windLearningRate', 'windAlpha'],
+  ];
+  const wrong: string[] = [];
+  for (const [field, name] of tier1) {
+    const info = schema[name];
+    const [low, high] = ENERGY_ENSEMBLE_BOUNDS[field];
+    if (low !== info.min || high !== info.max) {
+      wrong.push(`${field} bounds [${low}, ${high}] != ${name} [${info.min}, ${info.max}]`);
+    }
+    if (ENERGY_ENSEMBLE_DEFAULTS[field] !== info.default) {
+      wrong.push(`${field} default ${ENERGY_ENSEMBLE_DEFAULTS[field]} != ${name} ${info.default}`);
+    }
+  }
+  // robotIntegrationExponent is deliberately narrowed below its Tier-1 range;
+  // only its upper bound and default should track.
+  const theta = schema.robotIntegrationExponent;
+  const [thetaLow, thetaHigh] = ENERGY_ENSEMBLE_BOUNDS.robotIntegrationExponent;
+  if (thetaHigh !== theta.max) wrong.push(`theta upper ${thetaHigh} != ${theta.max}`);
+  if (theta.min === undefined || thetaLow <= theta.min) {
+    wrong.push(`theta floor ${thetaLow} should be above Tier-1 ${theta.min}`);
+  }
+  expect(wrong.join(' | ')).toBe('');
 });
 
 test('a draw outside its declared range is rejected, not run', () => {

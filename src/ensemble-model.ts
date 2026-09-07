@@ -24,6 +24,14 @@ import {
   type ModelDefinition,
 } from 'tsimulation';
 import { runSimulation, type SimulationParams, type RunOptions } from './simulation.js';
+import { describeParameters, buildMultiParams } from './introspection.js';
+
+/**
+ * Feasibility floor for `robotIntegrationExponent`; see ENERGY_ENSEMBLE_BOUNDS.
+ * Set above the divergence at ~0.385 and clear of the pathological band above
+ * it, verified by the corner sweep in `ensemble-model.test.ts`.
+ */
+const ROBOT_EXPONENT_FLOOR = 0.55;
 
 // =============================================================================
 // ESTIMANDS
@@ -127,10 +135,12 @@ const fossilShareEstimand = defineEstimand({
  * The parameters a study may vary.
  *
  * Chosen from what `docs/SENSITIVITY.md` establishes by hand as dominant, plus
- * the two climate knobs whose scenario variants already exist. Every one is a
- * Tier-1 parameter with declared bounds in `describeParameters()`; the bounds
- * asserted below are those, so a draw outside them fails here rather than
- * producing a quietly meaningless run.
+ * the two climate knobs whose scenario variants already exist. Six are Tier-1
+ * parameters and take their bounds from `describeParameters()`;
+ * `efficiencyMultiplier` is not Tier-1 and `robotIntegrationExponent` is
+ * narrowed for feasibility — both documented at `ENERGY_ENSEMBLE_BOUNDS`.
+ * A draw outside its bound fails here rather than producing a quietly
+ * meaningless run.
  *
  * Deliberately short. Adding a parameter means claiming its uncertainty
  * matters to the conclusions, which is a claim that needs a source.
@@ -150,11 +160,13 @@ export interface EnergyEnsembleInput {
    * the two views, which is the failure CLAUDE.md and the coupling comment
    * both warn about.
    *
-   * Measured on this model: varying the multiplier over the range the repo's
-   * own scenarios use gives a 1.56x GDP-2100 span with warming FALLING as
-   * efficiency rises. Varying `serviceEfficiencyGrowth` over a comparable
-   * range gives a 3.25x span with warming RISING — an inflated sensitivity and
-   * a sign-flipped climate response, from an artifact rather than the model.
+   * Measured on this model over [0.7, 1.5], the scenario span this input uses.
+   * Coupled: gdp2100 1211 -> 2814 ($T), a 2.32x span, with warming FALLING
+   * 2.700 -> 2.593 as efficiency rises — the physics, since less energy per
+   * unit of service means fewer emissions. Scaling `serviceEfficiencyGrowth`
+   * by the same ratio instead: gdp2100 597 -> 3591, a 6.02x span, with warming
+   * RISING 2.592 -> 2.889. Two and a half times the apparent GDP sensitivity
+   * and an inverted climate response, both artifacts of the re-split.
    */
   efficiencyMultiplier: number;
   /** Equilibrium climate sensitivity, °C per CO2 doubling. */
@@ -169,55 +181,93 @@ export interface EnergyEnsembleInput {
   robotIntegrationExponent: number;
 }
 
-/** Declared bounds, mirroring `describeParameters()`. */
+/**
+ * Which Tier-1 parameter each study input drives.
+ *
+ * One map does three jobs: it builds the nested parameter tree through
+ * `buildMultiParams`, and it derives the bounds and defaults below from
+ * `describeParameters()` so neither can drift from the model's own declarations.
+ * A previous change in this series was bitten by exactly that drift.
+ */
+const TIER1_NAMES = {
+  gamma: 'gamma',
+  climateSensitivity: 'climateSensitivity',
+  tippingThreshold: 'tippingThreshold',
+  solarLearningRate: 'solarAlpha',
+  windLearningRate: 'windAlpha',
+  robotIntegrationExponent: 'robotIntegrationExponent',
+} as const satisfies Partial<Record<keyof EnergyEnsembleInput, string>>;
+
+const SCHEMA = describeParameters();
+
+function tier1Bound(name: string): readonly [number, number] {
+  const info = SCHEMA[name];
+  if (!info || info.min === undefined || info.max === undefined) {
+    throw new Error(`Tier-1 parameter '${name}' has no declared bounds`);
+  }
+  return [info.min, info.max];
+}
+
+/**
+ * The range each input may be drawn from.
+ *
+ * Derived from `describeParameters()` except where a comment says otherwise.
+ * Two exceptions, both narrower than the model's declared range and both
+ * deliberate:
+ *
+ * `efficiencyMultiplier` has no Tier-1 entry at all — it is programmatically
+ * settable but absent from `paramMeta`, and `demandModule.validate` has no
+ * rule for it either, so this is the only bound on it anywhere in the repo.
+ * The range is the span the repo's own ten scenarios use: 0.7 in `ssp5-85`
+ * through 1.5 in `ssp1-19`.
+ *
+ * `robotIntegrationExponent` is FEASIBILITY-NARROWED. Its Tier-1 range starts
+ * at 0.3, but the model diverges below ~0.385 — `demand.energyBurden` reaches
+ * Infinity before 2100 and the run aborts — and just above that cliff the
+ * results are pathological rather than merely extreme: gdp2100 runs
+ * 747 -> 420 -> 580 -> 2212 -> 2609 over theta 0.385 to 0.5, a 6x
+ * non-monotonic swing driven by the asymptote rather than by the mechanism.
+ * A study sampling uniformly from 0.3 would abort within a few dozen draws,
+ * and one sampling from just above the cliff would report the cliff.
+ */
 export const ENERGY_ENSEMBLE_BOUNDS: Readonly<
   Record<keyof EnergyEnsembleInput, readonly [number, number]>
 > = {
-  gamma: [0.05, 0.7],
-  // Not a declared Tier-1 bound: `efficiencyMultiplier` is programmatically
-  // settable but absent from paramMeta. The range is the span the repo's own
-  // ten scenarios already use (0.7 in tech-plateau through 1.5 in ssp1-19),
-  // which is a stronger warrant than an interval invented here.
+  gamma: tier1Bound(TIER1_NAMES.gamma),
   efficiencyMultiplier: [0.7, 1.5],
-  climateSensitivity: [2, 5],
-  tippingThreshold: [1.5, 4],
-  solarLearningRate: [0.1, 0.5],
-  windLearningRate: [0.1, 0.4],
-  robotIntegrationExponent: [0.3, 1.2],
+  climateSensitivity: tier1Bound(TIER1_NAMES.climateSensitivity),
+  tippingThreshold: tier1Bound(TIER1_NAMES.tippingThreshold),
+  solarLearningRate: tier1Bound(TIER1_NAMES.solarLearningRate),
+  windLearningRate: tier1Bound(TIER1_NAMES.windLearningRate),
+  robotIntegrationExponent: [ROBOT_EXPONENT_FLOOR, tier1Bound(TIER1_NAMES.robotIntegrationExponent)[1]],
 };
 
 /** Defaults, so a study can vary a subset and leave the rest calibrated. */
 export const ENERGY_ENSEMBLE_DEFAULTS: Readonly<EnergyEnsembleInput> = {
-  gamma: 0.55,
+  gamma: SCHEMA[TIER1_NAMES.gamma].default as number,
   efficiencyMultiplier: 1,
-  climateSensitivity: 3,
-  tippingThreshold: 2,
-  solarLearningRate: 0.36,
-  windLearningRate: 0.23,
-  robotIntegrationExponent: 0.75,
+  climateSensitivity: SCHEMA[TIER1_NAMES.climateSensitivity].default as number,
+  tippingThreshold: SCHEMA[TIER1_NAMES.tippingThreshold].default as number,
+  solarLearningRate: SCHEMA[TIER1_NAMES.solarLearningRate].default as number,
+  windLearningRate: SCHEMA[TIER1_NAMES.windLearningRate].default as number,
+  robotIntegrationExponent: SCHEMA[TIER1_NAMES.robotIntegrationExponent].default as number,
 };
 
 /** Map the flat study vector onto the nested parameter tree the runner wants. */
 export function toSimulationParams(input: EnergyEnsembleInput): SimulationParams {
+  const tier1 = Object.fromEntries(
+    Object.entries(TIER1_NAMES).map(([field, name]) => [
+      name,
+      input[field as keyof EnergyEnsembleInput],
+    ]),
+  );
+  // Note what is NOT set: production.serviceEfficiencyGrowth. Leaving it
+  // undefined is what lets runAutowiredSimulation derive it from demand, so
+  // both views of the one efficiency series move together.
+  const params = buildMultiParams(tier1) as SimulationParams;
   return {
-    // Note what is NOT set here: production.serviceEfficiencyGrowth. Leaving it
-    // undefined is what lets runAutowiredSimulation derive it from demand, so
-    // both views of the efficiency series move together.
-    production: { gamma: input.gamma },
-    demand: {
-      efficiencyMultiplier: input.efficiencyMultiplier,
-      robotIntegrationExponent: input.robotIntegrationExponent,
-    },
-    energy: {
-      sources: {
-        solar: { alpha: input.solarLearningRate },
-        wind: { alpha: input.windLearningRate },
-      },
-    } as SimulationParams['energy'],
-    climate: {
-      sensitivity: input.climateSensitivity,
-      tippingThreshold: input.tippingThreshold,
-    },
+    ...params,
+    demand: { ...params.demand, efficiencyMultiplier: input.efficiencyMultiplier },
   };
 }
 
@@ -243,7 +293,7 @@ export interface EnergyEnsembleOutput {
  * a representative run has already passed it. Together roughly 4x; see #63,
  * #66 and #68.
  */
-const STUDY_OPTIONS = {
+export const STUDY_OPTIONS = {
   diagnostics: false,
   connectorValidation: 'off',
   paramLiveness: 'off',
