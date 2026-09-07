@@ -414,7 +414,7 @@ test('immigrants are tracked as a subset of the destination ledger and charged s
     const dest = moved[i].regionalHumanCapital['oecd-ex-us'];
     const origin = moved[i].regionalHumanCapital.india;
     expect(dest.migrantWorkers).toBeGreaterThan(0);
-    expect(dest.migrantWorkers).toBeLessThan(moved[i].humanCapitalByBand.secondary.workersInService);
+    expect(dest.migrantWorkers).toBeLessThan(dest.workersInService);
     expect(dest.migrantDepreciation).toBeGreaterThan(0);
     expect(dest.migrantWriteOffs).toBeGreaterThan(0);
     // Emigrants leave from the origin's own cohorts: its subset stays empty
@@ -422,9 +422,8 @@ test('immigrants are tracked as a subset of the destination ledger and charged s
     expect(origin.migrantDepreciation + origin.migrantWriteOffs).toBe(0);
     // Own-cohort net at the destination is exactly the no-migration net: the
     // native vintages evolve identically, hazards being multiplicative by age
-    const ownNet = (a: any) => a.investment - (a.depreciation + a.writeOffs - a.migrantDepreciation - a.migrantWriteOffs);
     const stillNet = (a: any) => a.investment - a.depreciation - a.writeOffs;
-    expect(ownNet(dest)).toBeCloseTo(stillNet(still[i].regionalHumanCapital['oecd-ex-us']), 9);
+    expect(dest.ownCohortNetInvestment).toBeCloseTo(stillNet(still[i].regionalHumanCapital['oecd-ex-us']), 9);
     // The origin's own cohorts are smaller, so its charge is below the no-migration run
     expect(origin.depreciation + origin.writeOffs).toBeLessThan(
       still[i].regionalHumanCapital.india.depreciation + still[i].regionalHumanCapital.india.writeOffs);
@@ -459,7 +458,7 @@ test('immigrants who later emigrate leave the subset in proportion', () => {
   expect(dest(5).migrantWorkers).toBeLessThan(dest(4).migrantWorkers);
   for (let i = 5; i < 10; i++) {
     expect(dest(i).migrantWorkers).toBeGreaterThan(0);
-    expect(dest(i).migrantWorkers).toBeLessThan(outputs[i].humanCapitalByBand.secondary.workersInService);
+    expect(dest(i).migrantWorkers).toBeLessThan(dest(i).workersInService);
   }
 });
 

@@ -176,7 +176,7 @@ and write-offs on immigrants' human capital (`migrantDepreciation`,
 the charge on a region's own cohorts:
 
 ```text
-own-cohort net = investment - (depreciation + writeOffs - migrantDepreciation - migrantWriteOffs)
+ownCohortNetInvestment = investment - (depreciation + writeOffs - migrantDepreciation - migrantWriteOffs)
 ```
 
 Without this split, `investment - depreciation - writeOffs` charges the
@@ -227,7 +227,7 @@ question is what today's schedule implies for today's stock.
 | `humanCapitalMigrationRevaluation` | $T/yr | inflows minus outflows: the world gain from revaluing movers at destination cost |
 | `humanCapitalLifeRevaluation` | $T/yr | change in the opening stock's book value from this year's change in expected working life |
 | `humanCapitalByBand` | record | per band: entrants, unit cost, useful life, flows (incl. life revaluation), stocks, workers in service, exits by cause |
-| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants |
+| `regionalHumanCapital` | record | per region: entrants, flows, stocks, investment/GDP, workers in service, net migrants and their transfer value at the region's cost, life revaluation, the charge on and headcount of post-2025 immigrants, own-cohort net investment |
 
 ## What the default path shows
 
