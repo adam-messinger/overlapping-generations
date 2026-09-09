@@ -64,7 +64,7 @@ interface StoredEventRow {
 }
 
 /** Bumped whenever the SQLite projection's shape changes. */
-const PROJECTION_VERSION = 2;
+const PROJECTION_VERSION = 3;
 
 const SCHEMA = `
   PRAGMA foreign_keys = ON;
@@ -85,6 +85,17 @@ const SCHEMA = `
     event_hash TEXT NOT NULL UNIQUE,
     schema_version TEXT NOT NULL,
     classification TEXT
+  );
+
+  -- A record's own id, as opposed to the content address it is stored under.
+  -- Finding one used to mean reading every record of its type and comparing,
+  -- which is how a lookup during ingestion could cost the whole history.
+  CREATE TABLE IF NOT EXISTS logical_ids (
+    record_type TEXT NOT NULL,
+    logical_id TEXT NOT NULL,
+    record_artifact_id TEXT NOT NULL,
+    first_event_sequence INTEGER NOT NULL,
+    PRIMARY KEY(record_type, logical_id)
   );
 
   CREATE TABLE IF NOT EXISTS records (
@@ -570,6 +581,17 @@ export class ForecastLedger {
     record: any,
   ): void {
     const id = event.recordArtifactId;
+    // Every record type that carries its own id gets indexed, whether or not
+    // it also has a purpose-built projection table. The first record to claim
+    // a logical id keeps it; callers use this to detect a duplicate before
+    // appending, so a later append must not silently take it over.
+    if (typeof record?.id === 'string' && record.id.length > 0) {
+      database.prepare(`
+        INSERT OR IGNORE INTO logical_ids (
+          record_type, logical_id, record_artifact_id, first_event_sequence
+        ) VALUES (?, ?, ?, ?)
+      `).run(event.recordType, record.id, id, event.sequence);
+    }
     if (event.recordType === 'question') {
       database.prepare(`
         INSERT OR IGNORE INTO questions (
@@ -852,6 +874,18 @@ export class ForecastLedger {
     if (!exists) throw new Error(`Unknown ledger record '${id}'`);
     await this.artifacts.verify(id);
     return this.artifacts.getCanonicalJson<T>(id);
+  }
+
+  /**
+   * The content address of the record of this type carrying this logical id,
+   * or undefined. One indexed lookup rather than a scan of every record of
+   * the type.
+   */
+  findByLogicalId(recordType: string, logicalId: string): string | undefined {
+    const row = this.db().prepare(
+      'SELECT record_artifact_id FROM logical_ids WHERE record_type = ? AND logical_id = ?',
+    ).get(recordType, logicalId) as { record_artifact_id: string } | undefined;
+    return row?.record_artifact_id;
   }
 
   listRecordIds(recordType: string): string[] {

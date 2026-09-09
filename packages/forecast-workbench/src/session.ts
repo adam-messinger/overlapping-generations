@@ -1365,14 +1365,15 @@ export class ForecastWorkbench {
     }
   }
 
-  private async findLogicalRecordId<T extends { id: string }>(
+  /**
+   * The record of this type carrying this logical id, if one exists. The type
+   * parameter documents what the caller expects to read back; the lookup
+   * itself is indexed and does not need it.
+   */
+  private async findLogicalRecordId<_T extends { id: string }>(
     recordType: string,
     logicalId: string,
   ): Promise<string | undefined> {
-    for (const recordId of this.ledger.listRecordIds(recordType)) {
-      const record = await this.ledger.getRecord<T>(recordId);
-      if (record.id === logicalId) return recordId;
-    }
-    return undefined;
+    return this.ledger.findByLogicalId(recordType, logicalId);
   }
 }

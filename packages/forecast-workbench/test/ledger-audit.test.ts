@@ -524,3 +524,51 @@ test('a tampered record artifact is caught when it is read', async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('a logical id is found by index, survives rebuild, and is scoped by type', async () => {
+  // Finding a record by its own id used to mean reading every record of its
+  // type and comparing — during observation ingestion that compounded on top
+  // of an already-quadratic read path.
+  const root = await mkdtemp(join(tmpdir(), 'forecast-logical-id-'));
+  const clock = new FixedClock(new Date('2026-09-09T00:00:00.000Z'));
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    const reference = await ledger.appendRecord({
+      actor,
+      kind: 'observation.final',
+      recordType: 'observation-version',
+      record: { id: 'obs-target', value: 1 },
+      classification: 'internal',
+    });
+    await ledger.appendRecord({
+      actor,
+      kind: 'monitor.trigger-defined',
+      recordType: 'trigger',
+      record: { id: 'obs-target', description: 'same id, different type' },
+      classification: 'internal',
+    });
+
+    assert.equal(ledger.findByLogicalId('observation-version', 'obs-target'), reference.id);
+    assert.equal(ledger.findByLogicalId('observation-version', 'absent'), undefined);
+    // The same logical id under another record type is a different record.
+    assert.notEqual(ledger.findByLogicalId('trigger', 'obs-target'), reference.id);
+
+    ledger.close();
+    await Promise.all([
+      rm(join(root, 'index.sqlite'), { force: true }),
+      rm(join(root, 'index.sqlite-wal'), { force: true }),
+      rm(join(root, 'index.sqlite-shm'), { force: true }),
+    ]);
+    const rebuilt = new ForecastLedger(root, clock);
+    await rebuilt.initialize();
+    try {
+      // The index is derived, so it has to come back from the canonical log.
+      assert.equal(rebuilt.findByLogicalId('observation-version', 'obs-target'), reference.id);
+    } finally {
+      rebuilt.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
