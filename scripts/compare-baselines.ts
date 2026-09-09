@@ -51,7 +51,12 @@ interface BaselineData {
 
 type Tolerance =
   | { kind: 'absolute'; max: number }   // |after - before| > max triggers warning
-  | { kind: 'percent'; max: number };   // |after - before| / |before| > max/100 triggers warning
+  // |after - before| / |before| > max/100 triggers warning. A percentage is
+  // undefined against a zero reference, so `zeroFallback` gives an absolute
+  // threshold in the metric's own unit for that case — without one, a move
+  // from 0 to anything is an infinite percentage that compares false and
+  // passes silently.
+  | { kind: 'percent'; max: number; zeroFallback: number };
 
 interface MetricSpec {
   key: keyof ScenarioMetrics;
@@ -65,19 +70,19 @@ interface MetricSpec {
 const METRICS: MetricSpec[] = [
   { key: 'warming2050',             label: 'Warming 2050',        unit: '°C',     format: v => v.toFixed(2),     tolerance: { kind: 'absolute', max: 0.05 } },
   { key: 'warming2100',             label: 'Warming 2100',        unit: '°C',     format: v => v.toFixed(2),     tolerance: { kind: 'absolute', max: 0.05 } },
-  { key: 'peakEmissions',           label: 'Peak Emissions',      unit: 'Gt',     format: v => v.toFixed(1),     tolerance: { kind: 'percent',  max: 10 } },
+  { key: 'peakEmissions',           label: 'Peak Emissions',      unit: 'Gt',     format: v => v.toFixed(1),     tolerance: { kind: 'percent',  zeroFallback: 0.1, max: 10 } },
   { key: 'electrificationRate2025', label: 'Elec Rate 2025',      unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.02 } },
   { key: 'electrificationRate2050', label: 'Elec Rate 2050',      unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.02 } },
   { key: 'electrificationRate2100', label: 'Elec Rate 2100',      unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.02 } },
-  { key: 'solarCapacity2050',       label: 'Solar 2050',          unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 15 } },
-  { key: 'solarCapacity2100',       label: 'Solar 2100',          unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 15 } },
-  { key: 'windCapacity2050',        label: 'Wind 2050',           unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 15 } },
-  { key: 'batteryCapacity2050',     label: 'Battery 2050',        unit: 'GWh',    format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 15 } },
+  { key: 'solarCapacity2050',       label: 'Solar 2050',          unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 15 } },
+  { key: 'solarCapacity2100',       label: 'Solar 2100',          unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 15 } },
+  { key: 'windCapacity2050',        label: 'Wind 2050',           unit: 'GW',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 15 } },
+  { key: 'batteryCapacity2050',     label: 'Battery 2050',        unit: 'GWh',    format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 15 } },
   { key: 'fossilShare2050',         label: 'Fossil Share 2050',   unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.02 } },
   { key: 'fossilShare2100',         label: 'Fossil Share 2100',   unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.02 } },
-  { key: 'gridIntensity2050',       label: 'Grid Intensity 2050', unit: 'kg/MWh', format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 15 } },
-  { key: 'gdp2050',                 label: 'GDP 2050',            unit: '$T',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 5 } },
-  { key: 'gdp2100',                 label: 'GDP 2100',            unit: '$T',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  max: 5 } },
+  { key: 'gridIntensity2050',       label: 'Grid Intensity 2050', unit: 'kg/MWh', format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 15 } },
+  { key: 'gdp2050',                 label: 'GDP 2050',            unit: '$T',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 5 } },
+  { key: 'gdp2100',                 label: 'GDP 2100',            unit: '$T',     format: v => v.toFixed(0),     tolerance: { kind: 'percent',  zeroFallback: 1, max: 5 } },
   { key: 'energyBurdenPeak',        label: 'Peak Burden',         unit: 'pp',     format: v => (v*100).toFixed(1), tolerance: { kind: 'absolute', max: 0.015 } },
 ];
 
@@ -103,6 +108,7 @@ interface ComparisonResult {
   beforeTimestamp: string;
   afterTimestamp: string;
   diffs: MetricDiff[];
+  uncomparable: string[];
   warnings: number;
   scenariosCompared: number;
   scenariosOnlyInAfter: string[];
@@ -111,6 +117,7 @@ interface ComparisonResult {
 
 function compute(before: BaselineData, after: BaselineData, beforePath: string, afterPath: string): ComparisonResult {
   const diffs: MetricDiff[] = [];
+  const uncomparable: string[] = [];
   let warnings = 0;
 
   const afterScenarios = new Set(Object.keys(after.scenarios));
@@ -130,7 +137,19 @@ function compute(before: BaselineData, after: BaselineData, beforePath: string, 
     for (const m of METRICS) {
       const beforeVal = b[m.key] as number;
       const afterVal = a[m.key] as number;
-      if (beforeVal === undefined || afterVal === undefined) continue;
+
+      // A metric that is absent or not a finite number cannot be compared, and
+      // silently skipping it lets a capture that dropped or corrupted a metric
+      // report a clean run.
+      const beforeUsable = typeof beforeVal === 'number' && Number.isFinite(beforeVal);
+      const afterUsable = typeof afterVal === 'number' && Number.isFinite(afterVal);
+      if (!beforeUsable || !afterUsable) {
+        const which = !beforeUsable && !afterUsable ? 'both baselines'
+          : !beforeUsable ? 'the reference' : 'the new capture';
+        uncomparable.push(`${scenario}.${String(m.key)} is missing or not finite in ${which}`);
+        warnings++;
+        continue;
+      }
 
       const delta = afterVal - beforeVal;
       const percentChange = beforeVal !== 0 ? (delta / Math.abs(beforeVal)) * 100 : null;
@@ -138,8 +157,10 @@ function compute(before: BaselineData, after: BaselineData, beforePath: string, 
       let warning = false;
       if (m.tolerance.kind === 'absolute') {
         warning = Math.abs(delta) > m.tolerance.max;
+      } else if (percentChange !== null) {
+        warning = Math.abs(percentChange) > m.tolerance.max;
       } else {
-        warning = percentChange !== null && Math.abs(percentChange) > m.tolerance.max;
+        warning = Math.abs(delta) > m.tolerance.zeroFallback;
       }
 
       if (warning) warnings++;
@@ -164,6 +185,7 @@ function compute(before: BaselineData, after: BaselineData, beforePath: string, 
     beforeTimestamp: before.timestamp,
     afterTimestamp: after.timestamp,
     diffs,
+    uncomparable,
     warnings,
     scenariosCompared: common.length,
     scenariosOnlyInAfter,
@@ -178,6 +200,7 @@ function printHuman(result: ComparisonResult): void {
 
   for (const s of result.scenariosOnlyInAfter) console.log(`⚠ Scenario '${s}' only in after baseline (new)`);
   for (const s of result.scenariosOnlyInBefore) console.log(`⚠ Scenario '${s}' only in before baseline (removed)`);
+  for (const message of result.uncomparable) console.log(`⚠ ${message}`);
 
   // Group diffs by scenario
   const byScenario = new Map<string, MetricDiff[]>();
@@ -210,6 +233,9 @@ function printHuman(result: ComparisonResult): void {
 
   console.log('\n=== Summary ===\n');
   console.log(`Scenarios compared: ${result.scenariosCompared}`);
+  if (result.uncomparable.length > 0) {
+    console.log(`Metrics that could not be compared: ${result.uncomparable.length}`);
+  }
   console.log(`Warnings (outside tolerance): ${result.warnings}`);
   if (result.warnings > 0) {
     console.log('\n⚠ Some metrics changed beyond tolerance. Review, and re-bless baseline if intentional.');
