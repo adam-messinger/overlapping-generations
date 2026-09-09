@@ -17,12 +17,18 @@ import {
 
 const actor = { id: 'conformance-runner', role: 'service' } as const;
 
-/** True when any file in the exported bundle contains `needle`. */
+/**
+ * True when any file in the exported bundle contains `needle`. Recurses by
+ * hand rather than with `readdir`'s `recursive` option, whose `Dirent` carries
+ * the parent directory under a name that moved between Node releases.
+ */
 async function bundleContains(root: string, needle: string): Promise<boolean> {
-  for (const entry of await readdir(root, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile()) continue;
-    const text = await readFile(join(entry.parentPath, entry.name), 'utf8');
-    if (text.includes(needle)) return true;
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    const found = entry.isDirectory()
+      ? await bundleContains(path, needle)
+      : (await readFile(path, 'utf8')).includes(needle);
+    if (found) return true;
   }
   return false;
 }
