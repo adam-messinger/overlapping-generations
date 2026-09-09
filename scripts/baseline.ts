@@ -72,7 +72,16 @@ interface BaselineData {
 function extractMetrics(results: any[]): ScenarioMetrics {
   const idx2025 = 0;
   const idx2050 = results.findIndex(r => r.year === 2050);
-  const idx2100 = results.length - 1;
+  // Select the named year rather than the last row. They coincide for the
+  // 2025-2100 horizon every scenario uses, but taking the last row would
+  // silently relabel some other year's value as 2100 on a shorter run.
+  const idx2100 = results.findIndex(r => r.year === 2100);
+
+  // A year that was not simulated has no value. NaN rather than 0, so the
+  // comparator reports it as uncomparable instead of treating it as a real
+  // reading that happens to be zero.
+  const at = (index: number, read: (row: any) => number): number =>
+    index >= 0 ? read(results[index]) : Number.NaN;
 
   // Find peak emissions
   let peakEmissions = 0;
@@ -96,34 +105,34 @@ function extractMetrics(results: any[]): ScenarioMetrics {
   }
 
   return {
-    warming2050: results[idx2050]?.temperature ?? 0,
-    warming2100: results[idx2100].temperature,
+    warming2050: at(idx2050, r => r.temperature),
+    warming2100: at(idx2100, r => r.temperature),
     peakEmissions,
     peakEmissionsYear,
 
     electrificationRate2025: results[idx2025].electrificationRate,
-    electrificationRate2050: results[idx2050]?.electrificationRate ?? 0,
-    electrificationRate2100: results[idx2100].electrificationRate,
+    electrificationRate2050: at(idx2050, r => r.electrificationRate),
+    electrificationRate2100: at(idx2100, r => r.electrificationRate),
 
     solarCapacity2025: results[idx2025].capacities.solar,
-    solarCapacity2050: results[idx2050]?.capacities.solar ?? 0,
-    solarCapacity2100: results[idx2100].capacities.solar,
-    windCapacity2050: results[idx2050]?.capacities.wind ?? 0,
-    batteryCapacity2050: results[idx2050]?.capacities.battery ?? 0,
+    solarCapacity2050: at(idx2050, r => r.capacities.solar),
+    solarCapacity2100: at(idx2100, r => r.capacities.solar),
+    windCapacity2050: at(idx2050, r => r.capacities.wind),
+    batteryCapacity2050: at(idx2050, r => r.capacities.battery),
 
     gridIntensity2025: results[idx2025].gridIntensity,
-    gridIntensity2050: results[idx2050]?.gridIntensity ?? 0,
-    gridIntensity2100: results[idx2100].gridIntensity,
+    gridIntensity2050: at(idx2050, r => r.gridIntensity),
+    gridIntensity2100: at(idx2100, r => r.gridIntensity),
 
     fossilShare2025: results[idx2025].fossilShare,
-    fossilShare2050: results[idx2050]?.fossilShare ?? 0,
-    fossilShare2100: results[idx2100].fossilShare,
+    fossilShare2050: at(idx2050, r => r.fossilShare),
+    fossilShare2100: at(idx2100, r => r.fossilShare),
 
-    gdp2050: results[idx2050]?.gdp ?? 0,
-    gdp2100: results[idx2100].gdp,
+    gdp2050: at(idx2050, r => r.gdp),
+    gdp2100: at(idx2100, r => r.gdp),
 
     energyBurden2025: results[idx2025].energyBurden,
-    energyBurden2050: results[idx2050]?.energyBurden ?? 0,
+    energyBurden2050: at(idx2050, r => r.energyBurden),
     energyBurdenPeak,
     energyBurdenPeakYear,
   };

@@ -389,14 +389,23 @@ export interface MacroSimulationResult {
 }
 
 export interface SimulationMetrics {
+  /**
+   * Metrics naming a calendar year are NaN when that year was not simulated.
+   * A run that stops in 2030 has no 2100 GDP, and reporting the last row's
+   * value under a 2100 label would state something false.
+   */
+
   // Population
   peakPopulation: number;
   peakPopulationYear: number;
-  population2100: number;
+  /** Undefined when the run did not reach 2100. */
+  population2100: number | undefined;
 
   // Climate
-  warming2050: number;
-  warming2100: number;
+  /** Undefined when the run did not reach 2050. */
+  warming2050: number | undefined;
+  /** Undefined when the run did not reach 2100. */
+  warming2100: number | undefined;
   peakEmissions: number;
   peakEmissionsYear: number;
 
@@ -406,9 +415,17 @@ export interface SimulationMetrics {
   fossilShareFinal: number;
 
   // Economy
-  gdp2050: number;
-  gdp2100: number;
-  kY2050: number;  // Capital-output ratio
+  /** Undefined when the run did not reach 2050. */
+  gdp2050: number | undefined;
+  /** Undefined when the run did not reach 2100. */
+  gdp2100: number | undefined;
+  /** Capital-output ratio. Undefined when the run did not reach 2050. */
+  kY2050: number | undefined;
+
+  // End of the run, whatever year it falls in
+  terminalYear: number;
+  gdpTerminal: number;
+  warmingTerminal: number;
 }
 
 // =============================================================================
@@ -614,15 +631,26 @@ async function runCLI() {
 
   console.log('\n=== Metrics ===\n');
   console.log(`Peak population: ${(result.metrics.peakPopulation / 1e9).toFixed(2)}B in ${result.metrics.peakPopulationYear}`);
-  console.log(`Population 2100: ${(result.metrics.population2100 / 1e9).toFixed(2)}B`);
-  console.log(`Warming 2050: ${result.metrics.warming2050.toFixed(2)}°C`);
-  console.log(`Warming 2100: ${result.metrics.warming2100.toFixed(2)}°C`);
+  // A metric naming a year the run did not reach is NaN, and prints as the
+  // year being absent rather than as a number.
+  const named = (
+    value: number | undefined,
+    format: (v: number) => string,
+  ): string => (value === undefined ? 'not simulated' : format(value));
+
+  console.log(`Population 2100: ${named(result.metrics.population2100, v => `${(v / 1e9).toFixed(2)}B`)}`);
+  console.log(`Warming 2050: ${named(result.metrics.warming2050, v => `${v.toFixed(2)}°C`)}`);
+  console.log(`Warming 2100: ${named(result.metrics.warming2100, v => `${v.toFixed(2)}°C`)}`);
   console.log(`Peak emissions: ${result.metrics.peakEmissions.toFixed(1)} Gt in ${result.metrics.peakEmissionsYear}`);
   console.log(`Solar crosses gas: ${result.metrics.solarCrossoverYear ?? 'never'}`);
   console.log(`Grid < 100 kg/MWh: ${result.metrics.gridBelow100Year ?? 'never'}`);
-  console.log(`GDP 2050: $${result.metrics.gdp2050.toFixed(0)}T`);
-  console.log(`GDP 2100: $${result.metrics.gdp2100.toFixed(0)}T`);
-  console.log(`K/Y 2050: ${result.metrics.kY2050.toFixed(2)}`);
+  console.log(`GDP 2050: ${named(result.metrics.gdp2050, v => `$${v.toFixed(0)}T`)}`);
+  console.log(`GDP 2100: ${named(result.metrics.gdp2100, v => `$${v.toFixed(0)}T`)}`);
+  console.log(`K/Y 2050: ${named(result.metrics.kY2050, v => v.toFixed(2))}`);
+  console.log(
+    `End of run (${result.metrics.terminalYear}): ` +
+    `$${result.metrics.gdpTerminal.toFixed(0)}T, ${result.metrics.warmingTerminal.toFixed(2)}°C`,
+  );
 
   // Resource metrics
   const idx2025 = 0;
