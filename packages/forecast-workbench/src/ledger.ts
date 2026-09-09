@@ -500,6 +500,8 @@ export class ForecastLedger {
             ...(latest ? { previousEventHash: latest.event_hash } : {}),
           });
           await this.appendEventLine(event);
+          // The log grew, so the cached synchronisation no longer describes it.
+          this.synchronized = undefined;
           this.insertEvent(database, event);
           this.projectRecord(database, event, options.record);
           database.exec('COMMIT');
@@ -724,7 +726,36 @@ export class ForecastLedger {
       .map((line) => canonicalParse<EventEnvelope>(line));
   }
 
+  /**
+   * The event log as of the last synchronise, with the file size and mtime it
+   * had then. Re-reading and re-hashing the whole history on every read made
+   * getRecord quadratic: 50 record reads cost 2,500 artifact verifications.
+   */
+  private synchronized?: {
+    size: number;
+    mtimeMs: number;
+    events: number;
+  };
+
+  /**
+   * Whether the canonical log has changed since the last synchronise. Size and
+   * mtime, not content: this decides whether to re-read, and every path that
+   * needs integrity re-establishes it for the bytes it actually returns.
+   */
+  private async logIsUnchanged(): Promise<boolean> {
+    if (!this.synchronized) return false;
+    try {
+      const info = await stat(this.eventLogPath);
+      return info.size === this.synchronized.size &&
+        info.mtimeMs === this.synchronized.mtimeMs;
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return this.synchronized.events === 0;
+      throw error;
+    }
+  }
+
   private async synchronizeProjection(): Promise<void> {
+    if (await this.logIsUnchanged()) return;
     const events = await this.readEventLog();
     let previous: string | undefined;
     let previousOccurredAt: string | undefined;
@@ -750,17 +781,32 @@ export class ForecastLedger {
         throw new Error(`SQLite projection diverges from event log at sequence ${index + 1}`);
       }
     }
-    if (rows.length === events.length) return;
-    database.exec('BEGIN IMMEDIATE');
-    try {
-      for (const event of events.slice(rows.length)) {
-        const record = await this.artifacts.getCanonicalJson(event.recordArtifactId);
-        this.insertEvent(database, event);
-        this.projectRecord(database, event, record);
+    if (rows.length !== events.length) {
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        for (const event of events.slice(rows.length)) {
+          const record = await this.artifacts.getCanonicalJson(event.recordArtifactId);
+          this.insertEvent(database, event);
+          this.projectRecord(database, event, record);
+        }
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
       }
-      database.exec('COMMIT');
-    } catch (error) {
-      database.exec('ROLLBACK');
+    }
+    await this.rememberSynchronized(events.length);
+  }
+
+  private async rememberSynchronized(events: number): Promise<void> {
+    try {
+      const info = await stat(this.eventLogPath);
+      this.synchronized = { size: info.size, mtimeMs: info.mtimeMs, events };
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') {
+        this.synchronized = { size: 0, mtimeMs: 0, events };
+        return;
+      }
       throw error;
     }
   }
@@ -789,12 +835,22 @@ export class ForecastLedger {
     };
   }
 
+  /**
+   * Reads one record, verifying the artifact it returns.
+   *
+   * It no longer re-verifies the whole history first. That caught tampering
+   * with any artifact on any read, but cost a full rehash of every record per
+   * read; verify() remains the explicit whole-history audit, and export calls
+   * it. What a read guarantees is that the bytes it hands back match the
+   * content address they were stored under.
+   */
   async getRecord<T>(id: string): Promise<T> {
     await this.initialize();
     const exists = this.db().prepare(
       'SELECT 1 FROM records WHERE record_artifact_id = ?',
     ).get(id);
     if (!exists) throw new Error(`Unknown ledger record '${id}'`);
+    await this.artifacts.verify(id);
     return this.artifacts.getCanonicalJson<T>(id);
   }
 

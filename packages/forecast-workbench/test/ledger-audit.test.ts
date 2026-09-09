@@ -431,3 +431,96 @@ test('a restricted record does not leak the artifacts it references', async () =
     await rm(destination, { recursive: true, force: true });
   }
 });
+
+test('reading records does not re-verify the whole history each time', async () => {
+  // Every getRecord used to re-read the event log and rehash every record
+  // artifact before its indexed lookup: 25 reads cost 625 verifications, 50
+  // cost 2,500, 100 cost 10,000. Counting bytes read as well as
+  // verifications, because a check that only counted hashes would go green
+  // while the log was still re-read in full on every call.
+  const measure = async (records: number) => {
+    const root = await mkdtemp(join(tmpdir(), 'forecast-ledger-scale-'));
+    const clock = new FixedClock(new Date('2026-09-09T00:00:00.000Z'));
+    const ledger = new ForecastLedger(root, clock);
+    await ledger.initialize();
+    try {
+      for (let index = 0; index < records; index++) {
+        await ledger.appendRecord({
+          actor,
+          kind: 'conformance.recorded',
+          recordType: 'conformance-record',
+          record: { id: `record-${index}` },
+          classification: 'internal',
+        });
+      }
+      const ids = ledger.listRecordIds('conformance-record');
+
+      const store = ledger.artifacts as unknown as {
+        verify: (id: string) => Promise<unknown>;
+      };
+      const verifyArtifact = store.verify.bind(store);
+      let verifications = 0;
+      store.verify = async (id: string) => {
+        verifications += 1;
+        return verifyArtifact(id);
+      };
+
+      const internals = ledger as unknown as { readEventLog: () => Promise<unknown[]> };
+      const readEventLog = internals.readEventLog.bind(internals);
+      let logReads = 0;
+      internals.readEventLog = async () => {
+        logReads += 1;
+        return readEventLog();
+      };
+
+      for (const id of ids) await ledger.getRecord(id);
+      return { verifications, logReads };
+    } finally {
+      ledger.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  };
+
+  const small = await measure(25);
+  const large = await measure(100);
+
+  // Four times the records must not cost sixteen times the work.
+  assert.ok(
+    large.verifications <= small.verifications * 5,
+    `expected roughly linear growth, got ${small.verifications} then ${large.verifications}`,
+  );
+  // The log is read to synchronise, not once per record read.
+  assert.ok(
+    large.logReads < 25,
+    `expected the log to be read a bounded number of times, got ${large.logReads}`,
+  );
+});
+
+test('a tampered record artifact is caught when it is read', async () => {
+  // The suite covered tampering on the write path only, so a read that
+  // stopped re-verifying everything could have dropped this silently.
+  const root = await mkdtemp(join(tmpdir(), 'forecast-ledger-tamper-'));
+  const clock = new FixedClock(new Date('2026-09-09T00:00:00.000Z'));
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    const reference = await ledger.appendRecord({
+      actor,
+      kind: 'conformance.recorded',
+      recordType: 'conformance-record',
+      record: { id: 'tamper-target', value: 1 },
+      classification: 'internal',
+    });
+    assert.deepEqual(await ledger.getRecord(reference.id), { id: 'tamper-target', value: 1 });
+
+    await writeFile(
+      ledger.artifacts.pathFor(reference.id),
+      JSON.stringify({ id: 'tamper-target', value: 999 }),
+    );
+
+    await assert.rejects(ledger.getRecord(reference.id), /integrity|invalid/i);
+  } finally {
+    ledger.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
