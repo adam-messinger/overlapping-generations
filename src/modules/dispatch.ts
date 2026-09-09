@@ -190,6 +190,14 @@ export interface DispatchInputs {
   longStorageRegional?: Record<Region, number>;
 
   /** Effective solar capacity factor (site-depletion adjusted) */
+  /**
+   * Site-depletion-adjusted capacity factors by region. Preferred over the
+   * fleet means below: one mean applied everywhere lets a region generate
+   * more than its own panels physically can.
+   */
+  regionalEffectiveSolarCF?: Record<Region, number>;
+  regionalEffectiveWindCF?: Record<Region, number>;
+
   effectiveSolarCF?: number;
 
   /** Effective wind capacity factor (site-depletion adjusted) */
@@ -580,6 +588,8 @@ export const dispatchModule: Module<
       carbonPrice: unitPort('$/tCO2'),
       regionalCarbonPrice: unitPort('$/tCO2', 'record'),
       longStorageRegional: unitPort('GWh', 'record'),
+      regionalEffectiveSolarCF: unitPort('fraction', 'record'),
+      regionalEffectiveWindCF: unitPort('fraction', 'record'),
       effectiveSolarCF: unitPort('fraction'),
       effectiveWindCF: unitPort('fraction'),
     },
@@ -683,11 +693,28 @@ export const dispatchModule: Module<
       : params;
 
     for (const region of REGIONS) {
+      // Regional first, then the fleet mean, then the parameter default, so a
+      // caller supplying neither behaves as before.
+      const regionSolarCF = inputs.regionalEffectiveSolarCF?.[region]
+        ?? inputs.effectiveSolarCF;
+      const regionWindCF = inputs.regionalEffectiveWindCF?.[region]
+        ?? inputs.effectiveWindCF;
+      const regionParams = (regionSolarCF != null || regionWindCF != null)
+        ? {
+            ...effectiveParams,
+            capacityFactor: {
+              ...effectiveParams.capacityFactor,
+              ...(regionSolarCF != null && { solar: regionSolarCF }),
+              ...(regionWindCF != null && { wind: regionWindCF }),
+            },
+          }
+        : effectiveParams;
+
       const regionResult = dispatchRegion(
         regionalDemand[region],
         regionalCapacities[region],
         regionalCarbonPrice[region],
-        effectiveParams,
+        regionParams,
         longStorageRegional[region]
       );
 

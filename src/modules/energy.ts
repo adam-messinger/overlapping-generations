@@ -91,6 +91,11 @@ export interface RegionalEnergyParams {
    * cumulative build from zero, so the year-0 effective CF sits below the
    * table value where the 2025 fleet is a large share of the potential
    * (follow-up: rebase depletion to post-2025 build).
+   *
+   * Both follow-ups matter more since dispatch began serving each region at
+   * its own factor rather than at a fleet mean: these rows now set how much
+   * a region can physically generate, not just how its capacity is planned.
+   * A mis-stated row moves that region's fossil displacement directly.
    */
   capacityFactor?: Partial<Record<EnergySource, number>>;
   financingSpread?: number;                     // Observed start-year WACC spread over the global rate (fraction, e.g. 0.06 = +6pp); home bias drifts it thereafter
