@@ -1,3 +1,4 @@
+import { weightedIntervalScore } from 'forecast-workbench';
 import type { RespiratorySeries } from './rolling-data.js';
 
 export type ForecastModel = 'persistence' | 'local-trend' | 'adaptive-ensemble';
@@ -221,19 +222,19 @@ export function scoreForecast(
 ): ForecastScore {
   const observed = transform(observedAdmissions);
   const q = forecast.quantilesLog;
-  const intervalScore = (alpha: 0.5 | 0.05, lower: number, upper: number): number =>
-    upper - lower +
-    (2 / alpha) * (lower - observed) * Number(observed < lower) +
-    (2 / alpha) * (observed - upper) * Number(observed > upper);
-  const absoluteError = Math.abs(observed - q[0.5]);
-  const wis =
-    (0.5 * absoluteError +
-      0.25 * intervalScore(0.5, q[0.25], q[0.75]) +
-      0.025 * intervalScore(0.05, q[0.025], q[0.975])) /
-    2.5;
   return {
-    wis,
-    absoluteError,
+    wis: weightedIntervalScore(
+      {
+        kind: 'quantiles',
+        quantiles: FORECAST_QUANTILES.map((probability) => ({
+          probability,
+          value: q[probability],
+        })),
+      },
+      observed,
+      FORECAST_QUANTILES,
+    ),
+    absoluteError: Math.abs(observed - q[0.5]),
     covered50: observed >= q[0.25] && observed <= q[0.75],
     covered95: observed >= q[0.025] && observed <= q[0.975],
   };
