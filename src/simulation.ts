@@ -388,6 +388,21 @@ export interface MacroSimulationResult {
   metrics: SimulationMetrics;
 }
 
+/**
+ * Asserts that a metric naming a calendar year has a value.
+ *
+ * These are undefined when the run did not reach the year. Analysis over a
+ * full 2025-2100 scenario always has them, so this states that requirement
+ * once and fails with the metric's name if a caller ever shortens the
+ * horizon — rather than the zero or mislabelled value that used to appear.
+ */
+export function requireYear(value: number | undefined, metric: string): number {
+  if (value === undefined) {
+    throw new Error(`Metric '${metric}' is unavailable: the run did not reach that year`);
+  }
+  return value;
+}
+
 export interface SimulationMetrics {
   /**
    * Metrics naming a calendar year are NaN when that year was not simulated.

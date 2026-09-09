@@ -8,7 +8,7 @@
  *   npx tsx scripts/parameter-sweep.ts
  */
 
-import {
+import { requireYear,
   runSimulation,
   describeParameters,
   buildMultiParams,
@@ -54,8 +54,8 @@ interface ScenarioSweep {
 const last = (r: MacroSimulationResult): MacroYearResult => r.results[r.results.length - 1];
 
 const METRICS: MetricDef[] = [
-  { name: 'warming2100', unit: '°C', extract: r => r.metrics.warming2100 },
-  { name: 'gdp2100', unit: '$T', extract: r => r.metrics.gdp2100 },
+  { name: 'warming2100', unit: '°C', extract: r => requireYear(r.metrics.warming2100, 'warming2100') },
+  { name: 'gdp2100', unit: '$T', extract: r => requireYear(r.metrics.gdp2100, 'gdp2100') },
   { name: 'peakEmissions', unit: 'Gt', extract: r => r.metrics.peakEmissions },
   { name: 'fossilShare2100', unit: 'frac', extract: r => last(r).fossilShare },
   { name: 'curtailment2100', unit: 'frac', extract: r => last(r).curtailmentRate },

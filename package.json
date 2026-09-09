@@ -14,7 +14,7 @@
     "start": "npx tsx src/simulation.ts",
     "test:framework": "npm test --workspace tsimulation",
     "test:forecast-workbench": "npm test --workspace forecast-workbench",
-    "test:core": "npx tsc --noEmit && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
+    "test:core": "npx tsc --noEmit && npm run typecheck:scripts && find src -name '*.test.ts' -print | sort | while read -r f; do echo \"Running $f\"; node --import tsx \"$f\" || exit 1; done",
     "aging:status": "node --import tsx aging-places/scripts/international-status.ts",
     "preaging:global-city": "npm run build:framework",
     "aging:global-city": "node --import tsx aging-places/scripts/global-city.ts",
@@ -51,7 +51,8 @@
     "forecast:outbreak-replay": "node --import tsx scripts/forecast-outbreak-replay.ts",
     "forecast:data-center-replay": "node --import tsx scripts/forecast-data-center-replay.ts",
     "forecast:hormuz-replay": "node --import tsx scripts/forecast-hormuz-replay.ts",
-    "forecast:news-replay": "node --import tsx scripts/forecast-news-2026-07-28-replay.ts"
+    "forecast:news-replay": "node --import tsx scripts/forecast-news-2026-07-28-replay.ts",
+    "typecheck:scripts": "npx tsc --noEmit -p tsconfig.scripts.json"
   },
   "engines": {
     "node": ">=20"

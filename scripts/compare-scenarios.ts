@@ -9,7 +9,7 @@
  * - SSP5-8.5: 4.4°C (3.3-5.7) - Very high emissions
  */
 
-import { runWithScenario, runSimulation } from '../src/index.js';
+import { requireYear, runWithScenario, runSimulation } from '../src/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -57,12 +57,12 @@ async function runScenario(scenarioPath: string): Promise<ScenarioResult | null>
     return {
       name,
       description: desc.substring(0, 60),
-      warming2050: metrics.warming2050,
-      warming2100: metrics.warming2100,
+      warming2050: requireYear(metrics.warming2050, 'warming2050'),
+      warming2100: requireYear(metrics.warming2100, 'warming2100'),
       peakEmissions: metrics.peakEmissions,
       peakEmissionsYear: metrics.peakEmissionsYear,
-      gdp2050: metrics.gdp2050,
-      gdp2100: metrics.gdp2100,
+      gdp2050: requireYear(metrics.gdp2050, 'gdp2050'),
+      gdp2100: requireYear(metrics.gdp2100, 'gdp2100'),
       electrification2050: results[idx2050]?.electrificationRate ?? 0,
       electrification2100: results[idx2100]?.electrificationRate ?? 0,
       transportElec2050: results[idx2050]?.transportElectrification ?? 0,
@@ -70,7 +70,7 @@ async function runScenario(scenarioPath: string): Promise<ScenarioResult | null>
       industryElec2050: results[idx2050]?.industryElectrification ?? 0,
       fossilShare2050: results[idx2050]?.fossilShare ?? 0,
       fossilShare2100: results[idx2100]?.fossilShare ?? 0,
-      sspCategory: categorizeSSP(metrics.warming2100),
+      sspCategory: categorizeSSP(requireYear(metrics.warming2100, 'warming2100')),
     };
   } catch (err) {
     console.error(`Error running ${scenarioPath}:`, err);

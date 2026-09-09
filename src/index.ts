@@ -5,7 +5,7 @@
  */
 
 // Simulation
-export { runSimulation, runWithScenario } from './simulation.js';
+export { requireYear, runSimulation, runWithScenario } from './simulation.js';
 export type {
   SimulationParams,
   RunOptions,
