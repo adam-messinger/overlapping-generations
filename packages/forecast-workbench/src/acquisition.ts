@@ -110,21 +110,99 @@ function privateIpv4(address: string): boolean {
     a >= 224;
 }
 
+/**
+ * Parses an IPv6 literal into its eight 16-bit groups, or undefined if it is
+ * not one. Accepts the bracketed form a URL hostname carries, the `::`
+ * compression, and a trailing dotted-quad.
+ *
+ * Classification works on the groups, never on the text. The address has too
+ * many spellings for string matching to hold: `::1` is also `0:0:0:0:0:0:0:1`
+ * and `0000:0000:0000:0000:0000:0000:0000:0001`, and a `startsWith` check
+ * covers none of them.
+ */
+function ipv6Groups(address: string): number[] | undefined {
+  let text = address.trim().toLowerCase();
+  if (text.startsWith('[') && text.endsWith(']')) text = text.slice(1, -1);
+  const zone = text.indexOf('%');
+  if (zone !== -1) text = text.slice(0, zone);
+  if (isIP(text) !== 6) return undefined;
+
+  // Rewrite a trailing dotted quad as the two hex groups it occupies, so the
+  // rest of the parse has one form to handle.
+  const dotted = /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (dotted) {
+    const octets = dotted.slice(1).map(Number);
+    if (octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+      return undefined;
+    }
+    const high = ((octets[0] << 8) | octets[1]).toString(16);
+    const low = ((octets[2] << 8) | octets[3]).toString(16);
+    text = `${text.slice(0, dotted.index)}${high}:${low}`;
+  }
+
+  const [head, rest, ...extra] = text.split('::');
+  if (extra.length > 0) return undefined;
+  const parse = (part: string): number[] =>
+    part.split(':').filter((piece) => piece.length > 0).map((piece) => parseInt(piece, 16));
+
+  const leading = parse(head);
+  const trailing = rest === undefined ? [] : parse(rest);
+  const explicit = [...leading, ...trailing];
+  if (explicit.some((value) => !Number.isInteger(value) || value < 0 || value > 0xffff)) {
+    return undefined;
+  }
+  if (rest === undefined) {
+    return explicit.length === 8 ? explicit : undefined;
+  }
+  if (explicit.length > 8) return undefined;
+  return [...leading, ...new Array(8 - explicit.length).fill(0), ...trailing];
+}
+
+/** Renders an embedded IPv4 address from two 16-bit groups. */
+function embeddedIpv4(high: number, low: number): string {
+  return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
+}
+
+function privateIpv6(groups: number[]): boolean {
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = groups;
+
+  // Unspecified and loopback, in every spelling.
+  if (groups.every((value) => value === 0)) return true;
+  if (groups.slice(0, 7).every((value) => value === 0) && g7 === 1) return true;
+
+  // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d). A URL
+  // canonicalises the dotted form to hex, and a resolver returns hex too, so
+  // these are reached as numbers rather than as the readable spelling.
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0) {
+    if (g5 === 0xffff || g5 === 0) return privateIpv4(embeddedIpv4(g6, g7));
+  }
+  // NAT64 well-known prefix 64:ff9b::/96 (RFC 6052).
+  if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+    return privateIpv4(embeddedIpv4(g6, g7));
+  }
+  // 6to4 2002::/16 embeds the IPv4 address in the next two groups.
+  if (g0 === 0x2002) return privateIpv4(embeddedIpv4(g1, g2));
+
+  // Unique-local fc00::/7 and link-local fe80::/10.
+  if ((g0 & 0xfe00) === 0xfc00) return true;
+  if ((g0 & 0xffc0) === 0xfe80) return true;
+  // Site-local fec0::/10, deprecated but still routable internally.
+  if ((g0 & 0xffc0) === 0xfec0) return true;
+  // Multicast ff00::/8.
+  if ((g0 & 0xff00) === 0xff00) return true;
+
+  return false;
+}
+
+/**
+ * Whether an address belongs to a network a request must not reach. Anything
+ * unparseable is treated as private, so an unrecognised form fails closed.
+ */
 function privateIp(address: string): boolean {
   const version = isIP(address);
   if (version === 4) return privateIpv4(address);
-  if (version === 6) {
-    const normalized = address.toLowerCase();
-    const dottedMapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized);
-    if (dottedMapped) return privateIpv4(dottedMapped[1]);
-    return normalized === '::' || normalized === '::1' ||
-      normalized.startsWith('fc') || normalized.startsWith('fd') ||
-      normalized.startsWith('fe8') || normalized.startsWith('fe9') ||
-      normalized.startsWith('fea') || normalized.startsWith('feb') ||
-      normalized.startsWith('fec') || normalized.startsWith('fed') ||
-      normalized.startsWith('fee') || normalized.startsWith('fef') ||
-      normalized.startsWith('ff');
-  }
+  const groups = ipv6Groups(address);
+  if (groups) return privateIpv6(groups);
   return true;
 }
 
