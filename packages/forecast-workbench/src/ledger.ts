@@ -805,19 +805,31 @@ export class ForecastLedger {
     return rows.map(({ record_artifact_id }) => record_artifact_id);
   }
 
-  listRecords(): Array<{ id: string; recordType: string; sequence: number }> {
+  /**
+   * `classification` is undefined for a record written before the event
+   * envelope carried one. That is unknown provenance, not a level — callers
+   * that gate on it must fail closed.
+   */
+  listRecords(): Array<{
+    id: string;
+    recordType: string;
+    sequence: number;
+    classification?: DataClassification;
+  }> {
     const rows = this.db().prepare(`
-      SELECT record_artifact_id, record_type, first_event_sequence
+      SELECT record_artifact_id, record_type, first_event_sequence, classification
       FROM records ORDER BY first_event_sequence
     `).all() as Array<{
       record_artifact_id: string;
       record_type: string;
       first_event_sequence: number;
+      classification: DataClassification | null;
     }>;
     return rows.map((row) => ({
       id: row.record_artifact_id,
       recordType: row.record_type,
       sequence: row.first_event_sequence,
+      ...(row.classification ? { classification: row.classification } : {}),
     }));
   }
 

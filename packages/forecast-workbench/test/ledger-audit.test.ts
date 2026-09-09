@@ -1,12 +1,13 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   canonicalJson,
   canonicalSha256Id,
+  exportAuditBundle,
   FixedClock,
   FileArtifactStore,
   ForecastLedger,
@@ -15,6 +16,22 @@ import {
 } from '../src/index.js';
 
 const actor = { id: 'conformance-runner', role: 'service' } as const;
+
+/**
+ * True when any file in the exported bundle contains `needle`. Recurses by
+ * hand rather than with `readdir`'s `recursive` option, whose `Dirent` carries
+ * the parent directory under a name that moved between Node releases.
+ */
+async function bundleContains(root: string, needle: string): Promise<boolean> {
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    const found = entry.isDirectory()
+      ? await bundleContains(path, needle)
+      : (await readFile(path, 'utf8')).includes(needle);
+    if (found) return true;
+  }
+  return false;
+}
 
 /**
  * Builds a v1 event the way the pre-classification ledger did, so the rebuild
@@ -272,5 +289,145 @@ test('a v1 event still verifies, and its classification reads as unknown', async
   } finally {
     ledger.close();
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('audit export withholds restricted record bodies but keeps the pointer', async () => {
+  // Finding 2: restrictions covered referenced artifacts such as raw
+  // acquisitions, but not the record bodies that hold the values themselves.
+  const root = await mkdtemp(join(tmpdir(), 'forecast-audit-restricted-'));
+  const destination = join(await mkdtemp(join(tmpdir(), 'forecast-audit-out-')), 'bundle');
+  const clock = new FixedClock(new Date('2026-09-09T12:00:00.000Z'));
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    const restricted = await ledger.appendRecord({
+      actor,
+      kind: 'observation.final',
+      recordType: 'observation-version',
+      record: { id: 'obs-restricted', value: 'RESTRICTED_OBSERVATION_VALUE' },
+      classification: 'restricted',
+    });
+    const open = await ledger.appendRecord({
+      actor,
+      kind: 'observation.final',
+      recordType: 'observation-version',
+      record: { id: 'obs-public', value: 'PUBLIC_OBSERVATION_VALUE' },
+      classification: 'public',
+    });
+
+    const manifest = await exportAuditBundle({ ledger, clock, destination });
+    const entry = (id: string) => manifest.artifacts.find((a) => a.id === id)!;
+
+    assert.equal(entry(restricted.id).included, false);
+    assert.equal(entry(restricted.id).restriction, 'restricted record');
+    assert.equal(entry(open.id).included, true);
+    assert.equal(manifest.verification, 'incomplete-restricted-artifacts');
+
+    // The value must be absent from the bytes, not merely flagged.
+    assert.equal(await bundleContains(destination, 'RESTRICTED_OBSERVATION_VALUE'), false);
+    assert.equal(await bundleContains(destination, 'PUBLIC_OBSERVATION_VALUE'), true);
+  } finally {
+    ledger.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
+  }
+});
+
+test('audit export fails closed on a record with no recorded classification', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'forecast-audit-legacy-'));
+  const destination = join(await mkdtemp(join(tmpdir(), 'forecast-audit-legacy-out-')), 'bundle');
+  const clock = new FixedClock(new Date('2026-09-09T12:00:00.000Z'));
+  const legacy = sealLegacyV1Event({
+    schemaVersion: 'forecast-workbench.event/v1',
+    sequence: 1,
+    occurredAt: clock.now().toISOString(),
+    actor,
+    kind: 'observation.final',
+    recordType: 'observation-version',
+    record: { id: 'legacy-observation', value: 'LEGACY_OBSERVATION_VALUE' },
+  });
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  await new FileArtifactStore(join(root, 'artifacts')).putCanonical(legacy.record);
+  await writeFile(join(root, 'events.jsonl'), `${canonicalJson(legacy.event)}\n`);
+
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    const manifest = await exportAuditBundle({ ledger, clock, destination });
+    const entry = manifest.artifacts.find((a) => a.id === legacy.event.recordArtifactId)!;
+    assert.equal(entry.included, false);
+    // The reason must say the classification is unknown rather than claim a
+    // restriction that was never actually declared.
+    assert.equal(entry.restriction, 'classification not recorded (pre-v2 ledger)');
+    assert.equal(await bundleContains(destination, 'LEGACY_OBSERVATION_VALUE'), false);
+  } finally {
+    ledger.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
+  }
+});
+
+test('includeRestricted still emits withheld record bodies', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'forecast-audit-include-'));
+  const destination = join(await mkdtemp(join(tmpdir(), 'forecast-audit-include-out-')), 'bundle');
+  const clock = new FixedClock(new Date('2026-09-09T12:00:00.000Z'));
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    await ledger.appendRecord({
+      actor,
+      kind: 'observation.final',
+      recordType: 'observation-version',
+      record: { id: 'obs-restricted', value: 'RESTRICTED_OBSERVATION_VALUE' },
+      classification: 'restricted',
+    });
+    const manifest = await exportAuditBundle({
+      ledger, clock, destination, includeRestricted: true,
+    });
+    assert.equal(manifest.verification, 'complete');
+    assert.equal(await bundleContains(destination, 'RESTRICTED_OBSERVATION_VALUE'), true);
+  } finally {
+    ledger.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
+  }
+});
+
+test('a restricted record does not leak the artifacts it references', async () => {
+  // Withholding the body alone is not enough: the values reappear one level
+  // out through whatever the record points at. Reproduced on model-forecast,
+  // whose adapterInputArtifactIds were exported in full.
+  const root = await mkdtemp(join(tmpdir(), 'forecast-audit-referenced-'));
+  const destination = join(await mkdtemp(join(tmpdir(), 'forecast-audit-ref-out-')), 'bundle');
+  const clock = new FixedClock(new Date('2026-09-09T12:00:00.000Z'));
+  const ledger = new ForecastLedger(root, clock);
+  await ledger.initialize();
+  try {
+    const adapterInput = await ledger.artifacts.putCanonical({
+      derivedFrom: 'RESTRICTED_INPUT_VALUE',
+    });
+    const runManifest = await ledger.artifacts.putCanonical({ run: 'r-1' });
+    await ledger.appendRecord({
+      actor,
+      kind: 'model.forecast-registered',
+      recordType: 'model-forecast',
+      record: {
+        id: 'mf-1',
+        runManifestArtifactId: runManifest.id,
+        adapterInputArtifactIds: [adapterInput.id],
+      },
+      classification: 'restricted',
+    });
+
+    const manifest = await exportAuditBundle({ ledger, clock, destination });
+    const entry = manifest.artifacts.find((a) => a.id === adapterInput.id)!;
+    assert.equal(entry.included, false);
+    assert.equal(entry.restriction, 'restricted record');
+    assert.equal(await bundleContains(destination, 'RESTRICTED_INPUT_VALUE'), false);
+  } finally {
+    ledger.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
   }
 });

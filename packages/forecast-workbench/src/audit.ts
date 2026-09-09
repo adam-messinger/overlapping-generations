@@ -9,6 +9,7 @@ import {
   type Clock,
 } from './canonical.js';
 import type {
+  DataClassification,
   EvidencePacket,
   ForecastVersion,
   ModelForecast,
@@ -102,6 +103,41 @@ export function verifyChainHeadReceipt(
   );
 }
 
+interface DisclosureGate {
+  included: boolean;
+  restriction?: string;
+}
+
+/**
+ * Whether a bundle may carry something owned by a record of this
+ * classification. An absent classification is unknown provenance rather than
+ * permission — only records written before the event envelope carried one
+ * produce it — so it withholds too.
+ */
+function classificationGate(
+  classification: DataClassification | undefined,
+  includeRestricted: boolean | undefined,
+  restrictedReason = 'restricted record',
+): DisclosureGate {
+  const restriction = classification === undefined
+    ? 'classification not recorded (pre-v2 ledger)'
+    : classification === 'restricted'
+      ? restrictedReason
+      : undefined;
+  if (restriction === undefined || includeRestricted === true) return { included: true };
+  return { included: false, restriction };
+}
+
+/**
+ * The more restrictive of an envelope gate and a record's own. When both
+ * withhold, the record's reason wins: it carries the access policy the source
+ * actually declared, which says more than the generic envelope message.
+ */
+function narrower(envelope: DisclosureGate, record: DisclosureGate): DisclosureGate {
+  if (!record.included) return record;
+  return envelope;
+}
+
 function artifactPath(root: string, id: string): string {
   const match = /^sha256:([a-f0-9]{64})$/.exec(id);
   if (!match) throw new Error(`Invalid audit artifact ID '${id}'`);
@@ -149,22 +185,33 @@ export async function exportAuditBundle(options: {
   };
   const records = options.ledger.listRecords();
   for (const row of records) {
-    add(row.id, `record:${row.recordType}`);
+    // A record body carries the values themselves, so a restricted record must
+    // be withheld even when the raw artifact it derives from already is — and
+    // so must everything that record points at, or the values reappear one
+    // level out. The manifest keeps the pointer either way, so the bundle
+    // still attests to what it is not carrying.
+    const gate = classificationGate(row.classification, options.includeRestricted);
+    add(row.id, `record:${row.recordType}`, gate.included, gate.restriction);
     const record = await options.ledger.getRecord<any>(row.id);
     if (row.recordType === 'evidence-packet') {
       const packet = record as EvidencePacket;
-      const include = packet.classification !== 'restricted' || options.includeRestricted === true;
+      const packetGate = narrower(gate, classificationGate(
+        packet.classification,
+        options.includeRestricted,
+        packet.accessPolicy ?? 'restricted source',
+      ));
+      const include = packetGate.included;
       add(
         packet.viewArtifactId,
         'evidence-view',
         include,
-        include ? undefined : packet.accessPolicy ?? 'restricted source',
+        packetGate.restriction,
       );
       packet.derivedFromArtifactIds.forEach((id) => add(
         id,
         'evidence-derived-source',
         include,
-        include ? undefined : packet.accessPolicy ?? 'restricted source',
+        packetGate.restriction,
       ));
       for (const id of packet.snapshotIds) {
         if (await options.ledger.artifacts.has(id)) {
@@ -172,7 +219,7 @@ export async function exportAuditBundle(options: {
             id,
             'evidence-snapshot',
             include,
-            include ? undefined : packet.accessPolicy ?? 'restricted source',
+            packetGate.restriction,
           );
         }
       }
@@ -180,63 +227,94 @@ export async function exportAuditBundle(options: {
     if (row.recordType === 'preflight') {
       const preflight = record as QuestionPreflight;
       if (preflight.resolverProbeArtifactId) {
-        add(preflight.resolverProbeArtifactId, 'resolver-preflight');
+        add(
+          preflight.resolverProbeArtifactId,
+          'resolver-preflight',
+          gate.included,
+          gate.restriction,
+        );
       }
     }
     if (row.recordType === 'forecast') {
-      add((record as ForecastVersion).informationSetArtifactId, 'information-set');
+      add(
+        (record as ForecastVersion).informationSetArtifactId,
+        'information-set',
+        gate.included,
+        gate.restriction,
+      );
     }
     if (row.recordType === 'model-forecast') {
       const modelForecast = record as ModelForecast;
-      add(modelForecast.runManifestArtifactId, 'run-manifest');
-      modelForecast.adapterInputArtifactIds.forEach((id) => add(id, 'model-adapter-input'));
+      add(modelForecast.runManifestArtifactId, 'run-manifest', gate.included, gate.restriction);
+      modelForecast.adapterInputArtifactIds.forEach((id) =>
+        add(id, 'model-adapter-input', gate.included, gate.restriction)
+      );
     }
     if (row.recordType === 'news-model-comparison') {
       const comparison = record as NewsModelComparison;
       comparison.evidencePacketIds.forEach((id) =>
-        add(id, 'news-evidence-packet')
+        add(id, 'news-evidence-packet', gate.included, gate.restriction)
       );
       comparison.iterations.forEach(({ runManifestArtifactId }, index) =>
-        add(runManifestArtifactId, `news-run-manifest-v${index + 1}`)
+        add(
+          runManifestArtifactId,
+          `news-run-manifest-v${index + 1}`,
+          gate.included,
+          gate.restriction,
+        )
       );
     }
     if (row.recordType === 'news-screen') {
       const screen = record as NewsScreenRecord;
       screen.stories.forEach(({ sourceArtifactIds }) =>
-        sourceArtifactIds.forEach((id) => add(id, 'news-source-pointer'))
+        sourceArtifactIds.forEach((id) =>
+          add(id, 'news-source-pointer', gate.included, gate.restriction)
+        )
       );
     }
     if (row.recordType === 'reference-class') {
       add(
         (record as ReferenceClassVersion).candidateUniverseArtifactId,
         'reference-class-universe',
+        gate.included,
+        gate.restriction,
       );
     }
     if (row.recordType === 'resolution') {
       const resolution = record as ResolutionVersion;
       for (const id of resolution.snapshotIds) {
-        add(id, 'resolution-snapshot');
+        add(id, 'resolution-snapshot', gate.included, gate.restriction);
       }
     }
     if (row.recordType === 'acquisition-receipt') {
-      add(record.sanitizedRequestArtifactId, 'sanitized-request');
-      const include = record.classification !== 'restricted' ||
-        options.includeRestricted === true;
+      const receiptGate = narrower(gate, classificationGate(
+        record.classification,
+        options.includeRestricted,
+        record.accessPolicy ?? 'restricted source',
+      ));
+      add(
+        record.sanitizedRequestArtifactId,
+        'sanitized-request',
+        gate.included,
+        gate.restriction,
+      );
       add(
         record.rawArtifactId,
         'raw-acquisition',
-        include,
-        include ? undefined : record.accessPolicy ?? 'restricted source',
+        receiptGate.included,
+        receiptGate.restriction,
       );
-      if (record.schemaArtifactId) add(record.schemaArtifactId, 'source-schema');
+      if (record.schemaArtifactId) {
+        add(record.schemaArtifactId, 'source-schema', gate.included, gate.restriction);
+      }
     }
     if (row.recordType === 'dataset-snapshot') {
       const snapshot = record as DatasetSnapshot;
-      const include = snapshot.classification !== 'restricted' ||
-        options.includeRestricted === true;
-      const restriction = include
-        ? undefined
-        : snapshot.accessPolicy ?? 'restricted dataset';
+      const { included: include, restriction } = narrower(gate, classificationGate(
+        snapshot.classification,
+        options.includeRestricted,
+        snapshot.accessPolicy ?? 'restricted dataset',
+      ));
       snapshot.dataArtifactIds.forEach((id) =>
         add(id, 'dataset-data', include, restriction)
       );
