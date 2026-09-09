@@ -23,7 +23,12 @@ unsourced history parameter. The current mechanism replaces the solver
 entirely:
 
 - **η(1990) = 0.15** — effective-index start (De Stercke lineage; measured 1990 second-law eta ~0.18, see methodology below)
-- **η_max = 0.9** — Cullen & Allwood (2010) practical potential
+- **No η ceiling** — η is an effective productivity index bundling uncapped
+  structural change, not a thermodynamic efficiency, so the Cullen & Allwood
+  (2010) practical potential no longer applies as a cap. A finite ceiling
+  re-split the coupled series above it: demand kept stripping energy while η
+  froze. Structural decay bounds growth instead — 33% of the rate decays
+  post-2025 (see production.ts, "No hard cap")
 - **η growth = 1.29%/yr** — the SAME series as demand's GDP-weighted autonomous
   intensity decline (one physical process, two views; consistency-pinned)
 - **Implied η(2025) = 0.236** — inside Brockway et al. (2018)’s measured ~0.20-0.25, an
@@ -100,9 +105,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 2.10%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 1.68%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.45%/yr (model) | 2.80%/yr |
+| Capital growth | 3.54%/yr | 2.44%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 2.11%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.45%/yr (model) | 3.08%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking
