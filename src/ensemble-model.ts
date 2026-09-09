@@ -353,11 +353,21 @@ export const energyEnsembleModel: ModelDefinition<
   ],
   run: (input) => {
     const { metrics } = runSimulation(toSimulationParams(input), STUDY_OPTIONS);
+    // The ensemble reports named calendar years, so it needs a horizon that
+    // reaches them. STUDY_OPTIONS runs 2025-2100, so this only fires if that
+    // changes — better than publishing some other year's value under a 2100
+    // label, which is what the previous last-row aggregator did.
+    const reached = <T>(value: T | undefined, year: number): T => {
+      if (value === undefined) {
+        throw new Error(`Ensemble requires a horizon reaching ${year}`);
+      }
+      return value;
+    };
     return {
-      warming2050: metrics.warming2050,
-      warming2100: metrics.warming2100,
-      gdp2050: metrics.gdp2050,
-      gdp2100: metrics.gdp2100,
+      warming2050: reached(metrics.warming2050, 2050),
+      warming2100: reached(metrics.warming2100, 2100),
+      gdp2050: reached(metrics.gdp2050, 2050),
+      gdp2100: reached(metrics.gdp2100, 2100),
       peakEmissions: metrics.peakEmissions,
       fossilShareFinal: metrics.fossilShareFinal,
     };

@@ -60,6 +60,34 @@ export function computeEnergySystemOverhead(
  * `description`, and `module` metadata is used by `describeOutputs()` in
  * introspection.ts to auto-generate the output schema.
  */
+/**
+ * Reads the value for a named calendar year, or undefined when that year was
+ * not simulated. A run that stops in 2030 has no 2100 GDP, and reporting 0 —
+ * or the last row's value under a 2100 label — states something false.
+ *
+ * Undefined rather than NaN: absence and "a computation produced NaN" are
+ * different failures, and `assertFiniteDeep` exists to catch the second. It
+ * skips undefined and flags NaN, which is the distinction we want.
+ */
+function atYear(year: number) {
+  return {
+    custom: (values: number[], years: number[]): number | undefined => {
+      const index = years.indexOf(year);
+      return index >= 0 ? values[index] : undefined;
+    },
+  };
+}
+
+/** The last simulated year, whatever it is. */
+const terminalYear = {
+  custom: (_values: number[], years: number[]): number => years[years.length - 1],
+};
+
+/** The value in the last simulated year, whatever year that is. */
+const atTerminalYear = {
+  custom: (values: number[]): number => values[values.length - 1],
+};
+
 export const standardCollectors: CollectorConfig = {
   timeseries: [
     // Demographics
@@ -349,22 +377,22 @@ export const standardCollectors: CollectorConfig = {
     {
       as: 'population2100',
       source: 'population',
-      aggregator: 'last',
+      outputType: { unit: 'people', optional: true },
+      aggregator: atYear(2100),
     },
 
     // Climate
     {
       as: 'warming2050',
       source: 'temperature',
-      aggregator: { custom: (values, years) => {
-        const i = years.indexOf(2050);
-        return i >= 0 ? values[i] : 0;
-      }},
+      outputType: { unit: 'Δ°C', optional: true },
+      aggregator: atYear(2050),
     },
     {
       as: 'warming2100',
       source: 'temperature',
-      aggregator: 'last',
+      outputType: { unit: 'Δ°C', optional: true },
+      aggregator: atYear(2100),
     },
     {
       as: 'peakEmissions',
@@ -402,15 +430,14 @@ export const standardCollectors: CollectorConfig = {
     {
       as: 'gdp2050',
       source: 'gdp',
-      aggregator: { custom: (values, years) => {
-        const i = years.indexOf(2050);
-        return i >= 0 ? values[i] : 0;
-      }},
+      outputType: { unit: '$T/year', optional: true },
+      aggregator: atYear(2050),
     },
     {
       as: 'gdp2100',
       source: 'gdp',
-      aggregator: 'last',
+      outputType: { unit: '$T/year', optional: true },
+      aggregator: atYear(2100),
     },
     {
       as: 'peakTransferBurden',
@@ -419,15 +446,34 @@ export const standardCollectors: CollectorConfig = {
     },
     {
       as: 'kY2050',
+      outputType: { unit: 'year', optional: true },
       transform: (outputs) => {
         const stock = outputs.stock ?? 0;
         const gdp = outputs.gdp ?? 1;
         return stock / gdp;
       },
-      aggregator: { custom: (values, years) => {
-        const i = years.indexOf(2050);
-        return i >= 0 ? values[i] : 0;
-      }},
+      aggregator: atYear(2050),
+    },
+
+    // Terminal metrics, for callers that want the end of the run whatever
+    // year it falls in rather than a named calendar year.
+    {
+      as: 'terminalYear',
+      source: 'gdp',
+      outputType: { unit: 'year' },
+      aggregator: terminalYear,
+    },
+    {
+      as: 'gdpTerminal',
+      source: 'gdp',
+      outputType: { unit: '$T/year' },
+      aggregator: atTerminalYear,
+    },
+    {
+      as: 'warmingTerminal',
+      source: 'temperature',
+      outputType: { unit: 'Δ°C' },
+      aggregator: atTerminalYear,
     },
   ],
 };

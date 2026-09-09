@@ -1068,6 +1068,9 @@ function toSimulationMetrics(metrics: Record<string, any>): SimulationMetrics {
     gdp2050: metrics.gdp2050,
     gdp2100: metrics.gdp2100,
     kY2050: metrics.kY2050,
+    terminalYear: metrics.terminalYear,
+    gdpTerminal: metrics.gdpTerminal,
+    warmingTerminal: metrics.warmingTerminal,
   };
 }
 
@@ -1143,17 +1146,24 @@ if (process.argv[1]?.endsWith('simulation-autowired.ts') ||
       }
     }
 
+    // A metric naming a year the run did not reach has no value, and says so
+    // rather than printing a number from some other year.
+    const named = (
+      value: number | undefined,
+      format: (v: number) => string,
+    ): string => (value === undefined ? 'not simulated' : format(value));
+
     console.log('\n=== Metrics ===\n');
     console.log(`Peak population: ${(metrics.peakPopulation / 1e9).toFixed(2)}B in ${metrics.peakPopulationYear}`);
-    console.log(`Population 2100: ${(metrics.population2100 / 1e9).toFixed(2)}B`);
-    console.log(`Warming 2050: ${metrics.warming2050.toFixed(2)}°C`);
-    console.log(`Warming 2100: ${metrics.warming2100.toFixed(2)}°C`);
+    console.log(`Population 2100: ${named(metrics.population2100, v => `${(v / 1e9).toFixed(2)}B`)}`);
+    console.log(`Warming 2050: ${named(metrics.warming2050, v => `${v.toFixed(2)}°C`)}`);
+    console.log(`Warming 2100: ${named(metrics.warming2100, v => `${v.toFixed(2)}°C`)}`);
     console.log(`Peak emissions: ${metrics.peakEmissions.toFixed(1)} Gt in ${metrics.peakEmissionsYear}`);
     console.log(`Solar crosses gas: ${metrics.solarCrossoverYear ?? 'never'}`);
     console.log(`Grid < 100 kg/MWh: ${metrics.gridBelow100Year ?? 'never'}`);
-    console.log(`GDP 2050: $${metrics.gdp2050.toFixed(0)}T`);
-    console.log(`GDP 2100: $${metrics.gdp2100.toFixed(0)}T`);
-    console.log(`K/Y 2050: ${metrics.kY2050.toFixed(2)}`);
+    console.log(`GDP 2050: ${named(metrics.gdp2050, v => `$${v.toFixed(0)}T`)}`);
+    console.log(`GDP 2100: ${named(metrics.gdp2100, v => `$${v.toFixed(0)}T`)}`);
+    console.log(`K/Y 2050: ${named(metrics.kY2050, v => v.toFixed(2))}`);
 
   } catch (err) {
     console.error('Auto-wiring failed:', (err as Error).message);
