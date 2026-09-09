@@ -584,6 +584,15 @@ export class ForecastWorkbench {
           forecast.sealedAt !== input.sealedAt) {
         throw new Error(`Aggregation input '${input.forecastId}' does not match its sealed record`);
       }
+      // The aggregate is recomputed from these inputs, so without this the
+      // result would agree with the caller's copy of a prediction while
+      // disagreeing with the forecast it cites — the citation would attest to
+      // a number nobody sealed.
+      if (canonicalJson(forecast.prediction) !== canonicalJson(input.prediction)) {
+        throw new Error(
+          `Aggregation input '${input.forecastId}' states a prediction its sealed record does not`,
+        );
+      }
     }
     for (const scoreId of aggregation.trainingScoreIds) {
       this.requireRecordType(this.ledger.db(), scoreId, 'score');

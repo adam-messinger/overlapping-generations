@@ -506,6 +506,41 @@ test('outside views, conditionals, aggregation, monitoring, and series scores ar
       probabilities: { high: 0.1, low: 0.675, middle: 0.225 },
     });
 
+    // An aggregate recomputed from altered copies agrees with itself, so
+    // without checking the citation it would pass while attesting to a
+    // number no forecaster sealed.
+    const overstated = aggregatePredictions({
+      id: 'fixture-pool-overstated',
+      version: '1.0.0',
+      questionHash: registered.id,
+      createdAt: temporary.clock.now().toISOString(),
+      method: { kind: 'equal-weight' },
+      inputs: [
+        {
+          forecastId: update.id,
+          forecasterId: updatedForecast.forecasterId,
+          prediction: {
+            kind: 'ordered-categorical',
+            probabilities: { low: 1, middle: 0, high: 0 },
+          },
+          sealedAt: updatedForecast.sealedAt,
+        },
+        {
+          forecastId: second.id,
+          forecasterId: secondForecast.forecasterId,
+          prediction: secondForecast.prediction,
+          sealedAt: secondForecast.sealedAt,
+        },
+      ],
+    });
+    await assert.rejects(
+      temporary.workbench.recordAggregation(
+        { id: 'pooling-service', role: 'service' },
+        overstated,
+      ),
+      /states a prediction its sealed record does not/,
+    );
+
     const requestArtifact = await temporary.workbench.ledger.artifacts.putCanonical({
       source: 'fixture-monitor',
     });
