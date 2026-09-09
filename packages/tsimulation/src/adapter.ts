@@ -54,7 +54,20 @@ export interface AdapterDefinition<TSource, TTarget> {
   semanticValidation?: SemanticValidationMode;
   /** Observation procedures are compared when both sides declare them. */
   measurementValidation?: SemanticValidationMode;
-  /** Explicit source-to-target conversion and time-aggregation contracts. */
+  /**
+   * Explicit source-to-target conversion and time-aggregation contracts.
+   *
+   * DESCRIPTIVE, NOT EXECUTED. `runAdapter` reads these for provenance — the
+   * crosswalks it reports — but never calls a mapping's `convert`. `adapt`
+   * below performs the real conversion, so a mapping can declare a conversion
+   * the adapter does not make and nothing will notice.
+   *
+   * Validating them against `adapt` needs a decision this type cannot make on
+   * its own: some adapters deliberately use conceptual port names that do not
+   * match the object shape, so checking them structurally would reject
+   * correct adapters. Until that is settled, treat a mapping as documentation
+   * and put anything that must hold in `validateTarget`, which does run.
+   */
   portMappings: readonly AdapterPortMapping[];
   adapt: (source: TSource, context: AdapterContext) => TTarget;
   validateSource?: (source: TSource) => ValidationResult | void;
@@ -63,6 +76,10 @@ export interface AdapterDefinition<TSource, TTarget> {
   requireFiniteTarget?: boolean;
 }
 
+/**
+ * The `convert` functions here are declarations of intent. Nothing calls
+ * them; see `portMappings`.
+ */
 export type AdapterConversion =
   | { kind: 'identity' }
   | { kind: 'unit'; convert: (value: number) => number }

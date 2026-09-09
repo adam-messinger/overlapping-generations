@@ -216,7 +216,13 @@ Do this before committing. Most fix-up commits in project history would have bee
 
 ### Capital, Debt & Intergenerational Transfers
 - GDP = WorkerConsumption + Investment + RetireeCost + ChildCost + PublicDebtService
-- **Debt/credit channel**: Investment = max(0, grossSavings + creditImpulse)
+- **Monetary circuit (Keen-style toy closure)**: expected profit → investment
+  orders → bank financing → income and payments → ex-post saving → debt
+  service. Saving is NOT a second funding pool added to credit: internal firm
+  cash flow and net new bank deposits finance orders, and household and
+  national saving are measured after expenditure. `grossSavings` survives as a
+  deprecated alias for ex-post national gross saving, not as an input to
+  investment
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
 - Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
 - Private debt: credit impulse dampened by r-g spread and leverage ratio

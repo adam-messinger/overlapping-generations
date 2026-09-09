@@ -93,7 +93,7 @@ function main(): void {
       'The city baseline remains standalone unless a macro path is supplied.',
       'This first slice consumes income growth and national real-price drift only.',
       'Interest, WACC, energy burden, damages, and capital constraints are carried for later channels.',
-      'OECD is a proxy because the global model does not yet expose a US-only region.',
+      'US share of world GDP, from the global model\'s own us region.',
       'Absolute coupled price and income levels remain scenario outputs, not decision-grade US forecasts.',
     ],
   }, null, 2));
