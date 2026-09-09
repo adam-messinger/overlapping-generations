@@ -32,7 +32,7 @@ test('daily-news replay preserves screening, one iteration, and conventional-wis
 
     const artifacts = new FileArtifactStore(join(root, 'artifacts'));
     await artifacts.initialize();
-    const screen = await artifacts.getJson<NewsScreenRecord>(replay.screenId);
+    const screen = await artifacts.getCanonicalJson<NewsScreenRecord>(replay.screenId);
     assert.equal(screen.stories.filter(({ decision }) => decision === 'selected').length, 3);
     assert.equal(screen.stories.filter(({ decision }) => decision === 'deferred').length, 1);
     assert.equal(screen.stories.filter(({ decision }) => decision === 'rejected').length, 3);
@@ -40,7 +40,7 @@ test('daily-news replay preserves screening, one iteration, and conventional-wis
 
     const comparisons = await Promise.all(
       replay.comparisonIds.map((id) =>
-        artifacts.getJson<NewsModelComparison>(id)
+        artifacts.getCanonicalJson<NewsModelComparison>(id)
       ),
     );
     assert.deepEqual(
@@ -73,7 +73,7 @@ test('daily-news replay preserves screening, one iteration, and conventional-wis
 
     const manifests = await Promise.all(
       replay.runManifestArtifactIds.map((id) =>
-        artifacts.getJson<RunManifest<Record<string, unknown>, any>>(id)
+        artifacts.getCanonicalJson<RunManifest<Record<string, unknown>, any>>(id)
       ),
     );
     const byModel = new Map(

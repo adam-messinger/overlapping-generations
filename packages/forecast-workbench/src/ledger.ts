@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import {
   canonicalJson,
+  canonicalParse,
   requireIsoTimestamp,
   requireText,
   sha256Id,
@@ -298,9 +299,9 @@ export class ForecastLedger {
         if (error?.code !== 'EEXIST') throw error;
         let stale = false;
         try {
-          const metadata = JSON.parse(
+          const metadata = canonicalParse<{ pid?: number; createdAt?: string }>(
             await readFile(this.appendLockPath, 'utf8'),
-          ) as { pid?: number; createdAt?: string };
+          );
           const age = metadata.createdAt
             ? Date.now() - Date.parse(metadata.createdAt)
             : 0;
@@ -642,7 +643,7 @@ export class ForecastLedger {
     return text
       .split('\n')
       .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as EventEnvelope);
+      .map((line) => canonicalParse<EventEnvelope>(line));
   }
 
   private async synchronizeProjection(): Promise<void> {
@@ -675,7 +676,7 @@ export class ForecastLedger {
     database.exec('BEGIN IMMEDIATE');
     try {
       for (const event of events.slice(rows.length)) {
-        const record = await this.artifacts.getJson(event.recordArtifactId);
+        const record = await this.artifacts.getCanonicalJson(event.recordArtifactId);
         this.insertEvent(database, event);
         this.projectRecord(database, event, record);
       }
@@ -716,7 +717,7 @@ export class ForecastLedger {
       'SELECT 1 FROM records WHERE record_artifact_id = ?',
     ).get(id);
     if (!exists) throw new Error(`Unknown ledger record '${id}'`);
-    return this.artifacts.getJson<T>(id);
+    return this.artifacts.getCanonicalJson<T>(id);
   }
 
   listRecordIds(recordType: string): string[] {

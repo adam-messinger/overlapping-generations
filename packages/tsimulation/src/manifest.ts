@@ -8,7 +8,7 @@ import {
 import type { EvidenceRecord, ValidationClaim } from './evidence.js';
 import { validateEvidence, validateValidationClaims } from './evidence.js';
 import type { ModelRun } from './model.js';
-import { stableHash, stableStringify } from './serialization.js';
+import { parseCanonical, stableHash, stableStringify } from './serialization.js';
 import { validateExperiment, type ExperimentContract } from './study.js';
 
 export interface LegacyRunManifest<TInput = unknown, TOutput = unknown> {
@@ -266,7 +266,7 @@ export function parseRunManifest(
   json: string,
   options: { upgradeV1?: boolean; verifyIntegrity?: boolean } = {},
 ): AnyRunManifest {
-  const parsed = JSON.parse(json) as Partial<AnyRunManifest>;
+  const parsed = parseCanonical<Partial<AnyRunManifest>>(json);
   if (parsed.schemaVersion !== 'tsimulation.run/v1' &&
       parsed.schemaVersion !== 'tsimulation.run/v2') {
     throw new Error(`Unsupported run manifest schemaVersion '${String(parsed.schemaVersion)}'`);

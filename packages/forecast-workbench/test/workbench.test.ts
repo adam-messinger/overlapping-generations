@@ -152,7 +152,7 @@ test('forecast checkpoints gate evidence exposure and preserve information sets'
     });
     const updateRecord = await temporary.workbench.ledger.getRecord<any>(update.id);
     assert.equal(updateRecord.supersedesForecastId, launch.id);
-    const informationSet = await temporary.workbench.ledger.artifacts.getJson<any>(
+    const informationSet = await temporary.workbench.ledger.artifacts.getCanonicalJson<any>(
       updateRecord.informationSetArtifactId,
     );
     assert.deepEqual(informationSet.exposureIds, [exposure.id]);
@@ -304,7 +304,7 @@ test('an authorized pre-forecast break-glass exposure remains launchable and aud
     const forecast = await temporary.workbench.ledger.getRecord<ForecastVersion>(
       launch.id,
     );
-    const informationSet = await temporary.workbench.ledger.artifacts.getJson<{
+    const informationSet = await temporary.workbench.ledger.artifacts.getCanonicalJson<{
       exposureIds: string[];
     }>(forecast.informationSetArtifactId);
     assert.deepEqual(informationSet.exposureIds, [exposure.id]);

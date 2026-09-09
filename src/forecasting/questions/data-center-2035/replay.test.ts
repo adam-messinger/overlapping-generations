@@ -18,7 +18,7 @@ test('data-center replay reproduces the published mixture and preserves judgment
     const result = await runDataCenter2035Replay({ root, auditDestination });
     const artifacts = new FileArtifactStore(join(root, 'artifacts'));
     await artifacts.initialize();
-    const model = await artifacts.getJson<ModelForecast>(result.modelForecastId);
+    const model = await artifacts.getCanonicalJson<ModelForecast>(result.modelForecastId);
     assert.deepEqual(model.prediction, {
       kind: 'ordered-categorical',
       probabilities: {
@@ -31,7 +31,7 @@ test('data-center replay reproduces the published mixture and preserves judgment
     assert.equal(model.discrepancy.kind, 'mixture');
     assert.equal(model.discrepancy.parameters?.median, 0.1522705120834732);
 
-    const final = await artifacts.getJson<ForecastVersion>(result.finalForecastId);
+    const final = await artifacts.getCanonicalJson<ForecastVersion>(result.finalForecastId);
     assert.deepEqual(final.prediction, {
       kind: 'ordered-categorical',
       probabilities: { A: 0.18, B: 0.25, C: 0.29, D: 0.28 },

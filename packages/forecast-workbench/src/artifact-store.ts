@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import {
   canonicalBytes,
   canonicalJson,
+  canonicalParse,
   sha256Hex,
   sha256Id,
 } from './canonical.js';
@@ -146,8 +147,15 @@ export class FileArtifactStore {
     return new TextDecoder().decode(await this.get(id));
   }
 
-  async getJson<T = unknown>(id: string): Promise<T> {
-    return JSON.parse(await this.getText(id)) as T;
+  /**
+   * Read an artifact written by `putCanonical`, decoding the marker encoding
+   * so an absent optional field comes back as `undefined` rather than as a
+   * truthy `{$undefined: true}`. Foreign JSON stored via `put`/`putFile` must
+   * be read with `getText` and parsed by its own reader — this one would
+   * rewrite any object using a `$`-prefixed marker key.
+   */
+  async getCanonicalJson<T = unknown>(id: string): Promise<T> {
+    return canonicalParse<T>(await this.getText(id));
   }
 
   async has(id: string): Promise<boolean> {
