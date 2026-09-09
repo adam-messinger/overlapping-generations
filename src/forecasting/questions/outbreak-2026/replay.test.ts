@@ -25,7 +25,7 @@ test('outbreak replay preserves the historical protocol and produces auditable s
 
     const artifacts = new FileArtifactStore(join(root, 'artifacts'));
     await artifacts.initialize();
-    const model = await artifacts.getJson<ModelForecast>(result.modelForecastId);
+    const model = await artifacts.getCanonicalJson<ModelForecast>(result.modelForecastId);
     assert.equal(model.identified, true);
     assert.deepEqual(model.prediction, {
       kind: 'ordered-categorical',
@@ -41,7 +41,7 @@ test('outbreak replay preserves the historical protocol and produces auditable s
     assert.match(model.discrepancy.description, /must not be read as zero real-world probability/);
 
     const [priorScore, finalScore] = await Promise.all(
-      result.scoreIds.map((id) => artifacts.getJson<ScoreRecord>(id)),
+      result.scoreIds.map((id) => artifacts.getCanonicalJson<ScoreRecord>(id)),
     );
     const priorBrier = priorScore.values.brier;
     const finalBrier = finalScore.values.brier;

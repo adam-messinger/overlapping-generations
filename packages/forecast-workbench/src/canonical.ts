@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { stableStringify } from 'tsimulation';
+import { parseCanonical, stableStringify } from 'tsimulation';
 
 export interface Clock {
   now(): Date;
@@ -38,6 +38,11 @@ export class FixedClock implements Clock {
 
 export function canonicalJson(value: unknown, space?: number): string {
   return stableStringify(value, space);
+}
+
+/** Inverse of `canonicalJson`. See `parseCanonical` for when not to use it. */
+export function canonicalParse<T = unknown>(text: string): T {
+  return parseCanonical<T>(text);
 }
 
 export function canonicalBytes(value: unknown): Uint8Array {

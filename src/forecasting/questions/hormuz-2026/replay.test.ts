@@ -33,13 +33,13 @@ test('Hormuz replay keeps opposite scenario results separate from an unidentifie
     const artifacts = new FileArtifactStore(join(root, 'artifacts'));
     await artifacts.initialize();
     for (const id of result.modelForecastIds) {
-      const model = await artifacts.getJson<ModelForecast>(id);
+      const model = await artifacts.getCanonicalJson<ModelForecast>(id);
       assert.equal(model.identified, false);
       assert.equal(model.prediction, undefined);
       assert.match(model.notIdentifiedReason ?? '', /no geopolitical path probability/);
       assert.match(model.discrepancy.description, /not the count of all vessel transits/);
     }
-    const final = await artifacts.getJson<ForecastVersion>(result.finalForecastId);
+    const final = await artifacts.getCanonicalJson<ForecastVersion>(result.finalForecastId);
     assert.deepEqual(final.prediction, {
       kind: 'binary',
       positiveOutcomeId: 'yes',

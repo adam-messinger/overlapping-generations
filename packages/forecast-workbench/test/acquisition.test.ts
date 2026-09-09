@@ -9,9 +9,12 @@ import {
   ForecastWorkbench,
   acquireFile,
   acquireHttp,
+  createAcquisitionReceipt,
   exportAuditBundle,
   hardenedFetch,
   sha256Id,
+  validateAcquisitionReceipt,
+  type AcquisitionReceipt,
   type FetchRuntime,
   type SanitizedRequestEnvelope,
 } from '../src/index.js';
@@ -308,5 +311,41 @@ test('local and subscription files are root-confined, hashed, and access-control
   } finally {
     workbench.close();
     await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('a receipt with absent optional fields survives persist and reload', async () => {
+  // stableStringify writes an absent optional as {"$undefined":true}. Before
+  // the canonical decoder, reloading turned that marker into a truthy object:
+  // validation failed with "acquisition.license must not be empty", and audit
+  // export failed with "Invalid audit artifact ID '[object Object]'".
+  const root = await mkdtemp(join(tmpdir(), 'forecast-canonical-roundtrip-'));
+  const store = new FileArtifactStore(root);
+  const clock = new FixedClock(new Date('2026-09-09T00:00:00.000Z'));
+  try {
+    const receipt = createAcquisitionReceipt({
+      clock,
+      sourceId: 'fixture',
+      connectorId: 'fixture-connector',
+      connectorVersion: '1',
+      classification: 'public',
+      sanitizedRequestArtifactId: (await store.putCanonical({ source: 'fixture' })).id,
+      rawArtifactId: (await store.putCanonical({ metric: 1 })).id,
+      startedAt: '2026-09-08T00:00:00.000Z',
+      asOfAssurance: 'capture-cutoff',
+      // license, accessPolicy, schemaArtifactId and the rest deliberately absent
+    });
+
+    const stored = await store.putCanonical(receipt);
+    const reloaded = await store.getCanonicalJson<AcquisitionReceipt>(stored.id);
+
+    assert.strictEqual(reloaded.license, undefined);
+    assert.strictEqual(reloaded.schemaArtifactId, undefined);
+    validateAcquisitionReceipt(reloaded);
+
+    // The decode is hash-preserving: re-storing the reloaded value is a no-op.
+    assert.strictEqual((await store.putCanonical(reloaded)).id, stored.id);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
