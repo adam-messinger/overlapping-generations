@@ -11,6 +11,33 @@
  */
 
 /**
+ * Path segments that reach the prototype chain rather than a parameter.
+ * `__proto__` is the exploitable one — assigning through it mutates
+ * `Object.prototype` process-wide. `constructor` and `prototype` are refused
+ * alongside it because a path containing them never addresses a parameter,
+ * so accepting them can only mislead.
+ */
+const RESERVED_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function assertAddressable(path: string): string[] {
+  const parts = path.split('.');
+  for (const part of parts) {
+    if (RESERVED_SEGMENTS.has(part)) {
+      throw new Error(`Parameter path '${path}' contains reserved segment '${part}'`);
+    }
+  }
+  return parts;
+}
+
+/** Own-property read; inherited members are not parameters. */
+function ownValue(container: unknown, key: string): unknown {
+  if (container === null || typeof container !== 'object') return undefined;
+  return Object.prototype.hasOwnProperty.call(container, key)
+    ? (container as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/**
  * Immutable parameter container with dot-path access.
  */
 export class ComponentParams<T extends object = Record<string, unknown>> {
@@ -34,13 +61,12 @@ export class ComponentParams<T extends object = Record<string, unknown>> {
    * change internal state. (Primitives copy by value already.)
    */
   get(path: string): unknown {
-    const parts = path.split('.');
-    let current: any = this.data;
-    for (const part of parts) {
+    let current: unknown = this.data;
+    for (const part of assertAddressable(path)) {
       if (current === null || current === undefined || typeof current !== 'object') {
         return undefined;
       }
-      current = current[part];
+      current = ownValue(current, part);
     }
     return current !== null && typeof current === 'object' ? structuredClone(current) : current;
   }
@@ -52,18 +78,23 @@ export class ComponentParams<T extends object = Record<string, unknown>> {
    * likewise overwritten with an object to make room for the deeper key.
    */
   set(path: string, value: unknown): ComponentParams<T> {
-    const parts = path.split('.');
+    const parts = assertAddressable(path);
     const clone = structuredClone(this.data);
     let current: any = clone;
     for (let i = 0; i < parts.length - 1; i++) {
+      const existing = ownValue(current, parts[i]);
       // `== null` catches both undefined and null (typeof null === 'object',
       // so the type check alone would step into a null and then throw).
-      if (current[parts[i]] == null || typeof current[parts[i]] !== 'object') {
+      if (existing == null || typeof existing !== 'object') {
         current[parts[i]] = {};
       }
       current = current[parts[i]];
     }
-    current[parts[parts.length - 1]] = value;
+    // Cloned on the way in for the same reason `get` clones on the way out:
+    // a container that shared structure with the caller's object would change
+    // when they mutated it.
+    current[parts[parts.length - 1]] =
+      value !== null && typeof value === 'object' ? structuredClone(value) : value;
     return new ComponentParams(clone);
   }
 
