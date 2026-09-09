@@ -294,3 +294,17 @@ sets, adapters, reference classes, conditionals, aggregation, monitoring,
 resolution, score series, content canonicalization, acquisition size and
 network controls, credential non-persistence, vintage behavior, concurrent
 writers, projection rebuilding, audit restrictions, and Ed25519 receipts.
+
+### What a read guarantees
+
+`getRecord` verifies the artifact it returns against the content address it
+was stored under, and nothing more. It does not re-verify the rest of the
+history: doing so on every read made reading quadratic, at 2,500 artifact
+verifications for 50 record reads.
+
+So a read detects tampering with the record being read. It does not detect
+tampering with some other artifact, an in-place rewrite of the event log that
+preserves its length, or a same-length mutation of an event line. `verify()`
+remains the whole-history audit that catches those — it walks the chain and
+rehashes every record artifact — and `exportAuditBundle` calls it before
+building a bundle.
