@@ -8,7 +8,17 @@ import {
 export type AggregationMethod =
   | { kind: 'equal-weight' }
   | { kind: 'log-odds' }
-  | { kind: 'performance-weighted'; epsilon: number };
+  /**
+   * Weights each forecaster by their record on the cited training scores.
+   * `metric` names which score decides it: all five are proper rules where
+   * lower is better, so the weighting is only meaningful once the record says
+   * which one it used.
+   */
+  | {
+      kind: 'performance-weighted';
+      epsilon: number;
+      metric: 'brier' | 'rankedProbability' | 'logarithmic' | 'weightedInterval' | 'crps';
+    };
 
 export interface AggregationInput {
   forecastId: string;
@@ -74,6 +84,15 @@ export function validateAggregationRecord(
   ) {
     throw new Error(
       `Invalid aggregation method '${String(aggregation.method.kind)}'`,
+    );
+  }
+  if (
+    aggregation.method.kind === 'performance-weighted' &&
+    !['brier', 'rankedProbability', 'logarithmic', 'weightedInterval', 'crps']
+      .includes(aggregation.method.metric)
+  ) {
+    throw new Error(
+      `Unsupported performance metric '${String(aggregation.method.metric)}'`,
     );
   }
   if (
