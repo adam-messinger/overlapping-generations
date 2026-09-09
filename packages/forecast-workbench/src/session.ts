@@ -1034,34 +1034,68 @@ export class ForecastWorkbench {
         );
       }
     }
-    const priorRows = this.ledger.db().prepare(`
-      SELECT record_artifact_id, status
-      FROM resolutions
-      WHERE question_hash = ?
-      ORDER BY rowid
-    `).all(resolution.questionHash) as Array<{
-      record_artifact_id: string;
-      status: string;
-    }>;
-    const priorFinal = [...priorRows].reverse().find(
-      ({ status }) => status === 'final' || status === 'amended',
-    );
-    if (priorFinal &&
-        !resolution.supersedesResolutionId &&
-        resolution.status !== 'cancelled' &&
-        resolution.status !== 'disputed') {
-      throw new Error('A resolved question requires an explicit superseding resolution');
-    }
     if (resolution.status === 'amended' && !resolution.supersedesResolutionId) {
       throw new Error('An amended resolution must identify the version it supersedes');
     }
-    if (resolution.supersedesResolutionId) {
+    // The head is read inside the append transaction rather than here: two
+    // finalizations racing each other would both see no prior final and both
+    // commit, leaving a question with conflicting final answers. Mirrors the
+    // compare-and-set the forecast series already does in sealForecast.
+    const requireCurrentHead = (database: Database.Database): void => {
+      const priorFinal = (database.prepare(`
+        SELECT record_artifact_id
+        FROM resolutions
+        WHERE question_hash = ? AND status IN ('final', 'amended')
+        ORDER BY rowid DESC
+        LIMIT 1
+      `).get(resolution.questionHash) as { record_artifact_id: string } | undefined);
+
+      // A cancellation or dispute comments on the resolved state rather than
+      // replacing it: it never becomes the head, so it neither needs to
+      // supersede nor has to point at the current head. Naming a resolution
+      // that has since been amended over is how you dispute that particular
+      // answer.
+      const movesHead =
+        resolution.status === 'final' || resolution.status === 'amended';
+
+      if (!resolution.supersedesResolutionId) {
+        if (priorFinal && movesHead) {
+          throw new Error('A resolved question requires an explicit superseding resolution');
+        }
+        return;
+      }
+
       this.requireRecordType(
-        this.ledger.db(),
+        database,
         resolution.supersedesResolutionId,
         'resolution',
       );
-    }
+      // requireRecordType has already established a resolution record with
+      // this id, and the two tables are written together, so the row is
+      // present unless the projection has drifted. Checked anyway rather than
+      // asserted, since a silent undefined here would read as a question
+      // mismatch below.
+      const superseded = database.prepare(
+        'SELECT question_hash FROM resolutions WHERE record_artifact_id = ?',
+      ).get(resolution.supersedesResolutionId) as { question_hash: string } | undefined;
+      if (!superseded) {
+        throw new Error(
+          `Resolution '${resolution.supersedesResolutionId}' is missing from the projection`,
+        );
+      }
+      if (superseded.question_hash !== resolution.questionHash) {
+        throw new Error('A resolution can only supersede one of the same question');
+      }
+      if (!movesHead) return;
+      if (!priorFinal) {
+        throw new Error('There is no resolution to supersede');
+      }
+      if (priorFinal.record_artifact_id !== resolution.supersedesResolutionId) {
+        throw new Error(
+          'A resolution can only supersede the current head, which has moved',
+        );
+      }
+    };
     return this.ledger.appendRecord({
       actor,
       kind: resolution.status === 'amended'
@@ -1079,6 +1113,7 @@ export class ForecastWorkbench {
             Date.parse(resolution.resolvedAt) < Date.parse(question.closes_at)) {
           throw new Error('A question cannot resolve finally before it closes');
         }
+        requireCurrentHead(database);
       },
     });
   }
