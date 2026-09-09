@@ -17,7 +17,7 @@
  * Runtime: ~60–90s on a 2025 laptop (500 simulations).
  */
 
-import {
+import { requireYear,
   runSimulation,
   buildMultiParams,
   getScenarioPath,
@@ -55,8 +55,8 @@ interface MetricDef {
 const last = (r: SimulationResult): YearResult => r.results[r.results.length - 1];
 
 const METRICS: MetricDef[] = [
-  { name: 'warming2100',     unit: '°C',     extract: r => r.metrics.warming2100 },
-  { name: 'gdp2100',         unit: '$T',     extract: r => r.metrics.gdp2100 },
+  { name: 'warming2100',     unit: '°C',     extract: r => requireYear(r.metrics.warming2100, 'warming2100') },
+  { name: 'gdp2100',         unit: '$T',     extract: r => requireYear(r.metrics.gdp2100, 'gdp2100') },
   { name: 'fossilShare2100', unit: 'frac',   extract: r => last(r).fossilShare },
   { name: 'cdrCumulative2100', unit: 'Gt',   extract: r => last(r).cdrCumulative ?? 0 },
 ];

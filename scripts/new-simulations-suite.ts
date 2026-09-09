@@ -73,9 +73,15 @@ import {
   sovereignShockScenarios,
 } from '../src/simulations/financial-contagion/data.js';
 
+/**
+ * Only the manifest fields are read back, and neither depends on a model's
+ * input or output types. Storing just those avoids widening every model to
+ * ModelDefinition<any, any>, which does not accept a concrete definition:
+ * a model's run function makes the input type contravariant.
+ */
 const tracked: Array<{
   id: string;
-  model: ModelDefinition<any, any>;
+  model: Pick<ModelDefinition<never, unknown>, 'evidence' | 'validationClaims'>;
   run: ModelRun<any, any>;
 }> = [];
 

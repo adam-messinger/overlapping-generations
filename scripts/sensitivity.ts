@@ -5,7 +5,7 @@
  *   npx tsx scripts/sensitivity.ts
  */
 
-import { runWithScenario } from '../src/index.js';
+import { requireYear, runWithScenario } from '../src/index.js';
 
 type Overrides = Record<string, any> | undefined;
 
@@ -59,11 +59,11 @@ async function main() {
     const m = result.metrics;
     const row = [
       r.label,
-      m.warming2050.toFixed(3),
-      m.warming2100.toFixed(3),
+      requireYear(m.warming2050, 'warming2050').toFixed(3),
+      requireYear(m.warming2100, 'warming2100').toFixed(3),
       m.peakEmissions.toFixed(3),
       String(m.peakEmissionsYear),
-      m.gdp2100.toFixed(3),
+      requireYear(m.gdp2100, 'gdp2100').toFixed(3),
       String(m.gridBelow100Year ?? ''),
       String(m.solarCrossoverYear ?? ''),
     ].join(',');

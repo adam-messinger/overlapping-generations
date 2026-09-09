@@ -10,9 +10,17 @@
 import { runAutowiredSimulation, toYearResults } from '../src/simulation-autowired.js';
 import { getOutputsAtYear } from 'tsimulation';
 import type { SimulationParams } from '../src/simulation.js';
+import type { DeepPartial } from '../src/primitives/deep-merge.js';
 
-function run(label: string, overrides: SimulationParams) {
-  const awResult = runAutowiredSimulation(overrides);
+/**
+ * `SimulationParams` declares each module block as a shallow `Partial`, so a
+ * nested override like `energy.regional.china` does not typecheck even though
+ * `mergeParams` merges exactly that at runtime. The override shape here is
+ * the recursive one the runtime accepts; the cast marks where the declared
+ * type is stricter than the behaviour.
+ */
+function run(label: string, overrides: DeepPartial<SimulationParams>) {
+  const awResult = runAutowiredSimulation(overrides as SimulationParams);
   const results = toYearResults(awResult);
 
   console.log(`\n=== ${label} ===\n`);
