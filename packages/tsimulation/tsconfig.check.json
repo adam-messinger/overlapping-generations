@@ -1,0 +1,18 @@
+{
+  // The package build compiles `src` alone. `examples` is shipped as
+  // documentation and is only executed by `npm run example`, which CI does not
+  // invoke — so without this it can reference a removed API and nobody finds
+  // out. `test` is deliberately absent: CI runs those files every build, so a
+  // removed API fails there at runtime already.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts", "examples/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test"]
+}

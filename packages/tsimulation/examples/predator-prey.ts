@@ -8,7 +8,16 @@
 
 import { defineModule, runAutowired, unitPort } from '../src/index.js';
 
-const prey = defineModule({
+// The port contract derives the input and output names, but a module's own
+// parameter, state and input types still have to be stated: mergeParams takes
+// a partial of the very type it produces, so inference has nothing to start
+// from and everything lands as `object`.
+const prey = defineModule<
+  { growth: number; capacity: number; predation: number },
+  { count: number },
+  { laggedPredators: number },
+  { prey: number }
+>({
   name: 'prey',
   description: 'Prey population with logistic growth, thinned by predators',
   defaults: { growth: 0.6, capacity: 120, predation: 0.02 },
@@ -27,7 +36,12 @@ const prey = defineModule({
   },
 });
 
-const predator = defineModule({
+const predator = defineModule<
+  { efficiency: number; mortality: number },
+  { count: number },
+  { prey: number },
+  { predators: number }
+>({
   name: 'predator',
   description: 'Predator population fed by prey, thinned by mortality',
   defaults: { efficiency: 0.012, mortality: 0.5 },
