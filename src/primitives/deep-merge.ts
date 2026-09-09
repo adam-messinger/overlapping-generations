@@ -17,11 +17,19 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Keys that address the prototype chain rather than a parameter. JSON.parse
+ * creates `__proto__` as an *own* key, so Object.keys does surface it, and
+ * assigning through it would replace the merged object's prototype.
+ */
+const RESERVED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /** Deep merge two objects (override wins; nested plain objects merge recursively). */
 export function deepMerge<T extends object>(base: T, override: DeepPartial<T>): T {
   const result = { ...base };
 
   for (const key of Object.keys(override) as Array<keyof T>) {
+    if (RESERVED_KEYS.has(key as string)) continue;
     const overrideValue = (override as Record<keyof T, unknown>)[key];
     const baseValue = base[key];
 

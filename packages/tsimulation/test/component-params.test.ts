@@ -64,3 +64,52 @@ test('toParams returns a deep clone that does not alias internal state', () => {
   out.a.b = 99;
   assert.strictEqual(p.get('a.b'), 1); // internal data not mutated
 });
+
+test('reserved path segments are refused rather than followed', () => {
+  const params = ComponentParams.from<Record<string, unknown>>({});
+  const before = (({}) as Record<string, unknown>).olgProbe;
+
+  assert.throws(() => params.set('__proto__.olgProbe', 42), /reserved segment/);
+  assert.throws(() => params.get('__proto__.olgProbe'), /reserved segment/);
+  assert.throws(() => params.set('constructor.prototype.olgProbe', 42), /reserved segment/);
+  assert.throws(() => params.set('a.prototype.b', 1), /reserved segment/);
+
+  // The prototype must be untouched whether or not the write was refused.
+  assert.strictEqual((({}) as Record<string, unknown>).olgProbe, before);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(Object.prototype, 'olgProbe'), false);
+});
+
+test('get reads own properties only, not inherited ones', () => {
+  (Object.prototype as Record<string, unknown>).olgInherited = 'from the prototype';
+  try {
+    const params = ComponentParams.from({ group: {} });
+    assert.strictEqual(params.get('group.olgInherited'), undefined);
+    assert.strictEqual(params.get('group.toString'), undefined);
+  } finally {
+    delete (Object.prototype as Record<string, unknown>).olgInherited;
+  }
+});
+
+test('an inserted object is not shared with the caller', () => {
+  // Only a single set aliases: chaining re-clones the container and severs
+  // it, so a chained test would pass while the defect stood.
+  const subtree = { x: 1 };
+  const params = ComponentParams.from<Record<string, unknown>>({}).set('a', subtree);
+
+  subtree.x = 99;
+
+  assert.deepEqual(params.get('a'), { x: 1 });
+  assert.deepEqual(params.toParams(), { a: { x: 1 } });
+});
+
+test('set carries the values structuredClone supports', () => {
+  const params = ComponentParams.from<Record<string, unknown>>({})
+    .set('series', new Float64Array([1, 2, 3]))
+    .set('when', new Date('2026-09-09T00:00:00.000Z'));
+
+  assert.deepEqual(params.get('series'), new Float64Array([1, 2, 3]));
+  assert.strictEqual(
+    (params.get('when') as Date).toISOString(),
+    '2026-09-09T00:00:00.000Z',
+  );
+});

@@ -44,7 +44,10 @@ function validateOverrideKeys(
   if (!isPlainObject(override) || !isPlainObject(defaults)) return;
   for (const key of Object.keys(override)) {
     if (OPEN_PARTIAL_KEYS.has(key)) continue;  // valid optional/Partial — don't warn or descend
-    if (!(key in defaults)) {
+    // `in` walks the prototype chain, so `__proto__`, `constructor` and
+    // `toString` would all pass the unknown-key check as though they named
+    // real parameters. Own properties are the only real ones.
+    if (!Object.prototype.hasOwnProperty.call(defaults, key)) {
       const message = `Unrecognized ${path} param "${key}" will be ignored`;
       if (unknownKeys === 'error') throw new Error(message);
       if (unknownKeys === 'warn') console.warn(`Warning: ${message}`);
