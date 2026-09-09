@@ -154,11 +154,42 @@ test('responses that echo credentials are rejected before persistence', async ()
 
 test('private-network DNS results are rejected before any request is sent', async () => {
   for (const address of [
+    // IPv4.
     '127.0.0.1',
     '169.254.169.254',
     '10.0.0.1',
-    '::1',
+    '172.16.0.1',
+    '192.168.1.1',
+    '100.64.0.1',
+    '0.0.0.0',
+    // IPv4-mapped. A URL canonicalises the readable spelling to hex and
+    // Node's resolver returns hex, so the hex forms are what actually
+    // arrives — the dotted one below can only come from a literal.
     '::ffff:172.16.0.1',
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '::ffff:a00:1',
+    '::ffff:c0a8:1',
+    '::ffff:a9fe:a9fe',
+    '::ffff:0:0',
+    // Loopback and unspecified in every spelling. String comparison against
+    // '::1' matched only the first of these.
+    '::1',
+    '0:0:0:0:0:0:0:1',
+    '0000:0000:0000:0000:0000:0000:0000:0001',
+    '::0:0:0:1',
+    '::',
+    '0:0:0:0:0:0:0:0',
+    // Transition prefixes that embed an IPv4 address.
+    '64:ff9b::7f00:1',
+    '64:ff9b::a9fe:a9fe',
+    '2002:7f00:1::',
+    // Unique-local, link-local, site-local, multicast.
+    'fc00::1',
+    'fd12:3456::1',
+    'fe80::1',
+    'fec0::1',
+    'ff02::1',
   ]) {
     let fetched = false;
     await assert.rejects(
@@ -176,6 +207,45 @@ test('private-network DNS results are rejected before any request is sent', asyn
       /private-network/,
     );
     assert.equal(fetched, false);
+  }
+});
+
+test('public addresses are still reachable', async () => {
+  // A classifier that fails closed is only useful if it lets real traffic
+  // through; these must not be swept up by the broadened IPv6 handling.
+  for (const address of ['2606:4700:4700::1111', '2001:4860:4860::8888', '8.8.8.8']) {
+    let fetched = false;
+    await hardenedFetch({
+      envelope,
+      credentialProvider: async () => SECRET,
+      runtime: {
+        resolveHost: async () => [address],
+        fetch: async () => {
+          fetched = true;
+          return new Response('{}');
+        },
+      },
+    });
+    assert.equal(fetched, true);
+  }
+});
+
+test('an IPv6 literal host is classified, not waved through', async () => {
+  // isIP('[::1]') is 0, so the direct-literal check never fired for any IPv6
+  // URL. It failed closed only because the default resolver rejects the
+  // bracketed string.
+  for (const host of ['[::1]', '[::ffff:7f00:1]', '[fc00::1]']) {
+    await assert.rejects(
+      hardenedFetch({
+        envelope: { ...envelope, uri: `https://${host}/data`, allowedHosts: [host] },
+        credentialProvider: async () => SECRET,
+        runtime: {
+          resolveHost: async () => [host],
+          fetch: async () => new Response('{}'),
+        },
+      }),
+      /private-network|not allowlisted/,
+    );
   }
 });
 
