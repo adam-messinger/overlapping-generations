@@ -14,6 +14,14 @@ export interface ScoringSpecification {
   rpsNormalization: 'sum' | 'mean-boundaries';
   logProbabilityFloor: number;
   wisRequiredQuantiles: readonly number[];
+  /**
+   * 'k-plus-half' is the standard weighted interval score: the median and
+   * interval terms are divided by K + 1/2 for K intervals. 'weight-sum'
+   * divides by the weights' own sum instead, which is what this package did
+   * before the definition was corrected — kept so scores recorded under it
+   * still replay to the values they were recorded with.
+   */
+  wisNormalization: 'k-plus-half' | 'weight-sum';
   crpsInput: 'samples';
   timeWeighting: 'duration';
 }
@@ -21,11 +29,12 @@ export interface ScoringSpecification {
 export const DEFAULT_SCORING_SPECIFICATION: ScoringSpecification = {
   schemaVersion: 'forecast-workbench.scoring-spec/v1',
   id: 'forecast-workbench-default-scores',
-  version: '1.0.0',
+  version: '2.0.0',
   brierNormalization: 'sum',
   rpsNormalization: 'mean-boundaries',
   logProbabilityFloor: 1e-12,
   wisRequiredQuantiles: [0.025, 0.25, 0.5, 0.75, 0.975],
+  wisNormalization: 'k-plus-half',
   crpsInput: 'samples',
   timeWeighting: 'duration',
 };
@@ -139,6 +148,8 @@ export function weightedIntervalScore(
   observed: number,
   requiredQuantiles: readonly number[] =
     DEFAULT_SCORING_SPECIFICATION.wisRequiredQuantiles,
+  normalization: ScoringSpecification['wisNormalization'] =
+    DEFAULT_SCORING_SPECIFICATION.wisNormalization,
 ): number {
   const values = quantileMap(prediction);
   for (const probability of requiredQuantiles) {
@@ -148,24 +159,39 @@ export function weightedIntervalScore(
   }
   const median = values.get(0.5);
   if (median === undefined) throw new Error('WIS requires the median');
+
+  // Widest interval last, matching the order the outbreak scorer sums in.
+  // Floating-point addition is not associative, so the order is part of the
+  // definition if the two are to agree to the bit.
+  const lowerProbabilities = requiredQuantiles
+    .filter((value) => value < 0.5)
+    .sort((left, right) => right - left);
+
   let weighted = 0.5 * Math.abs(observed - median);
-  let totalWeight = 0.5;
-  const lowerProbabilities = requiredQuantiles.filter((value) => value < 0.5);
+  let intervals = 0;
   for (const lowerProbability of lowerProbabilities) {
     const upperProbability = 1 - lowerProbability;
     const lower = values.get(lowerProbability);
     const upper = values.get(upperProbability);
-    if (lower === undefined || upper === undefined) continue;
+    if (lower === undefined || upper === undefined) {
+      throw new Error(
+        `WIS needs a symmetric grid; quantile ${lowerProbability} has no ${upperProbability}`,
+      );
+    }
     const alpha = 2 * lowerProbability;
     const intervalScore =
       upper - lower +
       (2 / alpha) * (lower - observed) * Number(observed < lower) +
       (2 / alpha) * (observed - upper) * Number(observed > upper);
-    const weight = alpha / 2;
-    weighted += weight * intervalScore;
-    totalWeight += weight;
+    weighted += (alpha / 2) * intervalScore;
+    intervals += 1;
   }
-  return weighted / totalWeight;
+
+  if (normalization === 'weight-sum') {
+    const weightSum = lowerProbabilities.reduce((sum, p) => sum + p, 0.5);
+    return weighted / weightSum;
+  }
+  return weighted / (intervals + 0.5);
 }
 
 export function crpsFromSamples(samples: readonly number[], observed: number): number {
@@ -208,6 +234,7 @@ export function scorePrediction(options: {
           options.prediction,
           options.observedValue,
           specification.wisRequiredQuantiles,
+          specification.wisNormalization,
         ),
       };
     }
