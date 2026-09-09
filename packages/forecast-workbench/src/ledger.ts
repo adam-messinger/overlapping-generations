@@ -20,7 +20,7 @@ import type { Actor, DataClassification } from './contracts.js';
 import { FileArtifactStore, type StoredArtifact } from './artifact-store.js';
 
 export interface EventEnvelope {
-  schemaVersion: 'forecast-workbench.event/v1';
+  schemaVersion: 'forecast-workbench.event/v1' | 'forecast-workbench.event/v2';
   sequence: number;
   eventId: string;
   occurredAt: string;
@@ -28,6 +28,13 @@ export interface EventEnvelope {
   kind: string;
   recordType: string;
   recordArtifactId: string;
+  /**
+   * Absent on v1 events, which had no way to carry it. A v1 record's
+   * classification is unrecoverable — `appendRecord` forwarded it only to
+   * `putCanonical`, whose copy was never persisted — so readers must treat
+   * "absent" as unknown rather than as any particular level.
+   */
+  classification?: DataClassification;
   previousEventHash?: string;
   eventHash: string;
 }
@@ -52,7 +59,12 @@ interface StoredEventRow {
   record_artifact_id: string;
   previous_event_hash: string | null;
   event_hash: string;
+  schema_version: string;
+  classification: string | null;
 }
+
+/** Bumped whenever the SQLite projection's shape changes. */
+const PROJECTION_VERSION = 2;
 
 const SCHEMA = `
   PRAGMA foreign_keys = ON;
@@ -70,13 +82,18 @@ const SCHEMA = `
     record_type TEXT NOT NULL,
     record_artifact_id TEXT NOT NULL,
     previous_event_hash TEXT,
-    event_hash TEXT NOT NULL UNIQUE
+    event_hash TEXT NOT NULL UNIQUE,
+    schema_version TEXT NOT NULL,
+    classification TEXT
   );
 
   CREATE TABLE IF NOT EXISTS records (
     record_artifact_id TEXT PRIMARY KEY,
     record_type TEXT NOT NULL,
-    first_event_sequence INTEGER NOT NULL REFERENCES events(sequence)
+    first_event_sequence INTEGER NOT NULL REFERENCES events(sequence),
+    -- NULL means "not recorded", which only pre-v2 events produce. Readers
+    -- that gate on classification must fail closed on NULL.
+    classification TEXT
   );
 
   CREATE TABLE IF NOT EXISTS questions (
@@ -100,6 +117,9 @@ const SCHEMA = `
     record_artifact_id TEXT PRIMARY KEY REFERENCES records(record_artifact_id),
     logical_id TEXT NOT NULL UNIQUE,
     view_artifact_id TEXT NOT NULL,
+    -- Copied from the packet body, and duplicated by records.classification
+    -- since the envelope started carrying it. records.classification is the
+    -- authority; readers should prefer it and this column should go.
     classification TEXT NOT NULL
   );
 
@@ -166,7 +186,7 @@ const SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS records_no_delete
   BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
 
-  PRAGMA user_version = 1;
+  PRAGMA user_version = ${PROJECTION_VERSION};
 `;
 
 function eventPayload(
@@ -191,8 +211,15 @@ function validateEvent(
   expectedPrevious?: string,
   previousOccurredAt?: string,
 ): void {
-  if (event.schemaVersion !== 'forecast-workbench.event/v1') {
+  if (
+    event.schemaVersion !== 'forecast-workbench.event/v1' &&
+    event.schemaVersion !== 'forecast-workbench.event/v2'
+  ) {
     throw new Error(`Unsupported event schema '${String(event.schemaVersion)}'`);
+  }
+  if (event.schemaVersion === 'forecast-workbench.event/v1' &&
+      event.classification !== undefined) {
+    throw new Error(`Event ${event.sequence} declares a classification under v1`);
   }
   if (!Number.isInteger(event.sequence) || event.sequence < 1) {
     throw new Error('Event sequence must be a positive integer');
@@ -257,10 +284,51 @@ export class ForecastLedger {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     await this.artifacts.initialize();
     if (!this.database) {
-      this.database = new Database(this.databasePath);
-      this.database.exec(SCHEMA);
+      await this.discardOutdatedProjection();
+      const database = new Database(this.databasePath);
+      try {
+        database.exec(SCHEMA);
+      } catch (error) {
+        database.close();
+        throw error;
+      }
+      // Published only once the schema is in place. Assigning earlier would
+      // let a failed setup — a transient SQLITE_BUSY, say — leave a handle
+      // that every later initialize() skips past, wedging the instance on a
+      // shape the code no longer expects until the process restarts.
+      this.database = database;
     }
     await this.synchronizeProjection();
+  }
+
+  /**
+   * The projection is derived state, so a stale one is deleted and rebuilt
+   * from the canonical log rather than altered in place. `records` and
+   * `events` carry append-only triggers that `RAISE(ABORT)` on UPDATE, so an
+   * `ALTER TABLE ... ADD COLUMN` could never be backfilled afterwards.
+   *
+   * Deleting the files reuses the rebuild `synchronizeProjection` already
+   * performs — the same path `initialize` takes when the index is missing
+   * entirely — instead of enumerating tables to drop, which would silently
+   * miss any index or view the schema grows later.
+   */
+  private async discardOutdatedProjection(): Promise<void> {
+    let version: number;
+    const probe = new Database(this.databasePath);
+    try {
+      version = (probe.prepare('PRAGMA user_version').get() as {
+        user_version: number;
+      }).user_version;
+    } finally {
+      probe.close();
+    }
+    // 0 is a projection that has never been written, which needs no rebuild.
+    if (version === 0 || version >= PROJECTION_VERSION) return;
+    await Promise.all([
+      unlink(this.databasePath).catch(() => undefined),
+      unlink(`${this.databasePath}-wal`).catch(() => undefined),
+      unlink(`${this.databasePath}-shm`).catch(() => undefined),
+    ]);
   }
 
   db(): Database.Database {
@@ -366,7 +434,11 @@ export class ForecastLedger {
     kind: string;
     recordType: string;
     record: unknown;
-    classification?: DataClassification;
+    /**
+     * Required: a v2 event always carries one, so a NULL in the projection
+     * means "written before classification was recorded" and nothing else.
+     */
+    classification: DataClassification;
     validateProjection?: ProjectionValidator;
   }): Promise<RecordReference> {
     return this.exclusive(async () => {
@@ -384,10 +456,7 @@ export class ForecastLedger {
       }
       requireText(options.kind, 'record event kind');
       requireText(options.recordType, 'record type');
-      if (
-        options.classification !== undefined &&
-        !['public', 'internal', 'restricted'].includes(options.classification)
-      ) {
+      if (!['public', 'internal', 'restricted'].includes(options.classification)) {
         throw new Error(
           `Invalid record classification '${String(options.classification)}'`,
         );
@@ -420,13 +489,14 @@ export class ForecastLedger {
             );
           }
           const event = sealEvent({
-            schemaVersion: 'forecast-workbench.event/v1',
+            schemaVersion: 'forecast-workbench.event/v2',
             sequence: (latest?.sequence ?? 0) + 1,
             occurredAt,
             actor: options.actor,
             kind: options.kind,
             recordType: options.recordType,
             recordArtifactId: artifact.id,
+            classification: options.classification,
             ...(latest ? { previousEventHash: latest.event_hash } : {}),
           });
           await this.appendEventLine(event);
@@ -463,8 +533,9 @@ export class ForecastLedger {
     database.prepare(`
       INSERT OR IGNORE INTO events (
         sequence, event_id, occurred_at, actor_id, actor_role, kind,
-        record_type, record_artifact_id, previous_event_hash, event_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        record_type, record_artifact_id, previous_event_hash, event_hash,
+        schema_version, classification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.sequence,
       event.eventId,
@@ -476,12 +547,19 @@ export class ForecastLedger {
       event.recordArtifactId,
       event.previousEventHash ?? null,
       event.eventHash,
+      event.schemaVersion,
+      event.classification ?? null,
     );
     database.prepare(`
       INSERT OR IGNORE INTO records (
-        record_artifact_id, record_type, first_event_sequence
-      ) VALUES (?, ?, ?)
-    `).run(event.recordArtifactId, event.recordType, event.sequence);
+        record_artifact_id, record_type, first_event_sequence, classification
+      ) VALUES (?, ?, ?, ?)
+    `).run(
+      event.recordArtifactId,
+      event.recordType,
+      event.sequence,
+      event.classification ?? null,
+    );
   }
 
   private projectRecord(
@@ -754,7 +832,7 @@ export class ForecastLedger {
     ).get() as StoredEventRow | undefined;
     if (!row) return undefined;
     return {
-      schemaVersion: 'forecast-workbench.event/v1',
+      schemaVersion: row.schema_version as EventEnvelope['schemaVersion'],
       sequence: row.sequence,
       eventId: row.event_id,
       occurredAt: row.occurred_at,
