@@ -39,6 +39,12 @@ export interface AgingSimConfig {
   /** Optional audited annual macro path. Existing standalone behavior remains
    * the default when this is absent. */
   macroPath?: NationalMacroPath;
+  /**
+   * Parameter read-liveness checking. Off by default, as it always has been;
+   * exposed so a test can prove that enabling it leaves results unchanged for
+   * this model's parameter shapes, which include typed arrays.
+   */
+  paramLiveness?: 'off' | 'warn' | 'error';
 }
 
 export interface AgingSimResult {
@@ -287,6 +293,7 @@ export function runAgingSim(cfg: AgingSimConfig): AgingSimResult {
     },
     startYear,
     endYear: startYear + years - 1,
+    ...(cfg.paramLiveness ? { paramLiveness: cfg.paramLiveness } : {}),
   });
 
   const national: AgingSimResult['national'] = {
