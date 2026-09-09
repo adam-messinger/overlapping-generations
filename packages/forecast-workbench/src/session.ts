@@ -597,6 +597,9 @@ export class ForecastWorkbench {
     for (const scoreId of aggregation.trainingScoreIds) {
       this.requireRecordType(this.ledger.db(), scoreId, 'score');
     }
+    if (aggregation.method.kind === 'performance-weighted') {
+      await this.verifyPerformanceWeights(aggregation, aggregation.method.metric);
+    }
     const recomputed = aggregatePredictions({
       id: aggregation.id,
       version: aggregation.version,
@@ -616,6 +619,80 @@ export class ForecastWorkbench {
       record: aggregation,
       classification: 'internal',
     });
+  }
+
+  /**
+   * Checks each input's performance score against the training records it
+   * cites, rather than trusting the caller's copy.
+   *
+   * Every cited score is read, attributed to a forecaster through the forecast
+   * it scored, and averaged over that forecaster's cited record. Availability
+   * is the latest of those scoring times, so a weight cannot rest on a score
+   * that did not exist when the aggregate was made.
+   */
+  private async verifyPerformanceWeights(
+    aggregation: AggregationRecord,
+    metric: 'brier' | 'rankedProbability' | 'logarithmic' | 'weightedInterval' | 'crps',
+  ): Promise<void> {
+    const database = this.ledger.db();
+    const byForecaster = new Map<string, { values: number[]; latest: string }>();
+
+    for (const scoreId of aggregation.trainingScoreIds) {
+      const score = await this.ledger.getRecord<ScoreRecord>(scoreId);
+      // Weighting a forecaster by their record on the very question being
+      // aggregated would let the outcome choose the weights.
+      if (score.questionHash === aggregation.questionHash) {
+        throw new Error(
+          `Training score '${scoreId}' is for the question being aggregated`,
+        );
+      }
+      const value = score.values[metric];
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new Error(`Training score '${scoreId}' has no ${metric} value`);
+      }
+      const forecast = database.prepare(
+        'SELECT forecaster_id FROM forecasts WHERE record_artifact_id = ?',
+      ).get(score.forecastId) as { forecaster_id: string } | undefined;
+      if (!forecast) {
+        throw new Error(`Training score '${scoreId}' cites an unknown forecast`);
+      }
+      const entry = byForecaster.get(forecast.forecaster_id);
+      if (entry) {
+        entry.values.push(value);
+        if (Date.parse(score.scoredAt) > Date.parse(entry.latest)) {
+          entry.latest = score.scoredAt;
+        }
+      } else {
+        byForecaster.set(forecast.forecaster_id, {
+          values: [value],
+          latest: score.scoredAt,
+        });
+      }
+    }
+
+    for (const input of aggregation.inputs) {
+      const record = byForecaster.get(input.forecasterId);
+      if (!record) {
+        throw new Error(
+          `Forecaster '${input.forecasterId}' has no cited training score`,
+        );
+      }
+      const derived = record.values.reduce((sum, value) => sum + value, 0) /
+        record.values.length;
+      if (input.performanceScore === undefined ||
+          Math.abs(input.performanceScore - derived) > 1e-12) {
+        throw new Error(
+          `Forecaster '${input.forecasterId}' states a ${metric} of ` +
+          `${String(input.performanceScore)}, but their cited scores average ${derived}`,
+        );
+      }
+      if (input.performanceScoreAvailableAt !== record.latest) {
+        throw new Error(
+          `Forecaster '${input.forecasterId}' states a score availability its ` +
+          'cited records do not support',
+        );
+      }
+    }
   }
 
   async recordTrigger(
