@@ -6,6 +6,8 @@
  */
 
 import { dispatchModule, dispatchDefaults } from './dispatch.js';
+import { energyModule, getRegionalCapacityFactor } from './energy.js';
+import { runSimulation } from '../simulation.js';
 import { EnergySource, ENERGY_SOURCES, REGIONS } from '../domain-types.js';
 
 import { test, expect, printSummary } from '../test-utils.js';
@@ -339,6 +341,45 @@ test('module declares correct outputs', () => {
   expect(dispatchModule.outputs.includes('generation')).toBeTrue();
   expect(dispatchModule.outputs.includes('gridIntensity')).toBeTrue();
   expect(dispatchModule.outputs.includes('electricityEmissions')).toBeTrue();
+});
+
+// =============================================================================
+// PHYSICAL POTENTIAL
+// =============================================================================
+
+test('no region generates more than its own panels and turbines can', () => {
+  // A region cannot produce more than installed capacity x its own capacity
+  // factor x hours. Applying a fleet-mean CF everywhere lets regions with
+  // below-average resource quality exceed that, and understates the rest.
+  const result = runSimulation();
+  const energyParams = energyModule.mergeParams({});
+  const dispatchParams = dispatchModule.mergeParams({});
+
+  for (const row of result.results) {
+    for (const region of REGIONS) {
+      // Assert against the capacities dispatch actually used: it falls back
+      // to a GDP split when regional capacities are absent.
+      const capacities = row.regionalCapacities[region];
+      const generation = row.regionalGeneration[region];
+
+      for (const source of ['solar', 'wind'] as const) {
+        const capacityFactor = getRegionalCapacityFactor(
+          energyParams,
+          region,
+          source,
+          capacities[source],
+        );
+        const potential =
+          (capacities[source] * capacityFactor * dispatchParams.hoursPerYear) / 1000;
+        // Bare solar and the battery-paired share draw on the same panels.
+        const served = source === 'solar'
+          ? generation.solar + generation.solarPlusBattery
+          : generation.wind;
+        // A part in 1e9 of slack for accumulated floating-point error.
+        expect(served <= potential * (1 + 1e-9)).toBeTrue();
+      }
+    }
+  }
 });
 
 // =============================================================================
