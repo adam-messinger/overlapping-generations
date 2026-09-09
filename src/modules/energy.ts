@@ -683,7 +683,20 @@ export interface EnergyOutputs {
   /** Cheapest LCOE this year ($/MWh) */
   cheapestLCOE: number;
 
-  /** Effective solar capacity factor (capacity-weighted, after site depletion) */
+  /**
+   * Effective solar capacity factor by region, after site depletion. Dispatch
+   * needs these per region: a fleet mean applied everywhere lets a region
+   * generate more than its own panels physically can.
+   */
+  regionalEffectiveSolarCF: Record<Region, number>;
+
+  /** Effective wind capacity factor by region, after site depletion. */
+  regionalEffectiveWindCF: Record<Region, number>;
+
+  /**
+   * Fleet-weighted solar capacity factor. Retained for the dynamic-EROI
+   * scaling and aggregate diagnostics, which genuinely want a global mean.
+   */
   effectiveSolarCF: number;
 
   /** Effective wind capacity factor (capacity-weighted, after site depletion) */
@@ -983,6 +996,8 @@ export const energyModule: Module<
       regionalAdditions: REGIONAL_ENERGY_ADDITION_PORT,
       batteryCost: unitPort('$/kWh'),
       cheapestLCOE: unitPort('$/MWh'),
+      regionalEffectiveSolarCF: unitPort('fraction', 'record'),
+      regionalEffectiveWindCF: unitPort('fraction', 'record'),
       effectiveSolarCF: unitPort('fraction'),
       effectiveWindCF: unitPort('fraction'),
       longStorageCost: unitPort('$/kWh'),
@@ -1646,6 +1661,8 @@ export const energyModule: Module<
     // Compute capacity-weighted effective CFs and update dynamic EROI
     // =========================================================================
 
+    const regionalEffectiveSolarCF = {} as Record<Region, number>;
+    const regionalEffectiveWindCF = {} as Record<Region, number>;
     let effectiveSolarCF = 0;
     let effectiveWindCF = 0;
     let totalSolarCap = 0;
@@ -1657,6 +1674,8 @@ export const energyModule: Module<
       const windCap = newRegional[region].wind.installed;
       const solarCF = getRegionalCapacityFactor(params, region, 'solar', solarCap);
       const windCF = getRegionalCapacityFactor(params, region, 'wind', windCap);
+      regionalEffectiveSolarCF[region] = solarCF;
+      regionalEffectiveWindCF[region] = windCF;
       effectiveSolarCF += solarCF * solarCap;
       effectiveWindCF += windCF * windCap;
       totalSolarCap += solarCap;
@@ -1800,6 +1819,8 @@ export const energyModule: Module<
         regionalAdditions,
         batteryCost,
         cheapestLCOE,
+        regionalEffectiveSolarCF,
+        regionalEffectiveWindCF,
         effectiveSolarCF,
         effectiveWindCF,
         longStorageCost,
