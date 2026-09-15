@@ -148,6 +148,9 @@ export const DEMAND_SECTORS_PORT = objectPort<Record<'transport' | 'buildings' |
 interface MineralRow {
   demand: number;
   grossDemand: number;
+  transitionGrossDemand: number;
+  extraction: number;
+  supplyRatio: number;
   recycled: number;
   cumulative: number;
   recyclingRate: number;
@@ -157,6 +160,9 @@ interface MineralRow {
 const mineralRow = objectPort<MineralRow>({
   demand: unitPort('Mt/year'),
   grossDemand: unitPort('Mt/year'),
+  transitionGrossDemand: unitPort('Mt/year'),
+  extraction: unitPort('Mt/year'),
+  supplyRatio: unitPort('fraction'),
   recycled: unitPort('Mt/year'),
   cumulative: unitPort('Mt'),
   recyclingRate: unitPort('fraction'),

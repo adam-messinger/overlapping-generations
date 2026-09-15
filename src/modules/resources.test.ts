@@ -16,6 +16,7 @@ function createInputs(options: {
   batteryAdditions?: number;
   population?: number;
   gdpPerCapita?: number;
+  gdp?: number;
   temperature?: number;
 } = {}) {
   return {
@@ -31,6 +32,8 @@ function createInputs(options: {
     population: options.population ?? 8.3e9,
     gdpPerCapita: options.gdpPerCapita ?? 14000,
     gdpPerCapita2025: 14000,
+    gdp: options.gdp ?? 116,
+    gdp2025: 116,
     temperature: options.temperature ?? 1.3,
     transportElectrification: 0.05,
     // grainDemand is now calculated internally via Bennett's Law
@@ -114,12 +117,16 @@ test('higher solar additions = more copper demand', () => {
   expect(high).toBeGreaterThan(low);
 });
 
-test('mineral demand declines with learning (intensity reduction)', () => {
-  const year1 = runYears(1).outputs.minerals.copper.grossDemand;
-  const year20 = runYears(20).outputs.minerals.copper.grossDemand;
-  // With 2% learning rate, intensity at year 20 is ~67% of year 1
-  // But cumulative additions also matter, so just check it's lower per unit
-  expect(year20).toBeLessThan(year1 * 2); // Rough check
+test('transition mineral intensity declines with learning', () => {
+  // Asserted on the transition slice: `learningRate` is an equipment-intensity
+  // decline and is deliberately not applied to baseline demand, so the total
+  // would be dominated by the GDP-driven stream and say nothing about learning.
+  const year1 = runYears(1).outputs.minerals.copper.transitionGrossDemand;
+  const year20 = runYears(20).outputs.minerals.copper.transitionGrossDemand;
+  // 2% learning over 19 further years: 0.98^19 = 0.68. Solar and wind additions
+  // are held fixed by the helper but the EV-battery term is not (fleet growth
+  // is large in year 1 and steady by year 20), so allow ~1%.
+  expect(year20 / (year1 * Math.pow(0.98, 19))).toBeCloseTo(1, 2);
 });
 
 test('cumulative minerals increase over time', () => {
@@ -145,6 +152,100 @@ test('reserve ratio calculated correctly', () => {
   const { outputs } = runYears(10);
   expect(outputs.minerals.copper.reserveRatio).toBeGreaterThan(0);
   expect(outputs.minerals.copper.reserveRatio).toBeLessThan(1);
+});
+
+// --- Baseline (non-transition) demand and the supply constraint ---
+
+console.log('\n--- Baseline Demand & Supply Constraint ---\n');
+
+test('baseline stream equals its 2025 constant at the GDP anchor', () => {
+  // Module-level half of the calibration: at gdpRatio 1 the non-transition
+  // stream must be exactly its calibrated constant. The end-to-end pin (that
+  // total primary demand reproduces observed mine production, which depends on
+  // the real 2025 capacity additions) lives in simulation.test.ts.
+  const { outputs } = runYears(1);
+  for (const key of ['copper', 'lithium', 'rareEarths', 'steel'] as const) {
+    const baseline = outputs.minerals[key].grossDemand - outputs.minerals[key].transitionGrossDemand;
+    expect(baseline).toBeCloseTo(resourcesDefaults.minerals[key].baselineDemand2025, 6);
+  }
+});
+
+test('lithium is under capacity in 2025 (battery build, not baseline, is the gap)', () => {
+  // Documented exception: ~85% of real lithium use is batteries and the
+  // model's 2025 battery build is below the actual market, so lithium does not
+  // calibrate to mine production. It must at least not exceed capacity.
+  const { outputs } = runYears(1);
+  expect(outputs.minerals.lithium.demand)
+    .toBeLessThan(resourcesDefaults.minerals.lithium.annualSupply2025);
+});
+
+test('baseline demand scales with GDP at the stated elasticity', () => {
+  const base = runYears(1).outputs.minerals.copper.grossDemand;
+  const doubled = runYears(1, { gdp: 232 }).outputs.minerals.copper.grossDemand;
+  const transition = runYears(1).outputs.minerals.copper.transitionGrossDemand;
+  // Only the baseline stream responds to GDP; the transition slice is unchanged.
+  const ratio = (doubled - transition) / (base - transition);
+  expect(ratio).toBeCloseTo(Math.pow(2, resourcesDefaults.minerals.copper.baselineGdpElasticity), 6);
+});
+
+test('supply ratio is 1.0 when capacity is ample', () => {
+  const { outputs } = runYears(1);
+  expect(outputs.minerals.copper.supplyRatio).toBeCloseTo(1, 6);
+  expect(outputs.mineralConstraint).toBeCloseTo(1, 6);
+});
+
+test('constraint binds when demand outruns capacity', () => {
+  // 4x GDP against an unchanged capacity path must ration copper.
+  const { outputs } = runYears(1, { gdp: 464 });
+  expect(outputs.minerals.copper.supplyRatio).toBeLessThan(1);
+  expect(outputs.mineralConstraint).toBeLessThan(1);
+});
+
+test('extraction ledger closes: cumulative never exceeds the capacity path', () => {
+  // Booking `extraction` rather than `demand` is what keeps this true.
+  const years = 30;
+  const { outputs } = runYears(years, { gdp: 464 });
+  const cap = resourcesDefaults.minerals.copper;
+  let capacity = cap.annualSupply2025;
+  let ceiling = 0;
+  for (let i = 0; i < years; i++) {
+    capacity *= 1 + cap.maxMiningGrowth * Math.max(0, 1 - capacity / cap.maxMiningCapacity);
+    ceiling += capacity;
+  }
+  expect(outputs.minerals.copper.cumulative).toBeLessThan(ceiling * 1.000001);
+});
+
+test('a source is not throttled by a mineral it does not use', () => {
+  // Nuclear uses steel only (no perMW_nuclear on copper/lithium/rareEarths),
+  // so a copper shortage must leave nuclear at 1.0.
+  const { outputs } = runYears(1, { gdp: 464 });
+  expect(outputs.minerals.copper.supplyRatio).toBeLessThan(1);
+  expect(outputs.mineralConstraintBySource.nuclear).toBeCloseTo(
+    outputs.minerals.steel.supplyRatio, 6);
+  expect(outputs.mineralConstraintBySource.battery).toBeLessThan(1); // battery uses copper
+});
+
+test('mining energy is charged on the transition slice only', () => {
+  // Baseline mining energy is already inside production's nonElectricEnergy
+  // anchor; charging it again as system overhead would double-count it.
+  const { outputs } = runYears(1);
+  const expected = (['copper', 'lithium', 'rareEarths', 'steel'] as const).reduce((sum, key) => {
+    const rr = outputs.minerals[key].reserveRatio;
+    const depletion = 1 / Math.pow(Math.max(0.01, 1 - rr), resourcesDefaults.mining.depletionExponent);
+    return sum + outputs.minerals[key].transitionGrossDemand
+      * resourcesDefaults.mining.energyIntensity[key] * depletion * 1e6 / 3.6e6;
+  }, 0);
+  expect(outputs.miningEnergyTWh).toBeCloseTo(expected, 6);
+});
+
+test('partial override of one baseline field preserves the other', () => {
+  // MineralParams is merged one level deep, so these must be flat fields.
+  const params = resourcesModule.mergeParams({
+    minerals: { copper: { baselineGdpElasticity: 0.5 } },
+  } as any);
+  expect(params.minerals.copper.baselineGdpElasticity).toBe(0.5);
+  expect(params.minerals.copper.baselineDemand2025)
+    .toBe(resourcesDefaults.minerals.copper.baselineDemand2025);
 });
 
 // --- Land Use ---

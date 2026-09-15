@@ -232,6 +232,39 @@ test('near-term electrification pace is fast but bounded', () => {
   expect(pacePerYear).toBeLessThan(0.03);
 });
 
+test('2025 primary mineral demand reproduces observed mine production', () => {
+  // Calibration pin for the non-transition demand stream. `annualSupply2025` is
+  // primary (mine-supplied) production and `demand` is total use net of
+  // recycling, so the two must agree in the base year — that is what makes
+  // every mineral's supply ratio start at exactly 1.0, and it is what lets the
+  // model ask whether capacity growth can keep up with demand growth.
+  //
+  // Sources: copper 23.0 Mt and REO 0.39 Mt from USGS MCS 2026; steel 1,202 Mt
+  // = worldsteel's 1,849.4 Mt crude less the ~35% scrap-fed EAF share.
+  //
+  // Lithium is deliberately excluded: ~85% of real lithium use is batteries and
+  // the model's 2025 battery build is below the actual market, so it calibrates
+  // to the transition build rather than to this stream (see resources.ts).
+  const first = runSimulation().results[0];
+  expect(first.year).toBe(2025);
+  expect(first.copperDemand).toBeCloseTo(23.0, 1);
+  expect(first.steelDemand / 1202).toBeCloseTo(1, 2);
+  expect(first.rareEarthsDemand).toBeCloseTo(0.39, 2);
+  expect(first.mineralConstraint).toBeCloseTo(1, 6);
+});
+
+test('mineral supply constrains the build-out later in the century', () => {
+  // The constraint used to be dead: it was identically 1.0 in every year,
+  // because mining capacity was seeded from total world output while demand
+  // counted only the transition slice. With economy-wide demand it binds.
+  const result = runSimulation();
+  const last = result.results[result.results.length - 1];
+  expect(last.mineralConstraint).toBeLessThan(0.95);
+  expect(last.mineralConstraint).toBeGreaterThan(0.1);
+  // And extraction is capped by capacity, never by demand alone.
+  expect(last.copperExtraction).toBeLessThan(last.copperDemand);
+});
+
 test('ai-energy-boom raises the cost of capital materially', () => {
   // Heavy automation + energy + CDR competing for savings raises WACC well
   // above baseline. The improved regional allocator also makes the extreme

@@ -39,7 +39,7 @@ import {
   LAND_PORT,
   MINERALS_PORT,
 } from '../port-schemas.js';
-import { EnergySource, Region, REGIONS } from '../domain-types.js';
+import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 // =============================================================================
 // PARAMETERS
@@ -51,14 +51,30 @@ export interface MineralParams {
   perMW_wind?: number;       // kg per MW wind
   perMW_nuclear?: number;    // kg per MW nuclear
   perGWh_battery?: number;   // kg per GWh battery
-  learningRate: number;      // Annual intensity decline
+  learningRate: number;      // Annual intensity decline (transition tech only — see below)
   reserves: number | null;   // Mt known reserves (null = unlimited)
   recyclingBase: number;     // Baseline recycling rate
   recyclingMax: number;      // Max recycling rate
-  recyclingHalfway: number;  // Mt stock at halfway to max recycling
+  recyclingHalfway: number;  // Mt post-2025 extraction at 63% of the way to max
 
-  // Mining supply constraints
-  annualSupply2025: number;  // Mt/year current mining capacity
+  // Non-transition ("baseline economy") demand: building wiring, distribution
+  // grid, motors, appliances, construction steel. Modelled as intensity-of-use
+  // against GDP rather than itemised, because the model has no sectoral detail.
+  //
+  // NOTE: `learningRate` is deliberately NOT applied to this stream. It is a
+  // kg/MW equipment-intensity decline calibrated to transition tech, and
+  // `baselineGdpElasticity < 1` already carries the economy-wide decoupling
+  // (world copper use grew 2.9%/yr against 3.4%/yr world real GDP, 1990-2024,
+  // i.e. intensity fell ~0.5%/yr — which IS an elasticity of ~0.85). Applying
+  // both would double-count the same thrifting.
+  baselineDemand2025: number;      // Mt/year gross, non-transition demand in 2025
+  baselineGdpElasticity: number;   // d(ln demand)/d(ln GDP), intensity-of-use
+
+  // Mining supply constraints. `annualSupply2025` is PRIMARY (mine-supplied)
+  // production, the same quantity as `demand` net of recycling — so the
+  // supply ratio starts at exactly 1.0 and the model's question is whether
+  // capacity growth can keep up with demand growth.
+  annualSupply2025: number;  // Mt/year current primary mining capacity
   maxMiningGrowth: number;   // Max annual growth rate of mining capacity
   maxMiningCapacity: number; // Mt/year ceiling (logistic saturation)
 }
@@ -185,25 +201,45 @@ export const resourcesDefaults: ResourcesParams = {
       perMW_solar: 2800,          // kg/MW utility PV, IEA Critical Minerals 2021 (~2.8 t/MW); see docs/
       perMW_wind: 3500,           // kg/MW onshore, IEA 2021 (~2.9 t/MW onshore, ~8 t/MW offshore — blended)
       perGWh_battery: 700000,     // kg/GWh (0.7 kg/kWh): cell collectors + pack busbars, IEA Critical Minerals 2021
-      learningRate: 0.02,         // Intensity decline assumption
-      reserves: 880,              // Mt, USGS Mineral Commodity Summaries 2023 (~890 Mt)
+      learningRate: 0.02,         // Intensity decline assumption (transition tech only)
+      reserves: 980,              // Mt, USGS MCS 2026 (world reserves 980,000 kt)
       recyclingBase: 0.15,
       recyclingMax: 0.50,
-      recyclingHalfway: 500,
-      annualSupply2025: 22,       // Mt/year mine production, USGS 2024 (~22 Mt)
-      maxMiningGrowth: 0.03,      // 3%/yr max growth (assumption)
+      recyclingHalfway: 1500,     // Mt post-2025 extraction; scaled to total (not transition-only) extraction
+      // Non-transition demand: derived so 2025 net demand reproduces mine
+      // production. 23.0/(1-0.15) = 27.06 Mt total gross use, less the ~1.90 Mt
+      // the transition itself takes. Cross-check: USGS MCS 2026 world refinery
+      // production (the scrap-inclusive measure of total use) is 29 Mt.
+      baselineDemand2025: 25.16,
+      baselineGdpElasticity: 0.85, // World refined copper use +2.9%/yr vs world real GDP
+                                   // +3.4%/yr, 1990-2024 (ICSG/USGS series; World Bank GDP)
+      annualSupply2025: 23,       // Mt/yr mine production, USGS MCS 2026 (world total 23,000 kt)
+      maxMiningGrowth: 0.03,      // Ceiling. Observed 2015-2025 CAGR was 1.9% (19.1 -> 23.0 Mt)
+                                  // and 2024->2025 was flat, so 3% is generous
       maxMiningCapacity: 60,      // Mt/yr logistic ceiling (assumption)
     },
     lithium: {
       name: 'Lithium',
       perGWh_battery: 110000,     // kg Li per GWh (~0.11 kg/kWh, blended NMC/LFP; IRENA 2023)
       learningRate: 0.03,         // Intensity decline from NMC→LFP shift + efficiency
-      reserves: 28,               // Mt lithium metal (USGS 2024)
+      reserves: 37,               // Mt lithium content, USGS MCS 2026 (37,000,000 t)
       recyclingBase: 0.05,
       recyclingMax: 0.30,
-      recyclingHalfway: 20,
-      annualSupply2025: 0.18,     // Mt/year lithium metal (USGS 2024: 180kt)
-      maxMiningGrowth: 0.15,      // 15%/yr max growth (new mines opening fast)
+      recyclingHalfway: 25,       // Mt post-2025 extraction; scaled to total extraction
+      // Non-transition lithium: ceramics, glass, lubricating greases, air
+      // treatment — ~15% of end use (USGS MCS 2026 end-use shares).
+      //
+      // Lithium is the one mineral whose 2025 net demand does NOT reproduce
+      // mine production, because ~85% of real lithium use is batteries and the
+      // model's 2025 battery build is far below the actual market. That is a
+      // calibration question for the energy/transport build, not for this
+      // stream — so this stays at the true non-battery figure rather than
+      // absorbing the gap and mislabelling batteries as baseline demand.
+      baselineDemand2025: 0.046,
+      baselineGdpElasticity: 0.7, // Industrial (non-battery) lithium tracks GDP sub-proportionally
+      annualSupply2025: 0.29,     // Mt/yr lithium content, USGS MCS 2026 (2025e 290,000 t)
+      maxMiningGrowth: 0.15,      // Ceiling. Observed 2015-2025 CAGR ~25% (32 -> 290 kt),
+                                  // an exceptional ramp; 15% is the conservative long-run rate
       maxMiningCapacity: 3.0,     // Mt/yr logistic ceiling (brine + hard rock + clay)
     },
     rareEarths: {
@@ -213,12 +249,18 @@ export const resourcesDefaults: ResourcesParams = {
       // DFIG uses ~10x less.
       perMW_wind: 65,             // kg NdPr-equivalent/MW, fleet-weighted
       learningRate: 0.01,
-      reserves: 130,              // Mt REO, USGS 2024 (~110-130 Mt range)
+      reserves: 75,               // Mt REO, USGS MCS 2026 (>75,000,000 t; was 130 — a real downgrade)
       recyclingBase: 0.01,
       recyclingMax: 0.20,
-      recyclingHalfway: 10,
-      annualSupply2025: 0.30,     // Mt/year
-      maxMiningGrowth: 0.05,      // 5%/yr
+      recyclingHalfway: 30,       // Mt post-2025 extraction; scaled to total extraction
+      // Non-transition REE: magnets outside wind (EV traction motors, HDDs,
+      // consumer electronics), catalysts, polishing, metallurgy — the large
+      // majority of REO use; wind is a single-digit share.
+      baselineDemand2025: 0.381,
+      baselineGdpElasticity: 0.8,
+      annualSupply2025: 0.39,     // Mt/yr REO, USGS MCS 2026 (2025e 390,000 t)
+      maxMiningGrowth: 0.10,      // Ceiling. Observed 2015-2025 CAGR ~11.6% (130 -> 390 kt);
+                                  // the previous 0.05 was below what the industry has actually delivered
       maxMiningCapacity: 1.5,     // Mt/yr logistic ceiling
     },
     steel: {
@@ -228,12 +270,22 @@ export const resourcesDefaults: ResourcesParams = {
       perMW_nuclear: 60000,       // kg/MW (lit. ~40-80 t/MW)
       learningRate: 0.01,
       reserves: null, // Effectively unlimited (iron ore is not scarce)
-      recyclingBase: 0.35,
+      recyclingBase: 0.35,        // EAF/scrap share of crude steel production (worldsteel)
       recyclingMax: 0.70,
-      recyclingHalfway: 5000,
-      annualSupply2025: 1900,     // Mt/year crude steel, worldsteel 2023 (~1.89 Gt)
-      maxMiningGrowth: 0.02,      // 2%/yr max growth (assumption)
-      maxMiningCapacity: 3500,    // Mt/yr logistic ceiling (assumption)
+      recyclingHalfway: 60000,    // Mt post-2025 extraction; scaled to total extraction
+      // Non-transition steel: construction, vehicles, machinery, packaging —
+      // essentially all of the 1,849 Mt world total; transition tech is a
+      // low-tens-of-Mt slice.
+      baselineDemand2025: 1810,
+      baselineGdpElasticity: 0.6, // Steel intensity decouples faster than copper as
+                                  // building/vehicle stocks saturate (worldsteel intensity series)
+      // PRIMARY (ore-based) crude steel only. World crude steel was 1,849.4 Mt
+      // in 2025 (worldsteel), of which ~35% is scrap-fed EAF — and `demand` is
+      // net of recycling, so the comparand is the ore-based ~65%.
+      annualSupply2025: 1202,     // Mt/yr primary crude steel = 1849.4 x (1 - 0.35)
+      maxMiningGrowth: 0.02,      // Ceiling. Observed 2015-2025 CAGR 1.3% (1,620 -> 1,849 Mt)
+      maxMiningCapacity: 2300,    // Mt/yr logistic ceiling (assumption). Primary-equivalent of the
+                                  // previous 3,500 Mt total-crude ceiling: 3500 x (1 - 0.35)
     },
   },
   evBattery: {
@@ -402,6 +454,12 @@ export interface ResourcesInputs {
   /** GDP per capita in 2025 ($) - for wealth adjustment */
   gdpPerCapita2025: number;
 
+  /** World GDP ($T/year) - drives non-transition mineral demand */
+  gdp: number;
+
+  /** World GDP in 2025 ($T/year) - intensity-of-use anchor */
+  gdp2025: number;
+
   /** Global temperature (°C above preindustrial) */
   temperature: number;
 
@@ -410,10 +468,13 @@ export interface ResourcesInputs {
 }
 
 export interface MineralOutput {
-  demand: number;        // Mt/year net of recycling
-  grossDemand: number;   // Mt/year before recycling
+  demand: number;        // Mt/year net of recycling (= primary demand)
+  grossDemand: number;   // Mt/year before recycling (total use)
+  transitionGrossDemand: number; // Mt/year of grossDemand attributable to energy-transition build
+  extraction: number;    // Mt/year actually mined (= min(demand, capacity))
+  supplyRatio: number;   // extraction / demand (1 = unconstrained)
   recycled: number;      // Mt/year recycled
-  cumulative: number;    // Mt total extracted
+  cumulative: number;    // Mt total extracted since 2025
   recyclingRate: number; // Current recycling rate
   reserveRatio: number;  // Cumulative / reserves (null if unlimited)
 }
@@ -454,6 +515,8 @@ export interface ResourcesOutputs {
   food: FoodOutput;
   foodStress: number;  // 0-1, fraction of food demand that cannot be met
   mineralConstraint: number;  // 0-1, min supply ratio across minerals (1 = no constraint)
+  /** Per-source constraint: min supply ratio over the minerals that source actually consumes */
+  mineralConstraintBySource: Record<EnergySource, number>;
   miningEnergyTWh: number;   // Energy for mining operations
   farmingEnergyTWh: number;  // Energy for farming operations
   totalResourceEnergy: number; // Sum of mining + farming energy (TWh)
@@ -476,14 +539,37 @@ function recyclingRate(mineral: MineralParams, stockInUse: number): number {
 }
 
 /**
+ * Does this energy source consume this mineral at all?
+ *
+ * Read off the intensity params so the two cannot drift apart: a mineral with
+ * no `perMW_solar` is not a constraint on solar, however scarce it gets.
+ */
+function sourceUsesMineral(source: EnergySource, mineral: MineralParams): boolean {
+  switch (source) {
+    case 'solar': return (mineral.perMW_solar ?? 0) > 0;
+    case 'wind': return (mineral.perMW_wind ?? 0) > 0;
+    case 'nuclear': return (mineral.perMW_nuclear ?? 0) > 0;
+    case 'battery': return (mineral.perGWh_battery ?? 0) > 0;
+    default: return false;
+  }
+}
+
+/**
  * Calculate mineral demand for capacity additions
  */
 function calculateMineralDemand(
   mineral: MineralParams,
   additions: Record<EnergySource, number>,
   yearIndex: number,
-  cumulativeStock: number
-): { demand: number; grossDemand: number; recycled: number; recyclingRate: number } {
+  cumulativeStock: number,
+  gdpRatio: number
+): {
+  demand: number;
+  grossDemand: number;
+  transitionGrossDemand: number;
+  recycled: number;
+  recyclingRate: number;
+} {
   // Intensity declines with learning
   const intensityFactor = Math.pow(1 - mineral.learningRate, yearIndex);
 
@@ -506,14 +592,22 @@ function calculateMineralDemand(
   }
 
   // Convert to Mt
-  const grossDemand = grossDemandKg / 1e9;
+  const transitionGrossDemand = grossDemandKg / 1e9;
+
+  // Non-transition demand (building wiring, grid, motors, appliances,
+  // construction steel) as intensity-of-use against GDP. See the note on
+  // MineralParams for why `learningRate` is not applied here.
+  const baselineGrossDemand = mineral.baselineDemand2025
+    * Math.pow(gdpRatio, mineral.baselineGdpElasticity);
+
+  const grossDemand = transitionGrossDemand + baselineGrossDemand;
 
   // Calculate recycling
   const recycleRate = recyclingRate(mineral, cumulativeStock);
   const recycled = grossDemand * recycleRate;
   const demand = Math.max(0, grossDemand - recycled);
 
-  return { demand, grossDemand, recycled, recyclingRate: recycleRate };
+  return { demand, grossDemand, transitionGrossDemand, recycled, recyclingRate: recycleRate };
 }
 
 /**
@@ -599,6 +693,8 @@ export const resourcesModule: Module<
       population: unitPort('people'),
       gdpPerCapita: unitPort('$/people/year'),
       gdpPerCapita2025: unitPort('$/people/year'),
+      gdp: unitPort('$T/year'),
+      gdp2025: unitPort('$T/year'),
       temperature: unitPort('Δ°C'),
       transportElectrification: unitPort('fraction'),
     },
@@ -609,6 +705,7 @@ export const resourcesModule: Module<
       food: FOOD_PORT,
       foodStress: unitPort('fraction'),
       mineralConstraint: unitPort('fraction'),
+      mineralConstraintBySource: unitPort('fraction', 'record'),
       miningEnergyTWh: unitPort('TWh/year'),
       farmingEnergyTWh: unitPort('TWh/year'),
       totalResourceEnergy: unitPort('TWh/year'),
@@ -633,6 +730,12 @@ export const resourcesModule: Module<
       }
       if (m.recyclingMax < m.recyclingBase) {
         errors.push(`minerals.${key}.recyclingMax must be >= recyclingBase`);
+      }
+      if (!(m.baselineDemand2025 >= 0)) {
+        errors.push(`minerals.${key}.baselineDemand2025 must be >= 0`);
+      }
+      if (!(m.baselineGdpElasticity >= 0 && m.baselineGdpElasticity <= 2)) {
+        errors.push(`minerals.${key}.baselineGdpElasticity should be 0-2`);
       }
     }
 
@@ -749,6 +852,8 @@ export const resourcesModule: Module<
       population,
       gdpPerCapita,
       gdpPerCapita2025,
+      gdp,
+      gdp2025,
       temperature,
       transportElectrification,
     } = inputs;
@@ -786,6 +891,10 @@ export const resourcesModule: Module<
     // =========================================================================
     const mineralOutputs: Record<MineralKey, MineralOutput> = {} as any;
     const newMineralState: Record<MineralKey, MineralState> = {} as any;
+    const supplyRatioByMineral = {} as Record<MineralKey, number>;
+
+    // Intensity-of-use driver for non-transition demand
+    const gdpRatio = gdp2025 > 0 ? gdp / gdp2025 : 1;
 
     // Track minimum supply ratio across all minerals
     let mineralConstraint = 1.0;
@@ -805,7 +914,8 @@ export const resourcesModule: Module<
         mineral,
         additionsWithEV,
         yearIndex,
-        prevCumulative
+        prevCumulative,
+        gdpRatio
       );
 
       // Logistic mining capacity growth:
@@ -814,18 +924,29 @@ export const resourcesModule: Module<
       const effectiveGrowth = mineral.maxMiningGrowth * Math.max(0, 1 - utilizationFraction);
       const newMiningCapacity = prevMiningCapacity * (1 + effectiveGrowth);
 
-      // Supply ratio: can supply meet gross demand (before recycling)?
-      // Net demand (after recycling) is what mining must actually provide
-      const supplyRatio = result.demand > 0
-        ? Math.min(1, newMiningCapacity / result.demand)
-        : 1.0;
+      // Mines cannot supply more than capacity. `demand` is net of recycling,
+      // i.e. the primary (mine-supplied) claim, and `miningCapacity` is seeded
+      // from primary production — so the two sides are the same quantity.
+      //
+      // The shortfall is rationed pro rata across every use. The model has no
+      // metal price, so unserved tonnage stands in for the substitution and
+      // thrifting that a price spike would force (aluminium for copper in
+      // cable, for instance). Booking `extraction` rather than `demand` keeps
+      // the ledger closed: cumulative extraction can never exceed what the
+      // mines were capable of producing.
+      const extraction = Math.min(result.demand, newMiningCapacity);
+      const supplyRatio = result.demand > 0 ? extraction / result.demand : 1.0;
+      supplyRatioByMineral[key] = supplyRatio;
       mineralConstraint = Math.min(mineralConstraint, supplyRatio);
 
-      const newCumulative = prevCumulative + result.demand;
+      const newCumulative = prevCumulative + extraction;
 
       mineralOutputs[key] = {
         demand: result.demand,
         grossDemand: result.grossDemand,
+        transitionGrossDemand: result.transitionGrossDemand,
+        extraction,
+        supplyRatio,
         recycled: result.recycled,
         cumulative: newCumulative,
         recyclingRate: result.recyclingRate,
@@ -833,6 +954,20 @@ export const resourcesModule: Module<
       };
 
       newMineralState[key] = { cumulative: newCumulative, miningCapacity: newMiningCapacity };
+    }
+
+    // Per-source constraint: a source is limited only by the minerals it uses.
+    // The scalar `mineralConstraint` above is the worst case across all four
+    // and is kept for reporting; energy dispatches on this record.
+    const mineralConstraintBySource = {} as Record<EnergySource, number>;
+    for (const source of ENERGY_SOURCES) {
+      let ratio = 1.0;
+      for (const key of MINERAL_KEYS) {
+        if (sourceUsesMineral(source, params.minerals[key])) {
+          ratio = Math.min(ratio, supplyRatioByMineral[key]);
+        }
+      }
+      mineralConstraintBySource[source] = ratio;
     }
 
     // =========================================================================
@@ -1063,14 +1198,21 @@ export const resourcesModule: Module<
     // =========================================================================
     // ENERGY COSTS FOR MINING AND FARMING
     // =========================================================================
+    // Charged on the TRANSITION-ATTRIBUTABLE slice only. Production treats
+    // `totalResourceEnergy` as system overhead and subtracts it from the useful
+    // energy available for GDP (production.ts), against a `nonElectricEnergy`
+    // anchor of ~92,000 TWh that ALREADY contains the world's mining and
+    // smelting energy. Charging baseline mineral demand here too would
+    // double-count roughly a fifth of world non-electric energy and turn an
+    // accounting artefact into a first-order GDP driver.
     let miningEnergyTWh = 0;
     for (const key of MINERAL_KEYS) {
-      const grossDemandMt = mineralOutputs[key].grossDemand;
+      const transitionGrossMt = mineralOutputs[key].transitionGrossDemand;
       const baseEnergyPerTon = params.mining.energyIntensity[key];
       const reserveRatio = mineralOutputs[key].reserveRatio;
       // Harder to mine as ores deplete
       const depletionMultiplier = 1 / Math.pow(Math.max(0.01, 1 - reserveRatio), params.mining.depletionExponent);
-      const miningEnergyGJ = grossDemandMt * baseEnergyPerTon * depletionMultiplier * 1e6;
+      const miningEnergyGJ = transitionGrossMt * baseEnergyPerTon * depletionMultiplier * 1e6;
       miningEnergyTWh += miningEnergyGJ / 3.6e6; // GJ → TWh (1 TWh = 3.6e6 GJ)
     }
 
@@ -1105,6 +1247,7 @@ export const resourcesModule: Module<
         food: foodOutput,
         foodStress,
         mineralConstraint,
+        mineralConstraintBySource,
         miningEnergyTWh,
         farmingEnergyTWh,
         totalResourceEnergy,
