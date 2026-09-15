@@ -15,6 +15,7 @@ import {
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { dispatchDefaults } from './dispatch.js';
+import { MINERAL_KEYS, mineralIntensity, resourcesDefaults } from './resources.js';
 import { test, expect, printSummary, regional } from '../test-utils.js';
 
 // Helper to build a constant-filled per-region record
@@ -27,8 +28,27 @@ function createInputs(
   laggedCurtailmentRate: number = 0,
   laggedInterestRate: number = 0.05,
 ) {
-  return { electricityDemand, availableInvestment, mineralConstraint, laggedCurtailmentRate, laggedInterestRate };
+  // Energy throttles per source, so the scalar is expanded into the record it
+  // actually reads. Sources that consume no minerals are never constrained.
+  const mineralConstraintBySource = Object.fromEntries(
+    ENERGY_SOURCES.map((source) => [
+      source,
+      MINERAL_INTENSIVE_SOURCES.includes(source) ? mineralConstraint : 1.0,
+    ]),
+  ) as Record<EnergySource, number>;
+  return {
+    electricityDemand,
+    availableInvestment,
+    mineralConstraintBySource,
+    laggedCurtailmentRate,
+    laggedInterestRate,
+  };
 }
+
+/** Sources that consume at least one mineral under the default intensities. */
+const MINERAL_INTENSIVE_SOURCES: EnergySource[] = ENERGY_SOURCES.filter((source) =>
+  MINERAL_KEYS.some((key) => mineralIntensity(source, resourcesDefaults.minerals[key]) > 0),
+);
 
 // Helper to run simulation for N years
 function runYears(

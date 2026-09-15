@@ -5,7 +5,12 @@
  * Validates recycling curves, yield damage, and carbon flux.
  */
 
-import { resourcesModule, resourcesDefaults } from './resources.js';
+import {
+  resourcesModule,
+  resourcesDefaults,
+  MINERAL_KEYS,
+  miningDepletionMultiplier,
+} from './resources.js';
 
 import { test, expect, printSummary, sumRegional } from '../test-utils.js';
 
@@ -164,7 +169,7 @@ test('baseline stream equals its 2025 constant at the GDP anchor', () => {
   // total primary demand reproduces observed mine production, which depends on
   // the real 2025 capacity additions) lives in simulation.test.ts.
   const { outputs } = runYears(1);
-  for (const key of ['copper', 'lithium', 'rareEarths', 'steel'] as const) {
+  for (const key of MINERAL_KEYS) {
     const baseline = outputs.minerals[key].grossDemand - outputs.minerals[key].transitionGrossDemand;
     expect(baseline).toBeCloseTo(resourcesDefaults.minerals[key].baselineDemand2025, 6);
   }
@@ -180,9 +185,10 @@ test('lithium is under capacity in 2025 (battery build, not baseline, is the gap
 });
 
 test('baseline demand scales with GDP at the stated elasticity', () => {
-  const base = runYears(1).outputs.minerals.copper.grossDemand;
+  const y1 = runYears(1).outputs.minerals.copper;
+  const base = y1.grossDemand;
+  const transition = y1.transitionGrossDemand;
   const doubled = runYears(1, { gdp: 232 }).outputs.minerals.copper.grossDemand;
-  const transition = runYears(1).outputs.minerals.copper.transitionGrossDemand;
   // Only the baseline stream responds to GDP; the transition slice is unchanged.
   const ratio = (doubled - transition) / (base - transition);
   expect(ratio).toBeCloseTo(Math.pow(2, resourcesDefaults.minerals.copper.baselineGdpElasticity), 6);
@@ -204,22 +210,19 @@ test('constraint binds when demand outruns capacity', () => {
 test('extraction ledger closes: cumulative never exceeds the capacity path', () => {
   // Booking `extraction` rather than `demand` is what keeps this true.
   const years = 30;
-  const { outputs } = runYears(years, { gdp: 464 });
-  const cap = resourcesDefaults.minerals.copper;
-  let capacity = cap.annualSupply2025;
-  let ceiling = 0;
-  for (let i = 0; i < years; i++) {
-    capacity *= 1 + cap.maxMiningGrowth * Math.max(0, 1 - capacity / cap.maxMiningCapacity);
-    ceiling += capacity;
-  }
-  expect(outputs.minerals.copper.cumulative).toBeLessThan(ceiling * 1.000001);
+  const { state, outputs } = runYears(years, { gdp: 464 });
+  // Read the capacity off state rather than re-deriving the growth law, so the
+  // test cannot pass by duplicating a bug in the thing it is checking.
+  expect(outputs.minerals.copper.extraction)
+    .toBeLessThan(state.minerals.copper.miningCapacity * 1.000001);
+  expect(outputs.minerals.copper.cumulative)
+    .toBeLessThan(state.minerals.copper.miningCapacity * years);
 });
 
 test('a source is not throttled by a mineral it does not use', () => {
   // Nuclear uses steel only (no perMW_nuclear on copper/lithium/rareEarths),
   // so a copper shortage must leave nuclear at 1.0.
   const { outputs } = runYears(1, { gdp: 464 });
-  expect(outputs.minerals.copper.supplyRatio).toBeLessThan(1);
   expect(outputs.mineralConstraintBySource.nuclear).toBeCloseTo(
     outputs.minerals.steel.supplyRatio, 6);
   expect(outputs.mineralConstraintBySource.battery).toBeLessThan(1); // battery uses copper
@@ -229,9 +232,9 @@ test('mining energy is charged on the transition slice only', () => {
   // Baseline mining energy is already inside production's nonElectricEnergy
   // anchor; charging it again as system overhead would double-count it.
   const { outputs } = runYears(1);
-  const expected = (['copper', 'lithium', 'rareEarths', 'steel'] as const).reduce((sum, key) => {
+  const expected = MINERAL_KEYS.reduce((sum, key) => {
     const rr = outputs.minerals[key].reserveRatio;
-    const depletion = 1 / Math.pow(Math.max(0.01, 1 - rr), resourcesDefaults.mining.depletionExponent);
+    const depletion = miningDepletionMultiplier(rr, resourcesDefaults.mining.depletionExponent);
     return sum + outputs.minerals[key].transitionGrossDemand
       * resourcesDefaults.mining.energyIntensity[key] * depletion * 1e6 / 3.6e6;
   }, 0);

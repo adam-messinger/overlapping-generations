@@ -229,12 +229,15 @@ export const resourcesDefaults: ResourcesParams = {
       // Non-transition lithium: ceramics, glass, lubricating greases, air
       // treatment — ~15% of end use (USGS MCS 2026 end-use shares).
       //
-      // Lithium is the one mineral whose 2025 net demand does NOT reproduce
-      // mine production, because ~85% of real lithium use is batteries and the
-      // model's 2025 battery build is far below the actual market. That is a
-      // calibration question for the energy/transport build, not for this
-      // stream — so this stays at the true non-battery figure rather than
-      // absorbing the gap and mislabelling batteries as baseline demand.
+      // Lithium is the only mineral left at its true non-transition value.
+      // Copper, REE and steel are dominated by non-transition use, so their
+      // constants also absorb whatever the model's 2025 transition build gets
+      // wrong; for lithium that residual would be negative (~85% of real
+      // lithium use is batteries and the model's 2025 battery build is far
+      // below the actual market), so it is left at zero rather than
+      // mislabelling batteries as baseline demand. Its 2025 net demand
+      // therefore does not reproduce mine production — a statement about the
+      // battery build, not about this stream.
       baselineDemand2025: 0.046,
       baselineGdpElasticity: 0.7, // Industrial (non-battery) lithium tracks GDP sub-proportionally
       annualSupply2025: 0.29,     // Mt/yr lithium content, USGS MCS 2026 (2025e 290,000 t)
@@ -472,7 +475,7 @@ export interface MineralOutput {
   grossDemand: number;   // Mt/year before recycling (total use)
   transitionGrossDemand: number; // Mt/year of grossDemand attributable to energy-transition build
   extraction: number;    // Mt/year actually mined (= min(demand, capacity))
-  supplyRatio: number;   // extraction / demand (1 = unconstrained)
+  supplyRatio: number;   // extraction / demand (1 = unconstrained); derivable, kept for the path-based collector
   recycled: number;      // Mt/year recycled
   cumulative: number;    // Mt total extracted since 2025
   recyclingRate: number; // Current recycling rate
@@ -538,20 +541,43 @@ function recyclingRate(mineral: MineralParams, stockInUse: number): number {
     (1 - Math.exp(-stockInUse / mineral.recyclingHalfway));
 }
 
+/** GJ per TWh. */
+const GJ_PER_TWH = 3.6e6;
+
 /**
- * Does this energy source consume this mineral at all?
+ * Which `MineralParams` field carries each source's intensity, and what scales
+ * its additions to the field's unit.
  *
- * Read off the intensity params so the two cannot drift apart: a mineral with
- * no `perMW_solar` is not a constraint on solar, however scarce it gets.
+ * Single source of truth: both the demand accumulation and the per-source
+ * constraint read this, so a mineral cannot be charged against a source it
+ * does not constrain, or vice versa. A source absent from this table consumes
+ * no minerals in the model.
  */
-function sourceUsesMineral(source: EnergySource, mineral: MineralParams): boolean {
-  switch (source) {
-    case 'solar': return (mineral.perMW_solar ?? 0) > 0;
-    case 'wind': return (mineral.perMW_wind ?? 0) > 0;
-    case 'nuclear': return (mineral.perMW_nuclear ?? 0) > 0;
-    case 'battery': return (mineral.perGWh_battery ?? 0) > 0;
-    default: return false;
-  }
+const SOURCE_INTENSITY: Partial<
+  Record<EnergySource, { field: keyof MineralParams; additionsToUnit: number }>
+> = {
+  solar: { field: 'perMW_solar', additionsToUnit: 1000 },     // GW -> MW
+  wind: { field: 'perMW_wind', additionsToUnit: 1000 },       // GW -> MW
+  nuclear: { field: 'perMW_nuclear', additionsToUnit: 1000 }, // GW -> MW
+  battery: { field: 'perGWh_battery', additionsToUnit: 1 },   // already GWh
+};
+
+/** kg of `mineral` per unit of `source` addition, 0 if the source does not use it. */
+export function mineralIntensity(source: EnergySource, mineral: MineralParams): number {
+  const entry = SOURCE_INTENSITY[source];
+  if (!entry) return 0;
+  return ((mineral[entry.field] as number | undefined) ?? 0) * entry.additionsToUnit;
+}
+
+/**
+ * Energy penalty as a mineral's booked reserves are drawn down.
+ *
+ * Clamped, so past 100% of reserves it pins at 1/0.01^exponent forever rather
+ * than diverging. Reserves are an economic rather than geological stock and
+ * the model never grows them, so this clamp is load-bearing late century.
+ */
+export function miningDepletionMultiplier(reserveRatio: number, exponent: number): number {
+  return 1 / Math.pow(Math.max(0.01, 1 - reserveRatio), exponent);
 }
 
 /**
@@ -575,20 +601,8 @@ function calculateMineralDemand(
 
   // Calculate gross demand in kg
   let grossDemandKg = 0;
-
-  if (mineral.perMW_solar) {
-    grossDemandKg += additions.solar * 1000 * mineral.perMW_solar * intensityFactor;
-  }
-  if (mineral.perMW_wind) {
-    grossDemandKg += additions.wind * 1000 * mineral.perMW_wind * intensityFactor;
-  }
-  if (mineral.perMW_nuclear) {
-    grossDemandKg += additions.nuclear * 1000 * mineral.perMW_nuclear * intensityFactor;
-  }
-  if (mineral.perGWh_battery) {
-    // Battery additions are already in GWh (from energy module)
-    const batteryGWh = additions.battery;
-    grossDemandKg += batteryGWh * mineral.perGWh_battery * intensityFactor;
+  for (const source of ENERGY_SOURCES) {
+    grossDemandKg += additions[source] * mineralIntensity(source, mineral) * intensityFactor;
   }
 
   // Convert to Mt
@@ -662,8 +676,8 @@ function calculateFoodDemand(
 // MODULE DEFINITION
 // =============================================================================
 
-type MineralKey = 'copper' | 'lithium' | 'rareEarths' | 'steel';
-const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 'steel'];
+export type MineralKey = 'copper' | 'lithium' | 'rareEarths' | 'steel';
+export const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 'steel'];
 
 export const resourcesModule: Module<
   ResourcesParams,
@@ -891,13 +905,9 @@ export const resourcesModule: Module<
     // =========================================================================
     const mineralOutputs: Record<MineralKey, MineralOutput> = {} as any;
     const newMineralState: Record<MineralKey, MineralState> = {} as any;
-    const supplyRatioByMineral = {} as Record<MineralKey, number>;
 
     // Intensity-of-use driver for non-transition demand
     const gdpRatio = gdp2025 > 0 ? gdp / gdp2025 : 1;
-
-    // Track minimum supply ratio across all minerals
-    let mineralConstraint = 1.0;
 
     for (const key of MINERAL_KEYS) {
       const mineral = params.minerals[key];
@@ -928,16 +938,20 @@ export const resourcesModule: Module<
       // i.e. the primary (mine-supplied) claim, and `miningCapacity` is seeded
       // from primary production — so the two sides are the same quantity.
       //
-      // The shortfall is rationed pro rata across every use. The model has no
-      // metal price, so unserved tonnage stands in for the substitution and
-      // thrifting that a price spike would force (aluminium for copper in
-      // cable, for instance). Booking `extraction` rather than `demand` keeps
-      // the ledger closed: cumulative extraction can never exceed what the
-      // mines were capable of producing.
+      // Both streams are rationed at the same ratio, but only the transition
+      // stream has a downstream consumer (energy scales its capacity additions
+      // by it), so the baseline stream's shortfall is not observable anywhere:
+      // nothing in the model consumes building wiring. Read `demand` and
+      // `grossDemand` as demand, not consumption — `extraction` is what was
+      // actually mined.
+      //
+      // The model has no metal price, so unserved tonnage stands in for the
+      // substitution and thrifting a price spike would force (aluminium for
+      // copper in cable, most obviously) rather than for physical scarcity.
+      // Booking `extraction` rather than `demand` keeps the ledger closed:
+      // cumulative extraction can never exceed what the mines could produce.
       const extraction = Math.min(result.demand, newMiningCapacity);
       const supplyRatio = result.demand > 0 ? extraction / result.demand : 1.0;
-      supplyRatioByMineral[key] = supplyRatio;
-      mineralConstraint = Math.min(mineralConstraint, supplyRatio);
 
       const newCumulative = prevCumulative + extraction;
 
@@ -956,19 +970,21 @@ export const resourcesModule: Module<
       newMineralState[key] = { cumulative: newCumulative, miningCapacity: newMiningCapacity };
     }
 
-    // Per-source constraint: a source is limited only by the minerals it uses.
-    // The scalar `mineralConstraint` above is the worst case across all four
-    // and is kept for reporting; energy dispatches on this record.
+    // Per-source constraint: a source is limited only by the minerals it uses,
+    // so a lithium shortage cannot throttle nuclear. This is the record energy
+    // dispatches on; the scalar below is derived from it purely for reporting.
     const mineralConstraintBySource = {} as Record<EnergySource, number>;
     for (const source of ENERGY_SOURCES) {
       let ratio = 1.0;
       for (const key of MINERAL_KEYS) {
-        if (sourceUsesMineral(source, params.minerals[key])) {
-          ratio = Math.min(ratio, supplyRatioByMineral[key]);
+        if (mineralIntensity(source, params.minerals[key]) > 0) {
+          ratio = Math.min(ratio, mineralOutputs[key].supplyRatio);
         }
       }
       mineralConstraintBySource[source] = ratio;
     }
+    const mineralConstraint = Math.min(
+      1, ...MINERAL_KEYS.map((key) => mineralOutputs[key].supplyRatio));
 
     // =========================================================================
     // LAND
@@ -1205,19 +1221,24 @@ export const resourcesModule: Module<
     // smelting energy. Charging baseline mineral demand here too would
     // double-count roughly a fifth of world non-electric energy and turn an
     // accounting artefact into a first-order GDP driver.
+    // NOTE: this makes `miningEnergyTWh` transition-attributable mining energy,
+    // not world mining energy. Follow-up: `farmingEnergyTWh` below charges all
+    // world farmland into the same sum and double-counts against the same
+    // anchor — the same bug, unfixed, because fixing it belongs in production's
+    // ledger rather than here.
     let miningEnergyTWh = 0;
     for (const key of MINERAL_KEYS) {
       const transitionGrossMt = mineralOutputs[key].transitionGrossDemand;
       const baseEnergyPerTon = params.mining.energyIntensity[key];
       const reserveRatio = mineralOutputs[key].reserveRatio;
       // Harder to mine as ores deplete
-      const depletionMultiplier = 1 / Math.pow(Math.max(0.01, 1 - reserveRatio), params.mining.depletionExponent);
+      const depletionMultiplier = miningDepletionMultiplier(reserveRatio, params.mining.depletionExponent);
       const miningEnergyGJ = transitionGrossMt * baseEnergyPerTon * depletionMultiplier * 1e6;
-      miningEnergyTWh += miningEnergyGJ / 3.6e6; // GJ → TWh (1 TWh = 3.6e6 GJ)
+      miningEnergyTWh += miningEnergyGJ / GJ_PER_TWH;
     }
 
     // Farming energy: fertilizer, machinery, irrigation
-    const farmingEnergyTWh = farmland * params.land.energyPerHectare * 1e6 / 3.6e6;
+    const farmingEnergyTWh = farmland * params.land.energyPerHectare * 1e6 / GJ_PER_TWH;
 
     const totalResourceEnergy = miningEnergyTWh + farmingEnergyTWh;
 

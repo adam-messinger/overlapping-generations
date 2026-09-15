@@ -277,7 +277,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'minerals', as: 'copperCumulative', path: 'copper.cumulative', unit: 'Mt', description: 'Cumulative copper extracted since 2025', module: 'resources' },
     { source: 'minerals', as: 'lithiumCumulative', path: 'lithium.cumulative', unit: 'Mt', description: 'Cumulative lithium extracted', module: 'resources' },
     { source: 'mineralConstraint', unit: 'fraction', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
-    { source: 'miningEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by mining', module: 'resources' },
+    { source: 'miningEnergyTWh', unit: 'TWh/year', description: 'Energy consumed mining the energy transition\u2019s own minerals (baseline mining energy sits in the non-electric anchor)', module: 'resources' },
     { source: 'farmingEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by farming/agriculture', module: 'resources' },
 
     // Resources - Land

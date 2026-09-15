@@ -860,14 +860,6 @@ function buildLags(params: SimulationParams) {
     },
 
     // Energy needs lagged mineral constraint (resources runs after energy in topo order)
-    mineralConstraint: {
-      source: 'mineralConstraint',
-      delay: 1,
-      initial: 1.0,  // warm-up seed (bootstrapped)
-      contract: unitPort('fraction'),
-      bootstrap: true,
-    },
-
     // Energy needs the lagged per-source constraint (resources runs after energy)
     mineralConstraintBySource: {
       source: 'mineralConstraintBySource',

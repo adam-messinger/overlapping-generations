@@ -125,6 +125,10 @@ test('regional allocator anchors 2025 and does not collapse regions onto a share
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
+/** Shared by every test below that needs the deterministic default run:
+ *  recomputing it costs ~1s of CI time each. */
+const FULL_RUN = runSimulation();
+
 test('GDP is monotonic in efficiencyMultiplier (coupled efficiency series)', () => {
   // Demand decays energy at intensityDecline x efficiencyMultiplier; the
   // runner couples production's eta growth to the same effective rate. If
@@ -245,7 +249,7 @@ test('2025 primary mineral demand reproduces observed mine production', () => {
   // Lithium is deliberately excluded: ~85% of real lithium use is batteries and
   // the model's 2025 battery build is below the actual market, so it calibrates
   // to the transition build rather than to this stream (see resources.ts).
-  const first = runSimulation().results[0];
+  const first = FULL_RUN.results[0];
   expect(first.year).toBe(2025);
   expect(first.copperDemand).toBeCloseTo(23.0, 1);
   expect(first.steelDemand / 1202).toBeCloseTo(1, 2);
@@ -257,8 +261,7 @@ test('mineral supply constrains the build-out later in the century', () => {
   // The constraint used to be dead: it was identically 1.0 in every year,
   // because mining capacity was seeded from total world output while demand
   // counted only the transition slice. With economy-wide demand it binds.
-  const result = runSimulation();
-  const last = result.results[result.results.length - 1];
+  const last = FULL_RUN.results[FULL_RUN.results.length - 1];
   expect(last.mineralConstraint).toBeLessThan(0.95);
   expect(last.mineralConstraint).toBeGreaterThan(0.1);
   // And extraction is capped by capacity, never by demand alone.
@@ -271,7 +274,7 @@ test('ai-energy-boom raises the cost of capital materially', () => {
   // path hit the lagged funding-floor diagnostic late in the century (pinned
   // separately below), so this is no longer claimed to be its only bound.
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
-  const base = runSimulation();
+  const base = FULL_RUN;
   const boom = runSimulation(boomParams);
   const i2075 = 2075 - 2025;
   expect(boom.results[i2075].effectiveWACC)
@@ -464,9 +467,6 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
   }
 }
 
-/** Shared by the diagnostics tests below: four full-horizon runs would cost
- *  ~2.6s of CI time to recompute what two deterministic runs already give. */
-const FULL_RUN = runSimulation();
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
 
 test('diagnostics: false leaves every macro number bit-identical', () => {
