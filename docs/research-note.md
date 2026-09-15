@@ -185,9 +185,13 @@ Two mechanisms prevent fiscal crisis. First, retirement age adjustment: as life 
 
 This result is robust across scenarios: even Climate Cascade, with lower GDP growth, shows only 13.5% burden. The demographic fiscal challenge is real but self-correcting if retirement institutions adapt to longevity gains.
 
-### 3.5 Mineral Constraints Bind but Do Not Block
+### 3.5 Minerals Are a Binding Constraint
 
-Cumulative lithium demand reaches 51 Mt in baseline against 28 Mt reserves -- the model's logistic mining capacity growth (from 0.18 Mt/yr to a ceiling of 3.0 Mt/yr) and recycling (from 5% to 30%) allow reserves to be drawn down but not exhausted. Copper cumulative demand of 458 Mt against 880 Mt reserves leaves more headroom. The mineral constraint factor stays close to 1.0 in all scenarios, meaning supply keeps pace with demand -- though it requires aggressive mining investment.
+An earlier version of this note reported that "the mineral constraint factor stays close to 1.0 in all scenarios." That was an artefact: mineral demand counted only the energy-transition build (solar, wind, batteries, EVs) while mining capacity was seeded from *total* world output, so the constraint was ~14x oversized and never bound. With economy-wide demand -- building wiring, distribution grid, motors, appliances, construction steel, modelled as intensity-of-use against GDP -- the picture reverses.
+
+Copper binds first, falling below 0.95 by 2031 and reaching 0.43 by 2100: unconstrained primary demand of 119 Mt/yr against mining capacity of 52 Mt/yr. Cumulative extraction is 583 Mt over 2025-2045 -- against roughly 810 Mt mined in all of human history to 2025 (USGS: 600 Mt through 2015, plus ~214 Mt since). The model's answer to "can we dig it" is a qualified no: mine capacity growing at its 3%/yr ceiling cannot keep pace with copper demand growing at GDP^0.85 along this model's GDP path, and the shortfall is rationed across all uses as the substitution and thrifting a price spike would force.
+
+Two caveats bound that claim. First, the model has no metal price, so unserved tonnage is a stand-in for substitution (aluminium for copper in cable, most obviously) rather than a forecast of physical scarcity. Second, cumulative extraction reaches 2,962 Mt by 2100 against a `reserves` parameter of 980 Mt: reserves are an economic rather than geological category and have historically grown faster than they were consumed -- identified resources are 2,100 Mt and undiscovered resources 3,500 Mt (USGS) -- but the model does not grow them, so `reserveRatio` above 1.0 should be read as "past the currently-booked reserve line," not as physical exhaustion.
 
 ---
 
@@ -221,9 +225,9 @@ We lean toward the former interpretation: the cost advantage of solar is now lar
 
 An economic model that takes useful energy seriously as the primary growth driver produces a more optimistic outlook for the energy transition than standard IAMs -- but for different reasons than techno-optimists usually cite. The transition is not good because it averts catastrophic warming (though it helps). It is good because cheap solar electricity makes the economy more productive. The 2.4x GDP gap between clean and fossil scenarios is not a cost of climate policy; it is the cost of failing to adopt cheaper energy.
 
-The demographic transition, often presented as a fiscal catastrophe, stabilizes at manageable levels when retirement institutions adapt to longevity. The mineral supply chain is tight but feasible. CDR at scale requires cheap solar as a prerequisite, not a competitor.
+The demographic transition, often presented as a fiscal catastrophe, stabilizes at manageable levels when retirement institutions adapt to longevity. CDR at scale requires cheap solar as a prerequisite, not a competitor.
 
-The binding constraint on the energy transition is not technology, not minerals, not demographics, and not climate damages. It is the speed at which institutions can deploy known solutions.
+Two constraints bind on the energy transition: the speed at which institutions can deploy known solutions, and -- once mineral demand is counted economy-wide rather than for the transition alone -- primary copper supply, which throttles clean capacity additions from the early 2030s onward. Neither is a technology or a climate-damage limit.
 
 ---
 

@@ -267,12 +267,17 @@ export const standardCollectors: CollectorConfig = {
     { source: 'oceanPH', unit: 'pH', description: 'Ocean surface pH (CO₂-driven acidification)', module: 'climate' },
 
     // Resources - Minerals
-    { source: 'minerals', as: 'copperDemand', path: 'copper.demand', unit: 'Mt/year', description: 'Annual copper demand (net of recycling)', module: 'resources' },
-    { source: 'minerals', as: 'lithiumDemand', path: 'lithium.demand', unit: 'Mt/year', description: 'Annual lithium demand (net of recycling)', module: 'resources' },
-    { source: 'minerals', as: 'copperCumulative', path: 'copper.cumulative', unit: 'Mt', description: 'Cumulative copper extracted', module: 'resources' },
+    { source: 'minerals', as: 'copperDemand', path: 'copper.demand', unit: 'Mt/year', description: 'Annual primary copper demand, economy-wide (total use net of recycling)', module: 'resources' },
+    { source: 'minerals', as: 'copperGrossDemand', path: 'copper.grossDemand', unit: 'Mt/year', description: 'Annual total copper use, economy-wide (before recycling)', module: 'resources' },
+    { source: 'minerals', as: 'copperExtraction', path: 'copper.extraction', unit: 'Mt/year', description: 'Copper actually mined (primary demand capped by mining capacity)', module: 'resources' },
+    { source: 'minerals', as: 'copperSupplyRatio', path: 'copper.supplyRatio', unit: 'fraction', description: 'Copper extraction / primary demand (1 = unconstrained)', module: 'resources' },
+    { source: 'minerals', as: 'lithiumDemand', path: 'lithium.demand', unit: 'Mt/year', description: 'Annual primary lithium demand, economy-wide (total use net of recycling)', module: 'resources' },
+    { source: 'minerals', as: 'steelDemand', path: 'steel.demand', unit: 'Mt/year', description: 'Annual primary (ore-based) steel demand', module: 'resources' },
+    { source: 'minerals', as: 'rareEarthsDemand', path: 'rareEarths.demand', unit: 'Mt/year', description: 'Annual primary rare-earth demand (REO)', module: 'resources' },
+    { source: 'minerals', as: 'copperCumulative', path: 'copper.cumulative', unit: 'Mt', description: 'Cumulative copper extracted since 2025', module: 'resources' },
     { source: 'minerals', as: 'lithiumCumulative', path: 'lithium.cumulative', unit: 'Mt', description: 'Cumulative lithium extracted', module: 'resources' },
     { source: 'mineralConstraint', unit: 'fraction', description: 'Mineral availability constraint on energy buildout', module: 'resources' },
-    { source: 'miningEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by mining', module: 'resources' },
+    { source: 'miningEnergyTWh', unit: 'TWh/year', description: 'Energy consumed mining the energy transition\u2019s own minerals (baseline mining energy sits in the non-electric anchor)', module: 'resources' },
     { source: 'farmingEnergyTWh', unit: 'TWh/year', description: 'Energy consumed by farming/agriculture', module: 'resources' },
 
     // Resources - Land

@@ -285,7 +285,12 @@ export interface YearResult {
 
   // Resources - Minerals
   copperDemand: number;
+  copperGrossDemand: number;
+  copperExtraction: number;
+  copperSupplyRatio: number;
   lithiumDemand: number;
+  steelDemand: number;
+  rareEarthsDemand: number;
   copperCumulative: number;
   lithiumCumulative: number;
 

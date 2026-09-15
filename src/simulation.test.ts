@@ -125,6 +125,10 @@ test('regional allocator anchors 2025 and does not collapse regions onto a share
 // (deterministic model, so the 2035 slice is a strict prefix of this run)
 const to2050 = runSimulation({ startYear: 2025, endYear: 2050 });
 
+/** Shared by every test below that needs the deterministic default run:
+ *  recomputing it costs ~1s of CI time each. */
+const FULL_RUN = runSimulation();
+
 test('GDP is monotonic in efficiencyMultiplier (coupled efficiency series)', () => {
   // Demand decays energy at intensityDecline x efficiencyMultiplier; the
   // runner couples production's eta growth to the same effective rate. If
@@ -232,13 +236,45 @@ test('near-term electrification pace is fast but bounded', () => {
   expect(pacePerYear).toBeLessThan(0.03);
 });
 
+test('2025 primary mineral demand reproduces observed mine production', () => {
+  // Calibration pin for the non-transition demand stream. `annualSupply2025` is
+  // primary (mine-supplied) production and `demand` is total use net of
+  // recycling, so the two must agree in the base year — that is what makes
+  // every mineral's supply ratio start at exactly 1.0, and it is what lets the
+  // model ask whether capacity growth can keep up with demand growth.
+  //
+  // Sources: copper 23.0 Mt and REO 0.39 Mt from USGS MCS 2026; steel 1,202 Mt
+  // = worldsteel's 1,849.4 Mt crude less the ~35% scrap-fed EAF share.
+  //
+  // Lithium is deliberately excluded: ~85% of real lithium use is batteries and
+  // the model's 2025 battery build is below the actual market, so it calibrates
+  // to the transition build rather than to this stream (see resources.ts).
+  const first = FULL_RUN.results[0];
+  expect(first.year).toBe(2025);
+  expect(first.copperDemand).toBeCloseTo(23.0, 1);
+  expect(first.steelDemand / 1202).toBeCloseTo(1, 2);
+  expect(first.rareEarthsDemand).toBeCloseTo(0.39, 2);
+  expect(first.mineralConstraint).toBeCloseTo(1, 6);
+});
+
+test('mineral supply constrains the build-out later in the century', () => {
+  // The constraint used to be dead: it was identically 1.0 in every year,
+  // because mining capacity was seeded from total world output while demand
+  // counted only the transition slice. With economy-wide demand it binds.
+  const last = FULL_RUN.results[FULL_RUN.results.length - 1];
+  expect(last.mineralConstraint).toBeLessThan(0.95);
+  expect(last.mineralConstraint).toBeGreaterThan(0.1);
+  // And extraction is capped by capacity, never by demand alone.
+  expect(last.copperExtraction).toBeLessThan(last.copperDemand);
+});
+
 test('ai-energy-boom raises the cost of capital materially', () => {
   // Heavy automation + energy + CDR competing for savings raises WACC well
   // above baseline. The improved regional allocator also makes the extreme
   // path hit the lagged funding-floor diagnostic late in the century (pinned
   // separately below), so this is no longer claimed to be its only bound.
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
-  const base = runSimulation();
+  const base = FULL_RUN;
   const boom = runSimulation(boomParams);
   const i2075 = 2075 - 2025;
   expect(boom.results[i2075].effectiveWACC)
@@ -431,9 +467,6 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
   }
 }
 
-/** Shared by the diagnostics tests below: four full-horizon runs would cost
- *  ~2.6s of CI time to recompute what two deterministic runs already give. */
-const FULL_RUN = runSimulation();
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
 
 test('diagnostics: false leaves every macro number bit-identical', () => {

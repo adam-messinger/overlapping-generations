@@ -184,6 +184,8 @@ function buildTransforms(
 ) {
   // Mutable closure: captures gdpPerCapita2025 on first year
   let capturedGdpPerCapita2025 = 0;
+  // Mutable closure: captures world GDP on first year (intensity-of-use anchor)
+  let capturedGdp2025 = 0;
 
   return {
     // Energy needs availableInvestment (from capital.energyInvestment)
@@ -225,6 +227,24 @@ function buildTransforms(
         population: unitPort('people'),
       },
       outputType: unitPort('$/people/year'),
+    },
+
+    // Resources needs world GDP in 2025 (captured from year 0). Note there is
+    // no `gdp` transform: `gdp` is a production output and resources declares
+    // it as a plain input, which autowire resolves natively. A transform of
+    // that name would be rejected as colliding with the output.
+    gdp2025: {
+      fn: (outputs: Record<string, any>, _year: number, yearIndex: number) => {
+        if (yearIndex === 0) {
+          capturedGdp2025 = requireOutput<number>(outputs, 'gdp', 'gdp2025');
+        }
+        return capturedGdp2025;
+      },
+      dependsOn: ['gdp'],
+      inputTypes: {
+        gdp: unitPort('$T/year'),
+      },
+      outputType: unitPort('$T/year'),
     },
 
     // Climate needs total emissions (electricity + non-electric + land use - CDR)
@@ -840,11 +860,12 @@ function buildLags(params: SimulationParams) {
     },
 
     // Energy needs lagged mineral constraint (resources runs after energy in topo order)
-    mineralConstraint: {
-      source: 'mineralConstraint',
+    // Energy needs the lagged per-source constraint (resources runs after energy)
+    mineralConstraintBySource: {
+      source: 'mineralConstraintBySource',
       delay: 1,
-      initial: 1.0,  // warm-up seed (bootstrapped)
-      contract: unitPort('fraction'),
+      initial: Object.fromEntries(ENERGY_SOURCES.map((s) => [s, 1.0])),
+      contract: unitPort('fraction', 'record'),
       bootstrap: true,
     },
 

@@ -637,7 +637,7 @@ export interface EnergyInputs {
   regionalInvestment?: Record<Region, number>;
 
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
-  mineralConstraint: number;
+  mineralConstraintBySource: Record<EnergySource, number>;
 
   /** Lagged curtailment rate 0-1 (from dispatch previous year). 0 = no curtailment. */
   laggedCurtailmentRate: number;
@@ -982,7 +982,7 @@ export const energyModule: Module<
       regionalElectricityDemand: unitPort('TWh/year', 'record'),
       availableInvestment: unitPort('$T/year'),
       regionalInvestment: unitPort('$T/year', 'record'),
-      mineralConstraint: unitPort('fraction'),
+      mineralConstraintBySource: unitPort('fraction', 'record'),
       laggedCurtailmentRate: unitPort('fraction'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
@@ -1617,13 +1617,12 @@ export const energyModule: Module<
       fundedAdditions.gas = desiredAdditions.gas ?? 0;
       fundedAdditions.coal = desiredAdditions.coal ?? 0;
 
-      // Apply mineral supply constraint: scale down mineral-intensive additions
-      // Only affects sources that require minerals (solar, wind, battery, nuclear)
-      const mc = inputs.mineralConstraint ?? 1.0;
-      if (mc < 1.0) {
-        for (const source of ['solar', 'wind', 'battery', 'nuclear'] as EnergySource[]) {
-          fundedAdditions[source] *= mc;
-        }
+      // Apply mineral supply constraint: scale each source by the scarcity of
+      // the minerals IT uses, so a lithium shortage cannot throttle nuclear.
+      // Sources that consume no minerals carry 1.0, so this needs no list of
+      // which ones are mineral-intensive.
+      for (const source of ENERGY_SOURCES) {
+        fundedAdditions[source] *= inputs.mineralConstraintBySource[source];
       }
 
       // Realized capex this region actually spends ($B): ALL sources —
