@@ -137,10 +137,13 @@ lag) already exists in the same file (`laggedAvgLCOE`).
   conventions forbid. Overrides of either silently do nothing.
 
 **Silent distortions**
-- **M7. Mineral extraction is never constrained** (`resources.ts:744-766`):
-  cumulative books unconstrained demand, nothing stops cumulative > reserves,
-  and the depletion-energy clamp caps the penalty at ~4× forever — minerals
-  can be mined past 100% of reserves indefinitely.
+- **M7. Mineral extraction is never constrained** — MOSTLY RESOLVED. Demand is
+  now economy-wide rather than transition-only, so mining capacity and demand
+  are the same quantity; cumulative books `extraction = min(demand, capacity)`
+  rather than unconstrained demand, and the constraint binds from the early
+  2030s. Still open: `reserves` is a fixed stock that never grows, so
+  `reserveRatio` passes 1.0 mid-century and the depletion-energy clamp still
+  caps the penalty at ~4× forever.
 - **M8. Demand's `growthRate` output back-derives previous GDP assuming
   exactly 2% growth** (`demand.ts:1130`), biasing the regional output
   whenever actual growth differs (always).

@@ -163,6 +163,40 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
+### Minerals (copper, lithium, rare earths, steel)
+- Demand has TWO streams: the energy-transition build (kg/MW of solar, wind,
+  nuclear; kg/GWh of grid + EV batteries) and a **non-transition baseline**
+  (building wiring, grid, motors, appliances, construction steel) modelled as
+  intensity-of-use, `baselineDemand2025 x (GDP/GDP2025)^baselineGdpElasticity`
+- `learningRate` applies to the TRANSITION stream only. `baselineGdpElasticity`
+  < 1 already carries the economy-wide decoupling (copper: use +2.9%/yr vs
+  world real GDP +3.4%/yr, 1990-2024); applying both would double-count
+  thrifting. Scenarios that lever `learningRate` therefore move the transition
+  slice, not total mineral demand
+- `annualSupply2025` is **primary** (mine-supplied) production, the same
+  quantity as `demand` net of recycling — so every mineral's supply ratio
+  starts at exactly 1.0 and the model's question is whether capacity growth
+  can keep up with demand growth. Steel's is ore-based crude steel (worldsteel
+  total less the scrap-fed EAF share), not total crude
+- Extraction is `min(demand, capacity)` and cumulative books extraction, so the
+  ledger closes. The shortfall is rationed pro rata across all uses: the model
+  has no metal price, so unserved tonnage stands in for the substitution a
+  price spike would force
+- `mineralConstraintBySource` throttles each clean source by the minerals IT
+  uses (read off the `perMW_*`/`perGWh_*` params), so a lithium shortage cannot
+  throttle nuclear. The scalar `mineralConstraint` is the worst case, for
+  reporting
+- Mining energy is charged on the transition slice ONLY. Production subtracts
+  `totalResourceEnergy` from useful energy as system overhead, against a
+  `nonElectricEnergy` anchor (~92,000 TWh) that already contains world mining
+  and smelting energy — charging baseline demand there too would double-count
+  ~a fifth of world non-electric energy
+- Copper binds from the early 2030s (0.43 by 2100). Known limitation:
+  `reserves` never grows, so `reserveRatio` passes 1.0 mid-century
+- Constants are USGS Mineral Commodity Summaries 2026 and worldsteel 2025.
+  Lithium deliberately does NOT calibrate to mine production — ~85% of real
+  lithium use is batteries and the model's 2025 battery build is below market
+
 ### Climate
 - **DICE-2023**: Quadratic damage function with regional multipliers
 - **Tipping points**: Damage acceleration above threshold temperature
