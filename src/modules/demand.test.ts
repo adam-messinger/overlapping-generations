@@ -178,7 +178,7 @@ function allocatorInputs(overrides: Record<string, unknown> = {}) {
 
 function zeroTfpDemandParams() {
   return demandModule.mergeParams({
-    regions: Object.fromEntries(REGIONS.map(r => [r, { tfpGrowth: 0 }])) as any,
+    regions: Object.fromEntries(REGIONS.map(r => [r, { tfpGrowth: 0, tfpFloor: 0 }])) as any,
   });
 }
 
@@ -256,7 +256,7 @@ test('tfpFloor: catch-up TFP decays toward the floor, and 0 is the original path
     const params = demandModule.mergeParams({
       regions: Object.fromEntries(REGIONS.map(r => [r, r === 'china'
         ? { tfpGrowth: 0.03, tfpDecay: 0.5, ...china }
-        : { tfpGrowth: 0 }])) as any,
+        : { tfpGrowth: 0, tfpFloor: 0 }])) as any,
     });
     let state = demandModule.init(params);
     const shares: number[] = [];
@@ -267,7 +267,8 @@ test('tfpFloor: catch-up TFP decays toward the floor, and 0 is the original path
     }
     return shares;
   };
-  const absent = run({});
+  // undefined (not a missing key: mergeParams would supply the default floor)
+  const absent = run({ tfpFloor: undefined as unknown as number });
   const zero = run({ tfpFloor: 0 });
   for (let i = 0; i < absent.length; i++) expect(Object.is(absent[i], zero[i])).toBe(true);
 
