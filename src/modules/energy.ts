@@ -240,7 +240,14 @@ export interface EnergyParams {
  * ~18% hydro, ~55% battery GWh).
  */
 const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
-  solar:   { us: 160, 'oecd-ex-us': 440, china: 600, india: 90,  latam: 40,  seasia: 35,  russia: 5,   mena: 30,  ssa: 8 },
+  // Solar rolled forward to END-2024 (the 2025 starting stock): the earlier
+  // row summed to 1,408 GW = IRENA end-2023 (1,414 GW). Each region is scaled
+  // by its IRENA end-2023 -> end-2024 growth (China x1.456, US x1.275, South
+  // Asia x1.334, LatAm ex-OECD x1.358, OECD ex-US x1.176, MENA x1.228, SE Asia
+  // x1.139, Russia+CIS x1.179, SSA x1.099), keeping the regional mapping; the
+  // sum is 1,861 GW vs IRENA's 1,865 GW world total. IRENA Renewable Capacity
+  // Statistics 2025, solar tables. Cross-check: China NEA ~887 GWac end-2024.
+  solar:   { us: 204, 'oecd-ex-us': 518, china: 873, india: 120, latam: 54,  seasia: 40,  russia: 6,   mena: 37,  ssa: 9 },
   wind:    { us: 160, 'oecd-ex-us': 340, china: 400, india: 42,  latam: 22,  seasia: 5,   russia: 2,   mena: 12,  ssa: 5 },
   gas:     { us: 520, 'oecd-ex-us': 480, china: 200, india: 70,  latam: 120, seasia: 130, russia: 220, mena: 220, ssa: 45 },
   coal:    { us: 165, 'oecd-ex-us': 235, china: 1200,india: 270, latam: 20,  seasia: 100, russia: 45,  mena: 20,  ssa: 55 },

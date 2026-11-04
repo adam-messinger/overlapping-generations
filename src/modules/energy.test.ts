@@ -99,27 +99,27 @@ test('init returns state with global learning state', () => {
 
 test('init sets correct 2025 solar capacity (sum of regional)', () => {
   const state = energyModule.init(energyDefaults);
-  // Sum across all regions: 600+600+90+40+35+5+30+8 = 1408
+  // Sum across all regions = IRENA end-2024 world solar (1,865 GW) to rounding
   let total = 0;
   for (const region of REGIONS) {
     total += state.regional[region].solar.installed;
   }
-  expect(total).toBe(1408);
+  expect(total).toBe(1861);
 });
 
 test('init sets correct regional solar capacities', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.regional.us.solar.installed).toBe(160);
-  expect(state.regional['oecd-ex-us'].solar.installed).toBe(440);
-  expect(state.regional.china.solar.installed).toBe(600);
-  expect(state.regional.india.solar.installed).toBe(90);
-  expect(state.regional.ssa.solar.installed).toBe(8);
+  expect(state.regional.us.solar.installed).toBe(204);
+  expect(state.regional['oecd-ex-us'].solar.installed).toBe(518);
+  expect(state.regional.china.solar.installed).toBe(873);
+  expect(state.regional.india.solar.installed).toBe(120);
+  expect(state.regional.ssa.solar.installed).toBe(9);
 });
 
 test('init sets cumulative equal to global initial capacity', () => {
   const state = energyModule.init(energyDefaults);
-  // Global cumulative = sum of regional = 1408 for solar
-  expect(state.global.solar.cumulative).toBe(1408);
+  // Global cumulative = sum of regional = 1861 for solar
+  expect(state.global.solar.cumulative).toBe(1861);
 });
 
 // --- Year 0 LCOE ---
