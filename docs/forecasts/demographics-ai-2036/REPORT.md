@@ -4,6 +4,8 @@
 Scope: OECD-38 + China, constant 2025 USD PPP. Generated 2026-11-04.
 Primary baseline is the **unextremized raw mean (d = 1.0) and median**; Baron–Satopää
 d = 1.35 appears only as a labelled secondary column.
+Both runs are sealed for scoring in a hash-chained `forecast-workbench` ledger — see
+[`SEALED.md`](SEALED.md); CQ1 is the exception, refused because it cannot resolve.
 
 ---
 
