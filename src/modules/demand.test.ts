@@ -247,6 +247,37 @@ test('regional energy burden changes GDP only when the burden changes', () => {
     .toBeCloseTo(params.regions.china.gdp2025 / 158, 9);
 });
 
+test('tfpFloor: catch-up TFP decays toward the floor, and 0 is the original path', () => {
+  // Every region but China at zero TFP, so China's share moves only on its own
+  // residual. With the default floor (absent or 0) the residual decays to zero
+  // and China's share stops rising; with a floor it keeps compounding at the
+  // floor rate (conditional convergence on the frontier's TFP growth).
+  const run = (china: Record<string, number>) => {
+    const params = demandModule.mergeParams({
+      regions: Object.fromEntries(REGIONS.map(r => [r, r === 'china'
+        ? { tfpGrowth: 0.03, tfpDecay: 0.5, ...china }
+        : { tfpGrowth: 0 }])) as any,
+    });
+    let state = demandModule.init(params);
+    const shares: number[] = [];
+    for (let i = 0; i <= 30; i++) {
+      const step = demandModule.step(state, allocatorInputs(), params, 2025 + i, i);
+      state = step.state;
+      shares.push(step.outputs.regionalAllocation.china.gdpShare);
+    }
+    return shares;
+  };
+  const absent = run({});
+  const zero = run({ tfpFloor: 0 });
+  for (let i = 0; i < absent.length; i++) expect(Object.is(absent[i], zero[i])).toBe(true);
+
+  const floored = run({ tfpFloor: 0.01 });
+  // Late in the run the 0.5/yr decay has erased the catch-up term entirely.
+  expect(absent[30] / absent[29]).toBeCloseTo(1, 6);
+  expect(floored[30] / floored[29]).toBeGreaterThan(1.004);
+  expect(floored[30]).toBeGreaterThan(absent[30]);
+});
+
 test('regional fossil share is no longer an allocator input', () => {
   expect(demandModule.inputs.includes('regionalFossilShare' as any)).toBeFalse();
   expect(demandModule.inputs.includes('regionalEnergyBurden')).toBeTrue();

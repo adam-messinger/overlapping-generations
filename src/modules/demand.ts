@@ -36,6 +36,15 @@ interface RegionalEconomicParams {
   gdp2025: number;           // $ trillions (World Bank)
   tfpGrowth: number;         // Total factor productivity growth rate
   tfpDecay: number;          // Rate at which catch-up growth fades
+  /**
+   * Long-run residual TFP growth the catch-up component decays TOWARD
+   * (default 0). Conditional convergence: a catching-up economy's TFP growth
+   * converges on the frontier's rate of technical progress, not on zero
+   * (Barro & Sala-i-Martin, Economic Growth, 2nd ed. 2004, ch. 8). With a
+   * floor, tfp(t) = floor + (tfpGrowth - floor) x (1 - tfpDecay)^t; with the
+   * default 0 the path is the original tfpGrowth x (1 - tfpDecay)^t exactly.
+   */
+  tfpFloor?: number;
   energyIntensity: number;   // MWh per $1000 GDP (total energy)
   intensityDecline: number;  // Annual efficiency improvement rate
   /**
@@ -1085,6 +1094,9 @@ export const demandModule: Module<
         if (r.tfpGrowth !== undefined && (r.tfpGrowth < -0.05 || r.tfpGrowth > 0.10)) {
           errors.push(`${region}: TFP growth must be between -5% and 10%`);
         }
+        if (r.tfpFloor !== undefined && (r.tfpFloor < -0.02 || r.tfpFloor > 0.03)) {
+          errors.push(`${region}: tfpFloor must be between -2% and 3%`);
+        }
         if (r.energyIntensity !== undefined && r.energyIntensity < 0) {
           errors.push(`${region}: Energy intensity must be positive`);
         }
@@ -1517,7 +1529,9 @@ export const demandModule: Module<
       // The observed 2025 regional GDP table is an anchor, not a forecast
       // transition. Capture its prevailing wedges without moving its shares.
       if (yearIndex > 0) {
-        const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
+        const tfpFloor = regionParams.tfpFloor ?? 0;
+        const tfp = tfpFloor
+          + (regionParams.tfpGrowth - tfpFloor) * Math.pow(1 - regionParams.tfpDecay, t);
         tfpFactor = Math.max(0.01, 1 + tfp);
 
         const effective = inputs.regionalEffectiveWorkers[region];
