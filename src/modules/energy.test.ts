@@ -40,7 +40,8 @@ function createInputs(
     electricityDemand,
     availableInvestment,
     mineralConstraintBySource,
-    laggedCurtailmentRate,
+    // The scalar argument applies the same curtailment to every region's grid
+    laggedRegionalCurtailmentRate: regional(laggedCurtailmentRate),
     laggedInterestRate,
   };
 }
@@ -595,6 +596,34 @@ test('curtailment at 50% hits floor (additions > 0)', () => {
   // With 50% curtailment and penalty=2.0: damping = max(0.1, 1-2*0.5) = max(0.1, 0) = 0.1
   // So additions should be small but nonzero
   expect(r.outputs.additions.solar).toBeGreaterThan(0);
+});
+
+test('curtailment brakes only the region whose grid is curtailed', () => {
+  // Build enough solar that the demand-fill path (where damping applies)
+  // binds rather than the growth cap, then curtail ONE region's grid.
+  const params = energyModule.mergeParams({});
+  let state = energyModule.init(params);
+  for (let i = 0; i < 10; i++) {
+    state = energyModule.step(state, createInputs(30000 + i * 500, 25 + i * 0.5), params, 2025 + i, i).state;
+  }
+  const base = energyModule.step(state, createInputs(40000, 35), params, 2035, 10);
+  const target: Region = 'oecd-ex-us';
+  const curtailed = energyModule.step(state, {
+    ...createInputs(40000, 35),
+    laggedRegionalCurtailmentRate: { ...regional(0), [target]: 0.4 },
+  }, params, 2035, 10);
+  const solar = (r: typeof base, region: Region) => r.outputs.regionalAdditions[region].solar;
+  // Precondition: the target region's build is not growth-capped, so the
+  // damping is observable at all
+  expect(solar(curtailed, target)).toBeLessThan(solar(base, target));
+  // Battery storage pressure rises in the curtailed region
+  expect(curtailed.outputs.regionalAdditions[target].battery)
+    .toBeGreaterThan(base.outputs.regionalAdditions[target].battery - 1e-9);
+  // Uncurtailed regions are not braked by a grid on another continent
+  for (const region of REGIONS) {
+    if (region === target) continue;
+    expect(solar(curtailed, region)).toBeGreaterThan(solar(base, region) - 1e-9);
+  }
 });
 
 // --- WACC / Interest Rate ---

@@ -258,6 +258,10 @@ export interface DispatchOutputs {
 
   /** Regional curtailment (TWh) */
   regionalCurtailment: Record<Region, number>;
+
+  /** Regional curtailment rate (fraction of the region's available VRE).
+   *  Energy damps each region's VRE build by its OWN rate, not the world's. */
+  regionalCurtailmentRate: Record<Region, number>;
 }
 
 // =============================================================================
@@ -608,6 +612,7 @@ export const dispatchModule: Module<
       curtailmentTWh: unitPort('TWh/year'),
       curtailmentRate: unitPort('fraction'),
       regionalCurtailment: unitPort('TWh/year', 'record'),
+      regionalCurtailmentRate: unitPort('fraction', 'record'),
     },
   },
 
@@ -739,6 +744,7 @@ export const dispatchModule: Module<
     let globalElectricityEmissions = 0;
     let globalCurtailmentTWh = 0;
     const regionalCurtailment: Record<Region, number> = {} as Record<Region, number>;
+    const regionalCurtailmentRate: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const rg = regionalGeneration[region];
@@ -750,6 +756,7 @@ export const dispatchModule: Module<
       globalElectricityEmissions += regionalOutputs[region].electricityEmissions;
       globalCurtailmentTWh += regionalOutputs[region].curtailmentTWh;
       regionalCurtailment[region] = regionalOutputs[region].curtailmentTWh;
+      regionalCurtailmentRate[region] = regionalOutputs[region].curtailmentRate;
     }
 
     // Global curtailment rate from regional sums
@@ -787,6 +794,7 @@ export const dispatchModule: Module<
         curtailmentTWh: globalCurtailmentTWh,
         curtailmentRate: globalCurtailmentRate,
         regionalCurtailment,
+        regionalCurtailmentRate,
       },
     };
   },

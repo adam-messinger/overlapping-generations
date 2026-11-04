@@ -869,12 +869,14 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Energy needs lagged curtailment rate (dispatch runs after energy)
-    laggedCurtailmentRate: {
-      source: 'curtailmentRate',
+    // Energy needs lagged curtailment rate by region (dispatch runs after
+    // energy). Per region, not the world rate: each grid's own curtailment
+    // brakes its own VRE build.
+    laggedRegionalCurtailmentRate: {
+      source: 'regionalCurtailmentRate',
       delay: 1,
-      initial: 0,  // warm-up seed (bootstrapped)
-      contract: unitPort('fraction'),
+      initial: Object.fromEntries(REGIONS.map((r) => [r, 0])),  // warm-up seed (bootstrapped)
+      contract: unitPort('fraction', 'record'),
       bootstrap: true,
     },
 

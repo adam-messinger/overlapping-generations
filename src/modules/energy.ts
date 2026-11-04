@@ -184,11 +184,11 @@ export interface EnergyParams {
   batteryLifetimeYears: number;
 
   /** How strongly curtailment dampens VRE additions (default 2.0).
-   *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
+   *  damping = max(0.1, 1 - curtailmentPenalty × the region's lagged curtailment rate) */
   curtailmentPenalty: number;
 
   /** How strongly curtailment boosts battery target (default 2.0).
-   *  storagePressure = 1 + curtailmentStorageBoost × laggedCurtailmentRate */
+   *  storagePressure = 1 + curtailmentStorageBoost × the region's lagged curtailment rate */
   curtailmentStorageBoost: number;
 
   /** Risk premium over interest rate for energy project WACC */
@@ -639,8 +639,11 @@ export interface EnergyInputs {
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
   mineralConstraintBySource: Record<EnergySource, number>;
 
-  /** Lagged curtailment rate 0-1 (from dispatch previous year). 0 = no curtailment. */
-  laggedCurtailmentRate: number;
+  /** Lagged curtailment rate 0-1 BY REGION (from dispatch previous year).
+   *  0 = no curtailment. Each region's VRE damping and storage pressure read
+   *  its own grid's curtailment: a region with little VRE is not braked by
+   *  curtailment on other continents' grids. */
+  laggedRegionalCurtailmentRate: Record<Region, number>;
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
@@ -983,7 +986,7 @@ export const energyModule: Module<
       availableInvestment: unitPort('$T/year'),
       regionalInvestment: unitPort('$T/year', 'record'),
       mineralConstraintBySource: unitPort('fraction', 'record'),
-      laggedCurtailmentRate: unitPort('fraction'),
+      laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -1488,7 +1491,7 @@ export const energyModule: Module<
           const solarAdditions = desiredAdditions.solar ?? 0;
           const futureSolarGW = solarGW + solarAdditions;
           // Curtailment feedback: boost battery target when curtailment is high
-          const curtRate = inputs.laggedCurtailmentRate ?? 0;
+          const curtRate = inputs.laggedRegionalCurtailmentRate?.[region] ?? 0;
           const storagePressure = 1 + params.curtailmentStorageBoost * curtRate;
           const targetBatteryGWh = futureSolarGW * params.batteryDuration * storagePressure;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
@@ -1523,7 +1526,7 @@ export const energyModule: Module<
             targetAddition = demandGapGW * params.demandFillRate;
             // Curtailment feedback: dampen VRE additions when curtailment is high
             if (source === 'solar' || source === 'wind') {
-              const curtRate = inputs.laggedCurtailmentRate ?? 0;
+              const curtRate = inputs.laggedRegionalCurtailmentRate?.[region] ?? 0;
               const curtailmentDamping = Math.max(0.1, 1 - params.curtailmentPenalty * curtRate);
               targetAddition *= curtailmentDamping;
             }
