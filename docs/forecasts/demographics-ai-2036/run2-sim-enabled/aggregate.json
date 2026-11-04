@@ -1,0 +1,1062 @@
+{
+  "d_sensitivity": 1.35,
+  "panelist_count": 24,
+  "effort_count": 4,
+  "expected_panelists": 24,
+  "validation_problems": [],
+  "binary": {
+    "cq1": {
+      "n": 24,
+      "raw_mean_pct": 13.291666666666666,
+      "median_pct": 12.5,
+      "stdev_pct": 4.620174725348991,
+      "min_pct": 6.0,
+      "max_pct": 26.0,
+      "logodds_mean_d1_pct": 12.68253821058766,
+      "extremized_d135_pct": 6.884373483579766,
+      "effort_level": {
+        "n": 4,
+        "values_pct": [
+          14.000000000000002,
+          16.0,
+          15.0,
+          9.0
+        ],
+        "range_pct": [
+          9.0,
+          16.0
+        ],
+        "mean_pct": 13.5
+      },
+      "by_wave_mean_pct": {
+        "1": 12.75,
+        "2": 14.000000000000002,
+        "3": 13.5
+      }
+    },
+    "cq2": {
+      "n": 24,
+      "raw_mean_pct": 31.791666666666668,
+      "median_pct": 32.0,
+      "stdev_pct": 9.605157883710943,
+      "min_pct": 14.000000000000002,
+      "max_pct": 48.0,
+      "logodds_mean_d1_pct": 30.92794199645234,
+      "extremized_d135_pct": 25.261538593109726,
+      "effort_level": {
+        "n": 4,
+        "values_pct": [
+          39.0,
+          32.0,
+          24.0,
+          44.0
+        ],
+        "range_pct": [
+          24.0,
+          44.0
+        ],
+        "mean_pct": 34.75
+      },
+      "by_wave_mean_pct": {
+        "1": 28.833333333333332,
+        "2": 34.75,
+        "3": 34.75
+      }
+    },
+    "cq5": {
+      "n": 24,
+      "raw_mean_pct": 22.541666666666668,
+      "median_pct": 22.0,
+      "stdev_pct": 5.808383496342137,
+      "min_pct": 13.0,
+      "max_pct": 34.0,
+      "logodds_mean_d1_pct": 22.027495852624998,
+      "extremized_d135_pct": 15.361986639481717,
+      "effort_level": {
+        "n": 4,
+        "values_pct": [
+          20.0,
+          27.0,
+          19.0,
+          26.0
+        ],
+        "range_pct": [
+          19.0,
+          27.0
+        ],
+        "mean_pct": 23.0
+      },
+      "by_wave_mean_pct": {
+        "1": 21.5,
+        "2": 23.875,
+        "3": 23.0
+      }
+    }
+  },
+  "continuous": {
+    "cq3": {
+      "n": 24,
+      "ensemble_mean": {
+        "p10": 0.8666666666666667,
+        "p50": 1.8499999999999999,
+        "p90": 2.875
+      },
+      "ensemble_median": {
+        "p10": 0.9,
+        "p50": 1.8,
+        "p90": 2.8499999999999996
+      },
+      "p50_stdev": 0.18766297265136728,
+      "p50_min": 1.5,
+      "p50_max": 2.25,
+      "effort_level": {
+        "n": 4,
+        "p50_values": [
+          1.75,
+          1.75,
+          1.95,
+          1.9
+        ],
+        "p50_range": [
+          1.75,
+          1.95
+        ],
+        "mean": {
+          "p10": 0.8625,
+          "p50": 1.8375,
+          "p90": 2.925
+        }
+      },
+      "by_wave_mean": {
+        "1": {
+          "p10": 0.8666666666666667,
+          "p50": 1.7916666666666667,
+          "p90": 2.7875
+        },
+        "2": {
+          "p10": 0.86875,
+          "p50": 1.94375,
+          "p90": 2.98125
+        },
+        "3": {
+          "p10": 0.8625,
+          "p50": 1.8375,
+          "p90": 2.925
+        }
+      },
+      "ordering_ok": true
+    },
+    "cq4": {
+      "n": 24,
+      "ensemble_mean": {
+        "p10": 0.8770833333333333,
+        "p50": 2.027083333333333,
+        "p90": 3.310416666666667
+      },
+      "ensemble_median": {
+        "p10": 0.95,
+        "p50": 2.1,
+        "p90": 3.3
+      },
+      "p50_stdev": 0.2941380800660254,
+      "p50_min": 1.15,
+      "p50_max": 2.5,
+      "effort_level": {
+        "n": 4,
+        "p50_values": [
+          2.3,
+          2.2,
+          1.5,
+          2.2
+        ],
+        "p50_range": [
+          1.5,
+          2.3
+        ],
+        "mean": {
+          "p10": 0.8875,
+          "p50": 2.05,
+          "p90": 3.3875
+        }
+      },
+      "by_wave_mean": {
+        "1": {
+          "p10": 0.875,
+          "p50": 2.004166666666667,
+          "p90": 3.2291666666666665
+        },
+        "2": {
+          "p10": 0.875,
+          "p50": 2.05,
+          "p90": 3.39375
+        },
+        "3": {
+          "p10": 0.8875,
+          "p50": 2.05,
+          "p90": 3.3875
+        }
+      },
+      "ordering_ok": true
+    }
+  },
+  "regimes": {
+    "n": 24,
+    "raw_mean_pct": {
+      "A": 16.5,
+      "B": 47.333333333333336,
+      "C": 20.916666666666668,
+      "D": 15.25
+    },
+    "median_pct_renormalized": {
+      "A": 14.925373134328359,
+      "B": 48.25870646766169,
+      "C": 21.890547263681594,
+      "D": 14.925373134328359
+    },
+    "median_pct_raw": {
+      "A": 15.0,
+      "B": 48.5,
+      "C": 22.0,
+      "D": 15.0
+    },
+    "median_sum_before_renorm": 100.5,
+    "stdev_pct": {
+      "A": 6.420077203924251,
+      "B": 4.659414655032994,
+      "C": 4.7632348039018035,
+      "D": 3.969996166902103
+    },
+    "range_pct": {
+      "A": [
+        7.0,
+        33.0
+      ],
+      "B": [
+        38.0,
+        54.0
+      ],
+      "C": [
+        12.0,
+        28.0
+      ],
+      "D": [
+        6.0,
+        22.0
+      ]
+    },
+    "effort_level": {
+      "n": 4,
+      "dists_pct": [
+        {
+          "A": 19.0,
+          "B": 50.0,
+          "C": 18.0,
+          "D": 13.0
+        },
+        {
+          "A": 15.0,
+          "B": 50.0,
+          "C": 22.0,
+          "D": 13.0
+        },
+        {
+          "A": 20.0,
+          "B": 46.0,
+          "C": 17.0,
+          "D": 17.0
+        },
+        {
+          "A": 18.0,
+          "B": 43.0,
+          "C": 27.0,
+          "D": 12.0
+        }
+      ],
+      "mean_pct": {
+        "A": 18.0,
+        "B": 47.25,
+        "C": 21.0,
+        "D": 13.75
+      },
+      "range_pct": {
+        "A": [
+          15.0,
+          20.0
+        ],
+        "B": [
+          43.0,
+          50.0
+        ],
+        "C": [
+          17.0,
+          27.0
+        ],
+        "D": [
+          12.0,
+          17.0
+        ]
+      }
+    },
+    "by_wave_mean_pct": {
+      "1": {
+        "A": 13.583333333333334,
+        "B": 48.416666666666664,
+        "C": 20.333333333333332,
+        "D": 17.666666666666668
+      },
+      "2": {
+        "A": 20.125,
+        "B": 45.75,
+        "C": 21.75,
+        "D": 12.375
+      },
+      "3": {
+        "A": 18.0,
+        "B": 47.25,
+        "C": 21.0,
+        "D": 13.75
+      }
+    }
+  },
+  "planks": {
+    "a": {
+      "n": 24,
+      "raw_mean_pct": 6.0,
+      "median_pct": 6.0,
+      "stdev_pct": 1.1420804814403216,
+      "range_pct": [
+        4,
+        8
+      ],
+      "extremized_d135_pct": 2.322969640894625,
+      "effort_level_values_pct": [
+        6,
+        6,
+        7,
+        5
+      ],
+      "effort_range_pct": [
+        5,
+        7
+      ]
+    },
+    "b": {
+      "n": 24,
+      "raw_mean_pct": 14.666666666666666,
+      "median_pct": 14.0,
+      "stdev_pct": 4.565148377670208,
+      "range_pct": [
+        8,
+        30
+      ],
+      "extremized_d135_pct": 8.103512444121161,
+      "effort_level_values_pct": [
+        11,
+        12,
+        18,
+        15
+      ],
+      "effort_range_pct": [
+        11,
+        18
+      ]
+    },
+    "c": {
+      "n": 24,
+      "raw_mean_pct": 38.75,
+      "median_pct": 37.5,
+      "stdev_pct": 12.466476786897767,
+      "range_pct": [
+        15,
+        58
+      ],
+      "extremized_d135_pct": 33.9993595638926,
+      "effort_level_values_pct": [
+        32,
+        45,
+        46,
+        26
+      ],
+      "effort_range_pct": [
+        26,
+        46
+      ]
+    },
+    "d": {
+      "n": 24,
+      "raw_mean_pct": 15.458333333333334,
+      "median_pct": 14.0,
+      "stdev_pct": 3.5012937567439972,
+      "range_pct": [
+        11,
+        22
+      ],
+      "extremized_d135_pct": 8.920760104997981,
+      "effort_level_values_pct": [
+        16,
+        15,
+        15,
+        17
+      ],
+      "effort_range_pct": [
+        15,
+        17
+      ]
+    }
+  },
+  "assets": {
+    "n_contributors": 6,
+    "rows": [
+      {
+        "asset": "OECD equities ex-AI-complex (broad DM, ex mega-cap tech/semis)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 3.6666666666666665,
+          "median": 3.5,
+          "range": [
+            3,
+            4.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 7.5,
+          "median": 7.5,
+          "range": [
+            7,
+            8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 3.9166666666666665,
+          "median": 4.0,
+          "range": [
+            3,
+            4.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": -0.16666666666666666,
+          "median": 0.0,
+          "range": [
+            -1.5,
+            1
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 0.5,
+          "median": 1.25,
+          "range": [
+            -1.5,
+            1.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 3.1327777777777777,
+        "regime_dispersion_pp": 7.666666666666667
+      },
+      {
+        "asset": "AI/hyperscaler complex (mega-cap tech + semis + AI infra)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 0.9166666666666666,
+          "median": 1.75,
+          "range": [
+            -1.5,
+            2.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 11.666666666666666,
+          "median": 12.0,
+          "range": [
+            9,
+            14
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 7.0,
+          "median": 7.0,
+          "range": [
+            6,
+            8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": -1.5833333333333333,
+          "median": -2.0,
+          "range": [
+            -3,
+            1
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -6.75,
+          "median": -6.5,
+          "range": [
+            -9,
+            -4
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 3.877777777777778,
+        "regime_dispersion_pp": 18.416666666666664
+      },
+      {
+        "asset": "Power, grid & electrical equipment (utilities + T&D capex chain)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 7.916666666666667,
+          "median": 8.25,
+          "range": [
+            6,
+            9
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 7.666666666666667,
+          "median": 7.5,
+          "range": [
+            7,
+            9
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 6.833333333333333,
+          "median": 6.75,
+          "range": [
+            5.5,
+            8.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 4.0,
+          "median": 4.75,
+          "range": [
+            1,
+            5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -0.8333333333333334,
+          "median": -1.0,
+          "range": [
+            -3.5,
+            3.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 5.209027777777778,
+        "regime_dispersion_pp": 8.5
+      },
+      {
+        "asset": "G7 long nominal sovereign bonds (10y+)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 0.13333333333333333,
+          "median": 0.5,
+          "range": [
+            -1.5,
+            0.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 0.4166666666666667,
+          "median": 0.75,
+          "range": [
+            -1,
+            1
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": -1.3333333333333333,
+          "median": -1.25,
+          "range": [
+            -2.5,
+            -0.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": -5.5,
+          "median": -5.5,
+          "range": [
+            -6.5,
+            -3.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 5.583333333333333,
+          "median": 5.75,
+          "range": [
+            4.5,
+            7
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": -0.8613194444444445,
+        "regime_dispersion_pp": 11.083333333333332
+      },
+      {
+        "asset": "G7 inflation-linked sovereigns (TIPS/real)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 1.2833333333333334,
+          "median": 1.2999999999999998,
+          "range": [
+            0.8,
+            1.8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 0.9166666666666666,
+          "median": 1.25,
+          "range": [
+            -0.5,
+            1.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 0.8333333333333334,
+          "median": 0.75,
+          "range": [
+            0.5,
+            1.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 1.25,
+          "median": 1.25,
+          "range": [
+            0.5,
+            2
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 3.5833333333333335,
+          "median": 3.25,
+          "range": [
+            2.5,
+            5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 1.3536111111111113,
+        "regime_dispersion_pp": 2.75
+      },
+      {
+        "asset": "G7 cash / short real rates",
+        "buildout_2026_2030_real_pct": {
+          "mean": 1.2666666666666666,
+          "median": 1.3,
+          "range": [
+            0.8,
+            1.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 1.5999999999999999,
+          "median": 1.5,
+          "range": [
+            1.5,
+            1.8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 1.3,
+          "median": 1.2,
+          "range": [
+            1.2,
+            1.8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": -0.5499999999999999,
+          "median": -0.75,
+          "range": [
+            -1,
+            0.2
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 0.25,
+          "median": 0.3,
+          "range": [
+            -0.3,
+            0.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 0.8024166666666668,
+        "regime_dispersion_pp": 2.15
+      },
+      {
+        "asset": "Gold & reserve diversifiers",
+        "buildout_2026_2030_real_pct": {
+          "mean": 3.25,
+          "median": 3.25,
+          "range": [
+            2,
+            4
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": -0.9166666666666666,
+          "median": -1.25,
+          "range": [
+            -2,
+            1
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 2.5833333333333335,
+          "median": 2.5,
+          "range": [
+            2,
+            3.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 7.416666666666667,
+          "median": 7.5,
+          "range": [
+            7,
+            8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 1.8333333333333333,
+          "median": 1.75,
+          "range": [
+            1.5,
+            2.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 2.9024305555555556,
+        "regime_dispersion_pp": 8.333333333333334
+      },
+      {
+        "asset": "Industrial metals (copper-levered)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 4.666666666666667,
+          "median": 4.5,
+          "range": [
+            4,
+            6
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 6.5,
+          "median": 6.25,
+          "range": [
+            6,
+            7.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 4.833333333333333,
+          "median": 4.5,
+          "range": [
+            4,
+            6.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 4.083333333333333,
+          "median": 4.0,
+          "range": [
+            3,
+            5.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -4.166666666666667,
+          "median": -4.0,
+          "range": [
+            -6,
+            -3
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 3.5789583333333335,
+        "regime_dispersion_pp": 10.666666666666668
+      },
+      {
+        "asset": "Healthcare & elder-care service operators",
+        "buildout_2026_2030_real_pct": {
+          "mean": 3.9166666666666665,
+          "median": 4.0,
+          "range": [
+            3,
+            5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 5.5,
+          "median": 5.75,
+          "range": [
+            4,
+            6.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 4.5,
+          "median": 4.75,
+          "range": [
+            1.5,
+            6
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 0.16666666666666666,
+          "median": 0.0,
+          "range": [
+            -1.5,
+            2
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 3.0,
+          "median": 3.0,
+          "range": [
+            2.5,
+            3.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 3.5298611111111113,
+        "regime_dispersion_pp": 5.333333333333333
+      },
+      {
+        "asset": "Construction, skilled trades & capital goods",
+        "buildout_2026_2030_real_pct": {
+          "mean": 6.583333333333333,
+          "median": 6.5,
+          "range": [
+            5.5,
+            7.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 7.75,
+          "median": 7.75,
+          "range": [
+            7,
+            8.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 6.583333333333333,
+          "median": 6.5,
+          "range": [
+            6,
+            7.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 3.0833333333333335,
+          "median": 3.0,
+          "range": [
+            2.5,
+            3.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -2.9166666666666665,
+          "median": -3.0,
+          "range": [
+            -5,
+            -1
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 4.595000000000001,
+        "regime_dispersion_pp": 10.666666666666666
+      },
+      {
+        "asset": "China equities and onshore duration",
+        "buildout_2026_2030_real_pct": {
+          "mean": 4.166666666666667,
+          "median": 4.0,
+          "range": [
+            3.5,
+            5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 6.75,
+          "median": 6.75,
+          "range": [
+            6,
+            8
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 4.25,
+          "median": 4.25,
+          "range": [
+            3,
+            6
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 1.9166666666666667,
+          "median": 2.0,
+          "range": [
+            1.5,
+            2
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": 2.5,
+          "median": 3.25,
+          "range": [
+            0,
+            3.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 3.9075694444444444,
+        "regime_dispersion_pp": 4.833333333333333
+      },
+      {
+        "asset": "EM ex-China services exporters (India/Philippines IT-BPO)",
+        "buildout_2026_2030_real_pct": {
+          "mean": 3.25,
+          "median": 3.0,
+          "range": [
+            2,
+            5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 7.083333333333333,
+          "median": 7.5,
+          "range": [
+            5,
+            9
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 3.0,
+          "median": 3.25,
+          "range": [
+            1,
+            5.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": 1.0,
+          "median": 1.0,
+          "range": [
+            0,
+            2
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -1.9166666666666667,
+          "median": -1.75,
+          "range": [
+            -3,
+            -1
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 2.505625,
+        "regime_dispersion_pp": 9.0
+      },
+      {
+        "asset": "Private credit / levered loans",
+        "buildout_2026_2030_real_pct": {
+          "mean": 2.0833333333333335,
+          "median": 2.25,
+          "range": [
+            1,
+            3
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_A": {
+          "mean": 4.583333333333333,
+          "median": 4.5,
+          "range": [
+            4,
+            5.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_B": {
+          "mean": 2.75,
+          "median": 2.75,
+          "range": [
+            2,
+            3.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_C": {
+          "mean": -1.75,
+          "median": -1.25,
+          "range": [
+            -4,
+            0.5
+          ],
+          "n": 6
+        },
+        "diffusion_2031_2036_if_D": {
+          "mean": -5.0,
+          "median": -5.0,
+          "range": [
+            -7,
+            -2.5
+          ],
+          "n": 6
+        },
+        "cq6_weighted_2031_2036": 0.9293750000000001,
+        "regime_dispersion_pp": 9.583333333333332
+      }
+    ]
+  }
+}
