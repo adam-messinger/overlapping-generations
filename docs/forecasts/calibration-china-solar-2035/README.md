@@ -60,3 +60,35 @@ flat through 2035. Its solar build compounded at the 30%/yr growth cap to
 
 `panel-output.json` holds every seat's payload, reasoning, drivers and
 falsification signposts.
+
+## What was changed
+
+**China: fitted.** `tfpGrowth` 0.028, `tfpDecay` 0.115, and a new `tfpFloor`
+of 0.007 (the OECD-ex-US residual) give a model gap of 0.86 / 0.28 pp. The
+floor keeps the near-term fit from implying a collapse after 2035. Without
+it, China would grow 0.9 pp below world over 2050-2100.
+
+**Solar: not fitted. This needs a modelling decision.**
+- The solar cap is a share of the installed fleet (`maxGrowthRate.solar`,
+  30%/yr), so annual additions compound at the same rate as the fleet. The
+  panel's additions grow ~2-4%/yr.
+- No constant rate fits both points. IRENA 2025 (511 GW) needs ~27%; the
+  2030 median (555 GW) needs ~15.5%.
+- A prototype build-momentum cap (addition_t <= addition_{t-1} x (1+g),
+  seeded with IRENA 2024 regional additions summing to 453 GW) fits the
+  panel at g ~ 4%/yr. The cost:
+
+| | Current | g = 3.5% | g = 5% |
+|---|---|---|---|
+| Solar additions 2030 / 2035 (GW) | 1,816 / 2,061 | 530 / 630 | 573 / 732 |
+| Solar fleet 2050 (GW) | 50,447 | 18,693 | 23,177 |
+| GDP 2050 / 2100 ($T) | 338 / 1,753 | 290 / 818 | 296 / 744 |
+| Fossil share 2050 | 9.9% | 14.5% | 13.5% |
+| Warming 2100 (C) | 2.63 | 2.64 | 2.64 |
+
+Under the gamma = 0.55 useful-energy production function, the solar build is
+the model's late-century growth engine. Matching the panel through 2035 and
+extending the same momentum to 2100 more than halves 2100 GDP. That tail is
+an extrapolation; the panel says nothing past 2035. 2100 GDP is also
+non-monotonic in g (818 / 744 / 799 at 3.5 / 5 / 8%), which needs tracing
+before any version of this lands.
