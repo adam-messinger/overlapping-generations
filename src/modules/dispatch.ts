@@ -82,7 +82,7 @@ export interface DispatchParams {
   storageBonusPerHour: number;       // Additional VRE share per storage hour (0.08)
 
   /** Soft curtailment parameters */
-  curtailmentOnset: number;          // VRE share where curtailment begins (default 0.30)
+  curtailmentOnset: number;          // VRE share where curtailment begins with NO storage (default 0.30); storage shifts it by the penetration headroom it adds
   curtailmentCoeff: number;          // Quadratic penalty coefficient (default 1.5)
   maxCurtailmentPenalty: number;     // Cap on curtailment penalty (default 0.5)
 
@@ -355,10 +355,44 @@ function dispatchRegion(
   const preCurtailmentSolar = maxGen.solar;
   const preCurtailmentWind = maxGen.wind;
 
-  // Soft curtailment: reduce effective VRE as share increases beyond onset
+  // VRE limits based on two-tier storage (short-duration batteries + long-duration)
+  const PEAK_TO_AVERAGE_RATIO = 2;
+  const averageDemandGW = convertQuantity(divideQuantities(
+    unitQuantity(demandTWh, 'TWh/year', 'annual electricity demand'),
+    unitQuantity(params.hoursPerYear, 'hour/year', 'operating hours'),
+    'average electricity demand',
+  ), 'GW').value;
+  const peakDemandGW = averageDemandGW * PEAK_TO_AVERAGE_RATIO;
+  const shortStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(batteryGWh, 'GWh', 'short-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'short-duration storage hours',
+  ), 'hour').value;
+  const longStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(longStorageGWh, 'GWh', 'long-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'long-duration storage hours',
+  ), 'hour').value;
+  // VRE penetration limit = storage-based headroom. No separate ceiling: the
+  // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
+  // demand limit clamp VRE first), and it made maxVREPenetration a redundant
+  // copy of this same expression — verified byte-identical across all scenarios.
+  const maxCombinedVRE = params.baseVRELimit
+    + shortStorageHours * params.storageBonusPerHour
+    + longStorageHours * params.longStorageBonusPerHour;
+
+  // Soft curtailment: reduce effective VRE as share increases beyond onset.
+  // Storage moves the onset by the same headroom it adds to the penetration
+  // limit: shifting surplus midday output into other hours is exactly what
+  // lets a grid absorb more VRE before spilling it. Without this the penalty
+  // took ~47% of US VRE in 2075 at 86% VRE share despite 8h short + 21h long
+  // storage (penetration limit 180%), and energy's build read that as every
+  // new VRE MW being half wasted, so unpriced coal won the build.
+  const storageHeadroom = maxCombinedVRE - params.baseVRELimit;
+  const curtailmentOnset = params.curtailmentOnset + storageHeadroom;
   const expectedVREShare = demandTWh > 0 ? totalAvailableVRE / demandTWh : 0;
-  if (expectedVREShare > params.curtailmentOnset) {
-    const excess = expectedVREShare - params.curtailmentOnset;
+  if (expectedVREShare > curtailmentOnset) {
+    const excess = expectedVREShare - curtailmentOnset;
     const penalty = Math.min(params.maxCurtailmentPenalty, params.curtailmentCoeff * excess * excess);
     maxGen.solar *= (1 - penalty);
     maxGen.solarPlusBattery *= (1 - penalty);
@@ -392,31 +426,6 @@ function dispatchRegion(
   let totalWindAllocated = 0;
   let totalVREAllocated = 0;
 
-  // VRE limits based on two-tier storage (short-duration batteries + long-duration)
-  const PEAK_TO_AVERAGE_RATIO = 2;
-  const averageDemandGW = convertQuantity(divideQuantities(
-    unitQuantity(demandTWh, 'TWh/year', 'annual electricity demand'),
-    unitQuantity(params.hoursPerYear, 'hour/year', 'operating hours'),
-    'average electricity demand',
-  ), 'GW').value;
-  const peakDemandGW = averageDemandGW * PEAK_TO_AVERAGE_RATIO;
-  const shortStorageHours = convertQuantity(divideQuantities(
-    unitQuantity(batteryGWh, 'GWh', 'short-duration storage'),
-    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
-    'short-duration storage hours',
-  ), 'hour').value;
-  const longStorageHours = convertQuantity(divideQuantities(
-    unitQuantity(longStorageGWh, 'GWh', 'long-duration storage'),
-    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
-    'long-duration storage hours',
-  ), 'hour').value;
-  // VRE penetration limit = storage-based headroom. No separate ceiling: the
-  // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
-  // demand limit clamp VRE first), and it made maxVREPenetration a redundant
-  // copy of this same expression — verified byte-identical across all scenarios.
-  const maxCombinedVRE = params.baseVRELimit
-    + shortStorageHours * params.storageBonusPerHour
-    + longStorageHours * params.longStorageBonusPerHour;
   // VRE headroom split by sub-fraction. The old per-source maxPenetration caps
   // (solar 0.40, wind 0.35, battery 0.80) are removed: the storage-headroom
   // fractions sit below them on every path, so they clipped at most ~0.1% of
@@ -591,7 +600,7 @@ export const dispatchModule: Module<
 
   paramMeta: {
     curtailmentOnset: {
-      description: 'VRE share of demand at which soft curtailment begins.',
+      description: 'VRE share of demand at which soft curtailment begins with no storage; storage shifts the onset by the same headroom it adds to the VRE penetration limit.',
       unit: 'fraction',
       range: { min: 0.15, max: 0.50, default: 0.30 },
       tier: 1 as const,

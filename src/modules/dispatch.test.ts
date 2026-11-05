@@ -382,6 +382,25 @@ test('no region generates more than its own panels and turbines can', () => {
   }
 });
 
+// --- Storage and soft curtailment ---
+
+console.log('\n--- Storage and Curtailment ---\n');
+
+test('storage moves the soft-curtailment onset with the penetration headroom it adds', () => {
+  // ~57% VRE share of required generation: past the 30% no-storage onset
+  const caps = { solarCap: 6000, windCap: 2000 };
+  const params = dispatchModule.mergeParams({});
+  const required = 25000 * params.gridLossFactor;
+  const peakGW = (required / params.hoursPerYear) * 1000 * 2;
+  // 8 hours of storage at peak: headroom 8 x 0.08 = +0.64, onset 0.94
+  const ample = runDispatch({ ...caps, batteryCap: peakGW * 8 }).outputs;
+  const none = runDispatch({ ...caps, batteryCap: 0 }).outputs;
+  // VRE below the storage-shifted onset is absorbed, not spilled (the
+  // unshifted onset would curtail 1.5 x 0.27^2 = ~11% of it)
+  expect(ample.curtailmentRate).toBeLessThan(0.01);
+  expect(none.curtailmentRate).toBeGreaterThan(0.1);
+});
+
 // --- Standby (firm-adequacy) capacity ---
 
 console.log('\n--- Standby Capacity ---\n');
