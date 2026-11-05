@@ -28,7 +28,15 @@ function validUnit(unit: string, context: string): void {
   if (!isKnownUnit(unit)) throw new Error(`${context} has unknown unit '${unit}'`);
 }
 
-export type InitialRetirementProfile = 'uniform' | 'bullet';
+/**
+ * Age profile of an opening stock whose history is unknown:
+ * - 'uniform': equal slices at every age (the fleet was built at a constant rate)
+ * - 'growth': slices that shrink with age at `initialGrowthRate`, the fleet
+ *   built by additions growing at that rate (a fast-growing fleet is young
+ *   and retires little at first); a rate of 0 is 'uniform'
+ * - 'bullet': one cohort retiring at the end of a full service life
+ */
+export type InitialRetirementProfile = 'uniform' | 'growth' | 'bullet';
 
 export interface VintageCohort {
   id: string;
@@ -102,7 +110,8 @@ export function scheduledVintageRetirements(
 /**
  * Create an opening stock. A uniform legacy profile retires equal slices at
  * steps startStep..startStep+life-1, matching the common assumption that the
- * unknown opening fleet is uniformly distributed across ages.
+ * unknown opening fleet is uniformly distributed across ages. A growth
+ * profile weights the cohort of age a by (1 + initialGrowthRate)^-a.
  */
 export function createVintageStock(options: {
   unit: string;
@@ -110,6 +119,8 @@ export function createVintageStock(options: {
   serviceLifeSteps: number;
   startStep?: number;
   initialRetirementProfile?: InitialRetirementProfile;
+  /** Historical growth rate of additions per step ('growth' profile only) */
+  initialGrowthRate?: number;
   idPrefix?: string;
 }): VintageStockState {
   validUnit(options.unit, 'Vintage stock');
@@ -119,18 +130,27 @@ export function createVintageStock(options: {
   finiteNonNegative(initialStock, 'initialStock');
   integer(options.serviceLifeSteps, 'serviceLifeSteps', 1);
   integer(startStep, 'startStep');
-  if (profile !== 'uniform' && profile !== 'bullet') {
+  if (profile !== 'uniform' && profile !== 'growth' && profile !== 'bullet') {
     throw new Error(
-      `initialRetirementProfile must be 'uniform' or 'bullet', got '${String(profile)}'`,
+      `initialRetirementProfile must be 'uniform', 'growth' or 'bullet', got '${String(profile)}'`,
     );
   }
+  const growth = profile === 'growth' ? options.initialGrowthRate : 0;
+  if (growth === undefined || !Number.isFinite(growth) || growth <= -1) {
+    throw new Error("initialRetirementProfile 'growth' needs a finite initialGrowthRate > -1");
+  }
   const cohorts: VintageCohort[] = [];
-  if (initialStock > 0 && profile === 'uniform') {
-    const amount = initialStock / options.serviceLifeSteps;
-    for (let remainingLife = 1; remainingLife <= options.serviceLifeSteps; remainingLife++) {
+  if (initialStock > 0 && profile !== 'bullet') {
+    const life = options.serviceLifeSteps;
+    // Weight by age (life - remainingLife): newest cohort has age 0
+    const weight = (remainingLife: number) => Math.pow(1 + growth, -(life - remainingLife));
+    let total = 0;
+    for (let r = 1; r <= life; r++) total += weight(r);
+    for (let remainingLife = 1; remainingLife <= life; remainingLife++) {
+      const amount = (initialStock * weight(remainingLife)) / total;
       cohorts.push({
         id: `${options.idPrefix ?? 'legacy'}-${remainingLife}`,
-        vintageStep: startStep - (options.serviceLifeSteps - remainingLife),
+        vintageStep: startStep - (life - remainingLife),
         inServiceStep: Number.MIN_SAFE_INTEGER,
         retirementStep: startStep + remainingLife - 1,
         originalAmount: amount,

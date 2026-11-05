@@ -122,8 +122,43 @@ test('opening vintage profiles fail closed at runtime', () => {
       serviceLifeSteps: 20,
       initialRetirementProfile: 'triangular' as 'uniform',
     }),
-    /initialRetirementProfile must be 'uniform' or 'bullet'/,
+    /initialRetirementProfile must be 'uniform', 'growth' or 'bullet'/,
   );
+  assert.throws(
+    () => createVintageStock({
+      unit: 'GW',
+      initialStock: 10,
+      serviceLifeSteps: 20,
+      initialRetirementProfile: 'growth',
+    }),
+    /needs a finite initialGrowthRate/,
+  );
+});
+
+test('growth opening vintage is young: retirements rise with the build history', () => {
+  const life = 4;
+  const g = 1; // additions doubled every step: ages 0..3 hold 8:4:2:1 of 15
+  const state = createVintageStock({
+    unit: 'GW', initialStock: 15, serviceLifeSteps: life,
+    initialRetirementProfile: 'growth', initialGrowthRate: g,
+  });
+  const retired: number[] = [];
+  let s = state;
+  for (let step = 0; step < life; step++) {
+    const row = advanceVintageStock(s, { step, additions: 0, serviceLifeSteps: life });
+    retired.push(row.scheduledRetirements);
+    s = row.state;
+  }
+  assert.deepEqual(retired.map((x) => Math.round(x * 1e9) / 1e9), [1, 2, 4, 8]);
+  // A zero growth rate is the uniform profile
+  const flat = createVintageStock({
+    unit: 'GW', initialStock: 40, serviceLifeSteps: life,
+    initialRetirementProfile: 'growth', initialGrowthRate: 0,
+  });
+  const uniform = createVintageStock({
+    unit: 'GW', initialStock: 40, serviceLifeSteps: life, initialRetirementProfile: 'uniform',
+  });
+  assert.deepEqual(flat.cohorts.map((c) => c.originalAmount), uniform.cohorts.map((c) => c.originalAmount));
 });
 
 test('transit ledger preserves fractional-delay cargo and exposes terminal stock', () => {
