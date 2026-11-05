@@ -1,42 +1,92 @@
 {
   "name": "Technology Breakthrough",
   "description": "Twin-Engine scenario (20% probability). Faster-than-expected learning. Fusion or advanced geothermal delivers <$40/MWh by 2040s. Battery costs drop below $50/kWh by 2030. Rapid electrification enables net-zero by 2060s.",
-
   "energy": {
     "carbonPrice": 50,
+    "regional": {
+      "us": {
+        "carbonPrice": 50
+      },
+      "oecd-ex-us": {
+        "carbonPrice": 50
+      },
+      "china": {
+        "carbonPrice": 50
+      },
+      "india": {
+        "carbonPrice": 50
+      },
+      "latam": {
+        "carbonPrice": 50
+      },
+      "seasia": {
+        "carbonPrice": 50
+      },
+      "russia": {
+        "carbonPrice": 50
+      },
+      "mena": {
+        "carbonPrice": 50
+      },
+      "ssa": {
+        "carbonPrice": 50
+      }
+    },
     "sources": {
-      "solar": { "alpha": 0.42 },
-      "wind": { "alpha": 0.28 },
-      "battery": { "alpha": 0.25 },
-      "nuclear": { "cost0": 80 }
+      "solar": {
+        "alpha": 0.42
+      },
+      "wind": {
+        "alpha": 0.28
+      },
+      "battery": {
+        "alpha": 0.25
+      },
+      "nuclear": {
+        "cost0": 80
+      }
     },
     "maxGrowthRate": {
-      "solar": 0.40,
+      "solar": 0.4,
       "wind": 0.25,
-      "battery": 0.50,
-      "nuclear": 0.10
+      "battery": 0.5,
+      "nuclear": 0.1
     }
   },
-
   "demand": {
     "efficiencyMultiplier": 1.2,
     "sectors": {
-      "transport": { "costEscalationThreshold": 0.75, "costEscalationRate": 1.5 },
-      "buildings": { "costEscalationThreshold": 0.92, "costEscalationRate": 0.8 },
-      "industry": { "costEscalationThreshold": 0.65, "costEscalationRate": 1.5 }
+      "transport": {
+        "costEscalationThreshold": 0.75,
+        "costEscalationRate": 1.5
+      },
+      "buildings": {
+        "costEscalationThreshold": 0.92,
+        "costEscalationRate": 0.8
+      },
+      "industry": {
+        "costEscalationThreshold": 0.65,
+        "costEscalationRate": 1.5
+      }
     }
   },
-
   "climate": {
     "sensitivity": 3.0
   },
-
   "resources": {
     "minerals": {
-      "copper": { "learningRate": 0.026 },
-      "lithium": { "learningRate": 0.039 },
-      "rareEarths": { "learningRate": 0.013 },
-      "steel": { "learningRate": 0.013 }
+      "copper": {
+        "learningRate": 0.026
+      },
+      "lithium": {
+        "learningRate": 0.039
+      },
+      "rareEarths": {
+        "learningRate": 0.013
+      },
+      "steel": {
+        "learningRate": 0.013
+      }
     }
   }
 }

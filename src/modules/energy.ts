@@ -137,7 +137,14 @@ export interface EnergyParams {
    */
   eroiReferenceCF: { solar: number; wind: number };
 
-  /** Global carbon price (fallback if regional not specified) - DEPRECATED, use regional */
+  /**
+   * Global carbon price. Feeds ONLY demand-side fuel costs (electrification
+   * and fuel switching) and dispatch's fallback when no regional prices are
+   * wired. Every power-sector decision (new-build choice, fossil
+   * displacement, dispatch merit order) reads regional[r].carbonPrice, so a
+   * scenario that wants a power-sector carbon price must set it regionally;
+   * validate warns when this differs from its default with no regional price.
+   */
   carbonPrice: number;
 
   /** Maximum growth rates (manufacturing limits) - global defaults */
@@ -1108,7 +1115,7 @@ export const energyModule: Module<
 
   paramMeta: {
     carbonPrice: {
-      description: 'Carbon tax applied to fossil fuel generation. Higher values accelerate clean energy transition.',
+      description: 'Global carbon price on demand-side fuel costs (electrification and fuel switching). Power-sector prices are the regional ones (usCarbonPrice, chinaCarbonPrice, ...): set those for generation.',
       unit: '$/ton CO₂',
       range: { min: 0, max: 300, default: 35 },
       tier: 1 as const,
@@ -1310,6 +1317,16 @@ export const energyModule: Module<
     }
     if (p.carbonPrice > 500) {
       warnings.push(`carbonPrice ${p.carbonPrice} unusually high`);
+    }
+    // The global key never reaches the power sector (see EnergyParams.carbonPrice)
+    // (validate sees merged params, so "no regional price set" = every region at its default)
+    if (p.carbonPrice !== energyDefaults.carbonPrice &&
+        REGIONS.every(r => (p.regional?.[r]?.carbonPrice ?? energyDefaults.regional[r].carbonPrice) === energyDefaults.regional[r].carbonPrice)) {
+      warnings.push(
+        `carbonPrice ${p.carbonPrice} is set without any regional.*.carbonPrice: it moves demand-side ` +
+        'fuel costs only. Power-sector build, displacement and dispatch use the regional prices ' +
+        `(defaults ${REGIONS.map(r => `${r} ${energyDefaults.regional[r].carbonPrice}`).join(', ')}).`,
+      );
     }
 
     // Endogenous capex share

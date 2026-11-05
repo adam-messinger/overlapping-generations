@@ -3,6 +3,35 @@
   "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition. NOTE: interest is tax-financed by construction (a GDP claim, not new borrowing), so interest-capitalization debt spirals are structurally outside this model — debt stress appears as rising publicDebtService and the risk-premium channel. This scenario understates true spiral risk.",
   "energy": {
     "carbonPrice": 10,
+    "regional": {
+      "us": {
+        "carbonPrice": 10
+      },
+      "oecd-ex-us": {
+        "carbonPrice": 10
+      },
+      "china": {
+        "carbonPrice": 10
+      },
+      "india": {
+        "carbonPrice": 10
+      },
+      "latam": {
+        "carbonPrice": 10
+      },
+      "seasia": {
+        "carbonPrice": 10
+      },
+      "russia": {
+        "carbonPrice": 10
+      },
+      "mena": {
+        "carbonPrice": 10
+      },
+      "ssa": {
+        "carbonPrice": 10
+      }
+    },
     "sources": {
       "solar": {
         "alpha": 0.32

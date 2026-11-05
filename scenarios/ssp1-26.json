@@ -1,44 +1,76 @@
 {
   "name": "SSP1-2.6 (Well Below 2°C)",
   "description": "IPCC SSP1-2.6 aligned. Strong mitigation, sustainability focus. Target: 1.8°C by 2100.",
-
   "energy": {
     "carbonPrice": 300,
-    "sources": {
-      "solar": { "alpha": 0.40 },
-      "wind": { "alpha": 0.28 },
-      "battery": { "alpha": 0.30 }
+    "regional": {
+      "us": {
+        "carbonPrice": 300
+      },
+      "oecd-ex-us": {
+        "carbonPrice": 300
+      },
+      "china": {
+        "carbonPrice": 300
+      },
+      "india": {
+        "carbonPrice": 300
+      },
+      "latam": {
+        "carbonPrice": 300
+      },
+      "seasia": {
+        "carbonPrice": 300
+      },
+      "russia": {
+        "carbonPrice": 300
+      },
+      "mena": {
+        "carbonPrice": 300
+      },
+      "ssa": {
+        "carbonPrice": 300
       }
+    },
+    "sources": {
+      "solar": {
+        "alpha": 0.4
+      },
+      "wind": {
+        "alpha": 0.28
+      },
+      "battery": {
+        "alpha": 0.3
+      }
+    }
   },
-
   "demand": {
     "efficiencyMultiplier": 1.4,
     "fuelMix": {
       "priceSensitivity": 0.04,
-      "inertiaRate": 0.10
+      "inertiaRate": 0.1
     },
     "sectors": {
       "transport": {
-        "costEscalationThreshold": 0.70,
+        "costEscalationThreshold": 0.7,
         "costEscalationRate": 1.5,
-        "costSensitivity": 0.10,
+        "costSensitivity": 0.1,
         "basePressure": 0.02
       },
       "buildings": {
-        "costEscalationThreshold": 0.90,
+        "costEscalationThreshold": 0.9,
         "costEscalationRate": 1.0,
         "costSensitivity": 0.08,
         "basePressure": 0.025
       },
       "industry": {
-        "costEscalationThreshold": 0.60,
+        "costEscalationThreshold": 0.6,
         "costEscalationRate": 2.0,
         "costSensitivity": 0.12,
         "basePressure": 0.012
       }
     }
   },
-
   "climate": {
     "nonCO2Forcing2100": 0.4,
     "sensitivity": 3.0

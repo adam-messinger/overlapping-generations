@@ -12,6 +12,7 @@ import {
   getRegionalCapacityFactor,
   type EnergyParams,
 } from './energy.js';
+import { readdirSync, readFileSync } from 'node:fs';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { dispatchDefaults } from './dispatch.js';
@@ -900,6 +901,31 @@ test('China firm adequacy builds standby coal that does not count as energy supp
   const on2 = run(0.99, 2);
   const off2 = run(0, 2);
   expect(on2.out.regionalAdditions.china.solar).toBeCloseTo(off2.out.regionalAdditions.china.solar, 1);
+});
+
+// The global carbonPrice never reaches the power sector; a scenario that sets
+// only it silently runs at the regional defaults
+const GLOBAL_ONLY_WARNING = /set without any regional/;
+
+test('a global-only carbon price warns that it misses the power sector', () => {
+  const globalOnly = energyModule.validate(energyModule.mergeParams({ carbonPrice: 150 }));
+  expect(globalOnly.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBeTrue();
+  const withRegional = energyModule.validate(energyModule.mergeParams({
+    carbonPrice: 150, regional: { china: { carbonPrice: 150 } } as any,
+  }));
+  expect(withRegional.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
+  const atDefault = energyModule.validate(energyModule.mergeParams({ carbonPrice: energyDefaults.carbonPrice }));
+  expect(atDefault.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
+});
+
+test('no scenario file sets a carbon price the power sector cannot see', () => {
+  const dir = new URL('../../scenarios/', import.meta.url);
+  for (const file of readdirSync(dir).filter(f => f.endsWith('.json'))) {
+    const scenario = JSON.parse(readFileSync(new URL(file, dir), 'utf8'));
+    const result = energyModule.validate(energyModule.mergeParams(scenario.energy ?? {}));
+    const hit = result.warnings.find(w => GLOBAL_ONLY_WARNING.test(w));
+    expect(hit === undefined ? file : `${file}: ${hit}`).toBe(file);
+  }
 });
 
 test('validation catches negative riskPremium', () => {
