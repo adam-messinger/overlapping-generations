@@ -115,7 +115,8 @@ export interface RegionalEnergyParams {
    * of its start-year ratio to average demand, building `source` for any
    * gap. That build is standby capacity held for security, not for energy:
    * it is excluded from the energy requirement and fossil displacement, so
-   * it neither crowds out clean build nor counts as energy supply. Absent =
+   * it neither crowds out clean build nor counts as energy supply, and
+   * dispatch runs it only as a last resort (regionalStandbyCapacity). Absent =
    * no adequacy rule (capacity follows energy economics alone).
    */
   firmAdequacy?: { source: 'coal' | 'gas'; share: number };
@@ -869,6 +870,10 @@ export interface EnergyOutputs {
   /** Regional capacity breakdown */
   regionalCapacities: Record<Region, Record<EnergySource, number>>;
 
+  /** Standby (firm-adequacy) capacity inside regionalCapacities (GW): held
+   *  for security, so dispatch runs it only after every other source. */
+  regionalStandbyCapacity: Record<Region, Record<'coal' | 'gas', number>>;
+
   /** Cumulative capacity (for external tracking) - GLOBAL */
   cumulativeCapacity: Record<EnergySource, number>;
 
@@ -1258,6 +1263,7 @@ export const energyModule: Module<
       capacities: ENERGY_CAPACITY_PORT,
       energyCapexSpend: unitPort('$T/year'),
       regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      regionalStandbyCapacity: unitPort('GW', 'nested-record'),
       cumulativeCapacity: ENERGY_CAPACITY_PORT,
       additions: ENERGY_ADDITION_PORT,
       regionalAdditions: REGIONAL_ENERGY_ADDITION_PORT,
@@ -2305,6 +2311,15 @@ export const energyModule: Module<
         energyCapexSpend: realizedCapexB / 1000, // $T realized (all sources)
         capacities: globalCapacities,
         regionalCapacities,
+        regionalStandbyCapacity: Object.fromEntries(REGIONS.map((r) => {
+          const source = params.regional[r].firmAdequacy?.source;
+          const standby = { coal: 0, gas: 0 };
+          if (source) {
+            standby[source] = Math.min(regionalCapacities[r][source],
+              standbyStock[r] + (plans[r].standbyGW ?? 0));
+          }
+          return [r, standby];
+        })) as Record<Region, Record<'coal' | 'gas', number>>,
         cumulativeCapacity,
         additions: globalAdditions,
         regionalAdditions,

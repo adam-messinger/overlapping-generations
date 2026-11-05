@@ -180,6 +180,11 @@ export interface DispatchInputs {
   /** Regional capacity breakdown */
   regionalCapacities?: Record<Region, Record<EnergySource, number>>;
 
+  /** Standby (firm-adequacy) capacity inside regionalCapacities (GW). It is
+   *  held for security, so it runs only after every other source and the
+   *  curtailed-VRE release: it serves demand that would otherwise go unmet. */
+  regionalStandbyCapacity?: Record<Region, Partial<Record<'coal' | 'gas', number>>>;
+
   /** Carbon price ($/ton CO2) - GLOBAL fallback */
   carbonPrice: number;
 
@@ -299,7 +304,8 @@ function dispatchRegion(
   capacities: Record<EnergySource, number>,
   carbonPrice: number,
   params: DispatchParams,
-  longStorageGWh: number = 0
+  longStorageGWh: number = 0,
+  standbyGW: Partial<Record<'coal' | 'gas', number>> = {},
 ): RegionalDispatchOutputs {
   // Calculate marginal costs with regional carbon price
   const marginalCosts: Record<string, number> = {};
@@ -319,7 +325,9 @@ function dispatchRegion(
       maxGen[source] = 0;
       continue;
     }
-    const capacity = capacities[source];
+    // Standby capacity is held out of the merit order (dispatched last, below)
+    const standby = source === 'coal' || source === 'gas' ? (standbyGW[source] ?? 0) : 0;
+    const capacity = Math.max(0, capacities[source] - standby);
     const cf = params.capacityFactor[source];
     maxGen[source] = annualGenerationTWh(capacity, cf, params.hoursPerYear, source);
   }
@@ -485,6 +493,19 @@ function dispatchRegion(
     }
   }
 
+  // Standby (firm-adequacy) capacity: last resort, after the VRE release.
+  // It is security capacity, so it runs only for demand nothing else serves;
+  // in merit order it would run as baseload (~60% CF in China by 2050).
+  for (const source of ['gas', 'coal'] as const) {
+    if (remaining <= 0) break;
+    const gw = Math.min(standbyGW[source] ?? 0, capacities[source]);
+    if (gw <= 0) continue;
+    const run = Math.min(remaining, annualGenerationTWh(
+      gw, params.capacityFactor[source], params.hoursPerYear, `standby ${source}`));
+    generation[source] += run;
+    remaining -= run;
+  }
+
   // Curtailment tracking (from final dispatched vs pre-curtailment available)
   const totalDispatchedVRE = generation.solar + generation.solarPlusBattery + generation.wind;
   const curtailmentTWh = Math.max(0, totalAvailableVRE - totalDispatchedVRE);
@@ -589,6 +610,7 @@ export const dispatchModule: Module<
       regionalElectricityDemand: unitPort('TWh/year', 'record'),
       capacities: ENERGY_CAPACITY_PORT,
       regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      regionalStandbyCapacity: unitPort('GW', 'nested-record'),
       carbonPrice: unitPort('$/tCO2'),
       regionalCarbonPrice: unitPort('$/tCO2', 'record'),
       longStorageRegional: unitPort('GWh', 'record'),
@@ -720,7 +742,8 @@ export const dispatchModule: Module<
         regionalCapacities[region],
         regionalCarbonPrice[region],
         regionParams,
-        longStorageRegional[region]
+        longStorageRegional[region],
+        inputs.regionalStandbyCapacity?.[region],
       );
 
       regionalOutputs[region] = regionResult;
