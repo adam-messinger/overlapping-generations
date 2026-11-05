@@ -231,9 +231,12 @@ test('wind capacity grows over time', () => {
 });
 
 test('coal additions much smaller than solar', () => {
-  const { outputs } = runYears(5);
-  // Coal may get small demand-gap additions but solar dominates on LCOE
-  expect(outputs.additions.solar).toBeGreaterThan(outputs.additions.coal * 10);
+  const { outputs, state } = runYears(5);
+  // Coal may get small demand-gap additions but solar dominates on LCOE.
+  // China's standby (firm-adequacy) coal is a security build, not an
+  // economic choice, so it is set aside here
+  const standby = REGIONS.reduce((sum, r) => sum + (state.standbyAdditions[r].at(-1) ?? 0), 0);
+  expect(outputs.additions.solar).toBeGreaterThan((outputs.additions.coal - standby) * 10);
 });
 
 test('cumulative capacity only increases', () => {
@@ -551,9 +554,14 @@ test('zero curtailment does not affect solar additions', () => {
   expect(r1.outputs.additions.solar).toBeCloseTo(r2.outputs.additions.solar, 0);
 });
 
+// World build capacity lifted out of the way: these tests isolate the
+// curtailment channel (delivered cost / (1 - curtailment) in the new-build
+// logit), which a binding solar factory ceiling would mask
+const UNCAPPED_BUILD = { buildCapacity2025: { solar: 1e6, wind: 1e6, gas: 1e6, coal: 1e6, nuclear: 1e6, hydro: 1e6 } };
+
 test('high curtailment reduces solar additions', () => {
   // Run 5 years to build up enough solar that demand-fill path is active
-  const params = energyModule.mergeParams({});
+  const params = energyModule.mergeParams(UNCAPPED_BUILD);
   let stateA = energyModule.init(params);
   let stateB = energyModule.init(params);
   for (let i = 0; i < 5; i++) {
@@ -570,7 +578,7 @@ test('high curtailment increases battery relative to solar additions', () => {
   // Run 10 years, then compare. High curtailment dampens solar but not battery.
   // Even if battery additions are growth-capped (identical absolute value),
   // the ratio of battery:solar additions should be higher with curtailment.
-  const params = energyModule.mergeParams({});
+  const params = energyModule.mergeParams(UNCAPPED_BUILD);
   let stateA = energyModule.init(params);
   let stateB = energyModule.init(params);
   for (let i = 0; i < 10; i++) {
@@ -695,10 +703,13 @@ test('regional wind LCOE is the reference LCOE scaled by referenceCF over the ef
   const wind = params.sources.wind;
   for (const region of REGIONS) {
     const effectiveCF = getRegionalCapacityFactor(params, region, 'wind', wind.capacity2025[region]);
-    expect(r.outputs.regionalLCOEs[region].wind * effectiveCF).toBeCloseTo(r.outputs.lcoes.wind * wind.referenceCF, 6);
+    const multiplier = params.regional[region].costMultiplier?.wind ?? 1;
+    expect(r.outputs.regionalLCOEs[region].wind * effectiveCF).toBeCloseTo(r.outputs.lcoes.wind * wind.referenceCF * multiplier, 6);
   }
-  // Fleet-CF dispersion is visible: Brazil-led LatAm wind is cheaper than China's
-  expect(r.outputs.regionalLCOEs.latam.wind).toBeLessThan(r.outputs.regionalLCOEs.china.wind);
+  // Fleet-CF dispersion is visible: Brazil-led LatAm wind beats China's on
+  // site quality alone (China's observed-cost multiplier set aside)
+  const chinaWindMultiplier = params.regional.china.costMultiplier?.wind ?? 1;
+  expect(r.outputs.regionalLCOEs.latam.wind).toBeLessThan(r.outputs.regionalLCOEs.china.wind / chinaWindMultiplier);
 });
 
 test('fossil reserve budgets reproduce their stated R/P calibration', () => {
@@ -847,9 +858,48 @@ test('effective WACC output is present', () => {
 
 console.log('\n--- New Param Validation ---\n');
 
-test('validation catches negative curtailmentPenalty', () => {
-  const result = energyModule.validate({ curtailmentPenalty: -1 });
-  expect(result.valid).toBe(false);
+test('validation catches bad demand-led build params', () => {
+  expect(energyModule.validate({ newBuildLogitExponent: 0 }).valid).toBe(false);
+  expect(energyModule.validate({ newBuildShareWeight: { solar: -1 } as any }).valid).toBe(false);
+  expect(energyModule.validate({ fossilDisplacementRate: 1.5 }).valid).toBe(false);
+  expect(energyModule.validate({ buildCapacityDepreciation: 1 }).valid).toBe(false);
+  expect(energyModule.validate({ buildCapacity2025: { gas: 0 } as any }).valid).toBe(false);
+});
+
+test('validation catches bad regional cost, fuel, adequacy and vintage params', () => {
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, costMultiplier: { solar: 0 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, fossilRunningCost: { coal: -1 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'nuclear', share: 1 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'coal', share: 3 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ openingFleetGrowth: { solar: -1 } } as any).valid).toBe(false);
+  expect(energyModule.validate({ electricityDemandGrowth2025: { china: 0.5 } } as any).valid).toBe(false);
+  expect(energyModule.validate({}).valid).toBe(true);
+});
+
+test('China firm adequacy builds standby coal that does not count as energy supply', () => {
+  const run = (share: number, years: number) => {
+    const params = energyModule.mergeParams({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'coal', share } } } } as any);
+    let state = energyModule.init(params);
+    let out: any;
+    for (let i = 0; i < years; i++) {
+      const r = energyModule.step(state, createInputs(30000 + i * 800, 25), params, 2025 + i, i);
+      state = r.state; out = r.outputs;
+    }
+    return { state, out };
+  };
+  const on = run(0.99, 1);
+  const off = run(0, 1);
+  const stand = on.state.standbyAdditions.china[0];
+  expect(stand).toBeGreaterThan(0);
+  expect(off.state.standbyAdditions.china[0]).toBe(0);
+  // The standby build is extra coal; it does not crowd out the clean plan
+  expect(on.out.regionalAdditions.china.coal - off.out.regionalAdditions.china.coal).toBeCloseTo(stand, 6);
+  expect(on.out.regionalAdditions.china.solar).toBeCloseTo(off.out.regionalAdditions.china.solar, 6);
+  // Next year the standby stock is excluded from energy supply, so China's
+  // energy requirement (and its clean build) is not cut by it
+  const on2 = run(0.99, 2);
+  const off2 = run(0, 2);
+  expect(on2.out.regionalAdditions.china.solar).toBeCloseTo(off2.out.regionalAdditions.china.solar, 1);
 });
 
 test('validation catches negative riskPremium', () => {

@@ -880,6 +880,15 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
+    // Energy builds for last year's unserved generation (demand-led build)
+    laggedRegionalShortfallRate: {
+      source: 'regionalShortfallRate',
+      delay: 1,
+      initial: Object.fromEntries(REGIONS.map((r) => [r, 0])),  // warm-up seed (bootstrapped)
+      contract: unitPort('fraction', 'record'),
+      bootstrap: true,
+    },
+
     // Energy + CDR need lagged interest rate (capital runs before energy)
     laggedInterestRate: {
       source: 'interestRate',
