@@ -284,6 +284,18 @@ test('yield damage factor < 1 above threshold', () => {
   expect(outputs.land.yieldDamageFactor).toBeLessThan(1);
 });
 
+test('yield damage tracks per-degree global estimates, with no cliff', () => {
+  // Zhao et al. 2017 / Hultgren et al. 2025: ~-4.65%/°C, so ~-12% by 4 °C
+  const at4 = runYears(1, { temperature: 4.0 }).outputs.land.yieldDamageFactor;
+  expect(at4).toBeCloseTo(0.884, 2);
+  // Smooth past 3 °C: each further half degree costs a few percent, not a
+  // collapse (the old local-cliff transfer lost ~80% by 4 °C)
+  const at45 = runYears(1, { temperature: 4.5 }).outputs.land.yieldDamageFactor;
+  const at5 = runYears(1, { temperature: 5.0 }).outputs.land.yieldDamageFactor;
+  expect(at4 - at45).toBeLessThan(0.06);
+  expect(at5).toBeGreaterThan(0.75);
+});
+
 test('urban area grows with population', () => {
   const low = runYears(1, { population: 8e9 }).outputs.land.urban;
   const high = runYears(1, { population: 10e9 }).outputs.land.urban;

@@ -105,13 +105,10 @@ export interface LandParams {
   deforestationEmissionFactor: number; // Fraction released immediately
   decayRate: number;              // Annual decay rate for deferred pool
 
-  // Climate-yield damage
+  // Climate-yield damage: factor = 1 / (1 + coeff * (T - threshold)^2),
+  // global mean warming (°C above preindustrial)
   yieldDamageThreshold: number;   // °C where damage begins
   yieldDamageCoeff: number;       // Quadratic damage coefficient
-
-  // Schlenker/Roberts yield cliff
-  yieldCliffExcess: number;       // °C above threshold where cliff begins (default 1.0)
-  yieldCliffSteepness: number;    // Exponential decay rate beyond cliff (default 1.5)
 }
 
 export interface FoodParams {
@@ -336,13 +333,19 @@ export const resourcesDefaults: ResourcesParams = {
     deforestationEmissionFactor: 0.5, // Fraction emitted immediately vs decay pool (assumption)
     decayRate: 0.05,
 
-    // Schlenker & Roberts (2009) nonlinear yield-temperature response —
-    // see sources/Schlenker-Roberts-Crop-Yields.md
-    yieldDamageThreshold: 2.0,
-    yieldDamageCoeff: 0.15,
-
-    yieldCliffExcess: 1.0,
-    yieldCliffSteepness: 1.5,
+    // Global yield response to global mean warming, fitted to per-degree
+    // GLOBAL estimates (not the local Schlenker-Roberts cliff; see
+    // sources/Schlenker-Roberts-Crop-Yields.md):
+    // - Zhao et al. (2017, PNAS 114:9326): -6.0% wheat, -7.4% maize, -3.2%
+    //   rice, -3.1% soy per °C, no CO2 fertilization or adaptation (mean
+    //   -4.9%/°C)
+    // - Hultgren et al. (2025, Nature 642:644): -120 kcal/person/day, 4.4%
+    //   of recommended intake, per °C, six staples, with adaptation
+    // Midpoint -4.65%/°C over 2025 -> +4.0 °C: factor 0.884 at 4.0 °C. The
+    // quadratic keeps the extreme-heat convexity (milder than linear below
+    // ~4 °C, steeper above; -21% at 5 °C).
+    yieldDamageThreshold: 1.5, // ~2025 warming: yield2025 already embeds today's climate
+    yieldDamageCoeff: 0.021,   // (1/0.884 - 1) / 2.5^2
   },
   food: {
     // Calories baseline (FAO global average)
@@ -992,18 +995,12 @@ export const resourcesModule: Module<
 
     // Yield with tech improvement and climate damage
     const techYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, yearIndex);
-    // Schlenker/Roberts yield damage: smooth quadratic below cliff, exponential collapse above
+    // Climate yield damage: smooth quadratic in global warming (see the
+    // land defaults). No global cliff: the Schlenker-Roberts threshold is in
+    // LOCAL daily temperature, and world yields aggregate thousands of
+    // locations and crops, which the per-degree global estimates already do.
     const excessTemp = Math.max(0, temperature - land.yieldDamageThreshold);
-    let yieldDamageFactor: number;
-    if (excessTemp <= land.yieldCliffExcess) {
-      // Moderate zone: smooth quadratic
-      yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
-    } else {
-      // Cliff zone: exponential collapse beyond threshold
-      const precliff = 1 / (1 + land.yieldDamageCoeff * land.yieldCliffExcess * land.yieldCliffExcess);
-      const cliffDelta = excessTemp - land.yieldCliffExcess;
-      yieldDamageFactor = precliff * Math.exp(-land.yieldCliffSteepness * cliffDelta);
-    }
+    const yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
     // =========================================================================
     // WATER STRESS (IPCC AR6-calibrated parametric model)
     // =========================================================================

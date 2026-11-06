@@ -432,6 +432,6 @@ here.
 - **Ayres/Warr**: Useful energy as production factor (biophysical economics) — the production function
 - **Fernández-Villaverde**: Demographic projections — fertility convergence
 - **DICE-2023/Howard-Sterner**: Climate damage function (quadratic midpoint)
-- **Schlenker/Roberts**: Climate-yield relationships (stylized transfer)
+- **Zhao et al. 2017 / Hultgren et al. 2025**: global crop-yield response to global warming (~-4.65%/°C, smooth quadratic); Schlenker/Roberts' local extreme-heat cliff is background only, not transferred to the global aggregate
 - **Galbraith/Chen**: a single uncertainty-damping factor on savings (`stabilityLambda`); the full entropy-economics framework is NOT implemented
 - **Kendrick (1976)**: cost-based human-capital stock (rearing + schooling at replacement cost, depreciated over working life) — the `humanCapital` ledger; Eurostat duration-of-working-life and ILO participation gaps calibrate its exit hazards
