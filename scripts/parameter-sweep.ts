@@ -41,6 +41,20 @@ interface SweepResult {
   sensitivity: number; // |high - low| / |baseline| (or absolute if baseline ≈ 0)
 }
 
+/**
+ * A run that threw. A perturbation inside its parameter's declared paramMeta
+ * range should always run, so every failure here is a model bug, never a
+ * reason to quietly drop the parameter from the rankings.
+ */
+interface FailedRun {
+  scenario: string;
+  /** Undefined for the scenario's own baseline run */
+  param?: string;
+  side?: 'low' | 'high';
+  value?: number | boolean;
+  error: string;
+}
+
 interface ScenarioSweep {
   scenarioName: string;
   baselineMetrics: Record<string, number>;
@@ -156,18 +170,36 @@ const PERTURBATION_OPTIONS = {
   diagnostics: false,
 } as const satisfies RunOptions;
 
+function errorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.split('\n')[0];
+}
+
+/** Run once and read every metric; a throw from either is the run's failure. */
+function runMetrics(run: () => MacroSimulationResult): Record<string, number> {
+  const result = run();
+  const metrics: Record<string, number> = {};
+  for (const m of METRICS) metrics[m.name] = m.extract(result);
+  return metrics;
+}
+
 function sweepScenario(
   scenarioName: string,
   scenarioParams: Record<string, unknown>,
   perturbations: ParamPerturbation[],
-): { sweep: ScenarioSweep; runCount: number; skipped: string[] } {
+): { sweep: ScenarioSweep | null; runCount: number; failures: FailedRun[] } {
+  const failures: FailedRun[] = [];
+
   // The baseline runs with full per-step port validation. It exercises exactly
   // the same wiring as every perturbation below, so once it passes, re-checking
   // the contracts on each of the ~2N perturbation runs only buys runtime.
-  const baselineResult = runSimulation(scenarioParams as any);
-  const baselineMetrics: Record<string, number> = {};
-  for (const m of METRICS) {
-    baselineMetrics[m.name] = m.extract(baselineResult);
+  // Without a baseline there is nothing to measure sensitivity against.
+  let baselineMetrics: Record<string, number>;
+  try {
+    baselineMetrics = runMetrics(() => runSimulation(scenarioParams as any));
+  } catch (err) {
+    failures.push({ scenario: scenarioName, error: errorMessage(err) });
+    return { sweep: null, runCount: 1, failures };
   }
 
   const paramResults: Record<string, SweepResult[]> = {};
@@ -176,36 +208,28 @@ function sweepScenario(
   }
 
   let runCount = 1; // baseline
-  const skipped: string[] = [];
 
   for (const p of perturbations) {
-    let lowResult: MacroSimulationResult;
-    let highResult: MacroSimulationResult;
-
-    try {
-      const lowOverride = buildMultiParams({ [p.name]: p.lowValue });
-      const merged = deepMerge(scenarioParams, lowOverride);
-      lowResult = runSimulation(merged as any, PERTURBATION_OPTIONS);
+    // Run both sides even when one fails: which side breaks is the first
+    // thing anyone debugging the failure needs to know
+    const sides: Partial<Record<'low' | 'high', Record<string, number>>> = {};
+    for (const side of ['low', 'high'] as const) {
+      const value = side === 'low' ? p.lowValue : p.highValue;
       runCount++;
-    } catch {
-      skipped.push(p.name);
-      continue;
+      try {
+        const merged = deepMerge(scenarioParams, buildMultiParams({ [p.name]: value }));
+        sides[side] = runMetrics(() => runSimulation(merged as any, PERTURBATION_OPTIONS));
+      } catch (err) {
+        failures.push({ scenario: scenarioName, param: p.name, side, value, error: errorMessage(err) });
+      }
     }
-
-    try {
-      const highOverride = buildMultiParams({ [p.name]: p.highValue });
-      const merged = deepMerge(scenarioParams, highOverride);
-      highResult = runSimulation(merged as any, PERTURBATION_OPTIONS);
-      runCount++;
-    } catch {
-      skipped.push(p.name);
-      continue;
-    }
+    const { low, high } = sides;
+    if (!low || !high) continue;
 
     for (const m of METRICS) {
       const bv = baselineMetrics[m.name];
-      const lv = m.extract(lowResult);
-      const hv = m.extract(highResult);
+      const lv = low[m.name];
+      const hv = high[m.name];
       paramResults[m.name].push({
         param: p.name,
         lowValue: p.lowValue,
@@ -221,7 +245,7 @@ function sweepScenario(
   return {
     sweep: { scenarioName, baselineMetrics, paramResults },
     runCount,
-    skipped,
+    failures,
   };
 }
 
@@ -272,17 +296,34 @@ async function main() {
 
   // ---- SWEEP ALL SCENARIOS ----
   const sweeps: ScenarioSweep[] = [];
+  const failures: FailedRun[] = [];
   let totalRuns = 0;
 
   for (const entry of scenarioEntries) {
     const st = Date.now();
-    const { sweep, runCount, skipped } = sweepScenario(entry.name, entry.params, perturbations);
-    sweeps.push(sweep);
-    totalRuns += runCount;
+    const result = sweepScenario(entry.name, entry.params, perturbations);
+    if (result.sweep) sweeps.push(result.sweep);
+    failures.push(...result.failures);
+    totalRuns += result.runCount;
     const elapsed = ((Date.now() - st) / 1000).toFixed(1);
-    const skipMsg = skipped.length > 0 ? ` (${skipped.length} skipped)` : '';
-    console.log(`  ${pad(entry.name, 24)} ${runCount} runs in ${elapsed}s${skipMsg}`);
+    const failMsg = result.sweep === null
+      ? ' — BASELINE FAILED, scenario not swept'
+      : result.failures.length > 0 ? ` (${result.failures.length} FAILED)` : '';
+    console.log(`  ${pad(entry.name, 24)} ${result.runCount} runs in ${elapsed}s${failMsg}`);
   }
+
+  if (sweeps[0]?.scenarioName !== '(default)') {
+    reportFailures(failures);
+    throw new Error('The default baseline failed; there is nothing to rank against');
+  }
+
+  // A parameter missing results somewhere would otherwise score sensitivity 0
+  // there, so the classifications below that READ an absence (dead,
+  // conditionally important) must not be fed a broken parameter
+  const failedParams = new Set(failures.flatMap(f => f.param ? [f.param] : []));
+  const failedInDefault = new Set(
+    failures.filter(f => f.scenario === '(default)').flatMap(f => f.param ? [f.param] : []),
+  );
 
   // ==========================================================================
   // SECTION 1: SCENARIO BASELINES
@@ -410,9 +451,13 @@ async function main() {
   for (let i = 0; i < maxSensScores.length; i++) {
     const s = maxSensScores[i];
     const cells = METRICS.map(m => rpad(s.perMetric[m.name].toFixed(3), 8));
+    const name = failedParams.has(s.param) ? `${s.param} *` : s.param;
     console.log(
-      `${rpad(String(i + 1), 4)}  ${pad(s.param, 28)}  ${rpad(s.gm.toFixed(4), 8)}  ${cells.join('  ')}`
+      `${rpad(String(i + 1), 4)}  ${pad(name, 28)}  ${rpad(s.gm.toFixed(4), 8)}  ${cells.join('  ')}`
     );
+  }
+  if (maxSensScores.some(s => failedParams.has(s.param))) {
+    console.log('\n  * failed in at least one scenario; ranked on the scenarios that ran (see FAILED RUNS)');
   }
 
   // ==========================================================================
@@ -428,6 +473,9 @@ async function main() {
   const conditionalParams: { param: string; defaultGm: number; maxGm: number; bestScenario: string }[] = [];
 
   for (const param of allParams) {
+    // A default-scenario failure reads as zero default sensitivity
+    if (failedInDefault.has(param)) continue;
+
     // Default sensitivity: geo-mean across metrics
     const defaultSens = METRICS.map(m => {
       const entry = defaultSweep.paramResults[m.name].find(r => r.param === param);
@@ -488,6 +536,8 @@ async function main() {
   const deadParams: { param: string; maxSens: number }[] = [];
 
   for (const score of maxSensScores) {
+    // Broken, not inert: its missing scenarios would read as zero sensitivity
+    if (failedParams.has(score.param)) continue;
     const maxMetricSens = Math.max(...Object.values(score.perMetric));
     if (maxMetricSens < 0.001) {
       deadParams.push({ param: score.param, maxSens: maxMetricSens });
@@ -508,10 +558,59 @@ async function main() {
   // ==========================================================================
   // SUMMARY
   // ==========================================================================
+  reportFailures(failures);
+
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log('\n' + '='.repeat(100));
-  console.log(`Total: ${totalRuns} runs across ${sweeps.length} scenarios in ${elapsed}s`);
+  console.log(
+    `Total: ${totalRuns} runs across ${scenarioEntries.length} scenarios in ${elapsed}s, ` +
+    `${failures.length} failed`,
+  );
   console.log('='.repeat(100));
+
+  // Every perturbation sits inside its declared paramMeta range, so a failed
+  // run is a model bug: fail the command, after the full report is printed
+  if (failures.length > 0) process.exitCode = 1;
+}
+
+/**
+ * Group identical failures (same run, same error) across scenarios: one model
+ * bug usually breaks the same perturbation in most scenarios.
+ */
+function formatPerturbation(value: number | boolean | undefined): string {
+  // min + 0.1 x range carries float noise (0.24000000000000002)
+  return typeof value === 'number' ? String(Number(value.toPrecision(6))) : String(value);
+}
+
+function reportFailures(failures: FailedRun[]): void {
+  console.log('\n' + '='.repeat(100));
+  console.log('FAILED RUNS (in-range values that threw — model bugs, excluded from the rankings above)');
+  console.log('='.repeat(100));
+
+  if (failures.length === 0) {
+    console.log('\n  (none)');
+    return;
+  }
+
+  const groups = new Map<string, { failure: FailedRun; scenarios: string[] }>();
+  for (const f of failures) {
+    const key = JSON.stringify([f.param ?? null, f.side ?? null, f.value ?? null, f.error]);
+    const group = groups.get(key) ?? { failure: f, scenarios: [] };
+    group.scenarios.push(f.scenario);
+    groups.set(key, group);
+  }
+
+  const sorted = [...groups.values()].sort((a, b) =>
+    (a.failure.param ?? '').localeCompare(b.failure.param ?? '') ||
+    (a.failure.side ?? '').localeCompare(b.failure.side ?? ''));
+  for (const { failure, scenarios } of sorted) {
+    const run = failure.param === undefined
+      ? 'scenario baseline'
+      : `${failure.param} = ${formatPerturbation(failure.value)} (${failure.side})`;
+    console.log(`\n  ${run}`);
+    console.log(`    error:     ${failure.error}`);
+    console.log(`    scenarios: ${scenarios.length} — ${scenarios.join(', ')}`);
+  }
 }
 
 main().catch(err => {

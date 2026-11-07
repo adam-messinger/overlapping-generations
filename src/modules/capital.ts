@@ -18,6 +18,9 @@
  * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
+ * - Firm cash floor: firms cannot overdraw deposits. A shortfall suspends
+ *   dividends, then leaves interest unpaid, then misses principal; loans
+ *   behind unpaid interest are written down by unpaid / r
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
@@ -55,6 +58,7 @@ import {
   capitalBankCapitalRatio,
   createCapitalGodleyLedger,
   postCapitalGodleyYear,
+  settleFirmCashShortfall,
 } from './capital-accounting.js';
 
 // =============================================================================
@@ -199,6 +203,7 @@ export interface CapitalOutputs {
   laborCompensation: number;
   operatingSurplus: number;
   privateInterestPayments: number;
+  unpaidPrivateInterest: number; // $T/year of interest due that firms could not pay (forgone by banks)
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
   retainedEarnings: number;
@@ -417,6 +422,16 @@ export const capitalDefaults: CapitalParams = {
  * Life expectancy effect: longer life → save more for retirement (lifecycle motive).
  * Dependency effect: more dependents → less capacity to save.
  * Combined factor clamped to [0.5, 1.5] to prevent unreasonable extremes.
+ *
+ * The result is floored at zero. The regional premium is an additive offset
+ * calibrated at the default `savingsWorking` (US -0.10 against a ~0.27 base
+ * gives WDI's 17.6%), so a lower working-age rate or a stronger dependency
+ * response can shrink the base below the premium as a region ages. A negative
+ * gross saving propensity has no meaning here: it is a share weight for
+ * allocating investment across regions (negative weight = negative gross
+ * investment, i.e. un-building capital) and the lowest WDI gross saving rate
+ * for any of these aggregates is ~15% (SSA). The floor never binds on the
+ * default path (lowest rate: US 2100, ~0.06).
  */
 function calculateSavingsRate(
   young: number,
@@ -456,7 +471,7 @@ function calculateSavingsRate(
     old * params.savingsOld
   ) / population;
 
-  return baseRate + premium;
+  return Math.max(0, baseRate + premium);
 }
 
 /**
@@ -748,6 +763,7 @@ export const capitalModule: Module<
       unfundedFinancingDemand: unitPort('$T/year'),
       grossSavings: unitPort('$T/year'),
       laborCompensation: unitPort('$T/year'),
+      unpaidPrivateInterest: unitPort('$T/year'),
       operatingSurplus: unitPort('$T/year'),
       privateInterestPayments: unitPort('$T/year'),
       profitAfterInterestAndDepreciation: unitPort('$T/year'),
@@ -1354,12 +1370,8 @@ export const capitalModule: Module<
       ),
       Math.max(0, firmCircuit.retainedEarnings),
     );
-    const firmDividendPayments =
+    const declaredFirmDividends =
       firmCircuit.firmDividendPayments + excessFirmCash;
-    const retainedEarnings =
-      firmCircuit.retainedEarnings - excessFirmCash;
-    const firmGrossSaving =
-      firmCircuit.firmGrossSaving - excessFirmCash;
     const householdConsumption = Math.max(
       0,
       subtractQuantities(
@@ -1375,6 +1387,43 @@ export const capitalModule: Module<
         'household-consumption residual',
       ).value,
     );
+    // Firm cash floor. Investment is capped by CLAMPED internal funds, so
+    // once interest due exceeds operating surplus, gross saving goes negative
+    // and drains the deposit buffer. When it runs out, firms default rather
+    // than overdraw (see settleFirmCashShortfall). Unpaid interest is forgone
+    // by banks, never capitalized into the loan, and bankruptcy writes the
+    // loans behind it down to what the cash flow can carry (unpaid / r), so
+    // zombie principal cannot keep the risk premium and leverage brake on
+    // while output shrinks.
+    const settled = settleFirmCashShortfall(
+      openingFinancialLedger.balances['firms.deposits'] ?? 0,
+      {
+        grossLoanOriginations,
+        principalRepayments: finance.principalRepayments,
+        laborCompensation: firmCircuit.laborCompensation,
+        householdConsumption,
+        privateInterestPayments: finance.privateInterestPayments,
+        firmDividendPayments: declaredFirmDividends,
+      },
+    );
+    const {
+      firmDividendPayments,
+      privateInterestPayments,
+      principalRepayments,
+      unpaidInterest: unpaidPrivateInterest,
+    } = settled;
+    const insolvencyWriteDown = interestRate > 0
+      ? Math.min(finance.state.privateDebt, unpaidPrivateInterest / interestRate)
+      : 0;
+    const loanWriteOffs =
+      finance.loanWriteOffs + settled.defaultedPrincipal + insolvencyWriteDown;
+    // Paid basis: interest firms did not pay stays with them, so the sector
+    // balances still sum to investment
+    const retainedEarnings =
+      firmCircuit.profitAfterInterestAndDepreciation
+      + unpaidPrivateInterest
+      - firmDividendPayments;
+    const firmGrossSaving = firmCircuit.depreciationAllowance + retainedEarnings;
     const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
     const workerConsumption = householdConsumption - retireeConsumption;
 
@@ -1388,7 +1437,7 @@ export const capitalModule: Module<
       + publicInterestPayments
       - finance.publicDebtChange;
     const bankInterestIncome =
-      finance.privateInterestPayments + publicInterestToBanks;
+      privateInterestPayments + publicInterestToBanks;
     const bankDividendPayments = bankInterestIncome;
     const householdDisposableIncome =
       firmCircuit.laborCompensation
@@ -1506,7 +1555,7 @@ export const capitalModule: Module<
       : 0;
 
     const newPublicDebt = finance.state.publicDebt;
-    const newPrivateDebt = finance.state.privateDebt;
+    const newPrivateDebt = finance.state.privateDebt - insolvencyWriteDown;
 
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
@@ -1516,9 +1565,9 @@ export const capitalModule: Module<
       laborCompensation: firmCircuit.laborCompensation,
       householdConsumption,
       grossLoanOriginations,
-      principalRepayments: finance.principalRepayments,
-      loanWriteOffs: finance.loanWriteOffs,
-      privateInterestPayments: finance.privateInterestPayments,
+      principalRepayments,
+      loanWriteOffs,
+      privateInterestPayments,
       firmDividendPayments,
       bankDividendPayments,
       publicDebtChange: finance.publicDebtChange,
@@ -1561,7 +1610,8 @@ export const capitalModule: Module<
         grossSavings,
         laborCompensation: firmCircuit.laborCompensation,
         operatingSurplus: firmCircuit.operatingSurplus,
-        privateInterestPayments: finance.privateInterestPayments,
+        privateInterestPayments,
+        unpaidPrivateInterest,
         profitAfterInterestAndDepreciation:
           firmCircuit.profitAfterInterestAndDepreciation,
         profitRate: firmCircuit.profitRate,
@@ -1624,9 +1674,9 @@ export const capitalModule: Module<
         refinancedPrincipal,
         unfundedCreditDemand,
         creditImpulse,
-        principalRepayments: finance.principalRepayments,
-        loanWriteOffs: finance.loanWriteOffs,
-        netCreditCreation: finance.netCreditCreation,
+        principalRepayments,
+        loanWriteOffs,
+        netCreditCreation: newPrivateDebt - privateDebt,
         primaryDeficit: finance.primaryDeficit,
         netTaxes,
         debtRiskPremium,

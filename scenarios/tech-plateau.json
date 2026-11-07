@@ -3,7 +3,6 @@
   "description": "Twin-Engine scenario (30% probability). Learning curves flatten earlier than expected. VRE share plateaus at 55-60%. Mineral bottlenecks persist. Long-duration storage scale-up delayed. Higher costs slow electrification.",
 
   "energy": {
-    "carbonPrice": 35,
     "sources": {
       "solar": { "alpha": 0.25 },
       "wind": { "alpha": 0.18 },

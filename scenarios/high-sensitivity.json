@@ -6,10 +6,6 @@
     "source": "IPCC AR6 high-end sensitivity"
   },
 
-  "energy": {
-    "carbonPrice": 35
-  },
-
   "climate": {
     "sensitivity": 4.5,
     "damageCoeff": 0.007

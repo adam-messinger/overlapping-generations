@@ -23,7 +23,8 @@ import { loadScenarioParamsSync, scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
-import { describeOutputs } from './introspection.js';
+import { describeOutputs, describeParameters, buildMultiParams } from './introspection.js';
+import { STUDY_OPTIONS } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
@@ -95,6 +96,53 @@ test('2025 regional financing spreads equal the observed IEA table by constructi
   };
   check({});
   check({ capital: { savingsPremium: { ...capitalDefaults.savingsPremium, china: 0.30, us: 0.10 } } });
+});
+
+test('saving-propensity params run across their whole declared paramMeta range', () => {
+  // Both used to throw 'additions must be finite and non-negative' inside
+  // their declared ranges (savingsRateWorking <= ~0.24, savingsDependencySensitivity
+  // >= ~0.9): the US premium (-0.10, additive) outran a shrinking base as the
+  // US aged, its saving propensity went negative, and so did its investment
+  // allocation and clean-energy budget. Read the bounds from the schema so a
+  // paramMeta change stays covered.
+  const schema = describeParameters();
+  let floorBound = false;
+  for (const name of ['savingsRateWorking', 'savingsDependencySensitivity']) {
+    const meta = schema[name];
+    for (const value of [meta.min, meta.max]) {
+      expect(typeof value).toBe('number');
+      const r = runSimulation(buildMultiParams({ [name]: value as number }) as SimulationParams, STUDY_OPTIONS);
+      expect(r.results[r.results.length - 1].year).toBe(2100);
+      expect(Number.isFinite(r.metrics.warming2100)).toBe(true);
+      expect(Number.isFinite(r.metrics.gdp2100 ?? NaN)).toBe(true);
+      for (const row of r.results) {
+        for (const region of REGIONS) {
+          expect(row.regionalSavings[region]).toBeBetween(0, 1);
+          if (row.regionalSavings[region] === 0) floorBound = true;
+        }
+      }
+    }
+  }
+  // Guard the test's relevance: the low end must still reach the zero floor,
+  // or this no longer exercises the case that crashed
+  expect(floorBound).toBe(true);
+});
+
+test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, firmRetentionRate 0.1)', () => {
+  // Late in this run interest due exceeds firms' operating surplus; once the
+  // deposit buffer is gone this used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance". Without the insolvency
+  // write-down it instead collapsed GDP to zero under zombie debt by 2100.
+  const scenario = loadScenarioParamsSync('ai-energy-boom') as SimulationParams;
+  const r = runSimulation(
+    { ...scenario, capital: { ...scenario.capital, firmRetentionRate: 0.1 } },
+    STUDY_OPTIONS,
+  );
+  expect(r.results[r.results.length - 1].year).toBe(2100);
+  const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
+  expect(binding.length).toBeGreaterThan(0);
+  // The write-down keeps debt serviceable instead of letting it outrun output
+  for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
 });
 
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
@@ -257,6 +305,19 @@ test('copper binds the economy late in the century, not the build-out', () => {
   // (aluminium substitution), so on this path no mineral throttles clean
   // build: the transition's own claim stays within mine capacity.
   expect(last.mineralConstraint).toBeCloseTo(1, 6);
+});
+
+test('raising the global carbon price lowers warming', () => {
+  // The global key fills every region's power-sector price. When it priced
+  // end-use fuels only, $270 electrified demand onto unpriced coal and ended
+  // ~0.1C WARMER than $30 (power CO2 2050 doubled to ~30 Gt).
+  const fast = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
+  const low = runSimulation({ energy: { carbonPrice: 30 } }, fast);
+  const high = runSimulation({ energy: { carbonPrice: 270 } }, fast);
+  expect(high.metrics.warming2100!).toBeLessThan(low.metrics.warming2100! - 0.2);
+  const i2050 = 2050 - 2025;
+  expect(high.results[i2050].electricityEmissions)
+    .toBeLessThan(low.results[i2050].electricityEmissions);
 });
 
 test('ai-energy-boom raises the cost of capital materially', () => {
@@ -459,6 +520,10 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
 }
 
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
+test('firm cash floor never binds on the default path', () => {
+  for (const row of FULL_RUN.results) expect(row.unpaidPrivateInterest).toBe(0);
+});
 
 test('diagnostics: false leaves every macro number bit-identical', () => {
   const withDiag = FULL_RUN;
