@@ -23,7 +23,7 @@
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
- * - Public debt: ΔD = primaryDeficit - fiscalConsolidation + r_safe·D
+ * - Public debt: ΔD = primaryDeficit + s·Δ(transfers/Y)·Y - fiscalConsolidation + r_safe·D
  * - Private debt: ΔD = gross originations - principal repayments - write-offs
  *
  * Sources:
@@ -112,6 +112,7 @@ export interface CapitalParams {
   // --- Public debt ---
   initialPublicDebtGDP: number;        // 0.90 (90% of GDP in 2025)
   publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
+  ageingCostDeficitShare: number;      // 0.25 (share of the rise in transfers/GDP since 2025 that is borrowed)
   fiscalReactionCoeff: number;         // 0.03 (tightening per pp of debt/GDP above threshold)
   fiscalReactionThreshold: number;     // 0.60 (Maastricht-style trigger)
   fiscalReactionMax: number;           // 0.04 (max primary surplus / GDP — saturation)
@@ -156,6 +157,7 @@ export interface CapitalState {
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
+  referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
   financialLedger?: GodleyLedgerState;
 }
 
@@ -399,6 +401,14 @@ export const capitalDefaults: CapitalParams = {
   // --- Public debt (IMF Global Debt Database, 2025) ---
   initialPublicDebtGDP: 0.90,         // 90% of GDP
   publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
+  // Share of the rise in transfers (pensions, retiree health, education)
+  // above their 2025 share of GDP that is borrowed rather than taxed; the
+  // fiscal reaction still leans against the resulting debt. US calibration,
+  // judgment for the world: CBO's Long-Term Budget Outlook (Mar 2025) has
+  // Social Security +0.9pp and Medicare +2.1pp of GDP 2025-2055 against
+  // revenues +2.2pp, so ~1/4 of the ageing increase is left unmatched under
+  // current law. Symmetric: falling education costs lower the deficit.
+  ageingCostDeficitShare: 0.25,
   fiscalReactionCoeff: 0.03,          // Tightening per pp of debt/GDP above threshold
   fiscalReactionThreshold: 0.60,      // Maastricht-style trigger
   fiscalReactionMax: 0.04,            // Max primary surplus / GDP (saturation)
@@ -733,6 +743,12 @@ export const capitalModule: Module<
       range: { min: 0, max: 0.10, default: 0.03 },
       tier: 1 as const,
     },
+    ageingCostDeficitShare: {
+      description: 'Share of the rise in transfer costs (pensions, retiree health, education) above their 2025 share of GDP that is financed by borrowing rather than taxes. 0 = all taxed (ageing never reaches public debt); 1 = all borrowed.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.25 },
+      tier: 1 as const,
+    },
     debtRiskLambda: {
       description: 'Interest rate premium per percentage point of excess total debt/GDP above threshold. Self-limiting: high debt → expensive borrowing.',
       unit: 'fraction/pp',
@@ -999,6 +1015,11 @@ export const capitalModule: Module<
     if (params.publicDeficitRate !== undefined) {
       if (params.publicDeficitRate < 0 || params.publicDeficitRate > 0.15) {
         errors.push('publicDeficitRate must be between 0 and 0.15');
+      }
+    }
+    if (params.ageingCostDeficitShare !== undefined) {
+      if (params.ageingCostDeficitShare < 0 || params.ageingCostDeficitShare > 1) {
+        errors.push('ageingCostDeficitShare must be between 0 and 1');
       }
     }
     if (params.debtRiskLambda !== undefined) {
@@ -1295,6 +1316,11 @@ export const capitalModule: Module<
     const governmentServiceConsumption =
       retireeHealthcareConsumption + educationConsumption;
     const transferBurden = inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0;
+    const referenceTransferBurden = yearIndex === 0 || state.referenceTransferBurden === undefined
+      ? transferBurden
+      : state.referenceTransferBurden;
+    const additionalPrimaryDeficitRate =
+      params.ageingCostDeficitShare * (transferBurden - referenceTransferBurden);
 
     // ==========================================================================
     // Keen-style monetary circuit (toy closure):
@@ -1335,6 +1361,7 @@ export const capitalModule: Module<
         capitalStock: state.stock,
         netNewCreditDemand,
         trendGrowth: state.trendGrowth,
+        additionalPrimaryDeficitRate,
       },
       params,
     );
@@ -1368,6 +1395,7 @@ export const capitalModule: Module<
           capitalStock: state.stock,
           netNewCreditDemand,
           trendGrowth: state.trendGrowth,
+          additionalPrimaryDeficitRate,
         },
         params,
       );
@@ -1390,6 +1418,7 @@ export const capitalModule: Module<
         capitalStock: state.stock,
         netNewCreditDemand,
         trendGrowth: state.trendGrowth,
+        additionalPrimaryDeficitRate,
       },
       params,
     );
@@ -1677,6 +1706,7 @@ export const capitalModule: Module<
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
         trendGrowth: nextTrendGrowth,
+        referenceTransferBurden,
         financialLedger: financialPosting.state,
       },
       outputs: {

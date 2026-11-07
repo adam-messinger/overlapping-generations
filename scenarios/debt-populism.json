@@ -1,6 +1,6 @@
 {
   "name": "Debt-Accident Populism",
-  "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition. Public interest accrues to debt at the safe rate, so the 6% structural deficit with a weak fiscal reaction pushes public debt past 150% of GDP in the 2040s, where fiscal dominance caps the safe rate below growth (financial repression, repressionGap ~3pp) and debt stabilizes near 170% instead of spiralling.",
+  "description": "Twin-Engine scenario (12% probability). Financial crisis triggers policy instability. Higher uncertainty suppresses investment (via G/C stability mechanism). Carbon pricing collapses. Fossil fuel subsidies persist. Slower transition. Public interest accrues to debt at the safe rate, so the 6% structural deficit with a weak fiscal reaction pushes public debt past 150% of GDP around 2040, where fiscal dominance caps the safe rate below growth (financial repression, repressionGap 3-5pp, real safe rate ~-0.5%); ageing then carries debt to ~180% by 2055 and ~220% by 2100 without a spiral.",
   "energy": {
     "carbonPrice": 10,
     "regional": {

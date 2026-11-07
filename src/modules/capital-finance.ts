@@ -51,6 +51,8 @@ export interface CapitalFinanceInputs {
   netNewCreditDemand?: number;
   /** Smoothed real GDP growth the safe rate tracks (r* = c·g + z). Defaults to the anchor. */
   trendGrowth?: number;
+  /** Extra primary deficit as a fraction of GDP (e.g. unfunded ageing costs). Defaults to 0. */
+  additionalPrimaryDeficitRate?: number;
 }
 
 export interface CapitalFinancePathPoint {
@@ -224,8 +226,10 @@ export function advanceCapitalFinance(
     // rate held below growth erodes the debt ratio: the financial-repression
     // "liquidation effect" (Reinhart & Sbrancia 2015). The fiscal reaction
     // still acts on the primary balance (Bohn 1998).
-    const primaryDebtChange =
-      (params.publicDeficitRate * localGdp - fiscalConsolidationRate) * dt;
+    const primaryDebtChange = (
+      (params.publicDeficitRate + (inputs.additionalPrimaryDeficitRate ?? 0)) * localGdp
+      - fiscalConsolidationRate
+    ) * dt;
     const interestAccrual = safeRate * publicDebt * dt;
     const publicDebtChange = Math.max(
       -publicDebt,

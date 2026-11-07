@@ -419,6 +419,25 @@ test('retirement-age extension follows gains in life expectancy at 65, not at bi
   expect(out.regionalRetirementAgeExtension.ssa).toBeCloseTo(0.67 * 0.24 * 5, 6);
 });
 
+test('a borrowed share of rising transfer costs raises public debt', () => {
+  const taxed = capitalModule.mergeParams({ ageingCostDeficitShare: 0 });
+  const borrowed = capitalModule.mergeParams({ ageingCostDeficitShare: 1 });
+  const run = (params: typeof taxed) => {
+    let state = capitalModule.init(params);
+    let outputs: any;
+    for (let i = 0; i < 40; i++) {
+      const result = capitalModule.step(state, getCapitalInputs(i), params, 2025 + i, i);
+      state = result.state;
+      outputs = result.outputs;
+    }
+    return outputs;
+  };
+  const a = run(taxed);
+  const b = run(borrowed);
+  expect(b.transferBurden).toBeGreaterThan(0.11); // ageing raised it from ~0.095
+  expect(b.publicDebtGDP).toBeGreaterThan(a.publicDebtGDP + 0.1);
+});
+
 // --- Benefit levels ---
 
 console.log('\n--- Benefit levels ---\n');

@@ -75,6 +75,19 @@ test('public debt accrues interest at the safe rate on top of the primary balanc
   expect(repressed.publicDebtChange).toBeLessThan(0);
 });
 
+test('an additional primary deficit rate adds to debt one-for-one with GDP', () => {
+  const annual = { ...params, financialSubsteps: 1 };
+  const state = { publicDebt: 158 * 0.9, privateDebt: 252.8, previousGdp: 158 };
+  const base = advanceCapitalFinance(state, { gdp: 158, capitalStock: 553 }, annual);
+  const ageing = advanceCapitalFinance(
+    state,
+    { gdp: 158, capitalStock: 553, additionalPrimaryDeficitRate: 0.01 },
+    annual,
+  );
+  expect(ageing.publicDebtChange - base.publicDebtChange).toBeCloseTo(1.58, 9);
+  expect(ageing.primaryDeficit - base.primaryDeficit).toBeCloseTo(1.58, 9);
+});
+
 test('quarterly finance transition separates gross originations from net credit', () => {
   const result = advanceCapitalFinance(
     { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 158 },

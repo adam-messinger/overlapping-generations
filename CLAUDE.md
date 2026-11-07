@@ -279,7 +279,9 @@ Do this before committing. Most fix-up commits in project history would have bee
   investment
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
-  interest at the safe rate, so Δd = pd + (r_safe − g)·d. A safe rate below growth erodes the ratio
+  interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
+  ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
+  ageing reaches the debt (default world public debt ~0.9 → ~1.0 in 2055 → ~1.5 in 2100). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
