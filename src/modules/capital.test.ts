@@ -401,6 +401,24 @@ test('retirement age adjustment is zero in year 0 (no LE gains yet)', () => {
   expect(year0.transferBurden / noAdj.outputs.transferBurden).toBeBetween(0.99, 1.01);
 });
 
+test('retirement-age extension follows gains in life expectancy at 65, not at birth', () => {
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  const base = getCapitalInputs(0);
+  state = capitalModule.step(state, base, params, 2025, 0).state;
+  const gained = {
+    ...base,
+    regionalLifeExpectancy: Object.fromEntries(
+      Object.entries(base.regionalLifeExpectancy as Record<string, number>)
+        .map(([r, le]) => [r, le + 5]),
+    ) as typeof base.regionalLifeExpectancy,
+  };
+  const out = capitalModule.step(state, gained, params, 2026, 1).outputs as any;
+  // WPP 2024: e65 gains are ~2/3 of at-birth gains in the US, ~1/4 in SSA.
+  expect(out.regionalRetirementAgeExtension.us).toBeCloseTo(0.67 * 0.66 * 5, 6);
+  expect(out.regionalRetirementAgeExtension.ssa).toBeCloseTo(0.67 * 0.24 * 5, 6);
+});
+
 // --- Wage Indexation ---
 
 console.log('\n--- Wage Indexation ---\n');

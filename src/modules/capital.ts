@@ -393,7 +393,7 @@ export const capitalDefaults: CapitalParams = {
   energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
 
   // Retirement age adjustment
-  retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of LE gains → retirement age
+  retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of gains in life expectancy at pension age (e65) → retirement age
   wageIndexation: 0.7,          // 70% wage-indexed, 30% price-indexed
 
   // Demographic savings response (Bloom et al. 2003, Kinugasa & Mason 2007)
@@ -478,6 +478,37 @@ export const capitalDefaults: CapitalParams = {
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/**
+ * Life expectancy at 65 (e65), the measure retirement-age links and the
+ * retired share of the 65+ population actually depend on. UN WPP 2024
+ * Medium, population-weighted to model regions (scripts/wpp-life-expectancy-65.py).
+ * E65_PER_E0_GAIN maps the demographics module's at-birth gains onto e65
+ * gains: WPP's ratio of e65 to e0 gains, 2025-2075. Low in SSA and South
+ * Asia, where at-birth gains are mostly child survival.
+ */
+const E65_2025: Record<Region, number> = {
+  us: 20.1,
+  'oecd-ex-us': 20.9,
+  china: 18.0,
+  india: 15.7,
+  latam: 18.0,
+  seasia: 15.5,
+  russia: 16.4,
+  mena: 16.0,
+  ssa: 13.6,
+};
+const E65_PER_E0_GAIN: Record<Region, number> = {
+  us: 0.66,
+  'oecd-ex-us': 0.74,
+  china: 0.68,
+  india: 0.47,
+  latam: 0.52,
+  seasia: 0.51,
+  russia: 0.52,
+  mena: 0.58,
+  ssa: 0.24,
+};
 
 /**
  * Calculate demographic-weighted savings rate with LE and dependency adjustments.
@@ -1230,18 +1261,23 @@ export const capitalModule: Module<
       const educationRate = premium.educationRate ?? params.transfers.educationRate;
 
       // --- Retirement age adjustment ---
-      // As LE rises, some 65+ are reclassified as "still working" (lower transfer recipients)
+      // As longevity rises, some 65+ are reclassified as "still working"
+      // (lower transfer recipients). Both steps use life expectancy AT 65:
+      // the OECD-style rule links pension ages to gains in longevity at
+      // pension age, and the share of the 65+ population inside the first x
+      // years past 65 is ~x / e65 (near-flat survival over that span).
+      // At-birth LE minus 65 understated the span (US 14.6 vs e65 20.1;
+      // India ~7 vs 15.7), and at-birth gains overstated the extension where
+      // they are mostly child survival — together ~2x too many reclassified.
       const currentLE = inputs.regionalLifeExpectancy?.[r] ?? 75;
       const baseLE = refLE[r] ?? 75;
-      const leGain = Math.max(0, currentLE - baseLE);
-      const retirementAgeExtension = params.retirementAgeResponse * leGain;
-      const effectiveRetirementAge = 65 + retirementAgeExtension;
+      const e65Gain = E65_PER_E0_GAIN[r] * Math.max(0, currentLE - baseLE);
+      const e65 = E65_2025[r] + e65Gain;
+      const retirementAgeExtension = params.retirementAgeResponse * e65Gain;
       regionalRetirementAgeExtension[r] = retirementAgeExtension;
       // Fraction of 65+ reclassified as working (capped at 0.5)
-      const remainingOldSpan = currentLE - 65;
-      const fractionStillWorking = remainingOldSpan > 0
-        ? Math.min(0.5, Math.max(0, (effectiveRetirementAge - 65) / remainingOldSpan))
-        : 0;
+      const fractionStillWorking =
+        Math.min(0.5, Math.max(0, retirementAgeExtension / e65));
       const adjustedOld = old * (1 - fractionStillWorking);
       const adjustedWorking = working + old * fractionStillWorking;
 
