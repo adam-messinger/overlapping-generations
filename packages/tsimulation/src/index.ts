@@ -6,10 +6,13 @@
 
 export * from './types.js';
 export * from './module.js';
+export * from './invariants.js';
 export * from './autowire.js';
 export * from './problem.js';
 export * from './introspect.js';
 export * from './validated-merge.js';
+export * from './param-schema.js';
+export * from './param-derivations.js';
 export * from './component-params.js';
 export * from './validation.js';
 export * from './units.js';
@@ -33,6 +36,7 @@ export * from './liveness.js';
 export * from './stock-flow.js';
 export * from './godley.js';
 export * from './dynamics.js';
+export * from './seed-year.js';
 export {
   assertCollectorContracts,
   auditCollectorContracts,

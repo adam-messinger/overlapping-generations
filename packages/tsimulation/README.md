@@ -58,6 +58,7 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 | **Autowire** | The engine reads every module's `inputs`/`outputs`, builds a dependency graph, and runs modules in topological order each step. |
 | **Transform** | A function that derives an input from other modules' outputs (e.g. a ratio). Declares `dependsOn` so the engine can order it. |
 | **Lag** | A delayed value used to break a feedback cycle. Module A can read last step's output of module B even though B reads A this step. |
+| **Invariant** | An identity a module declares about every step (a ledger closes, parts sum to their total, output stays within capacity). The engine checks it after each step under the `invariants` run policy. |
 | **Collector** | A declarative spec for extracting per-step time series and summary metrics from a completed run. |
 | **Model** | A validated standalone simulation contract with version, ports, evidence, and invariants. |
 | **Experiment** | A scenario set, factorial, sweep, threshold search, or seeded ensemble around a model. |
@@ -343,6 +344,57 @@ time: this step's predators depend on *last* step's prey. You model that by
 declaring a `lag`, and the engine's cycle detector will otherwise throw rather
 than silently pick an order.
 
+## Module invariants
+
+A unit test of an identity pins it for the inputs the test chose. An invariant
+is declared on the module and checked after every step of every run, so a
+ledger that stops closing in a scenario nobody tested still fails.
+
+```typescript
+import { defineModule, closeTo, atMost } from 'tsimulation';
+
+const land = defineModule({
+  // ...defaults, connectorTypes, validate, mergeParams, init, step...
+  invariants: [
+    {
+      name: 'land identity',
+      check: ({ outputs, params }) =>
+        closeTo('land', outputs.farmland + outputs.forest + outputs.other, params.totalArea),
+    },
+    {
+      name: 'stock accumulates',
+      check: ({ previousState, state, outputs }) =>
+        closeTo('stock', state.stock, previousState.stock + outputs.inflow),
+    },
+  ],
+});
+```
+
+A check receives `{ params, previousState, state, inputs, outputs,
+previousOutputs, previousInputs, year, yearIndex }` and returns nothing when the identity
+holds, or a message (or a list of them) when it does not. `closeTo`, `atMost`
+and `atLeast` return exactly that, and reject non-finite values.
+
+`runAutowired({ ..., invariants })` takes a policy: `'error'` (the default)
+throws at the first violating step, `'warn'` logs and records, `'report'` only
+records, and `'off'` skips the checks — for sweeps that have already validated
+a representative run. Recorded violations are in
+`result.diagnostics.invariants`. The policy never changes what is computed,
+and reads from invariant checks are not counted by parameter liveness.
+
+## Seed-step continuity
+
+A model started from observed data should open on a smooth path; a first
+step that jumps (a lag seeded with a guessed constant, an equation whose
+fixed point is not the observed state) shifts every later level and is
+invisible in end-of-horizon metrics. `findSeedYearKinks(series, options)`
+compares each series' first change with the mean change over the next
+`trendSteps` (default 4) and reports those whose excess, beyond the later
+steps' own spread and relative to the series' magnitude, exceeds `threshold`
+(default 0.05). Steady trends, accelerations and noise score near zero.
+`startOffsets` examines a series from a later step, for values defined
+differently at the seed step (a growth rate that needs a previous level).
+
 ## Worked example: predator–prey
 
 Two modules in mutual feedback, with the cycle broken by a one-step lag. See
@@ -450,6 +502,71 @@ const { timeseries, metrics } = collectResults(result, {
 });
 ```
 
+## Parameter schemas
+
+Hand-written parameters keep five copies of one list (interface, defaults,
+`paramMeta`, `validate`, `mergeParams`), and every pair can drift. A schema
+declares each parameter once; the rest is derived.
+
+```typescript
+import { defineParams, num, group, type InferParams } from 'tsimulation';
+
+const params = defineParams('cdr', {
+  cost0: num({
+    default: 400, unit: '$/tCO2', min: 0, exclusiveMin: true,
+    explore: { min: 100, max: 1000 },          // range for sweeps/agents
+    source: 'Fasihi et al. 2019', tier: 1, paramName: 'cdrCost0',
+    description: 'Initial DAC capital cost.',
+  }),
+  ramp: group({ maxGrowth: num({ default: 0.3, unit: 'fraction/year', min: 0 }) }),
+});
+type CDRParams = InferParams<typeof params.children>;
+
+defineModule({
+  defaults: params.defaults,
+  paramMeta: params.paramMeta,
+  validate: params.validate,
+  mergeParams: (p) => params.merge(p),
+  // ...
+});
+```
+
+- `unit` must be a registered unit; a default outside its own bounds, an
+  explore range outside the validity bounds, or a tiered leaf without a
+  description fails at definition.
+- `merge` is a strict deep merge: an unknown key at any depth is an error,
+  inherited names (`__proto__`) never address a parameter, and values are
+  copied in.
+- `paramMeta`'s `range.default` is the real default by construction.
+- `unsourced()` lists numeric leaves with no `source`, for a test that
+  enforces citation.
+
+## Derived parameters
+
+When two modules need one quantity, declare which owns it:
+
+```typescript
+import { applyDerivations, type ParamDerivation } from 'tsimulation';
+
+const DERIVATIONS: ParamDerivation[] = [{
+  target: 'cdr.tcre',
+  from: ['climate.sensitivity'],
+  description: 'TCRE scales with climate sensitivity.',
+  derive: (read) => 0.00058 * (read('climate.sensitivity') as number) / 3,
+}];
+
+const { params, values, reads } = applyDerivations(userParams, DERIVATIONS, {
+  merge: (module, overrides) => modules[module].mergeParams(overrides),
+  decouple: userParams.decouple,   // targets the caller may set explicitly
+});
+```
+
+Targets are computed in dependency order from merged parameters. Setting a
+target explicitly is refused unless it is listed in `decouple`, so a pair can
+only be split on purpose. `read` throws on a path not declared in `from`, so
+the declared dependencies are true. `reads` lists the leaves read per module,
+for parameter liveness.
+
 ## Parameter introspection
 
 Modules can attach `paramMeta` describing each tunable parameter (range, unit,
@@ -461,13 +578,15 @@ for sweeps.
 ## API surface
 
 - **Composition:** `defineModule`, `Module`, `StepResult`, `ValidationResult`
+- **Invariants:** `ModuleInvariant`, `closeTo`, `atMost`, `atLeast`, `sumValues`, `evaluateInvariants`
+- **Seed step:** `findSeedYearKinks`, `scoreSeedYear`
 - **Running:** `runAutowired`, `initAutowired`, `stepAutowired`, `finalizeAutowired`
 - **Problem/solve:** `defineSimulation`, `solve`, `init`, `Stepper`
 - **Graph internals (exposed for testing/tools):** `buildOutputRegistry`,
   `buildDependencyGraph`, `topologicalSort`, `validateWiring`, `validateConnectorTypes`
 - **Transform helpers:** `requireOutput`, `optionalOutput`, `yearZeroFallback`
 - **Results:** `getOutputsAtYear`, `getTimeSeries`, `collectResults`, `resolveKey`
-- **Params:** `ComponentParams`, `generateParameterSchema`, `validatedMerge`
+- **Params:** `defineParams`, `num`, `bool`, `choice`, `group`, `InferParams`, `applyDerivations`, `ParamDerivation`, `ComponentParams`, `generateParameterSchema`, `validatedMerge`
 
 ## Status
 
