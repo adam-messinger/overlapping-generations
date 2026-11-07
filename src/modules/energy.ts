@@ -69,9 +69,9 @@ export interface EnergySourceParams {
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
   eroei0?: number;         // Initial EROEI
-  // Depletion budget in extraction units (extraction accrues as
-  // installed_GW × 0.01/yr, so 2025 fleet × 0.01 = one year of 2025
-  // production). Sized to REMAINING TECHNICALLY RECOVERABLE RESOURCES, not
+  // Depletion budget in extraction units: one year of 2025 production =
+  // 2025 fleet GW × 0.01 (extraction books world fuel burned on that
+  // scale; see the extraction update in step()). Sized to REMAINING TECHNICALLY RECOVERABLE RESOURCES, not
   // proved reserves: proved reserves are a working inventory that resources
   // convert into as extraction proceeds (world gas reserves 126 tcm in 1990,
   // 209 tcm in 2023 while R/P held at ~50-60 yr, BGR), so a proved-reserves
