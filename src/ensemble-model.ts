@@ -161,12 +161,23 @@ export interface EnergyEnsembleInput {
    * both warn about.
    *
    * Measured on this model over [0.7, 1.5], the scenario span this input uses.
-   * Coupled: gdp2100 1211 -> 2814 ($T), a 2.32x span, with warming FALLING
-   * 2.700 -> 2.593 as efficiency rises — the physics, since less energy per
-   * unit of service means fewer emissions. Scaling `serviceEfficiencyGrowth`
-   * by the same ratio instead: gdp2100 597 -> 3591, a 6.02x span, with warming
-   * RISING 2.592 -> 2.889. Two and a half times the apparent GDP sensitivity
-   * and an inverted climate response, both artifacts of the re-split.
+   * Coupled: gdp2100 1065 -> 2482 ($T), a 2.33x span, while energy per $ of
+   * GDP falls 43%. Scaling `serviceEfficiencyGrowth` by the same ratio instead:
+   * gdp2100 562 -> 3340, a 5.94x span, while energy per $ of GDP falls only 3%,
+   * and warming 2.91 -> 3.81 °C. Two and a half times the apparent GDP
+   * sensitivity and over seven times the warming response, both artifacts of
+   * the re-split.
+   *
+   * Coupled warming is nearly flat and NOT monotone: 3.21 °C at 0.7, 3.14 at
+   * 0.8, 3.18 at 1, 3.34 at 1.5. Faster GDP roughly cancels the lower energy
+   * per $, so final energy in 2100 stays near 500,000 TWh above 0.8. Above
+   * that, more efficiency warms slightly as the fossil share of generation
+   * rises (6% -> 10%). Two channels explain that rise, both from higher GDP:
+   * baseline copper demand grows against mine capacity that does not respond,
+   * and pro-rata rationing cuts only clean build; and Y/K lifts the interest
+   * rate, which raises capital-heavy clean LCOE. With both off, 0.8 -> 1.25
+   * moves warming -0.01 °C instead of +0.13. Below 0.8, warming rises because
+   * CDR barely deploys (29 vs 353 Gt cumulative at 0.7 vs 0.8).
    */
   efficiencyMultiplier: number;
   /** Equilibrium climate sensitivity, °C per CO2 doubling. */
