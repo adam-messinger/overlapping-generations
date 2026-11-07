@@ -144,6 +144,7 @@ export interface YearResult {
   unfundedFinancingDemand: number;
   grossSavings: number;
   laborCompensation: number;
+  laborShare: number;
   operatingSurplus: number;
   privateInterestPayments: number;
   profitAfterInterestAndDepreciation: number;

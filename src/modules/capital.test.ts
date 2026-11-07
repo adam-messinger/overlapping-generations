@@ -438,6 +438,24 @@ test('a borrowed share of rising transfer costs raises public debt', () => {
   expect(b.publicDebtGDP).toBeGreaterThan(a.publicDebtGDP + 0.1);
 });
 
+test('machine worker-equivalents\' income goes to capital, lowering the labor share', () => {
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  const base = getCapitalInputs(0);
+  const y0 = capitalModule.step(state, { ...base, automationLaborShare: 0.01 }, params, 2025, 0);
+  state = y0.state;
+  const inputs1 = getCapitalInputs(1);
+  const same = capitalModule.step(state, { ...inputs1, automationLaborShare: 0.01 }, params, 2026, 1);
+  const more = capitalModule.step(state, { ...inputs1, automationLaborShare: 0.11 }, params, 2026, 1);
+  // The 2025 machine share is inside the alpha calibration: no change, no shift.
+  const market = inputs1.gdp - same.outputs.governmentServiceConsumption;
+  expect(same.outputs.laborCompensation).toBeCloseTo((1 - params.alpha) * market, 6);
+  // +10pp of augmented labor that is machines moves (1-alpha) x 10% of market output.
+  expect(same.outputs.laborCompensation - more.outputs.laborCompensation)
+    .toBeCloseTo((1 - params.alpha) * 0.10 * market, 6);
+  expect(more.outputs.laborShare).toBeLessThan(same.outputs.laborShare);
+});
+
 // --- Benefit levels ---
 
 console.log('\n--- Benefit levels ---\n');

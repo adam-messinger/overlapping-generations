@@ -17,7 +17,8 @@
  * - Return on capital / firms' cost of capital: r = α × Y/K - δ + debtRiskPremium
  * - Safe rate (public debt): r_safe = r_neutral + c·(g_trend - g_anchor) + λ_d·(d - d_2025)
  * - Loan rate (private bank debt): r_loan = r_safe + creditSpread
- * - Profit after interest and depreciation: Π = α(Y-G) - r_loan·D - δK
+ * - Capital's income share: α + s_m·(1-α)·Δm, Δm = machine share of augmented labor since 2025
+ * - Profit after interest and depreciation: Π = share·(Y-G) - r_loan·D - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
  * - Household saving: S_h = disposableIncome - householdConsumption
@@ -72,6 +73,7 @@ export interface TransferParams {
 export interface CapitalParams {
   // Production
   alpha: number;              // Capital share in Cobb-Douglas (~0.33)
+  automationIncomeToCapital: number; // Share of machine worker-equivalents' income paid to capital (1)
   depreciation: number;       // Annual depreciation rate (~0.05)
   firmRetentionRate: number;  // Share of positive after-interest profit retained
   investmentProfitRateFloor: number; // Profit rate below which only replacement is ordered
@@ -158,6 +160,7 @@ export interface CapitalState {
   previousGdp: number;        // $ trillions (for GDP growth rate)
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
   referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
+  referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
   financialLedger?: GodleyLedgerState;
 }
 
@@ -188,6 +191,7 @@ export interface CapitalInputs {
 
   // From energy/dispatch (optional)
   netEnergyFactor?: number;   // Net energy fraction (0-1), lagged
+  automationLaborShare?: number; // Machine share of augmented labor (from production, same year)
 
   // From demand (optional, for investment split)
   energyBurden?: number;      // Energy cost as fraction of GDP (0-1)
@@ -208,6 +212,7 @@ export interface CapitalOutputs {
 
   // Monetary circuit and sectoral saving
   laborCompensation: number;
+  laborShare: number;          // Labor compensation / GDP
   operatingSurplus: number;
   privateInterestPayments: number;
   profitAfterInterestAndDepreciation: number;
@@ -311,6 +316,14 @@ export const capitalDefaults: CapitalParams = {
   // output elasticities differ from factor cost shares (Kuemmel et al. 2010),
   // and r tracks what capital is paid, not the fitted marginal product.
   alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
+  // Robots and AI add worker-equivalents to production's labor input, where
+  // they earn the same marginal product as people. In the task framework
+  // that income goes to the machines' owners: automation's displacement
+  // effect lowers the labor share (Acemoglu & Restrepo 2018 AER 108(6), 2019
+  // JEP 33(2)); automation explains ~50-70% of the 1980-2016 US wage-
+  // structure change (Acemoglu & Restrepo 2022, Econometrica 90(5)). 1 = all
+  // of it; lower values model rents shared with complementary workers.
+  automationIncomeToCapital: 1.0,
   // PWT 10.01 capital-weighted world depreciation (delta x cn): 3.7% (1990)
   // -> 4.65% (2019), 1990-2019 mean ~4.1% (scripts/pwt-capital-aggregates.py). With K/Y 3.5 and I/Y 25.2%, 4%
   // grows K ~3.1%/yr in 2026, continuing PWT's world capital growth (3.34%/yr
@@ -593,15 +606,28 @@ function calculateFirmCircuit(
   stability: number,
   netEnergyFactor: number,
   params: CapitalParams,
+  automationLaborShareChange = 0,
 ): FirmCircuit {
   const marketOutput = Math.max(0, gdp - governmentServiceConsumption);
-  const operatingSurplus = params.alpha * marketOutput;
+  // Labor's (1 - alpha) is split between people and machine worker-
+  // equivalents by quantity; the machines' part (since 2025, which the
+  // alpha calibration already contains) is capital income.
+  const capitalIncomeShare = params.alpha
+    + params.automationIncomeToCapital * (1 - params.alpha)
+      * Math.max(0, automationLaborShareChange);
+  const operatingSurplus = capitalIncomeShare * marketOutput;
   const laborCompensation = marketOutput - operatingSurplus;
   const depreciationAllowance = params.depreciation * capitalStock;
   const profitAfterInterestAndDepreciation =
     operatingSurplus - privateInterestPayments - depreciationAllowance;
+  // Orders for GENERAL capital respond to general capital's own profit rate.
+  // Machine income is the return on robot/compute capital, which is debited
+  // from general capital formation and lives outside K: it is firm cash flow
+  // (internal funds, then dividends), not a signal that K is scarce. Counting
+  // it here sent investment to ~40% of GDP in slow-growth scenarios.
+  const automationIncome = operatingSurplus - params.alpha * marketOutput;
   const profitRate = capitalStock > 0
-    ? profitAfterInterestAndDepreciation / capitalStock
+    ? (profitAfterInterestAndDepreciation - automationIncome) / capitalStock
     : 0;
 
   // Losses are retained by definition; only positive profit can be paid out.
@@ -675,6 +701,12 @@ export const capitalModule: Module<
   defaults: capitalDefaults,
 
   paramMeta: {
+    automationIncomeToCapital: {
+      description: 'Share of the income earned by robot/AI worker-equivalents (production\'s augmented labor) that is paid to capital rather than wages. 1 = all of it (Acemoglu-Restrepo displacement); 0 = the labor share never moves.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 1 },
+      tier: 2 as const,
+    },
     firmRetentionRate: {
       description: 'Share of positive firm profit retained after interest and depreciation; retained profit contributes internal investment finance.',
       unit: 'fraction',
@@ -822,6 +854,7 @@ export const capitalModule: Module<
       regionalGdp: unitPort('$T/year', 'record'),
       damages: unitPort('fraction'),
       netEnergyFactor: unitPort('fraction'),
+      automationLaborShare: unitPort('fraction'),
       energyBurden: unitPort('fraction'),
       regionalLifeExpectancy: unitPort('year', 'record'),
       energyCapexSpend: unitPort('$T/year'),
@@ -838,6 +871,7 @@ export const capitalModule: Module<
       unfundedFinancingDemand: unitPort('$T/year'),
       grossSavings: unitPort('$T/year'),
       laborCompensation: unitPort('$T/year'),
+      laborShare: unitPort('fraction'),
       operatingSurplus: unitPort('$T/year'),
       privateInterestPayments: unitPort('$T/year'),
       profitAfterInterestAndDepreciation: unitPort('$T/year'),
@@ -1010,6 +1044,11 @@ export const capitalModule: Module<
     if (params.baseCreditGrowth !== undefined) {
       if (params.baseCreditGrowth < 0 || params.baseCreditGrowth > 0.15) {
         errors.push('baseCreditGrowth must be between 0 and 0.15');
+      }
+    }
+    if (params.automationIncomeToCapital !== undefined) {
+      if (params.automationIncomeToCapital < 0 || params.automationIncomeToCapital > 1) {
+        errors.push('automationIncomeToCapital must be between 0 and 1');
       }
     }
     if (params.publicDeficitRate !== undefined) {
@@ -1348,6 +1387,13 @@ export const capitalModule: Module<
       inputs.gdp - governmentServiceConsumption,
     );
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
+    const automationLaborShare = inputs.automationLaborShare ?? 0;
+    const referenceAutomationLaborShare =
+      yearIndex === 0 || state.referenceAutomationLaborShare === undefined
+        ? automationLaborShare
+        : state.referenceAutomationLaborShare;
+    const automationLaborShareChange =
+      automationLaborShare - referenceAutomationLaborShare;
 
     // Credit affects debt and interest within the year, while interest affects
     // profit and the financing request. Iterate this small fixed point so the
@@ -1373,6 +1419,7 @@ export const capitalModule: Module<
       stability,
       netEnergyFactor,
       params,
+      automationLaborShareChange,
     );
     for (let iteration = 0; iteration < 12; iteration++) {
       const nextDemand = Math.max(
@@ -1407,6 +1454,7 @@ export const capitalModule: Module<
         stability,
         netEnergyFactor,
         params,
+        automationLaborShareChange,
       );
     }
     // One final evaluation associates the financial stocks and flows exactly
@@ -1430,6 +1478,7 @@ export const capitalModule: Module<
       stability,
       netEnergyFactor,
       params,
+      automationLaborShareChange,
     );
 
     const openingFinancialLedger = state.financialLedger ?? createCapitalGodleyLedger({
@@ -1707,6 +1756,7 @@ export const capitalModule: Module<
         previousGdp: inputs.gdp,
         trendGrowth: nextTrendGrowth,
         referenceTransferBurden,
+        referenceAutomationLaborShare,
         financialLedger: financialPosting.state,
       },
       outputs: {
@@ -1718,6 +1768,7 @@ export const capitalModule: Module<
         unfundedFinancingDemand,
         grossSavings,
         laborCompensation: firmCircuit.laborCompensation,
+        laborShare: inputs.gdp > 0 ? firmCircuit.laborCompensation / inputs.gdp : 0,
         operatingSurplus: firmCircuit.operatingSurplus,
         privateInterestPayments: finance.privateInterestPayments,
         profitAfterInterestAndDepreciation:
