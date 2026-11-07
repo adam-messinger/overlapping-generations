@@ -110,7 +110,7 @@ interface FuelMixParams {
   // GDP x intensity like every sector, but its coal slice tracks steel and
   // cement, which saturate: industry's coal share is scaled by
   // (GDP/GDP2025)^this / (service base / 2025 service base), the freed share
-  // going pro rata to industry's other fuels (chemicals, light industry).
+  // going pro rata to industry's other fuels bar hydrogen (chemicals, light industry).
   // Applied on top of the logit (composition, not equipment turnover).
   heavyIndustryGdpElasticity: number;
 }
@@ -232,8 +232,8 @@ interface DemandState {
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
   fossilIndustrialStock: number;         // TWh of annual fossil industrial energy
   /**
-   * Heavy-materials activity vs industry's service base, for the industry
-   * coal anchor. gdp0/serviceBase0 are captured on the first step (0 =
+   * Heavy-materials activity vs industry's service base, scaling industry's
+   * coal share on top of the logit (not its anchor). gdp0/serviceBase0 are captured on the first step (0 =
    * unset); `coalActivityRatio` is last year's (GDP/GDP0)^eps /
    * (serviceBase/serviceBase0), lagged one year like the model's other
    * feedbacks because the fuel mix is set before this year's regional
@@ -788,8 +788,10 @@ function calculateLogitFuelShares(
  * `activityRatio` is (heavy-materials output index) / (industry service-base
  * index): below 1 when steel and cement grow slower than industry's energy
  * service as a whole. Coal's share scales by it and the remainder is spread
- * pro rata over the mix's other fuels, so the mix still sums to 1 and a fuel
- * absent from it stays absent.
+ * pro rata over the mix's other fuels EXCEPT hydrogen, so the mix still sums
+ * to 1 and a fuel absent from it stays absent. Hydrogen keeps its share: it
+ * has no supply side in this model (see fuels.hydrogen.price), so growing it
+ * by composition would be a free decarbonization channel.
  */
 export function heavyIndustryMix(
   shares: Record<FuelType, number>,
@@ -797,11 +799,14 @@ export function heavyIndustryMix(
 ): Record<FuelType, number> {
   const coalBefore = shares.coal;
   if (!(coalBefore > 0) || coalBefore >= 1 || activityRatio === 1) return shares;
-  const coal = clamp(coalBefore * Math.max(0, activityRatio), 0, 0.99);
-  const otherScale = (1 - coal) / (1 - coalBefore);
+  const fixed = shares.hydrogen;
+  const coal = clamp(coalBefore * Math.max(0, activityRatio), 0, 0.99 - fixed);
+  const restBefore = 1 - coalBefore - fixed;
+  if (!(restBefore > 0)) return shares;
+  const otherScale = (1 - coal - fixed) / restBefore;
   const mix = {} as Record<FuelType, number>;
   for (const fuel of FUEL_KEYS) {
-    mix[fuel] = fuel === 'coal' ? coal : shares[fuel] * otherScale;
+    mix[fuel] = fuel === 'coal' ? coal : fuel === 'hydrogen' ? fixed : shares[fuel] * otherScale;
   }
   return mix;
 }

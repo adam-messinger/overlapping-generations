@@ -502,6 +502,8 @@ test('heavyIndustryMix scales coal and spreads the rest pro rata', () => {
   // Other fuels keep their relative proportions; an absent fuel stays absent
   expect(mix.gas / mix.oil).toBeCloseTo(recipe.gas / recipe.oil, 10);
   expect(mix.biofuel).toBe(0);
+  // Hydrogen (no supply side) keeps its share rather than growing by composition
+  expect(mix.hydrogen).toBe(recipe.hydrogen);
   // Ratio 1 is the identity; a coal-free mix is untouched
   expect(heavyIndustryMix(recipe, 1)).toBe(recipe);
   const transport = demandDefaults.sectors.transport.fuelShares2025;
@@ -558,6 +560,20 @@ test('fossil lock-in is booked at its own sector mix (locked ICE burns no coal)'
   // Fuel attribution still closes on total non-electric energy
   const fuelSum = Object.values(locked.outputs.fuels as Record<string, number>).reduce((a, b) => a + b, 0);
   expect(fuelSum).toBeCloseTo(locked.outputs.nonElectricEnergy, 6);
+});
+
+test('lock-in fuel attribution closes under a commodity shock', () => {
+  // Shocked branch books regional potential at the accounting mix; served
+  // fuels must still sum to the reconciled non-electric total.
+  const years = 30;
+  const shockYear = 2025 + years - 1;
+  const run = runYearsWithParams(years, {
+    fossilStock: { ...demandDefaults.fossilStock, vehicleLifetime: 40 },
+    commodityShocks: [{ year: shockYear, globalPriceMultipliers: { oil: 1.5 } }],
+  } as any, { laggedAvgLCOE: 20, carbonPrice: 35 });
+  const fuelSum = Object.values(run.outputs.fuels as Record<string, number>).reduce((a, b) => a + b, 0);
+  expect(fuelSum).toBeCloseTo(run.outputs.nonElectricEnergy, 6);
+  expect(run.outputs.fuels.coal / run.outputs.nonElectricEnergy).toBeLessThan(0.16);
 });
 
 test('heavyIndustryGdpElasticity validation', () => {
