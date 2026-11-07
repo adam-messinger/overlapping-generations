@@ -1044,6 +1044,54 @@ test('bootstrapLags leaves unflagged (stock) lags at their calibrated initials',
   assert.equal(getOutputsAtYear(warm, 1).seen, 100);
 });
 
+// A flow growing 3% a step, read by a consumer that normalizes on its year-0
+// input (as a production function anchored on the observed year does)
+const growingFlowModule = defineModule({
+  name: 'growingFlow',
+  description: 'Emits a flow growing 3% a step, keyed by region',
+  defaults: {},
+  inputs: [] as const,
+  outputs: ['flow'] as const,
+  validate: okValidate,
+  mergeParams: (p) => p,
+  init: () => ({}),
+  step: (_s, _i, _p, _year, yearIndex) => ({
+    state: {},
+    outputs: { flow: { a: 100 * 1.03 ** yearIndex, b: 0 } },
+  }),
+});
+
+const growingFixture = (bootstrap: boolean | 'level' | 'trend', endYear = 2027) => ({
+  modules: [growingFlowModule, laggedEchoModule],
+  lags: {
+    laggedFlow: { source: 'flow', delay: 1, initial: { a: 1, b: 1 }, bootstrap },
+  },
+  startYear: 2025,
+  endYear,
+  bootstrapLags: { maxIterations: 10, tolerance: 1e-9 },
+});
+
+test('a level-seeded lag of a growing flow stalls for one step', () => {
+  const result = runAutowired(growingFixture('level'));
+  const seen = [0, 1, 2].map((i) => getOutputsAtYear(result, i).seen.a);
+  assert.equal(seen[0], seen[1]);
+  assert.ok(Math.abs(seen[2] / seen[1] - 1.03) < 1e-12);
+});
+
+test('a trend-seeded lag opens on the flow\'s own growth path', () => {
+  const result = runAutowired(growingFixture('trend'));
+  const seen = [0, 1, 2].map((i) => getOutputsAtYear(result, i).seen);
+  assert.ok(Math.abs(seen[1].a / seen[0].a - 1.03) < 1e-12);
+  assert.ok(Math.abs(seen[2].a / seen[1].a - 1.03) < 1e-12);
+  // Not positive in both years: no growth to read, so the level seed stands
+  assert.equal(seen[0].b, 0);
+});
+
+test('a trend-seeded lag falls back to the level seed on a one-step horizon', () => {
+  const result = runAutowired(growingFixture('trend', 2025));
+  assert.equal(getOutputsAtYear(result, 0).seen.a, 100);
+});
+
 test('convergence-controlled bootstrap reports failure instead of claiming a fixed point', () => {
   const slowFeedback = defineModule({
     name: 'slowFeedback',

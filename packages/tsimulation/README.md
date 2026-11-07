@@ -344,6 +344,16 @@ time: this step's predators depend on *last* step's prey. You model that by
 declaring a `lag`, and the engine's cycle detector will otherwise throw rather
 than silently pick an order.
 
+A lag's year-0 value is its `initial`. For a flow with no reliable hand value,
+mark the lag `bootstrap` and pass `bootstrapLags` to `runAutowired`: a warm-up
+iterates year 0 to a fixed point and replaces `initial` with what the source
+actually produces. `bootstrap: true` (or `'level'`) seeds the previous step at
+year 0's own value, a steady state that suits prices and rates. For a growing
+flow read by a consumer anchored on its year-0 input, that seed makes year 1
+repeat year 0, a one-step stall; `bootstrap: 'trend'` seeds it on the
+series' own growth path instead (`x0 * x0 / x1`, element-wise, read from two
+warm-up steps), so the first step grows like the second.
+
 ## Module invariants
 
 A unit test of an identity pins it for the inputs the test chose. An invariant
