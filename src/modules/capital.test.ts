@@ -130,6 +130,32 @@ test('step year 0 returns correct interest rate', () => {
   expect(outputs.interestRate).toBeBetween(0.02, 0.08);
 });
 
+test('the seed year\'s finance path grows from the previous year\'s GDP', () => {
+  // The finance block interpolates GDP within the year from the previous
+  // year's level. Seeded with this year's GDP, 2025 ran on a flat GDP while
+  // debt grew, so the debt-risk premium jumped into 2026 and fell after.
+  const premiums = (withLag: boolean) => {
+    const params = capitalModule.mergeParams({});
+    let state = capitalModule.init(params);
+    const out: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const inputs = { ...getCapitalInputs(i), ...(withLag ? { laggedGdp: baselineGdp(i - 1) } : {}) };
+      const result = capitalModule.step(state, inputs, params, 2025 + i, i);
+      state = result.state;
+      out.push(result.outputs.debtRiskPremium);
+    }
+    return out;
+  };
+  const steps = (p: number[]) => p.slice(1).map((v, i) => v - p[i]);
+  const [first, second, third] = steps(premiums(true));
+  // The first step sits on the path of the next two: same sign, same size
+  expect(Math.sign(first)).toBe(Math.sign(second));
+  expect(Math.abs(first - second)).toBeLessThan(Math.abs(second - third) + 0.25 * Math.abs(second));
+  // Unwired, the seed year has no growth: the old jump is still there
+  const [oldFirst, oldSecond] = steps(premiums(false));
+  expect(Math.sign(oldFirst) === Math.sign(oldSecond)).toBe(false);
+});
+
 test('step year 0 returns correct investment', () => {
   const { outputs } = runYears(1);
   // Profit-led orders plus bank finance retain the prior 2025 calibration.

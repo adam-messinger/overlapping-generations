@@ -654,7 +654,7 @@ const DEFAULT_CAPACITY_FACTORS: Record<EnergySource, number> = {
  * Build lag configurations, deriving initial values from params where possible.
  *
  * Three categories of lag initialization:
- * 1. STOCKS (capitalStock, temperature, laggedGdp, robotsPer1000): calibrated
+ * 1. STOCKS (capitalStock, temperature, robotsPer1000): calibrated
  *    end-of-2024 levels — never bootstrap (a warm-up value would inject a
  *    one-year-forward bias).
  * 2. FLOWS with a calibrated 2025 observable (dataCenterLoadTWh): keep the
@@ -916,12 +916,16 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // CDR needs lagged GDP for damage-flow growth in the SCC annuity
+    // CDR needs lagged GDP for damage-flow growth in the SCC annuity;
+    // capital's finance block starts its 2025 within-year GDP path from it.
+    // Trend-seeded: 2024 GDP on the model's own 2025-26 growth, where the
+    // hand value (155, ~2%) sat below it
     laggedGdp: {
       source: 'gdp',
       delay: 1,
-      initial: 155,  // ~2024 GDP ($T), consistent with ~2% trend into the 2025 anchor
+      initial: 155,  // warm-up seed (bootstrapped)
       contract: unitPort('$T/year'),
+      bootstrap: 'trend' as const,
     },
 
     // Regional GDP allocation needs the prior year's actual energy burden

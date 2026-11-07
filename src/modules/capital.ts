@@ -183,6 +183,11 @@ export interface CapitalInputs {
 
   // From demographics (for retirement age adjustment)
   regionalLifeExpectancy?: Record<Region, number>;
+
+  /** Previous year's GDP $T (lagged). Read at the seed year only, so the
+   *  finance block's within-year GDP path grows into 2025 as it does into
+   *  every later year. Unwired fallback: this year's GDP (no growth) */
+  laggedGdp?: number;
 }
 
 export interface CapitalOutputs {
@@ -738,6 +743,7 @@ export const capitalModule: Module<
       cdrSpend: unitPort('$T/year'),
       robotCapexSpend: unitPort('$T/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
+      laggedGdp: unitPort('$T/year'),
     },
     outputs: {
       stock: unitPort('$T'),
@@ -1198,7 +1204,13 @@ export const capitalModule: Module<
     if (yearIndex === 0) {
       publicDebt = params.initialPublicDebtGDP * inputs.gdp;
       privateDebt = params.initialPrivateDebtGDP * inputs.gdp;
-      previousGdp = inputs.gdp;
+      // The finance block interpolates GDP within the year from the previous
+      // year's level. Seeding it with this year's GDP froze the 2025 path:
+      // debt grew all year against a flat denominator and r - g read g = 0,
+      // so the debt ratio and risk premium jumped into 2026 and fell after.
+      previousGdp = inputs.laggedGdp !== undefined && inputs.laggedGdp > 0
+        ? inputs.laggedGdp
+        : inputs.gdp;
     }
 
     const financeState = { publicDebt, privateDebt, previousGdp };

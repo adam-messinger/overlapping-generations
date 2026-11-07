@@ -34,8 +34,7 @@ const SEED_DEFINED: Record<string, string> = {
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
   usefulWorkGrowthRate: 'useful work per worker grows 0.2% in 2026, then 0.7-1%/yr',
   shortfall: 'unserved generation falls in 2026 (231 -> 151 TWh) and then resumes rising',
-  debtRiskPremium: 'rises in 2026, then falls every year after',
-  aggregateCapitalFundingGap: 'diagnostic ledger: 0.08 $T in 2025, zero every year after',
+  aggregateCapitalFundingGap: 'diagnostic ledger: 0.13 $T in 2025, zero every year after',
 };
 
 const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
