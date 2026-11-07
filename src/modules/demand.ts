@@ -1589,6 +1589,9 @@ export const demandModule: Module<
     // physical availability. As transport electrifies, its oil-heavy recipe
     // carries less weight - oil falls by composition, not by logit drift.
     const evolvedSectorShares = {} as DemandState['sectorFuelShares'];
+    // What each sector actually burns (industry composition-adjusted); the
+    // fossil-stock lock-in below is booked at its own sector's mix.
+    const realizedSectorShares = {} as DemandState['sectorFuelShares'];
     const evolvedShares = Object.fromEntries(FUEL_KEYS.map(f => [f, 0])) as Record<FuelType, number>;
     let fuelWeightSum = 0;
     // Industry's coal follows steel and cement output, not industry's whole
@@ -1614,6 +1617,7 @@ export const demandModule: Module<
       const realizedShares = sectorKey === 'industry'
         ? heavyIndustryMix(sectorShares, industryCoalActivityRatio)
         : sectorShares;
+      realizedSectorShares[sectorKey] = realizedShares;
       const weight = params.sectors[sectorKey].share * (1 - newSectorElectrification[sectorKey]);
       for (const fuel of FUEL_KEYS) evolvedShares[fuel] += weight * realizedShares[fuel];
       fuelWeightSum += weight;
@@ -2033,6 +2037,7 @@ export const demandModule: Module<
     let newFossilHeatingStock = state.fossilHeatingStock;
     let newFossilIndustrialStock = state.fossilIndustrialStock;
     let lockInAdjustment = 0;
+    const lockInBySector = { transport: 0, buildings: 0, industry: 0 };
 
     for (const { sector, lifetime, prev } of sectorStockMapping) {
       const retired = prev / lifetime;
@@ -2055,6 +2060,7 @@ export const demandModule: Module<
         sectors[sector].nonElectric = newStock;
         sectors[sector].total += extra;
         lockInAdjustment += extra;
+        lockInBySector[sector] = extra;
       }
     }
 
@@ -2066,6 +2072,22 @@ export const demandModule: Module<
       ? globalNonElec / preLockPotential
       : 1;
     const servedLockIn = lockInAdjustment * globalFuelAvailabilityBeforeLock;
+
+    // Fuel accounting mix: the pre-lock potential at the aggregate mix plus
+    // each sector's lock-in extra at THAT sector's mix. The extra is mostly
+    // ICE fleets outliving transport electrification; booking it at the
+    // aggregate non-electric mix (~13% coal) had locked-in cars burning coal.
+    const accountingShares = { ...evolvedShares };
+    if (lockInAdjustment > 0) {
+      const denom = preLockPotential + lockInAdjustment;
+      for (const fuel of FUEL_KEYS) {
+        let lockedFuel = 0;
+        for (const sectorKey of sectorKeys) {
+          lockedFuel += lockInBySector[sectorKey] * realizedSectorShares[sectorKey][fuel];
+        }
+        accountingShares[fuel] = (preLockPotential * evolvedShares[fuel] + lockedFuel) / denom;
+      }
+    }
     globalNonElecPotential += lockInAdjustment;
     globalNonElec += servedLockIn;
     globalTotalFinal += servedLockIn;
@@ -2128,7 +2150,7 @@ export const demandModule: Module<
       // Keep the original aggregate arithmetic byte-for-byte in unshocked
       // scenarios. This is both faster and makes the new extension opt-in.
       for (const fuel of FUEL_KEYS) {
-        const fuelConsumption = globalNonElec * evolvedShares[fuel];
+        const fuelConsumption = globalNonElec * accountingShares[fuel];
         fuels[fuel] = fuelConsumption;
         nonElectricEmissions +=
           (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
@@ -2156,7 +2178,7 @@ export const demandModule: Module<
         let regionalServed = 0;
         let regionCost = 0;
         for (const fuel of FUEL_KEYS) {
-          const potentialFuelConsumption = regionalPotential * evolvedShares[fuel];
+          const potentialFuelConsumption = regionalPotential * accountingShares[fuel];
           const availability =
             fuel === 'oil' || fuel === 'gas'
               ? clamp(

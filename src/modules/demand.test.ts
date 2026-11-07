@@ -539,6 +539,27 @@ test('first year reproduces the 2025 mix whatever the heavy-industry elasticity'
   expect(Math.abs(coal - demandDefaults.fuels.coal.share2025)).toBeLessThan(0.01);
 });
 
+test('fossil lock-in is booked at its own sector mix (locked ICE burns no coal)', () => {
+  // Long vehicle lifetimes make the ICE-fleet floor bind as transport
+  // electrifies; the extra fuel must be transport's (oil), not the
+  // aggregate non-electric mix with its industry coal.
+  const years = 30;
+  const lowCost = { laggedAvgLCOE: 20, carbonPrice: 35 };
+  const base = runYearsWithParams(years, {}, lowCost);
+  const locked = runYearsWithParams(years, {
+    fossilStock: { ...demandDefaults.fossilStock, vehicleLifetime: 40 },
+  } as any, lowCost);
+  const extra = locked.outputs.nonElectricEnergy - base.outputs.nonElectricEnergy;
+  expect(extra).toBeGreaterThan(500);
+  const coalDelta = locked.outputs.fuels.coal - base.outputs.fuels.coal;
+  const oilDelta = locked.outputs.fuels.oil - base.outputs.fuels.oil;
+  expect(Math.abs(coalDelta)).toBeLessThan(0.01 * extra);
+  expect(oilDelta).toBeGreaterThan(0.85 * extra);
+  // Fuel attribution still closes on total non-electric energy
+  const fuelSum = Object.values(locked.outputs.fuels as Record<string, number>).reduce((a, b) => a + b, 0);
+  expect(fuelSum).toBeCloseTo(locked.outputs.nonElectricEnergy, 6);
+});
+
 test('heavyIndustryGdpElasticity validation', () => {
   const bad = demandModule.validate({
     fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 3 },
