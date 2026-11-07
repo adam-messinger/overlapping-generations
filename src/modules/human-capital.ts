@@ -67,7 +67,16 @@
  * See docs/HUMAN_CAPITAL.md.
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
+import {
+  closeTo,
+  defineModule,
+  Module,
+  type ModuleInvariant,
+  sumValues,
+  ValidationResult,
+  validatedMerge,
+  unitPort,
+} from 'tsimulation';
 import { EDUCATION_BANDS, EducationBand, REGIONS, Region } from '../domain-types.js';
 import { HUMAN_CAPITAL_BAND_PORT, HUMAN_CAPITAL_REGION_PORT } from '../port-schemas.js';
 import { clamp, exponentialConvergence } from '../primitives/math.js';
@@ -764,6 +773,52 @@ export interface HumanCapitalModule extends Module<
   mergeParams(partial: HumanCapitalOverrides): HumanCapitalParams;
 }
 
+/** $1M of slack on ledgers of tens to thousands of $T: float error, not a leak. */
+const HC_LEDGER_TOLERANCE = { rel: 1e-9, abs: 1e-6 };
+
+/**
+ * Each regional ledger closes every year (the closure bd356a8 completed).
+ * Book values are at CURRENT replacement cost, every band a fixed multiple of
+ * regional GDP per capita, so the opening stock is first re-priced by that
+ * year's change in GDP per capita; the change in net stock is then exactly
+ * investment plus migration transfers plus the useful-life revaluation, less
+ * depreciation and write-offs. World totals are the sum of the regions.
+ */
+const HUMAN_CAPITAL_INVARIANTS: readonly ModuleInvariant<
+  HumanCapitalParams, HumanCapitalState, HumanCapitalInputs, HumanCapitalOutputs
+>[] = [
+  {
+    name: 'regional ledgers close',
+    check: ({ inputs, previousInputs, outputs, previousOutputs }) => {
+      if (!previousOutputs || !previousInputs) return undefined;
+      return REGIONS.map((region) => {
+        const before = previousOutputs.regionalHumanCapital[region];
+        const after = outputs.regionalHumanCapital[region];
+        const costBefore = Math.max(0, previousInputs.regionalGdpPerCapita[region] ?? 0);
+        const costAfter = Math.max(0, inputs.regionalGdpPerCapita[region] ?? 0);
+        if (costBefore <= 0) return undefined;
+        const priceRevaluation = before.netStock * (costAfter / costBefore - 1);
+        return closeTo(`${region} net stock change`, after.netStock - before.netStock,
+          priceRevaluation + after.investment + after.migrationTransfer + after.lifeRevaluation
+            - after.depreciation - after.writeOffs,
+          HC_LEDGER_TOLERANCE);
+      });
+    },
+  },
+  {
+    name: 'world totals are the sum of regions',
+    check: ({ outputs }) => {
+      const regions = outputs.regionalHumanCapital;
+      return [
+        closeTo('investment', outputs.humanCapitalInvestment, sumValues(regions, (r) => r.investment), HC_LEDGER_TOLERANCE),
+        closeTo('depreciation', outputs.humanCapitalDepreciation, sumValues(regions, (r) => r.depreciation), HC_LEDGER_TOLERANCE),
+        closeTo('write-offs', outputs.humanCapitalWriteOffs, sumValues(regions, (r) => r.writeOffs), HC_LEDGER_TOLERANCE),
+        closeTo('net stock', outputs.humanCapitalNetStock, sumValues(regions, (r) => r.netStock), HC_LEDGER_TOLERANCE),
+      ];
+    },
+  },
+];
+
 export const humanCapitalModule: HumanCapitalModule = defineModule<
   HumanCapitalParams, HumanCapitalState, HumanCapitalInputs, HumanCapitalOutputs
 >({
@@ -771,6 +826,8 @@ export const humanCapitalModule: HumanCapitalModule = defineModule<
   description: 'Education-banded human-capital investment and straight-line depreciation over expected time in the workforce, at replacement cost',
 
   defaults: humanCapitalDefaults,
+
+  invariants: HUMAN_CAPITAL_INVARIANTS,
 
   paramMeta: {
     rearingCostShare: {

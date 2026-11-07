@@ -26,6 +26,8 @@ export interface InvariantContext<TParams, TState, TInputs, TOutputs> {
   readonly outputs: TOutputs;
   /** The module's outputs from the previous step; undefined on the first. */
   readonly previousOutputs: TOutputs | undefined;
+  /** The module's inputs at the previous step; undefined on the first. */
+  readonly previousInputs: TInputs | undefined;
   readonly year: Year;
   readonly yearIndex: YearIndex;
 }

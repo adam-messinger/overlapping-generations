@@ -119,6 +119,18 @@ After changing a module's params, inputs, or outputs:
 
 Do this before committing. Most fix-up commits in project history would have been caught by steps 1-2.
 
+### Module Invariants
+
+Accounting identities live on the module as `invariants` (see
+`packages/tsimulation/README.md`), not only in a unit test: the engine checks
+them after every step of every run, and `src/invariants.test.ts` runs every
+scenario file against them and pins that each one fails on a seeded break.
+When a module gains a ledger, a partition (parts that sum to a total), a
+stock-flow pair or a physical bound, declare it there. Declared today: demand
+partitions, dispatch aggregation and per-region physical potential, mineral and
+land ledgers, capital residuals and the financing debit, the carbon stock, and
+the human-capital ledger (including its replacement-cost re-pricing).
+
 ### Calibration & Sources
 
 - Every calibrated numeric default needs an inline source comment: value, source, year
@@ -408,6 +420,10 @@ bit-identical on the macro path by `simulation.test.ts` (35k+ numbers compared
 with `Object.is`); `connectorValidation` and `paramLiveness` only govern
 validation. Ensembles and sweeps should set all three — `scripts/parameter-sweep.ts`
 is the worked example.
+
+`invariants` (default `'error'`) governs the modules' declared accounting
+identities, checked after every step. They cost nothing measurable, so studies
+leave them on: a perturbation that breaks a ledger is a finding, not noise.
 
 `DIAGNOSTIC_MODULES` lives beside `ALL_MODULES` in `simulation-autowired.ts`
 and is the only hand-maintained fact: the field list, the macro module set, the

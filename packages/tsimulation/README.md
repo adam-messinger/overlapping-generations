@@ -371,7 +371,7 @@ const land = defineModule({
 ```
 
 A check receives `{ params, previousState, state, inputs, outputs,
-previousOutputs, year, yearIndex }` and returns nothing when the identity
+previousOutputs, previousInputs, year, yearIndex }` and returns nothing when the identity
 holds, or a message (or a list of them) when it does not. `closeTo`, `atMost`
 and `atLeast` return exactly that, and reject non-finite values.
 

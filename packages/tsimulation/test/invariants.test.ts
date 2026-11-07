@@ -93,8 +93,9 @@ test('the policy never changes what the model computes', () => {
   assert.deepEqual(checked.states, unchecked.states);
 });
 
-test('previousOutputs is undefined on the first step and the prior outputs after', () => {
+test('previous outputs and inputs are undefined on the first step and the prior step\'s after', () => {
   const seen: Array<number | undefined> = [];
+  const seenInputs: Array<object | undefined> = [];
   const mod = defineModule({
     name: 'counter',
     description: 'counts',
@@ -106,11 +107,15 @@ test('previousOutputs is undefined on the first step and the prior outputs after
     step: (_s, _i, _p, _year, yearIndex) => ({ state: {}, outputs: { n: yearIndex } }),
     invariants: [{
       name: 'record',
-      check: ({ previousOutputs }) => { seen.push(previousOutputs?.n); },
+      check: ({ previousOutputs, previousInputs }) => {
+        seen.push(previousOutputs?.n);
+        seenInputs.push(previousInputs);
+      },
     }],
   });
   runAutowired({ modules: [mod], startYear: 0, endYear: 2 });
   assert.deepEqual(seen, [undefined, 0, 1]);
+  assert.deepEqual(seenInputs, [undefined, {}, {}]);
 });
 
 test('invariant reads do not make a parameter count as live', () => {
@@ -143,7 +148,7 @@ test('a check that throws is recorded as a violation rather than crashing the ru
     check: () => { throw new Error('boom'); },
   }], {
     params: {}, previousState: {}, state: {}, inputs: {}, outputs: {},
-    previousOutputs: undefined, year: 2030, yearIndex: 5,
+    previousOutputs: undefined, previousInputs: undefined, year: 2030, yearIndex: 5,
   });
   assert.equal(violations.length, 1);
   assert.match(violations[0].message, /check threw: boom/);

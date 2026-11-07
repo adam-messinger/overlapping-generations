@@ -80,7 +80,7 @@ export interface SimulationParams {
  * cannot silently fail to reach the domain API.
  */
 export interface RunOptions
-  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads'> {
+  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads' | 'invariants'> {
   /**
    * Run the diagnostic ledgers (`generations`, `humanCapital`). Default true.
    *

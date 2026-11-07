@@ -29,8 +29,12 @@
 
 import {
   assertUnitBalance,
+  atMost,
+  closeTo,
   convertQuantity,
   defineModule,
+  type ModuleInvariant,
+  sumValues,
   divideQuantities,
   Module,
   multiplyQuantities,
@@ -587,6 +591,73 @@ function dispatchRegion(
 // MODULE DEFINITION
 // =============================================================================
 
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+/** Relative slack for sums of regional floats (a part in 1e9). */
+const AGGREGATION_TOLERANCE = { rel: 1e-9, abs: 1e-9 };
+
+/**
+ * Identities every dispatch step promises, checked by the engine after each
+ * step of every run. The physical-potential bound is the one a fleet-mean
+ * capacity factor broke (bc9f43e) and the shortfall release broke by
+ * crediting the same panels twice (16e7793).
+ */
+const DISPATCH_INVARIANTS: readonly ModuleInvariant<
+  DispatchParams, DispatchState, DispatchInputs, DispatchOutputs
+>[] = [
+  {
+    name: 'global generation is the sum of regions',
+    check: ({ outputs }) => [...ENERGY_SOURCES, 'solarPlusBattery' as const].map((source) =>
+      closeTo(
+        `${source} generation`,
+        outputs.generation[source],
+        sumValues(outputs.regionalGeneration, (r) => r[source]),
+        AGGREGATION_TOLERANCE,
+      )),
+  },
+  {
+    name: 'total generation is the sum of sources',
+    check: ({ outputs }) =>
+      closeTo('total generation', outputs.totalGeneration, sumValues(outputs.generation), AGGREGATION_TOLERANCE),
+  },
+  {
+    name: 'global emissions and curtailment are the sum of regions',
+    check: ({ outputs }) => [
+      closeTo('electricity emissions', outputs.electricityEmissions,
+        sumValues(outputs.regionalEmissions), AGGREGATION_TOLERANCE),
+      closeTo('curtailment', outputs.curtailmentTWh,
+        sumValues(outputs.regionalCurtailment), AGGREGATION_TOLERANCE),
+    ],
+  },
+  {
+    name: 'no region generates more than its capacity can',
+    description: 'Each source is bounded by the region\'s capacity x its own capacity factor x hours; '
+      + 'bare and battery-paired solar share the same panels.',
+    check: ({ inputs, outputs, params }) => {
+      const capacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(inputs.capacities);
+      const messages: (string | undefined)[] = [];
+      for (const region of REGIONS) {
+        const cap = capacities[region];
+        const gen = outputs.regionalGeneration[region];
+        const cf: Record<string, number> = {
+          ...params.capacityFactor,
+          solar: inputs.regionalEffectiveSolarCF?.[region] ?? inputs.effectiveSolarCF ?? params.capacityFactor.solar,
+          wind: inputs.regionalEffectiveWindCF?.[region] ?? inputs.effectiveWindCF ?? params.capacityFactor.wind,
+        };
+        for (const source of ENERGY_SOURCES) {
+          if (source === 'battery') continue;
+          const served = source === 'solar' ? gen.solar + gen.solarPlusBattery : gen[source];
+          const potential = (cap[source] * cf[source] * params.hoursPerYear) / 1000;
+          messages.push(atMost(`${region} ${source} TWh`, served, potential, AGGREGATION_TOLERANCE));
+        }
+      }
+      return messages;
+    },
+  },
+];
+
 export const dispatchModule: Module<
   DispatchParams,
   DispatchState,
@@ -597,6 +668,8 @@ export const dispatchModule: Module<
   description: 'Regional merit order dispatch with penetration limits',
 
   defaults: dispatchDefaults,
+
+  invariants: DISPATCH_INVARIANTS,
 
   paramMeta: {
     curtailmentOnset: {

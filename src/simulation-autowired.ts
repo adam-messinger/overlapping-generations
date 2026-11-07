@@ -1025,6 +1025,10 @@ export function runAutowiredSimulation(
     // ensembles and sweeps that have already validated a representative run
     // can pass 'off' to skip it.
     connectorValidation: options?.connectorValidation,
+    // Module invariants (ledgers close, parts sum to totals, generation within
+    // capacity). The framework defaults to 'error'; sweeps that validated a
+    // representative run pass 'off'.
+    invariants: options?.invariants,
     // Report pathwise-inert scenario knobs. This is a warning by default
     // because conditional branches can legitimately leave a parameter unread;
     // unknown scenario keys are rejected separately by scenarioToParams.

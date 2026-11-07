@@ -959,8 +959,9 @@ export interface AutowireState {
   invariants: InvariantPolicy;
   /** Merged params without the liveness proxy, so invariant reads are not counted. */
   rawParamsMap: Map<string, any>;
-  /** Each module's outputs from its previous step, for invariants. */
+  /** Each module's outputs and inputs from its previous step, for invariants. */
   lastOutputs: Map<string, any>;
+  lastInputs: Map<string, any>;
   invariantDiagnostics: InvariantDiagnostics;
 }
 
@@ -1177,6 +1178,7 @@ export function initAutowired(
     invariants,
     rawParamsMap,
     lastOutputs: new Map(),
+    lastInputs: new Map(),
     invariantDiagnostics: { checked: 0, violations: [] },
   };
 }
@@ -1280,6 +1282,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
         inputs,
         outputs: result.outputs,
         previousOutputs: state.lastOutputs.get(mod.name),
+        previousInputs: state.lastInputs.get(mod.name),
         year,
         yearIndex,
       });
@@ -1295,6 +1298,7 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
     state.lastOutputs.set(mod.name, result.outputs);
+    state.lastInputs.set(mod.name, inputs);
 
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);

@@ -21,7 +21,15 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
-import { defineModule, Module, validatedMerge, unitPort } from 'tsimulation';
+import {
+  closeTo,
+  defineModule,
+  Module,
+  type ModuleInvariant,
+  sumValues,
+  validatedMerge,
+  unitPort,
+} from 'tsimulation';
 import {
   DEMAND_SECTORS_PORT,
   REGIONAL_ALLOCATION_PORT,
@@ -929,6 +937,47 @@ export function gdpWeightedIntensityDecline(
   return weight > 0 ? weighted / weight : 0;
 }
 
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+const PARTITION_TOLERANCE = { rel: 1e-9, abs: 1e-9 };
+
+/**
+ * Partitions demand promises every step. The sector split once reclassified
+ * robot and datacenter electricity as sector fuel (03129ca); these hold that
+ * line in every scenario and year rather than at the three years a test chose.
+ */
+const DEMAND_INVARIANTS: readonly ModuleInvariant<
+  DemandParams, DemandState, DemandInputs, DemandOutputs
+>[] = [
+  {
+    name: 'final energy is electricity plus non-electric',
+    check: ({ outputs }) => closeTo('total final energy', outputs.totalFinalEnergy,
+      outputs.electricityDemand + outputs.nonElectricEnergy, PARTITION_TOLERANCE),
+  },
+  {
+    name: 'sectors partition non-electric energy',
+    check: ({ outputs }) => closeTo('non-electric energy', outputs.nonElectricEnergy,
+      sumValues(outputs.sectors, (sector) => sector.nonElectric), PARTITION_TOLERANCE),
+  },
+  {
+    name: 'each sector is its electric plus non-electric part',
+    check: ({ outputs }) => Object.entries(outputs.sectors).map(([name, sector]) =>
+      closeTo(`${name} total`, sector.total, sector.electric + sector.nonElectric, PARTITION_TOLERANCE)),
+  },
+  {
+    name: 'fuels partition non-electric energy',
+    check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy,
+      PARTITION_TOLERANCE),
+  },
+  {
+    name: 'global electricity is the sum of regions',
+    check: ({ outputs }) => closeTo('electricity demand', outputs.electricityDemand,
+      sumValues(outputs.regional, (region) => region.electricityDemand), PARTITION_TOLERANCE),
+  },
+];
+
 export const demandModule: Module<
   DemandParams,
   DemandState,
@@ -938,6 +987,7 @@ export const demandModule: Module<
   name: 'demand',
   description: 'GDP and electricity demand model with regional economics',
   defaults: demandDefaults,
+  invariants: DEMAND_INVARIANTS,
 
   paramMeta: {
     sectors: {
