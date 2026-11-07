@@ -52,6 +52,7 @@
     "forecast:data-center-replay": "node --import tsx scripts/forecast-data-center-replay.ts",
     "forecast:hormuz-replay": "node --import tsx scripts/forecast-hormuz-replay.ts",
     "forecast:news-replay": "node --import tsx scripts/forecast-news-2026-07-28-replay.ts",
+    "forecast:demographics-ai-2036-seal": "node --import tsx scripts/forecast-demographics-ai-2036-seal.ts",
     "typecheck:scripts": "npx tsc --noEmit -p tsconfig.scripts.json"
   },
   "engines": {

@@ -159,7 +159,8 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Storage**: Battery capacity enables higher VRE penetration
 - **WACC**: Interest rate → WACC → LCOE channel (capital-intensive sources penalized when rates high)
 - **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; year-0 gap anchored in energy state); `financingSpreadScale` dials friction (0 = frictionless)
-- **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment
+- **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment. Storage shifts the soft-curtailment onset by the same headroom it adds to the VRE penetration limit (without that, storage-rich grids curtailed ~half their VRE and unpriced coal won the build)
+- **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
@@ -179,19 +180,25 @@ Do this before committing. Most fix-up commits in project history would have bee
   can keep up with demand growth. Steel's is ore-based crude steel (worldsteel
   total less the scrap-fed EAF share), not total crude
 - Extraction is `min(demand, capacity)` and cumulative books extraction, so the
-  ledger closes. The shortfall is rationed pro rata across all uses: the model
-  has no metal price, so unserved tonnage stands in for the substitution a
-  price spike would force
+  ledger closes. The transition stream is served first and the baseline takes
+  the shortfall: the model has no metal price, so this order stands in for
+  what a price spike would do (copper is ~4% of solar capex, so builders
+  outbid; wiring substitutes aluminium). Pro rata rationing put the whole
+  real cost of a GDP-driven shortage on clean build, since nothing consumes
+  baseline tonnage
 - `mineralConstraintBySource` throttles each clean source by the minerals IT
   uses (read off the `perMW_*`/`perGWh_*` params), so a lithium shortage cannot
-  throttle nuclear. The scalar `mineralConstraint` is the worst case, for
-  reporting
+  throttle nuclear. It reads `transitionSupplyRatio`, which is 1 unless the
+  build's own claim exceeds mine capacity. The scalar `mineralConstraint` is
+  the worst case, for reporting
 - Mining energy is charged on the transition slice ONLY. Production subtracts
   `totalResourceEnergy` from useful energy as system overhead, against a
   `nonElectricEnergy` anchor (~92,000 TWh) that already contains world mining
   and smelting energy — charging baseline demand there too would double-count
   ~a fifth of world non-electric energy
-- Copper binds from the early 2030s (0.43 by 2100). Known limitation:
+- Copper binds the economy from the mid-2030s (supply ratio 0.40 by 2100),
+  but not clean build: the transition's own claim stays within mine
+  capacity in the default run. Known limitation:
   `reserves` never grows, so `reserveRatio` passes 1.0 mid-century
 - Constants are USGS Mineral Commodity Summaries 2026 and worldsteel 2025.
   Lithium deliberately does NOT calibrate to mine production — ~85% of real
@@ -432,6 +439,6 @@ here.
 - **Ayres/Warr**: Useful energy as production factor (biophysical economics) — the production function
 - **Fernández-Villaverde**: Demographic projections — fertility convergence
 - **DICE-2023/Howard-Sterner**: Climate damage function (quadratic midpoint)
-- **Schlenker/Roberts**: Climate-yield relationships (stylized transfer)
+- **Zhao et al. 2017 / Hultgren et al. 2025**: global crop-yield response to global warming (~-4.65%/°C, smooth quadratic); Schlenker/Roberts' local extreme-heat cliff is background only, not transferred to the global aggregate
 - **Galbraith/Chen**: a single uncertainty-damping factor on savings (`stabilityLambda`); the full entropy-economics framework is NOT implemented
 - **Kendrick (1976)**: cost-based human-capital stock (rearing + schooling at replacement cost, depreciated over working life) — the `humanCapital` ledger; Eurostat duration-of-working-life and ILO participation gaps calibrate its exit hazards

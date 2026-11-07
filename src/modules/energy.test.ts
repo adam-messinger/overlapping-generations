@@ -10,8 +10,10 @@ import {
   energyDefaults,
   levelizedStorageCostPerMWh,
   getRegionalCapacityFactor,
+  allocateNewBuild,
   type EnergyParams,
 } from './energy.js';
+import { readdirSync, readFileSync } from 'node:fs';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { dispatchDefaults } from './dispatch.js';
@@ -40,7 +42,8 @@ function createInputs(
     electricityDemand,
     availableInvestment,
     mineralConstraintBySource,
-    laggedCurtailmentRate,
+    // The scalar argument applies the same curtailment to every region's grid
+    laggedRegionalCurtailmentRate: regional(laggedCurtailmentRate),
     laggedInterestRate,
   };
 }
@@ -98,27 +101,27 @@ test('init returns state with global learning state', () => {
 
 test('init sets correct 2025 solar capacity (sum of regional)', () => {
   const state = energyModule.init(energyDefaults);
-  // Sum across all regions: 600+600+90+40+35+5+30+8 = 1408
+  // Sum across all regions = IRENA end-2024 world solar (1,865 GW) to rounding
   let total = 0;
   for (const region of REGIONS) {
     total += state.regional[region].solar.installed;
   }
-  expect(total).toBe(1408);
+  expect(total).toBe(1861);
 });
 
 test('init sets correct regional solar capacities', () => {
   const state = energyModule.init(energyDefaults);
-  expect(state.regional.us.solar.installed).toBe(160);
-  expect(state.regional['oecd-ex-us'].solar.installed).toBe(440);
-  expect(state.regional.china.solar.installed).toBe(600);
-  expect(state.regional.india.solar.installed).toBe(90);
-  expect(state.regional.ssa.solar.installed).toBe(8);
+  expect(state.regional.us.solar.installed).toBe(204);
+  expect(state.regional['oecd-ex-us'].solar.installed).toBe(518);
+  expect(state.regional.china.solar.installed).toBe(873);
+  expect(state.regional.india.solar.installed).toBe(120);
+  expect(state.regional.ssa.solar.installed).toBe(9);
 });
 
 test('init sets cumulative equal to global initial capacity', () => {
   const state = energyModule.init(energyDefaults);
-  // Global cumulative = sum of regional = 1408 for solar
-  expect(state.global.solar.cumulative).toBe(1408);
+  // Global cumulative = sum of regional = 1861 for solar
+  expect(state.global.solar.cumulative).toBe(1861);
 });
 
 // --- Year 0 LCOE ---
@@ -230,9 +233,12 @@ test('wind capacity grows over time', () => {
 });
 
 test('coal additions much smaller than solar', () => {
-  const { outputs } = runYears(5);
-  // Coal may get small demand-gap additions but solar dominates on LCOE
-  expect(outputs.additions.solar).toBeGreaterThan(outputs.additions.coal * 10);
+  const { outputs, state } = runYears(5);
+  // Coal may get small demand-gap additions but solar dominates on LCOE.
+  // China's standby (firm-adequacy) coal is a security build, not an
+  // economic choice, so it is set aside here
+  const standby = REGIONS.reduce((sum, r) => sum + (state.standbyAdditions[r].at(-1) ?? 0), 0);
+  expect(outputs.additions.solar).toBeGreaterThan((outputs.additions.coal - standby) * 10);
 });
 
 test('cumulative capacity only increases', () => {
@@ -550,9 +556,14 @@ test('zero curtailment does not affect solar additions', () => {
   expect(r1.outputs.additions.solar).toBeCloseTo(r2.outputs.additions.solar, 0);
 });
 
+// World build capacity lifted out of the way: these tests isolate the
+// curtailment channel (delivered cost / (1 - curtailment) in the new-build
+// logit), which a binding solar factory ceiling would mask
+const UNCAPPED_BUILD = { buildCapacity2025: { solar: 1e6, wind: 1e6, gas: 1e6, coal: 1e6, nuclear: 1e6, hydro: 1e6 } };
+
 test('high curtailment reduces solar additions', () => {
   // Run 5 years to build up enough solar that demand-fill path is active
-  const params = energyModule.mergeParams({});
+  const params = energyModule.mergeParams(UNCAPPED_BUILD);
   let stateA = energyModule.init(params);
   let stateB = energyModule.init(params);
   for (let i = 0; i < 5; i++) {
@@ -569,7 +580,7 @@ test('high curtailment increases battery relative to solar additions', () => {
   // Run 10 years, then compare. High curtailment dampens solar but not battery.
   // Even if battery additions are growth-capped (identical absolute value),
   // the ratio of battery:solar additions should be higher with curtailment.
-  const params = energyModule.mergeParams({});
+  const params = energyModule.mergeParams(UNCAPPED_BUILD);
   let stateA = energyModule.init(params);
   let stateB = energyModule.init(params);
   for (let i = 0; i < 10; i++) {
@@ -595,6 +606,34 @@ test('curtailment at 50% hits floor (additions > 0)', () => {
   // With 50% curtailment and penalty=2.0: damping = max(0.1, 1-2*0.5) = max(0.1, 0) = 0.1
   // So additions should be small but nonzero
   expect(r.outputs.additions.solar).toBeGreaterThan(0);
+});
+
+test('curtailment brakes only the region whose grid is curtailed', () => {
+  // Build enough solar that the demand-fill path (where damping applies)
+  // binds rather than the growth cap, then curtail ONE region's grid.
+  const params = energyModule.mergeParams({});
+  let state = energyModule.init(params);
+  for (let i = 0; i < 10; i++) {
+    state = energyModule.step(state, createInputs(30000 + i * 500, 25 + i * 0.5), params, 2025 + i, i).state;
+  }
+  const base = energyModule.step(state, createInputs(40000, 35), params, 2035, 10);
+  const target: Region = 'oecd-ex-us';
+  const curtailed = energyModule.step(state, {
+    ...createInputs(40000, 35),
+    laggedRegionalCurtailmentRate: { ...regional(0), [target]: 0.4 },
+  }, params, 2035, 10);
+  const solar = (r: typeof base, region: Region) => r.outputs.regionalAdditions[region].solar;
+  // Precondition: the target region's build is not growth-capped, so the
+  // damping is observable at all
+  expect(solar(curtailed, target)).toBeLessThan(solar(base, target));
+  // Battery storage pressure rises in the curtailed region
+  expect(curtailed.outputs.regionalAdditions[target].battery)
+    .toBeGreaterThan(base.outputs.regionalAdditions[target].battery - 1e-9);
+  // Uncurtailed regions are not braked by a grid on another continent
+  for (const region of REGIONS) {
+    if (region === target) continue;
+    expect(solar(curtailed, region)).toBeGreaterThan(solar(base, region) - 1e-9);
+  }
 });
 
 // --- WACC / Interest Rate ---
@@ -666,10 +705,13 @@ test('regional wind LCOE is the reference LCOE scaled by referenceCF over the ef
   const wind = params.sources.wind;
   for (const region of REGIONS) {
     const effectiveCF = getRegionalCapacityFactor(params, region, 'wind', wind.capacity2025[region]);
-    expect(r.outputs.regionalLCOEs[region].wind * effectiveCF).toBeCloseTo(r.outputs.lcoes.wind * wind.referenceCF, 6);
+    const multiplier = params.regional[region].costMultiplier?.wind ?? 1;
+    expect(r.outputs.regionalLCOEs[region].wind * effectiveCF).toBeCloseTo(r.outputs.lcoes.wind * wind.referenceCF * multiplier, 6);
   }
-  // Fleet-CF dispersion is visible: Brazil-led LatAm wind is cheaper than China's
-  expect(r.outputs.regionalLCOEs.latam.wind).toBeLessThan(r.outputs.regionalLCOEs.china.wind);
+  // Fleet-CF dispersion is visible: Brazil-led LatAm wind beats China's on
+  // site quality alone (China's observed-cost multiplier set aside)
+  const chinaWindMultiplier = params.regional.china.costMultiplier?.wind ?? 1;
+  expect(r.outputs.regionalLCOEs.latam.wind).toBeLessThan(r.outputs.regionalLCOEs.china.wind / chinaWindMultiplier);
 });
 
 test('fossil reserve budgets reproduce their stated R/P calibration', () => {
@@ -818,9 +860,123 @@ test('effective WACC output is present', () => {
 
 console.log('\n--- New Param Validation ---\n');
 
-test('validation catches negative curtailmentPenalty', () => {
-  const result = energyModule.validate({ curtailmentPenalty: -1 });
-  expect(result.valid).toBe(false);
+test('validation catches bad demand-led build params', () => {
+  expect(energyModule.validate({ newBuildLogitExponent: 0 }).valid).toBe(false);
+  expect(energyModule.validate({ newBuildShareWeight: { solar: -1 } as any }).valid).toBe(false);
+  expect(energyModule.validate({ fossilDisplacementRate: 1.5 }).valid).toBe(false);
+  expect(energyModule.validate({ buildCapacityDepreciation: 1 }).valid).toBe(false);
+  expect(energyModule.validate({ buildCapacity2025: { gas: 0 } as any }).valid).toBe(false);
+});
+
+test('validation catches bad regional cost, fuel, adequacy and vintage params', () => {
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, costMultiplier: { solar: 0 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, fossilRunningCost: { coal: -1 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'nuclear', share: 1 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'coal', share: 3 } } } } as any).valid).toBe(false);
+  expect(energyModule.validate({ openingFleetGrowth: { solar: -1 } } as any).valid).toBe(false);
+  expect(energyModule.validate({ electricityDemandGrowth2025: { china: 0.5 } } as any).valid).toBe(false);
+  expect(energyModule.validate({}).valid).toBe(true);
+});
+
+test('China firm adequacy builds standby coal that does not count as energy supply', () => {
+  const run = (share: number, years: number) => {
+    const params = energyModule.mergeParams({ regional: { china: { carbonPrice: 15, firmAdequacy: { source: 'coal', share } } } } as any);
+    let state = energyModule.init(params);
+    let out: any;
+    for (let i = 0; i < years; i++) {
+      const r = energyModule.step(state, createInputs(30000 + i * 800, 25), params, 2025 + i, i);
+      state = r.state; out = r.outputs;
+    }
+    return { state, out };
+  };
+  const on = run(0.99, 1);
+  const off = run(0, 1);
+  const stand = on.state.standbyAdditions.china[0];
+  expect(stand).toBeGreaterThan(0);
+  expect(off.state.standbyAdditions.china[0]).toBe(0);
+  // The standby build is extra coal; it does not crowd out the clean plan
+  expect(on.out.regionalAdditions.china.coal - off.out.regionalAdditions.china.coal).toBeCloseTo(stand, 6);
+  expect(on.out.regionalAdditions.china.solar).toBeCloseTo(off.out.regionalAdditions.china.solar, 6);
+  // Next year the standby stock is excluded from energy supply, so China's
+  // energy requirement (and its clean build) is not cut by it
+  const on2 = run(0.99, 2);
+  const off2 = run(0, 2);
+  expect(on2.out.regionalAdditions.china.solar).toBeCloseTo(off2.out.regionalAdditions.china.solar, 1);
+});
+
+test('idle fossil output is a re-run option, never new capacity', () => {
+  const solar = { source: 'solar' as const, cost: 30, weight: 1, twhPerGW: 1.5, capGW: Infinity };
+  const idleCoal = { source: 'coal' as const, cost: 30, weight: 1, twhPerGW: 5, capGW: 100, idle: true };
+  const plan = allocateNewBuild(1000, [solar, idleCoal], 6);
+  expect(plan.gw.coal).toBe(0);
+  expect(plan.idleGW.coal ?? 0).toBeGreaterThan(0);
+  // Re-run output and new build together cover the requirement
+  expect((plan.idleGW.coal ?? 0) * 5 + plan.gw.solar * 1.5).toBeCloseTo(1000, 6);
+});
+
+// Last year's dispatch, per region: ample means every fossil plant ran at
+// its 2025 utilization (nothing idle)
+const AMPLE = 1e9;
+const ranGeneration = (indiaCoal: number) =>
+  Object.fromEntries(REGIONS.map(r => [r, { coal: r === 'india' ? indiaCoal : AMPLE, gas: AMPLE }]));
+
+const idleRun = (carbonPrice: number, indiaCoalYear1: number | undefined) => {
+  const params = energyModule.mergeParams({ regional: { india: { carbonPrice } } } as any);
+  let state = energyModule.init(params);
+  let out: any;
+  for (let i = 0; i < 2; i++) {
+    const lagged = indiaCoalYear1 === undefined ? {} : { laggedRegionalGeneration: ranGeneration(i === 0 ? AMPLE : indiaCoalYear1) };
+    const r = energyModule.step(state, { ...createInputs(30000 + i * 500, 25), ...lagged }, params, 2025 + i, i);
+    state = r.state; out = r.outputs;
+  }
+  return out.regionalAdditions.india;
+};
+
+test('fossil that ran at its 2025 utilization counts as supply, exactly as without dispatch data', () => {
+  const withData = idleRun(15, AMPLE);
+  const without = idleRun(15, undefined);
+  for (const s of ['solar', 'wind', 'coal', 'gas'] as const) {
+    expect(withData[s]).toBeCloseTo(without[s], 6);
+  }
+});
+
+test('idle coal is not counted as supply when carbon makes re-running it dear', () => {
+  // India's coal sat idle last year. At a high carbon price, clean build has
+  // to cover the demand that idle coal used to be credited with.
+  const idle = idleRun(300, 0);
+  const running = idleRun(300, AMPLE);
+  expect(idle.solar + idle.wind).toBeGreaterThan(running.solar + running.wind);
+});
+
+test('cheap idle coal is re-run before any new coal is built', () => {
+  const idle = idleRun(0, 0);
+  const running = idleRun(0, AMPLE);
+  expect(idle.coal).toBeLessThan(running.coal + 1e-6);
+});
+
+// The global carbonPrice never reaches the power sector; a scenario that sets
+// only it silently runs at the regional defaults
+const GLOBAL_ONLY_WARNING = /set without any regional/;
+
+test('a global-only carbon price warns that it misses the power sector', () => {
+  const globalOnly = energyModule.validate(energyModule.mergeParams({ carbonPrice: 150 }));
+  expect(globalOnly.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBeTrue();
+  const withRegional = energyModule.validate(energyModule.mergeParams({
+    carbonPrice: 150, regional: { china: { carbonPrice: 150 } } as any,
+  }));
+  expect(withRegional.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
+  const atDefault = energyModule.validate(energyModule.mergeParams({ carbonPrice: energyDefaults.carbonPrice }));
+  expect(atDefault.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
+});
+
+test('no scenario file sets a carbon price the power sector cannot see', () => {
+  const dir = new URL('../../scenarios/', import.meta.url);
+  for (const file of readdirSync(dir).filter(f => f.endsWith('.json'))) {
+    const scenario = JSON.parse(readFileSync(new URL(file, dir), 'utf8'));
+    const result = energyModule.validate(energyModule.mergeParams(scenario.energy ?? {}));
+    const hit = result.warnings.find(w => GLOBAL_ONLY_WARNING.test(w));
+    expect(hit === undefined ? file : `${file}: ${hit}`).toBe(file);
+  }
 });
 
 test('validation catches negative riskPremium', () => {

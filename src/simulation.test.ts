@@ -117,8 +117,13 @@ test('regional allocator anchors 2025 and does not collapse regions onto a share
   for (const value of Object.values(last.regionalGdp)) {
     expect(value / total).toBeGreaterThan(0.015);
   }
+  // China's share falls from 20.9% (2025) to ~18% (2100) under the 2026
+  // calibration: its catch-up residual converges on the OECD-ex-US floor while
+  // its workforce shrinks faster than the world's. This is a guard against the
+  // allocator collapsing it, not a forecast; the old assertion (share rises by
+  // 2100) was an artifact of the ~46-yr catch-up half-life.
   expect(last.regionalGdp.china / total)
-    .toBeGreaterThan(first.regionalGdp.china / 158);
+    .toBeGreaterThan(0.7 * first.regionalGdp.china / 158);
 });
 
 // Shared default-params run for the two calibration-band tests below
@@ -257,15 +262,19 @@ test('2025 primary mineral demand reproduces observed mine production', () => {
   expect(first.mineralConstraint).toBeCloseTo(1, 6);
 });
 
-test('mineral supply constrains the build-out later in the century', () => {
-  // The constraint used to be dead: it was identically 1.0 in every year,
-  // because mining capacity was seeded from total world output while demand
-  // counted only the transition slice. With economy-wide demand it binds.
+test('copper binds the economy late in the century, not the build-out', () => {
+  // Copper used to look dead: identically 1.0 in every year, because mining
+  // capacity was seeded from total world output while demand counted only the
+  // transition slice. With economy-wide demand it binds.
   const last = FULL_RUN.results[FULL_RUN.results.length - 1];
-  expect(last.mineralConstraint).toBeLessThan(0.95);
-  expect(last.mineralConstraint).toBeGreaterThan(0.1);
+  expect(last.copperSupplyRatio).toBeLessThan(0.95);
+  expect(last.copperSupplyRatio).toBeGreaterThan(0.1);
   // And extraction is capped by capacity, never by demand alone.
   expect(last.copperExtraction).toBeLessThan(last.copperDemand);
+  // The transition is served first and the baseline takes the shortfall
+  // (aluminium substitution), so on this path no mineral throttles clean
+  // build: the transition's own claim stays within mine capacity.
+  expect(last.mineralConstraint).toBeCloseTo(1, 6);
 });
 
 test('ai-energy-boom raises the cost of capital materially', () => {

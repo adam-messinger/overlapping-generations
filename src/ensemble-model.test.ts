@@ -48,16 +48,28 @@ test('the wrapper defaults reproduce the calibrated default run', () => {
 });
 
 test('the efficiency dial keeps both views of the one series coupled', () => {
-  // Raising efficiency must raise GDP and LOWER warming: less energy per unit
-  // of service means fewer emissions. Sampling production's growth rate
-  // directly re-splits the series and inverts that, which is how the wrong
-  // dial announces itself.
-  const low = runModel(energyEnsembleModel,
-    { ...ENERGY_ENSEMBLE_DEFAULTS, efficiencyMultiplier: 0.8 }).output;
-  const high = runModel(energyEnsembleModel,
-    { ...ENERGY_ENSEMBLE_DEFAULTS, efficiencyMultiplier: 1.25 }).output;
+  // Sampling production's growth rate directly re-splits the series, which is
+  // how the wrong dial announces itself. Measured across the declared range,
+  // this dial vs the re-split: energy per $ of GDP in 2100 x0.58 vs x0.96,
+  // GDP x2.5 vs x6.6, warming +0.03 vs +0.79 °C.
+  //
+  // Don't pin the SIGN of warming. Rebound in final energy is about 100%, so
+  // the response is small and not monotone (see the input's doc comment).
+  const [lowEnd, highEnd] = ENERGY_ENSEMBLE_BOUNDS.efficiencyMultiplier;
+  const inputAt = (efficiencyMultiplier: number): EnergyEnsembleInput =>
+    ({ ...ENERGY_ENSEMBLE_DEFAULTS, efficiencyMultiplier });
+  const low = runModel(energyEnsembleModel, inputAt(lowEnd)).output;
+  const high = runModel(energyEnsembleModel, inputAt(highEnd)).output;
+
+  const energyPerGdp2100 = (efficiencyMultiplier: number) => {
+    const y2100 = runSimulation(toSimulationParams(inputAt(efficiencyMultiplier)), STUDY_OPTIONS).results[75];
+    return y2100.totalFinalEnergy / y2100.gdp;
+  };
+  expect(energyPerGdp2100(highEnd) / energyPerGdp2100(lowEnd)).toBeLessThan(0.7);
+
   expect(high.gdp2100).toBeGreaterThan(low.gdp2100);
-  expect(low.warming2100).toBeGreaterThan(high.warming2100);
+  expect(high.gdp2100 / low.gdp2100).toBeLessThan(3);
+  expect(Math.abs(high.warming2100 - low.warming2100)).toBeLessThan(0.3);
 });
 
 test('every sampled parameter actually moves an output', () => {

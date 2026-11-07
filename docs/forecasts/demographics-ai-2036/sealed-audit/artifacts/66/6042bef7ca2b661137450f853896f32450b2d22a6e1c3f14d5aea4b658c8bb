@@ -1,0 +1,274 @@
+{
+  "code": {
+    "dirty": false,
+    "gitSha": "68c42796069139f8d00e0c10d39f2d3644a6afb8"
+  },
+  "contractHashes": {
+    "input": "fnv1a32:0d03ce93",
+    "output": "fnv1a32:53b93ebd"
+  },
+  "createdAt": "2026-11-04T17:31:50.672Z",
+  "dataHashes": {},
+  "dataLineage": {
+    "snapshots": [],
+    "transformations": []
+  },
+  "dataLineageHash": "fnv1a32:c7631432",
+  "diagnostics": {
+    "archiveArtifactId": "sha256:4b23816afda978d3a5be18632b9dfa1f81cfcdcbcad0f11e289462c719c0699c",
+    "provenance": "Archived adapter output. Re-running scripts/tetlock-sim-adapter.ts at 68c42796069139f8d00e0c10d39f2d3644a6afb8 reproduces it exactly; later commits change the model."
+  },
+  "durationMs": 0,
+  "evidence": [],
+  "input": {
+    "archive": {
+      "adapter_disclosures": [
+        "IDENTIFIED (growth only): the model is PPP-based (demand.ts: \"PPP, 2017 international dollars\", world ~$158T). Its deflator base year is 2017, not the brief's constant-2025-USD-PPP lock. CQ3 asks for a GROWTH RATE, which is invariant to the deflator base, so the translation is identified. A LEVEL question would NOT be.",
+        "COVERAGE GAP: \"OECD-38 + China\" is proxied by us + oecd-ex-us + china. The model's nine regions place Korea, Japan and Turkiye in seasia/mena and Mexico, Chile, Colombia and Costa Rica in latam, so several real OECD-38 members sit outside the proxy and some non-OECD states sit inside oecd-ex-us. Treat the growth figure as an OECD-core + China aggregate, not as the OECD-38 + China aggregate.",
+        "PRIOR CONFLICT: CLAUDE.md records that the model's demographic path tracks the UN WPP LOW variant (~18% below the medium variant by 2100) by deliberate low-fertility-convergence choice. That biases the model's labour force, and therefore its growth, DOWNWARD relative to the brief's locked Section 2A baseline. Any CQ3 bound read off this model is a LOW-FERTILITY-CONDITIONAL bound.",
+        "NOT IDENTIFIED (CQ4): capital.interestRate is an economy-wide REAL interest rate. The model has no 10-year sovereign benchmark, no term premium (no termPremium anywhere in src/), and no inflation swap or breakeven. It therefore CANNOT produce the G7 GDP-weighted 10y sovereign real yield CQ4 asks for. The rate and debtRiskPremium below are reported as DIRECTIONAL context only and must not be used as a CQ4 point estimate.",
+        "NOT REPRESENTABLE (CQ1, CQ2, CQ5): src/modules/ contains no unemployment, no ISIC sector split, no sectoral median wage, no price level, no CPI/PCE, no asset prices and no volatility index. The model is entirely real. Do not derive any CQ1, CQ2 or CQ5 number from it.",
+        "PARTIAL (CQ6): only the GROWTH leg of the regime definitions is modellable via CQ3. The >=2.7% and <2.0% core-inflation conditions are not representable, so the model can discriminate A-vs-not-A on growth and speak to D's growth leg, but cannot place mass between C and D.",
+        "GLOBAL vs REGIONAL: dataCenterLoadTWh and robotsPer1000 are WORLD aggregates in this model, while the brief's AI-Q3 prior is an OECD-38 + China figure. The model number is therefore an UPPER bound on the AI-Q3 quantity, not a like-for-like comparison."
+      ],
+      "failures": [],
+      "purpose": "Conditional structural bounds for CQ3 (and directional context for CQ4) only.",
+      "readings": [
+        {
+          "china_growth_contribution_pp": 1.4134267861117111,
+          "china_growth_pct": 3.8131032062892922,
+          "cq3_coupled_growth_pct": 2.945615396799117,
+          "directional_only_debt_risk_premium_avg_pp": 1.4188346771309213,
+          "directional_only_real_interest_rate_avg_pct": 6.08998618933533,
+          "oecd_proxy_growth_pct": 2.420647733026904,
+          "ppp_weight_china_2031": 0.37067624704739693,
+          "ppp_weight_oecd_proxy_2031": 0.6293237529526031,
+          "scenario": "baseline",
+          "temperature_2036_C": 1.7182107734846317,
+          "world_datacenter_TWh_2036": 1883.8019318131408,
+          "world_robots_per_1000_2036": 3.9214026356824596
+        },
+        {
+          "china_growth_contribution_pp": 1.4134374781395946,
+          "china_growth_pct": 3.8131762054941953,
+          "cq3_coupled_growth_pct": 2.9454494074341753,
+          "directional_only_debt_risk_premium_avg_pp": 1.4189464572834347,
+          "directional_only_real_interest_rate_avg_pct": 6.089826661278446,
+          "oecd_proxy_growth_pct": 2.420342902339745,
+          "ppp_weight_china_2031": 0.37067195481369325,
+          "ppp_weight_oecd_proxy_2031": 0.6293280451863067,
+          "scenario": "central-path",
+          "temperature_2036_C": 1.718211186531567,
+          "world_datacenter_TWh_2036": 1883.3178695614104,
+          "world_robots_per_1000_2036": 3.921341551445871
+        },
+        {
+          "china_growth_contribution_pp": 1.4471523575407088,
+          "china_growth_pct": 3.9050243545875274,
+          "cq3_coupled_growth_pct": 3.0313432659860418,
+          "directional_only_debt_risk_premium_avg_pp": 1.4092150910687262,
+          "directional_only_real_interest_rate_avg_pct": 6.12407871827661,
+          "oecd_proxy_growth_pct": 2.5027403560694994,
+          "ppp_weight_china_2031": 0.37058728093222504,
+          "ppp_weight_oecd_proxy_2031": 0.629412719067775,
+          "scenario": "ai-energy-boom",
+          "temperature_2036_C": 1.7186159035652433,
+          "world_datacenter_TWh_2036": 4179.754021379986,
+          "world_robots_per_1000_2036": 6.631050845505935
+        },
+        {
+          "china_growth_contribution_pp": 1.0443770711442584,
+          "china_growth_pct": 2.8506709819011933,
+          "cq3_coupled_growth_pct": 2.2986356553450715,
+          "directional_only_debt_risk_premium_avg_pp": 1.551742025628893,
+          "directional_only_real_interest_rate_avg_pct": 5.9857591248664965,
+          "oecd_proxy_growth_pct": 1.973937477342802,
+          "ppp_weight_china_2031": 0.3663618417470731,
+          "ppp_weight_oecd_proxy_2031": 0.6336381582529269,
+          "scenario": "tech-stagnation",
+          "temperature_2036_C": 1.7204429080241452,
+          "world_datacenter_TWh_2036": 1745.078733387454,
+          "world_robots_per_1000_2036": 3.878573441309529
+        },
+        {
+          "china_growth_contribution_pp": 1.7001219925685858,
+          "china_growth_pct": 4.578504842487496,
+          "cq3_coupled_growth_pct": 3.6817566382400857,
+          "directional_only_debt_risk_premium_avg_pp": 1.1977809066996195,
+          "directional_only_real_interest_rate_avg_pct": 6.1757992906283,
+          "oecd_proxy_growth_pct": 3.137157757047726,
+          "ppp_weight_china_2031": 0.3713268962373558,
+          "ppp_weight_oecd_proxy_2031": 0.6286731037626441,
+          "scenario": "tech-breakthrough",
+          "temperature_2036_C": 1.7148075892912469,
+          "world_datacenter_TWh_2036": 1988.8638847501338,
+          "world_robots_per_1000_2036": 3.995501787250082
+        },
+        {
+          "china_growth_contribution_pp": 1.4580158608942912,
+          "china_growth_pct": 3.934375688570668,
+          "cq3_coupled_growth_pct": 2.999053477977154,
+          "directional_only_debt_risk_premium_avg_pp": 1.4060783350225492,
+          "directional_only_real_interest_rate_avg_pct": 6.099076089277244,
+          "oecd_proxy_growth_pct": 2.432059275771259,
+          "ppp_weight_china_2031": 0.3705837917639173,
+          "ppp_weight_oecd_proxy_2031": 0.6294162082360827,
+          "scenario": "automation-boom",
+          "temperature_2036_C": 1.717620557048832,
+          "world_datacenter_TWh_2036": 1905.3522921816068,
+          "world_robots_per_1000_2036": 6.090812291567768
+        }
+      ],
+      "refusals": {
+        "CQ1": "not representable - no unemployment, no ISIC sectors, no sectoral median wage",
+        "CQ2": "not representable - the model has no price level",
+        "CQ4": "not identified - economy-wide real rate is not a 10y sovereign real yield; no term premium",
+        "CQ5": "not representable - no asset prices, no volatility index"
+      },
+      "region_proxy": {
+        "china": [
+          "china"
+        ],
+        "model_regions": [
+          "us",
+          "oecd-ex-us",
+          "china",
+          "india",
+          "latam",
+          "seasia",
+          "russia",
+          "mena",
+          "ssa"
+        ],
+        "oecd_38_proxied_by": [
+          "us",
+          "oecd-ex-us"
+        ]
+      },
+      "window": {
+        "basis": "(GDP_2036/GDP_2031)^(1/5) - 1",
+        "end": 2036,
+        "start": 2032
+      }
+    }
+  },
+  "inputHash": "fnv1a32:aa43f299",
+  "integrityHash": "fnv1a32:dfcda9af",
+  "invariants": {
+    "errors": [],
+    "passed": [],
+    "valid": true,
+    "warnings": []
+  },
+  "model": {
+    "id": "tetlock-sim-adapter-archive",
+    "version": "1.0.0"
+  },
+  "output": {
+    "readings": [
+      {
+        "china_growth_contribution_pp": 1.4134267861117111,
+        "china_growth_pct": 3.8131032062892922,
+        "cq3_coupled_growth_pct": 2.945615396799117,
+        "directional_only_debt_risk_premium_avg_pp": 1.4188346771309213,
+        "directional_only_real_interest_rate_avg_pct": 6.08998618933533,
+        "oecd_proxy_growth_pct": 2.420647733026904,
+        "ppp_weight_china_2031": 0.37067624704739693,
+        "ppp_weight_oecd_proxy_2031": 0.6293237529526031,
+        "scenario": "baseline",
+        "temperature_2036_C": 1.7182107734846317,
+        "world_datacenter_TWh_2036": 1883.8019318131408,
+        "world_robots_per_1000_2036": 3.9214026356824596
+      },
+      {
+        "china_growth_contribution_pp": 1.4134374781395946,
+        "china_growth_pct": 3.8131762054941953,
+        "cq3_coupled_growth_pct": 2.9454494074341753,
+        "directional_only_debt_risk_premium_avg_pp": 1.4189464572834347,
+        "directional_only_real_interest_rate_avg_pct": 6.089826661278446,
+        "oecd_proxy_growth_pct": 2.420342902339745,
+        "ppp_weight_china_2031": 0.37067195481369325,
+        "ppp_weight_oecd_proxy_2031": 0.6293280451863067,
+        "scenario": "central-path",
+        "temperature_2036_C": 1.718211186531567,
+        "world_datacenter_TWh_2036": 1883.3178695614104,
+        "world_robots_per_1000_2036": 3.921341551445871
+      },
+      {
+        "china_growth_contribution_pp": 1.4471523575407088,
+        "china_growth_pct": 3.9050243545875274,
+        "cq3_coupled_growth_pct": 3.0313432659860418,
+        "directional_only_debt_risk_premium_avg_pp": 1.4092150910687262,
+        "directional_only_real_interest_rate_avg_pct": 6.12407871827661,
+        "oecd_proxy_growth_pct": 2.5027403560694994,
+        "ppp_weight_china_2031": 0.37058728093222504,
+        "ppp_weight_oecd_proxy_2031": 0.629412719067775,
+        "scenario": "ai-energy-boom",
+        "temperature_2036_C": 1.7186159035652433,
+        "world_datacenter_TWh_2036": 4179.754021379986,
+        "world_robots_per_1000_2036": 6.631050845505935
+      },
+      {
+        "china_growth_contribution_pp": 1.0443770711442584,
+        "china_growth_pct": 2.8506709819011933,
+        "cq3_coupled_growth_pct": 2.2986356553450715,
+        "directional_only_debt_risk_premium_avg_pp": 1.551742025628893,
+        "directional_only_real_interest_rate_avg_pct": 5.9857591248664965,
+        "oecd_proxy_growth_pct": 1.973937477342802,
+        "ppp_weight_china_2031": 0.3663618417470731,
+        "ppp_weight_oecd_proxy_2031": 0.6336381582529269,
+        "scenario": "tech-stagnation",
+        "temperature_2036_C": 1.7204429080241452,
+        "world_datacenter_TWh_2036": 1745.078733387454,
+        "world_robots_per_1000_2036": 3.878573441309529
+      },
+      {
+        "china_growth_contribution_pp": 1.7001219925685858,
+        "china_growth_pct": 4.578504842487496,
+        "cq3_coupled_growth_pct": 3.6817566382400857,
+        "directional_only_debt_risk_premium_avg_pp": 1.1977809066996195,
+        "directional_only_real_interest_rate_avg_pct": 6.1757992906283,
+        "oecd_proxy_growth_pct": 3.137157757047726,
+        "ppp_weight_china_2031": 0.3713268962373558,
+        "ppp_weight_oecd_proxy_2031": 0.6286731037626441,
+        "scenario": "tech-breakthrough",
+        "temperature_2036_C": 1.7148075892912469,
+        "world_datacenter_TWh_2036": 1988.8638847501338,
+        "world_robots_per_1000_2036": 3.995501787250082
+      },
+      {
+        "china_growth_contribution_pp": 1.4580158608942912,
+        "china_growth_pct": 3.934375688570668,
+        "cq3_coupled_growth_pct": 2.999053477977154,
+        "directional_only_debt_risk_premium_avg_pp": 1.4060783350225492,
+        "directional_only_real_interest_rate_avg_pct": 6.099076089277244,
+        "oecd_proxy_growth_pct": 2.432059275771259,
+        "ppp_weight_china_2031": 0.3705837917639173,
+        "ppp_weight_oecd_proxy_2031": 0.6294162082360827,
+        "scenario": "automation-boom",
+        "temperature_2036_C": 1.717620557048832,
+        "world_datacenter_TWh_2036": 1905.3522921816068,
+        "world_robots_per_1000_2036": 6.090812291567768
+      }
+    ],
+    "refusals": {
+      "CQ1": "not representable - no unemployment, no ISIC sectors, no sectoral median wage",
+      "CQ2": "not representable - the model has no price level",
+      "CQ4": "not identified - economy-wide real rate is not a 10y sovereign real yield; no term premium",
+      "CQ5": "not representable - no asset prices, no volatility index"
+    }
+  },
+  "outputHash": "fnv1a32:e9ac5f41",
+  "runId": "demographics-ai-2036:run2:sim-adapter",
+  "schemaVersion": "tsimulation.run/v2",
+  "seed": {
+    "$undefined": true
+  },
+  "semanticLineage": {
+    "crosswalks": [],
+    "derivations": [],
+    "measurementCrosswalks": []
+  },
+  "validationClaims": [],
+  "warnings": []
+}

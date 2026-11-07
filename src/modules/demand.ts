@@ -36,6 +36,15 @@ interface RegionalEconomicParams {
   gdp2025: number;           // $ trillions (World Bank)
   tfpGrowth: number;         // Total factor productivity growth rate
   tfpDecay: number;          // Rate at which catch-up growth fades
+  /**
+   * Long-run residual TFP growth the catch-up component decays TOWARD
+   * (default 0). Conditional convergence: a catching-up economy's TFP growth
+   * converges on the frontier's rate of technical progress, not on zero
+   * (Barro & Sala-i-Martin, Economic Growth, 2nd ed. 2004, ch. 8). With a
+   * floor, tfp(t) = floor + (tfpGrowth - floor) x (1 - tfpDecay)^t; with the
+   * default 0 the path is the original tfpGrowth x (1 - tfpDecay)^t exactly.
+   */
+  tfpFloor?: number;
   energyIntensity: number;   // MWh per $1000 GDP (total energy)
   intensityDecline: number;  // Annual efficiency improvement rate
   /**
@@ -393,8 +402,21 @@ export const demandDefaults: DemandParams = {
     },
     china: {
       gdp2025: 33,              // $33T PPP
-      tfpGrowth: 0.025,         // Residual TFP (catch-up component)
-      tfpDecay: 0.015,          // Converging toward OECD
+      // Catch-up residual fitted (grid search, 2026-11) so the model's China-minus-
+      // world real growth gap matches the P50 of a 24-seat Tetlock calibration
+      // panel: 0.87pp mean 2026-30 (model 0.86) and 0.28pp 2031-35 (model 0.28).
+      // See docs/forecasts/calibration-china-solar-2035/. Second source: the IMF
+      // WEO Oct 2026 China path (4.5% 2026, 4.0% 2027, ~3.3% by 2029 vs world
+      // ~3.1-3.2%) closes the gap to ~0.2pp by decade's end; Pritchett & Summers
+      // (2014, NBER w20573) regression to the mean and the Korea/Taiwan second
+      // decade past ~$25k PPP (gap ~0 or below). The excess over the floor halves
+      // in ~6 yr; the old 0.025/0.015 (to a zero floor) held the gap at 0.84pp
+      // through 2035. The floor carries China to the OECD-ex-US residual rather
+      // than to zero; post-2035 China grows ~0.3pp below world as its workforce
+      // shrinks (2035-50 -0.28pp, 2050-2100 -0.35pp) — the panel did not speak to that tail.
+      tfpGrowth: 0.028,         // Residual TFP (catch-up component), 2025
+      tfpDecay: 0.115,          // Catch-up excess fades ~11.5%/yr (fitted; see above)
+      tfpFloor: 0.007,          // Converges on the OECD-ex-US residual (frontier TFP), not zero
       energyIntensity: 1.11,    // PPP-adjusted (preserves ~37k TWh)
       intensityDecline: 0.015,  // 1.5%/year
       elecShareMultiplier2025: 1.07,  // China elec ~9.5k TWh gen 2024 (Ember) ~= uniform share
@@ -1085,6 +1107,9 @@ export const demandModule: Module<
         if (r.tfpGrowth !== undefined && (r.tfpGrowth < -0.05 || r.tfpGrowth > 0.10)) {
           errors.push(`${region}: TFP growth must be between -5% and 10%`);
         }
+        if (r.tfpFloor !== undefined && (r.tfpFloor < -0.02 || r.tfpFloor > 0.03)) {
+          errors.push(`${region}: tfpFloor must be between -2% and 3%`);
+        }
         if (r.energyIntensity !== undefined && r.energyIntensity < 0) {
           errors.push(`${region}: Energy intensity must be positive`);
         }
@@ -1517,7 +1542,9 @@ export const demandModule: Module<
       // The observed 2025 regional GDP table is an anchor, not a forecast
       // transition. Capture its prevailing wedges without moving its shares.
       if (yearIndex > 0) {
-        const tfp = regionParams.tfpGrowth * Math.pow(1 - regionParams.tfpDecay, t);
+        const tfpFloor = regionParams.tfpFloor ?? 0;
+        const tfp = tfpFloor
+          + (regionParams.tfpGrowth - tfpFloor) * Math.pow(1 - regionParams.tfpDecay, t);
         tfpFactor = Math.max(0.01, 1 + tfp);
 
         const effective = inputs.regionalEffectiveWorkers[region];
