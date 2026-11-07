@@ -334,10 +334,28 @@ const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
   // Statistics 2025, solar tables. Cross-check: China NEA ~887 GWac end-2024.
   solar:   { us: 204, 'oecd-ex-us': 518, china: 873, india: 120, latam: 54,  seasia: 40,  russia: 6,   mena: 37,  ssa: 9 },
   wind:    { us: 160, 'oecd-ex-us': 340, china: 400, india: 42,  latam: 22,  seasia: 5,   russia: 2,   mena: 12,  ssa: 5 },
-  gas:     { us: 520, 'oecd-ex-us': 480, china: 200, india: 70,  latam: 120, seasia: 130, russia: 220, mena: 220, ssa: 45 },
+  // Generation the model has no source for is folded into the nearest row,
+  // as capacity-equivalent at that row's capacity factor (gas 0.50, hydro
+  // 0.38), against each region's ~2025 requirement (MENA ~1,640 TWh, LatAm
+  // ~1,730 TWh). Without it the observed 2025 fleet left 6.8% of MENA and
+  // 5.7% of LatAm demand unserved, and the build's response to that shortfall
+  // ran a two-year overshoot sawtooth.
+  // - mena gas +75 (220 -> 295): oil-fired power, ~20% of MENA generation in
+  //   2024 (IEA, The Future of Electricity in the Middle East and North
+  //   Africa, 2025: gas ~70%, oil ~20%); Saudi Arabia 180, Iraq 68, Iran 58,
+  //   Kuwait 33 TWh oil-fired (EI Statistical Review 2025 country data via
+  //   Statbase). 0.20 x 1,640 TWh / (0.50 x 8.76) = 75 GW. Booked at gas
+  //   carbon intensity: understates that slice's CO2 (oil ~750 kg/MWh).
+  // - latam gas +8 (120 -> 128): oil derivatives, 2% of LAC generation 2024
+  //   (OLADE, Electricity Generation Report 2024). 0.02 x 1,730 / 4.38.
+  gas:     { us: 520, 'oecd-ex-us': 480, china: 200, india: 70,  latam: 128, seasia: 130, russia: 220, mena: 295, ssa: 45 },
   coal:    { us: 165, 'oecd-ex-us': 235, china: 1200,india: 270, latam: 20,  seasia: 100, russia: 45,  mena: 20,  ssa: 55 },
   nuclear: { us: 100, 'oecd-ex-us': 200, china: 60,  india: 8,   latam: 5,   seasia: 0,   russia: 12,  mena: 5,   ssa: 2 },
-  hydro:   { us: 75,  'oecd-ex-us': 325, china: 400, india: 55,  latam: 200, seasia: 100, russia: 60,  mena: 50,  ssa: 40 },
+  // latam hydro +26 (200 -> 226): bioenergy (~4%, mostly Brazilian bagasse)
+  // and geothermal (1%) of LAC generation 2024 (OLADE 2024; its full report
+  // gives bioenergy 1.7%, the press release 4%), both non-emitting and
+  // dispatchable like hydro. 0.05 x 1,730 TWh / (0.38 x 8.76) = 26 GW.
+  hydro:   { us: 75,  'oecd-ex-us': 325, china: 400, india: 55,  latam: 226, seasia: 100, russia: 60,  mena: 50,  ssa: 40 },
   battery: { us: 55,  'oecd-ex-us': 45,  china: 80,  india: 5,   latam: 2,   seasia: 3,   russia: 1,   mena: 2,   ssa: 2 },
 };
 
@@ -534,8 +552,10 @@ export const energyDefaults: EnergyParams = {
       // 2025 fleet (sum of capacity2025) x 0.01/yr exhausts this budget on
       // the ~48-year proved-reserves R/P timescale (EI Statistical Review of
       // World Energy 2024: ~188 tcm reserves / ~4.0 tcm/yr production).
-      // Pinned by the R/P calibration test in energy.test.ts.
-      reserves: 960,
+      // Pinned by the R/P calibration test in energy.test.ts. The fleet
+      // includes the oil-fired capacity folded into the gas row (see
+      // REGIONAL_CAPACITY_2025): 2,088 GW x 0.01 x 48 = 1,002.
+      reserves: 1000,
     },
     coal: {
       name: 'Coal',
