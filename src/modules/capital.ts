@@ -451,9 +451,17 @@ export const capitalDefaults: CapitalParams = {
   // on explicitly; doing so hits bank equity one-for-one in the Godley ledger.
   privateDefaultRate: 0,
   financialSubsteps: 4,
-  // Scenario capitalization target, not a claim about a specific Basel
-  // regulatory numerator or risk-weighted denominator.
-  bankEquityRatio: 0.10,
+  // Consolidated bank equity / (loans + bonds + reserves), 2025. Basel III
+  // Tier 1 leverage ratio (Tier 1 / total exposure), fully phased-in, June
+  // 2025: 6.1% Group 1 banks, 6.0% G-SIBs, 6.9% Group 2 (BCBS Basel III
+  // Monitoring Report, Oct 2025; stable at Dec 2025). Bank capital and reserves
+  // / total assets (IMF FSI via World Bank FB.BNK.CAPA.ZS): US 9.2% (2025),
+  // India 8.5% (2025), China 7.8% (2021), UK 5.6% (2025), Japan 4.1% (2022);
+  // FDIC US leverage capital ratio 9.26% (QBP Q4 2025). Accounting equity over
+  // on-balance assets sits above the leverage ratio (no Tier 1 deductions, no
+  // off-balance exposures in the denominator), so 7%, not 6.1%. Not a
+  // risk-weighted ratio (CET1 is 13.9% of RWA for Group 1)
+  bankEquityRatio: 0.07,
   // Banks hold their equity ratio, distributing only the interest income the
   // target does not need: the shape of Basel III's capital conservation
   // buffer, which restricts payouts until capital is restored (BCBS 2011,
@@ -915,9 +923,9 @@ export const capitalModule: Module<
       tier: 2 as const,
     },
     bankEquityRatio: {
-      description: 'Consolidated bank equity as a share of bank assets: the opening balance sheet and the level banks retain interest income to hold.',
+      description: 'Consolidated bank equity as a share of bank assets (loans + bonds + reserves): the opening balance sheet and the level banks retain interest income to hold. ~7% observed (Basel III Tier 1 leverage 6.1-6.9%, IMF FSI capital/assets 4-9% across the largest systems).',
       unit: 'fraction',
-      range: { min: 0.01, max: 0.30, default: 0.10 },
+      range: { min: 0.01, max: 0.30, default: 0.07 },
       tier: 2 as const,
     },
     bankRetentionSpeed: {
