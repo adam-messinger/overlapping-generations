@@ -314,6 +314,13 @@ test('validation catches invalid capacity factor', () => {
   expect(result.valid).toBe(false);
 });
 
+test('validation catches an availability outside 0-1, warns below utilization', () => {
+  expect(dispatchModule.validate({ availability: { gas: 1.2, coal: 0.8 } }).valid).toBe(false);
+  const below = dispatchModule.validate({ availability: { gas: 0.4 } as any });
+  expect(below.valid).toBeTrue();
+  expect(below.warnings.length).toBeGreaterThan(0);
+});
+
 test('validation catches negative carbon intensity', () => {
   const result = dispatchModule.validate({
     carbonIntensity: { ...dispatchDefaults.carbonIntensity, gas: -100 },
@@ -441,6 +448,65 @@ test('standby coal runs as last resort, only for demand nothing else serves', ()
   expect(withStandby.regionalGeneration.china.coal)
     .toBeCloseTo(ordinaryOnly.regionalGeneration.china.coal + served, 6);
   expect(withStandby.shortfall).toBeCloseTo(gap - served, 6);
+});
+
+// --- Thermal availability headroom ---
+
+console.log('\n--- Thermal Availability Headroom ---\n');
+
+// One gas-heavy region (mena) with capacity; the others are empty
+function runGasRegion(demand: number, dispatch: Record<string, unknown> = {}, gasGW = 200, coalGW = 20) {
+  const params = dispatchModule.mergeParams(dispatch as any);
+  const empty = { solar: 0, wind: 0, hydro: 0, nuclear: 0, gas: 0, coal: 0, battery: 0 };
+  const mena = { solar: 30, wind: 10, hydro: 50, nuclear: 5, gas: gasGW, coal: coalGW, battery: 0 };
+  const inputs = {
+    ...createInputs({ carbonPrice: 0 }),
+    electricityDemand: demand,
+    regionalElectricityDemand: Object.fromEntries(REGIONS.map(r => [r, r === 'mena' ? demand : 0])) as any,
+    regionalCapacities: Object.fromEntries(REGIONS.map(r => [r, r === 'mena' ? mena : empty])) as any,
+  };
+  return { out: dispatchModule.step(dispatchModule.init(params), inputs, params, 2025, 0).outputs, params };
+}
+const NO_HEADROOM = { availability: { gas: dispatchDefaults.capacityFactor.gas, coal: dispatchDefaults.capacityFactor.coal } };
+
+test('a region the merit order serves runs thermal at utilization, as without headroom', () => {
+  const { out } = runGasRegion(800);
+  const { out: capped } = runGasRegion(800, NO_HEADROOM);
+  expect(capped.shortfall).toBe(0);
+  for (const source of [...ENERGY_SOURCES, 'solarPlusBattery'] as const) {
+    expect(out.regionalGeneration.mena[source]).toBeCloseTo(capped.regionalGeneration.mena[source], 9);
+  }
+});
+
+test('a gas-heavy region runs its gas past utilization rather than leave demand unserved', () => {
+  // 1,300 TWh delivered x 1.25 = 1,625 TWh needed; gas at 0.50 cannot supply it
+  const { out: capped } = runGasRegion(1300, NO_HEADROOM);
+  const { out, params } = runGasRegion(1300);
+  expect(capped.shortfall).toBeGreaterThan(50);
+  expect(out.shortfall).toBe(0);
+  const gasCF = out.regionalGeneration.mena.gas / (200 * params.hoursPerYear / 1000);
+  expect(gasCF).toBeGreaterThan(params.capacityFactor.gas);
+  expect(gasCF).toBeLessThan(params.availability.gas + 1e-9);
+});
+
+test('headroom runs cheapest first and stops at availability', () => {
+  // Unpriced coal is cheaper than gas: its headroom runs first
+  const { out, params } = runGasRegion(1700);
+  const coalPotential = (20 * params.availability.coal * params.hoursPerYear) / 1000;
+  expect(out.regionalGeneration.mena.coal).toBeCloseTo(coalPotential, 6);
+  // Far past every fleet's availability: the remainder is unserved, and no
+  // thermal source exceeds availability (the module invariant checks it)
+  const { out: short } = runGasRegion(5000);
+  const gasPotential = (200 * params.availability.gas * params.hoursPerYear) / 1000;
+  expect(short.regionalGeneration.mena.gas).toBeCloseTo(gasPotential, 6);
+  expect(short.shortfall).toBeGreaterThan(0);
+});
+
+test('the default run serves every region\'s demand through the seed years', () => {
+  // The observed 2025 fleet left ~230 TWh unserved in MENA and LatAm when
+  // gas and hydro were capped at world-average utilization
+  const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
+  for (const row of results) expect(row.shortfall).toBeLessThan(1e-6);
 });
 
 // =============================================================================

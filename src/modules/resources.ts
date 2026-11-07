@@ -207,10 +207,12 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingMax: 0.50,
       recyclingHalfway: 1500,     // Mt post-2025 extraction; scaled to total (not transition-only) extraction
       // Non-transition demand: derived so 2025 net demand reproduces mine
-      // production. 23.0/(1-0.15) = 27.06 Mt total gross use, less the ~2.28 Mt
-      // the transition itself takes (with the IRENA end-2024 solar fleet). Cross-check: USGS MCS 2026 world refinery
+      // production. 23.0/(1-0.15) = 27.06 Mt total gross use, less the ~2.12 Mt
+      // the transition itself takes (with the IRENA end-2024 solar fleet; it
+      // was ~2.32 Mt while the 2025 build also covered dispatch's phantom
+      // gas/hydro shortfall). Cross-check: USGS MCS 2026 world refinery
       // production (the scrap-inclusive measure of total use) is 29 Mt.
-      baselineDemand2025: 24.78,
+      baselineDemand2025: 24.94,
       baselineGdpElasticity: 0.85, // World refined copper use +2.9%/yr vs world real GDP
                                    // +3.4%/yr, 1990-2024 (ICSG/USGS series; World Bank GDP)
       annualSupply2025: 23,       // Mt/yr mine production, USGS MCS 2026 (world total 23,000 kt)

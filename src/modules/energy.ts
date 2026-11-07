@@ -1939,6 +1939,11 @@ export const energyModule: Module<
       // so the no-new-coal-while-idle rule did not fire and new coal took a
       // logit share of every year's requirement (SSA 1,620 GW, India 1,330
       // GW, SE Asia 1,030 GW of coal by 2100, against ~55-270 GW in 2025).
+      // Dispatch's availability headroom also runs thermal past the table
+      // where a region has nothing else to run (MENA gas 0.60, LatAm gas
+      // 0.65): counted at nameplate, those regions anchored below their own
+      // demand (MENA 0.85) and covered it only by running thermal ever
+      // harder as clean took a growing share, until shortfall returned.
       const laggedGen = inputs.laggedRegionalGeneration?.[region];
       const nameplateTWh = (s: GeneratorSource) => energyGW(surviving[region][s], s) * bySource[s].twhPerGW;
       if (yearIndex === 0) {
