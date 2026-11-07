@@ -1,4 +1,4 @@
-import { test, expect } from '../test-utils.js';
+import { test, expect, printSummary } from '../test-utils.js';
 import { advanceCapitalFinance, type CapitalFinanceParameters } from './capital-finance.js';
 import {
   bankRetention,
@@ -372,3 +372,5 @@ test('credit capacity is the lending envelope: demand above it is exactly the un
   expect(under.newInvestmentLoanOriginations).toBeCloseTo(capacity / 2, 9);
   expect(under.newInvestmentLoanOriginations - under.netNewCreditCapacity).toBeLessThan(0);
 });
+
+printSummary();
