@@ -155,6 +155,23 @@ test('SSA has lower savings rate than OECD ex-US', () => {
   expect(outputs.regionalSavings.ssa).toBeLessThan(outputs.regionalSavings['oecd-ex-us']);
 });
 
+test('regional saving rate floors at zero when the premium exceeds the base', () => {
+  // The additive premium is calibrated at the default savingsWorking; at the
+  // declared minimum a premium below -base would otherwise go negative and
+  // hand the region negative gross investment downstream
+  const params = capitalModule.mergeParams({
+    savingsWorking: 0.20,
+    savingsPremium: { ...capitalDefaults.savingsPremium, us: -0.50 },
+  });
+  const { outputs } = capitalModule.step(capitalModule.init(params), getCapitalInputs(0), params, 2025, 0);
+  expect(outputs.regionalSavings.us).toBe(0);
+  for (const region of REGIONS) {
+    expect(outputs.regionalSavings[region]).toBeBetween(0, 1);
+  }
+  // Other regions are untouched by the floor
+  expect(outputs.regionalSavings.china).toBeGreaterThan(0);
+});
+
 test('all regional savings rates are reasonable', () => {
   const { outputs } = runYears(1);
   for (const region of REGIONS) {

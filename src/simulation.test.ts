@@ -26,7 +26,7 @@ import { scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
-import { describeOutputs } from './introspection.js';
+import { describeOutputs, describeParameters, buildMultiParams } from './introspection.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
@@ -103,6 +103,37 @@ test('2025 regional financing spreads equal the observed IEA table by constructi
   };
   check({});
   check({ capital: { savingsPremium: { ...capitalDefaults.savingsPremium, china: 0.30, us: 0.10 } } });
+});
+
+test('saving-propensity params run across their whole declared paramMeta range', () => {
+  // Both used to throw 'additions must be finite and non-negative' inside
+  // their declared ranges (savingsRateWorking <= ~0.24, savingsDependencySensitivity
+  // >= ~0.9): the US premium (-0.10, additive) outran a shrinking base as the
+  // US aged, its saving propensity went negative, and so did its investment
+  // allocation and clean-energy budget. Read the bounds from the schema so a
+  // paramMeta change stays covered.
+  const schema = describeParameters();
+  const fast = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
+  let floorBound = false;
+  for (const name of ['savingsRateWorking', 'savingsDependencySensitivity']) {
+    const meta = schema[name];
+    for (const value of [meta.min, meta.max]) {
+      expect(typeof value).toBe('number');
+      const r = runSimulation(buildMultiParams({ [name]: value as number }) as SimulationParams, fast);
+      expect(r.results[r.results.length - 1].year).toBe(2100);
+      expect(Number.isFinite(r.metrics.warming2100)).toBe(true);
+      expect(Number.isFinite(r.metrics.gdp2100 ?? NaN)).toBe(true);
+      for (const row of r.results) {
+        for (const region of REGIONS) {
+          expect(row.regionalSavings[region]).toBeBetween(0, 1);
+          if (row.regionalSavings[region] === 0) floorBound = true;
+        }
+      }
+    }
+  }
+  // Guard the test's relevance: the low end must still reach the zero floor,
+  // or this no longer exercises the case that crashed
+  expect(floorBound).toBe(true);
 });
 
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
