@@ -45,6 +45,7 @@ import {
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
+import { dispatchDefaults } from './dispatch.js';
 
 // =============================================================================
 // PARAMETERS
@@ -685,7 +686,9 @@ export const energyDefaults: EnergyParams = {
   // Investment constraint parameters
   cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
-  gridLossFactor: 1.25,           // = dispatch gridLossFactor (pinned); capacity planned on generation basis
+  // Capacity is planned on dispatch's generation basis; derived from
+  // dispatch.gridLossFactor at run time (src/param-derivations.ts)
+  gridLossFactor: dispatchDefaults.gridLossFactor,
   cleanShareFlex: 0,              // default off: exogenous ramp only (calibrated baseline)
   cleanShareMax: 0.30,            // matches the ramp's own 2050 endpoint when flex is off
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery

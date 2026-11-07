@@ -32,6 +32,12 @@ import {
 } from './semantics.js';
 import { trackObjectReads, unreadOverridePaths } from './liveness.js';
 import { findNonFiniteValues } from './validation.js';
+import {
+  evaluateInvariants,
+  formatInvariantViolation,
+  type InvariantDiagnostics,
+  type InvariantPolicy,
+} from './invariants.js';
 
 // =============================================================================
 // TYPES
@@ -160,6 +166,13 @@ export interface AutowireConfig {
 
   /** Report or reject scenario parameters that are never read during a full run. */
   paramLiveness?: 'off' | 'report' | 'warn' | 'error';
+
+  /**
+   * Policy for module invariants (default 'error'): 'error' throws at the
+   * first violating step, 'warn' logs and records every violation, 'report'
+   * only records them in `diagnostics.invariants`, 'off' skips the checks.
+   */
+  invariants?: InvariantPolicy;
 
   /**
    * Parameter paths consumed by composition code or transform closures rather
@@ -929,6 +942,7 @@ export interface AutowireResult {
       unreadOverridePaths: string[];
       completeRun: boolean;
     }>;
+    invariants?: InvariantDiagnostics;
   };
 }
 
@@ -956,6 +970,13 @@ export interface AutowireState {
   paramReads: Map<string, Set<string>>;
   paramOverrides: Map<string, unknown>;
   paramLiveness: NonNullable<AutowireConfig['paramLiveness']>;
+  invariants: InvariantPolicy;
+  /** Merged params without the liveness proxy, so invariant reads are not counted. */
+  rawParamsMap: Map<string, any>;
+  /** Each module's outputs and inputs from its previous step, for invariants. */
+  lastOutputs: Map<string, any>;
+  lastInputs: Map<string, any>;
+  invariantDiagnostics: InvariantDiagnostics;
 }
 
 /**
@@ -1073,6 +1094,7 @@ export function initAutowired(
     semanticValidation = 'if-present',
     paramLiveness = 'off',
     externalParamReads = {},
+    invariants = 'error',
   } = config;
 
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear)) {
@@ -1097,6 +1119,7 @@ export function initAutowired(
   const paramsMap = new Map<string, any>();
   const paramReads = new Map<string, Set<string>>();
   const paramOverrides = new Map<string, unknown>();
+  const rawParamsMap = new Map<string, any>();
 
   for (const mod of sortedModules) {
     // Merge + validate at load time: throws on invalid params, warns on
@@ -1110,6 +1133,7 @@ export function initAutowired(
     );
     const partial = params[mod.name] ?? {};
     paramOverrides.set(mod.name, partial);
+    rawParamsMap.set(mod.name, mergedParams);
     if (paramLiveness !== 'off') {
       const tracked = trackObjectReads(mergedParams as object);
       paramsMap.set(mod.name, tracked.proxy);
@@ -1165,6 +1189,11 @@ export function initAutowired(
     paramReads,
     paramOverrides,
     paramLiveness,
+    invariants,
+    rawParamsMap,
+    lastOutputs: new Map(),
+    lastInputs: new Map(),
+    invariantDiagnostics: { checked: 0, violations: [] },
   };
 }
 
@@ -1259,6 +1288,33 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
 
+    if (state.invariants !== 'off' && mod.invariants) {
+      const violations = evaluateInvariants(mod.name, mod.invariants, {
+        params: state.rawParamsMap.get(mod.name),
+        previousState: modState,
+        state: result.state,
+        inputs,
+        outputs: result.outputs,
+        previousOutputs: state.lastOutputs.get(mod.name),
+        previousInputs: state.lastInputs.get(mod.name),
+        year,
+        yearIndex,
+      });
+      state.invariantDiagnostics.checked += mod.invariants.length;
+      if (violations.length > 0) {
+        if (state.invariants === 'error') {
+          throw new Error(`Invariant violations:\n${violations.map(formatInvariantViolation).join('\n')}`);
+        }
+        if (state.invariants === 'warn') {
+          for (const violation of violations) console.warn(`[autowire] ${formatInvariantViolation(violation)}`);
+        }
+        state.invariantDiagnostics.violations.push(...violations);
+      }
+      // Kept only for invariants' previous-step context
+      state.lastOutputs.set(mod.name, result.outputs);
+      state.lastInputs.set(mod.name, inputs);
+    }
+
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);
 
@@ -1350,10 +1406,16 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
     ...(outputContractEntries.length === expectedOutputContracts
       ? { outputContracts: Object.fromEntries(outputContractEntries) }
       : {}),
-    ...((state.diagnostics || parameterLiveness) ? {
+    ...((state.diagnostics || parameterLiveness || state.invariants !== 'off') ? {
       diagnostics: {
         ...(state.diagnostics ?? {}),
         ...(parameterLiveness ? { parameterLiveness } : {}),
+        ...(state.invariants !== 'off' ? {
+          invariants: {
+            checked: state.invariantDiagnostics.checked,
+            violations: [...state.invariantDiagnostics.violations],
+          },
+        } : {}),
       },
     } : {}),
   };
@@ -1513,6 +1575,8 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     // unconditional, so a diverging warm-up still fails loudly.
     const warm = initAutowired({ ...cfg, bootstrapLags: 0 }, compiled);
     warm.connectorValidation = 'off';
+    // Warm-up steps are scratch passes over year 0; the run proper checks it.
+    warm.invariants = 'off';
     stepAutowired(warm);
     const newLags: Record<string, LagConfig> = {};
     residual = 0;

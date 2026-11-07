@@ -119,7 +119,30 @@ After changing a module's params, inputs, or outputs:
 
 Do this before committing. Most fix-up commits in project history would have been caught by steps 1-2.
 
+### Module Invariants
+
+Accounting identities live on the module as `invariants` (see
+`packages/tsimulation/README.md`), not only in a unit test: the engine checks
+them after every step of every run, and `src/invariants.test.ts` runs every
+scenario file against them and pins that each one fails on a seeded break.
+When a module gains a ledger, a partition (parts that sum to a total), a
+stock-flow pair or a physical bound, declare it there. Declared today: demand
+partitions, dispatch aggregation and per-region physical potential, mineral and
+land ledgers, capital residuals and the financing debit, the carbon stock, and
+the human-capital ledger (including its replacement-cost re-pricing).
+
 ### Calibration & Sources
+
+- `src/calibration-anchors.ts` compares 17 of the model's 2025 outputs with
+  independent observations within loose (1.02-1.5x) bands — an
+  order-of-magnitude tripwire for unit and intensity errors, not calibration.
+  `npx tsx src/calibration-anchors.ts` prints the table. When you add a
+  quantity whose units could slip (an intensity, a conversion), add an anchor
+  on an output it produces
+- `src/seed-year.test.ts` requires every published output's 2025->2026 step to
+  sit on the path of the next four years. A new discontinuity fails; today's
+  are listed (`KNOWN_SEED_YEAR_ARTIFACTS`) as leads, and an entry that stops
+  flagging must be removed
 
 - Every calibrated numeric default needs an inline source comment: value, source, year
   - Example: `alpha: 0.36, // Wright's Law solar learning rate, Rubin (2019)`
@@ -138,6 +161,18 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Adding**: interface + defaults + `paramMeta` + validation rule + test
 - **Demoting from Tier-1**: remove from `paramMeta` only; keep in interface/defaults and read from `params`
 - Never hardcode a demoted param as a constant — programmatic overrides via `runSimulation({...})` must still work
+- **Schema-declared modules** (`cdr` so far): parameters are declared once with
+  `defineParams` (packages/tsimulation README, "Parameter schemas"); the
+  interface, defaults, `paramMeta`, validation and the strict deep merge are
+  derived, every numeric leaf has a registered unit, and `unsourced()` must stay
+  empty (pinned in the module's test). Migrate a module the same way when you
+  next touch its parameters; the pinned-defaults test shows the migration
+  changed nothing
+- **Shared quantities**: when two modules need one quantity, add a
+  `ParamDerivation` to `src/param-derivations.ts` naming its owner, rather than
+  a `??=` copy in the runner or a "mirrors X" comment. Setting a derived
+  parameter is refused unless the run lists it in `decouple`; introspection
+  reports `derivedFrom`, and the sweep perturbs the source instead
 
 ### Architecture Boundaries
 
@@ -252,7 +287,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
 - GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
-- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (coupled at runtime through the multiplier and the structural-decay shape — a mismatch collapses GDP; pinned in `simulation.test.ts`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
+- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 
@@ -449,6 +484,10 @@ bit-identical on the macro path by `simulation.test.ts` (35k+ numbers compared
 with `Object.is`); `connectorValidation` and `paramLiveness` only govern
 validation. Ensembles and sweeps should set all three — `scripts/parameter-sweep.ts`
 is the worked example.
+
+`invariants` (default `'error'`) governs the modules' declared accounting
+identities, checked after every step. They cost nothing measurable, so studies
+leave them on: a perturbation that breaks a ledger is a finding, not noise.
 
 `DIAGNOSTIC_MODULES` lives beside `ALL_MODULES` in `simulation-autowired.ts`
 and is the only hand-maintained fact: the field list, the macro module set, the

@@ -17,9 +17,10 @@
  * alongside it because a path containing them never addresses a parameter,
  * so accepting them can only mislead.
  */
-const RESERVED_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
 
-function assertAddressable(path: string): string[] {
+/** Split a dot path, refusing reserved segments. */
+export function assertAddressable(path: string): string[] {
   const parts = path.split('.');
   for (const part of parts) {
     if (RESERVED_SEGMENTS.has(part)) {
@@ -30,7 +31,7 @@ function assertAddressable(path: string): string[] {
 }
 
 /** Own-property read; inherited members are not parameters. */
-function ownValue(container: unknown, key: string): unknown {
+export function ownValue(container: unknown, key: string): unknown {
   if (container === null || typeof container !== 'object') return undefined;
   return Object.prototype.hasOwnProperty.call(container, key)
     ? (container as Record<string, unknown>)[key]

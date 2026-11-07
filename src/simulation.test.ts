@@ -2,9 +2,6 @@
  * Simulation Integration Tests
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
@@ -22,7 +19,7 @@ import {
   resolveKey,
   getOutputsAtYear,
 } from 'tsimulation';
-import { scenarioToParams } from './scenario.js';
+import { loadScenarioParamsSync, scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
@@ -31,11 +28,6 @@ import { STUDY_OPTIONS } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
-function loadScenarioParamsSync(name: string) {
-  const path = join(dirname(fileURLToPath(import.meta.url)), `../scenarios/${name}.json`);
-  return scenarioToParams(JSON.parse(readFileSync(path, 'utf-8')));
-}
-
 console.log('\n=== Simulation Integration Tests ===\n');
 
 test('runSimulation respects startYear/endYear', () => {
@@ -237,16 +229,6 @@ test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity de
   // production), the intensity-decline-as-GDP-destroyer bug returns.
   const derived = gdpWeightedIntensityDecline();
   expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
-});
-
-test('production and demand share the same structural-decay shape', () => {
-  // The forward structural decay must apply identically to demand's
-  // intensity decline and production's eta growth, or the coupled series
-  // re-split under efficiencyMultiplier and GDP collapses at the high end.
-  expect(productionDefaults.structuralEfficiencyShare)
-    .toBe(demandDefaults.structuralEfficiencyShare);
-  expect(productionDefaults.structuralDecayHalfLife)
-    .toBe(demandDefaults.structuralDecayHalfLife);
 });
 
 test('no initialization discontinuity: first simulated years are smooth', () => {

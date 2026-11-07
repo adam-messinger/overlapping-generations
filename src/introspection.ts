@@ -24,6 +24,7 @@ import {
 import { standardCollectors } from './standard-collectors.js';
 import { deepMerge } from './primitives/deep-merge.js';
 import { ALL_MODULES, DIAGNOSTIC_MODULES } from './simulation-autowired.js';
+import { PARAM_DERIVATIONS } from './param-derivations.js';
 
 // =============================================================================
 // TYPES
@@ -38,6 +39,12 @@ export interface ParameterInfo {
   description: string;
   /** Dot-path to parameter in SimulationParams (e.g., 'energy.carbonPrice') */
   path: string;
+  /**
+   * Present when the parameter is derived from others (src/param-derivations.ts):
+   * the runner computes it, and setting it directly requires listing the path
+   * in `decouple`. Move what it is derived from instead.
+   */
+  derivedFrom?: string[];
 }
 
 export interface ParameterSchema {
@@ -55,10 +62,11 @@ export interface ParameterSchema {
 export function describeParameters(): ParameterSchema {
   const generated = generateParameterSchema(ALL_MODULES);
 
-  // Convert GeneratedParameterInfo to ParameterInfo (identical shape)
+  const derivedFrom = new Map(PARAM_DERIVATIONS.map((d) => [d.target, [...d.from]]));
   const result: ParameterSchema = {};
   for (const [key, info] of Object.entries(generated)) {
-    result[key] = info;
+    const from = derivedFrom.get(info.path);
+    result[key] = from ? { ...info, derivedFrom: from } : info;
   }
   return result;
 }
@@ -77,6 +85,13 @@ export function buildParams(paramName: string, value: number | boolean): Record<
 
   if (!info) {
     throw new Error(`Unknown parameter: ${paramName}`);
+  }
+  if (info.derivedFrom) {
+    // The run would refuse it anyway; say so where the agent asked
+    throw new Error(
+      `Parameter ${paramName} (${info.path}) is derived from ${info.derivedFrom.join(', ')}: ` +
+      `set those, or set it directly with decouple: ['${info.path}']`,
+    );
   }
 
   if (typeof value === 'number') {
@@ -221,6 +236,9 @@ async function runCLI() {
     console.log(`  Range: [${info.min}, ${info.max}]`);
     console.log(`  Unit: ${info.unit}`);
     console.log(`  Path: ${info.path}`);
+    if (info.derivedFrom) {
+      console.log(`  Derived from: ${info.derivedFrom.join(', ')} (set those; overriding needs decouple: ['${info.path}'])`);
+    }
     console.log(`  Description: ${info.description}`);
     return;
   }

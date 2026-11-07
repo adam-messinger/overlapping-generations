@@ -15,7 +15,6 @@ import {
 } from './energy.js';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
-import { dispatchDefaults } from './dispatch.js';
 import { MINERAL_KEYS, mineralIntensity, resourcesDefaults } from './resources.js';
 import { test, expect, printSummary, regional } from '../test-utils.js';
 
@@ -383,13 +382,6 @@ test('lower investment reduces additions', () => {
 
   // Lower investment should result in lower solar additions
   expect(resultLow.outputs.additions.solar).toBeLessThan(resultHigh.outputs.additions.solar + 1);
-});
-
-test('gridLossFactor matches dispatch (capacity planned on generation basis)', () => {
-  // Energy sizes the fleet; dispatch runs it. Both must use the same
-  // delivered->generation conversion or the fleet is systematically
-  // undersized and shortfall grows without bound.
-  expect(energyDefaults.gridLossFactor).toBe(dispatchDefaults.gridLossFactor);
 });
 
 test('cleanShareFlex expands the capex budget when desired build is rationed', () => {

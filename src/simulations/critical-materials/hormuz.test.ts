@@ -1,5 +1,6 @@
 import { expect, printSummary, sumRegional, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
+import { runAutowiredSimulation } from '../../simulation-autowired.js';
 import { REGIONS } from '../../domain-types.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
 import { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './hormuz-bridge.js';
@@ -113,6 +114,25 @@ test('the annual bridge raises burden and lowers GDP in the disruption year', ()
   expect(impact2026.gdpChangePct).toBeLessThan(-0.1);
   expect(impact2026.energyBurdenChangePctPoints).toBeGreaterThan(0);
   expect(impact2026.foodStressChangePctPoints).toBeGreaterThan(0);
+});
+
+test('rationed fuel is rationed in the sector breakdown too', () => {
+  // Under a commodity shock the world total is the SERVED fuel, so the sectors
+  // must partition that, not the unrationed request (they over-reported by
+  // ~1,000 TWh in the 2026 disruption year).
+  const result = simulateHormuzDisruption(
+    hormuzScenarios['short-disruption'],
+    calibrated.params,
+  );
+  // The demand module's own invariants state the partition; the shocked path
+  // is not in the scenario files, so check them here.
+  const run = runAutowiredSimulation(
+    { ...buildHormuzGlobalOverrides(result), endYear: 2028 },
+    { invariants: 'report', paramLiveness: 'off' },
+  );
+  const violations = run.diagnostics?.invariants?.violations ?? [];
+  expect(violations.map((v) => `${v.year} ${v.invariant}: ${v.message}`).join('; ')).toBe('');
+  expect((run.diagnostics?.invariants?.checked ?? 0) > 0).toBeTrue();
 });
 
 test('the annual bridge rejects an accidental same-year shock overwrite', () => {
