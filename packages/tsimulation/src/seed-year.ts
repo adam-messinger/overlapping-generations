@@ -15,14 +15,17 @@
  * trend, a steady acceleration and ordinary noise all score near zero.
  */
 
-export interface SeedYearKink {
-  name: string;
+export interface SeedYearScore {
   /** (|first change - later mean change| - later spread) / magnitude. */
   score: number;
   firstChange: number;
   laterMeanChange: number;
   /** The values over the window, from the series' start offset. */
   window: number[];
+}
+
+export interface SeedYearKink extends SeedYearScore {
+  name: string;
 }
 
 export interface SeedYearOptions {
@@ -49,10 +52,10 @@ export function scoreSeedYear(
   values: readonly number[],
   trendSteps = 4,
   noiseFloor = 1e-9,
-): Omit<SeedYearKink, 'name'> | undefined {
+): SeedYearScore | undefined {
   if (values.length < trendSteps + 2) return undefined;
   const window = values.slice(0, trendSteps + 2);
-  if (window.some((value) => typeof value !== 'number' || !Number.isFinite(value))) return undefined;
+  if (!window.every(Number.isFinite)) return undefined;
   const firstChange = window[1] - window[0];
   const later = window.slice(2).map((value, index) => value - window[index + 1]);
   const laterMeanChange = later.reduce((sum, change) => sum + change, 0) / later.length;

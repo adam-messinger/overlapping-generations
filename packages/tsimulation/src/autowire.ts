@@ -1274,9 +1274,9 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
 
-    if (state.invariants !== 'off' && mod.invariants && mod.invariants.length > 0) {
+    if (state.invariants !== 'off' && mod.invariants) {
       const violations = evaluateInvariants(mod.name, mod.invariants, {
-        params: state.rawParamsMap.get(mod.name) ?? modParams,
+        params: state.rawParamsMap.get(mod.name),
         previousState: modState,
         state: result.state,
         inputs,
@@ -1296,9 +1296,10 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
         }
         state.invariantDiagnostics.violations.push(...violations);
       }
+      // Kept only for invariants' previous-step context
+      state.lastOutputs.set(mod.name, result.outputs);
+      state.lastInputs.set(mod.name, inputs);
     }
-    state.lastOutputs.set(mod.name, result.outputs);
-    state.lastInputs.set(mod.name, inputs);
 
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);

@@ -86,6 +86,13 @@ export function buildParams(paramName: string, value: number | boolean): Record<
   if (!info) {
     throw new Error(`Unknown parameter: ${paramName}`);
   }
+  if (info.derivedFrom) {
+    // The run would refuse it anyway; say so where the agent asked
+    throw new Error(
+      `Parameter ${paramName} (${info.path}) is derived from ${info.derivedFrom.join(', ')}: ` +
+      `set those, or set it directly with decouple: ['${info.path}']`,
+    );
+  }
 
   if (typeof value === 'number') {
     if (info.min !== undefined && value < info.min) {

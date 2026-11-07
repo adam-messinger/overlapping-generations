@@ -631,17 +631,15 @@ export const demandDefaults: DemandParams = {
     referenceCarbonPrice: 35,
   },
 
-  // Scales autonomous intensity decline (demand-side ONLY): production's
-  // serviceEfficiencyGrowth stays at its default, so scenarios overriding
-  // this partially re-split the coupled efficiency series (known
-  // limitation — see production.ts and the consistency pin in
-  // simulation.test.ts, which checks defaults only).
+  // Scales autonomous intensity decline. Production's serviceEfficiencyGrowth
+  // is derived from it (src/param-derivations.ts), so the one efficiency
+  // series moves together on both sides.
   efficiencyMultiplier: 1.0,    // Default: no adjustment
   // Forward decay of the structural (catch-up/sectoral-shift) component of
-  // intensity decline — MUST match production's values (the same physical
-  // series; consistency-pinned in simulation.test.ts). See production.ts.
-  structuralEfficiencyShare: 0.33,
-  structuralDecayHalfLife: 18,
+  // intensity decline. Production's eta is the same physical series: its
+  // defaults read these, and runs derive them (src/param-derivations.ts).
+  structuralEfficiencyShare: 0.33,  // ~0.42 of 1.29 pp/yr is structural (bonus over the CL-PFU device rate)
+  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025 (judgment, not sourced)
 
   // Robot/automation — ENDOGENOUS value-vs-cost adoption (no hard ceiling).
   // Replaces the old robotSaturation logistic cap (a speculative carrying
@@ -918,15 +916,14 @@ function energyBurdenDamage(
 // =============================================================================
 
 /**
- * GDP-weighted average of the regional autonomous intensity-decline rates.
- * This is the single source for production's serviceEfficiencyGrowth default
- * (one efficiency series, two views — see production.ts); the consistency
- * pin in simulation.test.ts asserts they match, so recalibrating regional
- * intensityDecline without updating production breaks a test instead of
- * silently re-splitting the series into the old GDP-destroyer pair.
+ * GDP-weighted average of the regional autonomous intensity-decline rates:
+ * production's serviceEfficiencyGrowth (times efficiencyMultiplier) in every
+ * run, through src/param-derivations.ts. One efficiency series, two views —
+ * see production.ts. simulation.test.ts pins production's standalone default
+ * near it.
  */
 export function gdpWeightedIntensityDecline(
-  regions: DemandParams['regions'] = demandDefaults.regions
+  regions: Readonly<Record<Region, { gdp2025: number; intensityDecline: number }>> = demandDefaults.regions
 ): number {
   let weighted = 0;
   let weight = 0;
@@ -941,8 +938,6 @@ export function gdpWeightedIntensityDecline(
 // INVARIANTS
 // =============================================================================
 
-const PARTITION_TOLERANCE = { rel: 1e-9, abs: 1e-9 };
-
 /**
  * Partitions demand promises every step. The sector split once reclassified
  * robot and datacenter electricity as sector fuel (03129ca); these hold that
@@ -954,27 +949,26 @@ const DEMAND_INVARIANTS: readonly ModuleInvariant<
   {
     name: 'final energy is electricity plus non-electric',
     check: ({ outputs }) => closeTo('total final energy', outputs.totalFinalEnergy,
-      outputs.electricityDemand + outputs.nonElectricEnergy, PARTITION_TOLERANCE),
+      outputs.electricityDemand + outputs.nonElectricEnergy),
   },
   {
     name: 'sectors partition non-electric energy',
     check: ({ outputs }) => closeTo('non-electric energy', outputs.nonElectricEnergy,
-      sumValues(outputs.sectors, (sector) => sector.nonElectric), PARTITION_TOLERANCE),
+      sumValues(outputs.sectors, (sector) => sector.nonElectric)),
   },
   {
     name: 'each sector is its electric plus non-electric part',
     check: ({ outputs }) => Object.entries(outputs.sectors).map(([name, sector]) =>
-      closeTo(`${name} total`, sector.total, sector.electric + sector.nonElectric, PARTITION_TOLERANCE)),
+      closeTo(`${name} total`, sector.total, sector.electric + sector.nonElectric)),
   },
   {
     name: 'fuels partition non-electric energy',
-    check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy,
-      PARTITION_TOLERANCE),
+    check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy),
   },
   {
     name: 'global electricity is the sum of regions',
     check: ({ outputs }) => closeTo('electricity demand', outputs.electricityDemand,
-      sumValues(outputs.regional, (region) => region.electricityDemand), PARTITION_TOLERANCE),
+      sumValues(outputs.regional, (region) => region.electricityDemand)),
   },
 ];
 
@@ -2044,6 +2038,19 @@ export const demandModule: Module<
     globalNonElec += servedLockIn;
     globalTotalFinal += servedLockIn;
 
+    // The sectors are split from the requested (potential) fuel, lock-in
+    // included, so under a shock they carry the same served/requested ratio
+    // as the world total; otherwise they report fuel nobody received.
+    // Electricity is not rationed. Unshocked runs skip this: their ratio is 1
+    // to within a rounding error, and they stay byte-identical.
+    if (commodityShock && globalNonElecPotential > 0) {
+      const fuelRealization = globalNonElec / globalNonElecPotential;
+      for (const key of sectorKeys) {
+        sectors[key].nonElectric *= fuelRealization;
+        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
+      }
+    }
+
     const fossilStockTWh = newFossilVehicleFleet + newFossilHeatingStock + newFossilIndustrialStock;
 
     // Useful energy proxy at service level. Electrified increments deliver
@@ -2174,16 +2181,6 @@ export const demandModule: Module<
       }
       globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
       globalNonElec = reconciledNonElectricEnergy;
-      // The sectors were split from the unrationed request (and took the
-      // lock-in floor at full availability), so ration them by the same
-      // served/requested ratio; otherwise they report fuel nobody received
-      // and no longer partition the world total. Electricity is not rationed.
-      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
-      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
-      for (const key of sectorKeys) {
-        sectors[key].nonElectric *= servedRatio;
-        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
-      }
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 

@@ -591,12 +591,27 @@ function dispatchRegion(
 // MODULE DEFINITION
 // =============================================================================
 
+/**
+ * The capacity factors a region is dispatched at: the site-depletion-adjusted
+ * regional value from energy, then the fleet mean, then the parameter default,
+ * so a caller supplying neither behaves as before. Shared by the step and by
+ * the physical-potential invariant, so the bound checks the CFs actually used.
+ */
+function regionCapacityFactors(
+  inputs: DispatchInputs,
+  params: DispatchParams,
+  region: Region,
+): DispatchParams['capacityFactor'] {
+  return {
+    ...params.capacityFactor,
+    solar: inputs.regionalEffectiveSolarCF?.[region] ?? inputs.effectiveSolarCF ?? params.capacityFactor.solar,
+    wind: inputs.regionalEffectiveWindCF?.[region] ?? inputs.effectiveWindCF ?? params.capacityFactor.wind,
+  };
+}
+
 // =============================================================================
 // INVARIANTS
 // =============================================================================
-
-/** Relative slack for sums of regional floats (a part in 1e9). */
-const AGGREGATION_TOLERANCE = { rel: 1e-9, abs: 1e-9 };
 
 /**
  * Identities every dispatch step promises, checked by the engine after each
@@ -613,22 +628,21 @@ const DISPATCH_INVARIANTS: readonly ModuleInvariant<
       closeTo(
         `${source} generation`,
         outputs.generation[source],
-        sumValues(outputs.regionalGeneration, (r) => r[source]),
-        AGGREGATION_TOLERANCE,
+        sumValues(outputs.regionalGeneration, (r) => r[source])
       )),
   },
   {
     name: 'total generation is the sum of sources',
     check: ({ outputs }) =>
-      closeTo('total generation', outputs.totalGeneration, sumValues(outputs.generation), AGGREGATION_TOLERANCE),
+      closeTo('total generation', outputs.totalGeneration, sumValues(outputs.generation)),
   },
   {
     name: 'global emissions and curtailment are the sum of regions',
     check: ({ outputs }) => [
       closeTo('electricity emissions', outputs.electricityEmissions,
-        sumValues(outputs.regionalEmissions), AGGREGATION_TOLERANCE),
+        sumValues(outputs.regionalEmissions)),
       closeTo('curtailment', outputs.curtailmentTWh,
-        sumValues(outputs.regionalCurtailment), AGGREGATION_TOLERANCE),
+        sumValues(outputs.regionalCurtailment)),
     ],
   },
   {
@@ -641,16 +655,12 @@ const DISPATCH_INVARIANTS: readonly ModuleInvariant<
       for (const region of REGIONS) {
         const cap = capacities[region];
         const gen = outputs.regionalGeneration[region];
-        const cf: Record<string, number> = {
-          ...params.capacityFactor,
-          solar: inputs.regionalEffectiveSolarCF?.[region] ?? inputs.effectiveSolarCF ?? params.capacityFactor.solar,
-          wind: inputs.regionalEffectiveWindCF?.[region] ?? inputs.effectiveWindCF ?? params.capacityFactor.wind,
-        };
+        const cf: Record<string, number> = regionCapacityFactors(inputs, params, region);
         for (const source of ENERGY_SOURCES) {
           if (source === 'battery') continue;
           const served = source === 'solar' ? gen.solar + gen.solarPlusBattery : gen[source];
           const potential = (cap[source] * cf[source] * params.hoursPerYear) / 1000;
-          messages.push(atMost(`${region} ${source} TWh`, served, potential, AGGREGATION_TOLERANCE));
+          messages.push(atMost(`${region} ${source} TWh`, served, potential));
         }
       }
       return messages;
@@ -789,35 +799,8 @@ export const dispatchModule: Module<
     const longStorageRegional = inputs.longStorageRegional ??
       Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
 
-    // Use site-depletion-adjusted CFs from energy module when available
-    const effectiveParams = (inputs.effectiveSolarCF != null || inputs.effectiveWindCF != null)
-      ? {
-          ...params,
-          capacityFactor: {
-            ...params.capacityFactor,
-            ...(inputs.effectiveSolarCF != null && { solar: inputs.effectiveSolarCF }),
-            ...(inputs.effectiveWindCF != null && { wind: inputs.effectiveWindCF }),
-          },
-        }
-      : params;
-
     for (const region of REGIONS) {
-      // Regional first, then the fleet mean, then the parameter default, so a
-      // caller supplying neither behaves as before.
-      const regionSolarCF = inputs.regionalEffectiveSolarCF?.[region]
-        ?? inputs.effectiveSolarCF;
-      const regionWindCF = inputs.regionalEffectiveWindCF?.[region]
-        ?? inputs.effectiveWindCF;
-      const regionParams = (regionSolarCF != null || regionWindCF != null)
-        ? {
-            ...effectiveParams,
-            capacityFactor: {
-              ...effectiveParams.capacityFactor,
-              ...(regionSolarCF != null && { solar: regionSolarCF }),
-              ...(regionWindCF != null && { wind: regionWindCF }),
-            },
-          }
-        : effectiveParams;
+      const regionParams = { ...params, capacityFactor: regionCapacityFactors(inputs, params, region) };
 
       const regionResult = dispatchRegion(
         regionalDemand[region],

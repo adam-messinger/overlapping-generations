@@ -952,6 +952,18 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
 // DERIVED PARAMETERS
 // =============================================================================
 
+/** Composition-code parameter reads, plus every leaf a derivation read. */
+function mergeReads(
+  base: Record<string, readonly string[]>,
+  extra: Record<string, readonly string[]>,
+): Record<string, string[]> {
+  const merged: Record<string, string[]> = Object.fromEntries(
+    Object.entries(base).map(([name, paths]) => [name, [...paths]]),
+  );
+  for (const [name, paths] of Object.entries(extra)) (merged[name] ??= []).push(...paths);
+  return merged;
+}
+
 const MODULE_BY_NAME = new Map<string, AnyModule>(ALL_MODULES.map((mod) => [mod.name, mod]));
 
 /**
@@ -1001,8 +1013,6 @@ export function runAutowiredSimulation(
     mergedDemandParams
   );
   const lags = buildLags(params);
-  const externalReads = (moduleName: string, paths: readonly string[]) =>
-    [...paths, ...(derivationReads[moduleName] ?? [])];
 
   return runAutowired({
     modules: modulesFor(diagnostics),
@@ -1028,30 +1038,28 @@ export function runAutowiredSimulation(
     // can pass 'off' to skip it.
     connectorValidation: options?.connectorValidation,
     // Module invariants (ledgers close, parts sum to totals, generation within
-    // capacity). The framework defaults to 'error'; sweeps that validated a
-    // representative run pass 'off'.
+    // capacity). The framework defaults to 'error', and studies keep it: a
+    // perturbation that breaks a ledger is a finding (~5% of a macro run).
     invariants: options?.invariants,
     // Report pathwise-inert scenario knobs. This is a warning by default
     // because conditional branches can legitimately leave a parameter unread;
     // unknown scenario keys are rejected separately by scenarioToParams.
     paramLiveness: options?.paramLiveness ?? 'warn',
-    externalParamReads: {
-      energy: externalReads('energy', [
+    externalParamReads: mergeReads({
+      energy: [
         'carbonPrice',
         ...REGIONS.map((region) => `regional.${region}.carbonPrice`),
-      ]),
-      production: externalReads('production', [
+      ],
+      production: [
         'robotLaborEquivalent', 'beta', 'electricExergy', 'thermalExergy', 'gamma',
-      ]),
-      demand: externalReads('demand', [
+      ],
+      demand: [
         ...(['transport', 'buildings', 'industry'] as const).flatMap((sector) => [
           `sectors.${sector}.share`,
           `sectors.${sector}.electricityDeliveryCost`,
         ]),
-      ]),
-      climate: externalReads('climate', []),
-      dispatch: externalReads('dispatch', []),
-    },
+      ],
+    }, derivationReads),
     // Fixed-point warm-up: flow lags (generation, non-electric energy,
     // overheads, damages, prices) get their year-0 self-consistent values
     // instead of hand-guessed constants — kills the spurious -5.5% GDP step

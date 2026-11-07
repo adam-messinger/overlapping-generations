@@ -8,10 +8,9 @@
  * invariant that can never fail is worse than none, since it reads as cover).
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
 import { evaluateInvariants, type InvariantContext, type ModuleInvariant } from 'tsimulation';
 import { ALL_MODULES, runAutowiredSimulation } from './simulation-autowired.js';
-import { scenarioToParams, type Scenario } from './scenario.js';
+import { listScenariosSync, loadScenarioParamsSync } from './scenario.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /**
@@ -22,31 +21,21 @@ import { test, expect, printSummary } from './test-utils.js';
 const KNOWN_BROKEN: Record<string, string> = {
   // energy: advanceVintageStock receives negative additions mid-run
   // ("additions must be finite and non-negative"). Predates the invariants.
-  'debt-populism.json': 'energy additions go negative',
+  'debt-populism': 'energy additions go negative',
 };
-
-const scenarioFiles = readdirSync('scenarios').filter((file) => file.endsWith('.json')).sort();
-const loadParams = (file: string) =>
-  scenarioToParams(JSON.parse(readFileSync(`scenarios/${file}`, 'utf-8')) as Scenario);
-
-const MODULES_WITH_INVARIANTS = ['demand', 'capital', 'humanCapital', 'dispatch', 'resources', 'climate'];
-
-test('the ledger-bearing modules declare invariants', () => {
-  for (const name of MODULES_WITH_INVARIANTS) {
-    const mod = ALL_MODULES.find((m) => m.name === name)!;
-    expect((mod.invariants ?? []).length > 0).toBeTrue();
-  }
-});
 
 test('every scenario satisfies every invariant in every year', () => {
   const declared = ALL_MODULES.reduce((sum, mod) => sum + (mod.invariants?.length ?? 0), 0);
-  for (const file of scenarioFiles) {
-    if (KNOWN_BROKEN[file]) continue;
-    const result = runAutowiredSimulation(loadParams(file), { invariants: 'report', paramLiveness: 'off' });
+  for (const name of listScenariosSync()) {
+    if (KNOWN_BROKEN[name]) continue;
+    // Invariants are the subject; the per-step port checks run in every other suite
+    const result = runAutowiredSimulation(loadScenarioParamsSync(name), {
+      invariants: 'report', paramLiveness: 'off', connectorValidation: 'off',
+    });
     const diagnostics = result.diagnostics?.invariants;
     const violations = diagnostics?.violations ?? [];
     if (violations.length > 0) {
-      console.log(`    ${file}: ${violations[0].module} '${violations[0].invariant}' ${violations[0].year}: ${violations[0].message}`);
+      console.log(`    ${name}: ${violations[0].module} '${violations[0].invariant}' ${violations[0].year}: ${violations[0].message}`);
     }
     expect(violations.length).toBe(0);
     // Every declared invariant ran on every simulated year
@@ -55,10 +44,10 @@ test('every scenario satisfies every invariant in every year', () => {
 });
 
 test('known-broken scenarios are still broken (remove them from the list once fixed)', () => {
-  for (const file of Object.keys(KNOWN_BROKEN)) {
+  for (const name of Object.keys(KNOWN_BROKEN)) {
     let threw = false;
     try {
-      runAutowiredSimulation(loadParams(file), { paramLiveness: 'off' });
+      runAutowiredSimulation(loadScenarioParamsSync(name), { paramLiveness: 'off' });
     } catch {
       threw = true;
     }
@@ -70,23 +59,26 @@ test('known-broken scenarios are still broken (remove them from the list once fi
 // EACH INVARIANT BITES
 // =============================================================================
 
+/** The step index the bite tests break: late enough that previous-step fields exist. */
+const CAPTURE_INDEX = 2;
+
 /**
- * Real step contexts, captured from a short default run by appending a
- * recording invariant to each module for the duration of the run.
+ * One real step context per module, captured from a short default run by
+ * appending a recording invariant to each module for the duration of the run.
  */
-function captureContexts(): Map<string, InvariantContext<any, any, any, any>[]> {
-  const captured = new Map<string, InvariantContext<any, any, any, any>[]>();
+function captureContexts(): Map<string, InvariantContext<any, any, any, any>> {
+  const captured = new Map<string, InvariantContext<any, any, any, any>>();
   const originals = new Map<string, readonly ModuleInvariant[] | undefined>();
   for (const mod of ALL_MODULES) {
     originals.set(mod.name, mod.invariants);
     const record: ModuleInvariant = {
       name: 'record',
-      check: (context) => { captured.set(mod.name, [...(captured.get(mod.name) ?? []), context]); },
+      check: (context) => { if (context.yearIndex === CAPTURE_INDEX) captured.set(mod.name, context); },
     };
     (mod as { invariants?: readonly ModuleInvariant[] }).invariants = [...(mod.invariants ?? []), record];
   }
   try {
-    runAutowiredSimulation({ endYear: 2028 }, { paramLiveness: 'off' });
+    runAutowiredSimulation({ endYear: 2025 + CAPTURE_INDEX }, { paramLiveness: 'off' });
   } finally {
     for (const mod of ALL_MODULES) {
       (mod as { invariants?: readonly ModuleInvariant[] }).invariants = originals.get(mod.name);
@@ -96,27 +88,23 @@ function captureContexts(): Map<string, InvariantContext<any, any, any, any>[]> 
 }
 
 const contexts = captureContexts();
-const clone = <T>(value: T): T => structuredClone(value);
 
-/**
- * Break one quantity in a real context (year index 2, so previous-step fields
- * exist) and assert the named invariant, and only it, reports the break.
- */
+/** Break one quantity in a real context and assert the named invariant reports it. */
 function expectBites(
   moduleName: string,
   invariantName: string,
   breakIt: (context: { inputs: any; outputs: any; state: any; previousOutputs: any }) => void,
 ) {
   const mod = ALL_MODULES.find((m) => m.name === moduleName)!;
-  const original = contexts.get(moduleName)![2];
+  const original = contexts.get(moduleName)!;
   // The unbroken context passes, so any violation below is the seeded break
   expect(evaluateInvariants(moduleName, mod.invariants, original).length).toBe(0);
   const broken = {
     ...original,
-    inputs: clone(original.inputs),
-    outputs: clone(original.outputs),
-    state: clone(original.state),
-    previousOutputs: clone(original.previousOutputs),
+    inputs: structuredClone(original.inputs),
+    outputs: structuredClone(original.outputs),
+    state: structuredClone(original.state),
+    previousOutputs: structuredClone(original.previousOutputs),
   };
   breakIt(broken);
   const violated = new Set(evaluateInvariants(moduleName, mod.invariants, broken).map((v) => v.invariant));

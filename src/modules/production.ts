@@ -35,6 +35,7 @@
 
 import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
 import { STRUCTURAL_ANCHOR_YEAR } from '../primitives/math.js';
+import { demandDefaults } from './demand.js';
 
 // =============================================================================
 // PARAMETERS
@@ -120,8 +121,10 @@ export const productionDefaults: ProductionParams = {
   // convergence maturing mid-century), NOT calibrated to a specific study.
   // This is the dominant GDP-level lever's least-pinned degree of freedom —
   // see docs/SENSITIVITY.md; treat GDP 2100 as a band, not a point.
-  structuralEfficiencyShare: 0.33,  // ~0.42 of 1.29 pp/yr is structural (bonus over the CL-PFU device rate)
-  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025 (judgment, not sourced)
+  // One efficiency series: the structural shape is demand's, derived from it
+  // at run time (src/param-derivations.ts); sources at demandDefaults
+  structuralEfficiencyShare: demandDefaults.structuralEfficiencyShare,
+  structuralDecayHalfLife: demandDefaults.structuralDecayHalfLife,
   orgEfficiencySensitivity: 0.35,
   orgEfficiencyMaxCollegeGain: 0.40,
   robotLaborEquivalent: 2,      // worker-equivalents per robot: Acemoglu & Restrepo (2020) find 1 robot displaces ~3-6 workers; 2 is a conservative output-equivalent. This is now the ONLY channel robots affect output (their energy is subtracted from E).

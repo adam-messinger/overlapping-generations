@@ -24,6 +24,7 @@
 
 import type { ParamMeta, ValidationResult } from './types.js';
 import { isKnownUnit } from './units.js';
+import { validateNumber } from './validation.js';
 
 // =============================================================================
 // SPECS
@@ -84,12 +85,6 @@ export type InferParam<S> =
 
 /** The parameter object type a schema describes. */
 export type InferParams<C extends ParamChildren> = { -readonly [K in keyof C]: InferParam<C[K]> };
-
-/** What a caller may pass: any subset, at any depth. */
-export type ParamOverrides<T> = { [K in keyof T]?: T[K] extends object ? ParamOverrides<T[K]> : T[K] };
-
-/** The parameter type of a schema returned by `defineParams`. */
-export type ParamsOf<S> = S extends ParamSchema<infer C> ? InferParams<C> : never;
 
 /** A numeric parameter. `unit` must be a registered unit symbol. */
 export function num(spec: Omit<NumberParamSpec, 'kind'>): NumberParamSpec {
@@ -159,20 +154,9 @@ function defaultsOf(children: ParamChildren): Record<string, unknown> {
 
 function checkLeaf(path: string, spec: Exclude<ParamSpec, GroupParamSpec>, value: unknown, errors: string[]): void {
   switch (spec.kind) {
-    case 'number': {
-      if (typeof value !== 'number' || !Number.isFinite(value)) {
-        errors.push(`${path} must be a finite number, got ${String(value)}`);
-        return;
-      }
-      if (spec.integer && !Number.isInteger(value)) errors.push(`${path} must be an integer, got ${value}`);
-      if (spec.min !== undefined) {
-        if (spec.exclusiveMin ? value <= spec.min : value < spec.min) {
-          errors.push(`${path} must be ${spec.exclusiveMin ? '>' : '>='} ${spec.min}, got ${value}`);
-        }
-      }
-      if (spec.max !== undefined && value > spec.max) errors.push(`${path} must be <= ${spec.max}, got ${value}`);
+    case 'number':
+      for (const error of validateNumber(value, path, spec)) errors.push(`${error}, got ${String(value)}`);
       return;
-    }
     case 'boolean':
       if (typeof value !== 'boolean') errors.push(`${path} must be a boolean, got ${String(value)}`);
       return;

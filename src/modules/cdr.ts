@@ -18,6 +18,7 @@
 
 import { defineModule, defineParams, type InferParams, Module, num, unitPort } from 'tsimulation';
 import { clamp } from '../primitives/math.js';
+import { climateDefaults } from './climate.js';
 
 // =============================================================================
 // PARAMETERS
@@ -83,7 +84,7 @@ export const cdrParams = defineParams('cdr', {
     description: 'Horizon for the SCC growing-annuity NPV. EPA (2023) uses ~280 years; 100 is a conservative truncation. Longer horizons raise the SCC and pull CDR deployment earlier.',
   }),
   damageCoeff: num({
-    default: 0.00536, unit: '1/Δ°C^2', min: 0,
+    default: climateDefaults.damageCoeff, unit: '1/Δ°C^2', min: 0,
     // Derived from climate.damageCoeff at run time (src/param-derivations.ts).
     source: 'Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); = climate.damageCoeff',
   }),

@@ -690,7 +690,6 @@ export const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 's
 // INVARIANTS
 // =============================================================================
 
-const LEDGER_TOLERANCE = { rel: 1e-9, abs: 1e-9 };
 
 /**
  * The mineral and land ledgers close every step. Mines cannot ship more than
@@ -705,18 +704,18 @@ const RESOURCES_INVARIANTS: readonly ModuleInvariant<
     name: 'extraction is bounded by mine capacity and by demand',
     check: ({ state, outputs }) => MINERAL_KEYS.flatMap((key) => [
       atMost(`${key} extraction vs capacity`, outputs.minerals[key].extraction,
-        state.minerals[key].miningCapacity, LEDGER_TOLERANCE),
+        state.minerals[key].miningCapacity),
       atMost(`${key} extraction vs demand`, outputs.minerals[key].extraction,
-        outputs.minerals[key].demand, LEDGER_TOLERANCE),
+        outputs.minerals[key].demand),
     ]),
   },
   {
     name: 'cumulative extraction books what was mined',
     check: ({ previousState, state, outputs }) => MINERAL_KEYS.flatMap((key) => [
       closeTo(`${key} cumulative`, state.minerals[key].cumulative,
-        previousState.minerals[key].cumulative + outputs.minerals[key].extraction, LEDGER_TOLERANCE),
+        previousState.minerals[key].cumulative + outputs.minerals[key].extraction),
       closeTo(`${key} reported cumulative`, outputs.minerals[key].cumulative,
-        state.minerals[key].cumulative, LEDGER_TOLERANCE),
+        state.minerals[key].cumulative),
     ]),
   },
   {
@@ -724,7 +723,7 @@ const RESOURCES_INVARIANTS: readonly ModuleInvariant<
     check: ({ outputs, params }) => {
       const { farmland, urban, forest, desert } = outputs.land;
       return closeTo('land area', farmland + urban + forest + desert, params.land.totalLandArea,
-        { rel: 1e-9, abs: 1e-6 });
+        { abs: 1e-6 });
     },
   },
 ];

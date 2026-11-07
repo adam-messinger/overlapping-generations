@@ -16,7 +16,8 @@
  */
 
 import { findSeedYearKinks } from 'tsimulation';
-import { runSimulation } from './simulation.js';
+import { runSimulation, type YearResult } from './simulation.js';
+import { extractTimeSeries } from './helpers.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Outputs whose seed-year value is defined differently; examined from step 1. */
@@ -27,6 +28,9 @@ const SEED_DEFINED: Record<string, string> = {
   usefulWorkGrowthRate: 'defined from the second year (needs a previous level)',
 };
 
+/** One cause, three outputs (capital reports investment, financing and credit demand separately). */
+const UNFUNDED_FLAT = 'flat in 2026, then rising ~0.3-0.5 $T/yr';
+
 /**
  * First-step discontinuities present today. Each is a lead to investigate,
  * not an accepted behavior.
@@ -35,24 +39,23 @@ const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
   forestNetFlux:
     'land use flips from a 0.21 Gt sink in 2025 to a 1.1 Gt source in 2026: 2025 forest '
     + 'change is +28 Mha, every later year about -4 Mha',
+  // Also in SEED_DEFINED: examined from 2026, it still dips there
   usefulWorkGrowthRate: 'useful work per worker falls 0.5% in 2026, then grows 0.4-1%/yr',
   shortfall: 'unserved generation halves in 2026 (231 -> 115 TWh) and then resumes rising',
   miningEnergyTWh: 'dips in 2026 (238 -> 177 TWh) and recovers: the 2026 build is smaller than 2025 and 2027',
   energySystemOverhead: 'dips in 2026 (2,036 -> 1,737 TWh), carrying the mining-energy dip',
-  unfundedInvestmentDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
-  unfundedFinancingDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
-  unfundedCreditDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
+  unfundedInvestmentDemand: UNFUNDED_FLAT,
+  unfundedFinancingDemand: UNFUNDED_FLAT,
+  unfundedCreditDemand: UNFUNDED_FLAT,
   curtailmentTWh: 'rises half as fast in 2026 as in each later year',
   debtRiskPremium: 'rises in 2026, then falls every year after',
   aggregateCapitalFundingGap: 'diagnostic ledger: 0.08 -> 0.29 $T in 2026, then zero',
 };
 
-const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
-const series: Record<string, number[]> = {};
-for (const key of Object.keys(results[0])) {
-  if (key === 'year' || typeof (results[0] as unknown as Record<string, unknown>)[key] !== 'number') continue;
-  series[key] = results.map((row) => (row as unknown as Record<string, number>)[key]);
-}
+const run = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
+const numericFields = (Object.keys(run.results[0]) as (keyof YearResult)[])
+  .filter((key) => key !== 'year' && typeof run.results[0][key] === 'number');
+const series = Object.fromEntries(numericFields.map((key) => [key, extractTimeSeries(run, key).values]));
 const startOffsets = Object.fromEntries(Object.keys(SEED_DEFINED).map((name) => [name, 1]));
 const kinks = findSeedYearKinks(series, { startOffsets });
 const flagged = new Set(kinks.map((kink) => kink.name));

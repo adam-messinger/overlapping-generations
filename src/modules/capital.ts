@@ -598,7 +598,7 @@ const CAPITAL_INVARIANTS: readonly ModuleInvariant<
       const total = spends.reduce((sum: number, spend) => sum + (spend as number), 0);
       return closeTo('realized spend debit',
         outputs.investment - outputs.generalInvestment + outputs.unfundedRealizedSpend,
-        total, { rel: 1e-9, abs: 1e-9 });
+        total);
     },
   },
 ];
