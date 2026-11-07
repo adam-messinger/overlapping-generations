@@ -183,6 +183,12 @@ borrowing. See `references/workbench-wiring.md`.
 
 - **Never bury the lead.** BLUF first; architecture goes in the audit section.
 - **Keep cross-effort independence clean.** No cross-effort leakage before Wave 4.
+- **Check the Workflow concurrency cap before choosing it.** A workflow runs at most
+  `min(16, CPUs - 2)` agents at once, so a 4-CPU container runs 2 and a 24-seat panel
+  takes over an hour. There, run each wave as parallel background agents instead and
+  pipeline per effort (launch an effort's Wave 2 as soon as its own Wave 1 is in); give
+  every seat the same files to read rather than pasted preambles, so the locks stay
+  identical across seats.
 - **Never strip caveats or conflate denominators.**
 - **Don't let the sim quietly become the forecast.** If A6's number equals the
   model's number, something has gone wrong.

@@ -763,7 +763,8 @@ def chart_regimes(q, r, path):
         body.append(f'<title>{_esc(name)}: raw mean {v:.1f}%, median {r["median_pct_renormalized"][k]:.1f}%, '
                     f'panelist range {lo_e:.0f}-{hi_e:.0f}%'
                     + (f', effort range {er[0]:.0f}-{er[1]:.0f}%' if er else '') + '</title>')
-    ticks = [(x(p), f"{p}%") for p in range(0, hi + 1, max(10, hi // 5))]
+    step = 10 if hi <= 60 else 20  # round ticks; hi is already a multiple of 10
+    ticks = [(x(p), f"{p}%") for p in range(0, hi + 1, step)]
     svg = _frame(f"{q['id'].upper()} {q.get('label', 'end-state regimes')}",
                  "Bar = raw mean (sums to 100%); dashed = panelist range; orange ticks = effort-level range",
                  len(opts), body, ticks)
