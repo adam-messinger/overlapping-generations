@@ -150,6 +150,18 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - **Adding**: interface + defaults + `paramMeta` + validation rule + test
 - **Demoting from Tier-1**: remove from `paramMeta` only; keep in interface/defaults and read from `params`
 - Never hardcode a demoted param as a constant — programmatic overrides via `runSimulation({...})` must still work
+- **Schema-declared modules** (`cdr` so far): parameters are declared once with
+  `defineParams` (packages/tsimulation README, "Parameter schemas"); the
+  interface, defaults, `paramMeta`, validation and the strict deep merge are
+  derived, every numeric leaf has a registered unit, and `unsourced()` must stay
+  empty (pinned in the module's test). Migrate a module the same way when you
+  next touch its parameters; the pinned-defaults test shows the migration
+  changed nothing
+- **Shared quantities**: when two modules need one quantity, add a
+  `ParamDerivation` to `src/param-derivations.ts` naming its owner, rather than
+  a `??=` copy in the runner or a "mirrors X" comment. Setting a derived
+  parameter is refused unless the run lists it in `decouple`; introspection
+  reports `derivedFrom`, and the sweep perturbs the source instead
 
 ### Architecture Boundaries
 
@@ -254,7 +266,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
 - GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
-- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (coupled at runtime through the multiplier and the structural-decay shape — a mismatch collapses GDP; pinned in `simulation.test.ts`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
+- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies
 - Resource energy (mining, farming) subtracted from productive supply
 

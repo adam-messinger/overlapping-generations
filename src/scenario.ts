@@ -114,7 +114,7 @@ export function scenarioToParams(
 
   // Known top-level keys: metadata, range, and one section per module
   const knownKeys = new Set([
-    'name', 'description', 'meta', 'startYear', 'endYear',
+    'name', 'description', 'meta', 'startYear', 'endYear', 'decouple',
     ...ALL_MODULES.map((m) => m.name),
   ]);
 
@@ -136,6 +136,7 @@ export function scenarioToParams(
     }
   }
 
+  if (scenario.decouple !== undefined) params.decouple = [...scenario.decouple];
   if (scenario.startYear !== undefined) params.startYear = scenario.startYear;
   if (scenario.endYear !== undefined) params.endYear = scenario.endYear;
 
