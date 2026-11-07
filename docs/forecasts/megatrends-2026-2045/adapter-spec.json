@@ -1,0 +1,79 @@
+{
+  "title": "Four megatrends 2026-2045",
+  "scenarios": ["baseline", "net-zero", "ai-energy-boom", "tech-stagnation", "ssp3-70", "debt-populism"],
+  "variants": {
+    "lever:electrification-fast": {
+      "energy": { "sources": { "solar": { "alpha": 0.42 }, "battery": { "alpha": 0.32 } }, "cleanShareMax": 0.45, "cleanShareFlex": 0.5 },
+      "demand": { "sectors": { "transport": { "basePressure": 0.024, "costEscalationThreshold": 0.7 }, "buildings": { "basePressure": 0.03, "costEscalationThreshold": 0.9 }, "industry": { "basePressure": 0.028, "costEscalationThreshold": 0.58 } } }
+    },
+    "lever:electrification-slow": {
+      "energy": { "sources": { "solar": { "alpha": 0.28 }, "wind": { "alpha": 0.18 }, "battery": { "alpha": 0.2 } } },
+      "demand": { "sectors": { "transport": { "basePressure": 0.006 }, "buildings": { "basePressure": 0.008 }, "industry": { "basePressure": 0.008 } } }
+    },
+    "lever:ai-robotics-boom": {
+      "demand": { "dataCenterPowerSpendCeiling": 0.005, "dataCenterBaseGrowth": 0.15, "robotDiffusionRate": 0.3, "robotIntegrationExponent": 0.5 },
+      "production": { "aiWorkerEquivalentPerTWh": 100000 }
+    },
+    "lever:ai-robotics-stall": {
+      "demand": { "robotIntegrationExponent": 1.1, "robotDiffusionRate": 0.1, "dataCenterPowerSpendCeiling": 0.0003 }
+    },
+    "lever:demography-deeper-contraction": { "demographics": { "fertilityFloorMultiplier": 0.8 } },
+    "lever:fragmentation": {
+      "energy": { "financingSpreadScale": 2.0, "financingHomeBias": 0.4, "riskPremium": 0.03 },
+      "demographics": { "migrationMultiplier": 0.4 },
+      "capital": { "publicDeficitRate": 0.04 }
+    },
+    "lever:fragmentation-no-defence-deficit": {
+      "energy": { "financingSpreadScale": 2.0, "financingHomeBias": 0.4, "riskPremium": 0.03 },
+      "demographics": { "migrationMultiplier": 0.4 }
+    },
+    "combo:fortress-automation": {
+      "energy": { "sources": { "solar": { "alpha": 0.42 }, "battery": { "alpha": 0.32 } }, "cleanShareMax": 0.45, "cleanShareFlex": 0.5, "financingSpreadScale": 2.0, "financingHomeBias": 0.4, "riskPremium": 0.03 },
+      "demand": { "dataCenterPowerSpendCeiling": 0.005, "dataCenterBaseGrowth": 0.15, "robotDiffusionRate": 0.3, "robotIntegrationExponent": 0.5,
+                  "sectors": { "transport": { "basePressure": 0.024, "costEscalationThreshold": 0.7 }, "buildings": { "basePressure": 0.03, "costEscalationThreshold": 0.9 }, "industry": { "basePressure": 0.028, "costEscalationThreshold": 0.58 } } },
+      "production": { "aiWorkerEquivalentPerTWh": 100000 },
+      "demographics": { "fertilityFloorMultiplier": 0.8, "migrationMultiplier": 0.4 },
+      "capital": { "publicDeficitRate": 0.04 }
+    },
+    "combo:fiscal-stress": { "capital": { "publicDeficitRate": 0.06 }, "energy": { "financingSpreadScale": 2.0, "riskPremium": 0.03 } }
+  },
+  "disclosures": [
+    "LEVER PROXIES: the 'lever:' variants are this panel's stylized settings, not calibrated scenarios. Electrification = learning rates plus background end-use adoption pressure; AI/robotics = the ai-energy-boom levers (cognitive-labour payoff on, low integration friction); demography = fertility floors x0.8, which barely moves the 2045 workforce because it is already born; fragmentation = wider regional financing spreads and home bias, 60% less migration, a higher energy risk premium and a primary deficit 1 pp higher for defence.",
+    "INTERACTIONS: in an 81-run factorial of these levers (2026-11-07 exploratory session) every pairwise GDP interaction at 2045 was below 0.4 log points: the model treats the four trends almost additively over this horizon. Strong non-linear interactions, if real, come from mechanisms outside the model (factor shares, politics, trade).",
+    "US vs WORLD: Q4 is a US federal ratio; the model's public debt and interest are world aggregates under an exogenous primary deficit. Read only the sign and rough size of changes across runs.",
+    "Q5 is NOMINAL USD. The model's China/US ratio is PPP and real; it speaks only to the relative real-growth leg, not to prices or the exchange rate."
+  ],
+  "questions": [
+    { "id": "q1", "status": "refused", "label": "World trade/GDP 2035 < 2024",
+      "reason": "no trade block: the macro model has no exports, imports, tariffs or exchange rates" },
+    { "id": "q2", "status": "refused", "label": "Digitally delivered services exports 2035",
+      "reason": "no services-trade or nominal-USD representation" },
+    { "id": "q3", "status": "directional", "label": "US 10y TIPS 2035 average",
+      "note": "economy-wide real lending rate; use the change across runs, never the level",
+      "readings": [
+        { "label": "real lending rate change 2026->2035, pp", "field": "interestRate", "transform": "delta", "from": 2026, "to": 2035, "scale": 100 },
+        { "label": "debt risk premium 2035, pp", "field": "debtRiskPremium", "transform": "level", "year": 2035, "scale": 100 }
+      ] },
+    { "id": "q4", "status": "directional", "label": "US net interest >= 4.5% GDP FY2035",
+      "note": "world aggregate public interest / world GDP; sign and size of change only",
+      "readings": [
+        { "label": "world public interest / GDP 2035, %", "field": "publicInterestPayments", "denominatorField": "gdp", "transform": "ratio", "year": 2035, "scale": 100 },
+        { "label": "world public debt / GDP 2035", "field": "publicDebtGDP", "transform": "level", "year": 2035 }
+      ] },
+    { "id": "q5", "status": "directional", "label": "China >= 75% of US nominal GDP 2035",
+      "note": "PPP real ratio; the nominal-USD question also depends on prices and the exchange rate",
+      "readings": [
+        { "label": "China/US PPP GDP ratio 2026", "field": "regionalGdp", "regions": ["china"], "denominator": ["us"], "transform": "ratio", "year": 2026 },
+        { "label": "China/US PPP GDP ratio 2035", "field": "regionalGdp", "regions": ["china"], "denominator": ["us"], "transform": "ratio", "year": 2035 },
+        { "label": "China real GDP growth 2026->2035, %/yr", "field": "regionalGdp", "regions": ["china"], "transform": "cagr", "from": 2026, "to": 2035 },
+        { "label": "US real GDP growth 2026->2035, %/yr", "field": "regionalGdp", "regions": ["us"], "transform": "cagr", "from": 2026, "to": 2035 }
+      ] },
+    { "id": "q6", "status": "identified", "label": "2045 regime: growth leg of B",
+      "note": "world real GDP growth (PPP) 2040->2045 is identified for regime B's growth condition, conditional on the run and on UN-WPP-low demography; the A and C legs are not identified (US fiscal, TIPS)",
+      "readings": [
+        { "label": "world real GDP growth 2040->2045, %/yr", "field": "gdp", "transform": "cagr", "from": 2040, "to": 2045 },
+        { "label": "real lending rate change 2026->2045, pp (directional, C leg)", "field": "interestRate", "transform": "delta", "from": 2026, "to": 2045, "scale": 100 },
+        { "label": "world public interest / GDP 2045, % (directional, A leg)", "field": "publicInterestPayments", "denominatorField": "gdp", "transform": "ratio", "year": 2045, "scale": 100 }
+      ] }
+  ]
+}
