@@ -277,6 +277,19 @@ test('copper binds the economy late in the century, not the build-out', () => {
   expect(last.mineralConstraint).toBeCloseTo(1, 6);
 });
 
+test('raising the global carbon price lowers warming', () => {
+  // The global key fills every region's power-sector price. When it priced
+  // end-use fuels only, $270 electrified demand onto unpriced coal and ended
+  // ~0.1C WARMER than $30 (power CO2 2050 doubled to ~30 Gt).
+  const fast = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
+  const low = runSimulation({ energy: { carbonPrice: 30 } }, fast);
+  const high = runSimulation({ energy: { carbonPrice: 270 } }, fast);
+  expect(high.metrics.warming2100!).toBeLessThan(low.metrics.warming2100! - 0.2);
+  const i2050 = 2050 - 2025;
+  expect(high.results[i2050].electricityEmissions)
+    .toBeLessThan(low.results[i2050].electricityEmissions);
+});
+
 test('ai-energy-boom raises the cost of capital materially', () => {
   // Heavy automation + energy + CDR competing for savings raises WACC well
   // above baseline. The improved regional allocator also makes the extreme
