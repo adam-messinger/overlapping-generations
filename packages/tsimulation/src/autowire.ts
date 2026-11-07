@@ -120,8 +120,18 @@ export interface LagConfig {
    * one-year-forward bias. Note: honored only by the runAutowired
    * convenience wrapper (which owns the warm-up loop); callers driving
    * initAutowired/stepAutowired directly must run their own warm-up.
+   *
+   * `true` (or `'level'`) seeds the previous year at the anchor year's own
+   * value: a steady state, which suits prices and rates. A consumer that
+   * normalizes on its year-0 input then sees no change between year 0 and
+   * year 1, so a GROWING flow stalls for one step. `'trend'` seeds it on the
+   * series' own balanced-growth path instead: the warm-up runs two steps and
+   * the previous year is x0 * (x0 / x1), so the lag's first step grows at
+   * the rate of its second. Applied element-wise to records; a value that is
+   * not positive in both years keeps the level seed. With a single-step
+   * horizon there is no second year, and `'trend'` falls back to `'level'`.
    */
-  bootstrap?: boolean;
+  bootstrap?: boolean | 'level' | 'trend';
 }
 
 /**
@@ -1462,6 +1472,34 @@ function maxAbsoluteDifference(a: unknown, b: unknown, seen = new WeakSet<object
   return maximum;
 }
 
+/**
+ * One step back along a series' own growth path: x0 * (x0 / x1), element-wise
+ * over records and arrays. Values that are not positive in both years (rates
+ * at zero, flows that change sign) keep the level x0, where a geometric
+ * backcast is undefined.
+ */
+function trendBackcast(x0: unknown, x1: unknown): unknown {
+  if (typeof x0 === 'number' && typeof x1 === 'number') {
+    return x0 > 0 && x1 > 0 && Number.isFinite(x0) && Number.isFinite(x1) ? x0 * (x0 / x1) : x0;
+  }
+  if (
+    typeof x0 === 'object' && x0 !== null &&
+    typeof x1 === 'object' && x1 !== null &&
+    Array.isArray(x0) === Array.isArray(x1)
+  ) {
+    if (Array.isArray(x0) && Array.isArray(x1)) {
+      return x0.map((value, index) => trendBackcast(value, x1[index]));
+    }
+    return Object.fromEntries(
+      Object.entries(x0).map(([key, value]) => [
+        key,
+        trendBackcast(value, (x1 as Record<string, unknown>)[key]),
+      ]),
+    );
+  }
+  return x0;
+}
+
 function dampValue(previous: unknown, candidate: unknown, damping: number): unknown {
   if (damping === 1) return candidate;
   if (typeof previous === 'number' && typeof candidate === 'number') {
@@ -1503,6 +1541,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     .filter(([, lag]) => lag.bootstrap)
     .map(([name]) => name);
   const enabled = lagNames.length > 0 && requested !== 0;
+  const trendLags = Object.values(config.lags ?? {}).some((lag) => lag.bootstrap === 'trend');
   const options: Required<Pick<BootstrapOptions, 'maxIterations' | 'minIterations' | 'damping' | 'onNonConvergence'>> &
     Pick<BootstrapOptions, 'tolerance' | 'acceptCycleWithin'> = typeof requested === 'number'
       ? {
@@ -1578,13 +1617,29 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     // Warm-up steps are scratch passes over year 0; the run proper checks it.
     warm.invariants = 'off';
     stepAutowired(warm);
+    const yearZero = new Map<string, unknown>();
+    for (const name of lagNames) {
+      const history = warm.lagHistory.get(name)!;
+      yearZero.set(name, history[history.length - 1]);
+    }
+    // Trend-seeded lags need the series' second year to read its growth
+    const yearOne = new Map<string, unknown>();
+    if (trendLags && cfg.endYear > cfg.startYear) {
+      stepAutowired(warm);
+      for (const name of lagNames) {
+        const history = warm.lagHistory.get(name)!;
+        yearOne.set(name, history[history.length - 1]);
+      }
+    }
     const newLags: Record<string, LagConfig> = {};
     residual = 0;
     scaledResidual = 0;
     for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
       if (lag.bootstrap) {
-        const history = warm.lagHistory.get(name)!;
-        const candidate = history[history.length - 1];
+        const x0 = yearZero.get(name);
+        const candidate = lag.bootstrap === 'trend' && yearOne.has(name)
+          ? trendBackcast(x0, yearOne.get(name))
+          : x0;
         const difference = maxAbsoluteDifference(lag.initial, candidate);
         residual = Math.max(residual, difference);
         scaledResidual = Math.max(

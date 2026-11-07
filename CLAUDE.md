@@ -197,6 +197,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; year-0 gap anchored in energy state); `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment. Storage shifts the soft-curtailment onset by the same headroom it adds to the VRE penetration limit (without that, storage-rich grids curtailed ~half their VRE and unpriced coal won the build)
 - **Regional fuel prices**: energy's `regional.<r>.fossilRunningCost` ($/MWh fuel + VOM) prices both the build and dispatch's merit order (one source of truth, passed as `regionalFossilRunningCost`). Gas is LNG-priced in OECD-ex-US/China/India/SE Asia ($63-77 vs the $35 US reference) and cheap in Russia/MENA; the 2025 build fit is re-solved by `scripts/calibrate-2025-build.ts`. Dispatch has no load curve, so where gas costs more than coal it runs only after coal (China gas generation ~0 vs ~300 TWh actual peaking)
+- **Sources the model lacks** (oil, bioenergy, geothermal power) are folded into the 2025 fleet as capacity-equivalent at the receiving row's CF: MENA oil (~20% of its generation) into gas, LatAm oil into gas and bioenergy + geothermal into hydro (sources at `REGIONAL_CAPACITY_2025`). Without it dispatch left 6.8% of MENA and 5.7% of LatAm 2025 demand unserved and the build ran a two-year overshoot sawtooth answering it
 - **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 - **World build capacity** (known limitation): over-subscribed sources are tightened pro
@@ -207,6 +208,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   rule (ration by demand with other caps in place) removed it but never settled in 12
   passes on the default path and tripled runtime
 - **Non-electric fuel mix**: one calibrated logit per sector (2025 recipes from IEA World Energy Balances; shares move only as carbon/fuel prices leave the 2025 reference). Industry's coal slice is then scaled to heavy-materials output, `(GDP/GDP2025)^heavyIndustryGdpElasticity` (0.3: steel and cement saturate) over industry's service-base index, the freed share going pro rata to its other fuels. Composition, not turnover, so it sits outside the logit's inertia. Without it industry coal tracked GDP x intensity and non-electric coal rose ~60% by 2055 against an IEA outlook of flat-to-falling non-power coal
+- **Fossil depletion**: gas and coal EROI (and so their LCOE divisor) fall with the share of REMAINING TECHNICALLY RECOVERABLE RESOURCES extracted, not proved reserves (`FOSSIL_RESOURCES_2025`: IEA GEC 2024 Table 6.1, gas 800 tcm / coal 20,776 Gt, cross-checked against BGR). Proved reserves grow as resources convert (gas 126 -> 209 tcm 1990-2023 at a steady ~50-60 yr R/P), so a proved-reserves budget ran out on the R/P horizon and gas LCOE jumped ~$55 -> ~$500/MWh in one year (2063-65 in the default run, most scenarios). Extraction is world fuel BURNED (last year's dispatched generation / `fossilPowerEfficiency` + this year's non-electric use from demand), indexed to 2025 = one year of 2025 production; counting power-fleet nameplate stood in for the whole fuel and spent the budget ~1.7x too fast in high-gas scenarios
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
 ### Minerals (copper, lithium, rare earths, steel)
@@ -288,7 +290,10 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
 - GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
 - The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
-- All inputs lagged to break circular dependencies
+- All inputs lagged to break circular dependencies. Production reads last year's CLOSING
+  capital stock (`nextCapitalStock`); its useful-energy lags and `laggedGdp` are seeded on
+  each flow's own growth path (`bootstrap: 'trend'`), since a level seed made 2026 repeat
+  2025's inputs (a one-year stall: GDP +1.7% in 2026). Prices and rates keep the level seed
 - Resource energy (mining, farming) subtracted from productive supply
 
 ### CDR (Carbon Dioxide Removal)
@@ -326,16 +331,34 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
-  ageing reaches the debt (default world public debt ~0.9 → ~1.0 in 2055 → ~1.5 in 2100). A safe rate below growth erodes the ratio
+  ageing reaches the debt (default world public debt ~0.9 → ~1.1 in 2055 → ~1.6 in 2100,
+  crossing the 150% repression threshold around 2070). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
+- **Target leverage**: firms borrow max(investment gap, leverage borrowing), where
+  leverage borrowing moves debt / general capital a share `leverageAdjustmentSpeed`
+  (0.25/yr: Flannery-Rangan 2006 ~1/3, Huang-Ritter 2009 ~17%) of the way to its
+  year-0 ratio (0.457, anchored in state: Lemmon-Roberts-Zender 2008 persistence).
+  Credit beyond the investment gap is paid out to owners; over-levered firms with
+  spare cash repay early instead of paying it out. Without it, net new credit hit
+  ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
+  2100; now it follows K/Y (1.25 in 2050, 1.21 in 2100), with the bank credit
+  envelope (`baseCreditGrowth`) holding leverage ~8% under target (leverage demand
+  exceeds the envelope from 2025; recap borrowing starts in 2027). The
+  stock is consolidated private non-financial debt (mortgages included as leverage
+  on the dwellings in the PWT stock). Known limitation: the target is on GENERAL
+  capital only, so where energy capex crowds it out (net-zero: K/Y 1.7 by 2095)
+  debt/GDP falls with it
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
   public debt and prices energy project debt: it follows smoothed trend growth one-for-one
-  (r* = c·g + z, Holston-Laubach-Williams) and rises 3bp per pp of public debt/GDP above
-  2025 (Laubach 2009) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
+  (r* = c·g + z, Holston-Laubach-Williams) and rises 6.5bp per pp of public debt/GDP above
+  2025 (judgment between Laubach 2009's 3-4bp and the US 2019-26 rise's ≤7.8bp; see
+  `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
+  markets price the debt path, and the current ratio turned the low-growth 2026 into a rate
+  spike; the repression threshold still reads actual debt) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
   return on capital stayed flat (Marx-Mojon-Velde). `loanRate` = safeRate + `creditSpread`
   (2pp) on private bank debt. One ~6% rate for all three used to charge public debt 5.4% of
   GDP and could not go below growth. Real safe rates may be negative: public interest is a

@@ -309,6 +309,26 @@ test('the safe rate tracks trend growth one-for-one, not the return on capital',
     { ...annual, repressionDebtThreshold: 5 },
   );
   expect(indebted.safeRate - base.safeRate).toBeCloseTo(0.03, 12);
+  // When a smoothed (priced) ratio is supplied, the debt term reads it, not the current ratio.
+  const priced = advanceCapitalFinance(
+    { ...state, publicDebt: 158 * 1.9 },
+    { gdp: 158, capitalStock: 553, pricedPublicDebtGDP: 0.9 },
+    { ...annual, repressionDebtThreshold: 5 },
+  );
+  expect(priced.safeRate).toBeCloseTo(base.safeRate, 12);
+});
+
+test('the repression threshold reads actual debt, not the smoothed ratio the rate prices', () => {
+  const annual = { ...params, financialSubsteps: 1 };
+  const state = { publicDebt: 158 * 2.0, privateDebt: 252.8, previousGdp: 158 };
+  const actual = advanceCapitalFinance(state, { gdp: 158, capitalStock: 553 }, annual);
+  const smoothed = advanceCapitalFinance(
+    state,
+    { gdp: 158, capitalStock: 553, pricedPublicDebtGDP: 0.9 },
+    annual,
+  );
+  expect(actual.repressionGap).toBeGreaterThan(0);
+  expect(smoothed.repressionGap).toBeGreaterThan(0);
 });
 
 test('financial repression: an explicit lever, and a cap below growth at high public debt', () => {
@@ -331,4 +351,24 @@ test('financial repression: an explicit lever, and a cap below growth at high pu
   );
   expect(dominance.safeRate).toBeCloseTo(0.034 - params.repressionDepth, 12);
   expect(dominance.repressionGap).toBeGreaterThan(0);
+});
+
+test('credit capacity is the lending envelope: demand above it is exactly the unfunded part', () => {
+  const opening = { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 152.6 };
+  const inputs = { gdp: 158, capitalStock: 553 };
+  const unlimited = advanceCapitalFinance(opening, inputs, params);
+  const capacity = unlimited.netNewCreditCapacity;
+  expect(capacity).toBeGreaterThan(0);
+  expect(unlimited.newInvestmentLoanOriginations).toBeCloseTo(capacity, 12);
+  // Demand above the envelope: lending stops at capacity, the rest is unfunded
+  const over = advanceCapitalFinance(opening, { ...inputs, netNewCreditDemand: capacity + 1 }, params);
+  expect(over.unfundedNetNewCreditDemand).toBeCloseTo(1, 9);
+  expect(over.newInvestmentLoanOriginations + over.unfundedNetNewCreditDemand - over.netNewCreditCapacity)
+    .toBeCloseTo(1, 9);
+  // Demand below it: fully lent, and demand less capacity is negative (the
+  // unclipped gap the seed-year probe reads)
+  const under = advanceCapitalFinance(opening, { ...inputs, netNewCreditDemand: capacity / 2 }, params);
+  expect(under.unfundedNetNewCreditDemand).toBe(0);
+  expect(under.newInvestmentLoanOriginations).toBeCloseTo(capacity / 2, 9);
+  expect(under.newInvestmentLoanOriginations - under.netNewCreditCapacity).toBeLessThan(0);
 });

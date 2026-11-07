@@ -20,6 +20,10 @@
  * - Capital's income share: α + s_m·(1-α)·Δm, Δm = machine share of augmented labor since 2025
  * - Profit after interest and depreciation: Π = share·(Y-G) - r_loan·D - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
+ * - Credit demand: max(I* - internalFunds, leverage borrowing), where
+ *   leverage borrowing takes debt/K from Lev to Lev + s(Lev* - Lev) on the
+ *   projected closing capital; the excess over the investment gap is paid
+ *   out, and over-levered firms with spare cash repay early instead
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
  * - Firm cash floor: firms cannot overdraw deposits. A shortfall suspends
  *   dividends, then leaves interest unpaid, then misses principal; loans
@@ -37,6 +41,9 @@
  *   monetary circuit; the bounded response here is a toy adaptation
  * - Bank of England (2014): lending creates deposits and repayment destroys
  *   deposit money
+ * - Flannery & Rangan (2006), Huang & Ritter (2009): partial adjustment
+ *   toward target leverage; Lemmon, Roberts & Zender (2008): the target
+ *   persists around the initial ratio
  * - Uncertainty damping Φ = 1/(1+λu²): an ad-hoc form inspired by
  *   Galbraith/Chen entropy economics; only this factor is implemented, and
  *   the framework's emphasized Jevons/rebound dynamics are absent
@@ -135,6 +142,7 @@ export interface CapitalParams {
   leverageThreshold: number;           // 1.50 (private debt/GDP where damping starts)
   privateAmortization: number;         // 0.05 (fraction of stock repaid per year ≈ 20yr avg maturity)
   loanRolloverRate: number;             // Share of repaid principal refinanced
+  leverageAdjustmentSpeed: number;     // Share of the gap to target debt/capital closed per year
   privateDefaultRate: number;          // Annual loan write-off rate (0 in baseline)
   financialSubsteps: number;           // Within-year debt integration steps (4 = quarterly)
   bankEquityRatio: number;             // Bank equity / assets: opening value and retention target
@@ -149,7 +157,8 @@ export interface CapitalParams {
   neutralSafeRate: number;             // 0.010 (safe rate at anchor growth and 2025 public debt)
   safeRateGrowthPassThrough: number;   // 1.0 (c in r* = c·g + z)
   safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
-  safeRateDebtSensitivity: number;     // 0.03 (3bp per pp of public debt/GDP above its 2025 level)
+  safeRateDebtSensitivity: number;     // 0.065 (6.5bp per pp of public debt/GDP above its 2025 level)
+  safeRateDebtSmoothingYears: number;  // 3 (exponential smoothing of the debt ratio the safe rate prices)
   trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
   financialRepression: number;         // 0 (pp the safe rate is held below its market level)
   repressionDebtThreshold: number;     // 1.5 (public debt/GDP above which fiscal dominance caps the safe rate)
@@ -168,8 +177,11 @@ export interface CapitalState {
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
+  pricedPublicDebtGDP?: number; // Smoothed public debt/GDP the safe rate's debt term prices
   referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
   referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
+  /** Target private debt / general capital, anchored at the year-0 ratio */
+  targetPrivateLeverage?: number;
   financialLedger?: GodleyLedgerState;
 }
 
@@ -207,6 +219,11 @@ export interface CapitalInputs {
 
   // From demographics (for retirement age adjustment)
   regionalLifeExpectancy?: Record<Region, number>;
+
+  /** Previous year's GDP $T (lagged). Read at the seed year only, so the
+   *  finance block's within-year GDP path grows into 2025 as it does into
+   *  every later year. Unwired fallback: this year's GDP (no growth) */
+  laggedGdp?: number;
 }
 
 export interface CapitalOutputs {
@@ -303,10 +320,16 @@ export interface CapitalOutputs {
   newInvestmentLoanOriginations: number; // $T/year of genuinely new investment credit
   refinancedPrincipal: number; // $T/year of maturing principal rolled into new loans
   unfundedCreditDemand: number; // $T/year requested investment credit not supplied
+  creditCapacity: number;      // $T/year new investment credit banks would extend (the lending envelope)
   creditImpulse: number;       // Deprecated alias for newInvestmentLoanOriginations
   principalRepayments: number; // $T/year of private-loan principal repaid
   loanWriteOffs: number;       // $T/year of private loans written off
   netCreditCreation: number;   // Change in private debt stock
+  privateLeverage: number;     // Beginning-of-period private debt / general capital
+  targetPrivateLeverage: number; // Debt/capital firms adjust toward (year-0 ratio)
+  leverageBorrowing: number;   // $T/year net new credit the leverage target asks for (signed)
+  leverageRecapBorrowing: number; // $T/year borrowed beyond the investment gap and paid out
+  voluntaryPrincipalRepayments: number; // $T/year repaid early by over-levered firms
   primaryDeficit: number;      // Net public-debt issuance
   netTaxes: number;            // Taxes net of rebates needed by the fiscal closure
   debtRiskPremium: number;     // fraction added to interest rate
@@ -447,6 +470,16 @@ export const capitalDefaults: CapitalParams = {
   // Baseline assumes scheduled principal is rolled over; scenarios can force
   // deleveraging by lowering this ratio. Rollover creates no net spending power.
   loanRolloverRate: 1,
+  // Target leverage (trade-off theory with partial adjustment): each year
+  // firms close this share of the gap between their debt/capital ratio and
+  // its target, Lev' = Lev + s(Lev* - Lev). 0.25/yr sits between the two
+  // standard estimates: Flannery & Rangan (2006, JFE 79) >30%/yr (~1/3 of
+  // the gap closed per year) and Huang & Ritter (2009, JFQA 44), book-
+  // leverage half-life 3.7 yr, i.e. ~17%/yr. The target itself is not a
+  // parameter: it is the year-0 ratio, held in state (Lemmon, Roberts &
+  // Zender 2008, JF 63: leverage persists around a firm's own initial level
+  // for 20+ years). At 0 firms hold their current ratio (no reversion).
+  leverageAdjustmentSpeed: 0.25,
   // No baseline default mechanism is assumed. Scenarios must turn write-offs
   // on explicitly; doing so hits bank equity one-for-one in the Godley ledger.
   privateDefaultRate: 0,
@@ -494,12 +527,33 @@ export const capitalDefaults: CapitalParams = {
   // r* filters move with growth over roughly a decade (HLW's trend growth is
   // a slow-moving random walk); a 10-year exponential smoother.
   trendGrowthSmoothingYears: 10,
-  // Sovereign rates rise ~3-4bp per pp of public debt/GDP (Laubach 2009,
-  // JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO Working Paper 2019-01).
+  // 6.5bp per pp of public debt/GDP: JUDGMENT between the published estimates
+  // and the most recent observation.
+  //   Floor: 3-4bp (Laubach 2009, JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO
+  //   Working Paper 2019-01). Both are estimated on the low-debt, falling-rate
+  //   sample before 2020.
+  //   Ceiling: the US 10y real rate (Cleveland Fed) rose 1.28pp from 2019 to
+  //   the 2024-26 average while trend growth moved +0.08pp and federal debt
+  //   rose 16pp of GDP: 7.8bp per pp if debt carried all of it. Part of it is
+  //   term premium and QT, so that is an upper bound (docs/SAFE_RATE_BACKCAST.md).
+  // At 3bp the 2019 -> 2024-26 rise is under-predicted by half (+0.57pp). In a
+  // 1,080-run grid, 6.5bp with c = 1 was the closest match to the 2026-11-07
+  // Tetlock panel (r* 2036-45, AE debt 2045) once growth is held to the
+  // panel's: a consistency check, not a source.
   // Measured from the 2025 ratio, so it moves the rate, not its level.
   // The total-debt debtRiskPremium (mostly private leverage) prices the
   // return on capital, not the sovereign.
-  safeRateDebtSensitivity: 0.03,
+  safeRateDebtSensitivity: 0.065,
+  // The debt term prices a 3-year exponential smooth of debt/GDP, not the
+  // current ratio. Laubach (2009) regresses on CBO's 5-year-AHEAD projected
+  // debt: markets price the debt path and look through one year's swing in
+  // the denominator. Pricing the current ratio turned the model's low-growth
+  // 2026 (debt/GDP +1.5pp, then ~flat) into a one-year rate spike
+  // (src/seed-year.test.ts). A backward smoother is the crude proxy, and it lags
+  // where the market leads, so the window is kept short: 3 years keeps 96% of
+  // the US 2019 -> 2024-26 debt change (15.6 of 16.3pp), still within the
+  // 8.2bp-per-pp upper bound at 6.5bp. Judgment, not separately sourced.
+  safeRateDebtSmoothingYears: 3,
   // Financial repression. Explicit lever off by default. Above 150% public
   // debt/GDP fiscal dominance caps the safe rate at trend growth less 3pp,
   // so debt liquidates instead of spiralling once interest accrues:
@@ -631,6 +685,17 @@ interface FirmCircuit {
   firmGrossSaving: number;
   firmInternalFunds: number;
   plannedInvestment: number;
+}
+
+interface FinancingPlan {
+  /** Net-new bank credit requested: max(investment gap, leverage borrowing) */
+  netNewCreditDemand: number;
+  /** Early principal repayment by over-levered firms with spare cash */
+  voluntaryRepayment: number;
+  /** Orders not covered by internal funds */
+  investmentFinancingGap: number;
+  /** Net new credit the leverage target asks for; negative when over-levered */
+  leverageBorrowing: number;
 }
 
 function calculateFirmCircuit(
@@ -862,6 +927,12 @@ export const capitalModule: Module<
       range: { min: 0, max: 1, default: 1 },
       tier: 2 as const,
     },
+    leverageAdjustmentSpeed: {
+      description: 'Share of the gap between private debt/capital and its year-0 target that firms close each year (Flannery-Rangan partial adjustment). Under target, firms borrow beyond their investment gap and pay the surplus out; over target, they repay early from spare cash.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 1, default: 0.25 },
+      tier: 2 as const,
+    },
     publicDeficitRate: {
       description: 'Structural primary deficit as fraction of GDP. Higher → more public debt accumulation.',
       unit: 'fraction/year',
@@ -960,6 +1031,7 @@ export const capitalModule: Module<
       cdrSpend: unitPort('$T/year'),
       robotCapexSpend: unitPort('$T/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
+      laggedGdp: unitPort('$T/year'),
     },
     outputs: {
       stock: unitPort('$T'),
@@ -1038,10 +1110,16 @@ export const capitalModule: Module<
       newInvestmentLoanOriginations: unitPort('$T/year'),
       refinancedPrincipal: unitPort('$T/year'),
       unfundedCreditDemand: unitPort('$T/year'),
+      creditCapacity: unitPort('$T/year'),
       creditImpulse: unitPort('$T/year'),
       principalRepayments: unitPort('$T/year'),
       loanWriteOffs: unitPort('$T/year'),
       netCreditCreation: unitPort('$T/year'),
+      privateLeverage: unitPort('fraction'),
+      targetPrivateLeverage: unitPort('fraction'),
+      leverageBorrowing: unitPort('$T/year'),
+      leverageRecapBorrowing: unitPort('$T/year'),
+      voluntaryPrincipalRepayments: unitPort('$T/year'),
       primaryDeficit: unitPort('$T/year'),
       netTaxes: unitPort('$T/year'),
       debtRiskPremium: unitPort('fraction'),
@@ -1202,6 +1280,11 @@ export const capitalModule: Module<
         errors.push('trendGrowthSmoothingYears must be between 1 and 50');
       }
     }
+    if (params.safeRateDebtSmoothingYears !== undefined) {
+      if (params.safeRateDebtSmoothingYears < 1 || params.safeRateDebtSmoothingYears > 50) {
+        errors.push('safeRateDebtSmoothingYears must be between 1 and 50');
+      }
+    }
     if (params.creditSpread !== undefined) {
       if (params.creditSpread < 0 || params.creditSpread > 0.10) {
         errors.push('creditSpread must be between 0 and 0.10');
@@ -1217,6 +1300,12 @@ export const capitalModule: Module<
       && (params.loanRolloverRate < 0 || params.loanRolloverRate > 1)
     ) {
       errors.push('loanRolloverRate must be between 0 and 1');
+    }
+    if (
+      params.leverageAdjustmentSpeed !== undefined
+      && !(params.leverageAdjustmentSpeed >= 0 && params.leverageAdjustmentSpeed <= 1)
+    ) {
+      errors.push('leverageAdjustmentSpeed must be between 0 and 1');
     }
     if (params.privateDefaultRate !== undefined) {
       if (params.privateDefaultRate < 0 || params.privateDefaultRate > 0.20) {
@@ -1293,6 +1382,7 @@ export const capitalModule: Module<
       privateDebt: 0,   // Initialized from GDP at yearIndex === 0
       previousGdp: 0,   // Initialized from inputs at yearIndex === 0
       trendGrowth: params.safeRateGrowthAnchor,
+      pricedPublicDebtGDP: params.initialPublicDebtGDP,
       financialLedger: undefined,
     };
   },
@@ -1485,7 +1575,13 @@ export const capitalModule: Module<
     if (yearIndex === 0) {
       publicDebt = params.initialPublicDebtGDP * inputs.gdp;
       privateDebt = params.initialPrivateDebtGDP * inputs.gdp;
-      previousGdp = inputs.gdp;
+      // The finance block interpolates GDP within the year from the previous
+      // year's level. Seeding it with this year's GDP froze the 2025 path:
+      // debt grew all year against a flat denominator and r - g read g = 0,
+      // so the debt ratio and risk premium jumped into 2026 and fell after.
+      previousGdp = inputs.laggedGdp !== undefined && inputs.laggedGdp > 0
+        ? inputs.laggedGdp
+        : inputs.gdp;
     }
 
     const financeState = { publicDebt, privateDebt, previousGdp };
@@ -1502,90 +1598,126 @@ export const capitalModule: Module<
     const automationLaborShareChange =
       automationLaborShare - referenceAutomationLaborShare;
 
+    // Investment split between energy and the general economy. When energy
+    // is scarce/expensive more investment flows to energy. Computed ahead of
+    // the financing plan because firms project their closing general capital
+    // (orders net of special-purpose spend) to set their borrowing.
+    const burden = inputs.energyBurden ?? 0.05;
+    // 8% of GDP: stress threshold above the historical norm of ~4-6%
+    // (global energy expenditure share; ~8-13% reached only in the
+    // 1979-81 and 2022 price shocks) — calibration anchor, not sourced data
+    const burdenSignal = burden / 0.08; // Normalized to threshold (1.0 = normal)
+    const energyShare = Math.min(0.30, Math.max(0.10,
+      params.baseEnergyInvestmentShare * (1 + params.energyInvestmentSensitivity * (burdenSignal - 1))
+    ));
+    const realizedCdrSpend = inputs.cdrSpend ?? 0;
+    const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
+    const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
+    const specialPurposeSpend = (orders: number) =>
+      (inputs.energyCapexSpend ?? orders * energyShare)
+      + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+
+    // Target leverage. Firms hold private debt / general capital near the
+    // year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
+    // (Flannery-Rangan partial adjustment in ratio space), so debt grows with
+    // the capital it is secured on. Before this, firms borrowed only the gap
+    // between orders and internal funds: once retained profit covered orders
+    // net new credit went to ~0 and private debt/GDP decayed at the growth
+    // rate against an observed world ratio that has held at ~1.4-1.7 for two
+    // decades (IMF Global Debt Database 2025: private debt just under 143% of
+    // GDP in 2024, its lowest since 2015; BIS total credit to the private
+    // non-financial sector). The stock is the consolidated private
+    // non-financial one (households' mortgages included, as leverage on the
+    // dwellings inside the PWT capital stock).
+    const targetPrivateLeverage = state.targetPrivateLeverage
+      ?? (state.stock > 0 ? privateDebt / state.stock : 0);
+    const openingPrivateLeverage = state.stock > 0 ? privateDebt / state.stock : 0;
+    const desiredClosingLeverage = openingPrivateLeverage
+      + params.leverageAdjustmentSpeed
+        * (targetPrivateLeverage - openingPrivateLeverage);
+
     // Credit affects debt and interest within the year, while interest affects
     // profit and the financing request. Iterate this small fixed point so the
     // reported order, interest bill, and requested credit are mutually
     // consistent rather than relying on an arbitrary call order.
-    let netNewCreditDemand = 0;
-    let finance = advanceCapitalFinance(
+    // The safe rate's debt term prices last year's smoothed ratio (one source
+    // of truth across the credit iterations below).
+    const pricedPublicDebtGDP = state.pricedPublicDebtGDP ?? params.initialPublicDebtGDP;
+    const runFinance = (plan: FinancingPlan) => advanceCapitalFinance(
       financeState,
       {
         gdp: inputs.gdp,
         capitalStock: state.stock,
-        netNewCreditDemand,
+        netNewCreditDemand: plan.netNewCreditDemand,
+        voluntaryRepayment: plan.voluntaryRepayment,
         trendGrowth: state.trendGrowth,
+        pricedPublicDebtGDP,
         additionalPrimaryDeficitRate,
       },
       params,
     );
-    let firmCircuit = calculateFirmCircuit(
+    const runFirmCircuit = (privateInterest: number) => calculateFirmCircuit(
       inputs.gdp,
       governmentServiceConsumption,
       state.stock,
-      finance.privateInterestPayments,
+      privateInterest,
       stability,
       netEnergyFactor,
       params,
       automationLaborShareChange,
     );
+    // Debt left at year end if firms took no new credit and repaid nothing
+    // early (scheduled runoff and write-offs only); independent of the plan.
+    let plan: FinancingPlan = {
+      netNewCreditDemand: 0,
+      voluntaryRepayment: 0,
+      investmentFinancingGap: 0,
+      leverageBorrowing: 0,
+    };
+    let finance = runFinance(plan);
+    const runoffPrivateDebt = finance.state.privateDebt;
+    const planFinancing = (circuit: FirmCircuit): FinancingPlan => {
+      const orders = Math.min(circuit.plannedInvestment, maximumFeasibleInvestment);
+      // Pecking order: orders beyond internal funds are financed with debt
+      const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
+      const expectedClosingStock = (1 - params.depreciation) * state.stock
+        + Math.max(0, orders - specialPurposeSpend(orders));
+      const leverageBorrowing =
+        desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
+      // An over-levered firm with no financing gap repays early from the cash
+      // it would otherwise pay out; one with a gap still borrows to invest.
+      const spareCash = Math.max(0, circuit.firmInternalFunds - orders);
+      return {
+        netNewCreditDemand: Math.max(investmentFinancingGap, leverageBorrowing),
+        voluntaryRepayment: investmentFinancingGap > 0
+          ? 0
+          : Math.min(spareCash, Math.max(0, -leverageBorrowing)),
+        investmentFinancingGap,
+        leverageBorrowing,
+      };
+    };
+    let firmCircuit = runFirmCircuit(finance.privateInterestPayments);
     for (let iteration = 0; iteration < 12; iteration++) {
-      const nextDemand = Math.max(
-        0,
-        Math.min(firmCircuit.plannedInvestment, maximumFeasibleInvestment)
-          - firmCircuit.firmInternalFunds,
-      );
-      if (
-        Math.abs(nextDemand - netNewCreditDemand)
-        <= 1e-10 * Math.max(1, nextDemand)
-      ) {
-        netNewCreditDemand = nextDemand;
-        break;
-      }
-      netNewCreditDemand = nextDemand;
-      finance = advanceCapitalFinance(
-        financeState,
-        {
-          gdp: inputs.gdp,
-          capitalStock: state.stock,
-          netNewCreditDemand,
-          trendGrowth: state.trendGrowth,
-          additionalPrimaryDeficitRate,
-        },
-        params,
-      );
-      firmCircuit = calculateFirmCircuit(
-        inputs.gdp,
-        governmentServiceConsumption,
-        state.stock,
-        finance.privateInterestPayments,
-        stability,
-        netEnergyFactor,
-        params,
-        automationLaborShareChange,
-      );
+      const next = planFinancing(firmCircuit);
+      const converged =
+        Math.abs(next.netNewCreditDemand - plan.netNewCreditDemand)
+          <= 1e-10 * Math.max(1, next.netNewCreditDemand)
+        && Math.abs(next.voluntaryRepayment - plan.voluntaryRepayment)
+          <= 1e-10 * Math.max(1, next.voluntaryRepayment);
+      plan = next;
+      if (converged) break;
+      finance = runFinance(plan);
+      firmCircuit = runFirmCircuit(finance.privateInterestPayments);
     }
     // One final evaluation associates the financial stocks and flows exactly
     // with the converged financing request.
-    finance = advanceCapitalFinance(
-      financeState,
-      {
-        gdp: inputs.gdp,
-        capitalStock: state.stock,
-        netNewCreditDemand,
-        trendGrowth: state.trendGrowth,
-        additionalPrimaryDeficitRate,
-      },
-      params,
-    );
-    firmCircuit = calculateFirmCircuit(
-      inputs.gdp,
-      governmentServiceConsumption,
-      state.stock,
-      finance.privateInterestPayments,
-      stability,
-      netEnergyFactor,
-      params,
-      automationLaborShareChange,
+    finance = runFinance(plan);
+    firmCircuit = runFirmCircuit(finance.privateInterestPayments);
+    // Credit beyond the investment gap is a leverage recapitalization: it is
+    // paid out to owners with the firm's other surplus cash below.
+    const leverageRecapBorrowing = Math.max(
+      0,
+      finance.newInvestmentLoanOriginations - plan.investmentFinancingGap,
     );
 
     const openingFinancialLedger = state.financialLedger ?? createCapitalGodleyLedger({
@@ -1620,7 +1752,12 @@ export const capitalModule: Module<
     const newInvestmentLoanOriginations =
       finance.newInvestmentLoanOriginations;
     const refinancedPrincipal = finance.refinancedPrincipal;
-    const unfundedCreditDemand = finance.unfundedNetNewCreditDemand;
+    // Investment credit not supplied. Unmet leverage demand is not counted:
+    // it is visible as privateLeverage below targetPrivateLeverage.
+    const unfundedCreditDemand = Math.max(
+      0,
+      plan.investmentFinancingGap - newInvestmentLoanOriginations,
+    );
     // Preserve the scale and economic content of the deprecated field: unlike
     // total originations, this excludes mechanically rolled principal.
     const creditImpulse = newInvestmentLoanOriginations;
@@ -1647,7 +1784,8 @@ export const capitalModule: Module<
     );
     // A fixed retention ratio can leave firms hoarding cash once internal
     // funds exceed their actual orders. Distribute that surplus (up to
-    // positive retained profit) after the investment decision. This keeps the
+    // positive retained profit plus any leverage recap borrowing) after the
+    // investment decision. This keeps the
     // circuit closed without forcing households to borrow merely because
     // firms have no profitable use for additional retained earnings.
     const excessFirmCash = Math.min(
@@ -1655,7 +1793,7 @@ export const capitalModule: Module<
         0,
         firmCircuit.firmInternalFunds + netCashCredit - investment,
       ),
-      Math.max(0, firmCircuit.retainedEarnings),
+      Math.max(0, firmCircuit.retainedEarnings) + leverageRecapBorrowing,
     );
     const declaredFirmDividends =
       firmCircuit.firmDividendPayments + excessFirmCash;
@@ -1784,16 +1922,6 @@ export const capitalModule: Module<
       'national-accounts residual',
     ).value;
 
-    // Split investment between energy and general economy
-    // When energy is scarce/expensive → more investment flows to energy
-    const burden = inputs.energyBurden ?? 0.05;
-    // 8% of GDP: stress threshold above the historical norm of ~4-6%
-    // (global energy expenditure share; ~8-13% reached only in the
-    // 1979-81 and 2022 price shocks) — calibration anchor, not sourced data
-    const burdenSignal = burden / 0.08; // Normalized to threshold (1.0 = normal)
-    const energyShare = Math.min(0.30, Math.max(0.10,
-      params.baseEnergyInvestmentShare * (1 + params.energyInvestmentSensitivity * (burdenSignal - 1))
-    ));
     // BUDGET signal (burden-driven share) — used as the standalone-mode
     // fallback for energy's investment constraint. The K-stock DEBIT below
     // uses REALIZED spends (lagged one year, from the energy/cdr/demand
@@ -1803,9 +1931,6 @@ export const capitalModule: Module<
     // never debited.
     const energyInvestment = investment * energyShare;
     const realizedEnergyCapex = inputs.energyCapexSpend ?? energyInvestment;
-    const realizedCdrSpend = inputs.cdrSpend ?? 0;
-    const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
-    const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
     const totalRealizedSpend = sumQuantities([
       unitQuantity(realizedEnergyCapex, '$T/year', 'energy capex'),
       unitQuantity(realizedCdrSpend, '$T/year', 'CDR spend'),
@@ -1870,6 +1995,12 @@ export const capitalModule: Module<
       ? openingTrendGrowth
       : openingTrendGrowth
         + (realizedGrowth - openingTrendGrowth) / params.trendGrowthSmoothingYears;
+    // Debt ratio the safe rate prices next year: exponential smoothing of the
+    // year-end ratio (see safeRateDebtSmoothingYears).
+    const nextPricedPublicDebtGDP = inputs.gdp > 0
+      ? pricedPublicDebtGDP
+        + (newPublicDebt / inputs.gdp - pricedPublicDebtGDP) / params.safeRateDebtSmoothingYears
+      : pricedPublicDebtGDP;
 
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
@@ -1911,8 +2042,10 @@ export const capitalModule: Module<
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
         trendGrowth: nextTrendGrowth,
+        pricedPublicDebtGDP: nextPricedPublicDebtGDP,
         referenceTransferBurden,
         referenceAutomationLaborShare,
+        targetPrivateLeverage,
         financialLedger: financialPosting.state,
       },
       outputs: {
@@ -1993,10 +2126,16 @@ export const capitalModule: Module<
         newInvestmentLoanOriginations,
         refinancedPrincipal,
         unfundedCreditDemand,
+        creditCapacity: finance.netNewCreditCapacity,
         creditImpulse,
         principalRepayments,
         loanWriteOffs,
         netCreditCreation: newPrivateDebt - privateDebt,
+        privateLeverage: openingPrivateLeverage,
+        targetPrivateLeverage,
+        leverageBorrowing: plan.leverageBorrowing,
+        leverageRecapBorrowing,
+        voluntaryPrincipalRepayments: finance.voluntaryPrincipalRepayments,
         primaryDeficit: finance.primaryDeficit,
         netTaxes,
         debtRiskPremium,

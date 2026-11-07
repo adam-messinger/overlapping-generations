@@ -131,6 +131,35 @@ test('step year 0 returns correct interest rate', () => {
   expect(outputs.interestRate).toBeBetween(0.02, 0.08);
 });
 
+test('the seed year\'s finance path grows from the previous year\'s GDP', () => {
+  // The finance block interpolates GDP within the year from the previous
+  // year's level. Seeded with this year's GDP, 2025 ran on a flat GDP while
+  // debt grew, so the debt-risk premium jumped into 2026 and fell after.
+  const premiums = (withLag: boolean) => {
+    const params = capitalModule.mergeParams({});
+    let state = capitalModule.init(params);
+    const out: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const inputs = { ...getCapitalInputs(i), ...(withLag ? { laggedGdp: baselineGdp(i - 1) } : {}) };
+      const result = capitalModule.step(state, inputs, params, 2025 + i, i);
+      state = result.state;
+      out.push(result.outputs.debtRiskPremium);
+    }
+    return out;
+  };
+  const steps = (p: number[]) => p.slice(1).map((v, i) => v - p[i]);
+  const [first, ...later] = steps(premiums(true));
+  const [oldFirst, ...oldLater] = steps(premiums(false));
+  // Unwired, the seed year has no growth: the first step jumps, far beyond
+  // the steps after it
+  const largest = (xs: number[]) => Math.max(...xs.map(Math.abs));
+  expect(Math.abs(oldFirst)).toBeGreaterThan(10 * largest(oldLater));
+  // Wired, that jump is gone: the first step is a small fraction of it and
+  // the same order as the steps after
+  expect(Math.abs(first)).toBeLessThan(0.1 * Math.abs(oldFirst));
+  expect(Math.abs(first)).toBeLessThan(10 * largest(later));
+});
+
 test('step year 0 returns correct investment', () => {
   const { outputs } = runYears(1);
   // Profit-led orders plus bank finance retain the prior 2025 calibration.
@@ -268,9 +297,12 @@ test('interest rate changes with K/Y ratio', () => {
   const year1 = runYears(1).outputs;
   const year25 = runYears(25).outputs;
 
-  // Higher K/Y should mean lower r
+  // Higher K/Y should mean a lower return on capital, alpha*Y/K - delta. The
+  // total-debt premium is a separate channel (rising debt can outweigh the
+  // K/Y effect on interestRate), so it is netted out here.
   if (year25.capitalOutputRatio > year1.capitalOutputRatio) {
-    expect(year25.interestRate).toBeLessThan(year1.interestRate);
+    expect(year25.interestRate - year25.debtRiskPremium)
+      .toBeLessThan(year1.interestRate - year1.debtRiskPremium);
   }
 });
 
@@ -959,6 +991,108 @@ test('principal refinancing is not counted as new investment finance', () => {
         + outputs.newInvestmentLoanOriginations
         + 1e-9,
   ).toBeTrue();
+});
+
+// --- Target leverage ---
+
+// Year 1 from a year-0 state whose leverage target has been moved by
+// `targetScale`: the ledger and debt stocks are untouched, so the firm opens
+// off-target by exactly that factor.
+function stepOffTarget(targetScale: number, overrides: Partial<typeof capitalDefaults> = {}) {
+  // A wide bank envelope, so the tests see the firm's request, not rationing
+  const params = capitalModule.mergeParams({
+    baseCreditGrowth: 0.15,
+    leverageDamping: 0,
+    ...overrides,
+  });
+  const year0 = capitalModule.step(capitalModule.init(params), getCapitalInputs(0), params, 2025, 0);
+  const state = {
+    ...year0.state,
+    targetPrivateLeverage: year0.state.targetPrivateLeverage! * targetScale,
+  };
+  return capitalModule.step(state, getCapitalInputs(1), params, 2026, 1);
+}
+
+function expectIdentitiesClose(outputs: any) {
+  expect(Math.abs(outputs.savingInvestmentResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.nationalAccountsResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.householdSavingLedgerResidual)).toBeLessThan(1e-9);
+  expect(outputs.financialLedgerResidual).toBeLessThan(1e-8);
+}
+
+test('target leverage is the year-0 private debt / capital ratio, held in state', () => {
+  const { state, outputs } = runYears(3);
+  const gdp0 = baselineGdp(0);
+  const expected = capitalDefaults.initialPrivateDebtGDP * gdp0 / capitalDefaults.initialCapitalStock;
+  expect(outputs.targetPrivateLeverage).toBeCloseTo(expected, 12);
+  expect(state.targetPrivateLeverage!).toBeCloseTo(expected, 12);
+});
+
+test('an under-levered firm closes the stated share of the gap and pays the recap out', () => {
+  const onTargetRun = stepOffTarget(1);
+  const onTarget = onTargetRun.outputs;
+  const { state, outputs } = stepOffTarget(1.2);
+  const opening = outputs.privateLeverage;
+  const target = outputs.targetPrivateLeverage;
+  expect(target).toBeGreaterThan(opening);
+  // Flannery-Rangan partial adjustment in ratio space, exact when banks
+  // supply the request and orders are fully financed
+  expect(outputs.nextPrivateDebtStock / outputs.nextCapitalStock).toBeCloseTo(
+    opening + capitalDefaults.leverageAdjustmentSpeed * (target - opening), 9,
+  );
+  expect(outputs.leverageRecapBorrowing).toBeGreaterThan(0);
+  expect(outputs.unfundedCreditDemand).toBe(0);
+  // Orders are fully financed; the recap credit buys no capital (investment
+  // only moves through the higher interest bill) and is paid out to owners
+  // rather than parked in firm deposits
+  expect(outputs.unfundedFinancingDemand).toBe(0);
+  expect(outputs.investment).toBeCloseTo(outputs.plannedInvestment, 9);
+  expect(outputs.investment).toBeLessThan(onTarget.investment);
+  expect(outputs.firmDividendPayments).toBeGreaterThan(
+    onTarget.firmDividendPayments + 0.9 * outputs.leverageRecapBorrowing,
+  );
+  const firmDeposits = (ledger: any) => ledger.balances['firms.deposits'];
+  expect(Math.abs(
+    firmDeposits(state.financialLedger) - firmDeposits(onTargetRun.state.financialLedger),
+  )).toBeLessThan(0.1 * outputs.leverageRecapBorrowing);
+  expect(state.financialLedger!.balances['firms.privateLoans'])
+    .toBeCloseTo(outputs.nextPrivateDebtStock, 6);
+  expectIdentitiesClose(outputs);
+});
+
+test('an over-levered firm with spare cash repays early instead of paying it out', () => {
+  // No net investment orders: internal funds exceed replacement investment
+  const noGrowth = { maximumNetInvestmentRate: 0 };
+  const onTarget = stepOffTarget(1, noGrowth).outputs;
+  const { state, outputs } = stepOffTarget(0.7, noGrowth);
+  expect(outputs.voluntaryPrincipalRepayments).toBeGreaterThan(0);
+  expect(outputs.newInvestmentLoanOriginations).toBe(0);
+  expect(outputs.nextPrivateDebtStock / outputs.nextCapitalStock)
+    .toBeLessThan(outputs.privateLeverage);
+  expect(outputs.nextPrivateDebtStock / outputs.nextCapitalStock)
+    .toBeGreaterThan(outputs.targetPrivateLeverage);
+  // The repayment comes out of cash that would otherwise be distributed
+  expect(outputs.investment).toBeCloseTo(onTarget.investment, 9);
+  expect(outputs.firmDividendPayments).toBeLessThan(onTarget.firmDividendPayments);
+  expect(state.financialLedger!.balances['firms.deposits']).toBeGreaterThan(0);
+  expectIdentitiesClose(outputs);
+});
+
+test('investment borrowing still takes priority over the leverage target', () => {
+  // Far over target, but orders exceed internal funds: the firm still
+  // borrows its financing gap (pecking order) and repays nothing early
+  const { outputs } = stepOffTarget(0.5);
+  expect(outputs.voluntaryPrincipalRepayments).toBe(0);
+  expect(outputs.leverageRecapBorrowing).toBe(0);
+  expect(outputs.newInvestmentLoanOriginations).toBeCloseTo(
+    outputs.plannedInvestment - outputs.firmInternalFunds, 6,
+  );
+});
+
+test('validation catches invalid leverageAdjustmentSpeed', () => {
+  expect(capitalModule.validate({ leverageAdjustmentSpeed: 1.5 }).valid).toBe(false);
+  expect(capitalModule.validate({ leverageAdjustmentSpeed: -0.1 }).valid).toBe(false);
+  expect(capitalModule.validate({ leverageAdjustmentSpeed: 0 }).valid).toBe(true);
 });
 
 // --- Stability over time ---
