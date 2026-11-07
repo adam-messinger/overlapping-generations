@@ -147,9 +147,10 @@ test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, 
     STUDY_OPTIONS,
   );
   expect(r.results[r.results.length - 1].year).toBe(2100);
+  // Since private debt pays the ~3% loan rate rather than the ~7% return on
+  // capital, this sweep no longer reaches insolvency; the default mechanism
+  // itself is pinned in capital.test.ts. If it binds, debt stays serviceable.
   const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
-  expect(binding.length).toBeGreaterThan(0);
-  // The write-down keeps debt serviceable instead of letting it outrun output
   for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
 });
 

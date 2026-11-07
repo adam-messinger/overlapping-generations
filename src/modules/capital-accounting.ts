@@ -245,12 +245,17 @@ export function postCapitalGodleyYear(
   state: GodleyLedgerState,
   flows: CapitalGodleyFlows,
 ): GodleyPostingResult {
+  // Public interest is signed: a negative real safe rate (financial
+  // repression) is a real-terms transfer from bondholders to the government,
+  // the counterpart of inflation eroding a nominal claim. Banks' share must
+  // carry the same sign and be no larger in magnitude than the total.
   if (
-    flows.publicInterestToBanks < 0
-    || flows.publicInterestToBanks > flows.publicInterestPayments
+    flows.publicInterestToBanks * flows.publicInterestPayments < 0
+    || Math.abs(flows.publicInterestToBanks)
+      > Math.abs(flows.publicInterestPayments)
   ) {
     throw new Error(
-      'publicInterestToBanks must be between zero and total publicInterestPayments',
+      'publicInterestToBanks must be a share (0-1) of total publicInterestPayments',
     );
   }
   // New public debt is purchased by banks through matching deposit creation,
