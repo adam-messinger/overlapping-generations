@@ -530,13 +530,10 @@ function buildTransforms(
         );
         // The regional propensity is a dimensionless allocation weight, so it
         // scales with current regional GDP—not a fixed 2025 lookup table.
-        // A region whose desired propensity turns negative (a negative
-        // savingsPremium in an ageing region) gets no share, not a negative
-        // one: negative weights handed energy a negative clean budget.
         let totalWeight = 0;
         const weights: Record<Region, number> = {} as any;
         for (const r of REGIONS) {
-          weights[r] = Math.max(0, regionalSavings[r] ?? 0) * Math.max(0, regional[r]?.gdp ?? 0);
+          weights[r] = (regionalSavings[r] ?? 0) * Math.max(0, regional[r]?.gdp ?? 0);
           totalWeight += weights[r];
         }
         const result: Record<Region, number> = {} as any;

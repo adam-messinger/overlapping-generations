@@ -147,6 +147,7 @@ export interface YearResult {
   laborShare: number;
   operatingSurplus: number;
   privateInterestPayments: number;
+  unpaidPrivateInterest: number;
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
   retainedEarnings: number;

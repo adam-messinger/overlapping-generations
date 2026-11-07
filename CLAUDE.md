@@ -158,11 +158,13 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
 - **WACC**: project debt (70%) at the lagged safe rate + equity (`projectEquityShare` 30%) at the lagged return on capital, + project premium (`riskPremium`, 5.2pp) + regional spread → LCOE (capital-intensive sources penalized when rates high). 2025 WACC ~8% global / 7% US, the level LCOEs are calibrated at (`baseWACC`). Energy finance follows the sovereign rate (repression included) through its debt, and capital scarcity through its equity
+- **Carbon price**: the power sector reads only `regional[r].carbonPrice`; demand-side fuel switching reads the global `energy.carbonPrice`. Setting the global key fills every region that has no explicit regional price (an explicit regional price wins); leaving it unset keeps the observed 2025 regional mix (US 20, OECD-ex-US 65, China 15, ...). Before the fill, a global-only price taxed end-use fuels but not power stations and RAISED warming
 - **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; year-0 gap anchored in energy state); `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment. Storage shifts the soft-curtailment onset by the same headroom it adds to the VRE penetration limit (without that, storage-rich grids curtailed ~half their VRE and unpriced coal won the build)
 - **Regional fuel prices**: energy's `regional.<r>.fossilRunningCost` ($/MWh fuel + VOM) prices both the build and dispatch's merit order (one source of truth, passed as `regionalFossilRunningCost`). Gas is LNG-priced in OECD-ex-US/China/India/SE Asia ($63-77 vs the $35 US reference) and cheap in Russia/MENA; the 2025 build fit is re-solved by `scripts/calibrate-2025-build.ts`. Dispatch has no load curve, so where gas costs more than coal it runs only after coal (China gas generation ~0 vs ~300 TWh actual peaking)
 - **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
+- **Non-electric fuel mix**: one calibrated logit per sector (2025 recipes from IEA World Energy Balances; shares move only as carbon/fuel prices leave the 2025 reference). Industry's coal slice is then scaled to heavy-materials output, `(GDP/GDP2025)^heavyIndustryGdpElasticity` (0.3: steel and cement saturate) over industry's service-base index, the freed share going pro rata to its other fuels. Composition, not turnover, so it sits outside the logit's inertia. Without it industry coal tracked GDP x intensity and non-electric coal rose ~60% by 2055 against an IEA outlook of flat-to-falling non-power coal
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
 ### Minerals (copper, lithium, rare earths, steel)
@@ -306,6 +308,12 @@ Do this before committing. Most fix-up commits in project history would have bee
   displacement). `laborShare` reports compensation / GDP. Demand values a robot at the human wage
   it displaces, scaled by the lagged labor share relative to 2025, so automation cheapens the labor
   it competes with and slows itself (default 2100: ~580 robots/1000 workers, labor share ~31%)
+- **Firm insolvency**: firms cannot pay out deposits they do not have. Once the deposit
+  buffer is gone and interest due exceeds operating surplus, firms suspend dividends, leave
+  interest unpaid (`unpaidPrivateInterest`, forgone by banks, never capitalized), then miss
+  principal; the unserviceable loans (unpaid / r) are written down against bank equity.
+  Never binds on the default path; without it, in-range sweeps crashed the ledger or, with
+  interest written off but principal kept, collapsed GDP under zombie debt
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings
