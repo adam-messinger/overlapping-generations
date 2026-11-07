@@ -268,6 +268,14 @@ export interface EnergyParams {
    *  depletion and carbon); mirrors dispatch's marginalCost */
   fossilRunningCost: Record<'gas' | 'coal', number>;
   /**
+   * Average fleet efficiency (electric out / fuel in) of gas and coal power.
+   * Turns dispatched fossil generation into fuel burned for depletion
+   * accounting: extraction = one year of 2025 production x (power-sector
+   * fuel + non-electric use) / its 2025 level. The index is anchored on
+   * 2025, so this only sets the weight of power against end-use fuel.
+   */
+  fossilPowerEfficiency: Record<'gas' | 'coal', number>;
+  /**
    * Economic replacement: each year, up to this fraction of a region's
    * existing gas/coal generation is added to the new-build requirement and
    * shared among CLEAN sources, scaled by how far new clean delivered cost
@@ -753,6 +761,14 @@ export const energyDefaults: EnergyParams = {
   },
   buildCapacityDepreciation: 0.14, // ~7-yr economic life of idle lines (PV: PERC->TOPCon obsolescence 2022-25); judgment
   fossilRunningCost: { gas: 35, coal: 25 }, // = dispatch marginalCost (fuel + VOM, 2024 US reference prices)
+  // The efficiencies the module's own carbonIntensity (400 / 900 kg/MWh)
+  // implies under IPCC 2006 default combustion factors (gas 56.1, bituminous
+  // coal 94.6 tCO2/TJ = 202 / 341 kg/MWh of fuel). Global public-fleet
+  // averages were 40% gas / 34% coal in IEA (2008) Energy Efficiency
+  // Indicators for Public Electricity Production from Fossil Fuels, and
+  // have risen since (US coal fleet 37.4%, EU ~38%, IEA Clean Coal Centre
+  // ~2017). At 0.50, power is ~35% of 2025 gas use (IEA: ~40%).
+  fossilPowerEfficiency: { gas: 0.50, coal: 0.38 },
   fossilDisplacementRate: 0.0376,  // fitted (with newBuildShareWeight) to China's 2025 solar build, 315 GW (NEA): clean build beyond demand growth
   curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
 
@@ -825,6 +841,9 @@ export interface RegionalCapacityState {
 export interface GlobalLearningState {
   cumulative: number;     // Total ever deployed GLOBALLY (for learning)
   extracted: number;      // Fossil fuels: extracted so far (global)
+  /** Fossil fuels: world fuel use (TWh of fuel) in the first year it was
+   *  measurable; the extraction index divides by it */
+  fuelUseAnchor?: number;
 }
 
 export interface EnergyState {
@@ -891,6 +910,12 @@ export interface EnergyInputs {
    *  output, and prices their idle output as a re-run option. Missing ->
    *  fossil counted at nameplate. */
   laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
+
+  /** Non-electric fuel use this year by fuel (TWh, from demand). With last
+   *  year's fossil generation it measures world gas and coal burned, which
+   *  is what depletes the resource. Missing -> extraction falls back to the
+   *  power fleet's nameplate. */
+  fuels?: Partial<Record<string, number>>;
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
@@ -1315,6 +1340,7 @@ export const energyModule: Module<
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedRegionalShortfallRate: unitPort('fraction', 'record'),
       laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
+      fuels: unitPort('TWh/year', 'record'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -1378,6 +1404,13 @@ export const energyModule: Module<
           if (fa.source !== 'coal' && fa.source !== 'gas') errors.push(`regional.${region}.firmAdequacy.source must be coal or gas`);
           if (!(fa.share >= 0 && fa.share <= 2)) errors.push(`regional.${region}.firmAdequacy.share must be in [0, 2]`);
         }
+      }
+    }
+
+    for (const f of ['gas', 'coal'] as const) {
+      const eff = params.fossilPowerEfficiency?.[f];
+      if (eff !== undefined && !(eff > 0 && eff <= 1)) {
+        errors.push(`fossilPowerEfficiency.${f} must be in (0, 1]`);
       }
     }
 
@@ -1564,6 +1597,9 @@ export const energyModule: Module<
       // Deep merge other records
       if (p.buildCapacity2025) {
         result.buildCapacity2025 = { ...energyDefaults.buildCapacity2025, ...p.buildCapacity2025 };
+      }
+      if (p.fossilPowerEfficiency) {
+        result.fossilPowerEfficiency = { ...energyDefaults.fossilPowerEfficiency, ...p.fossilPowerEfficiency };
       }
       if (p.fossilRunningCost) {
         result.fossilRunningCost = { ...energyDefaults.fossilRunningCost, ...p.fossilRunningCost };
@@ -2314,23 +2350,46 @@ export const energyModule: Module<
       const newCumulative = prevCumulative + globalAdditions[source];
 
       let extracted = state.global[source].extracted;
-      if (s.recoverableResources !== undefined) {
-        // Extraction proxy: installed capacity (GW) × 0.01 per year, which
-        // is one year of 2025 production at the 2025 fleet (budget
-        // provenance at FOSSIL_RESOURCES_2025). EROEI decline with fraction
-        // remaining follows the net-energy literature (Murphy & Hall 2010;
-        // Delannoy et al. 2021; Brockway et al. 2019); the sqrt exponent in
-        // primitives/math.ts depletion() is a stylized midpoint.
+      let fuelUseAnchor = state.global[source].fuelUseAnchor;
+      if (s.recoverableResources !== undefined && (source === 'gas' || source === 'coal')) {
+        // Extraction is world fuel burned, indexed to its first measured
+        // year and scaled so that year books one year of 2025 production
+        // (the unit the budget is sized in; provenance at
+        // FOSSIL_RESOURCES_2025). Fuel burned = last year's dispatched
+        // generation / fleet efficiency + this year's non-electric use.
+        // Nameplate overstated it: the power fleet stood in for the whole
+        // fuel, so a fleet that grew 10x booked 10x world gas output while
+        // end-use gas grew ~1.5x and idle plant booked as if it ran; the
+        // budget was spent ~1.7x too fast in high-gas scenarios. EROEI
+        // decline with fraction remaining follows the net-energy literature
+        // (Murphy & Hall 2010; Delannoy et al. 2021; Brockway et al. 2019);
+        // the sqrt exponent in primitives/math.ts depletion() is a
+        // stylized midpoint.
         let globalInstalled = 0;
+        let powerGen: number | undefined = 0;
         for (const region of REGIONS) {
           globalInstalled += state.regional[region][source].installed;
+          const gen = inputs.laggedRegionalGeneration?.[region]?.[source];
+          powerGen = gen === undefined || powerGen === undefined ? undefined : powerGen + Math.max(0, gen);
         }
-        extracted += globalInstalled * 0.01;
+        const nonElectric = inputs.fuels?.[source];
+        const fuelUse = powerGen === undefined || nonElectric === undefined
+          ? undefined
+          : powerGen / params.fossilPowerEfficiency[source] + Math.max(0, nonElectric);
+        if (fuelUseAnchor === undefined && fuelUse !== undefined && fuelUse > 0) {
+          fuelUseAnchor = fuelUse;
+        }
+        let annual2025 = 0;
+        for (const region of REGIONS) annual2025 += s.capacity2025[region] * 0.01;
+        extracted += fuelUse !== undefined && fuelUseAnchor !== undefined
+          ? annual2025 * (fuelUse / fuelUseAnchor)
+          : globalInstalled * 0.01;
       }
 
       newGlobal[source] = {
         cumulative: newCumulative,
         extracted,
+        ...(fuelUseAnchor !== undefined ? { fuelUseAnchor } : {}),
       };
 
       cumulativeCapacity[source] = newCumulative;

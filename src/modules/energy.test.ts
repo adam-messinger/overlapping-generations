@@ -740,6 +740,46 @@ test('fossil depletion budgets are sized to recoverable resources, not proved re
   }
 });
 
+test('fossil extraction books fuel burned, indexed to its first measured year', () => {
+  // Extraction = one year of 2025 production x (power fuel + non-electric
+  // fuel) / first-year level. Nameplate stood in for the whole fuel and spent
+  // the budget ~1.7x too fast in high-gas scenarios.
+  const p = energyModule.mergeParams({});
+  const gen = (gas: number, coal: number) =>
+    Object.fromEntries(REGIONS.map((r) => [r, { gas: gas / REGIONS.length, coal: coal / REGIONS.length }]));
+  const year = (gas: number, coal: number, nonElecGas: number, nonElecCoal: number) => ({
+    laggedRegionalGeneration: gen(gas, coal),
+    fuels: { gas: nonElecGas, coal: nonElecCoal },
+  });
+  const base = year(8000, 10000, 29000, 20000);
+  // Year 1: power gas doubles, non-electric unchanged
+  const { state } = runYears(2, undefined, (i) => (i === 0 ? base : year(16000, 10000, 29000, 20000)));
+  for (const source of ['gas', 'coal'] as const) {
+    const annual = annualExtraction2025(source);
+    const powerFuel = (source === 'gas' ? 8000 : 10000) / p.fossilPowerEfficiency[source];
+    const anchor = powerFuel + (source === 'gas' ? 29000 : 20000);
+    expect(state.global[source].fuelUseAnchor!).toBeCloseTo(anchor, 6);
+    const year1 = source === 'gas'
+      ? (16000 / p.fossilPowerEfficiency.gas + 29000) / anchor
+      : 1;
+    expect(state.global[source].extracted).toBeCloseTo(annual * (1 + year1), 6);
+  }
+  // Halving world fuel use halves that year's extraction
+  const { state: low } = runYears(2, undefined, (i) => (i === 0 ? base : year(4000, 5000, 14500, 10000)));
+  expect(low.global.gas.extracted).toBeCloseTo(annualExtraction2025('gas') * 1.5, 6);
+  // Without fuel-use inputs (module run standalone) extraction falls back to
+  // the fleet's nameplate, one year of 2025 production at the 2025 fleet
+  const { state: bare } = runYears(1);
+  expect(bare.global.gas.extracted).toBeCloseTo(annualExtraction2025('gas'), 6);
+  expect(bare.global.gas.fuelUseAnchor).toBe(undefined);
+});
+
+test('fossilPowerEfficiency must lie in (0, 1]', () => {
+  expect(energyModule.validate({ fossilPowerEfficiency: { gas: 0, coal: 0.38 } }).valid).toBe(false);
+  expect(energyModule.validate({ fossilPowerEfficiency: { gas: 0.5, coal: 1.2 } }).valid).toBe(false);
+  expect(energyModule.validate({ fossilPowerEfficiency: { gas: 0.6, coal: 0.4 } }).valid).toBe(true);
+});
+
 // --- Regional financing spreads ---
 
 console.log('\n--- Regional Financing Spreads ---\n');
