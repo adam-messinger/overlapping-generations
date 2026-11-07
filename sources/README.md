@@ -118,15 +118,42 @@ This folder contains reference materials for the simulation's demographics and c
 - URL: https://www.thepublicdiscourse.com/2021/10/78340/
 - Accessible summary of the demographic transition thesis
 
+### 6. Fernández-Villaverde & Norrick (2026): "Terra Incognita: The Economics of a Shrinking World"
+- File: `fernandez-villaverde/Fernandez-Villaverde-Norrick-2026-Terra-Incognita.pdf`
+- NBER Working Paper 35809 / CEPR DP21956 (September 2026)
+- **The demographics module's calibration anchor** (fertility floors and convergence speeds)
+- Key findings:
+  - Humanity is likely below replacement in 2026: world TFR "at most 2.19" against a
+    world replacement rate of ~2.20 (Supplemental Material A-B; WPP Medium says 2.23)
+  - World population peaks at "roughly 9 billion around 2056", then falls "first slowly,
+    then fast"; WPP 2024 Medium delays the fall to 2084 (10.29B)
+  - Their reading "matches the UNPD's 'Low Variant' scenario much better than its 'Medium
+    Variant'" (Low peaks at 8.949B in 2053); births since WPP 2024 "seem to be falling
+    even below the Low Variant" (Egypt, Mexico, Philippines registry data)
+  - Single-factor (Lee-Carter style) model on 236 countries, 1950-2023: the common factor
+    peaked in 1978; country-specific trends now drive the decline, "219 of them negative and
+    not one leveling off" (about -0.062 births per woman per year on average)
+  - Middle-income countries below rich ones: Thailand 0.87, Colombia 1.01, Iran 1.35,
+    Mexico 1.51, Brazil 1.52 (2025); Republic of Congo 5.1 -> 3.5 in a decade, 0.3 below
+    the WPP Low Variant
+  - WPP projections are mean-reverting and revised down every edition (world TFR
+    2025-30: 2.38 in WPP 2019 -> 2.22 in WPP 2024)
+- How the model uses it: regional floors are fit to the WPP 2024 Low variant 2030-2100
+  (`scripts/wpp-fertility-paths.py`) with convergence slowed x0.7, so the world path
+  peaks at ~9.0B in 2054 and 2026 world TFR is 2.12. The WPP Medium path is the opt-in
+  `scenarios/un-wpp-medium.json`
+
 ## Model Calibration Targets (from sources above)
 
 | Metric | Target | Source |
 |--------|--------|--------|
-| Global Pop 2025 | ~8.3B | Current data |
-| Population Peak | ~9.5B, 2055-2060 | Fernández-Villaverde |
-| Pop 2100 | ~8-9B (declining) | Fernández-Villaverde |
-| China 2100 | ~700M (50% decline) | Fernández-Villaverde |
-| Global Dependency 2075 | ~44% | Model projection |
+| Global Pop 2025 | ~8.2B | UN WPP 2024 (2025 estimate) |
+| 2025 age structure | 65+ ~0.86B; births ~132M | UN WPP 2024 (2025 estimate) |
+| World TFR 2026 | ≤2.19, below replacement (~2.20) | Fernández-Villaverde & Norrick (2026) |
+| Population Peak | ~9B, circa 2056 | Fernández-Villaverde & Norrick (2026); WPP Low 8.95B in 2052-53 |
+| Pop 2100 | ~7-8B (declining) | WPP Low 6.99B; F-V & N "slightly less aggressive" than Low |
+| China 2100 | 0.41-0.65B | WPP 2024 Low / Medium (incl. HK, Macao, Taiwan) |
+| Global Dependency 2075 | ~44-48% | Model projection |
 | China steepest aging | Yes | Low TFR effect |
 | China college share 2025 | ~22% | World Bank |
 | China tertiary enrollment 2025 | ~60% | UNESCO |
