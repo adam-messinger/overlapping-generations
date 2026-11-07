@@ -175,25 +175,25 @@ test('peak population ~8.9B (JFV: ~9.5B)', () => {
   expect(maxPop / 1e9).toBeBetween(8.5, 9.5);
 });
 
-test('2100 population 8-9B and declining', () => {
+test('2100 population 7-8B and declining (WPP Low 6.99B; FV-N slightly less aggressive)', () => {
   const year75 = runYears(75).outputs.population;
   const year76 = runYears(76).outputs.population;
 
-  expect(year76 / 1e9).toBeBetween(8.0, 9.0);
+  expect(year76 / 1e9).toBeBetween(7.0, 8.0);
   expect(year76).toBeLessThan(year75); // Declining
 });
 
-test('China 2100 population ~0.7-0.8B (JFV: 50% decline)', () => {
+test('China 2100 population between WPP Low (0.41B) and Medium (0.65B)', () => {
   const year76 = runYears(76).outputs.regionalPopulation.china;
-  expect(year76 / 1e9).toBeBetween(0.7, 0.85);
+  expect(year76 / 1e9).toBeBetween(0.41, 0.65);
 });
 
-test('China decline 40-50%', () => {
+test('China decline 55-72% (WPP Medium to Low)', () => {
   const year1 = runYears(1).outputs.regionalPopulation.china;
   const year76 = runYears(76).outputs.regionalPopulation.china;
   const decline = (year1 - year76) / year1;
 
-  expect(decline).toBeBetween(0.40, 0.55);
+  expect(decline).toBeBetween(0.55, 0.72);
 });
 
 test('dependency ratio 2075 ~44-46%', () => {
@@ -217,8 +217,8 @@ test('China TFR 2025 ~1.05', () => {
 
 test('China TFR converges toward floor by 2100', () => {
   const { outputs } = runYears(76);
-  // Floor is 0.8, should be close by 2100
-  expect(outputs.regionalFertility.china).toBeBetween(0.80, 0.90);
+  // Floor 0.74 (WPP Low 2030-2100 fit), should be close by 2100
+  expect(outputs.regionalFertility.china).toBeBetween(0.70, 0.80);
 });
 
 test('SSA TFR declines from ~4.3', () => {
@@ -415,14 +415,14 @@ test('migration moves population between regions', () => {
 
 console.log('\n--- Workforce entrants ---\n');
 
-test('workforce entrants are 1/20 of the pre-step young cohort in every year', () => {
+test('workforce entrants are a fifth of the pre-step 15-19 band in every year', () => {
   const params = demographicsModule.mergeParams({});
   let state = demographicsModule.init(params);
   for (let i = 0; i < 5; i++) {
-    const youngBefore = Object.fromEntries(REGIONS.map(r => [r, state.regions[r].young]));
+    const band1519 = Object.fromEntries(REGIONS.map(r => [r, state.regions[r].youngBands[3]]));
     const result = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i);
     for (const region of REGIONS) {
-      expect(result.outputs.regionalWorkforceEntrants[region]).toBeCloseTo(youngBefore[region] / 20, 0);
+      expect(result.outputs.regionalWorkforceEntrants[region]).toBeCloseTo(band1519[region] / 5, 0);
     }
     state = result.state;
   }
@@ -459,9 +459,70 @@ test('exogenous population scaling scales entrants and education-split stocks to
   const totalSplit = REGIONS.reduce(
     (sum, r) => sum + outputs.regionalWorkingCollege[r] + outputs.regionalWorkingNonCollege[r], 0);
   expect(totalSplit).toBeCloseTo(totalWorking, 0);
-  const totalYoung = REGIONS.reduce((sum, r) => sum + outputs.regionalYoung[r], 0);
+  // Entrants are scaled by the same factor as the cohorts
+  const unscaledParams = demographicsModule.mergeParams({});
+  const unscaled = demographicsModule.step(
+    demographicsModule.init(unscaledParams), { temperature: 1.2 }, unscaledParams, 2025, 0).outputs;
+  const scale = outputs.population / unscaled.population;
   const totalEntrants = REGIONS.reduce((sum, r) => sum + outputs.regionalWorkforceEntrants[r], 0);
-  expect(totalEntrants).toBeCloseTo(totalYoung / 20, 0);
+  const unscaledEntrants = REGIONS.reduce((sum, r) => sum + unscaled.regionalWorkforceEntrants[r], 0);
+  expect(totalEntrants).toBeCloseTo(unscaledEntrants * scale, 0);
+});
+
+// --- Age bands (replaces uniform 1/20 and 1/45 cohort exits) ---
+
+console.log('\n--- Age bands ---\n');
+
+test('2025 age structure matches UN WPP 2024 (world 65+ ~0.86B, births ~132M)', () => {
+  const params = demographicsModule.mergeParams({});
+  const state = demographicsModule.init(params);
+  const old = REGIONS.reduce((s, r) => s + state.regions[r].old, 0);
+  expect(old / 1e9).toBeBetween(0.80, 0.90);
+  // Year 0 reports the initial state; the first transition is year index 1.
+  const y0 = demographicsModule.step(state, { temperature: 1.2 }, params, 2025, 0).state;
+  const next = demographicsModule.step(y0, { temperature: 1.2 }, params, 2026, 1).state;
+  // births = new 0-4 band less what stayed in it (it lost a fifth to ageing,
+  // deaths at 0.001, and gained a migration share; migration is small)
+  const births = REGIONS.reduce((s, r) =>
+    s + next.regions[r].youngBands[0] - y0.regions[r].youngBands[0] * (1 - 1 / 5 - 0.001), 0);
+  expect(births / 1e6).toBeBetween(120, 142);
+});
+
+test('retirees are the 60-64 band turning 65, not 1/45 of the working cohort', () => {
+  // The uniform rule retired ~2x too many in young populations: the 65+
+  // cohort grew ~60M in 2025-26 against ~30M/yr in WPP
+  const params = demographicsModule.mergeParams({});
+  const state = demographicsModule.init(params);
+  const ssa = state.regions.ssa;
+  expect(ssa.workingBands[8] / 5).toBeLessThan(ssa.working / 45 / 1.5);
+  const y0 = demographicsModule.step(state, { temperature: 1.2 }, params, 2025, 0).state;
+  const next = demographicsModule.step(y0, { temperature: 1.2 }, params, 2026, 1).state;
+  const oldGrowth = REGIONS.reduce((s, r) => s + next.regions[r].old - y0.regions[r].old, 0);
+  expect(oldGrowth / 1e6).toBeBetween(20, 45);
+});
+
+test('working-age population grows to mid-century (born already, unlike fertility)', () => {
+  const w2025 = runYears(1).outputs.working;
+  const w2045 = runYears(21).outputs.working;
+  expect(w2045 / w2025).toBeBetween(1.05, 1.20);
+});
+
+test('bands stay consistent with cohort totals', () => {
+  const params = demographicsModule.mergeParams({});
+  let state = demographicsModule.init(params);
+  for (let i = 0; i < 40; i++) state = demographicsModule.step(state, { temperature: 1.2 }, params, 2025 + i, i).state;
+  for (const region of REGIONS) {
+    const r = state.regions[region];
+    expect(r.youngBands.reduce((a, b) => a + b, 0)).toBeCloseTo(r.young, 0);
+    expect(r.workingBands.reduce((a, b) => a + b, 0)).toBeCloseTo(r.working, 0);
+  }
+});
+
+test('band-share validation', () => {
+  const bad = demographicsModule.validate({
+    regions: { ...demographicsDefaults.regions, us: { ...demographicsDefaults.regions.us, workingBandShares: [0.5, 0.5] } },
+  } as any);
+  expect(bad.valid).toBe(false);
 });
 
 test('working-age migration outputs sum to zero across regions and follow the 80/70 split', () => {

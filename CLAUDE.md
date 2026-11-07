@@ -220,10 +220,23 @@ Do this before committing. Most fix-up commits in project history would have bee
   scenario JSON; Tier-1 param names camel-case it (`oecdExUsCarbonPrice`)
 
 ### Demographics
-- **Fernández-Villaverde**: Fertility convergence to regional floors
-- **3-cohort model**: Young (0-19), Working (20-64), Old (65+)
-- **Education**: College share affects effective workers
-- **NOTE**: the resulting world path (peak ~8.95B in 2059, 8.5B in 2100) tracks the UN WPP 2024 *low* variant, ~18% below the medium variant by 2100 — a deliberate low-fertility-convergence choice that conditions labor, savings, capital, and demand throughout
+- **Fernández-Villaverde & Norrick (2026)** (`sources/fernandez-villaverde/`): the default
+  fertility path. Regional floors are fit to the UN WPP 2024 *Low* variant 2030-2100 (their
+  paper reads Low as the realistic path) with convergence slowed x0.7, so the world peaks at
+  ~9.0B in 2054 (theirs: ~9B circa 2056), 2026 world TFR is 2.12 (theirs: at most 2.19,
+  below ~2.20 replacement) and 2100 is ~7.5B. `scripts/wpp-fertility-paths.py` regenerates
+  the fit inputs. A deliberate choice: the UN Medium variant is NOT the model's view
+- **Opt-in UN view**: `scenarios/un-wpp-medium.json` puts WPP Medium fertility and life
+  expectancy back, for comparing against forecasts that assume them (lands within 1-3% of
+  WPP Medium world population)
+- **3 cohorts aged through 5-year bands**: Young (0-19, four bands), Working (20-64, nine
+  bands), Old (65+). Entrants are the 15-19 band turning 20, retirees the 60-64 band turning
+  65, births come from the women actually aged 15-49. Bands and the 2025 cohort shares are
+  seeded from UN WPP 2024 2025 estimates (`scripts/wpp-age-structure.py`, observed age
+  structure, not a projection). The old uniform 1/20 and 1/45 exits retired ~2x too many
+  people a year and held working age flat to 2050 (now +10% by 2045, as born cohorts imply)
+- **Education**: College share affects effective workers. Exits still split by the whole
+  working cohort's college share (bands carry no education split yet)
 
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
@@ -335,6 +348,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
 | `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. Financing binds through the COST OF CAPITAL (WACC ~15% by 2075), not the capex budget |
+| `un-wpp-medium` | Opt-in demographic overlay: UN WPP 2024 Medium fertility and life expectancy, for comparison with forecasts that assume it (the default follows Fernández-Villaverde & Norrick 2026) |
 
 ## Agent Introspection
 

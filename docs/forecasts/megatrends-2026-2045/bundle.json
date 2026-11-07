@@ -1,0 +1,1138 @@
+{
+  "title": "Four megatrends 2026-2045",
+  "forecast_origin": "2026-11-07",
+  "expected_efforts": 4,
+  "expected_per_effort": 6,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "binary",
+      "label": "World trade/GDP 2035 below 2024"
+    },
+    {
+      "id": "q2",
+      "type": "continuous",
+      "label": "Digital services exports 2035",
+      "unit": "USD tn"
+    },
+    {
+      "id": "q3",
+      "type": "continuous",
+      "label": "US 10y TIPS, 2035 average",
+      "unit": "%"
+    },
+    {
+      "id": "q4",
+      "type": "binary",
+      "label": "US net interest >= 4.5% GDP, FY2035"
+    },
+    {
+      "id": "q5",
+      "type": "binary",
+      "label": "China >= 75% of US nominal GDP, 2035"
+    },
+    {
+      "id": "q6",
+      "type": "regimes",
+      "label": "2045 end-state (lexical priority)",
+      "options": [
+        {
+          "id": "A",
+          "label": "Fiscal dominance"
+        },
+        {
+          "id": "B",
+          "label": "Capex-led abundance"
+        },
+        {
+          "id": "C",
+          "label": "Secular stagnation returns"
+        },
+        {
+          "id": "D",
+          "label": "Fragmented middle (residual)"
+        }
+      ]
+    }
+  ],
+  "efforts": [
+    {
+      "effort_id": 1,
+      "effort_key": "energy-electrification",
+      "wave1": [
+        {
+          "lens": "outside-view",
+          "bluf": "The base rates say inertia and mean reversion. Openness drifts sideways, so a 2035 trade/GDP below 2024 is a little less than a coin flip (42%). US net interest has never been above 3.2% of GDP, and CBO has almost always over-projected it, so Q4 is 25%. Large economies that peak against the US in dollar terms have not regained that peak, so Q5 is 10%. For 2045 the residual regime D (42%) leads, with C next (24%).",
+          "q1": 42,
+          "q2": {
+            "p10": 8.2,
+            "p50": 10.8,
+            "p90": 13.6
+          },
+          "q3": {
+            "p10": 0.7,
+            "p50": 2.0,
+            "p90": 3.2
+          },
+          "q4": 25,
+          "q5": 10,
+          "q6": {
+            "A": 22,
+            "B": 12,
+            "C": 24,
+            "D": 42
+          },
+          "key_drivers": [
+            "post-2008 trade/GDP band 52-62%",
+            "CBO net-interest over-projection bias 1984-2021",
+            "0/5 peak-regain rate for USD-GDP catch-up episodes",
+            "real-yield mean reversion (~0.4 persistence over 9y)"
+          ],
+          "sources": [
+            "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS",
+            "https://data.wto.org/en/dataset/dideliveredservices",
+            "https://fred.stlouisfed.org/series/DFII10",
+            "https://cbo.gov/publication/58613",
+            "https://www.cbo.gov/system/files/2024-01/59905-Testimony.pdf",
+            "https://www.cbo.gov/data/budget-economic-data"
+          ],
+          "caveats": [
+            "CBO: net interest 'which it has almost always overestimated. Those misestimates have been driven by CBO's overestimates of interest rates' (1984-2021 evaluation); reversed in 2023",
+            "WTO: digitally delivered services up '8.1 per cent on an average per year between 2005 and 2022'; UNCTAD's 'digitally deliverable' is a different, broader series",
+            "DFII10 starts in 2003 (about 23 annual observations); the pre-2003 real-yield class is a reconstruction, not the resolving series"
+          ]
+        },
+        {
+          "lens": "fermi",
+          "bluf": "The 2035 trade-to-GDP ratio probably comes in just under 2024: lower fuel-trade value and the drift away from goods trade outweigh digital-services growth. Q4 and Q6-A lean YES because the US interest bill is the rate times the debt and rates are already above CBO's assumed paths. China reaching 75% of US nominal GDP needs about 1.6%/yr of relative nominal-USD growth that only renminbi appreciation can supply, and the 2026 oil shock works against China.",
+          "q1": 60,
+          "q2": {
+            "p10": 8.6,
+            "p50": 10.7,
+            "p90": 13.6
+          },
+          "q3": {
+            "p10": 1.3,
+            "p50": 2.4,
+            "p90": 3.4
+          },
+          "q4": 62,
+          "q5": 19,
+          "q6": {
+            "A": 44,
+            "B": 15,
+            "C": 13,
+            "D": 28
+          },
+          "key_drivers": [
+            "fuels ~6pp of trade/GDP shrinking via EV/solar displacement and price normalization",
+            "US net interest = ~118-140% debt x effective rate already above CBO path",
+            "China/US nominal gap needs ~1.6%/yr renminbi appreciation; oil shock hurts importer",
+            "model: electrification speed swings 2040-45 world growth across the 3.75% bar"
+          ],
+          "sources": [
+            "https://www.iea.org/reports/world-energy-investment-2026",
+            "https://unctad.org/publication/global-trade-update-september-2026-services-are-reshaping-global-trade",
+            "https://www.cbo.gov/publication/62207",
+            "https://www.americanactionforum.org/insight/interest-payments-on-the-national-debt-the-near-and-long-term-outlook/",
+            "https://www.aljazeera.com/economy/2026/10/30/oil-flows-are-up-as-iran-war-turmoil-eases-why-do-prices-keep-rising",
+            "https://data.worldbank.org/indicator/TX.VAL.FUEL.ZS.UN"
+          ],
+          "caveats": [
+            "Model world growth is PPP 2017$ and tracks UN WPP LOW demography; the model's interest rate is a real lending rate, use changes only",
+            "IEA $2.2T clean figure is reported via secondary coverage; sometimes described as 'clean energy and electrification'",
+            "CBO FY2046 5.7% net-interest figure is via an AAF summary of the Feb 2026 long-term projections, not the CBO page itself"
+          ]
+        },
+        {
+          "lens": "signals",
+          "bluf": "The 2026 data show oil demand falling (IEA: -2.6 mb/d in 2026), clean-energy capex at about twice fossil capex, and nominal trade values inflated by the Hormuz price shock. My lens therefore leans YES on Q1, which is nominal and so reflects fossil trade shrinking. It leans slightly YES on Q4, because rates sit above the CBO path, and NO on Q5, because China's cleantech overcapacity is pushing its prices down.",
+          "q1": 63,
+          "q2": {
+            "p10": 8.4,
+            "p50": 11.0,
+            "p90": 14.5
+          },
+          "q3": {
+            "p10": 1.3,
+            "p50": 2.3,
+            "p90": 3.2
+          },
+          "q4": 56,
+          "q5": 22,
+          "q6": {
+            "A": 33,
+            "B": 9,
+            "C": 16,
+            "D": 42
+          },
+          "key_drivers": [
+            "fossil-fuel trade value displacement (nominal Q1)",
+            "clean capex $2.2T front-loading real rates",
+            "China cleantech overcapacity and deflation",
+            "petrostate deficits at $78-90 Brent"
+          ],
+          "sources": [
+            "https://iea.org/reports/oil-market-report-october-2026",
+            "https://www.iea.org/reports/world-energy-investment-2026/regional-dashboards",
+            "https://about.bnef.com/?p=1729",
+            "https://taiyangnews.info/markets/cpia-china-h1-2026-solar-pv-istallations-drop-66-percent-yoy",
+            "https://agsi.org/analysis/saudi-fiscal-deficit-to-be-larger-than-budgeted-in-2026/",
+            "https://www.iea.org/reports/global-critical-minerals-outlook-2026/executive-summary",
+            "https://www.wtnh.com/news/business/ap-business/ap-wto-raises-merchandise-trade-growth-forecast-to-3-9-as-ai-boom-offsets-hit-from-middle-east/amp/",
+            "https://www.thenationalnews.com/business/2026/06/15/oil-slides-nearly-5-as-us-iran-deal-paves-way-for-hormuz-reopening/"
+          ],
+          "caveats": [
+            "BNEF has reduced its long-term and short-term passenger EV adoption outlook for the second year in a row",
+            "WTO Q2-2026 computer services growth is 'an estimated 12%'; WTO figures are from secondary press because www.wto.org was not reachable in this session",
+            "Solar 2026 forecasts mix AC and DC bases and were revised downward over time (BNEF 649 -> 584 GW)"
+          ]
+        }
+      ],
+      "wave2": [
+        {
+          "lens": "bayes",
+          "bluf": "Most energy-lens signals carry likelihood ratios under 2:1, so they barely move the outside-view priors (Q1 44, Q5 8). The one signal worth more than 2:1 is US nominal rates sitting 60-90bp above CBO's assumed path. Counted once per question, it lifts Q4 from 25 to 45 and regime A from 22 to 38.",
+          "q1": 44,
+          "q2": {
+            "p10": 8.5,
+            "p50": 11.3,
+            "p90": 14.6
+          },
+          "q3": {
+            "p10": 0.9,
+            "p50": 2.25,
+            "p90": 3.4
+          },
+          "q4": 45,
+          "q5": 8,
+          "q6": {
+            "A": 38,
+            "B": 11,
+            "C": 15,
+            "D": 36
+          },
+          "key_drivers": [
+            "10y at ~5.0% vs CBO path 4.1-4.4% (LR 2.5)",
+            "China export/PPI deflation widens deflator gap",
+            "structural fuel-trade displacement (weak LR 1.3)",
+            "AI-driven digital services growth plus upward vintage revisions"
+          ],
+          "sources": [
+            "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+            "https://tradingeconomics.com/united-states/government-bond-yield/news/505912",
+            "https://www.iea.org/reports/world-energy-investment-2026",
+            "https://taiyangnews.info/markets/cpia-china-h1-2026-solar-pv-istallations-drop-66-percent-yoy",
+            "https://www.cbo.gov/publication/62207"
+          ],
+          "caveats": [
+            "NY Fed HLW r* figures are a secondary report, not confirmed on the NY Fed page",
+            "WTO Q2 computer-services growth is 'estimated'; WTO figures came via secondary press",
+            "Flagged weak (LR < 2): Q1 fuel displacement, China deflation, digital services, oil-shock signals; only the rate-gap signal exceeds 2:1"
+          ]
+        },
+        {
+          "lens": "premortem",
+          "bluf": "The three Wave-1 seats share one assumption: that 2024's strong dollar and China's 2023-25 deflation set the frame for 2035. Since then the renminbi, China's GDP deflator, nominal trade and US yields have all moved, which weakens the YES lean on Q1 and the NO lean on Q5, and strengthens Q4. The panel's 28-42% for the muddle-through regime D is narrative comfort, and too much of the A-versus-C split rests on reading fiscal dominance as high interest bills.",
+          "q1": 40,
+          "q2": {
+            "p10": 8.0,
+            "p50": 11.4,
+            "p90": 16.0
+          },
+          "q3": {
+            "p10": 0.7,
+            "p50": 2.2,
+            "p90": 3.6
+          },
+          "q4": 64,
+          "q5": 28,
+          "q6": {
+            "A": 40,
+            "B": 16,
+            "C": 18,
+            "D": 26
+          },
+          "key_drivers": [
+            "the panel assumed a neutral dollar and China deflation; RMB +5% in 2026 and China's deflator turned positive",
+            "10y Treasury ~1pp above CBO's 4.1-4.4% path, plus lost IEEPA tariff revenue",
+            "financial repression resolves C, not A",
+            "the AI capex bust vs reflation tails, each about 20%"
+          ],
+          "sources": [
+            "https://www.cbo.gov/publication/62207",
+            "https://www.fxstreet.com/analysis/the-us-10-year-just-hit-a-2002-high-does-it-give-the-us-dollar-its-next-leg-202610071924",
+            "https://247wallst.com/investing/2026/10/23/the-10-year-yield-just-fell-below-5-as-investors-fled-ai-stocks/",
+            "https://fortune.com/2026/03/06/cbo-supreme-court-ruling-tariffs-2-trillion-deficit-inflation-unemployment-gdp/",
+            "https://tradingeconomics.com/china/currency/news/596722",
+            "https://investinglive.com/forex/goldman-sachs-says-yuan-undervalued-by-up-to-25-and-markets-underestimate-how-far-it-can-rise/",
+            "https://www.hellenicshippingnews.com/china-deflation-eases-but-weak-domestic-demand-could-weigh-on-prices/",
+            "https://www.americanactionforum.org/insight/interest-payments-on-the-national-debt-the-near-and-long-term-outlook/"
+          ],
+          "caveats": [
+            "China's Q2-2026 deflator of +1.6% y/y is computed by economists from nominal minus real growth; official data don't include a deflator, and no full-year figure is published",
+            "CBO's March estimate (deficits about $2T larger over 2026-2036) and an April CBO estimate ($1.1T over 10 years) differ; I could not confirm how they relate, so treat them as different scopes",
+            "October 2026 10y yield levels vary by outlet and date; I did not check them against Treasury primary data"
+          ]
+        }
+      ],
+      "wave3": {
+        "lens": "calibrator",
+        "bluf": "On the evidence, Effort 1 should lean YES on Q4 (58), against OV's 25. Q1 is close to a coin flip (53). China reaching 75% of the US is unlikely but not a 1-in-10 event (18). For 2045 the split is A 39 / B 13 / C 17 / D 31.",
+        "q1": 53,
+        "q2": {
+          "p10": 8.3,
+          "p50": 11.2,
+          "p90": 15.1
+        },
+        "q3": {
+          "p10": 0.8,
+          "p50": 2.2,
+          "p90": 3.5
+        },
+        "q4": 58,
+        "q5": 18,
+        "q6": {
+          "A": 39,
+          "B": 13,
+          "C": 17,
+          "D": 31
+        },
+        "key_drivers": [
+          "market rates above CBO path at a threshold equal to CBO's baseline",
+          "digital-services growth (~+3pp) offsets fuel and goods drag in the nominal trade ratio",
+          "renminbi real appreciation is the only route to 0.75",
+          "repression worlds resolve C, not A"
+        ],
+        "sources": [
+          "https://www.cbo.gov/publication/62207",
+          "https://fortune.com/2026/03/06/cbo-supreme-court-ruling-tariffs-2-trillion-deficit-inflation-unemployment-gdp/",
+          "https://www.stats.gov.cn/english/PressRelease/202610/t20261021_1965671.html",
+          "https://data.wto.org/en/dataset/dideliveredservices",
+          "https://fred.stlouisfed.org/series/DFII10",
+          "https://www.americanactionforum.org/insight/interest-payments-on-the-national-debt-the-near-and-long-term-outlook/",
+          "https://investinglive.com/forex/goldman-sachs-says-yuan-undervalued-by-up-to-25-and-markets-underestimate-how-far-it-can-rise/"
+        ],
+        "caveats": [
+          "NY Fed HLW r* figures are from a secondary report, 'not confirmed on NY Fed page'",
+          "WTO 'digitally delivered' is not UNCTAD 'digitally deliverable' (7.1%/yr); vintages have been revised upward",
+          "Positive China deflator is inferred from NBS nominal versus real growth using a remembered year-earlier base; not a published deflator"
+        ],
+        "downweighted": "Q1: signals (63) treats the war-driven 2026 oil-demand drop as structural and ignores the digital-services pull; outside-view (42) understates its own post-2008 class (4 of 6 windows fell). Q2: fermi, for anchoring on UNCTAD's 'deliverable' series. Q3: fermi and signals for P10 of 1.3, too narrow for a 9-year horizon that included -1% in 2021; fermi's +0.2 energy pull contradicts its own +0.02 model run. Q4: outside-view (25), whose over-projection base rate comes from the falling-rate era; bayes partly, because its likelihood-ratio cut is too timid. Q5: outside-view (10) and bayes (8) for a selection-biased peak class and a stale deflation LR; premortem (28) for an unpriced Shanghai-accord tail and Japan ratios it did not re-check; fermi for borrowing the model's PPP growth gap where the model is not identified. Q6: outside-view on C (24, anchored on 2009-21); fermi on A (44, ignores fiscal reaction and repression); premortem on D (conjunction neglect was posed, not landed).",
+        "wave_audit": "Wave 1 (outside-view, fermi, signals) split on Q1 (42 vs 60/63), Q4 (25 vs 62/56), Q5 (10 vs 19/22) and Q6-A (22 vs 44/33). Wave 2: bayes held near the priors on Q1 (44) and Q5 (8) and moved Q4 to 45 and A to 38. Premortem landed real hits on Q4 anchoring, Q5 peak selection and stale deflator, and the simulation closure; it only posed on D's conjunction and on Q1's drag/pull asymmetry (fermi had already counted the digital pull). Final versus the outside-view base rates (MODERATED = less extreme, AMPLIFIED = more extreme, REVERSED = crossed 50): Q1 42->53 REVERSED (marginally); Q2 median 10.8->11.2, P90 13.6->15.1, AMPLIFIED upside; Q3 median 2.0->2.2, P90 3.2->3.5, shifted up and widened at the top; Q4 25->58 REVERSED; Q5 10->18 MODERATED; Q6 A 22->39 AMPLIFIED, B 12->13 held, C 24->17 and D 42->31 MODERATED downward.",
+        "largest_update": "Q4: +33 points versus outside-view (25->58). The threshold equals CBO's own 2035 baseline, so the starting point is about 50. CBO's history of over-projecting interest is a falling-rate-era artifact (premortem's hit), and the market 10-year (about 5.0-5.3%) sits 60-90bp above CBO's 4.1-4.4% path, with about $2T of extra deficits after the IEEPA tariff ruling. Fed repression or an AI bust keep it from going higher."
+      }
+    },
+    {
+      "effort_id": 2,
+      "effort_key": "ai-robotics",
+      "wave1": [
+        {
+          "lens": "outside-view",
+          "bluf": "The historical base rates lean against the scary outcomes. Since 1940, US net interest has never exceeded 3.2% of GDP, and CBO has usually overestimated its 10-year net-interest projections. No large economy that fell back from about 0.7 of US GDP has regained that level. Real yields as high as 2.9% have tended to fall back over the following decade. Trade/GDP has stalled since 2008, so Q1 is close to even but slightly below 50%.",
+          "q1": 35,
+          "q2": {
+            "p10": 8.4,
+            "p50": 10.3,
+            "p90": 12.8
+          },
+          "q3": {
+            "p10": 0.6,
+            "p50": 1.9,
+            "p90": 3.3
+          },
+          "q4": 30,
+          "q5": 12,
+          "q6": {
+            "A": 25,
+            "B": 16,
+            "C": 27,
+            "D": 32
+          },
+          "key_drivers": [
+            "net interest has never exceeded 3.2% of GDP; CBO usually overestimates it",
+            "no challenger that fell back from ~0.7 of US GDP regained it (0/3)",
+            "real yields fall back after investment-boom peaks",
+            "trade/GDP flat since 2008, only ~1 in 4 years below 56.8"
+          ],
+          "sources": [
+            "https://www.indexmundi.com/facts/world/trade",
+            "https://data.wto.org/en/dataset/dideliveredservices",
+            "https://unctad.org/node/36989",
+            "https://www.cato.org/blog/federal-interest-costs-1790-2033",
+            "https://www.cbpp.org/research/federal-budget/deficits-debt-and-interest",
+            "https://cbo.gov/publication/59110",
+            "https://www.cbo.gov/system/files/2024-01/59905-Testimony.pdf",
+            "https://dupuyinstitute.org/2018/10/23/where-did-japan-go/",
+            "https://www.globalcapital.com/article/28mssyp51jgqspxhhquct/ssa/old-money-goodbye-great-britain",
+            "https://www.imf.org/-/media/files/publications/weo/2020/april/english/statsappendixa.pdf.md"
+          ],
+          "caveats": [
+            "CBO: net interest projections have been its least accurate outlay category, 'almost always overestimated' before 2021, but 2023 rates were 'higher than we anticipated in March 2022'",
+            "WDI world trade/GDP values differ by vintage (2019: 56.33 vs 56.48; 2020: 51.62 vs 52.37); the year-by-year counts are from aggregators, not the WDI API",
+            "The 2005-2025 digitally delivered services series has been revised upward between vintages; the 8.1%/yr (2005-2022) and 6.9%/yr (2005-2019) rates come from different vintages"
+          ]
+        },
+        {
+          "lens": "fermi",
+          "bluf": "Splitting each question into AI-capex, growth, price and fiscal pieces gives this. Digital services exports roughly double to about $10.8T by 2035. The 10y TIPS yield settles near 2.3%, because an AI capex pull of about 2% of GDP is partly offset by mean reversion from the 2026 spike. US net interest is a coin flip around 4.5% of GDP. China reaching 75% of US nominal GDP is unlikely. The 2045 regime is mostly residual D or fiscal-dominance A, and AI-led abundance (B) needs about 0.7pp of extra world growth.",
+          "q1": 57,
+          "q2": {
+            "p10": 8.0,
+            "p50": 10.8,
+            "p90": 14.3
+          },
+          "q3": {
+            "p10": 1.1,
+            "p50": 2.3,
+            "p90": 3.3
+          },
+          "q4": 55,
+          "q5": 14,
+          "q6": {
+            "A": 35,
+            "B": 16,
+            "C": 16,
+            "D": 33
+          },
+          "key_drivers": [
+            "AI capex ~2-3% of US GDP vs desired saving",
+            "digital services 7.5%/yr nominal compounding",
+            "China deflator gap offsets real growth gap",
+            "model AI rate pull small by 2035, ~0.7pp by 2045"
+          ],
+          "sources": [
+            "https://www.goldmansachs.com/insights/articles/global-investment-is-forecast-to-exceed-1-trillion-in-2026",
+            "https://unctadstat.unctad.org/insights/theme/254",
+            "https://www.wto.org/english/news_e/news25_e/stat_07oct25_e.htm"
+          ],
+          "caveats": [
+            "UNCTAD's 'digitally deliverable' category is broader than the WTO's 'digitally delivered', so totals are not directly comparable",
+            "Goldman: AI investment ~1.8% of US GDP in 2026 but only ~0.1pp of measured growth because much equipment is imported",
+            "Model rate is an economy-wide real lending rate with no term premium; world-aggregate fiscal path; UN-WPP-low demography; AI-extreme variant failed the stock-flow ledger"
+          ]
+        },
+        {
+          "lens": "signals",
+          "bluf": "Fresh telemetry shows an AI capex boom that is already large in the macro data: about 47% of H1-2026 goods-trade growth by value, roughly a third of US GDP growth, and a 10y TIPS yield near 2.9%. That leans toward higher openness by value, strong digital-services growth, elevated real rates and US net interest above baseline. Measured productivity has not yet broken out, which caps the odds of capex-led abundance (Q6-B).",
+          "q1": 34,
+          "q2": {
+            "p10": 8.0,
+            "p50": 11.5,
+            "p90": 15.5
+          },
+          "q3": {
+            "p10": 1.4,
+            "p50": 2.4,
+            "p90": 3.4
+          },
+          "q4": 62,
+          "q5": 18,
+          "q6": {
+            "A": 32,
+            "B": 14,
+            "C": 12,
+            "D": 42
+          },
+          "key_drivers": [
+            "AI goods 47% of H1-2026 trade growth (value)",
+            "DFII10 ~2.9%, term premium ~0.98%",
+            "hyperscaler capex $720-828B, rising in 2027",
+            "productivity 2.1% cycle avg, no AI break yet"
+          ],
+          "sources": [
+            "https://www.wto.org/english/res_e/publications_e/global-trade-outlook-and-statistics_execsum_e.htm",
+            "https://www.jetro.go.jp/world/gtir/2026/ch1/sec2/sub1/",
+            "https://www.thetrading.tools/real-yields",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://think.ing.com/opinions/how-much-is-ai-contributing-to-us-economic-growth/",
+            "https://www.bls.gov/news.release/archives/prod2_09032026.htm",
+            "https://ifr.org/img/worldrobotics/Executive_Summary_WR_2026_-_Industrial_Robots.pdf",
+            "https://media.bis.gov/press-release/department-commerce-revises-license-review-policy-semiconductors-exported-china",
+            "https://www.datacenterknowledge.com/data-center-construction/hyperscalers-say-ai-race-has-entered-a-new-phase"
+          ],
+          "caveats": [
+            "WTO: a slowdown or reversal of AI investment spending could also have a significant impact on trade given its high import content; forecast assumes AI infrastructure spending up at least 30% in 2026 and 10-20% in 2027",
+            "Fed staff: AI buildout about 0.73pp of Q1-2026 growth, but net imports of computers subtracted 0.45pp; ING says a third of growth on a broad definition, 44% on the narrow measure net of imports",
+            "AAF: the past six quarters of data don't suggest AI has created a sea change in productivity growth; the computer-services +12% Q2-2026 figure is secondary and covers only a subset of the category"
+          ]
+        }
+      ],
+      "wave2": [
+        {
+          "lens": "bayes",
+          "bluf": "Treating the Wave-1 outside-view numbers as priors, only one signal clears 2:1: the 10y nominal yield of about 5.2% against CBO's assumed 4.1-4.4%. Updating on it takes US net interest of 4.5% or more in FY2035 to a near coin flip (47%) and pushes fiscal dominance to the top of the 2045 regime list (A 37%). Every other signal is weak, and moves Q1, Q2, Q3 and Q5 only slightly.",
+          "q1": 37,
+          "q2": {
+            "p10": 8.6,
+            "p50": 11.0,
+            "p90": 14.0
+          },
+          "q3": {
+            "p10": 0.9,
+            "p50": 2.25,
+            "p90": 3.4
+          },
+          "q4": 47,
+          "q5": 9,
+          "q6": {
+            "A": 37,
+            "B": 16,
+            "C": 16,
+            "D": 31
+          },
+          "key_drivers": [
+            "10y nominal ~5.2% vs CBO 4.1-4.4% path (LR 1.9)",
+            "AI-capex signals share one cause, counted once per question",
+            "China deflation offsets renminbi gain",
+            "no measured productivity breakout caps B"
+          ],
+          "sources": [
+            "https://www.thetrading.tools/real-yields",
+            "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+            "https://www.cbo.gov/publication/62207",
+            "https://www.bls.gov/news.release/archives/prod2_09032026.htm",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://www.jetro.go.jp/world/gtir/2026/ch1/sec2/sub1/"
+          ],
+          "caveats": [
+            "HLW r* figures are a secondary report; not confirmed on NY Fed page",
+            "WTO figures are from search snippets and secondary coverage, not the primary page; computer-services growth is a secondary estimate covering only a subset of the category",
+            "CBO publishes a 2036 net-interest figure (4.6%); no 2035-specific baseline figure was found"
+          ]
+        },
+        {
+          "lens": "premortem",
+          "bluf": "All three Wave-1 seats treat AI as a US-centred capex boom priced in a stable dollar, so both AI tails stay narrow and the exchange rate drops out of every nominal question. Breaking that frame raises the bust tail to 35%, widens Q3 and Q2 in both directions, roughly doubles Q5 via the renminbi, and lifts Q6-A because both AI tails damage the US budget.",
+          "q1": 45,
+          "q2": {
+            "p10": 7.9,
+            "p50": 11.2,
+            "p90": 17.0
+          },
+          "q3": {
+            "p10": 0.9,
+            "p50": 2.3,
+            "p90": 3.6
+          },
+          "q4": 54,
+          "q5": 27,
+          "q6": {
+            "A": 42,
+            "B": 13,
+            "C": 15,
+            "D": 30
+          },
+          "key_drivers": [
+            "AI capex bust probability ~35% (2027-29 refinancing wall)",
+            "FX/RMB drift omitted by all seats and by the model",
+            "labour-share erosion of US tax base (model fixes it at 65.5%)",
+            "tariff-revenue offset in CBO baseline at legal risk"
+          ],
+          "sources": [
+            "https://tradingeconomics.com/china/currency/news/597478",
+            "https://scmp.com/economy/policy/article/3372944/yuan-fixing-trimmed-despite-four-year-high-offshore-beijing-manages-pace-appreciation",
+            "https://fortune.com/2026/02/21/cbo-national-debt-deficit-today-projections/?rand=8593",
+            "https://www.trustnet.com/news/13487548/tech-giants-earnings-round-up-markets-disappointed-as-ai-spend-starts-to-bite",
+            "https://www.fi-desk.com/ratings-analysis-hyperscaler-spending-rings-credit-alarm-bells/",
+            "https://letsdatascience.com/blog/coreweave-debt-60-percent-default-odds-104-billion-backlog",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://www.wto.org/english/res_e/publications_e/global-trade-outlook-and-statistics_execsum_e.htm"
+          ],
+          "caveats": [
+            "Meta's 30 Oct 2026 move conflicts across sources (flat per Trustnet vs -11.3% per Lloyds); CoreWeave bond prices come from a blog, not primary data",
+            "No November 2026 DFII10 reading found; latest is 2.92% on 2 Oct 2026 from a secondary FRED tracker",
+            "CBO publishes no 2035-specific net-interest share in the secondary coverage found (4.6% is for 2036); crfb.org and finimize.com were unreachable from this session"
+          ]
+        }
+      ],
+      "wave3": {
+        "lens": "calibrator",
+        "bluf": "Effort posterior: US net interest >=4.5% of GDP in FY2035 is slightly more likely than not (54); 2035 TIPS ~2.3% with wide bands; digital services ~$11T; trade-openness decline near-even but leaning No (43); China reaching 75% of US GDP unlikely (17); fiscal dominance (38) displaces secular stagnation (14) in 2045.",
+        "q1": 43,
+        "q2": {
+          "p10": 8.1,
+          "p50": 11.1,
+          "p90": 15.6
+        },
+        "q3": {
+          "p10": 0.95,
+          "p50": 2.33,
+          "p90": 3.62
+        },
+        "q4": 54,
+        "q5": 17,
+        "q6": {
+          "A": 38,
+          "B": 14,
+          "C": 14,
+          "D": 34
+        },
+        "key_drivers": [
+          "10y nominal ~5.2% vs CBO 4.1-4.4% path",
+          "partial mean reversion of 2.9% real-yield spike",
+          "RMB FX volatility dominates the China/US ratio",
+          "AI capex fragility on both trade and rates"
+        ],
+        "sources": [
+          "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+          "https://www.thetrading.tools/real-yields",
+          "https://tradingeconomics.com/china/currency/news/597478",
+          "https://fortune.com/2026/02/21/cbo-national-debt-deficit-today-projections/?rand=8593",
+          "https://www.bls.gov/news.release/archives/prod2_09032026.htm",
+          "https://www.jetro.go.jp/world/gtir/2026/ch1/sec2/sub1/"
+        ],
+        "caveats": [
+          "NY Fed HLW r* figures are a secondary report, 'not confirmed on NY Fed page'",
+          "WTO: 'a slowdown or reversal of AI investment spending could also have a significant impact on trade given its high import content'",
+          "IMF 2026 nominal US/China GDP figures via secondary press, unverified; WDI 2025 world trade/GDP not confirmed"
+        ],
+        "downweighted": {
+          "outside-view": "Q4 (86-yr history comes from low-debt years; its own CBO-error source flipped sign after 2021); Q6-C 27 (DFII10 windows come from one regime); Q3 P10 0.6 (too low given the 2.9 start)",
+          "signals": "Q4 62 (treats the spot rate as persistent despite its own Q3 median of 2.4); Q6-D 42 (residual inflated without argument); Q1 34 (ignored the fragility caveat it quoted)",
+          "fermi": "Q1 57 (goods-lag figure depends on start year: about 1pp/yr from 2012, about 0 from 2016); Q5 (FX=0 assumed); the model's +0.04 AI-to-interest reading is built into the closure, weight zero",
+          "bayes": "Q5 9 (stacked a deflation LR of 0.6 and under-weighted FX volatility); Q3 used the model's +0.05 as evidence",
+          "premortem": "Q6-A 'both AI tails feed A' is posing (high-AI growth lowers debt/GDP; a bust lowers rates); Q5 +1%/yr FX drift is asserted, so I took about half; Q2 P90 17 partly taken (15.6)"
+        },
+        "wave_audit": "Wave 1 split most sharply on Q1 (fermi 57 vs outside-view 35 / signals 34) and Q4 (outside-view 30 vs fermi 55 / signals 62). Wave 2: bayes took Q4 to 47 on a single 1.9 likelihood ratio from the yield gap; the premortem broke the stable-dollar frame (Q5 to 27), widened the Q2/Q3 tails and raised A to 42. Final numbers versus the outside-view base rates: Q1 MODERATED (35->43, toward even); Q2 AMPLIFIED upward (P50 10.3->11.1, P90 12.8->15.6); Q3 MODERATED its mean-reversion bet (P50 1.9->2.33, P10 0.6->0.95, P90 widened to 3.62); Q4 AMPLIFIED, lean reversed (30->54); Q5 MODERATED (12->17); Q6 AMPLIFIED A (25->38) and cut C (27->14), with B 16->14 and D 32->34.",
+        "largest_update": "Q4 +24pp vs outside-view (30->54): the 10y nominal yield of about 5.2% sits above CBO's assumed 4.1-4.4% path while most debt reprices before FY2035, and the tariff-revenue offset is in doubt; the 86-year net-interest base rate is uninformative at debt above 100% of GDP. It drives the Q6-A increase (25->38) by coherence."
+      }
+    },
+    {
+      "effort_id": 3,
+      "effort_key": "demography-olg",
+      "wave1": [
+        {
+          "lens": "outside-view",
+          "bluf": "The base rates point to slow reversion, not to any regime break. World trade/GDP in 2035 is about a coin flip against its 2024 value (48). US 2035 net interest at or above 4.5% of GDP is less likely than CBO's straddling baseline suggests (30), because CBO has almost always overestimated net interest. China reaching 75% of US GDP in 2035 is a long shot (11): no ageing large economy has regained its USD-GDP peak against the US.",
+          "q1": 48,
+          "q2": {
+            "p10": 7.8,
+            "p50": 10.8,
+            "p90": 14.5
+          },
+          "q3": {
+            "p10": 0.7,
+            "p50": 2.2,
+            "p90": 3.5
+          },
+          "q4": 30,
+          "q5": 11,
+          "q6": {
+            "A": 22,
+            "B": 12,
+            "C": 24,
+            "D": 42
+          },
+          "key_drivers": [
+            "post-2008 trade/GDP plateau",
+            "CBO net-interest overestimation bias",
+            "ageing economies never regained USD-GDP peak vs US (Japan 1995)",
+            "near-random-walk real yields blended with long-run mean"
+          ],
+          "sources": [
+            "https://thenationalnews.com/business/economy/2023/04/09/exports-of-digitally-delivered-services-surged-to-38tn-in-2022-wto-says",
+            "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+            "https://www.cbo.gov/publication/53328",
+            "https://www.cbo.gov/system/files/2024-01/59905-Testimony.pdf"
+          ],
+          "caveats": [
+            "CBO: net interest outlays were its least accurate projections, which it has almost always overestimated (driven by interest-rate overestimates); the FY2023 cycle reversed this",
+            "WTO average digital-services growth is 8.1% for 2005-2022; a later WTO-linked report says 8.5% with an unstated end year",
+            "Pre-1997 US real 10y yields and some historical aggregates are recalled from memory, not re-verified in this run"
+          ]
+        },
+        {
+          "lens": "fermi",
+          "bluf": "Through the demographic lens, ageing makes the fiscal arithmetic look worse and pushes the capital-scarcity side up, without producing a growth boom: lean Yes on Q4 (66), regime A largest in Q6 (46), Q5 low (22) because China's shrinking workforce and its deflation outweigh its real-growth lead.",
+          "q1": 54,
+          "q2": {
+            "p10": 7.8,
+            "p50": 10.8,
+            "p90": 14.9
+          },
+          "q3": {
+            "p10": 1.25,
+            "p50": 2.3,
+            "p90": 3.25
+          },
+          "q4": 66,
+          "q5": 22,
+          "q6": {
+            "A": 46,
+            "B": 14,
+            "C": 11,
+            "D": 29
+          },
+          "key_drivers": [
+            "debt x effective-rate: TIPS 2.9% above CBO path",
+            "OASI depletion Q4 2032; ageing cost already in baseline",
+            "China 16-59 shrinking ~0.8%/yr plus deflator gap",
+            "CBO LTBO net interest 5.7% FY2046 vs 6.0% bar"
+          ],
+          "sources": [
+            "https://www.cbo.gov/publication/61882",
+            "https://www.ssa.gov/OACT/TRSUM/",
+            "https://www.cbo.gov/system/files/2026-01/61879-Demographic-Outlook.pdf",
+            "https://www.pgpf.org/article/national-debt-projected-to-hit-175-gdp-interest-totals-99-trillion/",
+            "https://www.caixinglobal.com/2026-01-19/chinas-population-decline-accelerates-as-births-hit-modern-era-low-in-2025-102405521.html"
+          ],
+          "caveats": [
+            "Model demography tracks UN WPP LOW variant; labour-force, dependency and growth readings are low-fertility-conditional",
+            "Model rate is an economy-wide real lending rate, not r* or a market yield; use changes only",
+            "Brookings: long-term budget projections are sensitive to parameter choices in general and to interest rate projections in particular"
+          ]
+        },
+        {
+          "lens": "signals",
+          "bluf": "The 2025-26 data mostly points one way. Fertility has collapsed in China, US immigration has fallen, and the US trust funds now run out in 2032-33. Meanwhile real yields are 2.9%, above CBO's path. Together these make Q4 yes more likely than not, put Q5 deep in no territory, and give Regime A the most weight in Q6. Demographic downward pressure on r* is real but has no tight estimate, and fiscal forces are currently stronger.",
+          "q1": 55,
+          "q2": {
+            "p10": 8.3,
+            "p50": 10.8,
+            "p90": 14.2
+          },
+          "q3": {
+            "p10": 1.0,
+            "p50": 2.3,
+            "p90": 3.3
+          },
+          "q4": 61,
+          "q5": 10,
+          "q6": {
+            "A": 36,
+            "B": 8,
+            "C": 20,
+            "D": 36
+          },
+          "key_drivers": [
+            "China 2025 births -17%, workforce -1.2%/yr to 2050 (IMF)",
+            "OASI depletion Q4 2032, HI Q2 2033",
+            "10y nominal ~4.95% above CBO baseline path",
+            "aging raises asset demand but fiscal supply racing ahead (AMRS)"
+          ],
+          "sources": [
+            "https://www.caixinglobal.com/2026-01-19/chinas-population-decline-accelerates-as-births-hit-modern-era-low-in-2025-102405520.html",
+            "https://cdc.gov/nchs/pressroom/releases/20260409.html",
+            "https://www.cbo.gov/system/files/2026-01/61879-Demographic-Outlook.pdf",
+            "https://www.ssa.gov/oact/TRSUM/",
+            "https://www.cbo.gov/publication/62207",
+            "https://frbsf.org/wp-content/uploads/el2025-10.pdf",
+            "https://www.kansascityfed.org/documents/11206/AMRS_Jackson_Hole_Final.pdf",
+            "https://www.imf.org/en/publications/wp/issues/2025/12/12/reforms-to-reduce-chinas-high-household-savings-572507/index.md",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/"
+          ],
+          "caveats": [
+            "China TFR ~0.96 is a non-NBS estimate (Huang Wenzheng); US 2025 births provisional, TFR 1.57 is a WSJ calculation",
+            "Carvalho et al.: aging 'could, in principle, put either downward or upward pressure on r-star'; no CI found for the US demographic effect",
+            "Census net migration +1.3M (2025) vs Brookings -10k to -295k; CBO calls its demographic projections 'highly uncertain'"
+          ]
+        }
+      ],
+      "wave2": [
+        {
+          "lens": "bayes",
+          "bluf": "I started from the outside-view priors and applied explicit likelihood ratios. The one strong signal is that real yields sit well above CBO's rate path. It lifts Q4 from 30 to 51 and pushes Q6 toward fiscal dominance (A=41). Almost every demographic signal is weak (LR under 2:1), so Q1, Q2 and Q5 barely move from their priors.",
+          "q1": 52,
+          "q2": {
+            "p10": 7.9,
+            "p50": 10.9,
+            "p90": 14.6
+          },
+          "q3": {
+            "p10": 0.9,
+            "p50": 2.4,
+            "p90": 3.6
+          },
+          "q4": 51,
+          "q5": 9,
+          "q6": {
+            "A": 41,
+            "B": 8,
+            "C": 14,
+            "D": 37
+          },
+          "key_drivers": [
+            "rates ~50-65bp above CBO path, counted once (LR 2.4)",
+            "CBO LTBO 5.7% net interest FY2046 (LR 2.0)",
+            "demographic r* signals all weak and offsetting",
+            "China deflation plus labour decline (weak LRs)"
+          ],
+          "sources": [
+            "https://www.cbo.gov/publication/62207",
+            "https://www.cbo.gov/system/files/2026-01/61879-Demographic-Outlook.pdf",
+            "https://www.pgpf.org/article/national-debt-projected-to-hit-175-gdp-interest-totals-99-trillion/",
+            "https://www.ssa.gov/OACT/TRSUM/",
+            "https://frbsf.org/wp-content/uploads/el2025-10.pdf",
+            "https://www.kansascityfed.org/documents/11206/AMRS_Jackson_Hole_Final.pdf",
+            "https://www.imf.org/en/publications/wp/issues/2025/12/12/reforms-to-reduce-chinas-high-household-savings-572507/index.md",
+            "https://www.caixinglobal.com/2026-01-19/chinas-population-decline-accelerates-as-births-hit-modern-era-low-in-2025-102405521.html"
+          ],
+          "caveats": [
+            "CBO: net interest is the outlay it 'has almost always overestimated' (2023 the exception)",
+            "FRBSF: aging 'could, in principle, put either downward or upward pressure on r-star'; no published CI for the US demographic r* effect",
+            "AMRS 250%-debt-without-higher-rates is a conditional scenario, not a forecast"
+          ]
+        },
+        {
+          "lens": "premortem",
+          "bluf": "Wave 1 shares a flow view of ageing (people draw down saving, capital gets scarce) and anchors on a war-spiked 2026. Ageing raises wealth and asset demand, China's yuan is rising and its deflation is fading, and the Q6 order means real fiscal dominance (yield caps) resolves C, not A. Q4 stays above even on post-February fiscal news; Q3's low tail is fatter, Q5 is higher and C gains weight.",
+          "q1": 52,
+          "q2": {
+            "p10": 7.3,
+            "p50": 10.9,
+            "p90": 16.0
+          },
+          "q3": {
+            "p10": 0.5,
+            "p50": 2.1,
+            "p90": 3.6
+          },
+          "q4": 58,
+          "q5": 24,
+          "q6": {
+            "A": 38,
+            "B": 12,
+            "C": 22,
+            "D": 28
+          },
+          "key_drivers": [
+            "older savers raise asset demand (AMRS) vs Goodhart-Pradhan dissaving",
+            "2026 TIPS spike is war and term premium, not r*",
+            "yuan appreciation and China's deflator turning positive",
+            "lost IEEPA tariff revenue vs recession and repression lowering measured interest"
+          ],
+          "sources": [
+            "https://www.kansascityfed.org/documents/11206/AMRS_Jackson_Hole_Final.pdf",
+            "https://www.cbo.gov/publication/62704",
+            "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+            "https://tipswatch.com/2025/11/20/10-year-tips-reopening-auction-gets-real-yield-of-1-843-to-lukewarm-demand/",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://www.cfr.org/blog/chinas-currency-now-facing-substantial-appreciation-pressure",
+            "https://www.chathamhouse.org/2026/01/chinas-12-trillion-trade-surplus-will-increase-calls-stronger-renminbi-dont-expect-much"
+          ],
+          "caveats": [
+            "AMRS's 250%-of-GDP debt result is a conditional scenario, not a forecast; Carvalho et al.: aging 'could, in principle, put either downward or upward pressure on r-star'",
+            "CBO (Aug 2026): 2026 tariff and customs duty collections 'about $250 billion, or 60 percent, below its February projection'; Section 301 replacement tariffs face legal challenge",
+            "China publishes no official GDP deflator; Q1-2026 estimates differ (KPMG -0.06%, China Daily about -0.1%)"
+          ]
+        }
+      ],
+      "wave3": {
+        "lens": "calibrator",
+        "bluf": "Effort 3's final view: US net interest is more likely than not to reach 4.5% of GDP by FY2035 (59), and fiscal dominance is the largest single Q6 regime (A 40). China reaching 75% of US dollar GDP is unlikely but more plausible than the base rate (19), because the renminbi is appreciating. Ageing pushes real rates both ways, so Q3 stays wide around a median of about 2.15%.",
+        "q1": 54,
+        "q2": {
+          "p10": 7.4,
+          "p50": 10.6,
+          "p90": 15.2
+        },
+        "q3": {
+          "p10": 0.7,
+          "p50": 2.15,
+          "p90": 3.45
+        },
+        "q4": 59,
+        "q5": 19,
+        "q6": {
+          "A": 40,
+          "B": 10,
+          "C": 19,
+          "D": 31
+        },
+        "key_drivers": [
+          "CBO 2035 baseline at threshold plus verified post-Feb rate and tariff-revenue shocks",
+          "Ageing raises asset demand (stock view) against flow dissaving: r* direction ambiguous",
+          "Renminbi appreciation under PBOC restraint vs China workforce decline",
+          "Yield-capping repression resolves Q6-C, not A"
+        ],
+        "sources": [
+          "https://www.cbo.gov/publication/62704",
+          "https://www.crfb.org/papers/cbos-february-2026-budget-and-economic-outlook",
+          "https://tradingeconomics.com/china/currency/news/596627",
+          "https://www.scmp.com/economy/policy/article/3365461/china-keeps-yuan-check-pboc-resists-sharp-rise-against-weaker-us-dollar-analysts",
+          "https://www.kansascityfed.org/documents/11206/AMRS_Jackson_Hole_Final.pdf",
+          "https://frbsf.org/wp-content/uploads/el2025-10.pdf",
+          "https://www.pgpf.org/article/national-debt-projected-to-hit-175-gdp-interest-totals-99-trillion/"
+        ],
+        "caveats": [
+          "CBO: net interest was its least accurate outlay projection, 'which it has almost always overestimated' (record from a falling-rate era)",
+          "Carvalho et al.: aging 'could, in principle, put either downward or upward pressure on r-star'; no published CI for the US demographic r* effect",
+          "AMRS 250%-of-GDP debt result is a conditional scenario, not a forecast"
+        ],
+        "downweighted": "outside-view on Q4 and Q6-A (its CBO-overestimation record is regime-bound, and it ignored that CBO's 2035 baseline sits at the threshold) and on Q5 (a reference class of n=4 ageing economies, none with a structurally undervalued, surplus currency); fermi on Q6-C (cut C to 11 from the sign of a model real-rate change that has no current accounts, QE or repression, on UN-WPP-low demography) and partly on Q4 (66 assumes near-perfect rate-deficit correlation); signals on Q5 (10 ignored the verified renminbi appreciation); bayes on Q5 (stale deflation likelihood ratio) and on Q4 (prior inherited from outside-view's regime-bound record); premortem on Q2 (the AI-BPO substitution drag was posed, not quantified; moved the median only 0.2) and slightly on Q5 (24 ignores PBOC resistance beyond about 6.65).",
+        "wave_audit": "Wave 1 disagreed on Q4 (outside-view 30 vs fermi 66 / signals 61), Q6-A (22 vs 46/36), Q6-C (24 vs fermi 11) and Q5 (10-11 vs fermi 22). In Wave 2, bayes converted the single real signal (real yields above CBO's path) into Q4 51 and A 41. Premortem broke the shared flow-saving assumption, the regime-bound CBO track record, the stale China-deflation view and the A/C label trap; I verified its tariff and renminbi claims. Final numbers versus the outside-view base rates: Q1 crossed from 48 to 54 (small reversal); Q2 MODERATED (median 10.8 to 10.6, band widened); Q3 essentially held (median 2.2 to 2.15, P90 3.5 to 3.45); Q4 REVERSED (30 to 59); Q5 MODERATED toward 50 (11 to 19); Q6 AMPLIFIED A (22 to 40) and B's low (12 to 10), MODERATED C (24 to 19) and cut D (42 to 31).",
+        "largest_update": "Q4 +29 versus outside-view (30 to 59). Cause: the outside-view seat's 'CBO almost always overestimates net interest' base rate comes from an era of falling rates (premortem's real hit), while CBO's own 2035 baseline already sits at the 4.5% threshold. Two adverse shocks have landed since February and are verified: real yields near 2.9% above CBO's rate path, and 2026 tariff receipts about $250B (60%) below projection."
+      }
+    },
+    {
+      "effort_id": 4,
+      "effort_key": "fragmentation-fiscal",
+      "wave1": [
+        {
+          "lens": "outside-view",
+          "bluf": "Base rates put the answers near even or below on the fragmentation-shock outcomes: trade/GDP below its 2024 level is roughly a coin flip (47%); digitally delivered services compound at about 8% to a 2035 median near $10.8T; real yields mean-revert toward about 1.8%; CBO's record of over-projecting interest gives 30% on 4.5% of GDP in FY2035; China re-catching the US is 13% since no peaked-and-retreated rival has regained its peak; the residual regime D leads Q6.",
+          "q1": 47,
+          "q2": {
+            "p10": 7.8,
+            "p50": 10.8,
+            "p90": 14.5
+          },
+          "q3": {
+            "p10": 0.5,
+            "p50": 1.8,
+            "p90": 3.0
+          },
+          "q4": 30,
+          "q5": 13,
+          "q6": {
+            "A": 22,
+            "B": 15,
+            "C": 25,
+            "D": 38
+          },
+          "key_drivers": [
+            "post-2008 slowbalization: trade/GDP down in ~4 of 6 eleven-year windows",
+            "digital services CAGR 8.1% 2005-2022",
+            "CBO net interest almost always over-projected 1984-2021",
+            "no peaked-and-retreated rival (Japan, USSR, EU) regained its peak within 14 years"
+          ],
+          "sources": [
+            "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS",
+            "https://www.indexmundi.com/facts/world/trade",
+            "https://www.wto.org/english/res_e/booksp_e/trade_in_serv_devpt_intro_e.pdf",
+            "https://data.wto.org/en/dataset/dideliveredservices",
+            "https://www.cbo.gov/publication/59110",
+            "https://fred.stlouisfed.org/series/DFII10",
+            "https://www.imf.org/en/Publications/WEO"
+          ],
+          "caveats": [
+            "CBO: net interest projections 'almost always overestimated', driven by overestimates of interest rates (1984-2021 sample; read via a secondary summary, cbo.gov unreachable from this session)",
+            "The $1.0T 2005 digital-services start value comes from a secondary chart; WTO's own figures give 8.1%/yr for 2005-2022",
+            "World trade/GDP values are from secondary sites (Index Mundi) and differ slightly by WDI vintage"
+          ]
+        },
+        {
+          "lens": "fermi",
+          "bluf": "Taking each question apart, the US fiscal questions lean YES: Q4 at 65%, and fiscal dominance (A) is my largest 2045 regime at 40. The trade and China/US gaps sit just short of their thresholds (Q1 44%, Q5 30%). Fragmentation is a cost multiplier on rates and deficits, not a trade collapse.",
+          "q1": 44,
+          "q2": {
+            "p10": 8.6,
+            "p50": 10.3,
+            "p90": 13.6
+          },
+          "q3": {
+            "p10": 1.1,
+            "p50": 2.3,
+            "p90": 3.4
+          },
+          "q4": 65,
+          "q5": 30,
+          "q6": {
+            "A": 40,
+            "B": 17,
+            "C": 13,
+            "D": 30
+          },
+          "key_drivers": [
+            "post-SCOTUS tariff revenue loss plus yields ~125bp above CBO February baseline",
+            "real term premium from deficits, defence and reserve diversification",
+            "services +5.4pp vs goods/fuel -4.8pp in trade ratio",
+            "China real gap ~1.2pp offset by deflator gap, CNY at 6.68"
+          ],
+          "sources": [
+            "https://www.cbo.gov/publication/62207",
+            "https://budgetlab.yale.edu/research/state-us-tariffs-february-20-2026",
+            "https://www.thetrading.tools/real-yields",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://www.weforum.org/stories/trade-and-investment/multilateralism-at-critical-juncture-and-other-trade-news-to-know/",
+            "https://stockwirex.com/analysis/yuan-outlook-china-growth-exports-october-2026/"
+          ],
+          "caveats": [
+            "Adapter: capital.interestRate is an economy-wide real lending rate, not r* or a market yield; no term premium; use changes, never the level",
+            "Adapter: model world growth is PPP and conditional on UN WPP low-variant demography; public debt is a world aggregate under an exogenous primary deficit",
+            "Yale Budget Lab 9.1% post-ruling tariff rate predates the expiry of the 150-day Section 122 replacement; current rate unverified"
+          ]
+        },
+        {
+          "lens": "signals",
+          "bluf": "Fresh telemetry shows a high-real-yield, high-term-premium regime (ACM TP 0.98%, highest since 2014; DFII10 ~2.9%; US net interest ~$1.05T), so I lean above baseline on Q4 and Q6-A; a yuan at its strongest since 2022 modestly lifts Q5, while surging nominal trade values lean Q1 No.",
+          "q1": 38,
+          "q2": {
+            "p10": 8.3,
+            "p50": 11.3,
+            "p90": 15.5
+          },
+          "q3": {
+            "p10": 1.4,
+            "p50": 2.4,
+            "p90": 3.4
+          },
+          "q4": 67,
+          "q5": 36,
+          "q6": {
+            "A": 37,
+            "B": 8,
+            "C": 10,
+            "D": 45
+          },
+          "key_drivers": [
+            "ACM term premium 0.57->0.98% Sep-Oct 2026, risk-neutral yield flat",
+            "FY2026 net interest +11%, deficit ~$2.0T; tariff revenue cut by SCOTUS IEEPA ruling",
+            "CNY 6.67 (strongest since 2022), China exports +16.4% 9M-2026, deflator possibly positive",
+            "synchronized G7 long-end sell-off (JGB 30y ~4.2%, gilt 10y 5.52%, French CDS high)"
+          ],
+          "sources": [
+            "https://www.cbo.gov/system/files/2026-10/61985-MBR.pdf",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/",
+            "https://www.thewealthadvisor.com/article/surge-treasury-term-premium-warns-rising-bond-risks",
+            "https://budgetlab.yale.edu/research/state-tariffs-february-20-2026",
+            "https://www.thompsoncoburn.com/insights/81-july-9-2026-emerging-tariff-framework-post-section-122/",
+            "https://tradingeconomics.com/china/currency/news/594800",
+            "https://www.stats.gov.cn/english/PressRelease/202610/t20261021_1965671.html",
+            "https://www.tradeweb.com/newsroom/media-center/insights/blog/tradeweb-government-bond-update--october-2026/",
+            "https://unctadstat.unctad.org/insights/theme/254"
+          ],
+          "caveats": [
+            "Sources disagree on Oct-2026 closing yield levels (5.31% Treasury par close vs 5.364% intraday); no November DFII10 print located",
+            "Effective tariff rate ~11.2% post-Section-122 is one firm's estimate; Yale gives 9.1-13.7% depending on substitution and timing; Section 122 legality still under appeal",
+            "WTO 2024 $4.8T and UNCTAD-based $5.26T (2025) digitally delivered figures 'shouldn't be directly compared as one series'; China Q3-2026 positive deflator is my derivation from a preliminary NBS level"
+          ]
+        }
+      ],
+      "wave2": [
+        {
+          "lens": "bayes",
+          "bluf": "I started from the outside-view priors and updated on the Wave-1 signals. The resulting regime, persistent high term premia plus lost tariff revenue, moves US fiscal stress sharply up: Q4 goes from 30 to 58 and Q6-A from 22 to 44. Q3's median rises to 2.3%, Q5 edges up to 21, and Q1 falls to 36. Most individual LRs are weak (below 2:1); only the term-premium shock clears 2:1.",
+          "q1": 36,
+          "q2": {
+            "p10": 8.2,
+            "p50": 11.1,
+            "p90": 15.2
+          },
+          "q3": {
+            "p10": 1.0,
+            "p50": 2.3,
+            "p90": 3.3
+          },
+          "q4": 58,
+          "q5": 21,
+          "q6": {
+            "A": 44,
+            "B": 13,
+            "C": 10,
+            "D": 33
+          },
+          "key_drivers": [
+            "term-premium-driven real-yield shock (LR~2)",
+            "CBO over-projection bias neutralised by rates above path",
+            "post-SCOTUS tariff revenue loss",
+            "CNY appreciation under ~$1T surplus"
+          ],
+          "sources": [
+            "https://fred.stlouisfed.org/series/DFII10",
+            "https://www.thewealthadvisor.com/article/surge-treasury-term-premium-warns-rising-bond-risks",
+            "https://www.cbo.gov/system/files/2026-10/61985-MBR.pdf",
+            "https://budgetlab.yale.edu/research/state-us-tariffs-february-20-2026",
+            "https://tradingeconomics.com/china/currency/news/594800",
+            "https://www.stats.gov.cn/english/PressRelease/202610/t20261021_1965671.html",
+            "https://unctadstat.unctad.org/insights/theme/254",
+            "https://www.tradeweb.com/newsroom/media-center/insights/blog/tradeweb-government-bond-update--october-2026/",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/"
+          ],
+          "caveats": [
+            "G7 spread estimates 'vary widely by source'",
+            "WTO and UNCTAD digitally-delivered figures are 'not one series'; first prints are revised upward",
+            "China deflator turn is an own derivation from a preliminary NBS release, unconfirmed; HLW r* figure is from a secondary report"
+          ]
+        },
+        {
+          "lens": "premortem",
+          "bluf": "All three Wave-1 seats treat US debt as moving on its own, with no fiscal or monetary policy reacting to it, so they extrapolate the October 2026 rate shock or the 1984-2021 rate decline straight through to 2045. When I price both tails, Q4 lands near a coin flip (55). A (fiscal dominance) is the largest regime at 35, but C (secular stagnation, held down by financial repression) at 19 is badly underpriced by the fermi and signals seats.",
+          "q1": 40,
+          "q2": {
+            "p10": 7.6,
+            "p50": 11.0,
+            "p90": 16.0
+          },
+          "q3": {
+            "p10": 0.4,
+            "p50": 2.1,
+            "p90": 3.6
+          },
+          "q4": 55,
+          "q5": 25,
+          "q6": {
+            "A": 35,
+            "B": 12,
+            "C": 19,
+            "D": 34
+          },
+          "key_drivers": [
+            "missing fiscal and monetary reaction functions",
+            "anchoring on the Oct-2026 sell-off (cf. Oct-2023 reversal)",
+            "circular model reading: fragmentation lever assumes its deficit",
+            "dollar weakness links A to Q5"
+          ],
+          "sources": [
+            "https://nfcommission.gov/2026/03/national-debt-projected-to-hit-175-gdp-interest-totals-99-trillion/",
+            "https://www.crfb.org/blogs/cbo-releases-february-2026-budget-and-economic-outlook",
+            "https://www.cbo.gov/system/files/2024-01/59905-Testimony.pdf",
+            "https://portfolio-adviser.com/warsh-sticks-to-the-script-as-fed-holds-rates-but-december-hike-highly-likely/",
+            "https://tipswatch.com/2026/09/17/10-year-tips-reopening-gets-real-yield-of-2-653-highest-in-nearly-18-years/"
+          ],
+          "caveats": [
+            "CBO: net interest projections 1984-2021 'almost always overestimated', driven by overestimates of interest rates; the 2022-2023 period reversed that pattern",
+            "Long-term outlook 2056 net interest reported as 6.9% of GDP by most summaries, 6.4% by NTU Foundation; unreconciled",
+            "Adapter: model public debt is a world aggregate under an exogenous primary deficit with interest tax-financed by construction; read only signs"
+          ]
+        }
+      ],
+      "wave3": {
+        "lens": "calibrator",
+        "bluf": "US fiscal strain is the effort's dominant fragmentation-era risk: FY2035 net interest of at least 4.5% of GDP is slightly more likely than not (59), and fiscal dominance (38) narrowly leads the residual regime (34) for 2045. Trade/GDP probably holds as digital services offset goods drag (Q1 41), and China re-reaching 75% of US nominal GDP is an underdog (24).",
+        "q1": 41,
+        "q2": {
+          "p10": 8.1,
+          "p50": 10.9,
+          "p90": 14.9
+        },
+        "q3": {
+          "p10": 0.7,
+          "p50": 2.2,
+          "p90": 3.4
+        },
+        "q4": 59,
+        "q5": 24,
+        "q6": {
+          "A": 38,
+          "B": 13,
+          "C": 15,
+          "D": 34
+        },
+        "key_drivers": [
+          "Q4 threshold equals CBO baseline; rates above CBO path, tariff revenue lost",
+          "partial mean reversion of a supply-driven real-yield shock",
+          "digital services add ~4pp to trade/GDP by 2035",
+          "repression-style dominance resolves C, not A"
+        ],
+        "sources": [
+          "https://www.cbo.gov/publication/62207",
+          "https://www.crfb.org/blogs/cbo-releases-february-2026-budget-and-economic-outlook",
+          "https://budgetlab.yale.edu/research/state-us-tariffs-february-20-2026",
+          "https://fred.stlouisfed.org/series/DFII10",
+          "https://unctadstat.unctad.org/insights/theme/254",
+          "https://www.thewealthadvisor.com/article/surge-treasury-term-premium-warns-rising-bond-risks"
+        ],
+        "caveats": [
+          "WTO $4.8T (2024) and UNCTAD $5.26T (2025) digitally delivered services are 'not one series'",
+          "HLW r* 1.65% is a secondary report, not confirmed on the NY Fed page; no November 2026 DFII10 print found",
+          "Simulation is real/PPP with no price level; its fragmentation lever's fiscal reading is circular and was given zero weight"
+        ],
+        "downweighted": "outside-view on Q4 (its CBO over-projection reference class belongs to the 1984-2021 falling-rate regime, and the threshold equals CBO's own baseline, so the prior is ~50, not 30), on Q5 (n=3 rivals) and on Q6-C (all its windows are zero-lower-bound/QE years); signals on Q4 and Q6-A (anchored on the October 2026 sell-off; the 2023 analogue reversed in weeks), on Q5 (one month of CNY strength) and on Q6-B (8 had no growth argument); fermi on Q4 and Q6-A (its model-agreement claim rests on the circular defence-deficit lever, given zero weight) and on Q5 (multiplies three favourable factors), though full weight on its Q1 decomposition; bayes on Q6-A (stacked correlated term-premium and deficit LRs, so 44 is too high) and slightly on Q1 (three weak 0.85 LRs, one of them a transitory price effect); premortem not down-weighted on Q4 or Q3 (real hits), but its fiscal-consolidation reaction function and AI payroll-tax erosion arguments were posed, not shown, so I did not move on them and moved C to 15, not its 19",
+        "wave_audit": "Wave 1 split hardest on Q4 (outside-view 30 vs fermi 65 / signals 67), Q6-A (22 vs 40/37), Q6-C (25 vs 13/10) and Q5 (13 vs 30/36). Wave 2: bayes pushed in the signals direction (Q4 58, A 44, C 10); the premortem retired the outside-view's Q4 reference class but also punctured fermi/signals anchoring and model circularity (Q4 55, A 35, C 19). Final versus the outside-view base rates (AMPLIFIED = moved further in the base rate's direction; MODERATED = pulled toward the centre/inside view): Q1 47 to 41 AMPLIFIED; Q2 median 10.8 to 10.9 HELD; Q3 median 1.8 to 2.2 MODERATED (less mean reversion); Q4 30 to 59 REVERSED (crossed 50); Q5 13 to 24 MODERATED; Q6-A 22 to 38 MODERATED upward (A becomes modal), Q6-B 15 to 13 HELD/slightly amplified, Q6-C 25 to 15 MODERATED, Q6-D 38 to 34 MODERATED.",
+        "largest_update": "Q4: +29pp versus outside-view (30 to 59). The outside-view's CBO over-projection bias came from the 1984-2021 falling-rate regime (premortem hit). With the threshold sitting at CBO's own FY2035 baseline (3.3% in 2026 to 4.6% in 2036), the prior is ~50; rates above CBO's 4.4% 10-year assumption and lost IEEPA tariff revenue then tilt it up, tempered by the 2023-style reversal risk."
+      }
+    }
+  ]
+}

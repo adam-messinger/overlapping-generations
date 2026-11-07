@@ -73,6 +73,10 @@ interface SectorParams {
   efficiencyMultiplier: number;   // EV=3.5x, heat pump=3.0x, industry=1.1x
   maxAnnualChange: number;        // Infrastructure constraint (0.04/0.03/0.025)
   primaryFuel: 'oil' | 'gas';     // Which fuel sector competes with
+  // 2025 non-electric fuel recipe of THIS sector (shares sum to 1). The
+  // fuel-mix logit is calibrated to it, so a fuel this sector does not use
+  // in 2025 (coal in transport) can never enter it.
+  fuelShares2025: Record<FuelType, number>;
   // Retail electricity delivery adder $/MWh (T&D + retail margin over
   // wholesale LCOE) for this sector's electrification decision
   electricityDeliveryCost: number;
@@ -98,6 +102,9 @@ interface FuelParams {
 interface FuelMixParams {
   priceSensitivity: number;       // β in logit model (default 0.03)
   inertiaRate: number;            // α blending rate (default 0.08 = ~9yr half-life)
+  // Carbon price at which the 2025 sector recipes are calibrated: shares move
+  // only when effective prices depart from (2025 wholesale + this carbon cost).
+  referenceCarbonPrice: number;
 }
 
 // Energy burden parameters
@@ -197,7 +204,8 @@ interface RegionalState {
 
 interface DemandState {
   regions: Record<Region, RegionalState>;
-  fuelShares: Record<FuelType, number>; // Evolved fuel shares (for non-electric)
+  fuelShares: Record<FuelType, number>; // Evolved fuel shares (for non-electric), aggregate of the sector mixes
+  sectorFuelShares: Record<'transport' | 'buildings' | 'industry', Record<FuelType, number>>;
   sectorElectrification: {     // Sector-level electrification rates
     transport: number;
     buildings: number;
@@ -490,6 +498,10 @@ export const demandDefaults: DemandParams = {
       relativeDiffusionCap: 0.28,     // observed EV electricity-consumption growth ~30-35%/yr 2019-2024 (IEA Global EV Outlook), decelerating
       reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (vehicle fleet ~15yr turnover) — reversal ~3x slower than adoption
       primaryFuel: 'oil',             // Competes with oil (gasoline/diesel)
+      // IEA World Energy Balances (2022-23): transport final use ~91% oil
+      // products, ~3.5% natural gas, ~3.5% biofuels, ~1.5% electricity.
+      // Non-electric recipe below; ALL of the model's biofuel sits here.
+      fuelShares2025: { oil: 0.932, gas: 0.040, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0.028 },
       electricityDeliveryCost: 50,    // $/MWh: public/home charging blend over wholesale (EIA retail gaps)
     },
     buildings: {
@@ -504,6 +516,12 @@ export const demandDefaults: DemandParams = {
       relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 35%)
       reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (heating stock ~20yr) — reversal ~3x slower than adoption
       primaryFuel: 'gas',             // Competes with gas (heating)
+      // IEA WEB residential + commercial, non-electric: natural gas, oil and
+      // a little coal, plus bioenergy. Gas carries 0.66 because the model's
+      // global biomass share (0.06) excludes most traditional biomass and the
+      // model has no district-heat carrier; both land on gas here. Scaled
+      // with the other two recipes to reproduce fuels.*.share2025 exactly.
+      fuelShares2025: { oil: 0.150, gas: 0.661, coal: 0.060, biomass: 0.129, hydrogen: 0, biofuel: 0 },
       electricityDeliveryCost: 80,    // $/MWh: residential/commercial retail-wholesale gap (EIA ~\$80-110 res.)
     },
     industry: {
@@ -525,6 +543,11 @@ export const demandDefaults: DemandParams = {
       relativeDiffusionCap: 0.28,     // same diffusion physics; rarely binds (adoption already 22%)
       reversalStickiness: 0.3,        // no direct source; stock-turnover rationale (industrial equipment ~25yr) — reversal ~3x slower than adoption
       primaryFuel: 'gas',             // Competes with gas (process heat)
+      // IEA WEB industry + non-energy use (folded in, see share above),
+      // non-electric: coal ~27% (iron & steel, cement, chemicals), gas ~30%,
+      // oil incl. petrochemical feedstocks ~33%, bioenergy ~7% (pulp & paper),
+      // and all of the model's 1% hydrogen (refining, ammonia).
+      fuelShares2025: { oil: 0.3325, gas: 0.304, coal: 0.268, biomass: 0.070, hydrogen: 0.0255, biofuel: 0 },
       electricityDeliveryCost: 40,    // $/MWh: industrial retail-wholesale gap (EIA ~\$30-50)
     },
   },
@@ -593,6 +616,11 @@ export const demandDefaults: DemandParams = {
   fuelMix: {
     priceSensitivity: 0.03,      // β in logit model ($/MWh scale)
     inertiaRate: 0.08,           // α = ~9yr half-life for fleet turnover
+    // = energy.carbonPrice default (the global carbon price the default run
+    // feeds demand). A calibration anchor, not an observable: it makes the
+    // default run reproduce the 2025 recipes; scenarios above it shift away
+    // from carbon-intensive fuels, scenarios below it toward them.
+    referenceCarbonPrice: 35,
   },
 
   // Scales autonomous intensity decline (demand-side ONLY): production's
@@ -663,67 +691,68 @@ export const demandDefaults: DemandParams = {
 // =============================================================================
 
 /**
- * Calculate logit-based fuel shares with inertia.
- * Fuel shares respond to effective prices (escalated wholesale + carbon cost).
+ * Calibrated logit fuel shares for ONE sector, with inertia.
  *
- * @param fuels Fuel parameters (carbon intensity)
- * @param wholesalePrices This year's escalated wholesale prices ($/MWh, no margins)
- * @param prevShares Previous year's fuel shares
- * @param carbonPrice Carbon price ($/tonne)
+ * A calibrated (alternative-specific-constant) logit: at the reference prices
+ * - 2025 wholesale plus `referenceCarbonPrice` - it reproduces the sector's
+ * 2025 recipe exactly, and shares move only as effective prices depart from
+ * that reference:
+ *
+ *   logit_f ∝ recipe2025_f × exp(-β × (p_f(t) - p_f(ref)))
+ *
+ * The uncalibrated form (exp(-β × p_f) alone, one global mix) drifted every
+ * year toward whatever fuel was cheapest at ANY carbon price: its equilibrium
+ * at 2025 prices was ~34% coal / ~12% oil against an observed 12% / 50%, so
+ * coal absorbed the share oil gave up and non-electric coal doubled by 2045.
+ * A fuel with a zero recipe share stays at zero (coal cannot enter transport).
+ *
+ * @param fuels Fuel parameters (carbon intensity, 2025 wholesale price)
+ * @param recipe2025 This sector's 2025 non-electric fuel recipe
+ * @param wholesalePrices This year's escalated (and shocked) wholesale prices ($/MWh)
+ * @param prevShares Previous year's shares for this sector
+ * @param carbonPrice Carbon price this year ($/tonne)
+ * @param referenceCarbonPrice Carbon price at which recipe2025 is calibrated ($/tonne)
  * @param priceSensitivity β in logit model
  * @param inertiaRate α blending rate (0 = all inertia, 1 = pure logit)
- * @returns New fuel shares (normalized to sum to 1)
+ * @returns New sector shares (normalized to sum to 1)
  */
 function calculateLogitFuelShares(
   fuels: DemandParams['fuels'],
+  recipe2025: Record<FuelType, number>,
   wholesalePrices: Record<FuelType, number>,
   prevShares: Record<FuelType, number>,
   carbonPrice: number,
+  referenceCarbonPrice: number,
   priceSensitivity: number,
   inertiaRate: number
 ): Record<FuelType, number> {
-  const fuelKeys = FUEL_KEYS;
-
-  // Effective prices: escalated WHOLESALE + carbon. Delivery margins are
-  // deliberately excluded — priceSensitivity is calibrated on the wholesale
+  // Effective prices are WHOLESALE + carbon. Delivery margins are
+  // deliberately excluded: priceSensitivity is calibrated on the wholesale
   // scale, and margins would skew the mix toward low-margin coal.
-  const effectivePrices: Record<FuelType, number> = {} as Record<FuelType, number>;
-  for (const fuel of fuelKeys) {
+  const raw = {} as Record<FuelType, number>;
+  let rawSum = 0;
+  for (const fuel of FUEL_KEYS) {
     const f = fuels[fuel];
-    const carbonCost = (f.carbonIntensity * carbonPrice) / 1000; // $/MWh
-    effectivePrices[fuel] = wholesalePrices[fuel] + carbonCost;
+    const priceNow = wholesalePrices[fuel] + (f.carbonIntensity * carbonPrice) / 1000;
+    const priceRef = f.price + (f.carbonIntensity * referenceCarbonPrice) / 1000;
+    raw[fuel] = recipe2025[fuel] > 0
+      ? recipe2025[fuel] * Math.exp(-priceSensitivity * (priceNow - priceRef))
+      : 0;
+    rawSum += raw[fuel];
   }
 
-  // Calculate logit shares: exp(-β × price) / Σ exp(-β × price)
-  let logitSum = 0;
-  const logitRaw: Record<FuelType, number> = {} as Record<FuelType, number>;
-  for (const fuel of fuelKeys) {
-    logitRaw[fuel] = Math.exp(-priceSensitivity * effectivePrices[fuel]);
-    logitSum += logitRaw[fuel];
-  }
-
-  const logitShares: Record<FuelType, number> = {} as Record<FuelType, number>;
-  for (const fuel of fuelKeys) {
-    logitShares[fuel] = logitRaw[fuel] / logitSum;
-  }
-
-  // Blend with previous shares using inertia rate
-  // newShare = α × logitShare + (1-α) × prevShare
-  const blendedShares: Record<FuelType, number> = {} as Record<FuelType, number>;
+  // Blend with previous shares (fleet turnover); renormalize.
+  const blended = {} as Record<FuelType, number>;
   let total = 0;
-  for (const fuel of fuelKeys) {
-    blendedShares[fuel] = inertiaRate * logitShares[fuel] + (1 - inertiaRate) * prevShares[fuel];
-    // Apply minimum floor (0.1%)
-    blendedShares[fuel] = Math.max(0.001, blendedShares[fuel]);
-    total += blendedShares[fuel];
+  for (const fuel of FUEL_KEYS) {
+    const logitShare = rawSum > 0 ? raw[fuel] / rawSum : prevShares[fuel];
+    blended[fuel] = inertiaRate * logitShare + (1 - inertiaRate) * prevShares[fuel];
+    total += blended[fuel];
   }
-
-  // Renormalize to sum to 1
-  for (const fuel of fuelKeys) {
-    blendedShares[fuel] /= total;
+  for (const fuel of FUEL_KEYS) {
+    blended[fuel] = total > 0 ? blended[fuel] / total : recipe2025[fuel];
   }
-
-  return blendedShares;
+  return blended;
 }
 
 /** Hard physical ceiling on electrification (mathematical bound, not normative target) */
@@ -1195,6 +1224,30 @@ export const demandModule: Module<
       errors.push('dataCenterDepreciation must be in [0, 0.5]');
     }
 
+    // Validate sector fuel recipes (the calibrated fuel-mix logit's anchors)
+    if (params.sectors) {
+      for (const sector of ['transport', 'buildings', 'industry'] as const) {
+        const recipe = params.sectors[sector]?.fuelShares2025;
+        if (!recipe) continue;
+        let sum = 0;
+        for (const fuel of FUEL_KEYS) {
+          const v = recipe[fuel];
+          if (v === undefined || !Number.isFinite(v) || v < 0) {
+            errors.push(`sectors.${sector}.fuelShares2025.${fuel} must be a non-negative number`);
+          } else {
+            sum += v;
+          }
+        }
+        if (Math.abs(sum - 1) > 0.005) {
+          errors.push(`sectors.${sector}.fuelShares2025 must sum to 1 (got ${sum.toFixed(3)})`);
+        }
+      }
+    }
+    if (params.fuelMix?.referenceCarbonPrice !== undefined &&
+        (!Number.isFinite(params.fuelMix.referenceCarbonPrice) || params.fuelMix.referenceCarbonPrice < 0)) {
+      errors.push('fuelMix.referenceCarbonPrice must be a non-negative number');
+    }
+
     // Validate fuel price-path params
     if (params.fuels) {
       for (const fuel of FUEL_KEYS) {
@@ -1361,6 +1414,13 @@ export const demandModule: Module<
       biofuel: params.fuels.biofuel.share2025,
     };
 
+    // Each sector starts from its own 2025 recipe
+    const sectorFuelShares = {
+      transport: { ...params.sectors.transport.fuelShares2025 },
+      buildings: { ...params.sectors.buildings.fuelShares2025 },
+      industry: { ...params.sectors.industry.fuelShares2025 },
+    };
+
     // Initialize sector electrification from 2025 values
     const sectorElectrification = {
       transport: params.sectors.transport.electrification2025,
@@ -1382,6 +1442,7 @@ export const demandModule: Module<
     return {
       regions,
       fuelShares,
+      sectorFuelShares,
       sectorElectrification,
       previousEffectiveWorkers: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>, // Set on first step
       previousRegionalDamageFactor: Object.fromEntries(
@@ -1439,17 +1500,6 @@ export const demandModule: Module<
     const retailFuelPrice = (fuel: FuelType): number =>
       wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin;
 
-    // Compute the common fuel mix before regional quantity accounting so the
-    // same recipe weights each region's oil/gas physical availability.
-    const evolvedShares = calculateLogitFuelShares(
-      params.fuels,
-      wholesalePrices,
-      state.fuelShares,
-      carbonPrice,
-      params.fuelMix.priceSensitivity,
-      params.fuelMix.inertiaRate,
-    );
-
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
       const prevSectorRate = state.sectorElectrification[sectorKey];
@@ -1465,6 +1515,35 @@ export const demandModule: Module<
         sectorParams,
         yearIndex
       );
+    }
+
+    // Fuel mix: one calibrated logit per sector, then the global mix is the
+    // non-electric-energy-weighted aggregate (weight = share x (1 - rate), the
+    // same nonElec factor sectorFinalFactors uses). Computed before regional
+    // quantity accounting so the same mix weights each region's oil/gas
+    // physical availability. As transport electrifies, its oil-heavy recipe
+    // carries less weight - oil falls by composition, not by logit drift.
+    const evolvedSectorShares = {} as DemandState['sectorFuelShares'];
+    const evolvedShares = Object.fromEntries(FUEL_KEYS.map(f => [f, 0])) as Record<FuelType, number>;
+    let fuelWeightSum = 0;
+    for (const sectorKey of sectorKeys) {
+      const sectorShares = calculateLogitFuelShares(
+        params.fuels,
+        params.sectors[sectorKey].fuelShares2025,
+        wholesalePrices,
+        state.sectorFuelShares[sectorKey],
+        carbonPrice,
+        params.fuelMix.referenceCarbonPrice,
+        params.fuelMix.priceSensitivity,
+        params.fuelMix.inertiaRate,
+      );
+      evolvedSectorShares[sectorKey] = sectorShares;
+      const weight = params.sectors[sectorKey].share * (1 - newSectorElectrification[sectorKey]);
+      for (const fuel of FUEL_KEYS) evolvedShares[fuel] += weight * sectorShares[fuel];
+      fuelWeightSum += weight;
+    }
+    for (const fuel of FUEL_KEYS) {
+      evolvedShares[fuel] = fuelWeightSum > 0 ? evolvedShares[fuel] / fuelWeightSum : state.fuelShares[fuel];
     }
 
     // Derive global electrification rate as energy-weighted average of sector rates
@@ -2082,7 +2161,8 @@ export const demandModule: Module<
     return {
       state: {
         regions: newRegions,
-        fuelShares: evolvedShares, // Persist evolved fuel shares
+        fuelShares: evolvedShares, // Persist evolved fuel shares (aggregate)
+        sectorFuelShares: evolvedSectorShares,
         sectorElectrification: newSectorElectrification, // Persist sector rates
         previousEffectiveWorkers: inputs.regionalEffectiveWorkers, // For next year's labor growth
         previousRegionalDamageFactor: currentDamageFactors,

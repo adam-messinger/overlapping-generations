@@ -1,0 +1,23 @@
+{
+  "title": "E1-A2 fossil-price persistence probe",
+  "scenarios": ["baseline", "net-zero"],
+  "variants": {
+    "fossil-shock-persistent": { "demand": { "fuels": { "oil": { "priceEscalation": 0.03 }, "gas": { "priceEscalation": 0.03 }, "coal": { "priceEscalation": 0.01 } } } },
+    "fossil-collapse": { "demand": { "fuels": { "oil": { "priceEscalation": -0.03 }, "gas": { "priceEscalation": -0.025 }, "coal": { "priceEscalation": -0.02 } } } },
+    "fast-learning-plus-shock": { "energy": { "sources": { "solar": { "alpha": 0.42 }, "wind": { "alpha": 0.28 }, "battery": { "alpha": 0.32 } } }, "demand": { "fuels": { "oil": { "priceEscalation": 0.03 }, "gas": { "priceEscalation": 0.03 } } } }
+  },
+  "questions": [
+    { "id": "q3", "status": "directional", "label": "TIPS proxy",
+      "readings": [
+        { "label": "real lending rate change 2026->2035, pp", "field": "interestRate", "transform": "delta", "from": 2026, "to": 2035, "scale": 100 },
+        { "label": "debt risk premium 2035, pp", "field": "debtRiskPremium", "transform": "level", "year": 2035, "scale": 100 }
+      ] },
+    { "id": "q4", "status": "directional", "label": "public debt",
+      "readings": [ { "label": "world public debt / GDP 2035", "field": "publicDebtGDP", "transform": "level", "year": 2035 } ] },
+    { "id": "q5", "status": "directional", "label": "China/US",
+      "readings": [ { "label": "China/US PPP GDP ratio 2035", "field": "regionalGdp", "regions": ["china"], "denominator": ["us"], "transform": "ratio", "year": 2035 } ] },
+    { "id": "q6", "status": "identified", "label": "world growth",
+      "readings": [ { "label": "world real GDP growth 2040->2045, %/yr", "field": "gdp", "transform": "cagr", "from": 2040, "to": 2045 } ] },
+    { "id": "q1", "status": "refused", "reason": "no trade block" }
+  ]
+}

@@ -1,0 +1,1233 @@
+{
+  "purpose": "Four megatrends 2026-2045: conditional structural bounds only. identified = quotable conditional on the run; directional = context, never a point estimate.",
+  "adapter_disclosures": [
+    "PPP BASE: regional and world GDP are PPP in 2017 international dollars (world ~$158T in 2025). Growth rates and ratios are invariant to the deflator base; LEVELS are not comparable to market-exchange-rate or nominal-USD figures. A nominal-USD level question is NOT identified.",
+    "DEMOGRAPHY: the demographic path tracks the UN WPP LOW variant by deliberate low-fertility-convergence choice (CLAUDE.md). Labour-force, dependency and growth readings are low-fertility-conditional.",
+    "RATES: capital.interestRate is the model's economy-wide real lending rate (~6% in 2025), not r*, not a policy rate and not a market yield. There is no term premium. Use CHANGES, never the level.",
+    "NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.",
+    "NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are not representable.",
+    "FIXED FACTOR SHARES: laborCompensation/GDP stays ~65.5% across all lever settings, so the model cannot speak to AI eroding the labour tax base. Extreme labour substitution breaks the stock-flow ledger.",
+    "FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate); interest is tax-financed by construction. It is a world aggregate, not a US or any single-sovereign fiscal path.",
+    "LEVER PROXIES: the 'lever:' variants are this panel's stylized settings, not calibrated scenarios. Electrification = learning rates plus background end-use adoption pressure; AI/robotics = the ai-energy-boom levers (cognitive-labour payoff on, low integration friction); demography = fertility floors x0.8, which barely moves the 2045 workforce because it is already born; fragmentation = wider regional financing spreads and home bias, 60% less migration, a higher energy risk premium and a primary deficit 1 pp higher for defence.",
+    "INTERACTIONS: in an 81-run factorial of these levers (2026-11-07 exploratory session) every pairwise GDP interaction at 2045 was below 0.4 log points: the model treats the four trends almost additively over this horizon. Strong non-linear interactions, if real, come from mechanisms outside the model (factor shares, politics, trade).",
+    "US vs WORLD: Q4 is a US federal ratio; the model's public debt and interest are world aggregates under an exogenous primary deficit. Read only the sign and rough size of changes across runs.",
+    "Q5 is NOMINAL USD. The model's China/US ratio is PPP and real; it speaks only to the relative real-growth leg, not to prices or the exchange rate."
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "label": "World trade/GDP 2035 < 2024",
+      "status": "refused",
+      "refusal": "no trade block: the macro model has no exports, imports, tariffs or exchange rates"
+    },
+    {
+      "id": "q2",
+      "label": "Digitally delivered services exports 2035",
+      "status": "refused",
+      "refusal": "no services-trade or nominal-USD representation"
+    },
+    {
+      "id": "q3",
+      "label": "US 10y TIPS 2035 average",
+      "status": "directional",
+      "note": "economy-wide real lending rate; use the change across runs, never the level"
+    },
+    {
+      "id": "q4",
+      "label": "US net interest >= 4.5% GDP FY2035",
+      "status": "directional",
+      "note": "world aggregate public interest / world GDP; sign and size of change only"
+    },
+    {
+      "id": "q5",
+      "label": "China >= 75% of US nominal GDP 2035",
+      "status": "directional",
+      "note": "PPP real ratio; the nominal-USD question also depends on prices and the exchange rate"
+    },
+    {
+      "id": "q6",
+      "label": "2045 regime: growth leg of B",
+      "status": "identified",
+      "note": "world real GDP growth (PPP) 2040->2045 is identified for regime B's growth condition, conditional on the run and on UN-WPP-low demography; the A and C legs are not identified (US fiscal, TIPS)"
+    }
+  ],
+  "refusals": {
+    "q1": "no trade block: the macro model has no exports, imports, tariffs or exchange rates",
+    "q2": "no services-trade or nominal-USD representation"
+  },
+  "runs": [
+    "baseline",
+    "net-zero",
+    "ai-energy-boom",
+    "tech-stagnation",
+    "ssp3-70",
+    "debt-populism",
+    "lever:electrification-fast",
+    "lever:electrification-slow",
+    "lever:ai-robotics-boom",
+    "lever:ai-robotics-stall",
+    "lever:demography-deeper-contraction",
+    "lever:fragmentation",
+    "lever:fragmentation-no-defence-deficit",
+    "combo:fortress-automation",
+    "combo:fiscal-stress"
+  ],
+  "readings": [
+    {
+      "run": "baseline",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.15358664370763303
+    },
+    {
+      "run": "baseline",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3574128589412424
+    },
+    {
+      "run": "baseline",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.394031819916865
+    },
+    {
+      "run": "baseline",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8736644023304649
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109473
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.574498223001559
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.659521693236689
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.246330646461958
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.5770070111143193
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.31246031138586344
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.09315394518992
+    },
+    {
+      "run": "net-zero",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.18306414507803306
+    },
+    {
+      "run": "net-zero",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.0554649992907794
+    },
+    {
+      "run": "net-zero",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.164972474385932
+    },
+    {
+      "run": "net-zero",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8312605591942025
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109087
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.6081896350993947
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 4.668782998167109
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.9992421543820535
+    },
+    {
+      "run": "net-zero",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 4.477402846352341
+    },
+    {
+      "run": "net-zero",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.7260988603669104
+    },
+    {
+      "run": "net-zero",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 4.898376924200245
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.1940685142095444
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3542687000640528
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.4268350140496
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8730905341723455
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109473
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5745559882210423
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.725307791073207
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.310802824216429
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.9035431751691885
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.9516214931128211
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.496464238634003
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.026707921656092537
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.5410234360059554
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.443397187623603
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.9013403684393825
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109478
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.521512158270135
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.013423510361668
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 1.9962517319110473
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.450683754445061
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.19737064839056295
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.235413864509017
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.14422452213191245
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.527853766332186
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.530639265671202
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8979892304306262
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923107073
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.56409493246088
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.1800330278578093
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 1.848371543701921
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 2.7286752712800233
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.23824430007508834
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.405932550188636
+    },
+    {
+      "run": "debt-populism",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.9507554499738308
+    },
+    {
+      "run": "debt-populism",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 2.5778135691443222
+    },
+    {
+      "run": "debt-populism",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 8.951073581787618
+    },
+    {
+      "run": "debt-populism",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 1.2481008607163668
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109462
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.515714900470041
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 2.515967693435739
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 1.5467711844647791
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 2.0969236004224845
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 1.968036592608212
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 12.206749682639954
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.1677597548481756
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3130958128117234
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.37440574834181
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8683519077220586
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109469
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5747146732877515
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.8639493049701157
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.446406549637814
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.9694439727111064
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.4253629538158901
+    },
+    {
+      "run": "lever:electrification-fast",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 4.999235815705456
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.14907607111616442
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.379573882233626
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.410897156879171
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.877103166784571
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109382
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5744772236780193
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.53135285071311
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.1200604639570297
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.2131086979819923
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.2250508237301295
+    },
+    {
+      "run": "lever:electrification-slow",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.148739516061818
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.1940685142095444
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3542687000640528
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.4268350140496
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8730905341723455
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109473
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5745559882210423
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.725307791073207
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.310802824216429
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.9035431751691885
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.9516214931128211
+    },
+    {
+      "run": "lever:ai-robotics-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.496464238634003
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.13654498895912526
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3438794576502775
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.367667729359991
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8718246027208794
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109478
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.574465902485237
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.6690859026390577
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.2559976979700247
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.566108460801831
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.22485027424244963
+    },
+    {
+      "run": "lever:ai-robotics-stall",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.017924372004242
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.15331905610090554
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3581889590203855
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.3945013738838234
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8737805325722954
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109473
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5743952314769072
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.6574194189399556
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.245000173977374
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.563667686851746
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.3105945156833753
+    },
+    {
+      "run": "lever:demography-deeper-contraction",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.096285363281889
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.3947984880938282
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.5669121454037551
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 6.114907694683284
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.9446076114475885
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3924842343635362
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5839733580115465
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.6703896523877955
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.19678211786809
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.4578826642554183
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.7196285753976461
+    },
+    {
+      "run": "lever:fragmentation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 6.23878056802214
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.15784269338368767
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.3256235318281562
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 5.3718188949413745
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.8693986739618984
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.392484234363536
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5839583010540803
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.689383288576087
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.2156137325590963
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.5260701033944075
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 0.2804516772296414
+    },
+    {
+      "run": "lever:fragmentation-no-defence-deficit",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 5.058315165628518
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.44904839300835137
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 1.5156633257074037
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 6.123852673253086
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 0.9377755117097862
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.392484234363535
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5841263834286208
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.95013076182138
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.471446977706382
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 4.2446048701100025
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 1.506271694931817
+    },
+    {
+      "run": "combo:fortress-automation",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 6.580486987740608
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q3",
+      "status": "directional",
+      "label": "real lending rate change 2026->2035, pp",
+      "value": 0.8595225177807732
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q3",
+      "status": "directional",
+      "label": "debt risk premium 2035, pp",
+      "value": 2.025557676132453
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public interest / GDP 2035, %",
+      "value": 7.725532694737819
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q4",
+      "status": "directional",
+      "label": "world public debt / GDP 2035",
+      "value": 1.0957031505153816
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2026",
+      "value": 1.3915183923109482
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q5",
+      "status": "directional",
+      "label": "China/US PPP GDP ratio 2035",
+      "value": 1.5738173625906093
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q5",
+      "status": "directional",
+      "label": "China real GDP growth 2026->2035, %/yr",
+      "value": 3.6022530948540687
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q5",
+      "status": "directional",
+      "label": "US real GDP growth 2026->2035, %/yr",
+      "value": 2.19475396714619
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q6",
+      "status": "identified",
+      "label": "world real GDP growth 2040->2045, %/yr",
+      "value": 3.3441125286761686
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q6",
+      "status": "identified",
+      "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+      "value": 1.6036906378334528
+    },
+    {
+      "run": "combo:fiscal-stress",
+      "question": "q6",
+      "status": "identified",
+      "label": "world public interest / GDP 2045, % (directional, A leg)",
+      "value": 8.958849506123755
+    }
+  ],
+  "failures": []
+}
