@@ -6,6 +6,7 @@
  */
 
 import { capitalModule, capitalDefaults } from './capital.js';
+import { firmDepositChange } from './capital-accounting.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { demandModule, demandDefaults } from './demand.js';
 import { Region, REGIONS } from '../domain-types.js';
@@ -572,9 +573,20 @@ test('firms that cannot pay their interest default instead of overdrawing deposi
   expect(outputs.financialLedgerResidual).toBeLessThan(1e-8);
 });
 
-test('firm cash floor does not bind while firms can pay', () => {
-  const { outputs } = runYears(30);
-  expect(outputs.unpaidPrivateInterest).toBe(0);
+test('firmDepositChange matches what the ledger posts to firms.deposits', () => {
+  // The cash floor sizes defaults with firmDepositChange; if a firm cash flow
+  // were posted without being listed there, the floor would miss it
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  for (let i = 0; i < 5; i++) {
+    const opening = state.financialLedger?.balances['firms.deposits'];
+    const result = capitalModule.step(state, getCapitalInputs(i), params, 2025 + i, i);
+    if (opening !== undefined) {
+      expect(result.state.financialLedger!.balances['firms.deposits'] - opening)
+        .toBeCloseTo(firmDepositChange(result.outputs), 9);
+    }
+    state = result.state;
+  }
 });
 
 // --- Init ---

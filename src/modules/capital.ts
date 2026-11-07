@@ -18,9 +18,9 @@
  * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
- * - Firm cash floor: firms cannot pay out deposits they do not have. A
- *   shortfall suspends dividends, then leaves interest unpaid (banks forgo
- *   it), then defaults on principal (a write-off)
+ * - Firm cash floor: firms cannot overdraw deposits. A shortfall suspends
+ *   dividends, then leaves interest unpaid, then misses principal; loans
+ *   behind unpaid interest are written down by unpaid / r
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
@@ -56,6 +56,7 @@ import {
   capitalBankCapitalRatio,
   createCapitalGodleyLedger,
   postCapitalGodleyYear,
+  settleFirmCashShortfall,
 } from './capital-accounting.js';
 
 // =============================================================================
@@ -1339,56 +1340,43 @@ export const capitalModule: Module<
         'household-consumption residual',
       ).value,
     );
-    // Firm cash floor. Firm deposits move by net cash credit + gross saving -
-    // investment, and the investment cap above reads CLAMPED internal funds:
-    // once operating surplus no longer covers the interest bill (in practice
-    // private debt above general capital at a high rate, e.g. ai-energy-boom
-    // late in the century), gross saving goes negative, the deposit buffer
-    // drains, and the ledger would be asked for negative deposits. Firms
-    // cannot pay out money they do not have, so the shortfall is met by
-    // default, in the order a distressed firm would choose: suspend
-    // dividends, leave interest unpaid, then miss principal. Unpaid interest
-    // is simply not received (banks forgo the income; it is never capitalized
-    // into the loan, which would be the interest-capitalization spiral this
-    // model scopes out); missed principal is written off like any other
-    // default, so the private-debt path is unchanged. Binds only once the
-    // buffer is exhausted, never on the default path.
-    const openingFirmDeposits = openingFinancialLedger.balances['firms.deposits'] ?? 0;
-    const firmClosingCashBeforeDefault =
-      openingFirmDeposits
-      + grossLoanOriginations
-      - finance.principalRepayments
-      - firmCircuit.laborCompensation
-      + householdConsumption
-      - finance.privateInterestPayments
-      - declaredFirmDividends;
-    let firmCashShortfall = Math.max(0, -firmClosingCashBeforeDefault);
-    const suspendedFirmDividends = Math.min(firmCashShortfall, declaredFirmDividends);
-    firmCashShortfall -= suspendedFirmDividends;
-    const unpaidPrivateInterest = Math.min(firmCashShortfall, finance.privateInterestPayments);
-    firmCashShortfall -= unpaidPrivateInterest;
-    const defaultedPrincipal = Math.min(firmCashShortfall, finance.principalRepayments);
-    // Any remainder (none of these flows left to stop) still reaches the
-    // ledger, which rejects it: that would be a different closure bug.
-    const firmDividendPayments = declaredFirmDividends - suspendedFirmDividends;
-    const privateInterestPayments = finance.privateInterestPayments - unpaidPrivateInterest;
-    const principalRepayments = finance.principalRepayments - defaultedPrincipal;
-    // Unpaid interest marks the loans whose interest went unpaid as
-    // unserviceable: bankruptcy writes them down to what the cash flow can
-    // carry, unpaid / r, rather than leaving zombie principal to keep the
-    // risk premium and leverage brake engaged while output shrinks
-    const insolvencyWriteDown = unpaidPrivateInterest > 0 && finance.interestRate > 0
-      ? Math.min(finance.state.privateDebt, unpaidPrivateInterest / finance.interestRate)
+    // Firm cash floor. Investment is capped by CLAMPED internal funds, so
+    // once interest due exceeds operating surplus, gross saving goes negative
+    // and drains the deposit buffer. When it runs out, firms default rather
+    // than overdraw (see settleFirmCashShortfall). Unpaid interest is forgone
+    // by banks, never capitalized into the loan, and bankruptcy writes the
+    // loans behind it down to what the cash flow can carry (unpaid / r), so
+    // zombie principal cannot keep the risk premium and leverage brake on
+    // while output shrinks.
+    const settled = settleFirmCashShortfall(
+      openingFinancialLedger.balances['firms.deposits'] ?? 0,
+      {
+        grossLoanOriginations,
+        principalRepayments: finance.principalRepayments,
+        laborCompensation: firmCircuit.laborCompensation,
+        householdConsumption,
+        privateInterestPayments: finance.privateInterestPayments,
+        firmDividendPayments: declaredFirmDividends,
+      },
+    );
+    const {
+      firmDividendPayments,
+      privateInterestPayments,
+      principalRepayments,
+      unpaidInterest: unpaidPrivateInterest,
+    } = settled;
+    const insolvencyWriteDown = interestRate > 0
+      ? Math.min(finance.state.privateDebt, unpaidPrivateInterest / interestRate)
       : 0;
-    const loanWriteOffs = finance.loanWriteOffs + defaultedPrincipal + insolvencyWriteDown;
-    // Saving is on a paid basis, so the four sector balances still sum to
-    // investment: what firms keep, households (via bank dividends) lose
+    const loanWriteOffs =
+      finance.loanWriteOffs + settled.defaultedPrincipal + insolvencyWriteDown;
+    // Paid basis: interest firms did not pay stays with them, so the sector
+    // balances still sum to investment
     const retainedEarnings =
-      firmCircuit.retainedEarnings - excessFirmCash
-      + suspendedFirmDividends + unpaidPrivateInterest;
-    const firmGrossSaving =
-      firmCircuit.firmGrossSaving - excessFirmCash
-      + suspendedFirmDividends + unpaidPrivateInterest;
+      firmCircuit.profitAfterInterestAndDepreciation
+      + unpaidPrivateInterest
+      - firmDividendPayments;
+    const firmGrossSaving = firmCircuit.depreciationAllowance + retainedEarnings;
     const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
     const workerConsumption = householdConsumption - retireeConsumption;
 

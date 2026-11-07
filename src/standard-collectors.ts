@@ -143,7 +143,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'unpaidPrivateInterest', unit: '$T/year', description: 'Interest due that firms could not pay once their deposits ran out (forgone by banks, not capitalized)', module: 'capital' },
     { source: 'profitAfterInterestAndDepreciation', unit: '$T/year', description: 'Firm profit after private interest and capital depreciation', module: 'capital' },
     { source: 'profitRate', unit: 'fraction/year', description: 'After-interest-and-depreciation firm profit divided by capital', module: 'capital' },
-    { source: 'retainedEarnings', unit: '$T/year', description: 'Firm profit retained after dividends; negative when firms absorb losses', module: 'capital' },
+    { source: 'retainedEarnings', unit: '$T/year', description: 'Firm profit retained after dividends, with private interest counted as paid; negative when firms absorb losses', module: 'capital' },
     { source: 'firmDividendPayments', unit: '$T/year', description: 'Positive firm profit distributed to households', module: 'capital' },
     { source: 'bankDividendPayments', unit: '$T/year', description: 'Bank interest income distributed to households', module: 'capital' },
     { source: 'firmInternalFunds', unit: '$T/year', description: 'Non-negative gross firm saving available to finance investment', module: 'capital' },
