@@ -49,6 +49,12 @@ export interface CapitalFinanceInputs {
    * separately and never counts as investment finance.
    */
   netNewCreditDemand?: number;
+  /**
+   * Principal firms choose to repay beyond the schedule ($T/year), spread
+   * evenly over the substeps and never refinanced: how an over-levered firm
+   * with spare cash moves back toward its target leverage. Default 0.
+   */
+  voluntaryRepayment?: number;
   /** Smoothed real GDP growth the safe rate tracks (r* = c·g + z). Defaults to the anchor. */
   trendGrowth?: number;
   /** Extra primary deficit as a fraction of GDP (e.g. unfunded ageing costs). Defaults to 0. */
@@ -86,7 +92,10 @@ export interface CapitalFinanceResult {
   refinancedPrincipal: number;
   /** Requested investment credit not supplied by banks. */
   unfundedNetNewCreditDemand: number;
+  /** Scheduled plus voluntary principal repaid. */
   principalRepayments: number;
+  /** The voluntary (deleveraging) part of principalRepayments. */
+  voluntaryPrincipalRepayments: number;
   loanWriteOffs: number;
   netCreditCreation: number;
   publicInterestPayments: number;
@@ -123,6 +132,8 @@ export function advanceCapitalFinance(
   if (inputs.netNewCreditDemand !== undefined) {
     finiteNonNegative(inputs.netNewCreditDemand, 'netNewCreditDemand');
   }
+  const voluntaryRepayment = inputs.voluntaryRepayment ?? 0;
+  finiteNonNegative(voluntaryRepayment, 'voluntaryRepayment');
   if (!Number.isInteger(params.financialSubsteps) || params.financialSubsteps < 1) {
     throw new Error('financialSubsteps must be an integer >= 1');
   }
@@ -150,6 +161,7 @@ export function advanceCapitalFinance(
   let newInvestmentLoanOriginations = 0;
   let refinancedPrincipal = 0;
   let principalRepayments = 0;
+  let voluntaryPrincipalRepayments = 0;
   let loanWriteOffs = 0;
   let publicInterestPayments = 0;
   let privateInterestPayments = 0;
@@ -257,6 +269,13 @@ export function advanceCapitalFinance(
       writeOff *= scale;
     }
     const refinancing = repayment * params.loanRolloverRate;
+    // Voluntary paydown comes out of what is left of the opening stock and
+    // destroys deposits like scheduled principal, but is never rolled over.
+    const voluntary = Math.min(
+      voluntaryRepayment * dt,
+      Math.max(0, privateDebt - repayment - writeOff),
+    );
+    repayment += voluntary;
     const investmentOrigination = Math.min(
       netNewCreditCapacity,
       remainingNetNewCreditDemand,
@@ -272,6 +291,7 @@ export function advanceCapitalFinance(
     newInvestmentLoanOriginations += investmentOrigination;
     refinancedPrincipal += refinancing;
     principalRepayments += repayment;
+    voluntaryPrincipalRepayments += voluntary;
     loanWriteOffs += writeOff;
     remainingNetNewCreditDemand -= investmentOrigination;
     weightedInterestRate += interestRate * dt;
@@ -314,6 +334,7 @@ export function advanceCapitalFinance(
       ? 0
       : Math.max(0, remainingNetNewCreditDemand),
     principalRepayments,
+    voluntaryPrincipalRepayments,
     loanWriteOffs,
     netCreditCreation: privateDebt - openingPrivateDebt,
     publicInterestPayments,

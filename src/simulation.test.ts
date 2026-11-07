@@ -569,6 +569,23 @@ test('firm cash floor never binds on the default path', () => {
   for (const row of FULL_RUN.results) expect(row.unpaidPrivateInterest).toBe(0);
 });
 
+test('private credit holds a target-leverage steady state on the default path', () => {
+  const rows = FULL_RUN.results;
+  // 2025 calibration is untouched: investment 25.2% of GDP, net new credit ~3%
+  expect(rows[0].investment / rows[0].gdp).toBeBetween(0.249, 0.255);
+  expect(rows[0].newInvestmentLoanOriginations / rows[0].gdp).toBeBetween(0.025, 0.035);
+  for (const row of rows) {
+    // Leverage on general capital stays near its year-0 ratio, so debt/GDP
+    // follows K/Y rather than decaying at the growth rate (the
+    // investment-gap-only closure reached 0.22 by 2100). Observed world
+    // private debt has held ~1.4-1.7x GDP (IMF GDD 2025, BIS). The bank
+    // credit envelope (baseCreditGrowth) binds from ~2030 and holds leverage
+    // ~9% under target, hence the tolerance
+    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.12);
+    expect(row.privateDebtGDP).toBeBetween(1.0, 1.65);
+  }
+});
+
 test('diagnostics: false leaves every macro number bit-identical', () => {
   const withDiag = FULL_RUN;
   const without = MACRO_RUN;
