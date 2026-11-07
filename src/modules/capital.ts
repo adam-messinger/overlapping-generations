@@ -157,7 +157,7 @@ export interface CapitalParams {
   neutralSafeRate: number;             // 0.010 (safe rate at anchor growth and 2025 public debt)
   safeRateGrowthPassThrough: number;   // 1.0 (c in r* = c·g + z)
   safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
-  safeRateDebtSensitivity: number;     // 0.065 (6.5bp per pp of public debt/GDP above its 2025 level)
+  safeRateDebtSensitivity: number;     // 0.035 (3.5bp per pp of public debt/GDP above its 2025 level)
   safeRateDebtSmoothingYears: number;  // 3 (exponential smoothing of the debt ratio the safe rate prices)
   trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
   financialRepression: number;         // 0 (pp the safe rate is held below its market level)
@@ -527,23 +527,25 @@ export const capitalDefaults: CapitalParams = {
   // r* filters move with growth over roughly a decade (HLW's trend growth is
   // a slow-moving random walk); a 10-year exponential smoother.
   trendGrowthSmoothingYears: 10,
-  // 6.5bp per pp of public debt/GDP: JUDGMENT between the published estimates
-  // and the most recent observation.
-  //   Floor: 3-4bp (Laubach 2009, JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO
-  //   Working Paper 2019-01). Both are estimated on the low-debt, falling-rate
-  //   sample before 2020.
-  //   Ceiling: the US 10y real rate (Cleveland Fed) rose 1.28pp from 2019 to
-  //   the 2024-26 average while trend growth moved +0.08pp and federal debt
-  //   rose 16pp of GDP: 7.8bp per pp if debt carried all of it. Part of it is
-  //   term premium and QT, so that is an upper bound (docs/SAFE_RATE_BACKCAST.md).
-  // At 3bp the 2019 -> 2024-26 rise is under-predicted by half (+0.57pp). In a
-  // 1,080-run grid, 6.5bp with c = 1 was the closest match to the 2026-11-07
-  // Tetlock panel (r* 2036-45, AE debt 2045) once growth is held to the
-  // panel's: a consistency check, not a source.
+  // 3.5bp per pp of public debt/GDP. The rate this prices is what the
+  // sovereign PAYS on its debt (average maturity ~6 years), so the yield
+  // response including term premium is the relevant one, not short r* alone.
+  //   Dallas Fed WP 2513 (2025): +3.47bp on the 5y5y real yield per pp of
+  //     CBO 5-year-ahead debt/GDP, 1.01bp to the expected short rate and
+  //     2.38bp to the term premium (1976-2024, first differences).
+  //   Laubach (2009, JEEA 7(4)): 3-4bp per pp of projected debt/GDP.
+  //   Lower: Gamber & Seliski (CBO WP 2019-01) 2-3bp; Mian-Straub-Sufi 1-2.5bp;
+  //   IMF WEO Apr-2023 ch.2 0.2-0.4bp on r*.
+  // The US 2019 -> 2024-26 rise in 10y real yields (1.28pp, ~7.8bp per pp of
+  // debt if debt carried all of it) is mostly term premium and QT per the
+  // Fed's own decomposition, so it is not a debt elasticity. A 6.5bp setting
+  // (#122) sat above every published estimate and was partly supported by a
+  // panel match whose growth setting had decreasing returns to scale
+  // (docs/forecasts/bloc-capitalism-2045/README.md).
   // Measured from the 2025 ratio, so it moves the rate, not its level.
   // The total-debt debtRiskPremium (mostly private leverage) prices the
   // return on capital, not the sovereign.
-  safeRateDebtSensitivity: 0.065,
+  safeRateDebtSensitivity: 0.035,
   // The debt term prices a 3-year exponential smooth of debt/GDP, not the
   // current ratio. Laubach (2009) regresses on CBO's 5-year-AHEAD projected
   // debt: markets price the debt path and look through one year's swing in
@@ -551,8 +553,8 @@ export const capitalDefaults: CapitalParams = {
   // 2026 (debt/GDP +1.5pp, then ~flat) into a one-year rate spike
   // (src/seed-year.test.ts). A backward smoother is the crude proxy, and it lags
   // where the market leads, so the window is kept short: 3 years keeps 96% of
-  // the US 2019 -> 2024-26 debt change (15.6 of 16.3pp), still within the
-  // 8.2bp-per-pp upper bound at 6.5bp. Judgment, not separately sourced.
+  // the US 2019 -> 2024-26 debt change (15.6 of 16.3pp). Judgment, not
+  // separately sourced.
   safeRateDebtSmoothingYears: 3,
   // Financial repression. Explicit lever off by default. Above 150% public
   // debt/GDP fiscal dominance caps the safe rate at trend growth less 3pp,

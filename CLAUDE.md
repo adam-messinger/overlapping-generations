@@ -354,9 +354,9 @@ the human-capital ledger (including its replacement-cost re-pricing).
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
   public debt and prices energy project debt: it follows smoothed trend growth one-for-one
-  (r* = c·g + z, Holston-Laubach-Williams) and rises 6.5bp per pp of public debt/GDP above
-  2025 (judgment between Laubach 2009's 3-4bp and the US 2019-26 rise's ≤7.8bp; see
-  `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
+  (r* = c·g + z, Holston-Laubach-Williams) and rises 3.5bp per pp of public debt/GDP above
+  2025 (the yield response incl. term premium: Dallas Fed WP 2513 3.5bp, Laubach 2009 3-4bp;
+  see `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
   markets price the debt path, and the current ratio turned the low-growth 2026 into a rate
   spike; the repression threshold still reads actual debt) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
   return on capital stayed flat (Marx-Mojon-Velde). `loanRate` = safeRate + `creditSpread`

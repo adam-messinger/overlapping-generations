@@ -1,5 +1,12 @@
 # Safe-rate backcast and the Tetlock-panel match
 
+> **Update (2026-11-07, later):** `safeRateDebtSensitivity` is now **3.5bp**, not 6.5bp. The
+> 6.5bp calibration below was above every published estimate (Dallas Fed WP 2513: 3.47bp on
+> the 5y5y real yield, 1.01bp of it to the short rate; Laubach 2009: 3-4bp). Its panel match
+> (section 2) used gamma = 0.08 with alpha and beta unchanged, so factor weights summed to 0.48
+> and the growth path had decreasing returns to scale; and the US 2019-26 rise is mostly term
+> premium. See `docs/forecasts/bloc-capitalism-2045/README.md`. The analysis below is kept as run.
+
 Exploratory, 2026-11-07. Outcome: `safeRateDebtSensitivity` raised from 3bp to
 6.5bp per pp, with the debt term now pricing a 3-year exponential smooth of
 debt/GDP (`safeRateDebtSmoothingYears`). Without the smoothing, 6.5bp turned the
