@@ -809,7 +809,9 @@ export interface EnergyState {
   /** Each region's anchored firm-capacity-to-average-demand ratio (firmAdequacy) */
   firmDemandRatio: Record<Region, number>;
   /** Each region's 2025 fossil utilization (dispatched / nameplate output),
-   *  so idle capacity is measured against how the anchor fleet actually ran */
+   *  so idle capacity is measured against how the anchor fleet actually ran.
+   *  Above 1 where dispatch ran the fleet past the table capacity factor;
+   *  the fleet then counts at that duty */
   fossilRunRatio: Record<Region, Record<'coal' | 'gas', number>>;
   /** Standby (adequacy) build history by region, GW per year; the stock is
    *  the builds younger than the source's lifetime */
@@ -1913,14 +1915,6 @@ export const energyModule: Module<
       });
       const bySource = Object.fromEntries(candidates.map(c => [c.source, c])) as Record<GeneratorSource, NewBuildCandidate>;
 
-      // Anchor: the end-2024 fleet was built for 2024 demand
-      const installedTWh = candidates.reduce(
-        (sum, c) => sum + state.regional[region][c.source].installed * c.twhPerGW, 0);
-      if (yearIndex === 0) {
-        fleetDemandRatio[region] = regionDemand > 0
-          ? installedTWh / (regionDemand / (1 + params.electricityDemandGrowth2025[region]))
-          : 1;
-      }
       // Fossil plants count at what they actually ran last year, not at
       // nameplate output: once clean power has pushed coal down to a ~10%
       // capacity factor, counting it at 60% told the build that idle coal
@@ -1935,22 +1929,48 @@ export const energyModule: Module<
       // capacity by construction (measured against nameplate, ~3,000 TWh
       // of 2025 fossil read as idle and the world solar build hit its 1,130
       // GW factory cap in year one).
+      //
+      // The ratio may exceed 1 where dispatch ran the fleet past energy's
+      // table capacity factor: dispatch runs coal to 0.60 against the 0.50
+      // here, so China, India, SE Asia, Russia, and SSA coal ran 1.15-1.40x
+      // the table in 2025. Such a fleet counts at its 2025 duty, nameplate x
+      // ratio, in the anchor and in existing supply. Clamped at 1, coal
+      // falling back toward the table still read as fully used, never idle,
+      // so the no-new-coal-while-idle rule did not fire and new coal took a
+      // logit share of every year's requirement (SSA 1,620 GW, India 1,330
+      // GW, SE Asia 1,030 GW of coal by 2100, against ~55-270 GW in 2025).
       const laggedGen = inputs.laggedRegionalGeneration?.[region];
       const nameplateTWh = (s: GeneratorSource) => energyGW(surviving[region][s], s) * bySource[s].twhPerGW;
       if (yearIndex === 0) {
         const runRatio = (f: 'coal' | 'gas') => {
           const nameplate = nameplateTWh(f);
           const ran = laggedGen?.[f];
-          return ran === undefined || nameplate <= 0 ? 1 : Math.min(1, Math.max(0, ran) / nameplate);
+          if (ran === undefined || nameplate <= 0) return 1;
+          // A plant cannot run more than every hour of the year
+          const physicalMax = (energyGW(surviving[region][f], f) * 8760) / 1000;
+          return Math.min(Math.max(0, ran), physicalMax) / nameplate;
         };
         fossilRunRatio[region] = { coal: runRatio('coal'), gas: runRatio('gas') };
       }
+      const dutyMultiplier = (s: GeneratorSource) =>
+        (s === 'coal' || s === 'gas' ? Math.max(1, fossilRunRatio[region][s]) : 1);
+      // What the fleet delivers when it runs as it did in 2025
+      const dutyTWh = (s: GeneratorSource) => nameplateTWh(s) * dutyMultiplier(s);
+
+      // Anchor: the end-2024 fleet was built for 2024 demand
+      const installedTWh = candidates.reduce(
+        (sum, c) => sum + state.regional[region][c.source].installed * c.twhPerGW * dutyMultiplier(c.source), 0);
+      if (yearIndex === 0) {
+        fleetDemandRatio[region] = regionDemand > 0
+          ? installedTWh / (regionDemand / (1 + params.electricityDemandGrowth2025[region]))
+          : 1;
+      }
       const ranTWh = (s: GeneratorSource) => {
-        const nameplate = nameplateTWh(s);
-        if (s !== 'coal' && s !== 'gas') return nameplate;
+        const duty = dutyTWh(s);
+        if (s !== 'coal' && s !== 'gas') return duty;
         const ran = laggedGen?.[s];
-        const ratio = fossilRunRatio[region][s];
-        return ran === undefined || ratio <= 0 ? nameplate : Math.min(nameplate, Math.max(0, ran) / ratio);
+        const ratio = Math.min(1, fossilRunRatio[region][s]);
+        return ran === undefined || ratio <= 0 ? duty : Math.min(duty, Math.max(0, ran) / ratio);
       };
       const existingTWh = candidates.reduce((sum, c) => sum + ranTWh(c.source), 0);
       // Demand growth + retirements, at the region's own fleet-to-demand
@@ -1970,7 +1990,7 @@ export const energyModule: Module<
       const idleCandidates: NewBuildCandidate[] = (['gas', 'coal'] as const).map((f) => ({
         ...bySource[f],
         cost: runningCost(f),
-        capGW: bySource[f].twhPerGW > 0 ? (nameplateTWh(f) - ranTWh(f)) / bySource[f].twhPerGW : 0,
+        capGW: bySource[f].twhPerGW > 0 ? (dutyTWh(f) - ranTWh(f)) / bySource[f].twhPerGW : 0,
         idle: true,
       }));
       // No new plant of a fuel while that fuel's existing plants sit idle:

@@ -914,26 +914,28 @@ test('idle fossil output is a re-run option, never new capacity', () => {
 });
 
 // Last year's dispatch, per region: ample means every fossil plant ran at
-// its 2025 utilization (nothing idle)
+// least its 2025 duty (nothing idle). Year 0 carries no dispatch data, so the
+// 2025 duty is the table nameplate output (run ratio 1).
 const AMPLE = 1e9;
 const ranGeneration = (indiaCoal: number) =>
   Object.fromEntries(REGIONS.map(r => [r, { coal: r === 'india' ? indiaCoal : AMPLE, gas: AMPLE }]));
 
-const idleRun = (carbonPrice: number, indiaCoalYear1: number | undefined) => {
+const idleRun = (carbonPrice: number, indiaCoalYear1: number | undefined, indiaCoalYear0?: number) => {
   const params = energyModule.mergeParams({ regional: { india: { carbonPrice } } } as any);
   let state = energyModule.init(params);
   let out: any;
   for (let i = 0; i < 2; i++) {
-    const lagged = indiaCoalYear1 === undefined ? {} : { laggedRegionalGeneration: ranGeneration(i === 0 ? AMPLE : indiaCoalYear1) };
+    const ran = i === 0 ? indiaCoalYear0 : indiaCoalYear1;
+    const lagged = ran === undefined ? {} : { laggedRegionalGeneration: ranGeneration(ran) };
     const r = energyModule.step(state, { ...createInputs(30000 + i * 500, 25), ...lagged }, params, 2025 + i, i);
     state = r.state; out = r.outputs;
   }
-  return out.regionalAdditions.india;
+  return { additions: out.regionalAdditions.india, state };
 };
 
 test('fossil that ran at its 2025 utilization counts as supply, exactly as without dispatch data', () => {
-  const withData = idleRun(15, AMPLE);
-  const without = idleRun(15, undefined);
+  const withData = idleRun(15, AMPLE).additions;
+  const without = idleRun(15, undefined).additions;
   for (const s of ['solar', 'wind', 'coal', 'gas'] as const) {
     expect(withData[s]).toBeCloseTo(without[s], 6);
   }
@@ -942,15 +944,49 @@ test('fossil that ran at its 2025 utilization counts as supply, exactly as witho
 test('idle coal is not counted as supply when carbon makes re-running it dear', () => {
   // India's coal sat idle last year. At a high carbon price, clean build has
   // to cover the demand that idle coal used to be credited with.
-  const idle = idleRun(300, 0);
-  const running = idleRun(300, AMPLE);
+  const idle = idleRun(300, 0).additions;
+  const running = idleRun(300, AMPLE).additions;
   expect(idle.solar + idle.wind).toBeGreaterThan(running.solar + running.wind);
 });
 
 test('cheap idle coal is re-run before any new coal is built', () => {
-  const idle = idleRun(0, 0);
-  const running = idleRun(0, AMPLE);
+  const idle = idleRun(0, 0).additions;
+  const running = idleRun(0, AMPLE).additions;
   expect(idle.coal).toBeLessThan(running.coal + 1e-6);
+});
+
+// India's coal at the table capacity factor, in TWh: what a 2025 run ratio of
+// 1 means (the surviving fleet is within a retirement year of this)
+const indiaCoalNameplateTWh = () => {
+  const params = energyModule.mergeParams({});
+  return energyModule.init(params).regional.india.coal.installed
+    * getRegionalCapacityFactor(params, 'india', 'coal', 0) * 8.76;
+};
+
+test('a fleet that ran past the table capacity factor in 2025 records that duty', () => {
+  // Dispatch runs coal past energy's table capacity factor (0.60 against
+  // 0.50), so the 2025 run ratio is above 1 wherever coal carries the load
+  const nameplate = indiaCoalNameplateTWh();
+  const { state } = idleRun(0, 1.3 * nameplate, 1.3 * nameplate);
+  expect(state.fossilRunRatio.india.coal).toBeGreaterThan(1.25);
+  // Bounded by every hour of the year, whatever dispatch reports
+  const { state: capped } = idleRun(0, AMPLE, AMPLE);
+  const cf = getRegionalCapacityFactor(energyModule.mergeParams({}), 'india', 'coal', 0);
+  expect(capped.fossilRunRatio.india.coal).toBeCloseTo(1 / cf, 6);
+});
+
+test('falling back from a 2025 duty above the table reads as idle capacity', () => {
+  // Before, the run ratio was clamped at 1, so coal running at the table CF
+  // after a 2025 at 1.3x read as fully used and new coal could still be built
+  const nameplate = indiaCoalNameplateTWh();
+  const keptDuty = idleRun(0, 1.3 * nameplate, 1.3 * nameplate).additions;
+  const fellBack = idleRun(0, nameplate, 1.3 * nameplate).additions;
+  // No new coal while existing coal sits idle
+  expect(fellBack.coal).toBe(0);
+  // The fallen-back output is re-run or replaced, never ignored: the plan
+  // builds at least as much as when the fleet kept its duty
+  expect(fellBack.solar + fellBack.wind + fellBack.gas)
+    .toBeGreaterThan(keptDuty.solar + keptDuty.wind + keptDuty.gas - 1e-6);
 });
 
 // A set global carbonPrice is economy-wide: it fills every region that has no
