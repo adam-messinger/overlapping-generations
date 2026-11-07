@@ -7,10 +7,6 @@
     "source": "Twin-Engine tail risk"
   },
 
-  "energy": {
-    "carbonPrice": 35
-  },
-
   "climate": {
     "sensitivity": 4.5,
     "damageCoeff": 0.008,

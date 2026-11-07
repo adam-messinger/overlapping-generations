@@ -139,12 +139,16 @@ export interface EnergyParams {
   eroiReferenceCF: { solar: number; wind: number };
 
   /**
-   * Global carbon price. Feeds ONLY demand-side fuel costs (electrification
-   * and fuel switching) and dispatch's fallback when no regional prices are
-   * wired. Every power-sector decision (new-build choice, fossil
-   * displacement, dispatch merit order) reads regional[r].carbonPrice, so a
-   * scenario that wants a power-sector carbon price must set it regionally;
-   * validate warns when this differs from its default with no regional price.
+   * Global carbon price. Prices demand-side fuel costs (electrification and
+   * fuel switching) directly. Every power-sector decision (new-build choice,
+   * fossil displacement, dispatch merit order) reads regional[r].carbonPrice,
+   * so when a caller SETS this key, mergeParams copies it into every region
+   * that has no explicit regional carbonPrice of its own: the global key is
+   * an economy-wide price, and an explicit regional price overrides it for
+   * that region. Left unset, the regions keep their own defaults (the
+   * observed 2025 mix) and this 35 prices the demand side only. Before this
+   * fill, a global-only price taxed end-use fuels but not power stations, so
+   * raising it electrified demand onto unpriced coal and RAISED warming.
    */
   carbonPrice: number;
 
@@ -1138,7 +1142,7 @@ export const energyModule: Module<
 
   paramMeta: {
     carbonPrice: {
-      description: 'Global carbon price on demand-side fuel costs (electrification and fuel switching). Power-sector prices are the regional ones (usCarbonPrice, chinaCarbonPrice, ...): set those for generation.',
+      description: 'Economy-wide carbon price: demand-side fuel costs, and every region\'s power-sector price unless that region has its own (usCarbonPrice, chinaCarbonPrice, ...; an explicit regional price wins). Unset, regions keep their observed 2025 prices.',
       unit: '$/ton CO₂',
       range: { min: 0, max: 300, default: 35 },
       tier: 1 as const,
@@ -1343,16 +1347,6 @@ export const energyModule: Module<
     if (p.carbonPrice > 500) {
       warnings.push(`carbonPrice ${p.carbonPrice} unusually high`);
     }
-    // The global key never reaches the power sector (see EnergyParams.carbonPrice)
-    // (validate sees merged params, so "no regional price set" = every region at its default)
-    if (p.carbonPrice !== energyDefaults.carbonPrice &&
-        REGIONS.every(r => (p.regional?.[r]?.carbonPrice ?? energyDefaults.regional[r].carbonPrice) === energyDefaults.regional[r].carbonPrice)) {
-      warnings.push(
-        `carbonPrice ${p.carbonPrice} is set without any regional.*.carbonPrice: it moves demand-side ` +
-        'fuel costs only. Power-sector build, displacement and dispatch use the regional prices ' +
-        `(defaults ${REGIONS.map(r => `${r} ${energyDefaults.regional[r].carbonPrice}`).join(', ')}).`,
-      );
-    }
 
     // Endogenous capex share
     if (p.cleanShareFlex < 0 || p.cleanShareFlex > 1) {
@@ -1510,6 +1504,18 @@ export const energyModule: Module<
                 ...p.regional[region].capacityFactor,
               };
             }
+          }
+        }
+      }
+
+      // A set global carbonPrice is economy-wide: fill it into every region
+      // without its own explicit carbonPrice (see EnergyParams.carbonPrice).
+      // Copies each touched region, so energyDefaults is never mutated.
+      if (p.carbonPrice !== undefined) {
+        if (!p.regional) result.regional = { ...energyDefaults.regional };
+        for (const region of REGIONS) {
+          if (p.regional?.[region]?.carbonPrice === undefined) {
+            result.regional[region] = { ...result.regional[region], carbonPrice: p.carbonPrice };
           }
         }
       }
