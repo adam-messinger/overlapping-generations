@@ -463,6 +463,10 @@ outside them reads them, which is a domain fact rather than a graph property.
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |
+| `safeRate` | fraction | Real rate on public debt (tracks trend growth and public debt; ~1% in 2025) |
+| `loanRate` | fraction | Real rate on private bank debt (safe rate + credit spread) |
+| `repressionGap` | fraction | pp the safe rate is held below its market level (financial repression) |
+| `laborShare` | fraction | Labor compensation / GDP (falls as robot/AI income goes to capital) |
 | `humanCapitalInvestment` | $T | Pre-workforce cost embodied in this year's entrants (replacement cost) |
 | `humanCapitalDepreciation` | $T | Straight-line write-down over expected time in the workforce |
 | `humanCapitalByBand` | record | Entrants, unit cost, useful life, flows, stocks, exits by cause per education band |
