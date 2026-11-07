@@ -902,7 +902,17 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Energy + CDR need lagged interest rate (capital runs before energy)
+    // Energy WACC prices project debt off the safe rate
+    laggedSafeRate: {
+      source: 'safeRate',
+      delay: 1,
+      initial: 0.01,  // ~1% 2025 real safe rate (bootstrapped)
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
+    // Robots, CDR and energy project equity price capital at the economy-wide
+    // return (capital runs before them)
     laggedInterestRate: {
       source: 'interestRate',
       delay: 1,

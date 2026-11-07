@@ -274,6 +274,7 @@ export interface EnergyParams {
 
   /** Risk premium over interest rate for energy project WACC */
   riskPremium: number;
+  projectEquityShare: number;
 
   /** Base WACC used for LCOE calibration (no adjustment when effective WACC equals this) */
   baseWACC: number;
@@ -712,7 +713,17 @@ export const energyDefaults: EnergyParams = {
   curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
 
   // WACC: financing cost channel for LCOE
-  riskPremium: 0.02,               // 2% over risk-free (interest) rate
+  // Project WACC blends debt priced off the real SAFE rate (capital.safeRate,
+  // ~1% in 2025; follows growth, public debt and repression) with equity
+  // priced off the return on capital (capital.interestRate, which rises
+  // when capital is scarce). Renewable project finance is ~70-80% debt
+  // (Steffen 2020, Energy Economics 88; IEA Cost of Capital Observatory
+  // 2024 uses ~70/30 for utility-scale solar).
+  projectEquityShare: 0.30,
+  // Premium over that blend, set so 2025 WACC is unchanged (~8% global,
+  // 7% US/OECD with their -1pp spread — the level baseWACC and the IEA
+  // Observatory calibrate). Was 2% over the return on capital alone.
+  riskPremium: 0.055,
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
   financingSpreadScale: 1.0,       // Regional spreads applied at face value
@@ -847,8 +858,10 @@ export interface EnergyInputs {
    *  fossil counted at nameplate. */
   laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
 
-  /** Lagged real interest rate (from capital previous year) for WACC calculation */
-  laggedInterestRate: number;
+  /** Lagged real safe rate (capital.safeRate, previous year) — prices project debt */
+  laggedSafeRate: number;
+  /** Lagged return on capital + debt premium (capital.interestRate) — prices project equity */
+  laggedInterestRate?: number;
 
   /** Global savings rate this year (from capital) for the home-bias spread */
   savingsRate?: number;
@@ -1190,10 +1203,16 @@ export const energyModule: Module<
       range: { min: 1, max: 12, default: 6 },
       tier: 1 as const,
     },
-    riskPremium: {
-      description: 'Risk premium over interest rate for energy project WACC. Higher values penalize capital-intensive sources.',
+    projectEquityShare: {
+      description: 'Equity share of energy project finance. Equity is priced off the return on capital, debt off the safe rate, so a higher share passes capital scarcity into WACC.',
       unit: 'fraction',
-      range: { min: 0, max: 0.10, default: 0.02 },
+      range: { min: 0, max: 1, default: 0.30 },
+      tier: 2 as const,
+    },
+    riskPremium: {
+      description: 'Project premium over the debt/equity rate blend for energy WACC. Higher values penalize capital-intensive sources.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.15, default: 0.055 },
       tier: 1 as const,
     },
     baseWACC: {
@@ -1270,6 +1289,7 @@ export const energyModule: Module<
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedRegionalShortfallRate: unitPort('fraction', 'record'),
       laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
+      laggedSafeRate: unitPort('fraction'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -1430,6 +1450,9 @@ export const energyModule: Module<
     // WACC
     if (p.riskPremium !== undefined && p.riskPremium < 0) {
       errors.push('riskPremium cannot be negative');
+    }
+    if (p.projectEquityShare !== undefined && (p.projectEquityShare < 0 || p.projectEquityShare > 1)) {
+      errors.push('projectEquityShare must be between 0 and 1');
     }
     if (p.baseWACC !== undefined && p.baseWACC <= 0) {
       errors.push('baseWACC must be positive');
@@ -1697,9 +1720,13 @@ export const energyModule: Module<
     // WACC adjustment: financing cost affects capital-intensive sources more
     // =========================================================================
 
-    const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
+    const laggedSafeRate = inputs.laggedSafeRate ?? 0.01;
+    const laggedEquityRate = inputs.laggedInterestRate ?? laggedSafeRate;
+    const baseFinancingRate =
+      (1 - params.projectEquityShare) * laggedSafeRate
+      + params.projectEquityShare * laggedEquityRate;
     const waccAt = (spread: number): number =>
-      Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
+      Math.max(params.minWACC, baseFinancingRate + params.riskPremium + spread);
     const effectiveWACC = waccAt(0);
 
     // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))

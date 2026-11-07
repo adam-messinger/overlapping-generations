@@ -28,7 +28,8 @@ function createInputs(
   availableInvestment: number = 25,
   mineralConstraint: number = 1.0,
   laggedCurtailmentRate: number = 0,
-  laggedInterestRate: number = 0.05,
+  // Safe and equity rates set equal, so WACC = rate + riskPremium (+ spread)
+  financingRate: number = energyDefaults.baseWACC - energyDefaults.riskPremium,
 ) {
   // Energy throttles per source, so the scalar is expanded into the record it
   // actually reads. Sources that consume no minerals are never constrained.
@@ -44,7 +45,8 @@ function createInputs(
     mineralConstraintBySource,
     // The scalar argument applies the same curtailment to every region's grid
     laggedRegionalCurtailmentRate: regional(laggedCurtailmentRate),
-    laggedInterestRate,
+    laggedSafeRate: financingRate,
+    laggedInterestRate: financingRate,
   };
 }
 
@@ -643,8 +645,8 @@ console.log('\n--- WACC / Interest Rate ---\n');
 test('CRF function: WACC = baseWACC produces no LCOE adjustment', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  // laggedInterestRate = 0.05, riskPremium = 0.02 → effectiveWACC = 0.07 = baseWACC
-  const inputs = createInputs(30000, 25, 1.0, 0, 0.05);
+  // financing rate = baseWACC - riskPremium → effectiveWACC = baseWACC
+  const inputs = createInputs(30000, 25, 1.0, 0);
   const r = energyModule.step(state, inputs, params, 2025, 0);
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.07, 2);
 });
@@ -652,8 +654,8 @@ test('CRF function: WACC = baseWACC produces no LCOE adjustment', () => {
 test('high interest rate raises LCOE for capital-intensive sources', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  const rBase = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.05), params, 2025, 0);
-  const rHigh = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.10), params, 2025, 0);
+  const rBase = energyModule.step(state, createInputs(30000, 25, 1.0, 0), params, 2025, 0);
+  const rHigh = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.12 - params.riskPremium), params, 2025, 0);
   // Solar (capitalIntensity=0.85) should see a bigger LCOE increase than gas (0.15)
   const solarIncrease = rHigh.outputs.lcoes.solar / rBase.outputs.lcoes.solar;
   const gasIncrease = rHigh.outputs.lcoes.gas / rBase.outputs.lcoes.gas;
@@ -663,7 +665,7 @@ test('high interest rate raises LCOE for capital-intensive sources', () => {
 test('high interest rate penalizes solar more than gas', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.10), params, 2025, 0);
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.12 - params.riskPremium), params, 2025, 0);
   // At WACC=12% vs base 7%, CRF ratio = ~1.27
   // Solar adj = 0.85 * 0.27 = +23%; gas adj = 0.15 * 0.27 = +4%
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.12, 2);
@@ -674,8 +676,8 @@ test('high interest rate penalizes solar more than gas', () => {
 test('low interest rate does not push solar below soft floor', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  // Very low interest rate → WACC < baseWACC → discount on capital-intensive sources
-  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
+  // Very low safe rate → WACC < baseWACC → discount on capital-intensive sources
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.025 - params.riskPremium), params, 2025, 0);
   // Solar LCOE should never drop below soft floor ($12)
   expect(r.outputs.lcoes.solar).toBeGreaterThan(12);
 });
@@ -683,8 +685,8 @@ test('low interest rate does not push solar below soft floor', () => {
 test('low interest rate produces minWACC floor', () => {
   const params = energyModule.mergeParams({});
   const state = energyModule.init(params);
-  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.005), params, 2025, 0);
-  // laggedInterestRate=0.005 + riskPremium=0.02 = 0.025, but minWACC=0.03
+  const r = energyModule.step(state, createInputs(30000, 25, 1.0, 0, 0.025 - params.riskPremium), params, 2025, 0);
+  // financing rate + riskPremium = 0.025, but minWACC=0.03
   expect(r.outputs.effectiveWACC).toBeCloseTo(0.03, 2);
 });
 
@@ -1062,6 +1064,19 @@ test('eroiReferenceCF merges partially and validates its range', () => {
   expect(low.valid).toBeFalse();
   expect(low.errors.filter(e => e.includes('eroiReferenceCF')).length).toBe(1);
   expect(energyModule.validate({ eroiReferenceCF: { solar: 0.18, wind: 1.5 } }).valid).toBeFalse();
+});
+
+test('project WACC prices debt off the safe rate and equity off the return on capital', () => {
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const inputs = { ...createInputs(30000, 25, 1.0, 0), laggedSafeRate: 0.01, laggedInterestRate: 0.07 };
+  const r = energyModule.step(state, inputs, params, 2025, 0);
+  const blend = (1 - params.projectEquityShare) * 0.01 + params.projectEquityShare * 0.07;
+  expect(r.outputs.effectiveWACC).toBeCloseTo(blend + params.riskPremium, 9);
+  // A scarcer-capital return (equity) moves WACC by the equity share only.
+  const scarce = energyModule.step(state, { ...inputs, laggedInterestRate: 0.10 }, params, 2025, 0);
+  expect(scarce.outputs.effectiveWACC - r.outputs.effectiveWACC)
+    .toBeCloseTo(params.projectEquityShare * 0.03, 9);
 });
 
 printSummary();
