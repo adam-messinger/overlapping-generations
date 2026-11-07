@@ -745,9 +745,12 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Production needs lagged capital stock
+    // Production needs lagged capital stock: last year's CLOSING stock, which
+    // is this year's opening stock. Capital's `stock` output is the opening
+    // stock of its own year, so lagging that ran production on a two-year-old
+    // stock and 2026 repeated 2025's (capital contribution 1.0 both years).
     capitalStock: {
-      source: 'stock',
+      source: 'nextCapitalStock',
       delay: 1,
       initial: mergedCapital.initialCapitalStock,
       contract: unitPort('$T'),

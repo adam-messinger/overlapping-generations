@@ -32,8 +32,12 @@ const SEED_DEFINED: Record<string, string> = {
  * not an accepted behavior.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  usefulWorkGrowthRate: 'useful work per worker grows 0.2% in 2026, then 0.7-1%/yr',
-  shortfall: 'unserved generation falls in 2026 (231 -> 151 TWh) and then resumes rising',
+  shortfall: 'unserved generation falls in 2026 (231 -> 177 TWh) and then resumes rising',
+  productionFunctionGap:
+    'examined from 2026 (zero at the anchor). Not a seed effect as far as traced: the gap '
+    + 'between two near-equal GDP forms (0.03% in 2026) steps -0.00008 into 2027 and '
+    + '-0.00064 into 2028, where useful-energy growth dips (2.3% -> 2.1% -> 2.4%) and hits '
+    + 'the energy-heavier Keen form harder. Flags since production reads the current capital stock',
   aggregateCapitalFundingGap: 'diagnostic ledger: 0.13 $T in 2025, zero every year after',
 };
 
