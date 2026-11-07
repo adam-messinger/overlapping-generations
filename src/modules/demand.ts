@@ -2141,19 +2141,6 @@ export const demandModule: Module<
     globalNonElec += servedLockIn;
     globalTotalFinal += servedLockIn;
 
-    // The sectors are split from the requested (potential) fuel, lock-in
-    // included, so under a shock they carry the same served/requested ratio
-    // as the world total; otherwise they report fuel nobody received.
-    // Electricity is not rationed. Unshocked runs skip this: their ratio is 1
-    // to within a rounding error, and they stay byte-identical.
-    if (commodityShock && globalNonElecPotential > 0) {
-      const fuelRealization = globalNonElec / globalNonElecPotential;
-      for (const key of sectorKeys) {
-        sectors[key].nonElectric *= fuelRealization;
-        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
-      }
-    }
-
     const fossilStockTWh = newFossilVehicleFleet + newFossilHeatingStock + newFossilIndustrialStock;
 
     // Useful energy proxy at service level. Electrified increments deliver
@@ -2284,6 +2271,17 @@ export const demandModule: Module<
       }
       globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
       globalNonElec = reconciledNonElectricEnergy;
+      // The sectors are split from the requested fuel, lock-in included, so
+      // ration them by the world total's served/requested ratio. It is only
+      // known here: availability applies per fuel, at the accounting mix, so
+      // the served total differs from any estimate made before this loop.
+      // Electricity is not rationed.
+      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
+      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
+      for (const key of sectorKeys) {
+        sectors[key].nonElectric *= servedRatio;
+        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
+      }
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
