@@ -331,7 +331,8 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
-  ageing reaches the debt (default world public debt ~0.9 → ~1.0 in 2055 → ~1.5 in 2100). A safe rate below growth erodes the ratio
+  ageing reaches the debt (default world public debt ~0.9 → ~1.1 in 2055 → ~1.6 in 2100,
+  crossing the 150% repression threshold around 2070). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
@@ -339,8 +340,11 @@ the human-capital ledger (including its replacement-cost re-pricing).
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
   public debt and prices energy project debt: it follows smoothed trend growth one-for-one
-  (r* = c·g + z, Holston-Laubach-Williams) and rises 3bp per pp of public debt/GDP above
-  2025 (Laubach 2009) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
+  (r* = c·g + z, Holston-Laubach-Williams) and rises 6.5bp per pp of public debt/GDP above
+  2025 (judgment between Laubach 2009's 3-4bp and the US 2019-26 rise's ≤7.8bp; see
+  `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
+  markets price the debt path, and the current ratio turned the low-growth 2026 into a rate
+  spike; the repression threshold still reads actual debt) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
   return on capital stayed flat (Marx-Mojon-Velde). `loanRate` = safeRate + `creditSpread`
   (2pp) on private bank debt. One ~6% rate for all three used to charge public debt 5.4% of
   GDP and could not go below growth. Real safe rates may be negative: public interest is a

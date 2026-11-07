@@ -146,7 +146,8 @@ export interface CapitalParams {
   neutralSafeRate: number;             // 0.010 (safe rate at anchor growth and 2025 public debt)
   safeRateGrowthPassThrough: number;   // 1.0 (c in r* = c·g + z)
   safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
-  safeRateDebtSensitivity: number;     // 0.03 (3bp per pp of public debt/GDP above its 2025 level)
+  safeRateDebtSensitivity: number;     // 0.065 (6.5bp per pp of public debt/GDP above its 2025 level)
+  safeRateDebtSmoothingYears: number;  // 3 (exponential smoothing of the debt ratio the safe rate prices)
   trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
   financialRepression: number;         // 0 (pp the safe rate is held below its market level)
   repressionDebtThreshold: number;     // 1.5 (public debt/GDP above which fiscal dominance caps the safe rate)
@@ -165,6 +166,7 @@ export interface CapitalState {
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
+  pricedPublicDebtGDP?: number; // Smoothed public debt/GDP the safe rate's debt term prices
   referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
   referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
   financialLedger?: GodleyLedgerState;
@@ -482,12 +484,33 @@ export const capitalDefaults: CapitalParams = {
   // r* filters move with growth over roughly a decade (HLW's trend growth is
   // a slow-moving random walk); a 10-year exponential smoother.
   trendGrowthSmoothingYears: 10,
-  // Sovereign rates rise ~3-4bp per pp of public debt/GDP (Laubach 2009,
-  // JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO Working Paper 2019-01).
+  // 6.5bp per pp of public debt/GDP: JUDGMENT between the published estimates
+  // and the most recent observation.
+  //   Floor: 3-4bp (Laubach 2009, JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO
+  //   Working Paper 2019-01). Both are estimated on the low-debt, falling-rate
+  //   sample before 2020.
+  //   Ceiling: the US 10y real rate (Cleveland Fed) rose 1.28pp from 2019 to
+  //   the 2024-26 average while trend growth moved +0.08pp and federal debt
+  //   rose 16pp of GDP: 7.8bp per pp if debt carried all of it. Part of it is
+  //   term premium and QT, so that is an upper bound (docs/SAFE_RATE_BACKCAST.md).
+  // At 3bp the 2019 -> 2024-26 rise is under-predicted by half (+0.57pp). In a
+  // 1,080-run grid, 6.5bp with c = 1 was the closest match to the 2026-11-07
+  // Tetlock panel (r* 2036-45, AE debt 2045) once growth is held to the
+  // panel's: a consistency check, not a source.
   // Measured from the 2025 ratio, so it moves the rate, not its level.
   // The total-debt debtRiskPremium (mostly private leverage) prices the
   // return on capital, not the sovereign.
-  safeRateDebtSensitivity: 0.03,
+  safeRateDebtSensitivity: 0.065,
+  // The debt term prices a 3-year exponential smooth of debt/GDP, not the
+  // current ratio. Laubach (2009) regresses on CBO's 5-year-AHEAD projected
+  // debt: markets price the debt path and look through one year's swing in
+  // the denominator. Pricing the current ratio turned the model's low-growth
+  // 2026 (debt/GDP +1.5pp, then ~flat) into a one-year rate spike
+  // (src/seed-year.test.ts). A backward smoother is the crude proxy, and it lags
+  // where the market leads, so the window is kept short: 3 years keeps 96% of
+  // the US 2019 -> 2024-26 debt change (15.6 of 16.3pp), still within the
+  // 8.2bp-per-pp upper bound at 6.5bp. Judgment, not separately sourced.
+  safeRateDebtSmoothingYears: 3,
   // Financial repression. Explicit lever off by default. Above 150% public
   // debt/GDP fiscal dominance caps the safe rate at trend growth less 3pp,
   // so debt liquidates instead of spiralling once interest accrues:
@@ -1172,6 +1195,11 @@ export const capitalModule: Module<
         errors.push('trendGrowthSmoothingYears must be between 1 and 50');
       }
     }
+    if (params.safeRateDebtSmoothingYears !== undefined) {
+      if (params.safeRateDebtSmoothingYears < 1 || params.safeRateDebtSmoothingYears > 50) {
+        errors.push('safeRateDebtSmoothingYears must be between 1 and 50');
+      }
+    }
     if (params.creditSpread !== undefined) {
       if (params.creditSpread < 0 || params.creditSpread > 0.10) {
         errors.push('creditSpread must be between 0 and 0.10');
@@ -1257,6 +1285,7 @@ export const capitalModule: Module<
       privateDebt: 0,   // Initialized from GDP at yearIndex === 0
       previousGdp: 0,   // Initialized from inputs at yearIndex === 0
       trendGrowth: params.safeRateGrowthAnchor,
+      pricedPublicDebtGDP: params.initialPublicDebtGDP,
       financialLedger: undefined,
     };
   },
@@ -1476,6 +1505,9 @@ export const capitalModule: Module<
     // profit and the financing request. Iterate this small fixed point so the
     // reported order, interest bill, and requested credit are mutually
     // consistent rather than relying on an arbitrary call order.
+    // The safe rate's debt term prices last year's smoothed ratio (one source
+    // of truth across the credit iterations below).
+    const pricedPublicDebtGDP = state.pricedPublicDebtGDP ?? params.initialPublicDebtGDP;
     let netNewCreditDemand = 0;
     let finance = advanceCapitalFinance(
       financeState,
@@ -1484,6 +1516,7 @@ export const capitalModule: Module<
         capitalStock: state.stock,
         netNewCreditDemand,
         trendGrowth: state.trendGrowth,
+        pricedPublicDebtGDP,
         additionalPrimaryDeficitRate,
       },
       params,
@@ -1519,6 +1552,7 @@ export const capitalModule: Module<
           capitalStock: state.stock,
           netNewCreditDemand,
           trendGrowth: state.trendGrowth,
+          pricedPublicDebtGDP,
           additionalPrimaryDeficitRate,
         },
         params,
@@ -1543,6 +1577,7 @@ export const capitalModule: Module<
         capitalStock: state.stock,
         netNewCreditDemand,
         trendGrowth: state.trendGrowth,
+        pricedPublicDebtGDP,
         additionalPrimaryDeficitRate,
       },
       params,
@@ -1825,6 +1860,12 @@ export const capitalModule: Module<
       ? openingTrendGrowth
       : openingTrendGrowth
         + (realizedGrowth - openingTrendGrowth) / params.trendGrowthSmoothingYears;
+    // Debt ratio the safe rate prices next year: exponential smoothing of the
+    // year-end ratio (see safeRateDebtSmoothingYears).
+    const nextPricedPublicDebtGDP = inputs.gdp > 0
+      ? pricedPublicDebtGDP
+        + (newPublicDebt / inputs.gdp - pricedPublicDebtGDP) / params.safeRateDebtSmoothingYears
+      : pricedPublicDebtGDP;
 
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
@@ -1866,6 +1907,7 @@ export const capitalModule: Module<
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
         trendGrowth: nextTrendGrowth,
+        pricedPublicDebtGDP: nextPricedPublicDebtGDP,
         referenceTransferBurden,
         referenceAutomationLaborShare,
         financialLedger: financialPosting.state,
