@@ -32,16 +32,10 @@ const SEED_DEFINED: Record<string, string> = {
  * not an accepted behavior.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  usefulWorkGrowthRate: 'useful work per worker falls 0.5% in 2026, then grows 0.4-1%/yr',
-  shortfall: 'unserved generation halves in 2026 (231 -> 115 TWh) and then resumes rising',
-  miningEnergyTWh: 'dips in 2026 (238 -> 177 TWh) and recovers: the 2026 build is smaller than 2025 and 2027',
-  energySystemOverhead: 'dips in 2026 (2,036 -> 1,737 TWh), carrying the mining-energy dip',
-  unfundedInvestmentDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
-  unfundedFinancingDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
-  unfundedCreditDemand: 'flat in 2026, then rising ~0.3-0.5 $T/yr',
-  curtailmentTWh: 'rises half as fast in 2026 as in each later year',
+  usefulWorkGrowthRate: 'useful work per worker grows 0.2% in 2026, then 0.7-1%/yr',
+  shortfall: 'unserved generation falls in 2026 (231 -> 151 TWh) and then resumes rising',
   debtRiskPremium: 'rises in 2026, then falls every year after',
-  aggregateCapitalFundingGap: 'diagnostic ledger: 0.08 -> 0.29 $T in 2026, then zero',
+  aggregateCapitalFundingGap: 'diagnostic ledger: 0.08 $T in 2025, zero every year after',
 };
 
 const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });

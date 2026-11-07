@@ -663,6 +663,12 @@ const DEFAULT_CAPACITY_FACTORS: Record<EnergySource, number> = {
  *    overheads, damages, prices, rates): bootstrap: true — the warm-up pass
  *    (bootstrapLags below) replaces the initial with the year-0
  *    self-consistent value, so the listed initial is only a warm-up seed.
+ *    Production's useful-energy inputs (generation, non-electric energy and
+ *    the overheads subtracted from them) use bootstrap: 'trend' instead:
+ *    production anchors E0 on its year-0 input, so a level seed made 2026
+ *    read exactly what 2025 read and useful energy stalled for a year (GDP
+ *    +1.7% in 2026, ~3% after; the 2026 build smaller than 2025's and
+ *    2027's). 'trend' seeds 2024 on each flow's own growth path.
  */
 function buildLags(params: SimulationParams) {
   const mergedClimate = climateModule.mergeParams(params.climate ?? {});
@@ -755,7 +761,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: totalGen,
       contract: unitPort('TWh/year'),
-      bootstrap: true,
+      bootstrap: 'trend' as const,
     },
 
     // Production receives POTENTIAL lagged thermal energy, then applies any
@@ -766,7 +772,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: 92000,  // ~92,000 TWh in 2025 (IEA); no direct param source
       contract: unitPort('TWh/year'),
-      bootstrap: true,
+      bootstrap: 'trend' as const,
     },
 
     // Production needs lagged food stress
@@ -784,7 +790,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: 0,
       contract: unitPort('TWh/year'),
-      bootstrap: true,
+      bootstrap: 'trend' as const,
     },
 
     // Production needs lagged energy system overhead (embodied + operating)
@@ -793,7 +799,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: 0,
       contract: unitPort('TWh/year'),
-      bootstrap: true,
+      bootstrap: 'trend' as const,
     },
 
     // Production needs lagged CDR energy consumption (CDR competes for electricity)
@@ -802,7 +808,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: 0,
       contract: unitPort('TWh/year'),
-      bootstrap: true,
+      bootstrap: 'trend' as const,
     },
 
     // Production needs lagged automation levels for the labor-augmentation
@@ -819,7 +825,7 @@ function buildLags(params: SimulationParams) {
       delay: 1,
       initial: 0,
       contract: unitPort('TWh/year'),
-      bootstrap: true, // flow: warm-up sets the 2025-consistent fleet load
+      bootstrap: 'trend' as const, // flow: warm-up sets the 2025-consistent fleet load
     },
 
     // Capital debits REALIZED spends (one financing ledger): energy capex
