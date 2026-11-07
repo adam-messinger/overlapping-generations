@@ -279,8 +279,18 @@ Do this before committing. Most fix-up commits in project history would have bee
   investment
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
 - Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
-- Private debt: credit impulse dampened by r-g spread and leverage ratio
-- **Risk premium**: high total debt/GDP → higher interest rate → self-limiting
+- Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
+- **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
+  income share 0.33, not production's fitted 0.25) + total-debt premium, ~6% in 2025 —
+  firms' cost of capital (robots, CDR discounting, energy WACC). `safeRate` (~1% in 2025) is paid on
+  public debt: it follows smoothed trend growth one-for-one
+  (r* = c·g + z, Holston-Laubach-Williams) and rises 3bp per pp of public debt/GDP above
+  2025 (Laubach 2009) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
+  return on capital stayed flat (Marx-Mojon-Velde). `loanRate` = safeRate + `creditSpread`
+  (2pp) on private bank debt. One ~6% rate for all three used to charge public debt 5.4% of
+  GDP and could not go below growth. Real safe rates may be negative: public interest is a
+  signed transfer
+- **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity
 - Demographic savings response: life expectancy and dependency ratio affect savings
 

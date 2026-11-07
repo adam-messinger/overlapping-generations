@@ -22,6 +22,12 @@ export interface CapitalFinanceParameters {
   privateDefaultRate: number;
   debtRiskLambda: number;
   debtRiskThreshold: number;
+  neutralSafeRate: number;
+  safeRateGrowthPassThrough: number;
+  safeRateGrowthAnchor: number;
+  safeRateDebtSensitivity: number;
+  initialPublicDebtGDP: number;
+  creditSpread: number;
   financialSubsteps: number;
 }
 
@@ -40,6 +46,8 @@ export interface CapitalFinanceInputs {
    * separately and never counts as investment finance.
    */
   netNewCreditDemand?: number;
+  /** Smoothed real GDP growth the safe rate tracks (r* = c·g + z). Defaults to the anchor. */
+  trendGrowth?: number;
 }
 
 export interface CapitalFinancePathPoint {
@@ -51,6 +59,8 @@ export interface CapitalFinancePathPoint {
   publicDebtGDP: number;
   privateDebtGDP: number;
   interestRate: number;
+  safeRate: number;
+  loanRate: number;
   debtRiskPremium: number;
 }
 
@@ -76,7 +86,12 @@ export interface CapitalFinanceResult {
   publicInterestPayments: number;
   privateInterestPayments: number;
   primaryDeficit: number;
+  /** Return on capital plus the debt premium: firms' required return. */
   interestRate: number;
+  /** Real rate on public debt: tracks trend growth and the public-debt ratio. */
+  safeRate: number;
+  /** Real rate on private bank debt: safeRate plus the credit spread. */
+  loanRate: number;
   debtRiskPremium: number;
   path: readonly CapitalFinancePathPoint[];
 }
@@ -132,6 +147,8 @@ export function advanceCapitalFinance(
   let privateInterestPayments = 0;
   let primaryDeficit = 0;
   let weightedInterestRate = 0;
+  let weightedSafeRate = 0;
+  let weightedLoanRate = 0;
   let weightedRiskPremium = 0;
   let remainingNetNewCreditDemand =
     inputs.netNewCreditDemand ?? Number.POSITIVE_INFINITY;
@@ -152,6 +169,22 @@ export function advanceCapitalFinance(
       ? params.alpha * localGdp / inputs.capitalStock - params.depreciation
       : params.depreciation;
     const interestRate = baseInterestRate + debtRiskPremium;
+    // Three rates, not one. The return on capital (interestRate) is what
+    // capital earns; governments and banks borrow far below it, and the gap
+    // is not fixed: safe rates fell ~5pp from the mid-1980s while the return
+    // on capital stayed flat (Marx, Mojon & Velde 2021). The safe rate
+    // follows trend growth instead, r* = c·g + z (Laubach & Williams 2003;
+    // Holston, Laubach & Williams 2017), and rises with PUBLIC debt (Laubach
+    // 2009). The total-debt premium above is mostly private leverage, so it
+    // prices the return on capital, not the sovereign.
+    const trendGrowth = inputs.trendGrowth ?? params.safeRateGrowthAnchor;
+    const safeRate =
+      params.neutralSafeRate
+      + params.safeRateGrowthPassThrough
+        * (trendGrowth - params.safeRateGrowthAnchor)
+      + params.safeRateDebtSensitivity
+        * (publicDebtGDP - params.initialPublicDebtGDP);
+    const loanRate = safeRate + params.creditSpread;
 
     const fiscalConsolidationRate = Math.min(
       params.fiscalReactionMax * localGdp,
@@ -168,7 +201,7 @@ export function advanceCapitalFinance(
 
     const spreadFactor = Math.max(
       0,
-      1 - params.creditSensitivity * Math.max(0, interestRate - gdpGrowth),
+      1 - params.creditSensitivity * Math.max(0, loanRate - gdpGrowth),
     );
     const leverageFactor = Math.max(
       0,
@@ -193,8 +226,8 @@ export function advanceCapitalFinance(
     );
     const origination = refinancing + investmentOrigination;
 
-    publicInterestPayments += interestRate * publicDebt * dt;
-    privateInterestPayments += Math.max(0, interestRate) * privateDebt * dt;
+    publicInterestPayments += safeRate * publicDebt * dt;
+    privateInterestPayments += Math.max(0, loanRate) * privateDebt * dt;
     primaryDeficit += publicDebtChange;
     publicDebt += publicDebtChange;
     privateDebt += origination - repayment - writeOff;
@@ -205,6 +238,8 @@ export function advanceCapitalFinance(
     loanWriteOffs += writeOff;
     remainingNetNewCreditDemand -= investmentOrigination;
     weightedInterestRate += interestRate * dt;
+    weightedSafeRate += safeRate * dt;
+    weightedLoanRate += loanRate * dt;
     weightedRiskPremium += debtRiskPremium * dt;
     path.push({
       substep,
@@ -215,6 +250,8 @@ export function advanceCapitalFinance(
       publicDebtGDP: publicDebt / localGdp,
       privateDebtGDP: privateDebt / localGdp,
       interestRate,
+      safeRate,
+      loanRate,
       debtRiskPremium,
     });
   }
@@ -244,6 +281,8 @@ export function advanceCapitalFinance(
     privateInterestPayments,
     primaryDeficit,
     interestRate: weightedInterestRate,
+    safeRate: weightedSafeRate,
+    loanRate: weightedLoanRate,
     debtRiskPremium: weightedRiskPremium,
     path,
   };

@@ -165,6 +165,8 @@ export interface YearResult {
   regionalSavings: Record<Region, number>;
   stability: number;
   interestRate: number;
+  safeRate: number;
+  loanRate: number;
   robotsDensity: number;
   automationShare: number;
   capitalOutputRatio: number;

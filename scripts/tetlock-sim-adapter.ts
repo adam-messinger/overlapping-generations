@@ -81,7 +81,8 @@ const DISCLOSURES = [
     '(~18% below the medium variant by 2100) by deliberate low-fertility-convergence choice. That biases the ' +
     'model\'s labour force, and therefore its growth, DOWNWARD relative to the brief\'s locked Section 2A ' +
     'baseline. Any CQ3 bound read off this model is a LOW-FERTILITY-CONDITIONAL bound.',
-  'NOT IDENTIFIED (CQ4): capital.interestRate is an economy-wide REAL interest rate. The model has no 10-year ' +
+  'NOT IDENTIFIED (CQ4): capital.safeRate is the model\'s REAL rate on public debt (~1% in 2025, tracking trend ' +
+    'growth and public debt). The model has no 10-year ' +
     'sovereign benchmark, no term premium (no termPremium anywhere in src/), and no inflation swap or breakeven. ' +
     'It therefore CANNOT produce the G7 GDP-weighted 10y sovereign real yield CQ4 asks for. The rate and ' +
     'debtRiskPremium below are reported as DIRECTIONAL context only and must not be used as a CQ4 point estimate.',
@@ -118,6 +119,7 @@ interface ScenarioReading {
   ppp_weight_china_2031: number;
   china_growth_contribution_pp: number;
   directional_only_real_interest_rate_avg_pct: number;
+  directional_only_real_safe_rate_avg_pct: number;
   directional_only_debt_risk_premium_avg_pp: number;
   world_datacenter_TWh_2036: number;
   world_robots_per_1000_2036: number;
@@ -162,6 +164,7 @@ function read(label: string, overrides: DeepPartial<SimulationParams>): Scenario
     ppp_weight_china_2031: wChina,
     china_growth_contribution_pp: wChina * chinaGrowth,
     directional_only_real_interest_rate_avg_pct: mean(window.map((y) => y.interestRate)) * 100,
+    directional_only_real_safe_rate_avg_pct: mean(window.map((y) => y.safeRate)) * 100,
     directional_only_debt_risk_premium_avg_pp: mean(window.map((y) => y.debtRiskPremium)) * 100,
     world_datacenter_TWh_2036: end.dataCenterLoadTWh,
     world_robots_per_1000_2036: end.robotsPer1000,
@@ -180,8 +183,10 @@ const MODEL_DISCLOSURES = [
   'DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, ' +
     '2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, ' +
     'dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.',
-  'RATES: capital.interestRate is the model\'s economy-wide real lending rate (~6% in 2025), not r*, not a ' +
-    'policy rate and not a market yield. There is no term premium. Use CHANGES, never the level.',
+  'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~6% in 2025, ' +
+    'firms\' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on ' +
+    'private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach ' +
+    '2009). It is not a policy rate or a market yield. There is no term premium. Use CHANGES, never the level.',
   'NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. ' +
     'Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.',
   'NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are ' +

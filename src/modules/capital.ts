@@ -14,8 +14,10 @@
  * - Stability: Φ = 1 / (1 + λ × uncertainty²)
  * - Government services: retiree healthcare + education
  * - Cash transfers: pensions and public-debt interest (not GDP final uses)
- * - Interest rate: r = α × Y/K - δ + debtRiskPremium
- * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
+ * - Return on capital / firms' cost of capital: r = α × Y/K - δ + debtRiskPremium
+ * - Safe rate (public debt): r_safe = r_neutral + c·(g_trend - g_anchor) + λ_d·(d - d_2025)
+ * - Loan rate (private bank debt): r_loan = r_safe + creditSpread
+ * - Profit after interest and depreciation: Π = α(Y-G) - r_loan·D - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
  * - Household saving: S_h = disposableIncome - householdConsumption
@@ -132,6 +134,14 @@ export interface CapitalParams {
   debtRiskLambda: number;              // 0.03 (3bp per pp of excess total debt/GDP)
   debtRiskThreshold: number;           // 2.00 (total debt/GDP where premium starts)
 
+  // --- Rate structure ---
+  neutralSafeRate: number;             // 0.010 (safe rate at anchor growth and 2025 public debt)
+  safeRateGrowthPassThrough: number;   // 1.0 (c in r* = c·g + z)
+  safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
+  safeRateDebtSensitivity: number;     // 0.03 (3bp per pp of public debt/GDP above its 2025 level)
+  trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
+  creditSpread: number;                // 0.020 (bank/corporate borrowing over the safe rate)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
@@ -145,6 +155,7 @@ export interface CapitalState {
   publicDebt: number;         // $ trillions
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
+  trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
   financialLedger?: GodleyLedgerState;
 }
 
@@ -217,7 +228,9 @@ export interface CapitalOutputs {
   savingsRate: number;        // Global aggregate savings rate
   regionalSavings: Record<Region, number>;
   stability: number;          // G/C uncertainty premium Φ (0-1)
-  interestRate: number;       // Real interest rate
+  interestRate: number;       // Real return on capital + debt premium (firms' cost of capital)
+  safeRate: number;           // Real rate paid on public debt
+  loanRate: number;           // Real rate paid on private bank debt
 
   // Automation
   robotsDensity: number;      // Automation capital density (capital-derived, $/worker scaled)
@@ -299,9 +312,15 @@ export const capitalDefaults: CapitalParams = {
   // Bounded toy version of Keen's profit-responsive investment function.
   // These values keep the 2025 gross-investment rate near the pre-circuit
   // calibration while making investment orders causally prior to saving.
-  firmRetentionRate: 0.90,
+  // Re-solved when private debt moved from the return on capital (~6%) to
+  // the loan rate (~3%), which roughly doubled after-interest profit: holds
+  // 2025 investment at 25.2% of GDP with ~3% of GDP in net new credit
+  // (pre-split: 25.2%, 3.1%). Retention ~half of after-interest profit vs
+  // global listed payout ratios ~40-50% (MSCI ACWI; Janus Henderson Global
+  // Dividend Index, 2024).
+  firmRetentionRate: 0.45,
   investmentProfitRateFloor: 0,
-  investmentProfitRateCeiling: 0.025,
+  investmentProfitRateCeiling: 0.048,
   maximumNetInvestmentRate: 0.038,
 
   // OLG lifecycle savings
@@ -400,6 +419,37 @@ export const capitalDefaults: CapitalParams = {
   // --- Risk premium ---
   debtRiskLambda: 0.03,               // 3bp per pp of excess total debt/GDP
   debtRiskThreshold: 2.00,            // Total debt/GDP where premium starts
+
+  // --- Rate structure ---
+  // The return on capital (alpha*Y/K - delta, ~4.4% in 2025) is not what
+  // governments or banks borrow at. Safe real rates fell ~5pp from the
+  // mid-1980s while the return on capital stayed flat (Marx, Mojon & Velde
+  // 2021, J. Monetary Econ. 124; Caballero, Farhi & Gourinchas 2017, AER P&P).
+  // So the safe rate is not a fixed wedge below the return on capital (that
+  // ties it one-for-one to K/Y and, once interest accrues to debt, spirals).
+  // It follows trend growth, r* = c·g + z: Laubach & Williams (2003, REStat)
+  // estimate c ~1; Holston, Laubach & Williams (2017, JIE) impose c = 1.
+  // 2025 level ~1.0% real. Anchors: US r* ~1% (HLW and LW, NY Fed, 2025);
+  // world public interest ~3% of GDP nominal on ~94% debt (IMF Fiscal
+  // Monitor, Apr 2026), ~0-1% real.
+  neutralSafeRate: 0.010,
+  safeRateGrowthPassThrough: 1.0,
+  // World real GDP (PPP) CAGR 1990-2025 3.43% (WDI; scripts/growth-backcast.md),
+  // 2015-2025 ~3.5%: the trend the 2025 safe rate was set at.
+  safeRateGrowthAnchor: 0.034,
+  // r* filters move with growth over roughly a decade (HLW's trend growth is
+  // a slow-moving random walk); a 10-year exponential smoother.
+  trendGrowthSmoothingYears: 10,
+  // Sovereign rates rise ~3-4bp per pp of public debt/GDP (Laubach 2009,
+  // JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO Working Paper 2019-01).
+  // Measured from the 2025 ratio, so it moves the rate, not its level.
+  // The total-debt debtRiskPremium (mostly private leverage) prices the
+  // return on capital, not the sovereign.
+  safeRateDebtSensitivity: 0.03,
+  // Bank and corporate borrowers pay ~2pp over the safe rate: ECB composite
+  // cost of borrowing for NFCs vs the deposit facility rate (~1.8-2pp, 2025);
+  // Moody's Baa less 10y Treasury (FRED BAA10Y, ~1.7-2pp, 2025).
+  creditSpread: 0.020,
 
   // Initial conditions
   initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
@@ -571,13 +621,13 @@ export const capitalModule: Module<
     firmRetentionRate: {
       description: 'Share of positive firm profit retained after interest and depreciation; retained profit contributes internal investment finance.',
       unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.90 },
+      range: { min: 0, max: 1, default: 0.45 },
       tier: 1 as const,
     },
     investmentProfitRateCeiling: {
       description: 'Firm profit rate at which the bounded desired net-investment response reaches its maximum.',
       unit: 'fraction/year',
-      range: { min: 0.005, max: 0.15, default: 0.025 },
+      range: { min: 0.005, max: 0.15, default: 0.048 },
       tier: 1 as const,
     },
     maximumNetInvestmentRate: {
@@ -647,6 +697,24 @@ export const capitalModule: Module<
       unit: 'fraction/pp',
       range: { min: 0, max: 0.10, default: 0.03 },
       tier: 1 as const,
+    },
+    neutralSafeRate: {
+      description: 'Real safe rate on public debt at the anchor growth rate and the 2025 public-debt ratio (~1% in 2025). Lower → cheaper public borrowing; below growth it erodes the debt ratio.',
+      unit: 'fraction',
+      range: { min: -0.04, max: 0.04, default: 0.010 },
+      tier: 1 as const,
+    },
+    safeRateGrowthPassThrough: {
+      description: 'How far the safe rate moves per point of trend growth (c in r* = c·g + z). 1 = one-for-one (Holston-Laubach-Williams).',
+      unit: 'ratio',
+      range: { min: 0, max: 2, default: 1 },
+      tier: 2 as const,
+    },
+    creditSpread: {
+      description: 'Spread of private bank/corporate borrowing over the safe rate. Sets the private interest bill that firms pay out of operating surplus.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.08, default: 0.020 },
+      tier: 2 as const,
     },
     privateDefaultRate: {
       description: 'Annual private-loan write-off rate. Write-offs reduce borrower liabilities and bank equity one-for-one.',
@@ -722,6 +790,8 @@ export const capitalModule: Module<
       regionalSavings: unitPort('fraction', 'record'),
       stability: unitPort('fraction'),
       interestRate: unitPort('fraction'),
+      safeRate: unitPort('fraction'),
+      loanRate: unitPort('fraction'),
       robotsDensity: unitPort('robot/kpeople'),
       automationShare: unitPort('fraction'),
       kPerWorker: unitPort('$k/people'),
@@ -887,6 +957,31 @@ export const capitalModule: Module<
         errors.push('debtRiskLambda must be between 0 and 0.20');
       }
     }
+    if (params.neutralSafeRate !== undefined) {
+      if (params.neutralSafeRate < -0.10 || params.neutralSafeRate > 0.10) {
+        errors.push('neutralSafeRate must be between -0.10 and 0.10');
+      }
+    }
+    if (params.safeRateGrowthPassThrough !== undefined) {
+      if (params.safeRateGrowthPassThrough < 0 || params.safeRateGrowthPassThrough > 3) {
+        errors.push('safeRateGrowthPassThrough must be between 0 and 3');
+      }
+    }
+    if (params.safeRateDebtSensitivity !== undefined) {
+      if (params.safeRateDebtSensitivity < 0 || params.safeRateDebtSensitivity > 0.20) {
+        errors.push('safeRateDebtSensitivity must be between 0 and 0.20');
+      }
+    }
+    if (params.trendGrowthSmoothingYears !== undefined) {
+      if (params.trendGrowthSmoothingYears < 1 || params.trendGrowthSmoothingYears > 50) {
+        errors.push('trendGrowthSmoothingYears must be between 1 and 50');
+      }
+    }
+    if (params.creditSpread !== undefined) {
+      if (params.creditSpread < 0 || params.creditSpread > 0.10) {
+        errors.push('creditSpread must be between 0 and 0.10');
+      }
+    }
     if (params.privateAmortization !== undefined) {
       if (params.privateAmortization < 0.01 || params.privateAmortization > 0.20) {
         errors.push('privateAmortization must be between 0.01 and 0.20');
@@ -968,6 +1063,7 @@ export const capitalModule: Module<
       publicDebt: 0,   // Initialized from GDP at yearIndex === 0
       privateDebt: 0,   // Initialized from GDP at yearIndex === 0
       previousGdp: 0,   // Initialized from inputs at yearIndex === 0
+      trendGrowth: params.safeRateGrowthAnchor,
       financialLedger: undefined,
     };
   },
@@ -1172,6 +1268,7 @@ export const capitalModule: Module<
         gdp: inputs.gdp,
         capitalStock: state.stock,
         netNewCreditDemand,
+        trendGrowth: state.trendGrowth,
       },
       params,
     );
@@ -1204,6 +1301,7 @@ export const capitalModule: Module<
           gdp: inputs.gdp,
           capitalStock: state.stock,
           netNewCreditDemand,
+          trendGrowth: state.trendGrowth,
         },
         params,
       );
@@ -1225,6 +1323,7 @@ export const capitalModule: Module<
         gdp: inputs.gdp,
         capitalStock: state.stock,
         netNewCreditDemand,
+        trendGrowth: state.trendGrowth,
       },
       params,
     );
@@ -1461,6 +1560,17 @@ export const capitalModule: Module<
     const newPublicDebt = finance.state.publicDebt;
     const newPrivateDebt = finance.state.privateDebt;
 
+    // Trend growth for next year's safe rate: exponential smoothing of
+    // realized growth. Year 0 has no prior GDP, so it keeps the anchor.
+    const realizedGrowth = yearIndex > 0 && previousGdp > 0
+      ? inputs.gdp / previousGdp - 1
+      : undefined;
+    const openingTrendGrowth = state.trendGrowth ?? params.safeRateGrowthAnchor;
+    const nextTrendGrowth = realizedGrowth === undefined
+      ? openingTrendGrowth
+      : openingTrendGrowth
+        + (realizedGrowth - openingTrendGrowth) / params.trendGrowthSmoothingYears;
+
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
     const financialPosting = postCapitalGodleyYear(openingFinancialLedger, {
@@ -1502,6 +1612,7 @@ export const capitalModule: Module<
         publicDebt: newPublicDebt,
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
+        trendGrowth: nextTrendGrowth,
         financialLedger: financialPosting.state,
       },
       outputs: {
@@ -1535,6 +1646,8 @@ export const capitalModule: Module<
         regionalSavings,
         stability,
         interestRate,
+        safeRate: finance.safeRate,
+        loanRate: finance.loanRate,
         robotsDensity,
         automationShare,
         kPerWorker,
