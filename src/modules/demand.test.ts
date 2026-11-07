@@ -461,6 +461,56 @@ test('high carbon price reduces coal share faster', () => {
   expect(highCarbon.outputs.fuels.coal).toBeLessThan(lowCarbon.outputs.fuels.coal);
 });
 
+test('sector fuel recipes reproduce the global 2025 shares', () => {
+  // The calibrated logit is anchored on the sector recipes; their
+  // non-electric-weighted aggregate must equal fuels.*.share2025, or the
+  // first step would jump away from the observed 2025 mix.
+  const p = demandModule.mergeParams({});
+  const sectors = ['transport', 'buildings', 'industry'] as const;
+  const weight = (s: typeof sectors[number]) =>
+    p.sectors[s].share * (1 - p.sectors[s].electrification2025);
+  const wSum = sectors.reduce((a, s) => a + weight(s), 0);
+  for (const fuel of ['oil', 'gas', 'coal', 'biomass', 'hydrogen', 'biofuel'] as const) {
+    const agg = sectors.reduce((a, s) => a + weight(s) * p.sectors[s].fuelShares2025[fuel], 0) / wSum;
+    expect(Math.abs(agg - p.fuels[fuel].share2025)).toBeLessThan(0.005);
+  }
+});
+
+test('fuel mix holds its 2025 recipe at the reference carbon price', () => {
+  // No relative-price change and no electrification change -> no drift.
+  // (The uncalibrated logit drifted toward coal every year at any price.)
+  const p = demandModule.mergeParams({});
+  const year1 = runYearsWithParams(1, {}, { carbonPrice: p.fuelMix.referenceCarbonPrice });
+  const coal1 = year1.outputs.fuels.coal / year1.outputs.nonElectricEnergy;
+  expect(Math.abs(coal1 - p.fuels.coal.share2025)).toBeLessThan(0.01);
+  const oil1 = year1.outputs.fuels.oil / year1.outputs.nonElectricEnergy;
+  expect(Math.abs(oil1 - p.fuels.oil.share2025)).toBeLessThan(0.01);
+});
+
+test('coal never enters transport', () => {
+  const run = runYearsWithParams(20, {}, { carbonPrice: 0 });
+  expect(run.state.sectorFuelShares.transport.coal).toBe(0);
+  expect(run.state.sectorFuelShares.buildings.coal).toBeGreaterThan(0);
+});
+
+test('non-electric coal does not double as transport electrifies', () => {
+  // Regression for the uncalibrated-logit artefact: coal rose from ~13k to
+  // ~26k TWh by 2045 by absorbing the share oil gave up. With sector recipes
+  // coal only rises with the industry/buildings weight in the non-electric
+  // mix, so at the reference carbon price its share stays near the recipe.
+  const run = runYearsWithParams(20, {}, { carbonPrice: 35 });
+  const coalShare = run.outputs.fuels.coal / run.outputs.nonElectricEnergy;
+  expect(coalShare).toBeLessThan(0.18);
+  expect(run.state.sectorFuelShares.industry.coal).toBeBetween(0.25, 0.29);
+});
+
+test('sector fuel recipe validation', () => {
+  const bad = demandModule.validate({
+    sectors: { transport: { fuelShares2025: { oil: 0.5, gas: 0.1, coal: 0, biomass: 0, hydrogen: 0, biofuel: 0 } } },
+  } as any);
+  expect(bad.valid).toBe(false);
+});
+
 test('fuel shares respond to carbon price over time', () => {
   const year1 = runYearsWithParams(1, {}, { carbonPrice: 100 });
   const year25 = runYearsWithParams(25, {}, { carbonPrice: 100 });
@@ -629,9 +679,14 @@ test('fuel delivery margins do not perturb the logit fuel mix', () => {
     },
   } as Partial<typeof demandDefaults>, {});
 
-  const baseShare = retailBase25.outputs.fuels.coal / retailBase25.outputs.nonElectricEnergy;
-  const marginShare = highMargins.outputs.fuels.coal / highMargins.outputs.nonElectricEnergy;
-  expect(Math.abs(baseShare - marginShare)).toBeLessThan(1e-9);
+  // Within-sector competition is untouched. (The AGGREGATE mix may still
+  // move: margins change each sector's electrification, and the global mix
+  // is the non-electric-weighted aggregate of the sector mixes.)
+  for (const sector of ['transport', 'buildings', 'industry'] as const) {
+    const base = retailBase25.state.sectorFuelShares[sector].coal;
+    const margin = highMargins.state.sectorFuelShares[sector].coal;
+    expect(Math.abs(base - margin)).toBeLessThan(1e-9);
+  }
 });
 
 test('rising oil price path shifts fuel mix away from oil', () => {
