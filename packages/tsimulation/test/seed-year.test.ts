@@ -34,6 +34,15 @@ test('a start offset examines a series from step 1', () => {
   assert.equal(findSeedYearKinks({ growthRate }, { startOffsets: { growthRate: 1 } }).length, 0);
 });
 
+test('floating-point noise on a quantity that should be zero is not a jump', () => {
+  // An accounting residual: -2.8e-14 at the seed step, exactly 0 after. Scored
+  // against its own magnitude it looked like a 100% jump, and only on the
+  // Node versions whose float paths produced the noise.
+  const residual = [-2.842e-14, 0, 0, 0, 0, 0];
+  assert.deepEqual(findSeedYearKinks({ residual }), []);
+  assert.equal(findSeedYearKinks({ residual }, { noiseFloor: 0 }).length, 1);
+});
+
 test('series too short, non-finite or all zero are skipped, not flagged', () => {
   assert.equal(scoreSeedYear([1, 2, 3]), undefined);
   assert.equal(scoreSeedYear([1, Number.NaN, 3, 4, 5, 6]), undefined);

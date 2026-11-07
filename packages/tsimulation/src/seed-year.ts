@@ -31,6 +31,12 @@ export interface SeedYearOptions {
   /** Scores above this are reported (default 0.05). */
   threshold?: number;
   /**
+   * Smallest magnitude a series is scored against (default 1e-9). Without it
+   * a quantity that should be zero (an accounting residual) scores 1 on pure
+   * floating-point noise, and whether it flags depends on the Node version.
+   */
+  noiseFloor?: number;
+  /**
    * Per-series start index. A series whose seed-step value is defined
    * differently (a growth rate that is 0 before there is a previous step, a
    * revaluation with no prior schedule) is examined from step 1 instead.
@@ -39,7 +45,11 @@ export interface SeedYearOptions {
 }
 
 /** Score one series. Returns undefined when it is too short or not finite. */
-export function scoreSeedYear(values: readonly number[], trendSteps = 4): Omit<SeedYearKink, 'name'> | undefined {
+export function scoreSeedYear(
+  values: readonly number[],
+  trendSteps = 4,
+  noiseFloor = 1e-9,
+): Omit<SeedYearKink, 'name'> | undefined {
   if (values.length < trendSteps + 2) return undefined;
   const window = values.slice(0, trendSteps + 2);
   if (window.some((value) => typeof value !== 'number' || !Number.isFinite(value))) return undefined;
@@ -47,8 +57,7 @@ export function scoreSeedYear(values: readonly number[], trendSteps = 4): Omit<S
   const later = window.slice(2).map((value, index) => value - window[index + 1]);
   const laterMeanChange = later.reduce((sum, change) => sum + change, 0) / later.length;
   const spread = Math.max(...later.map((change) => Math.abs(change - laterMeanChange)));
-  const magnitude = Math.max(...window.map(Math.abs));
-  if (magnitude === 0) return { score: 0, firstChange, laterMeanChange, window };
+  const magnitude = Math.max(noiseFloor, ...window.map(Math.abs));
   const score = (Math.abs(firstChange - laterMeanChange) - spread) / magnitude;
   return { score, firstChange, laterMeanChange, window };
 }
@@ -63,7 +72,7 @@ export function findSeedYearKinks(
   const kinks: SeedYearKink[] = [];
   for (const [name, values] of Object.entries(series)) {
     const offset = options.startOffsets?.[name] ?? 0;
-    const scored = scoreSeedYear(values.slice(offset), trendSteps);
+    const scored = scoreSeedYear(values.slice(offset), trendSteps, options.noiseFloor);
     if (scored && scored.score > threshold) kinks.push({ name, ...scored });
   }
   return kinks.sort((a, b) => b.score - a.score);

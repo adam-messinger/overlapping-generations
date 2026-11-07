@@ -394,6 +394,9 @@ steps' own spread and relative to the series' magnitude, exceeds `threshold`
 (default 0.05). Steady trends, accelerations and noise score near zero.
 `startOffsets` examines a series from a later step, for values defined
 differently at the seed step (a growth rate that needs a previous level).
+`noiseFloor` (default 1e-9) is the smallest magnitude a series is scored
+against, so floating-point noise on a quantity that should be zero is not
+scaled up into a jump.
 
 ## Worked example: predator–prey
 
