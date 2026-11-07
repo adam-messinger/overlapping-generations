@@ -150,8 +150,10 @@ export interface YearResult {
   unfundedFinancingDemand: number;
   grossSavings: number;
   laborCompensation: number;
+  laborShare: number;
   operatingSurplus: number;
   privateInterestPayments: number;
+  unpaidPrivateInterest: number;
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
   retainedEarnings: number;
@@ -171,6 +173,9 @@ export interface YearResult {
   regionalSavings: Record<Region, number>;
   stability: number;
   interestRate: number;
+  safeRate: number;
+  loanRate: number;
+  repressionGap: number;
   robotsDensity: number;
   automationShare: number;
   capitalOutputRatio: number;

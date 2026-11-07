@@ -173,6 +173,66 @@ export interface CapitalGodleyFlows {
   netTaxes: number;
 }
 
+/** The flows postCapitalGodleyYear posts to `firms.deposits`, and only those. */
+export type FirmCashFlows = Pick<
+  CapitalGodleyFlows,
+  | 'grossLoanOriginations'
+  | 'principalRepayments'
+  | 'laborCompensation'
+  | 'householdConsumption'
+  | 'privateInterestPayments'
+  | 'firmDividendPayments'
+>;
+
+/**
+ * The change postCapitalGodleyYear will post to `firms.deposits`. Kept beside
+ * the postings it mirrors (and pinned to them by a test) so a new firm cash
+ * flow cannot slip past the cash floor below.
+ */
+export function firmDepositChange(flows: FirmCashFlows): number {
+  return flows.grossLoanOriginations
+    - flows.principalRepayments
+    - flows.laborCompensation
+    + flows.householdConsumption
+    - flows.privateInterestPayments
+    - flows.firmDividendPayments;
+}
+
+export interface FirmCashSettlement extends FirmCashFlows {
+  suspendedDividends: number;
+  /** Interest due that firms could not pay: forgone by banks, never capitalized */
+  unpaidInterest: number;
+  /** Principal due that firms could not repay: a write-off */
+  defaultedPrincipal: number;
+}
+
+/**
+ * Firms cannot pay out deposits they do not have. A shortfall is met by
+ * default, in the order a distressed firm would choose: suspend dividends,
+ * leave interest unpaid, then miss principal. A shortfall beyond all three
+ * is left for the ledger to reject.
+ */
+export function settleFirmCashShortfall(
+  openingFirmDeposits: number,
+  flows: FirmCashFlows,
+): FirmCashSettlement {
+  let shortfall = Math.max(0, -(openingFirmDeposits + firmDepositChange(flows)));
+  const suspendedDividends = Math.min(shortfall, flows.firmDividendPayments);
+  shortfall -= suspendedDividends;
+  const unpaidInterest = Math.min(shortfall, flows.privateInterestPayments);
+  shortfall -= unpaidInterest;
+  const defaultedPrincipal = Math.min(shortfall, flows.principalRepayments);
+  return {
+    ...flows,
+    firmDividendPayments: flows.firmDividendPayments - suspendedDividends,
+    privateInterestPayments: flows.privateInterestPayments - unpaidInterest,
+    principalRepayments: flows.principalRepayments - defaultedPrincipal,
+    suspendedDividends,
+    unpaidInterest,
+    defaultedPrincipal,
+  };
+}
+
 function balanceSheetChange(
   id: string,
   description: string,
@@ -185,12 +245,17 @@ export function postCapitalGodleyYear(
   state: GodleyLedgerState,
   flows: CapitalGodleyFlows,
 ): GodleyPostingResult {
+  // Public interest is signed: a negative real safe rate (financial
+  // repression) is a real-terms transfer from bondholders to the government,
+  // the counterpart of inflation eroding a nominal claim. Banks' share must
+  // carry the same sign and be no larger in magnitude than the total.
   if (
-    flows.publicInterestToBanks < 0
-    || flows.publicInterestToBanks > flows.publicInterestPayments
+    flows.publicInterestToBanks * flows.publicInterestPayments < 0
+    || Math.abs(flows.publicInterestToBanks)
+      > Math.abs(flows.publicInterestPayments)
   ) {
     throw new Error(
-      'publicInterestToBanks must be between zero and total publicInterestPayments',
+      'publicInterestToBanks must be a share (0-1) of total publicInterestPayments',
     );
   }
   // New public debt is purchased by banks through matching deposit creation,

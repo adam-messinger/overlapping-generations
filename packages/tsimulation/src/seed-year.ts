@@ -15,8 +15,7 @@
  * trend, a steady acceleration and ordinary noise all score near zero.
  */
 
-export interface SeedYearKink {
-  name: string;
+export interface SeedYearScore {
   /** (|first change - later mean change| - later spread) / magnitude. */
   score: number;
   firstChange: number;
@@ -25,41 +24,43 @@ export interface SeedYearKink {
   window: number[];
 }
 
+export interface SeedYearKink extends SeedYearScore {
+  name: string;
+}
+
 export interface SeedYearOptions {
   /** Steps after the first used to describe the path (default 4). */
   trendSteps?: number;
   /** Scores above this are reported (default 0.05). */
   threshold?: number;
   /**
+   * Smallest magnitude a series is scored against (default 1e-9). Without it
+   * a quantity that should be zero (an accounting residual) scores 1 on pure
+   * floating-point noise, and whether it flags depends on the Node version.
+   */
+  noiseFloor?: number;
+  /**
    * Per-series start index. A series whose seed-step value is defined
    * differently (a growth rate that is 0 before there is a previous step, a
    * revaluation with no prior schedule) is examined from step 1 instead.
    */
   startOffsets?: Readonly<Record<string, number>>;
-  /**
-   * A series whose largest absolute value over the window is at or below
-   * this is round-off, not a path, and scores 0 (default 0). Without it an
-   * identity residual of 1e-14 then 0 scores 1, since the score is relative
-   * to the window's own magnitude.
-   */
-  absoluteTolerance?: number;
 }
 
 /** Score one series. Returns undefined when it is too short or not finite. */
 export function scoreSeedYear(
   values: readonly number[],
   trendSteps = 4,
-  absoluteTolerance = 0,
-): Omit<SeedYearKink, 'name'> | undefined {
+  noiseFloor = 1e-9,
+): SeedYearScore | undefined {
   if (values.length < trendSteps + 2) return undefined;
   const window = values.slice(0, trendSteps + 2);
-  if (window.some((value) => typeof value !== 'number' || !Number.isFinite(value))) return undefined;
+  if (!window.every(Number.isFinite)) return undefined;
   const firstChange = window[1] - window[0];
   const later = window.slice(2).map((value, index) => value - window[index + 1]);
   const laterMeanChange = later.reduce((sum, change) => sum + change, 0) / later.length;
   const spread = Math.max(...later.map((change) => Math.abs(change - laterMeanChange)));
-  const magnitude = Math.max(...window.map(Math.abs));
-  if (magnitude <= absoluteTolerance) return { score: 0, firstChange, laterMeanChange, window };
+  const magnitude = Math.max(noiseFloor, ...window.map(Math.abs));
   const score = (Math.abs(firstChange - laterMeanChange) - spread) / magnitude;
   return { score, firstChange, laterMeanChange, window };
 }
@@ -74,7 +75,7 @@ export function findSeedYearKinks(
   const kinks: SeedYearKink[] = [];
   for (const [name, values] of Object.entries(series)) {
     const offset = options.startOffsets?.[name] ?? 0;
-    const scored = scoreSeedYear(values.slice(offset), trendSteps, options.absoluteTolerance ?? 0);
+    const scored = scoreSeedYear(values.slice(offset), trendSteps, options.noiseFloor);
     if (scored && scored.score > threshold) kinks.push({ name, ...scored });
   }
   return kinks.sort((a, b) => b.score - a.score);

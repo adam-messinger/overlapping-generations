@@ -124,18 +124,15 @@ test('rationed fuel is rationed in the sector breakdown too', () => {
     hormuzScenarios['short-disruption'],
     calibrated.params,
   );
+  // The demand module's own invariants state the partition; the shocked path
+  // is not in the scenario files, so check them here.
   const run = runAutowiredSimulation(
     { ...buildHormuzGlobalOverrides(result), endYear: 2028 },
-    { invariants: 'off', paramLiveness: 'off' },
+    { invariants: 'report', paramLiveness: 'off' },
   );
-  const index = run.years.indexOf(2026);
-  const sectors = run.outputs.demand.sectors[index] as Record<string, { nonElectric: number; electric: number; total: number }>;
-  const nonElectric = run.outputs.demand.nonElectricEnergy[index] as number;
-  const sectorSum = Object.values(sectors).reduce((sum, s) => sum + s.nonElectric, 0);
-  expect(Math.abs(sectorSum - nonElectric) / nonElectric).toBeLessThan(1e-9);
-  for (const sector of Object.values(sectors)) {
-    expect(Math.abs(sector.total - sector.electric - sector.nonElectric)).toBeLessThan(1e-6);
-  }
+  const violations = run.diagnostics?.invariants?.violations ?? [];
+  expect(violations.map((v) => `${v.year} ${v.invariant}: ${v.message}`).join('; ')).toBe('');
+  expect((run.diagnostics?.invariants?.checked ?? 0) > 0).toBeTrue();
 });
 
 test('the annual bridge rejects an accidental same-year shock overwrite', () => {

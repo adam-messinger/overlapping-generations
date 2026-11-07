@@ -35,15 +35,25 @@ const OPEN_PARTIAL_KEYS = new Set(['maxGrowthRate', 'capacityFactor']);
 /** Recursively warn about override keys absent from the default shape. Recurses
  * only where BOTH sides are plain objects (records-of-records like sources /
  * regional / sectors); stops at leaves, numeric maps, and open Partial records. */
-function validateOverrideKeys(
+/**
+ * Check override keys against the module's default shape and return the
+ * override without the unrecognized ones, so "will be ignored" is what
+ * happens: a module whose merge is strict (a parameter schema) would
+ * otherwise reject a key this function only warned about.
+ */
+function pruneOverrideKeys(
   override: unknown,
   defaults: unknown,
   path: string,
   unknownKeys: 'warn' | 'error' | 'ignore',
-): void {
-  if (!isPlainObject(override) || !isPlainObject(defaults)) return;
+): unknown {
+  if (!isPlainObject(override) || !isPlainObject(defaults)) return override;
+  const kept: Record<string, unknown> = {};
   for (const key of Object.keys(override)) {
-    if (OPEN_PARTIAL_KEYS.has(key)) continue;  // valid optional/Partial — don't warn or descend
+    if (OPEN_PARTIAL_KEYS.has(key)) {  // valid optional/Partial — don't warn or descend
+      kept[key] = override[key];
+      continue;
+    }
     // `in` walks the prototype chain, so `__proto__`, `constructor` and
     // `toString` would all pass the unknown-key check as though they named
     // real parameters. Own properties are the only real ones.
@@ -53,8 +63,9 @@ function validateOverrideKeys(
       if (unknownKeys === 'warn') console.warn(`Warning: ${message}`);
       continue;
     }
-    validateOverrideKeys(override[key], defaults[key], `${path}.${key}`, unknownKeys);
+    kept[key] = pruneOverrideKeys(override[key], defaults[key], `${path}.${key}`, unknownKeys);
   }
+  return kept;
 }
 
 // =============================================================================
@@ -118,6 +129,7 @@ export function scenarioToParams(
     ...ALL_MODULES.map((m) => m.name),
   ]);
 
+  const sections: Record<string, unknown> = {};
   for (const key of Object.keys(scenario)) {
     if (!knownKeys.has(key)) {
       const message = `Unrecognized scenario key "${key}" will be ignored`;
@@ -132,7 +144,7 @@ export function scenarioToParams(
     const defaults = MODULE_DEFAULTS[key];
     const section = (scenario as unknown as Record<string, unknown>)[key];
     if (defaults && isPlainObject(section)) {
-      validateOverrideKeys(section, defaults, key, unknownKeys);
+      sections[key] = pruneOverrideKeys(section, defaults, key, unknownKeys);
     }
   }
 
@@ -142,7 +154,7 @@ export function scenarioToParams(
 
   for (const mod of ALL_MODULES) {
     const key = mod.name as keyof SimulationParams;
-    const section = scenario[key];
+    const section = key in sections ? sections[key] : scenario[key];
     if (section) (params as Record<string, unknown>)[key] = section;
   }
 
@@ -174,14 +186,17 @@ export async function loadScenarioAsParams(
 // =============================================================================
 
 import { readdir } from 'fs/promises';
+import { readdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+
+const SCENARIOS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../scenarios');
 
 /**
  * List available scenarios in the scenarios directory
  */
 export async function listScenarios(scenariosDir?: string): Promise<string[]> {
-  const dir = scenariosDir ?? join(dirname(fileURLToPath(import.meta.url)), '../scenarios');
+  const dir = scenariosDir ?? SCENARIOS_DIR;
 
   try {
     const files = await readdir(dir);
@@ -197,6 +212,19 @@ export async function listScenarios(scenariosDir?: string): Promise<string[]> {
  * Get scenario path from name
  */
 export function getScenarioPath(name: string, scenariosDir?: string): string {
-  const dir = scenariosDir ?? join(dirname(fileURLToPath(import.meta.url)), '../scenarios');
+  const dir = scenariosDir ?? SCENARIOS_DIR;
   return join(dir, `${name}.json`);
+}
+
+/** Synchronous `listScenarios`, sorted, for tests and scripts without top-level await. */
+export function listScenariosSync(scenariosDir: string = SCENARIOS_DIR): string[] {
+  return readdirSync(scenariosDir)
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.replace('.json', ''))
+    .sort();
+}
+
+/** Synchronous `loadScenarioAsParams` for a scenario name, without CLI overrides. */
+export function loadScenarioParamsSync(name: string, scenariosDir?: string): SimulationParams {
+  return scenarioToParams(JSON.parse(readFileSync(getScenarioPath(name, scenariosDir), 'utf-8')) as Scenario);
 }

@@ -18,7 +18,8 @@
  * any path the derivation did not declare, so `from` is true by construction.
  */
 
-const RESERVED = new Set(['__proto__', 'prototype', 'constructor']);
+import { assertAddressable, ownValue } from './component-params.js';
+import { leafPaths } from './liveness.js';
 
 export interface ParamDerivation {
   /** Dot path, module first: 'cdr.tcre'. */
@@ -45,22 +46,17 @@ export interface DerivationResult<P> {
   reads: Record<string, string[]>;
 }
 
+/** Module first, then at least one segment; reserved segments refused. */
 function splitPath(path: string): [string, string[]] {
-  const parts = path.split('.');
-  if (parts.length < 2 || parts.some((part) => part === '' || RESERVED.has(part))) {
-    throw new Error(`Invalid parameter path '${path}'`);
+  const parts = assertAddressable(path);
+  if (parts.length < 2 || parts.some((part) => part === '')) {
+    throw new Error(`Invalid parameter path '${path}': expected module.path`);
   }
   return [parts[0], parts.slice(1)];
 }
 
-function getOwn(value: unknown, parts: readonly string[]): unknown {
-  let current = value;
-  for (const part of parts) {
-    if (typeof current !== 'object' || current === null || !Object.hasOwn(current, part)) return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
+const getOwn = (value: unknown, parts: readonly string[]): unknown =>
+  parts.reduce<unknown>((current, part) => ownValue(current, part), value);
 
 function setOwn(target: Record<string, unknown>, parts: readonly string[], value: unknown): void {
   let current = target;
@@ -71,15 +67,6 @@ function setOwn(target: Record<string, unknown>, parts: readonly string[], value
     current = copy as Record<string, unknown>;
   }
   current[parts[parts.length - 1]] = value;
-}
-
-/** Leaf paths under a value read whole, so liveness credits each leaf it covers. */
-function leavesUnder(prefix: string, value: unknown, out: Set<string>): void {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    for (const [key, child] of Object.entries(value)) leavesUnder(`${prefix}.${key}`, child, out);
-  } else {
-    out.add(prefix);
-  }
 }
 
 const covers = (declared: string, path: string) => path === declared || path.startsWith(`${declared}.`);
@@ -168,7 +155,9 @@ export function applyDerivations<P extends Record<string, any>>(
       }
       const [moduleName, parts] = splitPath(path);
       const value = getOwn(mergedOf(moduleName), parts);
-      leavesUnder(parts.join('.'), value, (reads[moduleName] ??= new Set()));
+      // A value read whole credits each leaf it covers, by liveness's own leaf rule
+      const credited = (reads[moduleName] ??= new Set());
+      for (const leaf of leafPaths(value, parts.join('.'))) credited.add(leaf);
       return value;
     };
     const value = derivation.derive(read);

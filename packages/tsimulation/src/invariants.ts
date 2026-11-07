@@ -118,11 +118,14 @@ function describeNumber(value: number): string {
 
 function nonFinite(label: string, values: Record<string, number>): string | undefined {
   for (const [side, value] of Object.entries(values)) {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return `${label}: ${side} is ${String(value)}`;
-    }
+    if (!Number.isFinite(value)) return `${label}: ${side} is ${String(value)}`;
   }
   return undefined;
+}
+
+/** The slack a tolerance allows against a quantity of the given magnitude. */
+function allowedGap(tolerance: Tolerance, magnitude: number): number {
+  return Math.max(tolerance.abs ?? 1e-9, (tolerance.rel ?? 1e-9) * magnitude);
 }
 
 /** `actual` equals `expected` within tolerance. */
@@ -134,44 +137,36 @@ export function closeTo(
 ): string | undefined {
   const bad = nonFinite(label, { actual, expected });
   if (bad) return bad;
-  const rel = tolerance.rel ?? 1e-9;
-  const abs = tolerance.abs ?? 1e-9;
   const gap = Math.abs(actual - expected);
-  const allowed = Math.max(abs, rel * Math.max(Math.abs(actual), Math.abs(expected)));
+  const allowed = allowedGap(tolerance, Math.max(Math.abs(actual), Math.abs(expected)));
   if (gap <= allowed) return undefined;
   return `${label}: ${describeNumber(actual)} != ${describeNumber(expected)} (gap ${describeNumber(gap)}, allowed ${describeNumber(allowed)})`;
 }
 
-/** `actual` does not exceed `bound` by more than the tolerance. */
-export function atMost(
+/** One-sided bound: `direction` 1 means at most `bound`, -1 at least. */
+function bounded(
   label: string,
   actual: number,
   bound: number,
-  tolerance: Tolerance = {},
+  direction: 1 | -1,
+  tolerance: Tolerance,
 ): string | undefined {
   const bad = nonFinite(label, { actual, bound });
   if (bad) return bad;
-  const rel = tolerance.rel ?? 1e-9;
-  const abs = tolerance.abs ?? 1e-9;
-  const allowed = Math.max(abs, rel * Math.abs(bound));
-  if (actual <= bound + allowed) return undefined;
-  return `${label}: ${describeNumber(actual)} exceeds ${describeNumber(bound)} by ${describeNumber(actual - bound)}`;
+  const excess = direction * (actual - bound);
+  if (excess <= allowedGap(tolerance, Math.abs(bound))) return undefined;
+  const relation = direction === 1 ? 'exceeds' : 'is below';
+  return `${label}: ${describeNumber(actual)} ${relation} ${describeNumber(bound)} by ${describeNumber(excess)}`;
+}
+
+/** `actual` does not exceed `bound` by more than the tolerance. */
+export function atMost(label: string, actual: number, bound: number, tolerance: Tolerance = {}): string | undefined {
+  return bounded(label, actual, bound, 1, tolerance);
 }
 
 /** `actual` is not below `bound` by more than the tolerance. */
-export function atLeast(
-  label: string,
-  actual: number,
-  bound: number,
-  tolerance: Tolerance = {},
-): string | undefined {
-  const bad = nonFinite(label, { actual, bound });
-  if (bad) return bad;
-  const rel = tolerance.rel ?? 1e-9;
-  const abs = tolerance.abs ?? 1e-9;
-  const allowed = Math.max(abs, rel * Math.abs(bound));
-  if (actual >= bound - allowed) return undefined;
-  return `${label}: ${describeNumber(actual)} is below ${describeNumber(bound)} by ${describeNumber(bound - actual)}`;
+export function atLeast(label: string, actual: number, bound: number, tolerance: Tolerance = {}): string | undefined {
+  return bounded(label, actual, bound, -1, tolerance);
 }
 
 /** Sum of a record's values (or of a projection of them). */

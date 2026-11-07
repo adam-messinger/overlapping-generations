@@ -14,14 +14,20 @@
  * - Stability: Φ = 1 / (1 + λ × uncertainty²)
  * - Government services: retiree healthcare + education
  * - Cash transfers: pensions and public-debt interest (not GDP final uses)
- * - Interest rate: r = α × Y/K - δ + debtRiskPremium
- * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
+ * - Return on capital / firms' cost of capital: r = α × Y/K - δ + debtRiskPremium
+ * - Safe rate (public debt): r_safe = r_neutral + c·(g_trend - g_anchor) + λ_d·(d - d_2025)
+ * - Loan rate (private bank debt): r_loan = r_safe + creditSpread
+ * - Capital's income share: α + s_m·(1-α)·Δm, Δm = machine share of augmented labor since 2025
+ * - Profit after interest and depreciation: Π = share·(Y-G) - r_loan·D - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
+ * - Firm cash floor: firms cannot overdraw deposits. A shortfall suspends
+ *   dividends, then leaves interest unpaid, then misses principal; loans
+ *   behind unpaid interest are written down by unpaid / r
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
- * - Public debt: ΔD = primaryDeficit - fiscalConsolidation
+ * - Public debt: ΔD = primaryDeficit + s·Δ(transfers/Y)·Y - fiscalConsolidation + r_safe·D
  * - Private debt: ΔD = gross originations - principal repayments - write-offs
  *
  * Sources:
@@ -55,6 +61,7 @@ import {
   capitalBankCapitalRatio,
   createCapitalGodleyLedger,
   postCapitalGodleyYear,
+  settleFirmCashShortfall,
 } from './capital-accounting.js';
 
 // =============================================================================
@@ -72,6 +79,7 @@ export interface TransferParams {
 export interface CapitalParams {
   // Production
   alpha: number;              // Capital share in Cobb-Douglas (~0.33)
+  automationIncomeToCapital: number; // Share of machine worker-equivalents' income paid to capital (1)
   depreciation: number;       // Annual depreciation rate (~0.05)
   firmRetentionRate: number;  // Share of positive after-interest profit retained
   investmentProfitRateFloor: number; // Profit rate below which only replacement is ordered
@@ -104,7 +112,6 @@ export interface CapitalParams {
 
   // Retirement age adjustment
   retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
-  wageIndexation: number;           // 0=price-indexed, 1=wage-indexed (0.7)
 
   // Demographic savings response
   savingsLifeExpSensitivity: number;     // LE elasticity on savings (0.5)
@@ -113,6 +120,7 @@ export interface CapitalParams {
   // --- Public debt ---
   initialPublicDebtGDP: number;        // 0.90 (90% of GDP in 2025)
   publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
+  ageingCostDeficitShare: number;      // 0.25 (share of the rise in transfers/GDP since 2025 that is borrowed)
   fiscalReactionCoeff: number;         // 0.03 (tightening per pp of debt/GDP above threshold)
   fiscalReactionThreshold: number;     // 0.60 (Maastricht-style trigger)
   fiscalReactionMax: number;           // 0.04 (max primary surplus / GDP — saturation)
@@ -134,19 +142,31 @@ export interface CapitalParams {
   debtRiskLambda: number;              // 0.03 (3bp per pp of excess total debt/GDP)
   debtRiskThreshold: number;           // 2.00 (total debt/GDP where premium starts)
 
+  // --- Rate structure ---
+  neutralSafeRate: number;             // 0.010 (safe rate at anchor growth and 2025 public debt)
+  safeRateGrowthPassThrough: number;   // 1.0 (c in r* = c·g + z)
+  safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
+  safeRateDebtSensitivity: number;     // 0.03 (3bp per pp of public debt/GDP above its 2025 level)
+  trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
+  financialRepression: number;         // 0 (pp the safe rate is held below its market level)
+  repressionDebtThreshold: number;     // 1.5 (public debt/GDP above which fiscal dominance caps the safe rate)
+  repressionDepth: number;             // 0.03 (cap = trend growth less this)
+  creditSpread: number;                // 0.020 (bank/corporate borrowing over the safe rate)
+
   // Initial conditions
   initialCapitalStock: number;    // $ trillions (2025)
 }
 
 export interface CapitalState {
   stock: number;              // Current capital stock ($ trillions)
-  referenceGdpPerWorker: Record<Region, number>;  // Year-0 GDP/worker per region
-  referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
   referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
   referenceDependency: Record<Region, number>;     // Year-0 dependency ratio per region
   publicDebt: number;         // $ trillions
   privateDebt: number;        // $ trillions
   previousGdp: number;        // $ trillions (for GDP growth rate)
+  trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
+  referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
+  referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
   financialLedger?: GodleyLedgerState;
 }
 
@@ -177,6 +197,7 @@ export interface CapitalInputs {
 
   // From energy/dispatch (optional)
   netEnergyFactor?: number;   // Net energy fraction (0-1), lagged
+  automationLaborShare?: number; // Machine share of augmented labor (from production, same year)
 
   // From demand (optional, for investment split)
   energyBurden?: number;      // Energy cost as fraction of GDP (0-1)
@@ -202,8 +223,10 @@ export interface CapitalOutputs {
 
   // Monetary circuit and sectoral saving
   laborCompensation: number;
+  laborShare: number;          // Labor compensation / GDP
   operatingSurplus: number;
   privateInterestPayments: number;
+  unpaidPrivateInterest: number; // $T/year of interest due that firms could not pay (forgone by banks)
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
   retainedEarnings: number;
@@ -224,7 +247,10 @@ export interface CapitalOutputs {
   savingsRate: number;        // Global aggregate savings rate
   regionalSavings: Record<Region, number>;
   stability: number;          // G/C uncertainty premium Φ (0-1)
-  interestRate: number;       // Real interest rate
+  interestRate: number;       // Real return on capital + debt premium (firms' cost of capital)
+  safeRate: number;           // Real rate paid on public debt
+  loanRate: number;           // Real rate paid on private bank debt
+  repressionGap: number;      // pp the safe rate is held below its market level
 
   // Automation
   robotsDensity: number;      // Automation capital density (capital-derived, $/worker scaled)
@@ -302,13 +328,33 @@ export const capitalDefaults: CapitalParams = {
   // output elasticities differ from factor cost shares (Kuemmel et al. 2010),
   // and r tracks what capital is paid, not the fitted marginal product.
   alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
-  depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
+  // Robots and AI add worker-equivalents to production's labor input, where
+  // they earn the same marginal product as people. In the task framework
+  // that income goes to the machines' owners: automation's displacement
+  // effect lowers the labor share (Acemoglu & Restrepo 2018 AER 108(6), 2019
+  // JEP 33(2)); automation explains ~50-70% of the 1980-2016 US wage-
+  // structure change (Acemoglu & Restrepo 2022, Econometrica 90(5)). 1 = all
+  // of it; lower values model rents shared with complementary workers.
+  automationIncomeToCapital: 1.0,
+  // PWT 10.01 capital-weighted world depreciation (delta x cn): 3.7% (1990)
+  // -> 4.65% (2019), 1990-2019 mean ~4.1% (scripts/pwt-capital-aggregates.py). With K/Y 3.5 and I/Y 25.2%, 4%
+  // grows K ~3.1%/yr in 2026, continuing PWT's world capital growth (3.34%/yr
+  // 1990-2019, 3.77% 2010-19). The old 5% grew it 1.9%, breaking the
+  // 30-year trend at the 2025 seam and pushing K/Y down to ~2.9 by 2055.
+  depreciation: 0.04,
   // Bounded toy version of Keen's profit-responsive investment function.
   // These values keep the 2025 gross-investment rate near the pre-circuit
   // calibration while making investment orders causally prior to saving.
-  firmRetentionRate: 0.90,
+  // Re-solved when private debt moved from the return on capital (~6%) to
+  // the loan rate (~3%), which roughly doubled after-interest profit, and
+  // again when depreciation moved to 4% (a smaller depreciation allowance
+  // means less internal finance). Both hold 2025 investment at 25.2% of GDP
+  // with ~3% of GDP in net new credit (pre-split: 25.2%, 3.1%). Retention
+  // vs global listed payout ratios ~40-50% (MSCI ACWI; Janus Henderson
+  // Global Dividend Index, 2024).
+  firmRetentionRate: 0.60,
   investmentProfitRateFloor: 0,
-  investmentProfitRateCeiling: 0.025,
+  investmentProfitRateCeiling: 0.048,
   maximumNetInvestmentRate: 0.038,
 
   // OLG lifecycle savings
@@ -371,8 +417,7 @@ export const capitalDefaults: CapitalParams = {
   energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
 
   // Retirement age adjustment
-  retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of LE gains → retirement age
-  wageIndexation: 0.7,          // 70% wage-indexed, 30% price-indexed
+  retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of gains in life expectancy at pension age (e65) → retirement age
 
   // Demographic savings response (Bloom et al. 2003, Kinugasa & Mason 2007)
   savingsLifeExpSensitivity: 0.5,     // LE elasticity: longer life → save more
@@ -381,6 +426,14 @@ export const capitalDefaults: CapitalParams = {
   // --- Public debt (IMF Global Debt Database, 2025) ---
   initialPublicDebtGDP: 0.90,         // 90% of GDP
   publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
+  // Share of the rise in transfers (pensions, retiree health, education)
+  // above their 2025 share of GDP that is borrowed rather than taxed; the
+  // fiscal reaction still leans against the resulting debt. US calibration,
+  // judgment for the world: CBO's Long-Term Budget Outlook (Mar 2025) has
+  // Social Security +0.9pp and Medicare +2.1pp of GDP 2025-2055 against
+  // revenues +2.2pp, so ~1/4 of the ageing increase is left unmatched under
+  // current law. Symmetric: falling education costs lower the deficit.
+  ageingCostDeficitShare: 0.25,
   fiscalReactionCoeff: 0.03,          // Tightening per pp of debt/GDP above threshold
   fiscalReactionThreshold: 0.60,      // Maastricht-style trigger
   fiscalReactionMax: 0.04,            // Max primary surplus / GDP (saturation)
@@ -408,6 +461,47 @@ export const capitalDefaults: CapitalParams = {
   debtRiskLambda: 0.03,               // 3bp per pp of excess total debt/GDP
   debtRiskThreshold: 2.00,            // Total debt/GDP where premium starts
 
+  // --- Rate structure ---
+  // The return on capital (alpha*Y/K - delta, ~4.4% in 2025) is not what
+  // governments or banks borrow at. Safe real rates fell ~5pp from the
+  // mid-1980s while the return on capital stayed flat (Marx, Mojon & Velde
+  // 2021, J. Monetary Econ. 124; Caballero, Farhi & Gourinchas 2017, AER P&P).
+  // So the safe rate is not a fixed wedge below the return on capital (that
+  // ties it one-for-one to K/Y and, once interest accrues to debt, spirals).
+  // It follows trend growth, r* = c·g + z: Laubach & Williams (2003, REStat)
+  // estimate c ~1; Holston, Laubach & Williams (2017, JIE) impose c = 1.
+  // 2025 level ~1.0% real. Anchors: US r* ~1% (HLW and LW, NY Fed, 2025);
+  // world public interest ~3% of GDP nominal on ~94% debt (IMF Fiscal
+  // Monitor, Apr 2026), ~0-1% real.
+  neutralSafeRate: 0.010,
+  safeRateGrowthPassThrough: 1.0,
+  // World real GDP (PPP) CAGR 1990-2025 3.43% (WDI; scripts/growth-backcast.md),
+  // 2015-2025 ~3.5%: the trend the 2025 safe rate was set at.
+  safeRateGrowthAnchor: 0.034,
+  // r* filters move with growth over roughly a decade (HLW's trend growth is
+  // a slow-moving random walk); a 10-year exponential smoother.
+  trendGrowthSmoothingYears: 10,
+  // Sovereign rates rise ~3-4bp per pp of public debt/GDP (Laubach 2009,
+  // JEEA 7(4)); 2-3bp (Gamber & Seliski, CBO Working Paper 2019-01).
+  // Measured from the 2025 ratio, so it moves the rate, not its level.
+  // The total-debt debtRiskPremium (mostly private leverage) prices the
+  // return on capital, not the sovereign.
+  safeRateDebtSensitivity: 0.03,
+  // Financial repression. Explicit lever off by default. Above 150% public
+  // debt/GDP fiscal dominance caps the safe rate at trend growth less 3pp,
+  // so debt liquidates instead of spiralling once interest accrues:
+  // advanced-economy real rates averaged roughly -1% to -3.5% in 1945-80
+  // with growth ~3-4%, liquidating ~3-4% of GDP a year in the US and UK
+  // (Reinhart & Sbrancia 2015, Economic Policy 30(82)). The 150% threshold
+  // is judgment (post-war US ~110%, UK ~240%; Japan's YCC began at ~230%).
+  financialRepression: 0,
+  repressionDebtThreshold: 1.5,
+  repressionDepth: 0.03,
+  // Bank and corporate borrowers pay ~2pp over the safe rate: ECB composite
+  // cost of borrowing for NFCs vs the deposit facility rate (~1.8-2pp, 2025);
+  // Moody's Baa less 10y Treasury (FRED BAA10Y, ~1.7-2pp, 2025).
+  creditSpread: 0.020,
+
   // Initial conditions
   initialCapitalStock: 553,     // $553T PPP (K/Y ≈ 3.5 at $158T GDP)
 };
@@ -417,11 +511,52 @@ export const capitalDefaults: CapitalParams = {
 // =============================================================================
 
 /**
+ * Life expectancy at 65 (e65), the measure retirement-age links and the
+ * retired share of the 65+ population actually depend on. UN WPP 2024
+ * Medium, population-weighted to model regions (scripts/wpp-life-expectancy-65.py).
+ * E65_PER_E0_GAIN maps the demographics module's at-birth gains onto e65
+ * gains: WPP's ratio of e65 to e0 gains, 2025-2075. Low in SSA and South
+ * Asia, where at-birth gains are mostly child survival.
+ */
+const E65_2025: Record<Region, number> = {
+  us: 20.1,
+  'oecd-ex-us': 20.9,
+  china: 18.0,
+  india: 15.7,
+  latam: 18.0,
+  seasia: 15.5,
+  russia: 16.4,
+  mena: 16.0,
+  ssa: 13.6,
+};
+const E65_PER_E0_GAIN: Record<Region, number> = {
+  us: 0.66,
+  'oecd-ex-us': 0.74,
+  china: 0.68,
+  india: 0.47,
+  latam: 0.52,
+  seasia: 0.51,
+  russia: 0.52,
+  mena: 0.58,
+  ssa: 0.24,
+};
+
+/**
  * Calculate demographic-weighted savings rate with LE and dependency adjustments.
  *
  * Life expectancy effect: longer life → save more for retirement (lifecycle motive).
  * Dependency effect: more dependents → less capacity to save.
  * Combined factor clamped to [0.5, 1.5] to prevent unreasonable extremes.
+ *
+ * The result is floored at zero. The regional premium is an additive offset
+ * calibrated at the default `savingsWorking` (US -0.10 against a ~0.27 base
+ * gives WDI's 17.6%), so a lower working-age rate or a stronger dependency
+ * response can shrink the base below the premium as a region ages. A negative
+ * gross saving propensity has no meaning here: it is a share weight for
+ * allocating investment across regions (negative weight = negative gross
+ * investment, i.e. un-building capital) and the lowest WDI gross saving rate
+ * for any of these aggregates is ~15% (SSA). The floor never binds on the
+ * default path (lowest rate: US 2100, ~0.06).
  */
 function calculateSavingsRate(
   young: number,
@@ -461,7 +596,7 @@ function calculateSavingsRate(
     old * params.savingsOld
   ) / population;
 
-  return baseRate + premium;
+  return Math.max(0, baseRate + premium);
 }
 
 /**
@@ -493,15 +628,28 @@ function calculateFirmCircuit(
   stability: number,
   netEnergyFactor: number,
   params: CapitalParams,
+  automationLaborShareChange = 0,
 ): FirmCircuit {
   const marketOutput = Math.max(0, gdp - governmentServiceConsumption);
-  const operatingSurplus = params.alpha * marketOutput;
+  // Labor's (1 - alpha) is split between people and machine worker-
+  // equivalents by quantity; the machines' part (since 2025, which the
+  // alpha calibration already contains) is capital income.
+  const capitalIncomeShare = params.alpha
+    + params.automationIncomeToCapital * (1 - params.alpha)
+      * Math.max(0, automationLaborShareChange);
+  const operatingSurplus = capitalIncomeShare * marketOutput;
   const laborCompensation = marketOutput - operatingSurplus;
   const depreciationAllowance = params.depreciation * capitalStock;
   const profitAfterInterestAndDepreciation =
     operatingSurplus - privateInterestPayments - depreciationAllowance;
+  // Orders for GENERAL capital respond to general capital's own profit rate.
+  // Machine income is the return on robot/compute capital, which is debited
+  // from general capital formation and lives outside K: it is firm cash flow
+  // (internal funds, then dividends), not a signal that K is scarce. Counting
+  // it here sent investment to ~40% of GDP in slow-growth scenarios.
+  const automationIncome = operatingSurplus - params.alpha * marketOutput;
   const profitRate = capitalStock > 0
-    ? profitAfterInterestAndDepreciation / capitalStock
+    ? (profitAfterInterestAndDepreciation - automationIncome) / capitalStock
     : 0;
 
   // Losses are retained by definition; only positive profit can be paid out.
@@ -603,7 +751,7 @@ const CAPITAL_INVARIANTS: readonly ModuleInvariant<
       const total = spends.reduce((sum: number, spend) => sum + (spend as number), 0);
       return closeTo('realized spend debit',
         outputs.investment - outputs.generalInvestment + outputs.unfundedRealizedSpend,
-        total, { rel: 1e-9, abs: 1e-9 });
+        total);
     },
   },
 ];
@@ -620,16 +768,22 @@ export const capitalModule: Module<
   invariants: CAPITAL_INVARIANTS,
 
   paramMeta: {
+    automationIncomeToCapital: {
+      description: 'Share of the income earned by robot/AI worker-equivalents (production\'s augmented labor) that is paid to capital rather than wages. 1 = all of it (Acemoglu-Restrepo displacement); 0 = the labor share never moves.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 1 },
+      tier: 2 as const,
+    },
     firmRetentionRate: {
       description: 'Share of positive firm profit retained after interest and depreciation; retained profit contributes internal investment finance.',
       unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.90 },
+      range: { min: 0, max: 1, default: 0.60 },
       tier: 1 as const,
     },
     investmentProfitRateCeiling: {
       description: 'Firm profit rate at which the bounded desired net-investment response reaches its maximum.',
       unit: 'fraction/year',
-      range: { min: 0.005, max: 0.15, default: 0.025 },
+      range: { min: 0.005, max: 0.15, default: 0.048 },
       tier: 1 as const,
     },
     maximumNetInvestmentRate: {
@@ -656,12 +810,6 @@ export const capitalModule: Module<
       description: 'Fraction of life expectancy gains that raise retirement age. OECD recommendation: 0.67.',
       unit: 'fraction',
       range: { min: 0, max: 1, default: 0.67 },
-      tier: 1 as const,
-    },
-    wageIndexation: {
-      description: 'Degree of wage indexation for transfers. 0=price-indexed (frozen real), 1=fully wage-indexed.',
-      unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.7 },
       tier: 1 as const,
     },
     savingsLifeExpSensitivity: {
@@ -694,11 +842,47 @@ export const capitalModule: Module<
       range: { min: 0, max: 0.10, default: 0.03 },
       tier: 1 as const,
     },
+    ageingCostDeficitShare: {
+      description: 'Share of the rise in transfer costs (pensions, retiree health, education) above their 2025 share of GDP that is financed by borrowing rather than taxes. 0 = all taxed (ageing never reaches public debt); 1 = all borrowed.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.25 },
+      tier: 1 as const,
+    },
     debtRiskLambda: {
       description: 'Interest rate premium per percentage point of excess total debt/GDP above threshold. Self-limiting: high debt → expensive borrowing.',
       unit: 'fraction/pp',
       range: { min: 0, max: 0.10, default: 0.03 },
       tier: 1 as const,
+    },
+    neutralSafeRate: {
+      description: 'Real safe rate on public debt at the anchor growth rate and the 2025 public-debt ratio (~1% in 2025). Lower → cheaper public borrowing; below growth it erodes the debt ratio.',
+      unit: 'fraction',
+      range: { min: -0.04, max: 0.04, default: 0.010 },
+      tier: 1 as const,
+    },
+    financialRepression: {
+      description: 'Percentage points by which policy holds the real safe rate below its market level (captive buyers, rate caps, yield-curve control). Liquidates public debt when the safe rate falls below growth; also lowers the loan rate.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.06, default: 0 },
+      tier: 1 as const,
+    },
+    repressionDebtThreshold: {
+      description: 'Public debt/GDP above which fiscal dominance caps the safe rate at trend growth less repressionDepth (phased in over 25pp). Set high to disable.',
+      unit: 'ratio',
+      range: { min: 0.6, max: 5, default: 1.5 },
+      tier: 2 as const,
+    },
+    safeRateGrowthPassThrough: {
+      description: 'How far the safe rate moves per point of trend growth (c in r* = c·g + z). 1 = one-for-one (Holston-Laubach-Williams).',
+      unit: 'ratio',
+      range: { min: 0, max: 2, default: 1 },
+      tier: 2 as const,
+    },
+    creditSpread: {
+      description: 'Spread of private bank/corporate borrowing over the safe rate. Sets the private interest bill that firms pay out of operating surplus.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.08, default: 0.020 },
+      tier: 2 as const,
     },
     privateDefaultRate: {
       description: 'Annual private-loan write-off rate. Write-offs reduce borrower liabilities and bank equity one-for-one.',
@@ -737,6 +921,7 @@ export const capitalModule: Module<
       regionalGdp: unitPort('$T/year', 'record'),
       damages: unitPort('fraction'),
       netEnergyFactor: unitPort('fraction'),
+      automationLaborShare: unitPort('fraction'),
       energyBurden: unitPort('fraction'),
       regionalLifeExpectancy: unitPort('year', 'record'),
       energyCapexSpend: unitPort('$T/year'),
@@ -754,6 +939,8 @@ export const capitalModule: Module<
       unfundedFinancingDemand: unitPort('$T/year'),
       grossSavings: unitPort('$T/year'),
       laborCompensation: unitPort('$T/year'),
+      laborShare: unitPort('fraction'),
+      unpaidPrivateInterest: unitPort('$T/year'),
       operatingSurplus: unitPort('$T/year'),
       privateInterestPayments: unitPort('$T/year'),
       profitAfterInterestAndDepreciation: unitPort('$T/year'),
@@ -775,6 +962,9 @@ export const capitalModule: Module<
       regionalSavings: unitPort('fraction', 'record'),
       stability: unitPort('fraction'),
       interestRate: unitPort('fraction'),
+      safeRate: unitPort('fraction'),
+      loanRate: unitPort('fraction'),
+      repressionGap: unitPort('fraction'),
       robotsDensity: unitPort('robot/kpeople'),
       automationShare: unitPort('fraction'),
       kPerWorker: unitPort('$k/people'),
@@ -899,11 +1089,6 @@ export const capitalModule: Module<
       }
     }
 
-    if (params.wageIndexation !== undefined) {
-      if (params.wageIndexation < 0 || params.wageIndexation > 1) {
-        errors.push('wageIndexation must be between 0 and 1');
-      }
-    }
 
     if (params.savingsLifeExpSensitivity !== undefined) {
       if (params.savingsLifeExpSensitivity < 0 || params.savingsLifeExpSensitivity > 1) {
@@ -930,14 +1115,64 @@ export const capitalModule: Module<
         errors.push('baseCreditGrowth must be between 0 and 0.15');
       }
     }
+    if (params.automationIncomeToCapital !== undefined) {
+      if (params.automationIncomeToCapital < 0 || params.automationIncomeToCapital > 1) {
+        errors.push('automationIncomeToCapital must be between 0 and 1');
+      }
+    }
     if (params.publicDeficitRate !== undefined) {
       if (params.publicDeficitRate < 0 || params.publicDeficitRate > 0.15) {
         errors.push('publicDeficitRate must be between 0 and 0.15');
       }
     }
+    if (params.ageingCostDeficitShare !== undefined) {
+      if (params.ageingCostDeficitShare < 0 || params.ageingCostDeficitShare > 1) {
+        errors.push('ageingCostDeficitShare must be between 0 and 1');
+      }
+    }
     if (params.debtRiskLambda !== undefined) {
       if (params.debtRiskLambda < 0 || params.debtRiskLambda > 0.20) {
         errors.push('debtRiskLambda must be between 0 and 0.20');
+      }
+    }
+    if (params.neutralSafeRate !== undefined) {
+      if (params.neutralSafeRate < -0.10 || params.neutralSafeRate > 0.10) {
+        errors.push('neutralSafeRate must be between -0.10 and 0.10');
+      }
+    }
+    if (params.safeRateGrowthPassThrough !== undefined) {
+      if (params.safeRateGrowthPassThrough < 0 || params.safeRateGrowthPassThrough > 3) {
+        errors.push('safeRateGrowthPassThrough must be between 0 and 3');
+      }
+    }
+    if (params.safeRateDebtSensitivity !== undefined) {
+      if (params.safeRateDebtSensitivity < 0 || params.safeRateDebtSensitivity > 0.20) {
+        errors.push('safeRateDebtSensitivity must be between 0 and 0.20');
+      }
+    }
+    if (params.financialRepression !== undefined) {
+      if (params.financialRepression < 0 || params.financialRepression > 0.10) {
+        errors.push('financialRepression must be between 0 and 0.10');
+      }
+    }
+    if (params.repressionDebtThreshold !== undefined) {
+      if (params.repressionDebtThreshold < 0.3 || params.repressionDebtThreshold > 10) {
+        errors.push('repressionDebtThreshold must be between 0.3 and 10');
+      }
+    }
+    if (params.repressionDepth !== undefined) {
+      if (params.repressionDepth < 0 || params.repressionDepth > 0.10) {
+        errors.push('repressionDepth must be between 0 and 0.10');
+      }
+    }
+    if (params.trendGrowthSmoothingYears !== undefined) {
+      if (params.trendGrowthSmoothingYears < 1 || params.trendGrowthSmoothingYears > 50) {
+        errors.push('trendGrowthSmoothingYears must be between 1 and 50');
+      }
+    }
+    if (params.creditSpread !== undefined) {
+      if (params.creditSpread < 0 || params.creditSpread > 0.10) {
+        errors.push('creditSpread must be between 0 and 0.10');
       }
     }
     if (params.privateAmortization !== undefined) {
@@ -1014,13 +1249,12 @@ export const capitalModule: Module<
   init(params: CapitalParams): CapitalState {
     return {
       stock: params.initialCapitalStock,
-      referenceGdpPerWorker: {} as Record<Region, number>,
-      referenceGdpPerCapita: {} as Record<Region, number>,
       referenceLifeExpectancy: {} as Record<Region, number>,
       referenceDependency: {} as Record<Region, number>,
       publicDebt: 0,   // Initialized from GDP at yearIndex === 0
       privateDebt: 0,   // Initialized from GDP at yearIndex === 0
       previousGdp: 0,   // Initialized from inputs at yearIndex === 0
+      trendGrowth: params.safeRateGrowthAnchor,
       financialLedger: undefined,
     };
   },
@@ -1105,19 +1339,13 @@ export const capitalModule: Module<
     ) as Record<Region, number>;
 
     // Capture reference values on first step (year 0)
-    const refGdpPerWorker = { ...state.referenceGdpPerWorker };
-    const refGdpPerCapita = { ...state.referenceGdpPerCapita };
     const refLE = { ...state.referenceLifeExpectancy };
     const refDependency = { ...state.referenceDependency };
     if (yearIndex === 0) {
       for (const r of REGIONS) {
         const working = inputs.regionalWorking[r] ?? 0;
-        const pop = inputs.regionalPopulation[r] ?? 0;
-        const regionGdp = inputs.regionalGdp[r] ?? 0;
         const young = inputs.regionalYoung[r] ?? 0;
         const old = inputs.regionalOld[r] ?? 0;
-        refGdpPerWorker[r] = working > 0 ? regionGdp / working : 0;
-        refGdpPerCapita[r] = pop > 0 ? regionGdp / pop : 0;
         refLE[r] = inputs.regionalLifeExpectancy?.[r] ?? 75;
         refDependency[r] = working > 0 ? (young + old) / working : 0;
       }
@@ -1139,34 +1367,44 @@ export const capitalModule: Module<
       const educationRate = premium.educationRate ?? params.transfers.educationRate;
 
       // --- Retirement age adjustment ---
-      // As LE rises, some 65+ are reclassified as "still working" (lower transfer recipients)
+      // As longevity rises, some 65+ are reclassified as "still working"
+      // (lower transfer recipients). Both steps use life expectancy AT 65:
+      // the OECD-style rule links pension ages to gains in longevity at
+      // pension age, and the share of the 65+ population inside the first x
+      // years past 65 is ~x / e65 (near-flat survival over that span).
+      // At-birth LE minus 65 understated the span (US 14.6 vs e65 20.1;
+      // India ~7 vs 15.7), and at-birth gains overstated the extension where
+      // they are mostly child survival — together ~2x too many reclassified.
       const currentLE = inputs.regionalLifeExpectancy?.[r] ?? 75;
       const baseLE = refLE[r] ?? 75;
-      const leGain = Math.max(0, currentLE - baseLE);
-      const retirementAgeExtension = params.retirementAgeResponse * leGain;
-      const effectiveRetirementAge = 65 + retirementAgeExtension;
+      const e65Gain = E65_PER_E0_GAIN[r] * Math.max(0, currentLE - baseLE);
+      const e65 = E65_2025[r] + e65Gain;
+      const retirementAgeExtension = params.retirementAgeResponse * e65Gain;
       regionalRetirementAgeExtension[r] = retirementAgeExtension;
       // Fraction of 65+ reclassified as working (capped at 0.5)
-      const remainingOldSpan = currentLE - 65;
-      const fractionStillWorking = remainingOldSpan > 0
-        ? Math.min(0.5, Math.max(0, (effectiveRetirementAge - 65) / remainingOldSpan))
-        : 0;
+      const fractionStillWorking =
+        Math.min(0.5, Math.max(0, retirementAgeExtension / e65));
       const adjustedOld = old * (1 - fractionStillWorking);
       const adjustedWorking = working + old * fractionStillWorking;
 
-      // --- Wage indexation ---
-      // Blend current and reference GDP per worker/capita
+      // --- Benefit levels ---
+      // The average pension in payment is a stable fraction of current
+      // earnings (pensionRate, the 2025 benefit ratio). Price indexation in
+      // payment is a LEVEL gap already inside that ratio: each cohort's
+      // first pension is wage-linked, so the stock tracks wages. Blending in
+      // frozen 2025 GDP per worker (the old 30% "price-indexed" weight) turned
+      // that level gap into one that widened every year — 18% by 2055, 26%
+      // by 2100 — and cut ageing costs ~2.5pp of GDP by 2055. Healthcare and
+      // education per head track current GDP per capita (no excess cost
+      // growth: conservative against health's history of outgrowing GDP).
       const currentGdpPerWorker = adjustedWorking > 0 ? regionGdp / adjustedWorking : 0;
       const currentGdpPerCapita = pop > 0 ? regionGdp / pop : 0;
-      const wi = params.wageIndexation;
-      const effectiveGdpPerWorker = wi * currentGdpPerWorker + (1 - wi) * (refGdpPerWorker[r] ?? currentGdpPerWorker);
-      const effectiveGdpPerCapita = wi * currentGdpPerCapita + (1 - wi) * (refGdpPerCapita[r] ?? currentGdpPerCapita);
 
       const regionPensionTransfers =
-        adjustedOld * pensionRate * effectiveGdpPerWorker;
+        adjustedOld * pensionRate * currentGdpPerWorker;
       const regionRetireeHealthcare =
-        adjustedOld * healthcareRate * effectiveGdpPerCapita;
-      const regionEducation = young * educationRate * effectiveGdpPerCapita;
+        adjustedOld * healthcareRate * currentGdpPerCapita;
+      const regionEducation = young * educationRate * currentGdpPerCapita;
       const regionRetireeCost = regionPensionTransfers + regionRetireeHealthcare;
       const regionChildCost = regionEducation;
       regionalPensionTransfers[r] = regionPensionTransfers;
@@ -1186,6 +1424,11 @@ export const capitalModule: Module<
     const governmentServiceConsumption =
       retireeHealthcareConsumption + educationConsumption;
     const transferBurden = inputs.gdp > 0 ? (retireeCost + childCost) / inputs.gdp : 0;
+    const referenceTransferBurden = yearIndex === 0 || state.referenceTransferBurden === undefined
+      ? transferBurden
+      : state.referenceTransferBurden;
+    const additionalPrimaryDeficitRate =
+      params.ageingCostDeficitShare * (transferBurden - referenceTransferBurden);
 
     // ==========================================================================
     // Keen-style monetary circuit (toy closure):
@@ -1219,6 +1462,13 @@ export const capitalModule: Module<
       inputs.gdp - governmentServiceConsumption,
     );
     const netEnergyFactor = Math.max(0, Math.min(1, inputs.netEnergyFactor ?? 1));
+    const automationLaborShare = inputs.automationLaborShare ?? 0;
+    const referenceAutomationLaborShare =
+      yearIndex === 0 || state.referenceAutomationLaborShare === undefined
+        ? automationLaborShare
+        : state.referenceAutomationLaborShare;
+    const automationLaborShareChange =
+      automationLaborShare - referenceAutomationLaborShare;
 
     // Credit affects debt and interest within the year, while interest affects
     // profit and the financing request. Iterate this small fixed point so the
@@ -1231,6 +1481,8 @@ export const capitalModule: Module<
         gdp: inputs.gdp,
         capitalStock: state.stock,
         netNewCreditDemand,
+        trendGrowth: state.trendGrowth,
+        additionalPrimaryDeficitRate,
       },
       params,
     );
@@ -1242,6 +1494,7 @@ export const capitalModule: Module<
       stability,
       netEnergyFactor,
       params,
+      automationLaborShareChange,
     );
     for (let iteration = 0; iteration < 12; iteration++) {
       const nextDemand = Math.max(
@@ -1263,6 +1516,8 @@ export const capitalModule: Module<
           gdp: inputs.gdp,
           capitalStock: state.stock,
           netNewCreditDemand,
+          trendGrowth: state.trendGrowth,
+          additionalPrimaryDeficitRate,
         },
         params,
       );
@@ -1274,6 +1529,7 @@ export const capitalModule: Module<
         stability,
         netEnergyFactor,
         params,
+        automationLaborShareChange,
       );
     }
     // One final evaluation associates the financial stocks and flows exactly
@@ -1284,6 +1540,8 @@ export const capitalModule: Module<
         gdp: inputs.gdp,
         capitalStock: state.stock,
         netNewCreditDemand,
+        trendGrowth: state.trendGrowth,
+        additionalPrimaryDeficitRate,
       },
       params,
     );
@@ -1295,6 +1553,7 @@ export const capitalModule: Module<
       stability,
       netEnergyFactor,
       params,
+      automationLaborShareChange,
     );
 
     const openingFinancialLedger = state.financialLedger ?? createCapitalGodleyLedger({
@@ -1366,12 +1625,8 @@ export const capitalModule: Module<
       ),
       Math.max(0, firmCircuit.retainedEarnings),
     );
-    const firmDividendPayments =
+    const declaredFirmDividends =
       firmCircuit.firmDividendPayments + excessFirmCash;
-    const retainedEarnings =
-      firmCircuit.retainedEarnings - excessFirmCash;
-    const firmGrossSaving =
-      firmCircuit.firmGrossSaving - excessFirmCash;
     const householdConsumption = Math.max(
       0,
       subtractQuantities(
@@ -1387,6 +1642,44 @@ export const capitalModule: Module<
         'household-consumption residual',
       ).value,
     );
+    // Firm cash floor. Investment is capped by CLAMPED internal funds, so
+    // once interest due exceeds operating surplus, gross saving goes negative
+    // and drains the deposit buffer. When it runs out, firms default rather
+    // than overdraw (see settleFirmCashShortfall). Unpaid interest is forgone
+    // by banks, never capitalized into the loan, and bankruptcy writes the
+    // loans behind it down to what the cash flow can carry (unpaid / r), so
+    // zombie principal cannot keep the risk premium and leverage brake on
+    // while output shrinks.
+    const settled = settleFirmCashShortfall(
+      openingFinancialLedger.balances['firms.deposits'] ?? 0,
+      {
+        grossLoanOriginations,
+        principalRepayments: finance.principalRepayments,
+        laborCompensation: firmCircuit.laborCompensation,
+        householdConsumption,
+        privateInterestPayments: finance.privateInterestPayments,
+        firmDividendPayments: declaredFirmDividends,
+      },
+    );
+    const {
+      firmDividendPayments,
+      privateInterestPayments,
+      principalRepayments,
+      unpaidInterest: unpaidPrivateInterest,
+    } = settled;
+    // Loans are carried at the rate they pay (the loan rate), not the return on capital
+    const insolvencyWriteDown = finance.loanRate > 0
+      ? Math.min(finance.state.privateDebt, unpaidPrivateInterest / finance.loanRate)
+      : 0;
+    const loanWriteOffs =
+      finance.loanWriteOffs + settled.defaultedPrincipal + insolvencyWriteDown;
+    // Paid basis: interest firms did not pay stays with them, so the sector
+    // balances still sum to investment
+    const retainedEarnings =
+      firmCircuit.profitAfterInterestAndDepreciation
+      + unpaidPrivateInterest
+      - firmDividendPayments;
+    const firmGrossSaving = firmCircuit.depreciationAllowance + retainedEarnings;
     const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
     const workerConsumption = householdConsumption - retireeConsumption;
 
@@ -1400,7 +1693,7 @@ export const capitalModule: Module<
       + publicInterestPayments
       - finance.publicDebtChange;
     const bankInterestIncome =
-      finance.privateInterestPayments + publicInterestToBanks;
+      privateInterestPayments + publicInterestToBanks;
     const bankDividendPayments = bankInterestIncome;
     const householdDisposableIncome =
       firmCircuit.laborCompensation
@@ -1518,7 +1811,18 @@ export const capitalModule: Module<
       : 0;
 
     const newPublicDebt = finance.state.publicDebt;
-    const newPrivateDebt = finance.state.privateDebt;
+    const newPrivateDebt = finance.state.privateDebt - insolvencyWriteDown;
+
+    // Trend growth for next year's safe rate: exponential smoothing of
+    // realized growth. Year 0 has no prior GDP, so it keeps the anchor.
+    const realizedGrowth = yearIndex > 0 && previousGdp > 0
+      ? inputs.gdp / previousGdp - 1
+      : undefined;
+    const openingTrendGrowth = state.trendGrowth ?? params.safeRateGrowthAnchor;
+    const nextTrendGrowth = realizedGrowth === undefined
+      ? openingTrendGrowth
+      : openingTrendGrowth
+        + (realizedGrowth - openingTrendGrowth) / params.trendGrowthSmoothingYears;
 
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
@@ -1528,9 +1832,9 @@ export const capitalModule: Module<
       laborCompensation: firmCircuit.laborCompensation,
       householdConsumption,
       grossLoanOriginations,
-      principalRepayments: finance.principalRepayments,
-      loanWriteOffs: finance.loanWriteOffs,
-      privateInterestPayments: finance.privateInterestPayments,
+      principalRepayments,
+      loanWriteOffs,
+      privateInterestPayments,
       firmDividendPayments,
       bankDividendPayments,
       publicDebtChange: finance.publicDebtChange,
@@ -1554,13 +1858,14 @@ export const capitalModule: Module<
     return {
       state: {
         stock: newStock,
-        referenceGdpPerWorker: refGdpPerWorker,
-        referenceGdpPerCapita: refGdpPerCapita,
         referenceLifeExpectancy: refLE,
         referenceDependency: refDependency,
         publicDebt: newPublicDebt,
         privateDebt: newPrivateDebt,
         previousGdp: inputs.gdp,
+        trendGrowth: nextTrendGrowth,
+        referenceTransferBurden,
+        referenceAutomationLaborShare,
         financialLedger: financialPosting.state,
       },
       outputs: {
@@ -1572,8 +1877,10 @@ export const capitalModule: Module<
         unfundedFinancingDemand,
         grossSavings,
         laborCompensation: firmCircuit.laborCompensation,
+        laborShare: inputs.gdp > 0 ? firmCircuit.laborCompensation / inputs.gdp : 0,
         operatingSurplus: firmCircuit.operatingSurplus,
-        privateInterestPayments: finance.privateInterestPayments,
+        privateInterestPayments,
+        unpaidPrivateInterest,
         profitAfterInterestAndDepreciation:
           firmCircuit.profitAfterInterestAndDepreciation,
         profitRate: firmCircuit.profitRate,
@@ -1594,6 +1901,9 @@ export const capitalModule: Module<
         regionalSavings,
         stability,
         interestRate,
+        safeRate: finance.safeRate,
+        loanRate: finance.loanRate,
+        repressionGap: finance.repressionGap,
         robotsDensity,
         automationShare,
         kPerWorker,
@@ -1636,9 +1946,9 @@ export const capitalModule: Module<
         refinancedPrincipal,
         unfundedCreditDemand,
         creditImpulse,
-        principalRepayments: finance.principalRepayments,
-        loanWriteOffs: finance.loanWriteOffs,
-        netCreditCreation: finance.netCreditCreation,
+        principalRepayments,
+        loanWriteOffs,
+        netCreditCreation: newPrivateDebt - privateDebt,
         primaryDeficit: finance.primaryDeficit,
         netTaxes,
         debtRiskPremium,

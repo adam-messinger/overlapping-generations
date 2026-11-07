@@ -14,7 +14,8 @@
  */
 
 import type { ParamDerivation } from 'tsimulation';
-import { REGIONS } from './domain-types.js';
+import { type Region, REGIONS } from './domain-types.js';
+import { gdpWeightedIntensityDecline } from './modules/demand.js';
 import { cdrDefaults } from './modules/cdr.js';
 
 /** The climate sensitivity cdr.tcre's default was measured at (°C per CO2 doubling). */
@@ -27,17 +28,12 @@ export const PARAM_DERIVATIONS: readonly ParamDerivation[] = [
     description:
       "Production's efficiency index and demand's intensity decline are one efficiency series seen " +
       'from two sides: eta rises at the GDP-weighted regional intensity decline times efficiencyMultiplier.',
-    derive: (read) => {
-      let weighted = 0;
-      let weight = 0;
-      for (const region of REGIONS) {
-        const gdp = read(`demand.regions.${region}.gdp2025`) as number;
-        weighted += gdp * (read(`demand.regions.${region}.intensityDecline`) as number);
-        weight += gdp;
-      }
-      const decline = weight > 0 ? weighted / weight : 0;
-      return decline * (read('demand.efficiencyMultiplier') as number);
-    },
+    // Reads the two leaves per region it uses, so liveness credits only those
+    derive: (read) => gdpWeightedIntensityDecline(Object.fromEntries(REGIONS.map((region) => [region, {
+      gdp2025: read(`demand.regions.${region}.gdp2025`) as number,
+      intensityDecline: read(`demand.regions.${region}.intensityDecline`) as number,
+    }])) as Record<Region, { gdp2025: number; intensityDecline: number }>)
+      * (read('demand.efficiencyMultiplier') as number),
   },
   {
     target: 'production.structuralEfficiencyShare',

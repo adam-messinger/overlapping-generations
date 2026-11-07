@@ -774,7 +774,17 @@ export interface HumanCapitalModule extends Module<
 }
 
 /** $1M of slack on ledgers of tens to thousands of $T: float error, not a leak. */
-const HC_LEDGER_TOLERANCE = { rel: 1e-9, abs: 1e-6 };
+const HC_LEDGER_TOLERANCE = { abs: 1e-6 };
+
+/** World outputs that are sums of a regional account field. */
+const WORLD_TOTAL_FIELDS = {
+  humanCapitalInvestment: 'investment',
+  humanCapitalDepreciation: 'depreciation',
+  humanCapitalWriteOffs: 'writeOffs',
+  humanCapitalNetStock: 'netStock',
+  humanCapitalGrossStock: 'grossStock',
+  humanCapitalLifeRevaluation: 'lifeRevaluation',
+} as const satisfies Partial<Record<keyof HumanCapitalOutputs, keyof HumanCapitalRegionAccount>>;
 
 /**
  * Each regional ledger closes every year (the closure bd356a8 completed).
@@ -807,15 +817,10 @@ const HUMAN_CAPITAL_INVARIANTS: readonly ModuleInvariant<
   },
   {
     name: 'world totals are the sum of regions',
-    check: ({ outputs }) => {
-      const regions = outputs.regionalHumanCapital;
-      return [
-        closeTo('investment', outputs.humanCapitalInvestment, sumValues(regions, (r) => r.investment), HC_LEDGER_TOLERANCE),
-        closeTo('depreciation', outputs.humanCapitalDepreciation, sumValues(regions, (r) => r.depreciation), HC_LEDGER_TOLERANCE),
-        closeTo('write-offs', outputs.humanCapitalWriteOffs, sumValues(regions, (r) => r.writeOffs), HC_LEDGER_TOLERANCE),
-        closeTo('net stock', outputs.humanCapitalNetStock, sumValues(regions, (r) => r.netStock), HC_LEDGER_TOLERANCE),
-      ];
-    },
+    check: ({ outputs }) => (Object.keys(WORLD_TOTAL_FIELDS) as (keyof typeof WORLD_TOTAL_FIELDS)[]).map((world) =>
+      closeTo(world, outputs[world],
+        sumValues(outputs.regionalHumanCapital, (r) => r[WORLD_TOTAL_FIELDS[world]]),
+        HC_LEDGER_TOLERANCE)),
   },
 ];
 

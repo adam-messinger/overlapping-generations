@@ -2,9 +2,6 @@
  * Simulation Integration Tests
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
@@ -22,19 +19,15 @@ import {
   resolveKey,
   getOutputsAtYear,
 } from 'tsimulation';
-import { scenarioToParams } from './scenario.js';
+import { loadScenarioParamsSync, scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
-import { describeOutputs } from './introspection.js';
+import { describeOutputs, describeParameters, buildMultiParams } from './introspection.js';
+import { STUDY_OPTIONS } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
-function loadScenarioParamsSync(name: string) {
-  const path = join(dirname(fileURLToPath(import.meta.url)), `../scenarios/${name}.json`);
-  return scenarioToParams(JSON.parse(readFileSync(path, 'utf-8')));
-}
-
 console.log('\n=== Simulation Integration Tests ===\n');
 
 test('runSimulation respects startYear/endYear', () => {
@@ -105,6 +98,79 @@ test('2025 regional financing spreads equal the observed IEA table by constructi
   check({ capital: { savingsPremium: { ...capitalDefaults.savingsPremium, china: 0.30, us: 0.10 } } });
 });
 
+test('saving-propensity params run across their whole declared paramMeta range', () => {
+  // Both used to throw 'additions must be finite and non-negative' inside
+  // their declared ranges (savingsRateWorking <= ~0.24, savingsDependencySensitivity
+  // >= ~0.9): the US premium (-0.10, additive) outran a shrinking base as the
+  // US aged, its saving propensity went negative, and so did its investment
+  // allocation and clean-energy budget. Read the bounds from the schema so a
+  // paramMeta change stays covered.
+  const schema = describeParameters();
+  let floorBound = false;
+  for (const name of ['savingsRateWorking', 'savingsDependencySensitivity']) {
+    const meta = schema[name];
+    for (const value of [meta.min, meta.max]) {
+      expect(typeof value).toBe('number');
+      const r = runSimulation(buildMultiParams({ [name]: value as number }) as SimulationParams, STUDY_OPTIONS);
+      expect(r.results[r.results.length - 1].year).toBe(2100);
+      expect(Number.isFinite(r.metrics.warming2100)).toBe(true);
+      expect(Number.isFinite(r.metrics.gdp2100 ?? NaN)).toBe(true);
+      for (const row of r.results) {
+        for (const region of REGIONS) {
+          expect(row.regionalSavings[region]).toBeBetween(0, 1);
+          if (row.regionalSavings[region] === 0) floorBound = true;
+        }
+      }
+    }
+  }
+  // Guard the test's relevance: the low end must still reach the zero floor,
+  // or this no longer exercises the case that crashed
+  expect(floorBound).toBe(true);
+});
+
+test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, firmRetentionRate 0.1)', () => {
+  // Late in this run interest due exceeds firms' operating surplus; once the
+  // deposit buffer is gone this used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance". Without the insolvency
+  // write-down it instead collapsed GDP to zero under zombie debt by 2100.
+  const scenario = loadScenarioParamsSync('ai-energy-boom') as SimulationParams;
+  const r = runSimulation(
+    { ...scenario, capital: { ...scenario.capital, firmRetentionRate: 0.1 } },
+    STUDY_OPTIONS,
+  );
+  expect(r.results[r.results.length - 1].year).toBe(2100);
+  // Since private debt pays the ~3% loan rate rather than the ~7% return on
+  // capital, this sweep no longer reaches insolvency; the default mechanism
+  // itself is pinned in capital.test.ts. If it binds, debt stays serviceable.
+  const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
+  for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
+});
+
+test('start-year fixed point: plain and former-cycle sweep runs converge outright', () => {
+  // The start-year solve runs whatever the horizon, so one year suffices.
+  // The cycle fallback (acceptCycleWithin, tested in tsimulation's
+  // autowire.test.ts) must not hide a regression here.
+  //
+  // The two sweep runs used to sit on a knife edge of energy's order-dependent
+  // world build-capacity loop (hydro at 1.000000001x its cap) and cycle with
+  // period 3. Trend-seeded energy lags moved the start-year build off that
+  // edge; scans of ssp1-19 over baseCreditGrowth 0.005-0.02, publicDeficitRate
+  // 0-0.03 and every build cap near the 2025 build found no cycling run. The
+  // order dependence itself remains (see CLAUDE.md), so a cycle can return.
+  const ssp119 = loadScenarioParamsSync('ssp1-19') as SimulationParams;
+  const runs: SimulationParams[] = [
+    {},
+    ssp119,
+    { ...ssp119, capital: { ...ssp119.capital, baseCreditGrowth: 0.01 } },
+    { ...ssp119, capital: { ...ssp119.capital, publicDeficitRate: 0.01 } },
+  ];
+  for (const params of runs) {
+    const bootstrap = runAutowiredSimulation({ ...params, endYear: 2025 }, STUDY_OPTIONS).diagnostics?.bootstrap;
+    expect(bootstrap?.converged).toBe(true);
+    expect(bootstrap?.acceptedCycle).toBe(undefined);
+  }
+});
+
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
   const result = runSimulation({ startYear: 2025, endYear: 2100 });
   const first = result.results[0];
@@ -162,16 +228,6 @@ test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity de
   // production), the intensity-decline-as-GDP-destroyer bug returns.
   const derived = gdpWeightedIntensityDecline();
   expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
-});
-
-test('production and demand share the same structural-decay shape', () => {
-  // The forward structural decay must apply identically to demand's
-  // intensity decline and production's eta growth, or the coupled series
-  // re-split under efficiencyMultiplier and GDP collapses at the high end.
-  expect(productionDefaults.structuralEfficiencyShare)
-    .toBe(demandDefaults.structuralEfficiencyShare);
-  expect(productionDefaults.structuralDecayHalfLife)
-    .toBe(demandDefaults.structuralDecayHalfLife);
 });
 
 test('no initialization discontinuity: first simulated years are smooth', () => {
@@ -490,6 +546,10 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
 }
 
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
+test('firm cash floor never binds on the default path', () => {
+  for (const row of FULL_RUN.results) expect(row.unpaidPrivateInterest).toBe(0);
+});
 
 test('diagnostics: false leaves every macro number bit-identical', () => {
   const withDiag = FULL_RUN;

@@ -45,6 +45,7 @@ import {
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 import { learningCurve, depletion } from '../primitives/math.js';
 import { distributeByGDP } from '../primitives/distribute.js';
+import { dispatchDefaults } from './dispatch.js';
 
 // =============================================================================
 // PARAMETERS
@@ -278,6 +279,7 @@ export interface EnergyParams {
 
   /** Risk premium over interest rate for energy project WACC */
   riskPremium: number;
+  projectEquityShare: number;
 
   /** Base WACC used for LCOE calibration (no adjustment when effective WACC equals this) */
   baseWACC: number;
@@ -411,9 +413,34 @@ const REGIONAL_COST_MULTIPLIER: Partial<Record<Region, Partial<Record<EnergySour
  *   RMB/t through 2025 (SunSirs; NDRC long-term contract band 570-770).
  *   At ~700 RMB/t, a ~300 gce/kWh fleet heat rate (CEC national average) burns ~0.38 kg
  *   of 5,500 kcal coal per kWh = 0.27 RMB/kWh = ~$37/MWh fuel, + ~$3 VOM.
+ *
+ * Gas: fuel = heat rate ~7 MMBtu/MWh x price + ~$7 VOM, the convention behind
+ * the $35 reference (= $4/MMBtu). 2025 benchmarks: Henry Hub $3.5-3.6 (World
+ * Bank CMO Oct 2025; EIA), TTF $12.2, North-East Asian LNG $11.9 (IEA Gas
+ * Market Report, 2025 averages). Regional power-sector prices blend those
+ * with administered domestic prices — judgment, $/MMBtu in brackets:
+ * - oecd-ex-us 77 ($10): Europe at TTF and Japan/Korea on LNG dominate its
+ *   gas-fired output; Canada/Australia domestic gas pulls it below spot
+ * - china 73 ($9.5): regulated city-gate ~2.5-3 RMB/m3 plus LNG imports
+ * - india 70 ($9): capped domestic APM gas (~$6.75) plus spot LNG
+ * - seasia 63 ($8): Indonesian/Malaysian administered gas, Thai pool and
+ *   Philippine/Vietnamese LNG
+ * - latam 46 ($5.5): Mexican imports of US pipeline gas and Argentine shale
+ *   against Brazilian/Chilean LNG
+ * - russia 21 ($2): regulated domestic price, CIS similar or lower
+ * - mena 25 ($2.5): Gulf administered prices ~$1.25-2.5 with Egypt ~$4-5
+ * - us and ssa keep the $35 reference ($4; Nigeria's regulated domestic gas
+ *   ~$2.4-3.5 against Ghana/South Africa nearer $6-7)
+ * Held constant like the reference: no LNG price convergence is modelled.
  */
 const REGIONAL_FOSSIL_RUNNING_COST: Partial<Record<Region, Partial<Record<'gas' | 'coal', number>>>> = {
-  china: { coal: 40 },
+  'oecd-ex-us': { gas: 77 },
+  china: { coal: 40, gas: 73 },
+  india: { gas: 70 },
+  seasia: { gas: 63 },
+  latam: { gas: 46 },
+  russia: { gas: 21 },
+  mena: { gas: 25 },
 };
 
 /**
@@ -423,13 +450,13 @@ const REGIONAL_FOSSIL_RUNNING_COST: Partial<Record<Region, Partial<Record<'gas' 
  *   China Coal Power H2 2025) while coal generation fell. Since 2024 the
  *   NDRC capacity payment has paid coal plants for availability, at 30-50%
  *   of a 330 RMB/kW benchmark fixed cost (100-165 RMB/kW/yr; NDRC Nov 2023).
- *   Policy reads the build as backup for variable renewables. share 0.99 is
+ *   Policy reads the build as backup for variable renewables. share 0.983 is
  *   fitted (with newBuildShareWeight) so China's 2025 coal build is GEM's
  *   78.1 GW, i.e. the start-year ratio held almost exactly; storage counts
  *   at its rated power, so the coal build falls as batteries scale.
  */
 const REGIONAL_FIRM_ADEQUACY: Partial<Record<Region, { source: 'coal' | 'gas'; share: number }>> = {
-  china: { source: 'coal', share: 0.99 },
+  china: { source: 'coal', share: 0.983 },
 };
 
 /**
@@ -679,7 +706,9 @@ export const energyDefaults: EnergyParams = {
   // Investment constraint parameters
   cleanEnergyShare2025: 0.15,     // 15% of investment to clean energy in 2025
   cleanEnergyShareGrowth: 0.15,   // Grows to 30% by 2050
-  gridLossFactor: 1.25,           // = dispatch gridLossFactor (pinned); capacity planned on generation basis
+  // Capacity is planned on dispatch's generation basis; derived from
+  // dispatch.gridLossFactor at run time (src/param-derivations.ts)
+  gridLossFactor: dispatchDefaults.gridLossFactor,
   cleanShareFlex: 0,              // default off: exogenous ramp only (calibrated baseline)
   cleanShareMax: 0.30,            // matches the ramp's own 2050 endpoint when flex is off
   capexLearningRate: 0.02,        // 2% CAPEX decline per year for solar/wind/battery
@@ -707,15 +736,16 @@ export const energyDefaults: EnergyParams = {
   // Demand-led new build (see the EnergyParams note)
   newBuildLogitExponent: 6,        // GCAM electricity technology-choice logit exponent (JGCRI GCAM documentation)
   // Calibrated jointly with fossilDisplacementRate and China's firmAdequacy
-  // share (fixed point, solar weight = 1) on 2025 additions: world wind
-  // 158.7, hydro 18.4 GW (IRENA RCS 2026), gas 60.4 GW (GEM Global Oil & Gas
-  // Plant Tracker 2026), coal ~95 GW (GEM Boom & Bust 2026), nuclear 4.4 GW
-  // (IAEA); China solar 315 GW (NEA) and China coal 78.1 GW (GEM). World
-  // solar is NOT fitted and lands at 574 GW vs 511 (IRENA): rest-of-world
-  // solar is overbuilt, chiefly OECD-ex-US and MENA (no observed regional
-  // cost rows there). Wind's low weight says its LCOE (cost0 35) is cheaper
-  // outside China than the build choices actually made reveal.
-  newBuildShareWeight: { solar: 1, wind: 0.0481, nuclear: 1.47, hydro: 0.0222, gas: 0.817, coal: 0.346 },
+  // share (fixed point, solar weight = 1; scripts/calibrate-2025-build.ts)
+  // on 2025 additions: world wind 158.7, hydro 18.4 GW (IRENA RCS 2026), gas
+  // 60.4 GW (GEM Global Oil & Gas Plant Tracker 2026), coal ~95 GW (GEM Boom
+  // & Bust 2026), nuclear 4.4 GW (IAEA); China solar 315 GW (NEA) and China
+  // coal 78.1 GW (GEM). Re-solved when regional gas prices replaced the US
+  // reference everywhere. World solar is NOT fitted and lands at 537 GW vs
+  // 511 (IRENA; 574 before LNG-priced gas). Wind's low weight says its LCOE
+  // (cost0 35) is cheaper outside China than the build choices actually made
+  // reveal; gas's high weight is the firming value its fuel cost hides.
+  newBuildShareWeight: { solar: 1, wind: 0.0537, nuclear: 1.57, hydro: 0.0237, gas: 2.39, coal: 0.53 },
   // Ember Global Electricity Review 2026: world +2.8% (+849 TWh) to 31,779
   // TWh, of which China +503 TWh (~5.0% on ~10,000 TWh); the remaining +346
   // TWh is ~1.6% on the rest of the world's ~21,800 TWh. Ember gives no
@@ -732,11 +762,21 @@ export const energyDefaults: EnergyParams = {
   },
   buildCapacityDepreciation: 0.14, // ~7-yr economic life of idle lines (PV: PERC->TOPCon obsolescence 2022-25); judgment
   fossilRunningCost: { gas: 35, coal: 25 }, // = dispatch marginalCost (fuel + VOM, 2024 US reference prices)
-  fossilDisplacementRate: 0.0376,  // fitted (with newBuildShareWeight) to China's 2025 solar build, 315 GW (NEA): clean build beyond demand growth
+  fossilDisplacementRate: 0.017,   // fitted (with newBuildShareWeight) to China's 2025 solar build, 315 GW (NEA): clean build beyond demand growth
   curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
 
   // WACC: financing cost channel for LCOE
-  riskPremium: 0.02,               // 2% over risk-free (interest) rate
+  // Project WACC blends debt priced off the real SAFE rate (capital.safeRate,
+  // ~1% in 2025; follows growth, public debt and repression) with equity
+  // priced off the return on capital (capital.interestRate, which rises
+  // when capital is scarce). Renewable project finance is ~70-80% debt
+  // (Steffen 2020, Energy Economics 88; IEA Cost of Capital Observatory
+  // 2024 uses ~70/30 for utility-scale solar).
+  projectEquityShare: 0.30,
+  // Premium over that blend, set so 2025 WACC is unchanged (~8% global,
+  // 7% US/OECD with their -1pp spread — the level baseWACC and the IEA
+  // Observatory calibrate). Was 2% over the return on capital alone.
+  riskPremium: 0.052,
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
   financingSpreadScale: 1.0,       // Regional spreads applied at face value
@@ -871,8 +911,10 @@ export interface EnergyInputs {
    *  fossil counted at nameplate. */
   laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
 
-  /** Lagged real interest rate (from capital previous year) for WACC calculation */
-  laggedInterestRate: number;
+  /** Lagged real safe rate (capital.safeRate, previous year) — prices project debt */
+  laggedSafeRate: number;
+  /** Lagged return on capital + debt premium (capital.interestRate) — prices project equity */
+  laggedInterestRate?: number;
 
   /** Global savings rate this year (from capital) for the home-bias spread */
   savingsRate?: number;
@@ -954,6 +996,8 @@ export interface EnergyOutputs {
 
   /** Effective WACC by region (global rate + regional financing spread) */
   regionalWACC: Record<Region, number>;
+  /** Fuel + VOM $/MWh by region (regional override or the global reference), excl. carbon; dispatch's merit order reads it */
+  regionalFossilRunningCost: Record<Region, Record<'gas' | 'coal', number>>;
 }
 
 // =============================================================================
@@ -1214,10 +1258,16 @@ export const energyModule: Module<
       range: { min: 1, max: 12, default: 6 },
       tier: 1 as const,
     },
-    riskPremium: {
-      description: 'Risk premium over interest rate for energy project WACC. Higher values penalize capital-intensive sources.',
+    projectEquityShare: {
+      description: 'Equity share of energy project finance. Equity is priced off the return on capital, debt off the safe rate, so a higher share passes capital scarcity into WACC.',
       unit: 'fraction',
-      range: { min: 0, max: 0.10, default: 0.02 },
+      range: { min: 0, max: 1, default: 0.30 },
+      tier: 2 as const,
+    },
+    riskPremium: {
+      description: 'Project premium over the debt/equity rate blend for energy WACC. Higher values penalize capital-intensive sources.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.15, default: 0.052 },
       tier: 1 as const,
     },
     baseWACC: {
@@ -1294,6 +1344,7 @@ export const energyModule: Module<
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedRegionalShortfallRate: unitPort('fraction', 'record'),
       laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
+      laggedSafeRate: unitPort('fraction'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -1321,6 +1372,7 @@ export const energyModule: Module<
       longStorageRegional: unitPort('GWh', 'record'),
       effectiveWACC: unitPort('fraction'),
       regionalWACC: unitPort('fraction', 'record'),
+      regionalFossilRunningCost: unitPort('$/MWh', 'nested-record'),
     },
   },
 
@@ -1444,6 +1496,9 @@ export const energyModule: Module<
     // WACC
     if (p.riskPremium !== undefined && p.riskPremium < 0) {
       errors.push('riskPremium cannot be negative');
+    }
+    if (p.projectEquityShare !== undefined && (p.projectEquityShare < 0 || p.projectEquityShare > 1)) {
+      errors.push('projectEquityShare must be between 0 and 1');
     }
     if (p.baseWACC !== undefined && p.baseWACC <= 0) {
       errors.push('baseWACC must be positive');
@@ -1723,9 +1778,13 @@ export const energyModule: Module<
     // WACC adjustment: financing cost affects capital-intensive sources more
     // =========================================================================
 
-    const laggedInterestRate = inputs.laggedInterestRate ?? 0.05;
+    const laggedSafeRate = inputs.laggedSafeRate ?? 0.01;
+    const laggedEquityRate = inputs.laggedInterestRate ?? laggedSafeRate;
+    const baseFinancingRate =
+      (1 - params.projectEquityShare) * laggedSafeRate
+      + params.projectEquityShare * laggedEquityRate;
     const waccAt = (spread: number): number =>
-      Math.max(params.minWACC, laggedInterestRate + params.riskPremium + spread);
+      Math.max(params.minWACC, baseFinancingRate + params.riskPremium + spread);
     const effectiveWACC = waccAt(0);
 
     // Capital recovery factor: CRF(r, n) = r / (1 - (1+r)^(-n))
@@ -2433,6 +2492,10 @@ export const energyModule: Module<
         longStorageRegional: newLongStorageRegional,
         effectiveWACC,
         regionalWACC,
+        regionalFossilRunningCost: Object.fromEntries(REGIONS.map((region) => [region, {
+          gas: params.regional[region].fossilRunningCost?.gas ?? params.fossilRunningCost.gas,
+          coal: params.regional[region].fossilRunningCost?.coal ?? params.fossilRunningCost.coal,
+        }])) as Record<Region, Record<'gas' | 'coal', number>>,
       },
     };
   },

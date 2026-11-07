@@ -7,27 +7,21 @@
  * which parameters are derived.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { PARAM_DERIVATIONS } from './param-derivations.js';
+import { PARAM_DERIVATIONS, TCRE_REFERENCE_SENSITIVITY } from './param-derivations.js';
 import { deriveSimulationParams, runAutowiredSimulation } from './simulation-autowired.js';
-import { describeParameters } from './introspection.js';
-import { scenarioToParams, type Scenario } from './scenario.js';
+import { buildParams, describeParameters } from './introspection.js';
+import { listScenariosSync, loadScenarioParamsSync, scenarioToParams, type Scenario } from './scenario.js';
 import { cdrDefaults } from './modules/cdr.js';
 import { climateModule } from './modules/climate.js';
 import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
 import { dispatchModule } from './modules/dispatch.js';
 import { test, expect, printSummary } from './test-utils.js';
 
-const scenarioFiles = readdirSync('scenarios').filter((file) => file.endsWith('.json')).sort();
-const loadScenario = (file: string) =>
-  JSON.parse(readFileSync(`scenarios/${file}`, 'utf-8')) as Scenario;
-
 test('every scenario runs with each derived parameter equal to its source', () => {
   // The pins this replaces checked defaults only, which is how the efficiency
   // series re-split in exactly the scenarios that moved efficiencyMultiplier.
-  for (const file of scenarioFiles) {
-    const input = scenarioToParams(loadScenario(file));
-    const { params } = deriveSimulationParams(input);
+  for (const name of listScenariosSync()) {
+    const { params } = deriveSimulationParams(loadScenarioParamsSync(name));
     const demand = demandModule.mergeParams(params.demand ?? {});
     const climate = climateModule.mergeParams(params.climate ?? {});
     const dispatch = dispatchModule.mergeParams(params.dispatch ?? {});
@@ -35,7 +29,7 @@ test('every scenario runs with each derived parameter equal to its source', () =
       .toBe(gdpWeightedIntensityDecline(demand.regions) * demand.efficiencyMultiplier);
     expect(params.production!.structuralEfficiencyShare).toBe(demand.structuralEfficiencyShare);
     expect(params.production!.structuralDecayHalfLife).toBe(demand.structuralDecayHalfLife);
-    expect(params.cdr!.tcre).toBe(cdrDefaults.tcre * climate.sensitivity / 3.0);
+    expect(params.cdr!.tcre).toBe(cdrDefaults.tcre * climate.sensitivity / TCRE_REFERENCE_SENSITIVITY);
     expect(params.cdr!.damageCoeff).toBe(climate.damageCoeff);
     expect(params.energy!.gridLossFactor).toBe(dispatch.gridLossFactor);
   }
@@ -78,6 +72,20 @@ test('a scenario file can carry decouple, and an unknown top-level key is still 
   expect(deriveSimulationParams(params).params.cdr!.tcre).toBe(0.001);
   expect(() => scenarioToParams({ name: 'typo', decoupel: [] } as unknown as Scenario))
     .toThrow('Unrecognized scenario key "decoupel"');
+});
+
+test('buildParams refuses a derived parameter and names its sources', () => {
+  expect(() => buildParams('serviceEfficiencyGrowth', 0.015))
+    .toThrow('is derived from demand.regions, demand.efficiencyMultiplier');
+});
+
+test('a scenario in warn mode drops the unknown keys it warns about', () => {
+  // A strict (schema) merge would otherwise throw on a key the loader said it would ignore
+  const params = scenarioToParams(
+    { name: 'legacy', cdr: { cost0: 300, costo: 1 } } as unknown as Scenario,
+    { unknownKeys: 'ignore' },
+  );
+  expect(JSON.stringify(params.cdr)).toBe('{"cost0":300}');
 });
 
 test('introspection marks every Tier-1 derived parameter with what it is derived from', () => {

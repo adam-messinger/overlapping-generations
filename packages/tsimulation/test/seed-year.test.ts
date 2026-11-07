@@ -34,17 +34,17 @@ test('a start offset examines a series from step 1', () => {
   assert.equal(findSeedYearKinks({ growthRate }, { startOffsets: { growthRate: 1 } }).length, 0);
 });
 
+test('floating-point noise on a quantity that should be zero is not a jump', () => {
+  // An accounting residual: -2.8e-14 at the seed step, exactly 0 after. Scored
+  // against its own magnitude it looked like a 100% jump, and only on the
+  // Node versions whose float paths produced the noise.
+  const residual = [-2.842e-14, 0, 0, 0, 0, 0];
+  assert.deepEqual(findSeedYearKinks({ residual }), []);
+  assert.equal(findSeedYearKinks({ residual }, { noiseFloor: 0 }).length, 1);
+});
+
 test('series too short, non-finite or all zero are skipped, not flagged', () => {
   assert.equal(scoreSeedYear([1, 2, 3]), undefined);
   assert.equal(scoreSeedYear([1, Number.NaN, 3, 4, 5, 6]), undefined);
   assert.equal(scoreSeedYear([0, 0, 0, 0, 0, 0])?.score, 0);
-});
-
-test('an absolute tolerance treats round-off as zero', () => {
-  // An accounting residual: zero by construction, off by one ulp at the seed
-  const residual = [-2.842e-14, 0, 0, 0, 0, 0];
-  assert.equal(findSeedYearKinks({ residual }).length, 1);
-  assert.deepEqual(findSeedYearKinks({ residual }, { absoluteTolerance: 1e-9 }), []);
-  // The tolerance is absolute, so a real path in small units is still read
-  assert.equal(findSeedYearKinks({ badSeed: badSeed.map((v) => v * 1e-6) }, { absoluteTolerance: 1e-9 }).length, 1);
 });

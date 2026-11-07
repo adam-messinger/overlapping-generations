@@ -213,6 +213,18 @@ export interface BootstrapOptions {
   damping?: number;
   /** Behavior when maxIterations is reached before tolerance. */
   onNonConvergence?: 'throw' | 'warn' | 'ignore';
+  /**
+   * Fallback for a fixed point the warm-up cannot reach. A model with a
+   * small discontinuity (a threshold, an order-dependent rule) can leave the
+   * warm-up cycling between nearby values however it is damped. When
+   * maxIterations is reached and the last pass moved each bootstrapped lag
+   * by at most this fraction of its size (its largest change over
+   * max(1, its largest value), so a record is measured against its biggest
+   * entry, not each small one), the last pass is accepted with a warning
+   * (unless onNonConvergence is 'ignore') instead of applying
+   * onNonConvergence.
+   */
+  acceptCycleWithin?: number;
 }
 
 export interface BootstrapDiagnostics {
@@ -223,6 +235,8 @@ export interface BootstrapDiagnostics {
   residual: number;
   tolerance?: number;
   lagNames: string[];
+  /** Set when acceptCycleWithin accepted a warm-up that never converged */
+  acceptedCycle?: { scaledResidual: number; band: number };
 }
 
 /**
@@ -1284,9 +1298,9 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
 
-    if (state.invariants !== 'off' && mod.invariants && mod.invariants.length > 0) {
+    if (state.invariants !== 'off' && mod.invariants) {
       const violations = evaluateInvariants(mod.name, mod.invariants, {
-        params: state.rawParamsMap.get(mod.name) ?? modParams,
+        params: state.rawParamsMap.get(mod.name),
         previousState: modState,
         state: result.state,
         inputs,
@@ -1306,9 +1320,10 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
         }
         state.invariantDiagnostics.violations.push(...violations);
       }
+      // Kept only for invariants' previous-step context
+      state.lastOutputs.set(mod.name, result.outputs);
+      state.lastInputs.set(mod.name, inputs);
     }
-    state.lastOutputs.set(mod.name, result.outputs);
-    state.lastInputs.set(mod.name, inputs);
 
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);
@@ -1416,6 +1431,14 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
   };
 }
 
+/** Largest absolute value anywhere in a value tree */
+function maxMagnitude(value: unknown, seen = new WeakSet<object>()): number {
+  if (typeof value === 'number') return Math.abs(value);
+  if (typeof value !== 'object' || value === null || seen.has(value)) return 0;
+  seen.add(value);
+  return Object.values(value).reduce<number>((m, v) => Math.max(m, maxMagnitude(v, seen)), 0);
+}
+
 function maxAbsoluteDifference(a: unknown, b: unknown, seen = new WeakSet<object>()): number {
   if (typeof a === 'number' && typeof b === 'number') {
     if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY;
@@ -1520,7 +1543,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
   const enabled = lagNames.length > 0 && requested !== 0;
   const trendLags = Object.values(config.lags ?? {}).some((lag) => lag.bootstrap === 'trend');
   const options: Required<Pick<BootstrapOptions, 'maxIterations' | 'minIterations' | 'damping' | 'onNonConvergence'>> &
-    Pick<BootstrapOptions, 'tolerance'> = typeof requested === 'number'
+    Pick<BootstrapOptions, 'tolerance' | 'acceptCycleWithin'> = typeof requested === 'number'
       ? {
           maxIterations: requested,
           minIterations: requested,
@@ -1534,6 +1557,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
           damping: requested.damping ?? 1,
           onNonConvergence: requested.onNonConvergence ?? 'throw',
           tolerance: requested.tolerance ?? 1e-8,
+          acceptCycleWithin: requested.acceptCycleWithin,
         };
 
   if (!Number.isInteger(options.maxIterations) || options.maxIterations < 0) {
@@ -1549,6 +1573,10 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
   if (options.tolerance !== undefined &&
       (!Number.isFinite(options.tolerance) || options.tolerance < 0)) {
     throw new Error('bootstrap tolerance must be finite and >= 0');
+  }
+  if (options.acceptCycleWithin !== undefined &&
+      (!Number.isFinite(options.acceptCycleWithin) || options.acceptCycleWithin < 0)) {
+    throw new Error('bootstrap acceptCycleWithin must be finite and >= 0');
   }
 
   if (!enabled || options.maxIterations === 0) {
@@ -1568,6 +1596,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
 
   let cfg = config;
   let residual = Number.POSITIVE_INFINITY;
+  let scaledResidual = Number.POSITIVE_INFINITY;
   let converged = options.tolerance === undefined;
   let iterations = 0;
 
@@ -1604,13 +1633,19 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     }
     const newLags: Record<string, LagConfig> = {};
     residual = 0;
+    scaledResidual = 0;
     for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
       if (lag.bootstrap) {
         const x0 = yearZero.get(name);
         const candidate = lag.bootstrap === 'trend' && yearOne.has(name)
           ? trendBackcast(x0, yearOne.get(name))
           : x0;
-        residual = Math.max(residual, maxAbsoluteDifference(lag.initial, candidate));
+        const difference = maxAbsoluteDifference(lag.initial, candidate);
+        residual = Math.max(residual, difference);
+        scaledResidual = Math.max(
+          scaledResidual,
+          difference / Math.max(1, maxMagnitude(candidate)),
+        );
         newLags[name] = {
           ...lag,
           initial: dampValue(lag.initial, candidate, options.damping),
@@ -1630,6 +1665,10 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     }
   }
 
+  const acceptedCycle = !converged && options.acceptCycleWithin !== undefined &&
+    scaledResidual <= options.acceptCycleWithin
+    ? { scaledResidual, band: options.acceptCycleWithin }
+    : undefined;
   const diagnostics: BootstrapDiagnostics = {
     enabled: true,
     converged,
@@ -1638,13 +1677,25 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     residual,
     tolerance: options.tolerance,
     lagNames,
+    ...(acceptedCycle ? { acceptedCycle } : {}),
   };
   if (!converged) {
     const message =
       `Lag bootstrap did not converge after ${options.maxIterations} iterations ` +
       `(residual ${residual}, tolerance ${options.tolerance})`;
-    if (options.onNonConvergence === 'throw') throw new Error(message);
-    if (options.onNonConvergence === 'warn') console.warn(`[autowire] ${message}`);
+    if (acceptedCycle) {
+      if (options.onNonConvergence !== 'ignore') {
+        console.warn(
+          `[autowire] ${message}; accepting the last pass, which moved each lag ` +
+          `by at most ${scaledResidual.toExponential(2)} of its size ` +
+          `(acceptCycleWithin ${options.acceptCycleWithin})`,
+        );
+      }
+    } else if (options.onNonConvergence === 'throw') {
+      throw new Error(message);
+    } else if (options.onNonConvergence === 'warn') {
+      console.warn(`[autowire] ${message}`);
+    }
   }
   return { config: cfg, diagnostics, compiled };
 }

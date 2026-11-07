@@ -910,11 +910,30 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Energy + CDR need lagged interest rate (capital runs before energy)
+    // Energy WACC prices project debt off the safe rate
+    laggedSafeRate: {
+      source: 'safeRate',
+      delay: 1,
+      initial: 0.01,  // ~1% 2025 real safe rate (bootstrapped)
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
+    // Robots, CDR and energy project equity price capital at the economy-wide
+    // return (capital runs before them)
     laggedInterestRate: {
       source: 'interestRate',
       delay: 1,
       initial: 0.05,  // ~5% initial real rate
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
+    // Robots value the wage they displace, which falls with the labor share
+    laggedLaborShare: {
+      source: 'laborShare',
+      delay: 1,
+      initial: 0.654,  // 2025 labor compensation / GDP (bootstrapped)
       contract: unitPort('fraction'),
       bootstrap: true,
     },
@@ -965,6 +984,18 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
 // DERIVED PARAMETERS
 // =============================================================================
 
+/** Composition-code parameter reads, plus every leaf a derivation read. */
+function mergeReads(
+  base: Record<string, readonly string[]>,
+  extra: Record<string, readonly string[]>,
+): Record<string, string[]> {
+  const merged: Record<string, string[]> = Object.fromEntries(
+    Object.entries(base).map(([name, paths]) => [name, [...paths]]),
+  );
+  for (const [name, paths] of Object.entries(extra)) (merged[name] ??= []).push(...paths);
+  return merged;
+}
+
 const MODULE_BY_NAME = new Map<string, AnyModule>(ALL_MODULES.map((mod) => [mod.name, mod]));
 
 /**
@@ -1014,8 +1045,6 @@ export function runAutowiredSimulation(
     mergedDemandParams
   );
   const lags = buildLags(params);
-  const externalReads = (moduleName: string, paths: readonly string[]) =>
-    [...paths, ...(derivationReads[moduleName] ?? [])];
 
   return runAutowired({
     modules: modulesFor(diagnostics),
@@ -1041,30 +1070,28 @@ export function runAutowiredSimulation(
     // can pass 'off' to skip it.
     connectorValidation: options?.connectorValidation,
     // Module invariants (ledgers close, parts sum to totals, generation within
-    // capacity). The framework defaults to 'error'; sweeps that validated a
-    // representative run pass 'off'.
+    // capacity). The framework defaults to 'error', and studies keep it: a
+    // perturbation that breaks a ledger is a finding (~5% of a macro run).
     invariants: options?.invariants,
     // Report pathwise-inert scenario knobs. This is a warning by default
     // because conditional branches can legitimately leave a parameter unread;
     // unknown scenario keys are rejected separately by scenarioToParams.
     paramLiveness: options?.paramLiveness ?? 'warn',
-    externalParamReads: {
-      energy: externalReads('energy', [
+    externalParamReads: mergeReads({
+      energy: [
         'carbonPrice',
         ...REGIONS.map((region) => `regional.${region}.carbonPrice`),
-      ]),
-      production: externalReads('production', [
+      ],
+      production: [
         'robotLaborEquivalent', 'beta', 'electricExergy', 'thermalExergy', 'gamma',
-      ]),
-      demand: externalReads('demand', [
+      ],
+      demand: [
         ...(['transport', 'buildings', 'industry'] as const).flatMap((sector) => [
           `sectors.${sector}.share`,
           `sectors.${sector}.electricityDeliveryCost`,
         ]),
-      ]),
-      climate: externalReads('climate', []),
-      dispatch: externalReads('dispatch', []),
-    },
+      ],
+    }, derivationReads),
     // Fixed-point warm-up: flow lags (generation, non-electric energy,
     // overheads, damages, prices) get their year-0 self-consistent values
     // instead of hand-guessed constants — kills the spurious -5.5% GDP step
@@ -1075,6 +1102,14 @@ export function runAutowiredSimulation(
       tolerance: 1e-7,
       damping: 0.65,
       onNonConvergence: 'throw',
+      // Energy's world build-capacity loop depends on the order in which
+      // sources hit their caps, so a source a hair either side of its cap
+      // moves the start-year build discretely (~0.65 TWh of US hydro in
+      // ssp1-19 at baseCreditGrowth 0.01), and the warm-up cycles at that
+      // amplitude however it is damped (~1e-4 of each lag's size). Such a
+      // cycle is accepted with a warning. An order-independent rationing rule
+      // removed it but tripled runtime and moved the blessed baseline.
+      acceptCycleWithin: 1e-3,
     },
   });
 }
