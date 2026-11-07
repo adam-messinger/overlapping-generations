@@ -235,6 +235,7 @@ interface DemandState {
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;
   robotFleet: number;             // absolute robot-units, for capex additions
+  referenceLaborShare?: number;   // 2025 labor share (lagged-bootstrapped), anchors the wage a robot displaces
   dataCenterLoadTWh: number;             // Current datacenter electricity load (TWh)
   fossilVehicleFleet: number;            // TWh of annual fossil transport energy
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
@@ -278,6 +279,7 @@ interface DemandInputs {
 
   // For the robot value-vs-cost deployment rule
   laggedInterestRate?: number;           // economy-wide rate from capital (delay-1 lag, shared with energy/cdr)
+  laggedLaborShare?: number;             // capital.laborShare, lagged: falls as machines take labor income
   robotLaborEquivalent?: number;         // worker-equivalents per robot, injected from production params
 
   // CDR electricity demand (delay-1 lag on cdr.cdrEnergyTWh, shared with production)
@@ -1189,6 +1191,7 @@ export const demandModule: Module<
       carbonPrice: unitPort('$/tCO2'),
       laggedAvgLCOE: unitPort('$/MWh'),
       laggedInterestRate: unitPort('fraction'),
+      laggedLaborShare: unitPort('fraction'),
       robotLaborEquivalent: unitPort('people/robot'),
       cdrEnergy: unitPort('TWh/year'),
       regionalEnergyBurden: unitPort('fraction', 'record'),
@@ -1911,7 +1914,20 @@ export const demandModule: Module<
     // worker), NOT q aggregate marginal products. Prices from national accounts,
     // quantities from the fitted production function — the same split capital.ts
     // uses (r priced off alpha=0.33 while production fits 0.25).
-    const robotMV = robotQ * params.robotDisplacementShare * gdpPerWorker; // $/robot-yr
+    // The wage a robot displaces is the human wage, which falls relative to
+    // GDP per worker as machines take labor's income (capital.laborShare).
+    // Scaling by the lagged labor share relative to 2025 keeps the 2025
+    // business case (pinned by the pi(2025) test) and closes the loop:
+    // automation cheapens the labor it competes with and so slows itself
+    // (Acemoglu & Restrepo 2018: displacement lowers the wage).
+    const referenceLaborShare = yearIndex === 0 || state.referenceLaborShare === undefined
+      ? inputs.laggedLaborShare
+      : state.referenceLaborShare;
+    const displacedWageFactor =
+      inputs.laggedLaborShare !== undefined && referenceLaborShare !== undefined && referenceLaborShare > 0
+        ? inputs.laggedLaborShare / referenceLaborShare
+        : 1;
+    const robotMV = robotQ * params.robotDisplacementShare * gdpPerWorker * displacedWageFactor; // $/robot-yr
 
     // COST of one robot-year: annualized capital service + electricity, scaled
     // by an integration-cost factor rising with density (installation, workflow
@@ -2341,6 +2357,7 @@ export const demandModule: Module<
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotsPer1000, // Persist for logistic adoption
         robotFleet: totalRobots,
+        referenceLaborShare,
         dataCenterLoadTWh, // Persist for datacenter logistic adoption
         fossilVehicleFleet: newFossilVehicleFleet,
         fossilHeatingStock: newFossilHeatingStock,

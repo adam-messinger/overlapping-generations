@@ -188,6 +188,8 @@ export interface DispatchInputs {
    *  held for security, so it runs only after every other source and the
    *  curtailed-VRE release: it serves demand that would otherwise go unmet. */
   regionalStandbyCapacity?: Record<Region, Partial<Record<'coal' | 'gas', number>>>;
+  /** Fuel + VOM $/MWh by region from energy (one source of truth for fuel prices); falls back to marginalCost */
+  regionalFossilRunningCost?: Record<Region, Partial<Record<'coal' | 'gas', number>>>;
 
   /** Carbon price ($/ton CO2) - GLOBAL fallback */
   carbonPrice: number;
@@ -703,6 +705,7 @@ export const dispatchModule: Module<
       capacities: ENERGY_CAPACITY_PORT,
       regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
       regionalStandbyCapacity: unitPort('GW', 'nested-record'),
+      regionalFossilRunningCost: unitPort('$/MWh', 'nested-record'),
       carbonPrice: unitPort('$/tCO2'),
       regionalCarbonPrice: unitPort('$/tCO2', 'record'),
       longStorageRegional: unitPort('GWh', 'record'),
@@ -802,11 +805,24 @@ export const dispatchModule: Module<
     for (const region of REGIONS) {
       const regionParams = { ...params, capacityFactor: regionCapacityFactors(inputs, params, region) };
 
+      // Regional fuel prices (energy's regional fossilRunningCost) set the
+      // gas/coal merit order; e.g. LNG-priced gas runs after domestic coal.
+      const fuel = inputs.regionalFossilRunningCost?.[region];
+      const fuelParams = fuel
+        ? {
+            ...regionParams,
+            marginalCost: {
+              ...regionParams.marginalCost,
+              ...(fuel.gas != null && { gas: fuel.gas }),
+              ...(fuel.coal != null && { coal: fuel.coal }),
+            },
+          }
+        : regionParams;
       const regionResult = dispatchRegion(
         regionalDemand[region],
         regionalCapacities[region],
         regionalCarbonPrice[region],
-        regionParams,
+        fuelParams,
         longStorageRegional[region],
         inputs.regionalStandbyCapacity?.[region],
       );

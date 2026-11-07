@@ -139,10 +139,37 @@ test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, 
     STUDY_OPTIONS,
   );
   expect(r.results[r.results.length - 1].year).toBe(2100);
+  // Since private debt pays the ~3% loan rate rather than the ~7% return on
+  // capital, this sweep no longer reaches insolvency; the default mechanism
+  // itself is pinned in capital.test.ts. If it binds, debt stays serviceable.
   const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
-  expect(binding.length).toBeGreaterThan(0);
-  // The write-down keeps debt serviceable instead of letting it outrun output
   for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
+});
+
+test('start-year fixed point: plain runs converge; an order-dependent build cycle is accepted, not faked', () => {
+  // The start-year solve runs whatever the horizon, so one year suffices.
+  // Plain scenarios must reach the fixed point outright: the cycle fallback
+  // must not hide a regression there
+  for (const params of [{}, loadScenarioParamsSync('ssp1-19')] as SimulationParams[]) {
+    const bootstrap = runAutowiredSimulation({ ...params, endYear: 2025 }, STUDY_OPTIONS).diagnostics?.bootstrap;
+    expect(bootstrap?.converged).toBe(true);
+    expect(bootstrap?.acceptedCycle).toBe(undefined);
+  }
+  // Sweep case: energy's world build-capacity loop moves the build discretely
+  // at a cap edge, so this used to throw "Lag bootstrap did not converge"
+  const scenario = loadScenarioParamsSync('ssp1-19') as SimulationParams;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const bootstrap = runAutowiredSimulation(
+      { ...scenario, capital: { ...scenario.capital, baseCreditGrowth: 0.01 }, endYear: 2025 },
+      STUDY_OPTIONS,
+    ).diagnostics?.bootstrap;
+    expect(bootstrap?.converged).toBe(false);
+    expect(bootstrap!.acceptedCycle!.scaledResidual).toBeLessThan(1e-3);
+  } finally {
+    console.warn = warn;
+  }
 });
 
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {

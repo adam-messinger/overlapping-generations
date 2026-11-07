@@ -901,11 +901,30 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
-    // Energy + CDR need lagged interest rate (capital runs before energy)
+    // Energy WACC prices project debt off the safe rate
+    laggedSafeRate: {
+      source: 'safeRate',
+      delay: 1,
+      initial: 0.01,  // ~1% 2025 real safe rate (bootstrapped)
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
+    // Robots, CDR and energy project equity price capital at the economy-wide
+    // return (capital runs before them)
     laggedInterestRate: {
       source: 'interestRate',
       delay: 1,
       initial: 0.05,  // ~5% initial real rate
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
+    // Robots value the wage they displace, which falls with the labor share
+    laggedLaborShare: {
+      source: 'laborShare',
+      delay: 1,
+      initial: 0.654,  // 2025 labor compensation / GDP (bootstrapped)
       contract: unitPort('fraction'),
       bootstrap: true,
     },
@@ -1070,6 +1089,14 @@ export function runAutowiredSimulation(
       tolerance: 1e-7,
       damping: 0.65,
       onNonConvergence: 'throw',
+      // Energy's world build-capacity loop depends on the order in which
+      // sources hit their caps, so a source a hair either side of its cap
+      // moves the start-year build discretely (~0.65 TWh of US hydro in
+      // ssp1-19 at baseCreditGrowth 0.01), and the warm-up cycles at that
+      // amplitude however it is damped (~1e-4 of each lag's size). Such a
+      // cycle is accepted with a warning. An order-independent rationing rule
+      // removed it but tripled runtime and moved the blessed baseline.
+      acceptCycleWithin: 1e-3,
     },
   });
 }

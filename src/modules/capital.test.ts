@@ -419,37 +419,83 @@ test('retirement age adjustment is zero in year 0 (no LE gains yet)', () => {
   expect(year0.transferBurden / noAdj.outputs.transferBurden).toBeBetween(0.99, 1.01);
 });
 
-// --- Wage Indexation ---
-
-console.log('\n--- Wage Indexation ---\n');
-
-test('lower wageIndexation reduces transfer burden growth', () => {
-  // wageIndexation=1 (full wage): burden grows fastest
-  const fullWageParams = capitalModule.mergeParams({ wageIndexation: 1.0 });
-  let fullWageState = capitalModule.init(fullWageParams);
-  let fullWageOutputs: any;
-  for (let i = 0; i < 50; i++) {
-    const inputs = getCapitalInputs(i);
-    const result = capitalModule.step(fullWageState, inputs, fullWageParams, 2025 + i, i);
-    fullWageState = result.state;
-    fullWageOutputs = result.outputs;
-  }
-
-  // wageIndexation=0.3 (mostly price-indexed): burden grows slower
-  const lowWageParams = capitalModule.mergeParams({ wageIndexation: 0.3 });
-  let lowWageState = capitalModule.init(lowWageParams);
-  let lowWageOutputs: any;
-  for (let i = 0; i < 50; i++) {
-    const inputs = getCapitalInputs(i);
-    const result = capitalModule.step(lowWageState, inputs, lowWageParams, 2025 + i, i);
-    lowWageState = result.state;
-    lowWageOutputs = result.outputs;
-  }
-
-  expect(lowWageOutputs.transferBurden).toBeLessThan(fullWageOutputs.transferBurden);
+test('retirement-age extension follows gains in life expectancy at 65, not at birth', () => {
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  const base = getCapitalInputs(0);
+  state = capitalModule.step(state, base, params, 2025, 0).state;
+  const gained = {
+    ...base,
+    regionalLifeExpectancy: Object.fromEntries(
+      Object.entries(base.regionalLifeExpectancy as Record<string, number>)
+        .map(([r, le]) => [r, le + 5]),
+    ) as typeof base.regionalLifeExpectancy,
+  };
+  const out = capitalModule.step(state, gained, params, 2026, 1).outputs as any;
+  // WPP 2024: e65 gains are ~2/3 of at-birth gains in the US, ~1/4 in SSA.
+  expect(out.regionalRetirementAgeExtension.us).toBeCloseTo(0.67 * 0.66 * 5, 6);
+  expect(out.regionalRetirementAgeExtension.ssa).toBeCloseTo(0.67 * 0.24 * 5, 6);
 });
 
-test('GDP identity still holds with retirement age + wage indexation', () => {
+test('a borrowed share of rising transfer costs raises public debt', () => {
+  const taxed = capitalModule.mergeParams({ ageingCostDeficitShare: 0 });
+  const borrowed = capitalModule.mergeParams({ ageingCostDeficitShare: 1 });
+  const run = (params: typeof taxed) => {
+    let state = capitalModule.init(params);
+    let outputs: any;
+    for (let i = 0; i < 40; i++) {
+      const result = capitalModule.step(state, getCapitalInputs(i), params, 2025 + i, i);
+      state = result.state;
+      outputs = result.outputs;
+    }
+    return outputs;
+  };
+  const a = run(taxed);
+  const b = run(borrowed);
+  expect(b.transferBurden).toBeGreaterThan(0.11); // ageing raised it from ~0.095
+  expect(b.publicDebtGDP).toBeGreaterThan(a.publicDebtGDP + 0.1);
+});
+
+test('machine worker-equivalents\' income goes to capital, lowering the labor share', () => {
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  const base = getCapitalInputs(0);
+  const y0 = capitalModule.step(state, { ...base, automationLaborShare: 0.01 }, params, 2025, 0);
+  state = y0.state;
+  const inputs1 = getCapitalInputs(1);
+  const same = capitalModule.step(state, { ...inputs1, automationLaborShare: 0.01 }, params, 2026, 1);
+  const more = capitalModule.step(state, { ...inputs1, automationLaborShare: 0.11 }, params, 2026, 1);
+  // The 2025 machine share is inside the alpha calibration: no change, no shift.
+  const market = inputs1.gdp - same.outputs.governmentServiceConsumption;
+  expect(same.outputs.laborCompensation).toBeCloseTo((1 - params.alpha) * market, 6);
+  // +10pp of augmented labor that is machines moves (1-alpha) x 10% of market output.
+  expect(same.outputs.laborCompensation - more.outputs.laborCompensation)
+    .toBeCloseTo((1 - params.alpha) * 0.10 * market, 6);
+  expect(more.outputs.laborShare).toBeLessThan(same.outputs.laborShare);
+});
+
+// --- Benefit levels ---
+
+console.log('\n--- Benefit levels ---\n');
+
+test('pension per retiree tracks current GDP per worker (benefit ratio held at 2025)', () => {
+  const { outputs } = runYears(30);
+  const inputs = getCapitalInputs(29);
+  // Region by region the pension bill is pensionRate x reclassified retirees x
+  // CURRENT GDP per (adjusted) worker; nothing is frozen at the 2025 level.
+  const r = 'us';
+  const share = outputs.regionalRetirementAgeExtension[r] >= 0 ? 1 : 0;
+  expect(share).toBe(1);
+  const pensionPerRetireeOverGdpPerWorker =
+    outputs.regionalPensionTransfers[r]
+    / (inputs.regionalOld[r] * capitalDefaults.transferPremium[r].pensionRate!)
+    / (inputs.regionalGdp[r] / inputs.regionalWorking[r]);
+  // Reclassification moves people between old and working, so the ratio sits
+  // a little below 1 — but nowhere near the ~0.8 a frozen 30% weight gave.
+  expect(pensionPerRetireeOverGdpPerWorker).toBeBetween(0.9, 1.0);
+});
+
+test('GDP identity still holds with retirement age adjustment', () => {
   const { outputs } = runYears(25);
   const gdp = baselineGdp(24);
   const sum = outputs.householdConsumption
@@ -460,11 +506,6 @@ test('GDP identity still holds with retirement age + wage indexation', () => {
 
 test('validation catches invalid retirementAgeResponse', () => {
   const result = capitalModule.validate({ retirementAgeResponse: 1.5 });
-  expect(result.valid).toBe(false);
-});
-
-test('validation catches invalid wageIndexation', () => {
-  const result = capitalModule.validate({ wageIndexation: -0.1 });
   expect(result.valid).toBe(false);
 });
 
@@ -546,13 +587,15 @@ console.log('\n--- Debt/Credit Channel ---\n');
 // --- Firm cash floor ---
 
 test('firms that cannot pay their interest default instead of overdrawing deposits', () => {
-  // Opening with every deposit held by households and private debt at 6x
-  // GDP: the interest bill exceeds operating surplus from the first step and
-  // firms have no buffer, which used to throw "Godley account
-  // 'firms.deposits' cannot have a negative balance"
+  // Opening with every deposit held by households, private debt at 6x GDP
+  // and a 10pp credit spread (loan rate ~11%): the interest bill exceeds
+  // operating surplus from the first step and firms have no buffer, which
+  // used to throw "Godley account 'firms.deposits' cannot have a negative
+  // balance". (At the default ~3% loan rate 6x GDP of debt is serviceable.)
   const params = capitalModule.mergeParams({
     openingHouseholdDepositShare: 1,
     initialPrivateDebtGDP: 6,
+    creditSpread: 0.10,
   });
   const inputs = getCapitalInputs(0);
   const { state, outputs } = capitalModule.step(capitalModule.init(params), inputs, params, 2025, 0);
@@ -562,7 +605,7 @@ test('firms that cannot pay their interest default instead of overdrawing deposi
   expect(outputs.unpaidPrivateInterest).toBeGreaterThan(0);
   expect(state.financialLedger!.balances['firms.deposits']).toBeBetween(0, 1e-6);
   // Insolvent loans are written down to what the cash flow can carry
-  expect(outputs.loanWriteOffs).toBeCloseTo(outputs.unpaidPrivateInterest / outputs.interestRate, 6);
+  expect(outputs.loanWriteOffs).toBeCloseTo(outputs.unpaidPrivateInterest / outputs.loanRate, 6);
   expect(outputs.nextPrivateDebtStock).toBeCloseTo(
     state.financialLedger!.balances['firms.privateLoans'], 6,
   );

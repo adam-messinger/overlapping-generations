@@ -447,4 +447,19 @@ test('standby coal runs as last resort, only for demand nothing else serves', ()
 // SUMMARY
 // =============================================================================
 
+test('regional fuel prices from energy set the gas/coal merit order', () => {
+  const params = dispatchModule.mergeParams({});
+  const inputs = createInputs({ demand: 18000, carbonPrice: 0 });
+  const allRegions = <T>(v: T) => Object.fromEntries(
+    ['us', 'oecd-ex-us', 'china', 'india', 'latam', 'seasia', 'russia', 'mena', 'ssa'].map((r) => [r, v]),
+  ) as any;
+  const cheapGas = dispatchModule.step(dispatchModule.init(params),
+    { ...inputs, regionalFossilRunningCost: allRegions({ gas: 20, coal: 40 }) }, params, 2025, 0).outputs;
+  const lngGas = dispatchModule.step(dispatchModule.init(params),
+    { ...inputs, regionalFossilRunningCost: allRegions({ gas: 75, coal: 40 }) }, params, 2025, 0).outputs;
+  // With gas dearer than coal, coal is dispatched first and gas runs less.
+  expect(lngGas.generation.gas).toBeLessThan(cheapGas.generation.gas);
+  expect(lngGas.generation.coal).toBeGreaterThan(cheapGas.generation.coal);
+});
+
 printSummary();

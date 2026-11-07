@@ -197,6 +197,8 @@ export interface ProductionOutputs {
   capitalContribution: number;
   /** (L/L₀)^β */
   laborContribution: number;
+  /** Machine (robot + AI) worker-equivalents as a share of augmented labor */
+  automationLaborShare: number;
   /** (E/E₀)^γ */
   energyContribution: number;
   /** Combined efficiency multiplier (replaces TFP) */
@@ -298,6 +300,7 @@ export const productionModule: Module<
       productionUsefulEnergy: unitPort('TWh/year'),
       capitalContribution: unitPort('1'),
       laborContribution: unitPort('1'),
+      automationLaborShare: unitPort('fraction'),
       energyContribution: unitPort('1'),
       efficiencyLevel: unitPort('1'),
       eta: unitPort('1'),
@@ -439,6 +442,12 @@ export const productionModule: Module<
     const augmentedWorkers = effectiveWorkers
       * (1 + params.robotLaborEquivalent * robotsPer1000 / 1000)
       + params.aiWorkerEquivalentPerTWh * dataCenterLoadTWh;
+    // Machines and people are perfect substitutes inside L, so they earn the
+    // same marginal product per worker-equivalent: this share of labor's
+    // income is paid to whoever owns the machines (capital reads it).
+    const automationLaborShare = augmentedWorkers > 0
+      ? Math.max(0, augmentedWorkers - effectiveWorkers) / augmentedWorkers
+      : 0;
 
     // Year 0: capture initial values for normalization
     let initialCapital = state.initialCapital;
@@ -579,6 +588,7 @@ export const productionModule: Module<
         productionUsefulEnergy,
         capitalContribution,
         laborContribution,
+        automationLaborShare,
         energyContribution,
         efficiencyLevel,
         eta,
