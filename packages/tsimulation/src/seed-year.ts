@@ -36,10 +36,21 @@ export interface SeedYearOptions {
    * revaluation with no prior schedule) is examined from step 1 instead.
    */
   startOffsets?: Readonly<Record<string, number>>;
+  /**
+   * A series whose largest absolute value over the window is at or below
+   * this is round-off, not a path, and scores 0 (default 0). Without it an
+   * identity residual of 1e-14 then 0 scores 1, since the score is relative
+   * to the window's own magnitude.
+   */
+  absoluteTolerance?: number;
 }
 
 /** Score one series. Returns undefined when it is too short or not finite. */
-export function scoreSeedYear(values: readonly number[], trendSteps = 4): Omit<SeedYearKink, 'name'> | undefined {
+export function scoreSeedYear(
+  values: readonly number[],
+  trendSteps = 4,
+  absoluteTolerance = 0,
+): Omit<SeedYearKink, 'name'> | undefined {
   if (values.length < trendSteps + 2) return undefined;
   const window = values.slice(0, trendSteps + 2);
   if (window.some((value) => typeof value !== 'number' || !Number.isFinite(value))) return undefined;
@@ -48,7 +59,7 @@ export function scoreSeedYear(values: readonly number[], trendSteps = 4): Omit<S
   const laterMeanChange = later.reduce((sum, change) => sum + change, 0) / later.length;
   const spread = Math.max(...later.map((change) => Math.abs(change - laterMeanChange)));
   const magnitude = Math.max(...window.map(Math.abs));
-  if (magnitude === 0) return { score: 0, firstChange, laterMeanChange, window };
+  if (magnitude <= absoluteTolerance) return { score: 0, firstChange, laterMeanChange, window };
   const score = (Math.abs(firstChange - laterMeanChange) - spread) / magnitude;
   return { score, firstChange, laterMeanChange, window };
 }
@@ -63,7 +74,7 @@ export function findSeedYearKinks(
   const kinks: SeedYearKink[] = [];
   for (const [name, values] of Object.entries(series)) {
     const offset = options.startOffsets?.[name] ?? 0;
-    const scored = scoreSeedYear(values.slice(offset), trendSteps);
+    const scored = scoreSeedYear(values.slice(offset), trendSteps, options.absoluteTolerance ?? 0);
     if (scored && scored.score > threshold) kinks.push({ name, ...scored });
   }
   return kinks.sort((a, b) => b.score - a.score);

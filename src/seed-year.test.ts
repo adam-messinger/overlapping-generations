@@ -54,7 +54,8 @@ for (const key of Object.keys(results[0])) {
   series[key] = results.map((row) => (row as unknown as Record<string, number>)[key]);
 }
 const startOffsets = Object.fromEntries(Object.keys(SEED_DEFINED).map((name) => [name, 1]));
-const kinks = findSeedYearKinks(series, { startOffsets });
+// Identity residuals (national accounts, ledgers) are zero up to round-off
+const kinks = findSeedYearKinks(series, { startOffsets, absoluteTolerance: 1e-9 });
 const flagged = new Set(kinks.map((kink) => kink.name));
 
 test('the probe covers the published outputs', () => {
