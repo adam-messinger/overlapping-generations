@@ -3,7 +3,6 @@
   "description": "Twin-Engine Managed Acceleration central scenario (30% probability). Represents most likely trajectory with gradual decarbonization, VRE expansion constrained by grids/minerals, and temperature stabilizing near 2°C.",
 
   "energy": {
-    "carbonPrice": 35,
     "sources": {
       "solar": { "alpha": 0.36 },
       "wind": { "alpha": 0.23 },

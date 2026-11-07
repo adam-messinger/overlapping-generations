@@ -13,7 +13,6 @@ import {
   allocateNewBuild,
   type EnergyParams,
 } from './energy.js';
-import { readdirSync, readFileSync } from 'node:fs';
 import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.js';
 
 import { dispatchDefaults } from './dispatch.js';
@@ -954,29 +953,45 @@ test('cheap idle coal is re-run before any new coal is built', () => {
   expect(idle.coal).toBeLessThan(running.coal + 1e-6);
 });
 
-// The global carbonPrice never reaches the power sector; a scenario that sets
-// only it silently runs at the regional defaults
-const GLOBAL_ONLY_WARNING = /set without any regional/;
-
-test('a global-only carbon price warns that it misses the power sector', () => {
-  const globalOnly = energyModule.validate(energyModule.mergeParams({ carbonPrice: 150 }));
-  expect(globalOnly.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBeTrue();
-  const withRegional = energyModule.validate(energyModule.mergeParams({
-    carbonPrice: 150, regional: { china: { carbonPrice: 150 } } as any,
-  }));
-  expect(withRegional.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
-  const atDefault = energyModule.validate(energyModule.mergeParams({ carbonPrice: energyDefaults.carbonPrice }));
-  expect(atDefault.warnings.some(w => GLOBAL_ONLY_WARNING.test(w))).toBe(false);
+// A set global carbonPrice is economy-wide: it fills every region that has no
+// explicit regional carbonPrice. Before the fill, a global-only price taxed
+// end-use fuels but not power stations, so raising it RAISED warming.
+test('a set global carbon price fills every region\'s power-sector price', () => {
+  const params = energyModule.mergeParams({ carbonPrice: 150 });
+  for (const region of REGIONS) expect(params.regional[region].carbonPrice).toBe(150);
+  // The fill copies regions rather than mutating the shared defaults
+  expect(energyDefaults.regional.china.carbonPrice).toBe(15);
+  expect(energyModule.mergeParams({}).regional.china.carbonPrice).toBe(15);
 });
 
-test('no scenario file sets a carbon price the power sector cannot see', () => {
-  const dir = new URL('../../scenarios/', import.meta.url);
-  for (const file of readdirSync(dir).filter(f => f.endsWith('.json'))) {
-    const scenario = JSON.parse(readFileSync(new URL(file, dir), 'utf8'));
-    const result = energyModule.validate(energyModule.mergeParams(scenario.energy ?? {}));
-    const hit = result.warnings.find(w => GLOBAL_ONLY_WARNING.test(w));
-    expect(hit === undefined ? file : `${file}: ${hit}`).toBe(file);
+test('an explicit regional carbon price overrides the global fill', () => {
+  const params = energyModule.mergeParams({
+    carbonPrice: 150,
+    regional: {
+      china: { carbonPrice: 40 },
+      // a region overridden on another key still takes the global price
+      india: { maxGrowthRate: { solar: 0.5 } },
+    } as any,
+  });
+  expect(params.regional.china.carbonPrice).toBe(40);
+  expect(params.regional.india.carbonPrice).toBe(150);
+  expect(params.regional.india.maxGrowthRate?.solar).toBe(0.5);
+  expect(params.regional.us.carbonPrice).toBe(150);
+});
+
+test('an unset global carbon price leaves the observed regional mix', () => {
+  const params = energyModule.mergeParams({ regional: { china: { carbonPrice: 100 } } as any });
+  expect(params.carbonPrice).toBe(energyDefaults.carbonPrice);
+  expect(params.regional.china.carbonPrice).toBe(100);
+  for (const region of REGIONS.filter(r => r !== 'china')) {
+    expect(params.regional[region].carbonPrice).toBe(energyDefaults.regional[region].carbonPrice);
   }
+});
+
+test('re-merging merged params is idempotent', () => {
+  const once = energyModule.mergeParams({ carbonPrice: 90, regional: { us: { carbonPrice: 20 } } as any });
+  const twice = energyModule.mergeParams(once);
+  for (const region of REGIONS) expect(twice.regional[region].carbonPrice).toBe(once.regional[region].carbonPrice);
 });
 
 test('validation catches negative riskPremium', () => {
