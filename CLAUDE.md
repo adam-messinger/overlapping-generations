@@ -348,6 +348,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
 | `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. Financing binds through the COST OF CAPITAL (WACC ~15% by 2075), not the capex budget |
+| `un-wpp-medium` | Opt-in demographic overlay: UN WPP 2024 Medium fertility and life expectancy, for comparison with forecasts that assume it (the default follows Fernández-Villaverde & Norrick 2026) |
 
 ## Agent Introspection
 

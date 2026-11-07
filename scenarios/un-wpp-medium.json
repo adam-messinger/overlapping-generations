@@ -1,0 +1,57 @@
+{
+  "name": "UN WPP 2024 Medium fertility",
+  "description": "Opt-in demographic overlay: regional fertility follows the UN World Population Prospects 2024 Medium variant (2025 TFR and its 2025-2100 path, fit in the model's floor/convergence form) and life expectancy rises 0.16 yr/yr (WPP Medium world e0 73.3 in 2024 -> 77.4 in 2050), instead of the default Fernandez-Villaverde & Norrick (2026) path. Use it to compare against or calibrate to forecasts that assume UN Medium (IMF, OECD, CBO-style long-run projections); it is not the model's view. Lands within 1-3% of WPP Medium world population (9.53B in 2050 vs 9.66B; 9.90B in 2100 vs 10.18B): the remaining gap is the model's stylized working-age mortality and migration.",
+  "meta": {
+    "source": "UN WPP 2024 Demographic Indicators (Medium), aggregated by scripts/wpp-fertility-paths.py; fit rmse <= 0.01 births/woman"
+  },
+  "demographics": {
+    "regions": {
+      "us": {
+        "fertility": 1.62,
+        "fertilityFloor": 1.65,
+        "fertilityDecay": 0.042
+      },
+      "oecd-ex-us": {
+        "fertility": 1.39,
+        "fertilityFloor": 1.61,
+        "fertilityDecay": 0.023
+      },
+      "china": {
+        "fertility": 1.02,
+        "fertilityFloor": 1.46,
+        "fertilityDecay": 0.018
+      },
+      "india": {
+        "fertility": 2.2,
+        "fertilityFloor": 1.74,
+        "fertilityDecay": 0.03
+      },
+      "latam": {
+        "fertility": 1.78,
+        "fertilityFloor": 1.65,
+        "fertilityDecay": 0.069
+      },
+      "seasia": {
+        "fertility": 1.93,
+        "fertilityFloor": 1.7,
+        "fertilityDecay": 0.048
+      },
+      "russia": {
+        "fertility": 1.96,
+        "fertilityFloor": 1.48,
+        "fertilityDecay": 0.008
+      },
+      "mena": {
+        "fertility": 2.56,
+        "fertilityFloor": 1.72,
+        "fertilityDecay": 0.026
+      },
+      "ssa": {
+        "fertility": 4.19,
+        "fertilityFloor": 1.85,
+        "fertilityDecay": 0.033
+      }
+    },
+    "lifeExpectancyGrowth": 0.16
+  }
+}
