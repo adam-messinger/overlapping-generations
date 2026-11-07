@@ -211,6 +211,11 @@ export interface YearResult {
   principalRepayments: number;
   loanWriteOffs: number;
   netCreditCreation: number;
+  privateLeverage: number;
+  targetPrivateLeverage: number;
+  leverageBorrowing: number;
+  leverageRecapBorrowing: number;
+  voluntaryPrincipalRepayments: number;
   primaryDeficit: number;
   netTaxes: number;
   debtRiskPremium: number;     // fraction added to interest rate

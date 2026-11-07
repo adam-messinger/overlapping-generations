@@ -336,6 +336,20 @@ the human-capital ledger (including its replacement-cost re-pricing).
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
+- **Target leverage**: firms borrow max(investment gap, leverage borrowing), where
+  leverage borrowing moves debt / general capital a share `leverageAdjustmentSpeed`
+  (0.25/yr: Flannery-Rangan 2006 ~1/3, Huang-Ritter 2009 ~17%) of the way to its
+  year-0 ratio (0.457, anchored in state: Lemmon-Roberts-Zender 2008 persistence).
+  Credit beyond the investment gap is paid out to owners; over-levered firms with
+  spare cash repay early instead of paying it out. Without it, net new credit hit
+  ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
+  2100; now it follows K/Y (1.25 in 2050, 1.21 in 2100), with the bank credit
+  envelope (`baseCreditGrowth`) holding leverage ~8% under target (leverage demand
+  exceeds the envelope from 2025; recap borrowing starts in 2027). The
+  stock is consolidated private non-financial debt (mortgages included as leverage
+  on the dwellings in the PWT stock). Known limitation: the target is on GENERAL
+  capital only, so where energy capex crowds it out (net-zero: K/Y 1.7 by 2095)
+  debt/GDP falls with it
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
