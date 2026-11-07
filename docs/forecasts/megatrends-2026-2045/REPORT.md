@@ -200,6 +200,14 @@ Effort-specific contributions that survived synthesis:
     the seats cite their original scratch paths);
   - `bundle.json`, rebuilt from `seats/` by `build_bundle.py`;
   - `aggregate/`.
+- **Model version:** the adapter readings in `adapter-output.*` were generated at model commit
+  `c06e55d`, before PR #95 (demand-led new build, idle-fossil fix, China catch-up calibration,
+  scenario carbon prices) was merged. Re-running the same spec on the merged model leaves the
+  baseline readings almost unchanged (regime B's 2040-45 growth leg 3.58% → 3.60%). The named
+  stress scenarios grow faster: tech-stagnation, debt-populism and net-zero gain up to
+  +0.7pp/yr of 2026-35 growth for both the US and China, and debt-populism's 2045 interest
+  share falls 12.2% → 11.1%. Seats used those scenarios only as directional context, so no
+  panel number depends on the change.
 - **Orchestration:** the skill prefers the Workflow tool. This container has 4 CPUs, which caps
   a workflow at 2 concurrent agents, so the waves ran as parallel background agents instead
   (12, then 8, then 4). Efforts pipelined independently, and each Wave-2/3 seat read only its own
