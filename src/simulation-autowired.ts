@@ -528,9 +528,19 @@ function buildTransforms(
         const regional = requireOutput<Record<Region, any>>(
           outputs, 'regional', 'regionalInvestment'
         );
-        const regionalGdp = {} as Record<Region, number>;
-        for (const r of REGIONS) regionalGdp[r] = regional[r]?.gdp ?? 0;
-        return allocateRegionalInvestment(investment, regionalSavings, regionalGdp);
+        // The regional propensity is a dimensionless allocation weight, so it
+        // scales with current regional GDP—not a fixed 2025 lookup table.
+        let totalWeight = 0;
+        const weights: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          weights[r] = (regionalSavings[r] ?? 0) * Math.max(0, regional[r]?.gdp ?? 0);
+          totalWeight += weights[r];
+        }
+        const result: Record<Region, number> = {} as any;
+        for (const r of REGIONS) {
+          result[r] = totalWeight > 0 ? investment * (weights[r] / totalWeight) : investment / REGIONS.length;
+        }
+        return result;
       },
       dependsOn: ['investment', 'regionalSavings', 'regional'],
       inputTypes: {
@@ -927,37 +937,6 @@ function buildLags(params: SimulationParams) {
 }
 
 /** Static, non-running unit/shape completeness report for CI and tooling. */
-/**
- * Split aggregate gross investment across regions by desired saving
- * propensity x current GDP. The propensity is a dimensionless allocation
- * weight, so it scales with current regional GDP, not a fixed 2025 table.
- *
- * Both factors are floored at zero. A region's desired propensity can go
- * negative (an ageing working share plus a negative `savingsPremium`:
- * debt-populism's US reaches it by 2080), but gross fixed capital formation
- * cannot: such a region attracts no allocation, as the generational
- * accounts already treat it. A signed weight handed that region negative
- * investment and every other region more than the world total, and energy
- * turned the negative budget into negative MW of new build.
- */
-export function allocateRegionalInvestment(
-  investment: number,
-  regionalSavings: Record<Region, number>,
-  regionalGdp: Record<Region, number>,
-): Record<Region, number> {
-  let totalWeight = 0;
-  const weights = {} as Record<Region, number>;
-  for (const r of REGIONS) {
-    weights[r] = Math.max(0, regionalSavings[r] ?? 0) * Math.max(0, regionalGdp[r] ?? 0);
-    totalWeight += weights[r];
-  }
-  const result = {} as Record<Region, number>;
-  for (const r of REGIONS) {
-    result[r] = totalWeight > 0 ? investment * (weights[r] / totalWeight) : investment / REGIONS.length;
-  }
-  return result;
-}
-
 export function auditGlobalUnitContracts(params: SimulationParams = {}) {
   const transforms = buildTransforms(
     energyModule.mergeParams(params.energy ?? {}),
