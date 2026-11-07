@@ -32,13 +32,21 @@ const SEED_DEFINED: Record<string, string> = {
  * not an accepted behavior.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  shortfall: 'unserved generation falls in 2026 (231 -> 177 TWh) and then resumes rising',
+  shortfall:
+    'unserved generation 231 -> 177 -> 211 TWh, all in MENA and LatAm (6.8% and 5.7% of '
+    + '2025 demand). Dispatch caps gas and hydro at global utilization CFs (0.50, 0.38) while '
+    + 'the build anchors each region\'s fleet on demand, so the observed 2025 fleet cannot serve '
+    + 'gas-heavy MENA or hydro-heavy LatAm (caps of 0.65 and 0.50 clear 2025-28 entirely). The '
+    + 'build adds last year\'s shortfall back and overshoots: a two-year sawtooth past 2031',
   productionFunctionGap:
     'examined from 2026 (zero at the anchor). Not a seed effect as far as traced: the gap '
     + 'between two near-equal GDP forms (0.03% in 2026) steps -0.00008 into 2027 and '
     + '-0.00064 into 2028, where useful-energy growth dips (2.3% -> 2.1% -> 2.4%) and hits '
     + 'the energy-heavier Keen form harder. Flags since production reads the current capital stock',
-  aggregateCapitalFundingGap: 'diagnostic ledger: 0.13 $T in 2025, zero every year after',
+  aggregateCapitalFundingGap:
+    'diagnostic ledger: max(0, desired - actual capital formation) at 2% desired net growth; '
+    + 'actual growth runs 1.97% -> 2.15% -> 2.27%, so the gap is 0.15 $T in 2025 and zero '
+    + 'after. A smooth path crossing the threshold, not a seed effect as far as traced',
 };
 
 const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
