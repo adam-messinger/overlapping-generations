@@ -115,14 +115,18 @@ simulation is a mechanized Fermi decomposition. So:
 Entry point (read its disclosures before quoting any figure):
 
 ```bash
+# any panel: the spec is the published model-to-question adapter (write it in Step 1)
+npx tsx scripts/tetlock-sim-adapter.ts --spec=docs/forecasts/<panel>/adapter-spec.json --json
+# the original Demographics x AI 2036 panel (no --spec)
 npx tsx scripts/tetlock-sim-adapter.ts --json
 ```
 
-The adapter self-reports which questions it can and cannot serve. For the
-Demographics x AI question set it answers the growth question, gives directional
-context only on real rates, and refuses the unemployment, inflation and
-market-volatility questions outright, because `src/modules/` contains no
-unemployment, no ISIC sectors, no price level and no asset prices.
+The spec marks every question `identified`, `directional` or `refused`, maps the
+answerable ones to model fields and transforms, and lists the scenarios or lever
+variants to read. Model-wide disclosures are appended automatically: PPP-2017 levels,
+UN-WPP-low demography, a real lending rate rather than r* or a market yield, no trade
+block, no price level, a fixed labour share. Format and rules:
+`references/adapter-spec.md`.
 
 ## Step 4 - Execute the waves
 
@@ -138,10 +142,16 @@ panelist to answer **all** questions through its own lens.
 
 ```bash
 python3 -I .claude/skills/tetlock-ensemble-forecasting/scripts/tetlock_aggregate.py \
-  ./intermediate/forecasts_input.json ./intermediate/ --d-sens 1.35
+  docs/forecasts/<panel>/bundle.json docs/forecasts/<panel>/aggregate/ --d-sens 1.35
 ```
 
-Stdlib-only; writes `aggregate.json`, `aggregate.md`, and three SVG charts.
+The question set comes from the bundle's `questions` array (binary, continuous,
+regimes), plus optional `planks` (credences) and an optional conditional `assets`
+matrix; the script's docstring has the schema. A bundle without `questions` is read
+as the original Demographics x AI 2036 panel, so its sealed bundles still aggregate.
+Tests: `python3 -I .claude/skills/tetlock-ensemble-forecasting/scripts/test_tetlock_aggregate.py`.
+
+Stdlib-only; writes `aggregate.json`, `aggregate.md`, and SVG charts (probabilities, intervals, one per regime question).
 Reporting rules it enforces:
 
 - **Raw Mean and Median are the headline.** LLM efforts share model priors and
@@ -154,7 +164,11 @@ Reporting rules it enforces:
 - **Continuous quantiles are never extremized**; they pool by Vincentization and
   per-quantile median, in their own table and chart.
 - **Violations are reported, not silently repaired.** A regime distribution summing
-  to 105 is renormalized *and* named.
+  to 105 is renormalized *and* named; one with a negative or >100 option is excluded
+  *and* named; a missing seat is a completeness violation.
+
+Keep a panel's records together in `docs/forecasts/<panel>/`: the locked questions,
+the adapter spec, the bundle and the aggregate. They are what Step 6 scores.
 
 ## Step 6 - Seal and score it (what makes `d` real)
 
