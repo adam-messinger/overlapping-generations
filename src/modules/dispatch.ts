@@ -82,7 +82,7 @@ export interface DispatchParams {
   storageBonusPerHour: number;       // Additional VRE share per storage hour (0.08)
 
   /** Soft curtailment parameters */
-  curtailmentOnset: number;          // VRE share where curtailment begins (default 0.30)
+  curtailmentOnset: number;          // VRE share where curtailment begins with NO storage (default 0.30); storage shifts it by the penetration headroom it adds
   curtailmentCoeff: number;          // Quadratic penalty coefficient (default 1.5)
   maxCurtailmentPenalty: number;     // Cap on curtailment penalty (default 0.5)
 
@@ -180,6 +180,11 @@ export interface DispatchInputs {
   /** Regional capacity breakdown */
   regionalCapacities?: Record<Region, Record<EnergySource, number>>;
 
+  /** Standby (firm-adequacy) capacity inside regionalCapacities (GW). It is
+   *  held for security, so it runs only after every other source and the
+   *  curtailed-VRE release: it serves demand that would otherwise go unmet. */
+  regionalStandbyCapacity?: Record<Region, Partial<Record<'coal' | 'gas', number>>>;
+
   /** Carbon price ($/ton CO2) - GLOBAL fallback */
   carbonPrice: number;
 
@@ -258,6 +263,10 @@ export interface DispatchOutputs {
 
   /** Regional curtailment (TWh) */
   regionalCurtailment: Record<Region, number>;
+
+  /** Regional curtailment rate (fraction of the region's available VRE).
+   *  Energy damps each region's VRE build by its OWN rate, not the world's. */
+  regionalCurtailmentRate: Record<Region, number>;
 }
 
 // =============================================================================
@@ -295,7 +304,8 @@ function dispatchRegion(
   capacities: Record<EnergySource, number>,
   carbonPrice: number,
   params: DispatchParams,
-  longStorageGWh: number = 0
+  longStorageGWh: number = 0,
+  standbyGW: Partial<Record<'coal' | 'gas', number>> = {},
 ): RegionalDispatchOutputs {
   // Calculate marginal costs with regional carbon price
   const marginalCosts: Record<string, number> = {};
@@ -315,7 +325,9 @@ function dispatchRegion(
       maxGen[source] = 0;
       continue;
     }
-    const capacity = capacities[source];
+    // Standby capacity is held out of the merit order (dispatched last, below)
+    const standby = source === 'coal' || source === 'gas' ? (standbyGW[source] ?? 0) : 0;
+    const capacity = Math.max(0, capacities[source] - standby);
     const cf = params.capacityFactor[source];
     maxGen[source] = annualGenerationTWh(capacity, cf, params.hoursPerYear, source);
   }
@@ -343,10 +355,44 @@ function dispatchRegion(
   const preCurtailmentSolar = maxGen.solar;
   const preCurtailmentWind = maxGen.wind;
 
-  // Soft curtailment: reduce effective VRE as share increases beyond onset
+  // VRE limits based on two-tier storage (short-duration batteries + long-duration)
+  const PEAK_TO_AVERAGE_RATIO = 2;
+  const averageDemandGW = convertQuantity(divideQuantities(
+    unitQuantity(demandTWh, 'TWh/year', 'annual electricity demand'),
+    unitQuantity(params.hoursPerYear, 'hour/year', 'operating hours'),
+    'average electricity demand',
+  ), 'GW').value;
+  const peakDemandGW = averageDemandGW * PEAK_TO_AVERAGE_RATIO;
+  const shortStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(batteryGWh, 'GWh', 'short-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'short-duration storage hours',
+  ), 'hour').value;
+  const longStorageHours = convertQuantity(divideQuantities(
+    unitQuantity(longStorageGWh, 'GWh', 'long-duration storage'),
+    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
+    'long-duration storage hours',
+  ), 'hour').value;
+  // VRE penetration limit = storage-based headroom. No separate ceiling: the
+  // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
+  // demand limit clamp VRE first), and it made maxVREPenetration a redundant
+  // copy of this same expression — verified byte-identical across all scenarios.
+  const maxCombinedVRE = params.baseVRELimit
+    + shortStorageHours * params.storageBonusPerHour
+    + longStorageHours * params.longStorageBonusPerHour;
+
+  // Soft curtailment: reduce effective VRE as share increases beyond onset.
+  // Storage moves the onset by the same headroom it adds to the penetration
+  // limit: shifting surplus midday output into other hours is exactly what
+  // lets a grid absorb more VRE before spilling it. Without this the penalty
+  // took ~47% of US VRE in 2075 at 86% VRE share despite 8h short + 21h long
+  // storage (penetration limit 180%), and energy's build read that as every
+  // new VRE MW being half wasted, so unpriced coal won the build.
+  const storageHeadroom = maxCombinedVRE - params.baseVRELimit;
+  const curtailmentOnset = params.curtailmentOnset + storageHeadroom;
   const expectedVREShare = demandTWh > 0 ? totalAvailableVRE / demandTWh : 0;
-  if (expectedVREShare > params.curtailmentOnset) {
-    const excess = expectedVREShare - params.curtailmentOnset;
+  if (expectedVREShare > curtailmentOnset) {
+    const excess = expectedVREShare - curtailmentOnset;
     const penalty = Math.min(params.maxCurtailmentPenalty, params.curtailmentCoeff * excess * excess);
     maxGen.solar *= (1 - penalty);
     maxGen.solarPlusBattery *= (1 - penalty);
@@ -380,31 +426,6 @@ function dispatchRegion(
   let totalWindAllocated = 0;
   let totalVREAllocated = 0;
 
-  // VRE limits based on two-tier storage (short-duration batteries + long-duration)
-  const PEAK_TO_AVERAGE_RATIO = 2;
-  const averageDemandGW = convertQuantity(divideQuantities(
-    unitQuantity(demandTWh, 'TWh/year', 'annual electricity demand'),
-    unitQuantity(params.hoursPerYear, 'hour/year', 'operating hours'),
-    'average electricity demand',
-  ), 'GW').value;
-  const peakDemandGW = averageDemandGW * PEAK_TO_AVERAGE_RATIO;
-  const shortStorageHours = convertQuantity(divideQuantities(
-    unitQuantity(batteryGWh, 'GWh', 'short-duration storage'),
-    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
-    'short-duration storage hours',
-  ), 'hour').value;
-  const longStorageHours = convertQuantity(divideQuantities(
-    unitQuantity(longStorageGWh, 'GWh', 'long-duration storage'),
-    unitQuantity(Math.max(1, peakDemandGW), 'GW', 'peak demand'),
-    'long-duration storage hours',
-  ), 'hour').value;
-  // VRE penetration limit = storage-based headroom. No separate ceiling: the
-  // old 0.95 maxVRECeiling never bound (curtailment, per-source caps, and the
-  // demand limit clamp VRE first), and it made maxVREPenetration a redundant
-  // copy of this same expression — verified byte-identical across all scenarios.
-  const maxCombinedVRE = params.baseVRELimit
-    + shortStorageHours * params.storageBonusPerHour
-    + longStorageHours * params.longStorageBonusPerHour;
   // VRE headroom split by sub-fraction. The old per-source maxPenetration caps
   // (solar 0.40, wind 0.35, battery 0.80) are removed: the storage-headroom
   // fractions sit below them on every path, so they clipped at most ~0.1% of
@@ -479,6 +500,19 @@ function dispatchRegion(
       generation.wind += release * (releasableWind / totalReleasable);
       remaining -= release;
     }
+  }
+
+  // Standby (firm-adequacy) capacity: last resort, after the VRE release.
+  // It is security capacity, so it runs only for demand nothing else serves;
+  // in merit order it would run as baseload (~60% CF in China by 2050).
+  for (const source of ['gas', 'coal'] as const) {
+    if (remaining <= 0) break;
+    const gw = Math.min(standbyGW[source] ?? 0, capacities[source]);
+    if (gw <= 0) continue;
+    const run = Math.min(remaining, annualGenerationTWh(
+      gw, params.capacityFactor[source], params.hoursPerYear, `standby ${source}`));
+    generation[source] += run;
+    remaining -= run;
   }
 
   // Curtailment tracking (from final dispatched vs pre-curtailment available)
@@ -566,7 +600,7 @@ export const dispatchModule: Module<
 
   paramMeta: {
     curtailmentOnset: {
-      description: 'VRE share of demand at which soft curtailment begins.',
+      description: 'VRE share of demand at which soft curtailment begins with no storage; storage shifts the onset by the same headroom it adds to the VRE penetration limit.',
       unit: 'fraction',
       range: { min: 0.15, max: 0.50, default: 0.30 },
       tier: 1 as const,
@@ -585,6 +619,7 @@ export const dispatchModule: Module<
       regionalElectricityDemand: unitPort('TWh/year', 'record'),
       capacities: ENERGY_CAPACITY_PORT,
       regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      regionalStandbyCapacity: unitPort('GW', 'nested-record'),
       carbonPrice: unitPort('$/tCO2'),
       regionalCarbonPrice: unitPort('$/tCO2', 'record'),
       longStorageRegional: unitPort('GWh', 'record'),
@@ -608,6 +643,7 @@ export const dispatchModule: Module<
       curtailmentTWh: unitPort('TWh/year'),
       curtailmentRate: unitPort('fraction'),
       regionalCurtailment: unitPort('TWh/year', 'record'),
+      regionalCurtailmentRate: unitPort('fraction', 'record'),
     },
   },
 
@@ -715,7 +751,8 @@ export const dispatchModule: Module<
         regionalCapacities[region],
         regionalCarbonPrice[region],
         regionParams,
-        longStorageRegional[region]
+        longStorageRegional[region],
+        inputs.regionalStandbyCapacity?.[region],
       );
 
       regionalOutputs[region] = regionResult;
@@ -739,6 +776,7 @@ export const dispatchModule: Module<
     let globalElectricityEmissions = 0;
     let globalCurtailmentTWh = 0;
     const regionalCurtailment: Record<Region, number> = {} as Record<Region, number>;
+    const regionalCurtailmentRate: Record<Region, number> = {} as Record<Region, number>;
 
     for (const region of REGIONS) {
       const rg = regionalGeneration[region];
@@ -750,6 +788,7 @@ export const dispatchModule: Module<
       globalElectricityEmissions += regionalOutputs[region].electricityEmissions;
       globalCurtailmentTWh += regionalOutputs[region].curtailmentTWh;
       regionalCurtailment[region] = regionalOutputs[region].curtailmentTWh;
+      regionalCurtailmentRate[region] = regionalOutputs[region].curtailmentRate;
     }
 
     // Global curtailment rate from regional sums
@@ -787,6 +826,7 @@ export const dispatchModule: Module<
         curtailmentTWh: globalCurtailmentTWh,
         curtailmentRate: globalCurtailmentRate,
         regionalCurtailment,
+        regionalCurtailmentRate,
       },
     };
   },

@@ -2,6 +2,35 @@
   "name": "Hyper Carbon Tax",
   "description": "Carbon price set to $500/ton immediately.",
   "energy": {
-    "carbonPrice": 500
+    "carbonPrice": 500,
+    "regional": {
+      "us": {
+        "carbonPrice": 500
+      },
+      "oecd-ex-us": {
+        "carbonPrice": 500
+      },
+      "china": {
+        "carbonPrice": 500
+      },
+      "india": {
+        "carbonPrice": 500
+      },
+      "latam": {
+        "carbonPrice": 500
+      },
+      "seasia": {
+        "carbonPrice": 500
+      },
+      "russia": {
+        "carbonPrice": 500
+      },
+      "mena": {
+        "carbonPrice": 500
+      },
+      "ssa": {
+        "carbonPrice": 500
+      }
+    }
   }
 }

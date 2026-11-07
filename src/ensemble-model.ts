@@ -161,12 +161,20 @@ export interface EnergyEnsembleInput {
    * both warn about.
    *
    * Measured on this model over [0.7, 1.5], the scenario span this input uses.
-   * Coupled: gdp2100 1211 -> 2814 ($T), a 2.32x span, with warming FALLING
-   * 2.700 -> 2.593 as efficiency rises — the physics, since less energy per
-   * unit of service means fewer emissions. Scaling `serviceEfficiencyGrowth`
-   * by the same ratio instead: gdp2100 597 -> 3591, a 6.02x span, with warming
-   * RISING 2.592 -> 2.889. Two and a half times the apparent GDP sensitivity
-   * and an inverted climate response, both artifacts of the re-split.
+   * Coupled: gdp2100 1101 -> 2751 ($T), a 2.50x span, while energy per $ of
+   * GDP falls 42%. Scaling `serviceEfficiencyGrowth` by the same ratio instead:
+   * gdp2100 562 -> 3706, a 6.59x span, while energy per $ of GDP falls only 4%,
+   * and warming 2.91 -> 3.71 °C. That is about two and a half times the
+   * apparent GDP sensitivity and a 0.8 °C warming swing, both artifacts of the
+   * re-split.
+   *
+   * Coupled warming is nearly flat, lowest near the default: 3.19 °C at 0.7,
+   * 3.15 at 0.8, 3.12 at 1, 3.17 at 1.25, 3.21 at 1.5. Faster GDP roughly
+   * cancels the lower energy per $, so final energy in 2100 stays at
+   * 505,000-579,000 TWh from 0.8 up. Above the default, the fossil share of
+   * generation rises (5% -> 7%) because Y/K lifts the interest rate, which
+   * raises capital-heavy clean LCOE. Below 0.8, warming rises because CDR
+   * barely deploys (29 vs 233 Gt cumulative at 0.7 vs 0.8).
    */
   efficiencyMultiplier: number;
   /** Equilibrium climate sensitivity, °C per CO2 doubling. */

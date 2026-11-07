@@ -382,6 +382,67 @@ test('no region generates more than its own panels and turbines can', () => {
   }
 });
 
+// --- Storage and soft curtailment ---
+
+console.log('\n--- Storage and Curtailment ---\n');
+
+test('storage moves the soft-curtailment onset with the penetration headroom it adds', () => {
+  // ~57% VRE share of required generation: past the 30% no-storage onset
+  const caps = { solarCap: 6000, windCap: 2000 };
+  const params = dispatchModule.mergeParams({});
+  const required = 25000 * params.gridLossFactor;
+  const peakGW = (required / params.hoursPerYear) * 1000 * 2;
+  // 8 hours of storage at peak: headroom 8 x 0.08 = +0.64, onset 0.94
+  const ample = runDispatch({ ...caps, batteryCap: peakGW * 8 }).outputs;
+  const none = runDispatch({ ...caps, batteryCap: 0 }).outputs;
+  // VRE below the storage-shifted onset is absorbed, not spilled (the
+  // unshifted onset would curtail 1.5 x 0.27^2 = ~11% of it)
+  expect(ample.curtailmentRate).toBeLessThan(0.01);
+  expect(none.curtailmentRate).toBeGreaterThan(0.1);
+});
+
+// --- Standby (firm-adequacy) capacity ---
+
+console.log('\n--- Standby Capacity ---\n');
+
+// One region (china) with capacity; the others are empty
+function runStandby(chinaDemand: number, coalGW: number, standbyCoalGW: number) {
+  const params = dispatchModule.mergeParams({});
+  const empty = { solar: 0, wind: 0, hydro: 0, nuclear: 0, gas: 0, coal: 0, battery: 0 };
+  const china = { solar: 100, wind: 50, hydro: 100, nuclear: 50, gas: 100, coal: coalGW, battery: 0 };
+  const inputs = {
+    ...createInputs(),
+    electricityDemand: chinaDemand,
+    regionalElectricityDemand: Object.fromEntries(REGIONS.map(r => [r, r === 'china' ? chinaDemand : 0])) as any,
+    regionalCapacities: Object.fromEntries(REGIONS.map(r => [r, r === 'china' ? china : empty])) as any,
+    regionalStandbyCapacity: Object.fromEntries(REGIONS.map(r => [r, { coal: r === 'china' ? standbyCoalGW : 0, gas: 0 }])) as any,
+  };
+  return { out: dispatchModule.step(dispatchModule.init(params), inputs, params, 2025, 0).outputs, params };
+}
+
+test('standby coal stays idle while the ordinary fleet covers demand', () => {
+  // 500 GW coal of which 300 GW standby must dispatch exactly like a
+  // 200 GW coal fleet: standby is not part of the merit order
+  const withStandby = runStandby(1500, 500, 300).out;
+  const ordinaryOnly = runStandby(1500, 200, 0).out;
+  expect(ordinaryOnly.shortfall).toBe(0);
+  for (const source of [...ENERGY_SOURCES, 'solarPlusBattery'] as const) {
+    expect(withStandby.regionalGeneration.china[source]).toBeCloseTo(ordinaryOnly.regionalGeneration.china[source], 9);
+  }
+});
+
+test('standby coal runs as last resort, only for demand nothing else serves', () => {
+  const { out: withStandby, params } = runStandby(5000, 500, 300);
+  const ordinaryOnly = runStandby(5000, 200, 0).out;
+  const gap = ordinaryOnly.shortfall;
+  expect(gap).toBeGreaterThan(0);
+  const standbyPotential = (300 * params.capacityFactor.coal * params.hoursPerYear) / 1000;
+  const served = Math.min(gap, standbyPotential);
+  expect(withStandby.regionalGeneration.china.coal)
+    .toBeCloseTo(ordinaryOnly.regionalGeneration.china.coal + served, 6);
+  expect(withStandby.shortfall).toBeCloseTo(gap - served, 6);
+});
+
 // =============================================================================
 // SUMMARY
 // =============================================================================

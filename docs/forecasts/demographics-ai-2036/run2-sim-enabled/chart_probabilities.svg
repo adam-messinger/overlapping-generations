@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="320" viewBox="0 0 740 320" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Helvetica,Arial" font-size="12">
+<rect width="740" height="320" fill="#fcfcfb"/>
+<text x="16" y="24" font-size="14" font-weight="600" fill="#0b0b0b">Binary coupled questions and hypothesis planks</text>
+<text x="16" y="42" font-size="11" fill="#52514e">Headline is the unextremized raw mean; bar spans the full panelist range (n=24)</text>
+<line x1="300.0" y1="56" x2="300.0" y2="274" stroke="#e4e3df" stroke-width="1"/>
+<text x="300.0" y="292" text-anchor="middle" font-size="10" fill="#52514e">0%</text>
+<line x1="400.0" y1="56" x2="400.0" y2="274" stroke="#e4e3df" stroke-width="1"/>
+<text x="400.0" y="292" text-anchor="middle" font-size="10" fill="#52514e">25%</text>
+<line x1="500.0" y1="56" x2="500.0" y2="274" stroke="#e4e3df" stroke-width="1"/>
+<text x="500.0" y="292" text-anchor="middle" font-size="10" fill="#52514e">50%</text>
+<line x1="600.0" y1="56" x2="600.0" y2="274" stroke="#e4e3df" stroke-width="1"/>
+<text x="600.0" y="292" text-anchor="middle" font-size="10" fill="#52514e">75%</text>
+<line x1="700.0" y1="56" x2="700.0" y2="274" stroke="#e4e3df" stroke-width="1"/>
+<text x="700.0" y="292" text-anchor="middle" font-size="10" fill="#52514e">100%</text>
+<circle cx="300" cy="54" r="5" fill="#2a78d6"/>
+<text x="310" y="58" font-size="10" fill="#52514e">Raw mean (d=1.0)</text>
+<circle cx="418" cy="54" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<text x="428" y="58" font-size="10" fill="#52514e">Median</text>
+<line x1="488" y1="48" x2="488" y2="60" stroke="#eb6834" stroke-width="2"/>
+<text x="494" y="58" font-size="10" fill="#52514e">Extremized d=1.35</text>
+<text x="288" y="83.0" text-anchor="end" fill="#0b0b0b">CQ1</text>
+<rect x="324.0" y="76.0" width="80.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="327.5" y1="70.0" x2="327.5" y2="88.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="350.0" cy="79.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="353.2" cy="79.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="83.0" font-size="11" font-weight="600" fill="#0b0b0b">13%</text>
+<title>CQ1: raw mean 13.3%, median 12.5%, panelist range 6-26%, d=1.35 6.9%</title>
+<text x="288" y="113.0" text-anchor="end" fill="#0b0b0b">CQ2</text>
+<rect x="356.0" y="106.0" width="136.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="401.0" y1="100.0" x2="401.0" y2="118.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="428.0" cy="109.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="427.2" cy="109.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="113.0" font-size="11" font-weight="600" fill="#0b0b0b">32%</text>
+<title>CQ2: raw mean 31.8%, median 32.0%, panelist range 14-48%, d=1.35 25.3%</title>
+<text x="288" y="143.0" text-anchor="end" fill="#0b0b0b">CQ5</text>
+<rect x="352.0" y="136.0" width="84.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="361.4" y1="130.0" x2="361.4" y2="148.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="388.0" cy="139.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="390.2" cy="139.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="143.0" font-size="11" font-weight="600" fill="#0b0b0b">23%</text>
+<title>CQ5: raw mean 22.5%, median 22.0%, panelist range 13-34%, d=1.35 15.4%</title>
+<text x="288" y="173.0" text-anchor="end" fill="#0b0b0b">Plank (a)</text>
+<rect x="316.0" y="166.0" width="16.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="309.3" y1="160.0" x2="309.3" y2="178.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="324.0" cy="169.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="324.0" cy="169.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="173.0" font-size="11" font-weight="600" fill="#0b0b0b">6%</text>
+<title>Plank (a): raw mean 6.0%, median 6.0%, panelist range 4-8%, d=1.35 2.3%</title>
+<text x="288" y="203.0" text-anchor="end" fill="#0b0b0b">Plank (b)</text>
+<rect x="332.0" y="196.0" width="88.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="332.4" y1="190.0" x2="332.4" y2="208.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="356.0" cy="199.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="358.7" cy="199.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="203.0" font-size="11" font-weight="600" fill="#0b0b0b">15%</text>
+<title>Plank (b): raw mean 14.7%, median 14.0%, panelist range 8-30%, d=1.35 8.1%</title>
+<text x="288" y="233.0" text-anchor="end" fill="#0b0b0b">Plank (c)</text>
+<rect x="360.0" y="226.0" width="172.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="436.0" y1="220.0" x2="436.0" y2="238.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="450.0" cy="229.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="455.0" cy="229.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="233.0" font-size="11" font-weight="600" fill="#0b0b0b">39%</text>
+<title>Plank (c): raw mean 38.8%, median 37.5%, panelist range 15-58%, d=1.35 34.0%</title>
+<text x="288" y="263.0" text-anchor="end" fill="#0b0b0b">Plank (d)</text>
+<rect x="344.0" y="256.0" width="44.0" height="6" rx="3" fill="#b7d3f6"/>
+<line x1="335.7" y1="250.0" x2="335.7" y2="268.0" stroke="#eb6834" stroke-width="2"/>
+<circle cx="356.0" cy="259.0" r="5" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="361.8" cy="259.0" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="708" y="263.0" font-size="11" font-weight="600" fill="#0b0b0b">15%</text>
+<title>Plank (d): raw mean 15.5%, median 14.0%, panelist range 11-22%, d=1.35 8.9%</title>
+</svg>

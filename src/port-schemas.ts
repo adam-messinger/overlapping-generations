@@ -151,6 +151,7 @@ interface MineralRow {
   transitionGrossDemand: number;
   extraction: number;
   supplyRatio: number;
+  transitionSupplyRatio: number;
   recycled: number;
   cumulative: number;
   recyclingRate: number;
@@ -163,6 +164,7 @@ const mineralRow = objectPort<MineralRow>({
   transitionGrossDemand: unitPort('Mt/year'),
   extraction: unitPort('Mt/year'),
   supplyRatio: unitPort('fraction'),
+  transitionSupplyRatio: unitPort('fraction'),
   recycled: unitPort('Mt/year'),
   cumulative: unitPort('Mt'),
   recyclingRate: unitPort('fraction'),

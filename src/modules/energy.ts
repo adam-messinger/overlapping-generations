@@ -99,6 +99,27 @@ export interface RegionalEnergyParams {
    */
   capacityFactor?: Partial<Record<EnergySource, number>>;
   financingSpread?: number;                     // Observed start-year WACC spread over the global rate (fraction, e.g. 0.06 = +6pp); home bias drifts it thereafter
+  /**
+   * Multiplier on a source's financed LCOE in this region (pre-carbon,
+   * pre-site-quality): local capex and soft costs that differ from the
+   * global benchmark cost0. 1 (or absent) = benchmark.
+   */
+  costMultiplier?: Partial<Record<EnergySource, number>>;
+  /** Fuel + VOM override ($/MWh) where the domestic fuel price differs from
+   *  the global reference (e.g. China's regulated thermal coal market).
+   *  Moves the fossil source's new-build LCOE and its running cost. */
+  fossilRunningCost?: Partial<Record<'gas' | 'coal', number>>;
+  /**
+   * Firm-capacity adequacy policy: the region keeps dispatchable capacity
+   * (coal + gas + nuclear + hydro + battery at its rated power) at `share`
+   * of its start-year ratio to average demand, building `source` for any
+   * gap. That build is standby capacity held for security, not for energy:
+   * it is excluded from the energy requirement and fossil displacement, so
+   * it neither crowds out clean build nor counts as energy supply, and
+   * dispatch runs it only as a last resort (regionalStandbyCapacity). Absent =
+   * no adequacy rule (capacity follows energy economics alone).
+   */
+  firmAdequacy?: { source: 'coal' | 'gas'; share: number };
 }
 
 export interface EnergyParams {
@@ -117,14 +138,31 @@ export interface EnergyParams {
    */
   eroiReferenceCF: { solar: number; wind: number };
 
-  /** Global carbon price (fallback if regional not specified) - DEPRECATED, use regional */
+  /**
+   * Global carbon price. Feeds ONLY demand-side fuel costs (electrification
+   * and fuel switching) and dispatch's fallback when no regional prices are
+   * wired. Every power-sector decision (new-build choice, fossil
+   * displacement, dispatch merit order) reads regional[r].carbonPrice, so a
+   * scenario that wants a power-sector carbon price must set it regionally;
+   * validate warns when this differs from its default with no regional price.
+   */
   carbonPrice: number;
 
   /** Maximum growth rates (manufacturing limits) - global defaults */
+  /** Generators: max annual growth of global BUILD capacity (see
+   *  buildCapacity2025); a regional override caps the region's build growth
+   *  on its previous year's build. Battery: fleet-proportional cap. */
   maxGrowthRate: Record<EnergySource, number>;
 
   /** Asset lifetimes (years) */
   lifetime: Record<EnergySource, number>;
+  /**
+   * Historical growth rate of each source's annual additions, which sets
+   * the age profile of the 2025 fleet: cohort of age a ∝ (1+g)^-a (0 =
+   * uniform ages). A fast-grown fleet is young, so its scheduled
+   * retirements start near zero instead of at fleet / lifetime.
+   */
+  openingFleetGrowth: Record<EnergySource, number>;
 
   /** Battery round-trip efficiency */
   batteryEfficiency: number;
@@ -183,12 +221,55 @@ export interface EnergyParams {
   /** Battery service life in years; capex amortizes over lifetime cycles */
   batteryLifetimeYears: number;
 
-  /** How strongly curtailment dampens VRE additions (default 2.0).
-   *  damping = max(0.1, 1 - curtailmentPenalty × laggedCurtailmentRate) */
-  curtailmentPenalty: number;
+  /**
+   * Demand-led new build. Each region's requirement is the generation its
+   * demand needs this year that the surviving fleet (after scheduled
+   * retirements) cannot deliver. It is split among the generators by a logit
+   * on delivered cost, share_s ∝ newBuildShareWeight_s × cost_s^-λ (the
+   * GCAM technology-choice form). A source that hits a cap (resource
+   * ceiling, build capacity) is held there and the rest of the requirement
+   * is re-shared among the others, so a slower solar build is backfilled by
+   * wind, gas, coal, nuclear or hydro rather than left unserved. Delivered
+   * cost charges VRE for curtailment (LCOE / (1 - curtailment)) and blends
+   * solar with solar+storage as the VRE share rises.
+   */
+  newBuildLogitExponent: number;
+  /** Non-cost preference per generator (policy, siting, risk), calibrated so
+   *  the 2025 world additions mix matches observation. Relative values only. */
+  newBuildShareWeight: Record<GeneratorSource, number>;
+  /**
+   * Electricity demand growth in 2025 by region (fraction). Each region's
+   * fleet-to-demand ratio is anchored on the end-2024 fleet serving 2025
+   * demand / (1 + this), i.e. the fleet was built for 2024 demand; the region
+   * then keeps that ratio, which carries its own utilization and reserve
+   * conventions instead of a single global margin.
+   */
+  electricityDemandGrowth2025: Record<Region, number>;
+  /**
+   * Global build capacity per generator (GW/yr): the factory and supply-chain
+   * ceiling on world additions (module lines, nacelle plants, turbine shops,
+   * reactor construction). It grows at most maxGrowthRate[source] a year
+   * while demand for it exceeds it; idle capacity depreciates at
+   * buildCapacityDepreciation but not below what was demanded. There is no
+   * fleet-proportional cap on generators. A REGIONAL maxGrowthRate override
+   * caps that region's build at (1 + g) x its previous year's build.
+   */
+  buildCapacity2025: Record<GeneratorSource, number>;
+  buildCapacityDepreciation: number;
+  /** Fuel + variable O&M of running existing fossil plant ($/MWh, before
+   *  depletion and carbon); mirrors dispatch's marginalCost */
+  fossilRunningCost: Record<'gas' | 'coal', number>;
+  /**
+   * Economic replacement: each year, up to this fraction of a region's
+   * existing gas/coal generation is added to the new-build requirement and
+   * shared among CLEAN sources, scaled by how far new clean delivered cost
+   * undercuts the plant's running cost (0 when it does not). The plant stays
+   * on the books; dispatch runs it less.
+   */
+  fossilDisplacementRate: number;
 
   /** How strongly curtailment boosts battery target (default 2.0).
-   *  storagePressure = 1 + curtailmentStorageBoost × laggedCurtailmentRate */
+   *  storagePressure = 1 + curtailmentStorageBoost × the region's lagged curtailment rate */
   curtailmentStorageBoost: number;
 
   /** Risk premium over interest rate for energy project WACC */
@@ -240,7 +321,14 @@ export interface EnergyParams {
  * ~18% hydro, ~55% battery GWh).
  */
 const REGIONAL_CAPACITY_2025: Record<EnergySource, Record<Region, number>> = {
-  solar:   { us: 160, 'oecd-ex-us': 440, china: 600, india: 90,  latam: 40,  seasia: 35,  russia: 5,   mena: 30,  ssa: 8 },
+  // Solar rolled forward to END-2024 (the 2025 starting stock): the earlier
+  // row summed to 1,408 GW = IRENA end-2023 (1,414 GW). Each region is scaled
+  // by its IRENA end-2023 -> end-2024 growth (China x1.456, US x1.275, South
+  // Asia x1.334, LatAm ex-OECD x1.358, OECD ex-US x1.176, MENA x1.228, SE Asia
+  // x1.139, Russia+CIS x1.179, SSA x1.099), keeping the regional mapping; the
+  // sum is 1,861 GW vs IRENA's 1,865 GW world total. IRENA Renewable Capacity
+  // Statistics 2025, solar tables. Cross-check: China NEA ~887 GWac end-2024.
+  solar:   { us: 204, 'oecd-ex-us': 518, china: 873, india: 120, latam: 54,  seasia: 40,  russia: 6,   mena: 37,  ssa: 9 },
   wind:    { us: 160, 'oecd-ex-us': 340, china: 400, india: 42,  latam: 22,  seasia: 5,   russia: 2,   mena: 12,  ssa: 5 },
   gas:     { us: 520, 'oecd-ex-us': 480, china: 200, india: 70,  latam: 120, seasia: 130, russia: 220, mena: 220, ssa: 45 },
   coal:    { us: 165, 'oecd-ex-us': 235, china: 1200,india: 270, latam: 20,  seasia: 100, russia: 45,  mena: 20,  ssa: 55 },
@@ -268,6 +356,58 @@ const REGIONAL_CARBON_PRICES: Record<Region, number> = {
   russia: 0,
   mena: 0,
   ssa: 0,
+};
+
+/**
+ * Regional cost multipliers on the financed LCOE (see
+ * RegionalEnergyParams.costMultiplier), set so each region's 2025 model LCOE
+ * reproduces its observed utility-scale cost (model values below are the
+ * settled 2025 LCOE at multiplier 1); regions without a country figure stay
+ * at the global benchmark (cost0).
+ * - china solar 0.81: IRENA Renewable Power Generation Costs in 2024 (2025),
+ *   China utility PV LCOE $33/MWh vs the model's $40.7 at the table CF.
+ *   China's installed cost runs well below the global $691/kW average.
+ * - china wind 0.66: same report, China onshore wind $29/MWh vs the model's
+ *   $43.8 (global weighted average $34).
+ * - india solar 0.85: same report, India $38/MWh vs the model's $44.5.
+ * - us solar 1.5: IRENA 2024 puts US utility PV at $70/MWh unsubsidized (up
+ *   from $59 in 2023; tariffs, interconnection, soft costs). The model has
+ *   no tax credits, so 2025 is entered net of the 30% ITC (~$49 against the
+ *   model's $32.9). JUDGMENT: the ITC phase-out after 2027 (OBBBA, 2025) is
+ *   not modelled, so this understates the post-2027 US cost.
+ */
+const REGIONAL_COST_MULTIPLIER: Partial<Record<Region, Partial<Record<EnergySource, number>>>> = {
+  us: { solar: 1.5 },
+  china: { solar: 0.81, wind: 0.66 },
+  india: { solar: 0.85 },
+};
+
+/**
+ * Regional fuel + VOM overrides ($/MWh) where the domestic fuel market
+ * diverges from the global (US 2024) reference in fossilRunningCost.
+ * - china coal 40: Qinhuangdao 5,500 kcal thermal coal traded ~615-834
+ *   RMB/t through 2025 (SunSirs; NDRC long-term contract band 570-770).
+ *   At ~700 RMB/t, a ~300 gce/kWh fleet heat rate (CEC national average) burns ~0.38 kg
+ *   of 5,500 kcal coal per kWh = 0.27 RMB/kWh = ~$37/MWh fuel, + ~$3 VOM.
+ */
+const REGIONAL_FOSSIL_RUNNING_COST: Partial<Record<Region, Partial<Record<'gas' | 'coal', number>>>> = {
+  china: { coal: 40 },
+};
+
+/**
+ * Firm-capacity adequacy policies (see RegionalEnergyParams.firmAdequacy).
+ * - china: holds its 2024 dispatchable-capacity-to-demand ratio, building
+ *   coal for the gap. China commissioned 78 GW of coal in 2025 (CREA/GEM,
+ *   China Coal Power H2 2025) while coal generation fell. Since 2024 the
+ *   NDRC capacity payment has paid coal plants for availability, at 30-50%
+ *   of a 330 RMB/kW benchmark fixed cost (100-165 RMB/kW/yr; NDRC Nov 2023).
+ *   Policy reads the build as backup for variable renewables. share 0.99 is
+ *   fitted (with newBuildShareWeight) so China's 2025 coal build is GEM's
+ *   78.1 GW, i.e. the start-year ratio held almost exactly; storage counts
+ *   at its rated power, so the coal build falls as batteries scale.
+ */
+const REGIONAL_FIRM_ADEQUACY: Partial<Record<Region, { source: 'coal' | 'gas'; share: number }>> = {
+  china: { source: 'coal', share: 0.99 },
 };
 
 /**
@@ -428,7 +568,7 @@ export const energyDefaults: EnergyParams = {
     },
     battery: {
       name: 'Battery Storage',
-      cost0: 140,            // $/kWh pack, BNEF battery price survey 2023 ($139/kWh); hardware $120 + soft $20
+      cost0: 108,            // $/kWh pack, BNEF battery price survey Dec 2025 (all-segment $108/kWh; stationary packs $70, China $84); hardware $88 + soft $20
       alpha: 0.26,           // ~17% learning/doubling; Ziegler & Trancik 2021 find ~24% at cell level, pack lower
       softFloor: 20,         // $/kWh BOS floor (BMS, pack assembly, install). INERT on the baseline transition — never binds (sweep: 10/20/40 identical). See interface note.
       referenceCF: 0,        // No CF adjustment (dispatchable)
@@ -442,6 +582,9 @@ export const energyDefaults: EnergyParams = {
     carbonPrice: REGIONAL_CARBON_PRICES[region],
     capacityFactor: { solar: REGIONAL_SOLAR_CF[region], wind: REGIONAL_WIND_CF[region] },
     financingSpread: REGIONAL_FINANCING_SPREADS[region],
+    ...(REGIONAL_COST_MULTIPLIER[region] ? { costMultiplier: { ...REGIONAL_COST_MULTIPLIER[region] } } : {}),
+    ...(REGIONAL_FOSSIL_RUNNING_COST[region] ? { fossilRunningCost: { ...REGIONAL_FOSSIL_RUNNING_COST[region] } } : {}),
+    ...(REGIONAL_FIRM_ADEQUACY[region] ? { firmAdequacy: { ...REGIONAL_FIRM_ADEQUACY[region]! } } : {}),
   }])) as EnergyParams['regional'],
 
   // EROI assumptions (used for net energy fraction). Contested literature:
@@ -487,6 +630,13 @@ export const energyDefaults: EnergyParams = {
     gas: 40,
     coal: 45,
   },
+  // Global installed-capacity CAGR 2015-2024 as the additions growth rate:
+  // solar ~223 -> 1,865 GW, wind ~416 -> 1,133 GW, hydro +1.7%/yr (IRENA
+  // Renewable Capacity Statistics); coal ~1,950 -> 2,175 GW (GEM Global Coal
+  // Plant Tracker); gas ~2%/yr (GEM Oil & Gas Plant Tracker); grid batteries
+  // ~10x 2019-2024 (BNEF). Nuclear 0 (uniform): the fleet was mostly built
+  // 1970-1990, so it is at least as old as uniform — conservative.
+  openingFleetGrowth: { solar: 0.26, wind: 0.12, battery: 0.5, nuclear: 0, hydro: 0.017, gas: 0.02, coal: 0.012 },
   batteryEfficiency: 0.85,
   batteryDuration: 4, // hours (for GWh → GW conversion)
   // Overnight capital cost $/kW ($/kWh for battery): IRENA Renewable Power
@@ -530,8 +680,35 @@ export const energyDefaults: EnergyParams = {
   batteryCyclesPerYear: 365,
   batteryLifetimeYears: 15,  // Grid LFP calendar life ~15yr / ~5000 cycles, NREL Storage Futures (2023)
 
-  // Curtailment feedback: dampen VRE additions when curtailment is high
-  curtailmentPenalty: 2.0,         // At 30% curtailment: additions × 0.4; at 50%: × 0.1 (floor)
+  // Demand-led new build (see the EnergyParams note)
+  newBuildLogitExponent: 6,        // GCAM electricity technology-choice logit exponent (JGCRI GCAM documentation)
+  // Calibrated jointly with fossilDisplacementRate and China's firmAdequacy
+  // share (fixed point, solar weight = 1) on 2025 additions: world wind
+  // 158.7, hydro 18.4 GW (IRENA RCS 2026), gas 60.4 GW (GEM Global Oil & Gas
+  // Plant Tracker 2026), coal ~95 GW (GEM Boom & Bust 2026), nuclear 4.4 GW
+  // (IAEA); China solar 315 GW (NEA) and China coal 78.1 GW (GEM). World
+  // solar is NOT fitted and lands at 574 GW vs 511 (IRENA): rest-of-world
+  // solar is overbuilt, chiefly OECD-ex-US and MENA (no observed regional
+  // cost rows there). Wind's low weight says its LCOE (cost0 35) is cheaper
+  // outside China than the build choices actually made reveal.
+  newBuildShareWeight: { solar: 1, wind: 0.0481, nuclear: 1.47, hydro: 0.0222, gas: 0.817, coal: 0.346 },
+  // Ember Global Electricity Review 2026: world +2.8% (+849 TWh) to 31,779
+  // TWh, of which China +503 TWh (~5.0% on ~10,000 TWh); the remaining +346
+  // TWh is ~1.6% on the rest of the world's ~21,800 TWh. Ember gives no
+  // further split in the headline release, so every other region carries
+  // the rest-of-world average (follow-up: country rows from the dataset).
+  electricityDemandGrowth2025: Object.fromEntries(REGIONS.map(r => [r, r === 'china' ? 0.05 : 0.016])) as Record<Region, number>,
+  buildCapacity2025: {
+    solar: 1130,  // GW/yr AC: module nameplate ~1,531 GWdc (IEA PVPS 2026; CPIA 1,430) x 0.74 IRENA-AC/DC
+    wind: 250,    // judgment: no public nacelle-capacity figure; GWEC 2026 counts 178 GW installed in 2025
+    gas: 67,      // heavy-duty gas turbine output 2025 (BNEF; WoodMac 60-70 GW/yr vs ~110 GW backlog)
+    coal: 150,    // judgment: China's boiler/turbine industry is not binding; 2025 China commissioned 78 GW (GEM 2026)
+    nuclear: 10,  // judgment: ~70 reactors under construction on ~7-yr builds; 4.4 GW connected 2025, 6.8 GW 2024 (IAEA)
+    hydro: 30,    // judgment: 18.4 GW added 2025 (IRENA RCS 2026), project-pipeline limited
+  },
+  buildCapacityDepreciation: 0.14, // ~7-yr economic life of idle lines (PV: PERC->TOPCon obsolescence 2022-25); judgment
+  fossilRunningCost: { gas: 35, coal: 25 }, // = dispatch marginalCost (fuel + VOM, 2024 US reference prices)
+  fossilDisplacementRate: 0.0376,  // fitted (with newBuildShareWeight) to China's 2025 solar build, 315 GW (NEA): clean build beyond demand growth
   curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
 
   // WACC: financing cost channel for LCOE
@@ -574,7 +751,10 @@ export const energyDefaults: EnergyParams = {
     solarDepletion: 0.30,      // Best sites used first → 30% CF reduction at full potential
     windDepletion: 0.30,       // Same for wind
     solarPotential: {          // GW of good-quality solar sites per region
-      us: 1800, 'oecd-ex-us': 1200, china: 2500, india: 1500, latam: 2000,  // US Southwest + Australia carry the OECD resource
+      // china: desert-Gobi-wilderness technical potential 10.7 TW (Wu et al. 2023, Energies 16:4559);
+      // desert-only 36-85 TW (Wang et al. 2024, Sci. Total Environ.), national 55-108 TW. Was 2,500 GW, which already counted the
+      // 2025 fleet as 35% of the good sites. Other rows remain order-of-magnitude placeholders.
+      us: 1800, 'oecd-ex-us': 1200, china: 10000, india: 1500, latam: 2000,  // US Southwest + Australia carry the OECD resource
       seasia: 1000, russia: 1000, mena: 2000, ssa: 2000,
     },
     windPotential: {           // GW of good-quality wind sites per region
@@ -617,6 +797,19 @@ export interface EnergyState {
 
   /** World minus regional savings rate at yearIndex 0 (see the spread block in step) */
   savingsGapAnchor: Record<Region, number>;
+
+  /** Global build capacity per generator this year (GW/yr; see buildCapacity2025) */
+  buildCapacity: Record<GeneratorSource, number>;
+  /** Each region's anchored fleet-to-demand ratio (see electricityDemandGrowth2025) */
+  fleetDemandRatio: Record<Region, number>;
+  /** Each region's anchored firm-capacity-to-average-demand ratio (firmAdequacy) */
+  firmDemandRatio: Record<Region, number>;
+  /** Each region's 2025 fossil utilization (dispatched / nameplate output),
+   *  so idle capacity is measured against how the anchor fleet actually ran */
+  fossilRunRatio: Record<Region, Record<'coal' | 'gas', number>>;
+  /** Standby (adequacy) build history by region, GW per year; the stock is
+   *  the builds younger than the source's lifetime */
+  standbyAdditions: Record<Region, number[]>;
 }
 
 // =============================================================================
@@ -639,8 +832,20 @@ export interface EnergyInputs {
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
   mineralConstraintBySource: Record<EnergySource, number>;
 
-  /** Lagged curtailment rate 0-1 (from dispatch previous year). 0 = no curtailment. */
-  laggedCurtailmentRate: number;
+  /** Lagged curtailment rate 0-1 BY REGION (from dispatch previous year).
+   *  0 = no curtailment. Each region's VRE damping and storage pressure read
+   *  its own grid's curtailment: a region with little VRE is not braked by
+   *  curtailment on other continents' grids. */
+  laggedRegionalCurtailmentRate: Record<Region, number>;
+  /** Last year's unserved share of required generation per region: built
+   *  for this year on top of growth and retirements (closes the loop between
+   *  the planner's fleet view and dispatch's) */
+  laggedRegionalShortfallRate?: Record<Region, number>;
+  /** Last year's dispatched generation by region and source (TWh). The
+   *  build counts fossil plants at what they actually ran, not at nameplate
+   *  output, and prices their idle output as a re-run option. Missing ->
+   *  fossil counted at nameplate. */
+  laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
@@ -672,6 +877,10 @@ export interface EnergyOutputs {
 
   /** Regional capacity breakdown */
   regionalCapacities: Record<Region, Record<EnergySource, number>>;
+
+  /** Standby (firm-adequacy) capacity inside regionalCapacities (GW): held
+   *  for security, so dispatch runs it only after every other source. */
+  regionalStandbyCapacity: Record<Region, Record<'coal' | 'gas', number>>;
 
   /** Cumulative capacity (for external tracking) - GLOBAL */
   cumulativeCapacity: Record<EnergySource, number>;
@@ -821,6 +1030,81 @@ export function getRegionalCapacityFactor(
   return baseCF;
 }
 
+/** Generating sources: every source but storage */
+export type GeneratorSource = Exclude<EnergySource, 'battery'>;
+export const GENERATORS = ENERGY_SOURCES.filter((s): s is GeneratorSource => s !== 'battery');
+
+/**
+ * Regional solar additions in calendar 2024 (GW): the end-2024 fleet less
+ * its end-2023 level at each region's IRENA growth ratio (see the solar row
+ * of REGIONAL_CAPACITY_2025). Sums to 453 GW vs IRENA's 452 GW. Seeds a
+ * regional maxGrowthRate.solar override (build growth on last year's build)
+ * in the first simulated year.
+ */
+const REGIONAL_SOLAR_ADDITIONS_2024: Record<Region, number> = {
+  us: 44.0, 'oecd-ex-us': 77.5, china: 273.4, india: 30.0, latam: 14.2,
+  seasia: 4.9, russia: 0.9, mena: 6.9, ssa: 0.8,
+};
+
+export interface NewBuildCandidate {
+  source: GeneratorSource;
+  cost: number;       // delivered cost, $/MWh
+  weight: number;     // non-cost share weight
+  twhPerGW: number;   // delivered TWh per GW built
+  capGW: number;      // most this source can add this year
+  /** Re-running an existing, underused plant rather than building one: its
+   *  share goes to `idleGW`, not `gw`, and costs running cost only */
+  idle?: boolean;
+}
+
+export interface NewBuildAllocation {
+  gw: Record<GeneratorSource, number>;
+  /** Idle fossil capacity the plan expects to run again instead of building */
+  idleGW: Partial<Record<GeneratorSource, number>>;
+  requirementTWh: number;
+  unmetTWh: number;   // > 0 only when every source is at its cap
+  standbyGW?: number; // firm-adequacy build inside gw (see RegionalEnergyParams.firmAdequacy)
+}
+
+/**
+ * Split a generation requirement among generators by a logit on delivered
+ * cost, share ∝ weight × cost^-λ. A source whose share exceeds its cap is
+ * held at the cap and the remaining requirement is re-shared among the
+ * others (water-filling), so capped demand is backfilled, not dropped.
+ */
+export function allocateNewBuild(
+  requirementTWh: number,
+  candidates: NewBuildCandidate[],
+  lambda: number,
+): NewBuildAllocation {
+  const gw = Object.fromEntries(GENERATORS.map(s => [s, 0])) as Record<GeneratorSource, number>;
+  const idleGW: Partial<Record<GeneratorSource, number>> = {};
+  const credit = (c: NewBuildCandidate, amount: number) => {
+    if (c.idle) idleGW[c.source] = (idleGW[c.source] ?? 0) + amount;
+    else gw[c.source] += amount;
+  };
+  let active = candidates.filter(c => c.capGW > 0 && c.twhPerGW > 0 && c.weight > 0 && c.cost > 0);
+  let remaining = Math.max(0, requirementTWh);
+  while (remaining > 1e-9 && active.length > 0) {
+    const minCost = Math.min(...active.map(c => c.cost));
+    const raw = active.map(c => c.weight * Math.exp(-lambda * Math.log(c.cost / minCost)));
+    const total = raw.reduce((a, b) => a + b, 0);
+    const want = active.map((c, i) => (remaining * raw[i] / total) / c.twhPerGW);
+    const over = active.filter((c, i) => want[i] > c.capGW);
+    if (over.length === 0) {
+      active.forEach((c, i) => credit(c, want[i]));
+      remaining = 0;
+      break;
+    }
+    for (const c of over) {
+      credit(c, c.capGW);
+      remaining -= c.capGW * c.twhPerGW;
+    }
+    active = active.filter(c => !over.includes(c));
+  }
+  return { gw, idleGW, requirementTWh: Math.max(0, requirementTWh), unmetTWh: Math.max(0, remaining) };
+}
+
 /**
  * Get regional max growth rate (with regional override)
  */
@@ -854,7 +1138,7 @@ export const energyModule: Module<
 
   paramMeta: {
     carbonPrice: {
-      description: 'Carbon tax applied to fossil fuel generation. Higher values accelerate clean energy transition.',
+      description: 'Global carbon price on demand-side fuel costs (electrification and fuel switching). Power-sector prices are the regional ones (usCarbonPrice, chinaCarbonPrice, ...): set those for generation.',
       unit: '$/ton CO₂',
       range: { min: 0, max: 300, default: 35 },
       tier: 1 as const,
@@ -900,10 +1184,10 @@ export const energyModule: Module<
         },
       },
     },
-    curtailmentPenalty: {
-      description: 'How strongly curtailment dampens VRE additions. At 30% curtailment and penalty=2: additions reduced 60%.',
+    newBuildLogitExponent: {
+      description: 'Cost sensitivity of the new-build mix (logit exponent on delivered cost). Higher: the cheapest source takes more of each year\'s new build.',
       unit: 'dimensionless',
-      range: { min: 0, max: 5, default: 2.0 },
+      range: { min: 1, max: 12, default: 6 },
       tier: 1 as const,
     },
     riskPremium: {
@@ -983,7 +1267,9 @@ export const energyModule: Module<
       availableInvestment: unitPort('$T/year'),
       regionalInvestment: unitPort('$T/year', 'record'),
       mineralConstraintBySource: unitPort('fraction', 'record'),
-      laggedCurtailmentRate: unitPort('fraction'),
+      laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
+      laggedRegionalShortfallRate: unitPort('fraction', 'record'),
+      laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -996,6 +1282,7 @@ export const energyModule: Module<
       capacities: ENERGY_CAPACITY_PORT,
       energyCapexSpend: unitPort('$T/year'),
       regionalCapacities: REGIONAL_ENERGY_CAPACITY_PORT,
+      regionalStandbyCapacity: unitPort('GW', 'nested-record'),
       cumulativeCapacity: ENERGY_CAPACITY_PORT,
       additions: ENERGY_ADDITION_PORT,
       regionalAdditions: REGIONAL_ENERGY_ADDITION_PORT,
@@ -1022,6 +1309,7 @@ export const energyModule: Module<
       eroi: { ...energyDefaults.eroi, ...(params.eroi ?? {}) },
       eroiReferenceCF: { ...energyDefaults.eroiReferenceCF, ...(params.eroiReferenceCF ?? {}) },
       lifetime: { ...energyDefaults.lifetime, ...(params.lifetime ?? {}) },
+      openingFleetGrowth: { ...energyDefaults.openingFleetGrowth, ...(params.openingFleetGrowth ?? {}) },
     };
 
     // Validate regional carbon prices
@@ -1034,6 +1322,17 @@ export const energyModule: Module<
         if (rp && rp.carbonPrice > 500) {
           warnings.push(`regional.${region}.carbonPrice ${rp.carbonPrice} unusually high`);
         }
+        for (const [source, m] of Object.entries(rp?.costMultiplier ?? {})) {
+          if (!(m! > 0)) errors.push(`regional.${region}.costMultiplier.${source} must be positive`);
+        }
+        for (const [source, c] of Object.entries(rp?.fossilRunningCost ?? {})) {
+          if (!(c! >= 0)) errors.push(`regional.${region}.fossilRunningCost.${source} cannot be negative`);
+        }
+        const fa = rp?.firmAdequacy;
+        if (fa) {
+          if (fa.source !== 'coal' && fa.source !== 'gas') errors.push(`regional.${region}.firmAdequacy.source must be coal or gas`);
+          if (!(fa.share >= 0 && fa.share <= 2)) errors.push(`regional.${region}.firmAdequacy.share must be in [0, 2]`);
+        }
       }
     }
 
@@ -1043,6 +1342,16 @@ export const energyModule: Module<
     }
     if (p.carbonPrice > 500) {
       warnings.push(`carbonPrice ${p.carbonPrice} unusually high`);
+    }
+    // The global key never reaches the power sector (see EnergyParams.carbonPrice)
+    // (validate sees merged params, so "no regional price set" = every region at its default)
+    if (p.carbonPrice !== energyDefaults.carbonPrice &&
+        REGIONS.every(r => (p.regional?.[r]?.carbonPrice ?? energyDefaults.regional[r].carbonPrice) === energyDefaults.regional[r].carbonPrice)) {
+      warnings.push(
+        `carbonPrice ${p.carbonPrice} is set without any regional.*.carbonPrice: it moves demand-side ` +
+        'fuel costs only. Power-sector build, displacement and dispatch use the regional prices ' +
+        `(defaults ${REGIONS.map(r => `${r} ${energyDefaults.regional[r].carbonPrice}`).join(', ')}).`,
+      );
     }
 
     // Endogenous capex share
@@ -1069,6 +1378,10 @@ export const energyModule: Module<
       if (!Number.isInteger(lifetime) || lifetime < 1) {
         errors.push(`lifetime.${source} must be an integer number of years >= 1`);
       }
+      const g = p.openingFleetGrowth[source];
+      if (!Number.isFinite(g) || g <= -1 || g > 2) {
+        errors.push(`openingFleetGrowth.${source} must be in (-1, 2]`);
+      }
       const eroi = p.eroi[source];
       if (eroi !== undefined && eroi <= 1) {
         errors.push(`eroi.${source} must be > 1`);
@@ -1084,8 +1397,28 @@ export const energyModule: Module<
     }
 
     // Curtailment feedback
-    if (p.curtailmentPenalty !== undefined && p.curtailmentPenalty < 0) {
-      errors.push('curtailmentPenalty cannot be negative');
+    if (p.newBuildLogitExponent !== undefined && !(p.newBuildLogitExponent > 0)) {
+      errors.push('newBuildLogitExponent must be positive');
+    }
+    if (p.newBuildShareWeight) {
+      for (const [k, v] of Object.entries(p.newBuildShareWeight)) {
+        if (!(v as number >= 0)) errors.push(`newBuildShareWeight.${k} must be non-negative`);
+      }
+    }
+    for (const [region, g] of Object.entries(p.electricityDemandGrowth2025 ?? {})) {
+      if (!(g >= -0.1 && g <= 0.2)) errors.push(`electricityDemandGrowth2025.${region} must be between -10% and 20%`);
+    }
+    if (p.buildCapacity2025) {
+      for (const [k, v] of Object.entries(p.buildCapacity2025)) {
+        if (!(v as number > 0)) errors.push(`buildCapacity2025.${k} must be positive`);
+      }
+    }
+    if (p.buildCapacityDepreciation !== undefined &&
+        (p.buildCapacityDepreciation < 0 || p.buildCapacityDepreciation >= 1)) {
+      errors.push('buildCapacityDepreciation must be in [0, 1)');
+    }
+    if (p.fossilDisplacementRate !== undefined && (p.fossilDisplacementRate < 0 || p.fossilDisplacementRate > 1)) {
+      errors.push('fossilDisplacementRate must be in [0, 1]');
     }
     // Battery LCOS
     if (p.batteryCyclesPerYear !== undefined && p.batteryCyclesPerYear <= 0) {
@@ -1157,6 +1490,14 @@ export const energyModule: Module<
               ...energyDefaults.regional[region],
               ...p.regional[region],
             };
+            for (const key of ['costMultiplier', 'fossilRunningCost', 'firmAdequacy'] as const) {
+              if (p.regional[region][key]) {
+                (result.regional[region] as any)[key] = {
+                  ...(energyDefaults.regional[region][key] ?? {}),
+                  ...p.regional[region][key],
+                };
+              }
+            }
             if (p.regional[region].maxGrowthRate) {
               result.regional[region].maxGrowthRate = {
                 ...energyDefaults.regional[region].maxGrowthRate,
@@ -1174,8 +1515,23 @@ export const energyModule: Module<
       }
 
       // Deep merge other records
+      if (p.buildCapacity2025) {
+        result.buildCapacity2025 = { ...energyDefaults.buildCapacity2025, ...p.buildCapacity2025 };
+      }
+      if (p.fossilRunningCost) {
+        result.fossilRunningCost = { ...energyDefaults.fossilRunningCost, ...p.fossilRunningCost };
+      }
+      if (p.electricityDemandGrowth2025) {
+        result.electricityDemandGrowth2025 = { ...energyDefaults.electricityDemandGrowth2025, ...p.electricityDemandGrowth2025 };
+      }
+      if (p.newBuildShareWeight) {
+        result.newBuildShareWeight = { ...energyDefaults.newBuildShareWeight, ...p.newBuildShareWeight };
+      }
       if (p.maxGrowthRate) {
         result.maxGrowthRate = { ...energyDefaults.maxGrowthRate, ...p.maxGrowthRate };
+      }
+      if (p.openingFleetGrowth) {
+        result.openingFleetGrowth = { ...energyDefaults.openingFleetGrowth, ...p.openingFleetGrowth };
       }
       if (p.lifetime) {
         result.lifetime = { ...energyDefaults.lifetime, ...p.lifetime };
@@ -1230,7 +1586,8 @@ export const energyModule: Module<
             unit: source === 'battery' ? 'GWh' : 'GW',
             initialStock: cap2025,
             serviceLifeSteps: params.lifetime[source],
-            initialRetirementProfile: 'uniform',
+            initialRetirementProfile: 'growth',
+            initialGrowthRate: params.openingFleetGrowth[source],
             idPrefix: `${region}-${source}-opening`,
           }),
         };
@@ -1257,7 +1614,15 @@ export const energyModule: Module<
     }
 
     const savingsGapAnchor = Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
-    return { regional, global, longStorageRegional, longStorageCumulative, savingsGapAnchor };
+    return {
+      regional, global, longStorageRegional, longStorageCumulative, savingsGapAnchor,
+      buildCapacity: { ...params.buildCapacity2025 },
+      // Set from the 2025 fleet on the first step
+      fleetDemandRatio: Object.fromEntries(REGIONS.map(r => [r, 1])) as Record<Region, number>,
+      firmDemandRatio: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      fossilRunRatio: Object.fromEntries(REGIONS.map(r => [r, { coal: 1, gas: 1 }])) as Record<Region, Record<'coal' | 'gas', number>>,
+      standbyAdditions: Object.fromEntries(REGIONS.map(r => [r, [] as number[]])) as Record<Region, number[]>,
+    };
   },
 
   step(state, inputs, params, year, yearIndex) {
@@ -1405,51 +1770,293 @@ export const energyModule: Module<
     let realizedCapexB = 0; // $B, summed across regions
     const regionalLCOEs = {} as Record<Region, Record<EnergySource, number>>;
 
-    for (const region of REGIONS) {
+    // Regional costs (financing, carbon, site quality), computed before the
+    // build plan because the plan needs every region's solar demand at once
+    const regionCosts = (region: Region) => {
       const regionParams = params.regional[region];
-      // Plan capacity on the GENERATION basis dispatch will request
-      // (delivered demand x grid losses/own use) — without this the fleet
-      // is sized ~25% under what dispatch asks it to run
-      const regionDemand = regionalDemand[region] * params.gridLossFactor;
-      const regionInvestment = regionalInvestment[region];
+        // Regional effective LCOE (regional financing cost + carbon cost + site quality)
+        const regionalLCOE: Record<EnergySource, number> = {} as any;
+        for (const source of ENERGY_SOURCES) {
+          let lcoe = source === 'battery'
+            ? preWaccLcoes[source]
+            : waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
+          lcoe *= regionParams.costMultiplier?.[source] ?? 1;
+          // Add regional carbon cost for fossil fuels
+          if (source === 'gas' || source === 'coal') {
+            const fuel = regionParams.fossilRunningCost?.[source];
+            if (fuel !== undefined) {
+              lcoe += (fuel - params.fossilRunningCost[source]) / Math.max(0.05, netEnergyFraction[source]);
+            }
+            const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
+            lcoe += carbonCost;
+          }
+          // Adjust for site quality degradation: worse CF → higher effective LCOE
+          // A site with half the reference CF costs twice as much per MWh
+          const refCF = params.sources[source].referenceCF;
+          if (refCF > 0) {
+            const regionState = state.regional[region][source];
+            const effectiveCF = getRegionalCapacityFactor(params, region, source, regionState.installed);
+            lcoe *= refCF / effectiveCF;
+          }
+          regionalLCOE[source] = lcoe;
+        }
+        regionalLCOEs[region] = regionalLCOE;
+        const regionalBatteryLCOS = levelizedStorageCostPerMWh(
+          regionalLCOE.battery,
+          regionalWACC[region],
+          params.batteryLifetimeYears,
+          params.batteryCyclesPerYear,
+        );
+        const regionalSolarPlusBatteryLCOE =
+          regionalLCOE.solar / params.batteryEfficiency + regionalBatteryLCOS;
 
-      // Regional effective LCOE (regional financing cost + carbon cost + site quality)
-      const regionalLCOE: Record<EnergySource, number> = {} as any;
-      for (const source of ENERGY_SOURCES) {
-        let lcoe = source === 'battery'
-          ? preWaccLcoes[source]
-          : waccAdjustedLCOE(preWaccLcoes[source], source, regionalCrfRatio[region]);
-        // Add regional carbon cost for fossil fuels
-        if (source === 'gas' || source === 'coal') {
-          const carbonCost = (params.sources[source].carbonIntensity * regionParams.carbonPrice) / 1000;
-          lcoe += carbonCost;
-        }
-        // Adjust for site quality degradation: worse CF → higher effective LCOE
-        // A site with half the reference CF costs twice as much per MWh
-        const refCF = params.sources[source].referenceCF;
-        if (refCF > 0) {
-          const regionState = state.regional[region][source];
-          const effectiveCF = getRegionalCapacityFactor(params, region, source, regionState.installed);
-          lcoe *= refCF / effectiveCF;
-        }
-        regionalLCOE[source] = lcoe;
+        // Find cheapest LCOE from each side for bilateral competitiveness
+        const cheapestFossilLCOE = Math.min(regionalLCOE.gas, regionalLCOE.coal);
+        const cheapestCleanLCOE = Math.min(
+          regionalLCOE.solar, regionalLCOE.wind,
+          regionalLCOE.nuclear, regionalLCOE.hydro
+        );
+      return { regionalLCOE, regionalBatteryLCOS, regionalSolarPlusBatteryLCOE, cheapestFossilLCOE };
+    };
+    const costsByRegion = Object.fromEntries(REGIONS.map(r => [r, regionCosts(r)])) as
+      Record<Region, ReturnType<typeof regionCosts>>;
+
+    // =========================================================================
+    // Demand-led new build (see EnergyParams.newBuildLogitExponent):
+    // requirement = generation demand cannot get from the surviving fleet,
+    // shared among generators by a logit on delivered cost, with the global
+    // solar build capacity as the only solar ceiling besides the resource one
+    // =========================================================================
+    const surviving = {} as Record<Region, Record<GeneratorSource, number>>;
+    for (const region of REGIONS) {
+      surviving[region] = {} as Record<GeneratorSource, number>;
+      for (const source of GENERATORS) {
+        // Pure: the stock left after this year's scheduled retirements
+        surviving[region][source] = advanceVintageStock(state.regional[region][source].vintages, {
+          step: yearIndex,
+          additions: 0,
+          serviceLifeSteps: params.lifetime[source],
+        }).closingStock;
       }
-      regionalLCOEs[region] = regionalLCOE;
-      const regionalBatteryLCOS = levelizedStorageCostPerMWh(
-        regionalLCOE.battery,
-        regionalWACC[region],
-        params.batteryLifetimeYears,
-        params.batteryCyclesPerYear,
-      );
-      const regionalSolarPlusBatteryLCOE =
-        regionalLCOE.solar / params.batteryEfficiency + regionalBatteryLCOS;
+    }
 
-      // Find cheapest LCOE from each side for bilateral competitiveness
-      const cheapestFossilLCOE = Math.min(regionalLCOE.gas, regionalLCOE.coal);
-      const cheapestCleanLCOE = Math.min(
-        regionalLCOE.solar, regionalLCOE.wind,
-        regionalLCOE.nuclear, regionalLCOE.hydro
-      );
+    const CLEAN: GeneratorSource[] = ['solar', 'wind', 'nuclear', 'hydro'];
+    const FIRM: GeneratorSource[] = ['coal', 'gas', 'nuclear', 'hydro'];
+    const fleetDemandRatio = { ...state.fleetDemandRatio };
+    const firmDemandRatio = { ...state.firmDemandRatio };
+    const fossilRunRatio = { ...state.fossilRunRatio };
+    // Standby stock still in service at the end of this year, by region
+    const standbyStock = Object.fromEntries(REGIONS.map((r) => {
+      const source = params.regional[r].firmAdequacy?.source ?? 'coal';
+      const hist = state.standbyAdditions[r];
+      const live = hist.slice(Math.max(0, hist.length - params.lifetime[source] + 1));
+      return [r, live.reduce((a, b) => a + b, 0)];
+    })) as Record<Region, number>;
+
+    // capGW[s]: this region's ceiling from global build capacity (Infinity
+    // on the first pass)
+    const planNewBuild = (region: Region, buildCapGW: Record<GeneratorSource, number>): NewBuildAllocation => {
+      const { regionalLCOE, regionalSolarPlusBatteryLCOE } = costsByRegion[region];
+      const regionParams = params.regional[region];
+      // Generation basis dispatch will request (delivered demand x grid
+      // losses/own use)
+      const regionDemand = regionalDemand[region] * params.gridLossFactor;
+      const curt = Math.min(0.9, Math.max(0, inputs.laggedRegionalCurtailmentRate?.[region] ?? 0));
+
+      // Energy fleet: standby (adequacy) capacity is held for security, not
+      // counted as energy supply
+      const standbySource = regionParams.firmAdequacy?.source;
+      const energyGW = (stock: number, source: GeneratorSource) =>
+        source === standbySource ? Math.max(0, stock - standbyStock[region]) : stock;
+
+      // VRE share of the previous fleet's generation (standby excluded):
+      // marginal solar increasingly needs storage
+      let prevVREGen = 0;
+      let prevTotalGen = 0;
+      for (const source of GENERATORS) {
+        const prevCap = state.regional[region][source].installed;
+        const gen = (energyGW(prevCap, source) * getRegionalCapacityFactor(params, region, source, prevCap) * 8760) / 1000;
+        prevTotalGen += gen;
+        if (source === 'solar' || source === 'wind') prevVREGen += gen;
+      }
+      const vreShare = prevTotalGen > 0 ? prevVREGen / prevTotalGen : 0;
+
+      const candidates: NewBuildCandidate[] = GENERATORS.map((source) => {
+        const prevInstalled = state.regional[region][source].installed;
+        const cf = getRegionalCapacityFactor(params, region, source, prevInstalled);
+        const isVRE = source === 'solar' || source === 'wind';
+        // TWh a GW delivers: curtailed VRE output is not delivered
+        const twhPerGW = (cf * 8760) / 1000 * (isVRE ? 1 - curt : 1);
+        const baseCost = source === 'solar'
+          ? (1 - vreShare) * regionalLCOE.solar + vreShare * regionalSolarPlusBatteryLCOE
+          : regionalLCOE[source];
+        const cost = isVRE ? baseCost / (1 - curt) : baseCost;
+
+        // Resource / penetration ceiling (capacityCeiling share of demand),
+        // then the region's slice of world build capacity
+        const maxUsefulCapacity = (regionDemand * params.capacityCeiling[source] * 1000) / (cf * 8760);
+        let capGW = Math.min(Math.max(0, maxUsefulCapacity - surviving[region][source]), buildCapGW[source]);
+        // Regional policy override: build growth on last year's build
+        const buildGrowth = regionParams.maxGrowthRate?.[source];
+        if (buildGrowth !== undefined) {
+          const prevBuild = state.regional[region][source].additions.at(-1)
+            ?? (source === 'solar' ? REGIONAL_SOLAR_ADDITIONS_2024[region] : undefined);
+          if (prevBuild !== undefined) capGW = Math.min(capGW, prevBuild * (1 + buildGrowth));
+        }
+        return { source, cost, weight: params.newBuildShareWeight[source], twhPerGW, capGW };
+      });
+      const bySource = Object.fromEntries(candidates.map(c => [c.source, c])) as Record<GeneratorSource, NewBuildCandidate>;
+
+      // Anchor: the end-2024 fleet was built for 2024 demand
+      const installedTWh = candidates.reduce(
+        (sum, c) => sum + state.regional[region][c.source].installed * c.twhPerGW, 0);
+      if (yearIndex === 0) {
+        fleetDemandRatio[region] = regionDemand > 0
+          ? installedTWh / (regionDemand / (1 + params.electricityDemandGrowth2025[region]))
+          : 1;
+      }
+      // Fossil plants count at what they actually ran last year, not at
+      // nameplate output: once clean power has pushed coal down to a ~10%
+      // capacity factor, counting it at 60% told the build that idle coal
+      // already covered demand growth, too little clean was built, and
+      // dispatch ran the idle coal back up (net-zero coal 2.3k -> 7.9k TWh,
+      // 2044-49). Standby generation is in last year's coal output, so this
+      // slightly understates idle coal in firm-adequacy regions.
+      //
+      // Measured against the region's 2025 utilization, not nameplate: the
+      // anchor fleet already ran below the nameplate capacity factor, and
+      // fleetDemandRatio is anchored on nameplate, so 2025 has no idle
+      // capacity by construction (measured against nameplate, ~3,000 TWh
+      // of 2025 fossil read as idle and the world solar build hit its 1,130
+      // GW factory cap in year one).
+      const laggedGen = inputs.laggedRegionalGeneration?.[region];
+      const nameplateTWh = (s: GeneratorSource) => energyGW(surviving[region][s], s) * bySource[s].twhPerGW;
+      if (yearIndex === 0) {
+        const runRatio = (f: 'coal' | 'gas') => {
+          const nameplate = nameplateTWh(f);
+          const ran = laggedGen?.[f];
+          return ran === undefined || nameplate <= 0 ? 1 : Math.min(1, Math.max(0, ran) / nameplate);
+        };
+        fossilRunRatio[region] = { coal: runRatio('coal'), gas: runRatio('gas') };
+      }
+      const ranTWh = (s: GeneratorSource) => {
+        const nameplate = nameplateTWh(s);
+        if (s !== 'coal' && s !== 'gas') return nameplate;
+        const ran = laggedGen?.[s];
+        const ratio = fossilRunRatio[region][s];
+        return ran === undefined || ratio <= 0 ? nameplate : Math.min(nameplate, Math.max(0, ran) / ratio);
+      };
+      const existingTWh = candidates.reduce((sum, c) => sum + ranTWh(c.source), 0);
+      // Demand growth + retirements, at the region's own fleet-to-demand
+      // ratio, plus whatever dispatch left unserved last year
+      const shortfallTWh = Math.max(0, inputs.laggedRegionalShortfallRate?.[region] ?? 0) * regionDemand;
+      const requirementTWh = Math.max(0, regionDemand * fleetDemandRatio[region] - existingTWh) + shortfallTWh;
+
+      // Running cost of an existing fossil plant: fuel + VOM grossed up for
+      // the fuel chain's own energy use, plus the carbon price
+      const runningCost = (f: 'gas' | 'coal') =>
+        (regionParams.fossilRunningCost?.[f] ?? params.fossilRunningCost[f]) / Math.max(0.05, netEnergyFraction[f])
+        + (params.sources[f].carbonIntensity * regionParams.carbonPrice) / 1000;
+      // Idle fossil output competes with new build at running cost, since its
+      // capital is sunk: re-running idle coal beats building new coal, and
+      // beats new solar unless carbon is priced. Same non-cost weight as the
+      // fuel's new build.
+      const idleCandidates: NewBuildCandidate[] = (['gas', 'coal'] as const).map((f) => ({
+        ...bySource[f],
+        cost: runningCost(f),
+        capGW: bySource[f].twhPerGW > 0 ? (nameplateTWh(f) - ranTWh(f)) / bySource[f].twhPerGW : 0,
+        idle: true,
+      }));
+      // No new plant of a fuel while that fuel's existing plants sit idle:
+      // the logit would otherwise still hand new coal a share of a
+      // requirement that idle coal could serve with no capital at all
+      const hasIdle = (s: GeneratorSource) => idleCandidates.some(c => c.source === s && c.capGW > 1e-9);
+      const buildCandidates = candidates.map(c => (hasIdle(c.source) ? { ...c, capGW: 0 } : c));
+      const base = allocateNewBuild(requirementTWh, [...buildCandidates, ...idleCandidates], params.newBuildLogitExponent);
+
+      // Economic replacement of fossil output, shared among clean sources
+      // only, with whatever build room the base allocation left. Only output
+      // the plants actually produce can be displaced.
+      const cheapestClean = Math.min(...CLEAN.map(s => bySource[s].capGW > base.gw[s] ? bySource[s].cost : Infinity));
+      let displacementTWh = 0;
+      for (const f of ['gas', 'coal'] as const) {
+        const cost = runningCost(f);
+        const advantage = Number.isFinite(cheapestClean)
+          ? Math.min(1, Math.max(0, (cost - cheapestClean) / cost))
+          : 0;
+        displacementTWh += params.fossilDisplacementRate * advantage * ranTWh(f);
+      }
+      let plan: NewBuildAllocation = base;
+      if (displacementTWh > 0) {
+        const cleanRoom = CLEAN.map(s => ({ ...bySource[s], capGW: Math.max(0, bySource[s].capGW - base.gw[s]) }));
+        const extra = allocateNewBuild(displacementTWh, cleanRoom, params.newBuildLogitExponent);
+        const gw = { ...base.gw };
+        for (const s of CLEAN) gw[s] += extra.gw[s];
+        plan = {
+          gw,
+          idleGW: base.idleGW,
+          requirementTWh: requirementTWh + displacementTWh,
+          unmetTWh: base.unmetTWh + extra.unmetTWh,
+        };
+      }
+
+      // Firm-capacity adequacy: standby build for whatever dispatchable
+      // capacity (incl. storage at rated power) falls short of the anchored
+      // ratio to average demand
+      const adequacy = regionParams.firmAdequacy;
+      if (!adequacy) return plan;
+      const avgDemandGW = regionDemand / 8.76;
+      const batteryGW = state.regional[region].battery.installed / params.batteryDuration;
+      if (yearIndex === 0) {
+        const firm0 = FIRM.reduce((sum, s) => sum + state.regional[region][s].installed, 0) + batteryGW;
+        firmDemandRatio[region] = avgDemandGW > 0
+          ? firm0 / (avgDemandGW / (1 + params.electricityDemandGrowth2025[region]))
+          : 0;
+      }
+      const firmGW = FIRM.reduce((sum, s) => sum + surviving[region][s] + plan.gw[s], 0) + batteryGW;
+      const gap = adequacy.share * firmDemandRatio[region] * avgDemandGW - firmGW;
+      const room = Math.max(0, bySource[adequacy.source].capGW - plan.gw[adequacy.source]);
+      const standbyGW = Math.min(room, Math.max(0, gap));
+      if (standbyGW <= 0) return plan;
+      return { ...plan, gw: { ...plan.gw, [adequacy.source]: plan.gw[adequacy.source] + standbyGW }, standbyGW };
+    };
+
+    // World build capacity binds by source: plan unconstrained, then tighten
+    // the over-subscribed sources' regional slices pro rata and re-plan (the
+    // freed requirement goes to other sources) until none is over capacity.
+    const buildCapacity = state.buildCapacity;
+    const noCap = Object.fromEntries(GENERATORS.map(s => [s, Infinity])) as Record<GeneratorSource, number>;
+    const regionCaps = Object.fromEntries(REGIONS.map(r => [r, { ...noCap }])) as Record<Region, Record<GeneratorSource, number>>;
+    let plans = Object.fromEntries(REGIONS.map(r => [r, planNewBuild(r, regionCaps[r])])) as Record<Region, NewBuildAllocation>;
+    const worldBuild = (ps: Record<Region, NewBuildAllocation>, s: GeneratorSource) =>
+      REGIONS.reduce((sum, r) => sum + ps[r].gw[s], 0);
+    // Demand for build capacity: the unconstrained first pass
+    const buildDemand = Object.fromEntries(GENERATORS.map(s => [s, worldBuild(plans, s)])) as Record<GeneratorSource, number>;
+    for (let iter = 0; iter < 12; iter++) {
+      let tightened = false;
+      for (const s of GENERATORS) {
+        const total = worldBuild(plans, s);
+        if (total > buildCapacity[s] * (1 + 1e-9)) {
+          const scale = buildCapacity[s] / total;
+          for (const r of REGIONS) regionCaps[r][s] = plans[r].gw[s] * scale;
+          tightened = true;
+        }
+      }
+      if (!tightened) break;
+      plans = Object.fromEntries(REGIONS.map(r => [r, planNewBuild(r, regionCaps[r])])) as Record<Region, NewBuildAllocation>;
+    }
+    // Build capacity expands toward demand at most maxGrowthRate a year;
+    // idle capacity depreciates, but not below what was demanded
+    const nextBuildCapacity = Object.fromEntries(GENERATORS.map(s => [s, Math.min(
+      buildCapacity[s] * (1 + params.maxGrowthRate[s]),
+      Math.max(buildDemand[s], buildCapacity[s] * (1 - params.buildCapacityDepreciation)),
+    )])) as Record<GeneratorSource, number>;
+
+    for (const region of REGIONS) {
+      const regionInvestment = regionalInvestment[region];
+      const { regionalLCOE, regionalBatteryLCOS, regionalSolarPlusBatteryLCOE, cheapestFossilLCOE } =
+        costsByRegion[region];
+      regionalLCOEs[region] = regionalLCOE;
 
       // Clean energy share grows over time (e.g., 15% → 30% over 25 years)
       const cleanShare = params.cleanEnergyShare2025 +
@@ -1458,37 +2065,22 @@ export const energyModule: Module<
       // Regional clean energy budget ($B); may expand below if cleanShareFlex > 0
       let cleanBudget = regionInvestment * cleanShare * 1000;
 
-      // Calculate desired additions for this region
+      // Desired additions: generators from the demand-led plan, storage
+      // sized to the solar fleet
       const desiredAdditions: Record<EnergySource, number> = {} as any;
-
-      for (const source of ENERGY_SOURCES) {
-        const s = params.sources[source];
-        const regionState = state.regional[region][source];
+      for (const source of GENERATORS) desiredAdditions[source] = plans[region].gw[source];
+      {
+        const regionState = state.regional[region].battery;
         const prevInstalled = regionState.installed;
-
-        const cf = getRegionalCapacityFactor(params, region, source, regionState.installed);
-        const maxPen = params.capacityCeiling[source];
-
-        // Max useful capacity based on regional demand ceiling
-        const maxUsefulGen = regionDemand * maxPen;
-        let maxUsefulCapacity: number;
-        if (source === 'battery') {
-          const solarGW = state.regional[region].solar.installed;
-          maxUsefulCapacity = solarGW * params.batteryDuration;
-        } else {
-          maxUsefulCapacity = (maxUsefulGen * 1000) / (cf * 8760);
-        }
-
-        // Calculate target addition
+        const maxUsefulCapacity = state.regional[region].solar.installed * params.batteryDuration;
         let targetAddition: number;
         const MIN_CAPACITY_GROWTH = 0.01;
-
-        if (source === 'battery') {
+        {
           const solarGW = state.regional[region].solar.installed;
           const solarAdditions = desiredAdditions.solar ?? 0;
           const futureSolarGW = solarGW + solarAdditions;
           // Curtailment feedback: boost battery target when curtailment is high
-          const curtRate = inputs.laggedCurtailmentRate ?? 0;
+          const curtRate = inputs.laggedRegionalCurtailmentRate?.[region] ?? 0;
           const storagePressure = 1 + params.curtailmentStorageBoost * curtRate;
           const targetBatteryGWh = futureSolarGW * params.batteryDuration * storagePressure;
           const batteryGap = Math.max(0, targetBatteryGWh - prevInstalled);
@@ -1508,41 +2100,10 @@ export const energyModule: Module<
           } else {
             targetAddition = prevInstalled * MIN_CAPACITY_GROWTH;
           }
-        } else {
-          // Unified demand-gap targeting for all non-battery sources
-          const currentGenTWh = (prevInstalled * cf * 8760) / 1000;
-          const demandGapTWh = Math.max(0, maxUsefulGen - currentGenTWh);
-          const demandGapGW = (demandGapTWh * 1000) / (cf * 8760);
-
-          // Bilateral competitiveness: compare against cheapest from the other side
-          const isFossil = source === 'gas' || source === 'coal';
-          const otherSideLCOE = isFossil ? cheapestCleanLCOE : cheapestFossilLCOE;
-          const isCompetitive = regionalLCOE[source] <= otherSideLCOE * params.competitiveThreshold;
-
-          if (isCompetitive && demandGapGW > 0) {
-            targetAddition = demandGapGW * params.demandFillRate;
-            // Curtailment feedback: dampen VRE additions when curtailment is high
-            if (source === 'solar' || source === 'wind') {
-              const curtRate = inputs.laggedCurtailmentRate ?? 0;
-              const curtailmentDamping = Math.max(0.1, 1 - params.curtailmentPenalty * curtRate);
-              targetAddition *= curtailmentDamping;
-            }
-          } else {
-            // Clean sources: small baseline growth (R&D, pilots)
-            // Fossil sources: no new builds when uncompetitive
-            targetAddition = isFossil ? 0 : prevInstalled * MIN_CAPACITY_GROWTH;
-          }
         }
-
-        // Regional growth cap
-        const maxGrowth = getRegionalMaxGrowth(params, region, source);
-        const growthCapped = prevInstalled * maxGrowth;
+        const growthCapped = prevInstalled * getRegionalMaxGrowth(params, region, 'battery');
         const ceilingRoom = Math.max(0, maxUsefulCapacity - prevInstalled);
-
-        let desired = Math.max(0, targetAddition);
-        desired = Math.min(desired, growthCapped, ceilingRoom);
-
-        desiredAdditions[source] = desired;
+        desiredAdditions.battery = Math.min(Math.max(0, targetAddition), growthCapped, ceilingRoom);
       }
 
       // Apply investment constraint (LCOE priority)
@@ -1809,6 +2370,11 @@ export const energyModule: Module<
         longStorageRegional: newLongStorageRegional,
         longStorageCumulative: longStorageCumulativeNew,
         savingsGapAnchor,
+        buildCapacity: nextBuildCapacity,
+        fleetDemandRatio,
+        firmDemandRatio,
+        fossilRunRatio,
+        standbyAdditions: Object.fromEntries(REGIONS.map(r => [r, [...state.standbyAdditions[r], plans[r].standbyGW ?? 0]])) as Record<Region, number[]>,
       },
       outputs: {
         lcoes,
@@ -1818,6 +2384,15 @@ export const energyModule: Module<
         energyCapexSpend: realizedCapexB / 1000, // $T realized (all sources)
         capacities: globalCapacities,
         regionalCapacities,
+        regionalStandbyCapacity: Object.fromEntries(REGIONS.map((r) => {
+          const source = params.regional[r].firmAdequacy?.source;
+          const standby = { coal: 0, gas: 0 };
+          if (source) {
+            standby[source] = Math.min(regionalCapacities[r][source],
+              standbyStock[r] + (plans[r].standbyGW ?? 0));
+          }
+          return [r, standby];
+        })) as Record<Region, Record<'coal' | 'gas', number>>,
         cumulativeCapacity,
         additions: globalAdditions,
         regionalAdditions,

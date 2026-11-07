@@ -3,6 +3,35 @@
   "description": "Accelerated AI/robotics adoption. Higher robot energy demand as cheap energy enables new activities.",
   "energy": {
     "carbonPrice": 50,
+    "regional": {
+      "us": {
+        "carbonPrice": 50
+      },
+      "oecd-ex-us": {
+        "carbonPrice": 50
+      },
+      "china": {
+        "carbonPrice": 50
+      },
+      "india": {
+        "carbonPrice": 50
+      },
+      "latam": {
+        "carbonPrice": 50
+      },
+      "seasia": {
+        "carbonPrice": 50
+      },
+      "russia": {
+        "carbonPrice": 50
+      },
+      "mena": {
+        "carbonPrice": 50
+      },
+      "ssa": {
+        "carbonPrice": 50
+      }
+    },
     "sources": {
       "solar": {
         "alpha": 0.4

@@ -105,13 +105,10 @@ export interface LandParams {
   deforestationEmissionFactor: number; // Fraction released immediately
   decayRate: number;              // Annual decay rate for deferred pool
 
-  // Climate-yield damage
+  // Climate-yield damage: factor = 1 / (1 + coeff * (T - threshold)^2),
+  // global mean warming (°C above preindustrial)
   yieldDamageThreshold: number;   // °C where damage begins
   yieldDamageCoeff: number;       // Quadratic damage coefficient
-
-  // Schlenker/Roberts yield cliff
-  yieldCliffExcess: number;       // °C above threshold where cliff begins (default 1.0)
-  yieldCliffSteepness: number;    // Exponential decay rate beyond cliff (default 1.5)
 }
 
 export interface FoodParams {
@@ -207,10 +204,10 @@ export const resourcesDefaults: ResourcesParams = {
       recyclingMax: 0.50,
       recyclingHalfway: 1500,     // Mt post-2025 extraction; scaled to total (not transition-only) extraction
       // Non-transition demand: derived so 2025 net demand reproduces mine
-      // production. 23.0/(1-0.15) = 27.06 Mt total gross use, less the ~1.90 Mt
-      // the transition itself takes. Cross-check: USGS MCS 2026 world refinery
+      // production. 23.0/(1-0.15) = 27.06 Mt total gross use, less the ~2.28 Mt
+      // the transition itself takes (with the IRENA end-2024 solar fleet). Cross-check: USGS MCS 2026 world refinery
       // production (the scrap-inclusive measure of total use) is 29 Mt.
-      baselineDemand2025: 25.16,
+      baselineDemand2025: 24.78,
       baselineGdpElasticity: 0.85, // World refined copper use +2.9%/yr vs world real GDP
                                    // +3.4%/yr, 1990-2024 (ICSG/USGS series; World Bank GDP)
       annualSupply2025: 23,       // Mt/yr mine production, USGS MCS 2026 (world total 23,000 kt)
@@ -336,13 +333,19 @@ export const resourcesDefaults: ResourcesParams = {
     deforestationEmissionFactor: 0.5, // Fraction emitted immediately vs decay pool (assumption)
     decayRate: 0.05,
 
-    // Schlenker & Roberts (2009) nonlinear yield-temperature response —
-    // see sources/Schlenker-Roberts-Crop-Yields.md
-    yieldDamageThreshold: 2.0,
-    yieldDamageCoeff: 0.15,
-
-    yieldCliffExcess: 1.0,
-    yieldCliffSteepness: 1.5,
+    // Global yield response to global mean warming, fitted to per-degree
+    // GLOBAL estimates (not the local Schlenker-Roberts cliff; see
+    // sources/Schlenker-Roberts-Crop-Yields.md):
+    // - Zhao et al. (2017, PNAS 114:9326): -6.0% wheat, -7.4% maize, -3.2%
+    //   rice, -3.1% soy per °C, no CO2 fertilization or adaptation (mean
+    //   -4.9%/°C)
+    // - Hultgren et al. (2025, Nature 642:644): -120 kcal/person/day, 4.4%
+    //   of recommended intake, per °C, six staples, with adaptation
+    // Midpoint -4.65%/°C over 2025 -> +4.0 °C: factor 0.884 at 4.0 °C. The
+    // quadratic keeps the extreme-heat convexity (milder than linear below
+    // ~4 °C, steeper above; -21% at 5 °C).
+    yieldDamageThreshold: 1.5, // ~2025 warming: yield2025 already embeds today's climate
+    yieldDamageCoeff: 0.021,   // (1/0.884 - 1) / 2.5^2
   },
   food: {
     // Calories baseline (FAO global average)
@@ -476,6 +479,7 @@ export interface MineralOutput {
   transitionGrossDemand: number; // Mt/year of grossDemand attributable to energy-transition build
   extraction: number;    // Mt/year actually mined (= min(demand, capacity))
   supplyRatio: number;   // extraction / demand (1 = unconstrained); derivable, kept for the path-based collector
+  transitionSupplyRatio: number; // served / transition demand: the build is served first, so 1 unless it alone exceeds capacity
   recycled: number;      // Mt/year recycled
   cumulative: number;    // Mt total extracted since 2025
   recyclingRate: number; // Current recycling rate
@@ -938,20 +942,32 @@ export const resourcesModule: Module<
       // i.e. the primary (mine-supplied) claim, and `miningCapacity` is seeded
       // from primary production — so the two sides are the same quantity.
       //
-      // Both streams are rationed at the same ratio, but only the transition
-      // stream has a downstream consumer (energy scales its capacity additions
-      // by it), so the baseline stream's shortfall is not observable anywhere:
-      // nothing in the model consumes building wiring. Read `demand` and
-      // `grossDemand` as demand, not consumption — `extraction` is what was
-      // actually mined.
+      // The transition stream is served first, and the baseline takes the
+      // shortfall. The model has no metal price, so this order stands in for
+      // what a price spike would do:
+      // - Energy builders outbid. At 2025 prices, copper is ~4% of a solar
+      //   farm's capital cost: 2.8 t/MW (perMW_solar) x ~$9,900/t (2025 LME/
+      //   COMEX average) ≈ $28/kW against $691/kW (IRENA, Renewable Power
+      //   Generation Costs in 2024).
+      // - Baseline uses substitute. Aluminium replaces copper in cable once
+      //   copper costs ~3.5x as much (Nexans), and building wiring and
+      //   automotive harnesses are where that happens.
+      // Pro-rata rationing put the whole real cost of a GDP-driven shortage on
+      // clean build, because only the transition stream has a downstream
+      // consumer: nothing in the model consumes building wiring, so an unserved
+      // baseline tonne costs nothing. Read `demand` and `grossDemand` as demand,
+      // not consumption; `extraction` is what was actually mined.
       //
-      // The model has no metal price, so unserved tonnage stands in for the
-      // substitution and thrifting a price spike would force (aluminium for
-      // copper in cable, most obviously) rather than for physical scarcity.
       // Booking `extraction` rather than `demand` keeps the ledger closed:
       // cumulative extraction can never exceed what the mines could produce.
       const extraction = Math.min(result.demand, newMiningCapacity);
       const supplyRatio = result.demand > 0 ? extraction / result.demand : 1.0;
+      // Recycling scales both streams alike, so net transition demand is the
+      // gross slice at the same recycling rate
+      const transitionDemand = result.transitionGrossDemand * (1 - result.recyclingRate);
+      const transitionSupplyRatio = transitionDemand > 0
+        ? Math.min(transitionDemand, newMiningCapacity) / transitionDemand
+        : 1.0;
 
       const newCumulative = prevCumulative + extraction;
 
@@ -961,6 +977,7 @@ export const resourcesModule: Module<
         transitionGrossDemand: result.transitionGrossDemand,
         extraction,
         supplyRatio,
+        transitionSupplyRatio,
         recycled: result.recycled,
         cumulative: newCumulative,
         recyclingRate: result.recyclingRate,
@@ -971,20 +988,22 @@ export const resourcesModule: Module<
     }
 
     // Per-source constraint: a source is limited only by the minerals it uses,
-    // so a lithium shortage cannot throttle nuclear. This is the record energy
-    // dispatches on; the scalar below is derived from it purely for reporting.
+    // so a lithium shortage cannot throttle nuclear. It reads the TRANSITION
+    // ratio, the share of the build's own claim that was served. This is the
+    // record energy dispatches on; the scalar below is its worst case, for
+    // reporting.
     const mineralConstraintBySource = {} as Record<EnergySource, number>;
     for (const source of ENERGY_SOURCES) {
       let ratio = 1.0;
       for (const key of MINERAL_KEYS) {
         if (mineralIntensity(source, params.minerals[key]) > 0) {
-          ratio = Math.min(ratio, mineralOutputs[key].supplyRatio);
+          ratio = Math.min(ratio, mineralOutputs[key].transitionSupplyRatio);
         }
       }
       mineralConstraintBySource[source] = ratio;
     }
     const mineralConstraint = Math.min(
-      1, ...MINERAL_KEYS.map((key) => mineralOutputs[key].supplyRatio));
+      1, ...MINERAL_KEYS.map((key) => mineralOutputs[key].transitionSupplyRatio));
 
     // =========================================================================
     // LAND
@@ -992,18 +1011,12 @@ export const resourcesModule: Module<
 
     // Yield with tech improvement and climate damage
     const techYield = land.yield2025 * Math.pow(1 + land.yieldGrowthRate, yearIndex);
-    // Schlenker/Roberts yield damage: smooth quadratic below cliff, exponential collapse above
+    // Climate yield damage: smooth quadratic in global warming (see the
+    // land defaults). No global cliff: the Schlenker-Roberts threshold is in
+    // LOCAL daily temperature, and world yields aggregate thousands of
+    // locations and crops, which the per-degree global estimates already do.
     const excessTemp = Math.max(0, temperature - land.yieldDamageThreshold);
-    let yieldDamageFactor: number;
-    if (excessTemp <= land.yieldCliffExcess) {
-      // Moderate zone: smooth quadratic
-      yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
-    } else {
-      // Cliff zone: exponential collapse beyond threshold
-      const precliff = 1 / (1 + land.yieldDamageCoeff * land.yieldCliffExcess * land.yieldCliffExcess);
-      const cliffDelta = excessTemp - land.yieldCliffExcess;
-      yieldDamageFactor = precliff * Math.exp(-land.yieldCliffSteepness * cliffDelta);
-    }
+    const yieldDamageFactor = 1 / (1 + land.yieldDamageCoeff * excessTemp * excessTemp);
     // =========================================================================
     // WATER STRESS (IPCC AR6-calibrated parametric model)
     // =========================================================================

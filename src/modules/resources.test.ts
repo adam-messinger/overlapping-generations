@@ -200,11 +200,26 @@ test('supply ratio is 1.0 when capacity is ample', () => {
   expect(outputs.mineralConstraint).toBeCloseTo(1, 6);
 });
 
-test('constraint binds when demand outruns capacity', () => {
-  // 4x GDP against an unchanged capacity path must ration copper.
+test('a GDP-driven shortage falls on the baseline, not the build', () => {
+  // 4x GDP against an unchanged capacity path must ration copper, but the
+  // transition is served first: baseline uses substitute (aluminium in cable).
   const { outputs } = runYears(1, { gdp: 464 });
   expect(outputs.minerals.copper.supplyRatio).toBeLessThan(1);
-  expect(outputs.mineralConstraint).toBeLessThan(1);
+  expect(outputs.minerals.copper.transitionSupplyRatio).toBeCloseTo(1, 6);
+  expect(outputs.mineralConstraint).toBeCloseTo(1, 6);
+});
+
+test('the build is throttled only when its own claim exceeds capacity', () => {
+  // 20,000 GW of solar x 2.8 t/MW is ~48 Mt net of recycling, against ~24 Mt
+  // of copper mine capacity: the transition alone outruns the mines.
+  const { outputs } = runYears(1, { solarAdditions: 20000 });
+  const copper = outputs.minerals.copper;
+  expect(copper.transitionSupplyRatio).toBeLessThan(1);
+  // Served transition tonnage is exactly the mine capacity: nothing is left
+  // for the baseline.
+  const transitionDemand = copper.transitionGrossDemand * (1 - copper.recyclingRate);
+  expect(copper.transitionSupplyRatio * transitionDemand).toBeCloseTo(copper.extraction, 6);
+  expect(outputs.mineralConstraintBySource.solar).toBeCloseTo(copper.transitionSupplyRatio, 6);
 });
 
 test('extraction ledger closes: cumulative never exceeds the capacity path', () => {
@@ -222,9 +237,11 @@ test('extraction ledger closes: cumulative never exceeds the capacity path', () 
 test('a source is not throttled by a mineral it does not use', () => {
   // Nuclear uses steel only (no perMW_nuclear on copper/lithium/rareEarths),
   // so a copper shortage must leave nuclear at 1.0.
-  const { outputs } = runYears(1, { gdp: 464 });
+  const { outputs } = runYears(1, { solarAdditions: 20000 });
   expect(outputs.mineralConstraintBySource.nuclear).toBeCloseTo(
-    outputs.minerals.steel.supplyRatio, 6);
+    outputs.minerals.steel.transitionSupplyRatio, 6);
+  expect(outputs.mineralConstraintBySource.nuclear).toBeGreaterThan(
+    outputs.mineralConstraintBySource.solar);
   expect(outputs.mineralConstraintBySource.battery).toBeLessThan(1); // battery uses copper
 });
 
@@ -282,6 +299,18 @@ test('yield damage factor is 1 below threshold', () => {
 test('yield damage factor < 1 above threshold', () => {
   const { outputs } = runYears(1, { temperature: 3.0 });
   expect(outputs.land.yieldDamageFactor).toBeLessThan(1);
+});
+
+test('yield damage tracks per-degree global estimates, with no cliff', () => {
+  // Zhao et al. 2017 / Hultgren et al. 2025: ~-4.65%/°C, so ~-12% by 4 °C
+  const at4 = runYears(1, { temperature: 4.0 }).outputs.land.yieldDamageFactor;
+  expect(at4).toBeCloseTo(0.884, 2);
+  // Smooth past 3 °C: each further half degree costs a few percent, not a
+  // collapse (the old local-cliff transfer lost ~80% by 4 °C)
+  const at45 = runYears(1, { temperature: 4.5 }).outputs.land.yieldDamageFactor;
+  const at5 = runYears(1, { temperature: 5.0 }).outputs.land.yieldDamageFactor;
+  expect(at4 - at45).toBeLessThan(0.06);
+  expect(at5).toBeGreaterThan(0.75);
 });
 
 test('urban area grows with population', () => {

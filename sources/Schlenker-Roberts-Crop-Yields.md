@@ -30,3 +30,29 @@ The authors decompose temperature exposure into two metrics:
 A model that assumes a constant +1% yield growth per year regardless of temperature (like the current simulation) is **physically wrong**.
 *   **Reality:** Technology (GDD efficiency) fights against Climate (KDD damage).
 *   **Result:** In high warming scenarios, the "KDD penalty" overwhelms the technological progress, causing net yield *declines*.
+
+## How the model uses this (2026 recalibration)
+The model's yield factor responds to **global mean** warming and scales the
+**world** average yield. Schlenker & Roberts' threshold is in **local daily**
+temperature for US corn, soy and cotton. Transferring their cliff to the
+global aggregate is a category error: world yields average thousands of
+locations, seasons and crops, most far from 29-32°C on most days, so the
+aggregate response is smooth. An earlier version did transfer it (an
+exponential collapse past +3°C global, ~80% yield loss by +4°C), which
+turned any scenario crossing 3°C into a food-stress GDP collapse.
+
+The global response is instead fitted to per-degree global estimates:
+- **Zhao et al. (2017), PNAS 114(35):9326-9331**, four methods (global grid
+  models, point models, regressions, field warming): per °C of global mean
+  temperature, wheat -6.0%, maize -7.4%, rice -3.2%, soybean -3.1%, with no
+  CO2 fertilization, adaptation or genetic improvement (mean -4.9%/°C).
+- **Hultgren et al. (2025), Nature 642:644-652**, 12,658 regions, six
+  staples, with adaptation and income growth: -120 kcal/person/day, 4.4% of
+  recommended consumption, per °C of global warming.
+- Cross-check: **Jägermeyr et al. (2021), Nature Food 2:873-885**, GGCMI
+  ensemble, end-of-century SSP5-8.5: maize -24%, wheat +18% (with CO2).
+
+Midpoint -4.65%/°C from 2025 (~1.5°C) to +4°C sets yieldDamageCoeff 0.021
+(factor 0.884 at +4°C). The quadratic form keeps a mild convexity, the
+aggregate echo of the local extreme-heat nonlinearity. The water-stress term
+(irrigation water availability, IPCC AR6 WGII Ch4) multiplies on top.
