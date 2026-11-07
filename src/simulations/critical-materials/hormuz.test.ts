@@ -1,5 +1,6 @@
 import { expect, printSummary, sumRegional, test } from '../../test-utils.js';
 import { runSimulation } from '../../simulation.js';
+import { runAutowiredSimulation } from '../../simulation-autowired.js';
 import { REGIONS } from '../../domain-types.js';
 import { calibrateHormuzModel } from './hormuz-calibration.js';
 import { buildHormuzGlobalOverrides, compareHormuzGlobalImpact } from './hormuz-bridge.js';
@@ -113,6 +114,28 @@ test('the annual bridge raises burden and lowers GDP in the disruption year', ()
   expect(impact2026.gdpChangePct).toBeLessThan(-0.1);
   expect(impact2026.energyBurdenChangePctPoints).toBeGreaterThan(0);
   expect(impact2026.foodStressChangePctPoints).toBeGreaterThan(0);
+});
+
+test('rationed fuel is rationed in the sector breakdown too', () => {
+  // Under a commodity shock the world total is the SERVED fuel, so the sectors
+  // must partition that, not the unrationed request (they over-reported by
+  // ~1,000 TWh in the 2026 disruption year).
+  const result = simulateHormuzDisruption(
+    hormuzScenarios['short-disruption'],
+    calibrated.params,
+  );
+  const run = runAutowiredSimulation(
+    { ...buildHormuzGlobalOverrides(result), endYear: 2028 },
+    { invariants: 'off', paramLiveness: 'off' },
+  );
+  const index = run.years.indexOf(2026);
+  const sectors = run.outputs.demand.sectors[index] as Record<string, { nonElectric: number; electric: number; total: number }>;
+  const nonElectric = run.outputs.demand.nonElectricEnergy[index] as number;
+  const sectorSum = Object.values(sectors).reduce((sum, s) => sum + s.nonElectric, 0);
+  expect(Math.abs(sectorSum - nonElectric) / nonElectric).toBeLessThan(1e-9);
+  for (const sector of Object.values(sectors)) {
+    expect(Math.abs(sector.total - sector.electric - sector.nonElectric)).toBeLessThan(1e-6);
+  }
 });
 
 test('the annual bridge rejects an accidental same-year shock overwrite', () => {

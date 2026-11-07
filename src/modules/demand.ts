@@ -2124,6 +2124,16 @@ export const demandModule: Module<
       }
       globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
       globalNonElec = reconciledNonElectricEnergy;
+      // The sectors were split from the unrationed request (and took the
+      // lock-in floor at full availability), so ration them by the same
+      // served/requested ratio; otherwise they report fuel nobody received
+      // and no longer partition the world total. Electricity is not rationed.
+      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
+      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
+      for (const key of sectorKeys) {
+        sectors[key].nonElectric *= servedRatio;
+        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
+      }
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
