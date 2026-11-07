@@ -156,7 +156,10 @@ test('start-year fixed point: plain runs converge; an order-dependent build cycl
     expect(bootstrap?.acceptedCycle).toBe(undefined);
   }
   // Sweep case: energy's world build-capacity loop moves the build discretely
-  // at a cap edge, so this used to throw "Lag bootstrap did not converge"
+  // at a cap edge, so this used to throw "Lag bootstrap did not converge".
+  // Since the 2025 build was re-solved (#112) it converges outright; either
+  // outcome is fine, throwing is not. The cycle-acceptance path itself is
+  // pinned in packages/tsimulation/test/autowire.test.ts.
   const scenario = loadScenarioParamsSync('ssp1-19') as SimulationParams;
   const warn = console.warn;
   console.warn = () => {};
@@ -165,8 +168,9 @@ test('start-year fixed point: plain runs converge; an order-dependent build cycl
       { ...scenario, capital: { ...scenario.capital, baseCreditGrowth: 0.01 }, endYear: 2025 },
       STUDY_OPTIONS,
     ).diagnostics?.bootstrap;
-    expect(bootstrap?.converged).toBe(false);
-    expect(bootstrap!.acceptedCycle!.scaledResidual).toBeLessThan(1e-3);
+    if (!bootstrap?.converged) {
+      expect(bootstrap!.acceptedCycle!.scaledResidual).toBeLessThan(1e-3);
+    }
   } finally {
     console.warn = warn;
   }
