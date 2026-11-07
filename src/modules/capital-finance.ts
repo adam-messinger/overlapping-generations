@@ -57,6 +57,12 @@ export interface CapitalFinanceInputs {
   voluntaryRepayment?: number;
   /** Smoothed real GDP growth the safe rate tracks (r* = c·g + z). Defaults to the anchor. */
   trendGrowth?: number;
+  /**
+   * Smoothed public debt/GDP the safe rate's debt term prices. Markets price
+   * the expected debt path, not one year's swing in the ratio. Defaults to the
+   * current (substep) ratio. The repression threshold reads the actual ratio.
+   */
+  pricedPublicDebtGDP?: number;
   /** Extra primary deficit as a fraction of GDP (e.g. unfunded ageing costs). Defaults to 0. */
   additionalPrimaryDeficitRate?: number;
 }
@@ -92,6 +98,10 @@ export interface CapitalFinanceResult {
   refinancedPrincipal: number;
   /** Requested investment credit not supplied by banks. */
   unfundedNetNewCreditDemand: number;
+  /** New investment credit banks would extend this year (the lending
+   *  envelope, summed over substeps along the realized debt path). Credit
+   *  demand minus this is the unclipped form of unfundedNetNewCreditDemand. */
+  netNewCreditCapacity: number;
   /** Scheduled plus voluntary principal repaid. */
   principalRepayments: number;
   /** The voluntary (deleveraging) part of principalRepayments. */
@@ -159,6 +169,7 @@ export function advanceCapitalFinance(
   let privateDebt = openingPrivateDebt;
   let grossLoanOriginations = 0;
   let newInvestmentLoanOriginations = 0;
+  let totalNetNewCreditCapacity = 0;
   let refinancedPrincipal = 0;
   let principalRepayments = 0;
   let voluntaryPrincipalRepayments = 0;
@@ -204,7 +215,7 @@ export function advanceCapitalFinance(
       + params.safeRateGrowthPassThrough
         * (trendGrowth - params.safeRateGrowthAnchor)
       + params.safeRateDebtSensitivity
-        * (publicDebtGDP - params.initialPublicDebtGDP);
+        * ((inputs.pricedPublicDebtGDP ?? publicDebtGDP) - params.initialPublicDebtGDP);
     // Financial repression: policy holds the safe rate below its market
     // level (captive buyers, rate caps, yield-curve control), so debt is
     // liquidated through r < g (Reinhart & Sbrancia 2015). Two parts: an
@@ -281,6 +292,7 @@ export function advanceCapitalFinance(
       remainingNetNewCreditDemand,
     );
     const origination = refinancing + investmentOrigination;
+    totalNetNewCreditCapacity += netNewCreditCapacity;
 
     publicInterestPayments += safeRate * publicDebt * dt;
     privateInterestPayments += Math.max(0, loanRate) * privateDebt * dt;
@@ -333,6 +345,7 @@ export function advanceCapitalFinance(
     unfundedNetNewCreditDemand: inputs.netNewCreditDemand === undefined
       ? 0
       : Math.max(0, remainingNetNewCreditDemand),
+    netNewCreditCapacity: totalNetNewCreditCapacity,
     principalRepayments,
     voluntaryPrincipalRepayments,
     loanWriteOffs,

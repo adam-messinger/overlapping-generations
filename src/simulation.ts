@@ -206,12 +206,14 @@ export interface YearResult {
   newInvestmentLoanOriginations: number;
   refinancedPrincipal: number;
   unfundedCreditDemand: number;
+  creditCapacity: number;      // Bank lending envelope for new investment credit
   creditImpulse: number;       // Deprecated alias of new investment credit
   principalRepayments: number;
   loanWriteOffs: number;
   netCreditCreation: number;
   privateLeverage: number;
   targetPrivateLeverage: number;
+  leverageBorrowing: number;
   leverageRecapBorrowing: number;
   voluntaryPrincipalRepayments: number;
   primaryDeficit: number;
