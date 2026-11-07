@@ -415,6 +415,16 @@ export const capitalDefaults: CapitalParams = {
  * Life expectancy effect: longer life → save more for retirement (lifecycle motive).
  * Dependency effect: more dependents → less capacity to save.
  * Combined factor clamped to [0.5, 1.5] to prevent unreasonable extremes.
+ *
+ * The result is floored at zero. The regional premium is an additive offset
+ * calibrated at the default `savingsWorking` (US -0.10 against a ~0.27 base
+ * gives WDI's 17.6%), so a lower working-age rate or a stronger dependency
+ * response can shrink the base below the premium as a region ages. A negative
+ * gross saving propensity has no meaning here: it is a share weight for
+ * allocating investment across regions (negative weight = negative gross
+ * investment, i.e. un-building capital) and the lowest WDI gross saving rate
+ * for any of these aggregates is ~15% (SSA). The floor never binds on the
+ * default path (lowest rate: US 2100, ~0.06).
  */
 function calculateSavingsRate(
   young: number,
@@ -454,7 +464,7 @@ function calculateSavingsRate(
     old * params.savingsOld
   ) / population;
 
-  return baseRate + premium;
+  return Math.max(0, baseRate + premium);
 }
 
 /**

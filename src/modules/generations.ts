@@ -903,7 +903,7 @@ export const generationsModule: Module<
       const slice = slices[key];
       desiredScores[key] = flows[key].laborIncome * capitalDemandWeight(slice.representativeAge);
       savingScores[key] = flows[key].laborIncome * savingAgeWeight(slice.representativeAge) *
-        Math.max(0, inputs.regionalSavings[slice.region]);
+        inputs.regionalSavings[slice.region];
     }
     const desiredAllocation = allocatePool(desiredTotal, desiredScores, keys);
     const generalShare = inputs.investment > 0
