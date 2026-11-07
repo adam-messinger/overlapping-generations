@@ -51,6 +51,12 @@ export interface CapitalFinanceInputs {
   netNewCreditDemand?: number;
   /** Smoothed real GDP growth the safe rate tracks (r* = c·g + z). Defaults to the anchor. */
   trendGrowth?: number;
+  /**
+   * Smoothed public debt/GDP the safe rate's debt term prices. Markets price
+   * the expected debt path, not one year's swing in the ratio. Defaults to the
+   * current (substep) ratio. The repression threshold reads the actual ratio.
+   */
+  pricedPublicDebtGDP?: number;
   /** Extra primary deficit as a fraction of GDP (e.g. unfunded ageing costs). Defaults to 0. */
   additionalPrimaryDeficitRate?: number;
 }
@@ -192,7 +198,7 @@ export function advanceCapitalFinance(
       + params.safeRateGrowthPassThrough
         * (trendGrowth - params.safeRateGrowthAnchor)
       + params.safeRateDebtSensitivity
-        * (publicDebtGDP - params.initialPublicDebtGDP);
+        * ((inputs.pricedPublicDebtGDP ?? publicDebtGDP) - params.initialPublicDebtGDP);
     // Financial repression: policy holds the safe rate below its market
     // level (captive buyers, rate caps, yield-curve control), so debt is
     // liquidated through r < g (Reinhart & Sbrancia 2015). Two parts: an

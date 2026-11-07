@@ -268,9 +268,12 @@ test('interest rate changes with K/Y ratio', () => {
   const year1 = runYears(1).outputs;
   const year25 = runYears(25).outputs;
 
-  // Higher K/Y should mean lower r
+  // Higher K/Y should mean a lower return on capital, alpha*Y/K - delta. The
+  // total-debt premium is a separate channel (rising debt can outweigh the
+  // K/Y effect on interestRate), so it is netted out here.
   if (year25.capitalOutputRatio > year1.capitalOutputRatio) {
-    expect(year25.interestRate).toBeLessThan(year1.interestRate);
+    expect(year25.interestRate - year25.debtRiskPremium)
+      .toBeLessThan(year1.interestRate - year1.debtRiskPremium);
   }
 });
 

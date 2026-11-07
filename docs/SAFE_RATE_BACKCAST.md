@@ -1,6 +1,13 @@
 # Safe-rate backcast and the Tetlock-panel match
 
-Exploratory, 2026-11-07. No model default was changed. Reproduce with
+Exploratory, 2026-11-07. Outcome: `safeRateDebtSensitivity` raised from 3bp to
+6.5bp per pp, with the debt term now pricing a 3-year exponential smooth of
+debt/GDP (`safeRateDebtSmoothingYears`). Without the smoothing, 6.5bp turned the
+model's low-growth 2026 (debt/GDP +1.5pp, then flat) into a one-year safe-rate
+spike that `src/seed-year.test.ts` rejects. Smoothing keeps 96% of the US
+2019 -> 2024-26 debt change, so the 6.5bp calibration still sits under that
+check's upper bound (8.2bp with smoothing). The analysis below was run at 3bp
+with no smoothing, the default at the time. Reproduce with
 `scripts/safe-rate-backcast.py` (history) and `scripts/safe-rate-forecast-match.ts`
 (forward grid).
 
