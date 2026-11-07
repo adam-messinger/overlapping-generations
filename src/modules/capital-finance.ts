@@ -27,6 +27,9 @@ export interface CapitalFinanceParameters {
   safeRateGrowthAnchor: number;
   safeRateDebtSensitivity: number;
   initialPublicDebtGDP: number;
+  financialRepression: number;
+  repressionDebtThreshold: number;
+  repressionDepth: number;
   creditSpread: number;
   financialSubsteps: number;
 }
@@ -61,6 +64,7 @@ export interface CapitalFinancePathPoint {
   interestRate: number;
   safeRate: number;
   loanRate: number;
+  repressionGap: number;
   debtRiskPremium: number;
 }
 
@@ -92,6 +96,8 @@ export interface CapitalFinanceResult {
   safeRate: number;
   /** Real rate on private bank debt: safeRate plus the credit spread. */
   loanRate: number;
+  /** How far policy holds the safe rate below its market level (financial repression). */
+  repressionGap: number;
   debtRiskPremium: number;
   path: readonly CapitalFinancePathPoint[];
 }
@@ -149,6 +155,7 @@ export function advanceCapitalFinance(
   let weightedInterestRate = 0;
   let weightedSafeRate = 0;
   let weightedLoanRate = 0;
+  let weightedRepressionGap = 0;
   let weightedRiskPremium = 0;
   let remainingNetNewCreditDemand =
     inputs.netNewCreditDemand ?? Number.POSITIVE_INFINITY;
@@ -178,12 +185,27 @@ export function advanceCapitalFinance(
     // 2009). The total-debt premium above is mostly private leverage, so it
     // prices the return on capital, not the sovereign.
     const trendGrowth = inputs.trendGrowth ?? params.safeRateGrowthAnchor;
-    const safeRate =
+    const marketSafeRate =
       params.neutralSafeRate
       + params.safeRateGrowthPassThrough
         * (trendGrowth - params.safeRateGrowthAnchor)
       + params.safeRateDebtSensitivity
         * (publicDebtGDP - params.initialPublicDebtGDP);
+    // Financial repression: policy holds the safe rate below its market
+    // level (captive buyers, rate caps, yield-curve control), so debt is
+    // liquidated through r < g (Reinhart & Sbrancia 2015). Two parts: an
+    // explicit lever, and fiscal dominance above a public-debt threshold,
+    // where the rate is capped at trend growth less repressionDepth. The cap
+    // phases in over 25pp of debt/GDP so crossing the threshold is smooth.
+    const repressionWeight = Math.min(1, Math.max(
+      0,
+      (publicDebtGDP - params.repressionDebtThreshold) / 0.25,
+    ));
+    const repressionCap = trendGrowth - params.repressionDepth;
+    const repressionGap =
+      params.financialRepression
+      + repressionWeight * Math.max(0, marketSafeRate - repressionCap);
+    const safeRate = marketSafeRate - repressionGap;
     const loanRate = safeRate + params.creditSpread;
 
     const fiscalConsolidationRate = Math.min(
@@ -240,6 +262,7 @@ export function advanceCapitalFinance(
     weightedInterestRate += interestRate * dt;
     weightedSafeRate += safeRate * dt;
     weightedLoanRate += loanRate * dt;
+    weightedRepressionGap += repressionGap * dt;
     weightedRiskPremium += debtRiskPremium * dt;
     path.push({
       substep,
@@ -252,6 +275,7 @@ export function advanceCapitalFinance(
       interestRate,
       safeRate,
       loanRate,
+      repressionGap,
       debtRiskPremium,
     });
   }
@@ -283,6 +307,7 @@ export function advanceCapitalFinance(
     interestRate: weightedInterestRate,
     safeRate: weightedSafeRate,
     loanRate: weightedLoanRate,
+    repressionGap: weightedRepressionGap,
     debtRiskPremium: weightedRiskPremium,
     path,
   };

@@ -186,7 +186,8 @@ const MODEL_DISCLOSURES = [
   'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~6% in 2025, ' +
     'firms\' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on ' +
     'private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach ' +
-    '2009). It is not a policy rate or a market yield. There is no term premium. Use CHANGES, never the level.',
+    '2009) and can be held down by financial repression (repressionGap). It is not a policy rate or a market ' +
+    'yield. There is no term premium. Use CHANGES, never the level.',
   'NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. ' +
     'Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.',
   'NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are ' +

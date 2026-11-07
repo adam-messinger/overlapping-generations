@@ -27,6 +27,9 @@ const params: CapitalFinanceParameters = {
   safeRateGrowthAnchor: 0.034,
   safeRateDebtSensitivity: 0.03,
   initialPublicDebtGDP: 0.9,
+  financialRepression: 0,
+  repressionDebtThreshold: 1.5,
+  repressionDepth: 0.03,
   creditSpread: 0.02,
   financialSubsteps: 4,
 };
@@ -176,7 +179,29 @@ test('the safe rate tracks trend growth one-for-one, not the return on capital',
   const indebted = advanceCapitalFinance(
     { ...state, publicDebt: 158 * 1.9 },
     { gdp: 158, capitalStock: 553 },
-    annual,
+    { ...annual, repressionDebtThreshold: 5 },
   );
   expect(indebted.safeRate - base.safeRate).toBeCloseTo(0.03, 12);
+});
+
+test('financial repression: an explicit lever, and a cap below growth at high public debt', () => {
+  const annual = { ...params, financialSubsteps: 1 };
+  const state = { publicDebt: 158 * 0.9, privateDebt: 252.8, previousGdp: 158 };
+  const base = advanceCapitalFinance(state, { gdp: 158, capitalStock: 553 }, annual);
+  expect(base.repressionGap).toBeCloseTo(0, 12);
+  const lever = advanceCapitalFinance(
+    state,
+    { gdp: 158, capitalStock: 553 },
+    { ...annual, financialRepression: 0.02 },
+  );
+  expect(base.safeRate - lever.safeRate).toBeCloseTo(0.02, 12);
+  expect(lever.repressionGap).toBeCloseTo(0.02, 12);
+  // Far above the threshold the safe rate is held at trend growth less the depth.
+  const dominance = advanceCapitalFinance(
+    { ...state, publicDebt: 158 * 3.0 },
+    { gdp: 158, capitalStock: 553, trendGrowth: 0.034 },
+    annual,
+  );
+  expect(dominance.safeRate).toBeCloseTo(0.034 - params.repressionDepth, 12);
+  expect(dominance.repressionGap).toBeGreaterThan(0);
 });

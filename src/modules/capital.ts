@@ -140,6 +140,9 @@ export interface CapitalParams {
   safeRateGrowthAnchor: number;        // 0.034 (2025 trend growth the safe rate is anchored at)
   safeRateDebtSensitivity: number;     // 0.03 (3bp per pp of public debt/GDP above its 2025 level)
   trendGrowthSmoothingYears: number;   // 10 (exponential smoothing of realized growth)
+  financialRepression: number;         // 0 (pp the safe rate is held below its market level)
+  repressionDebtThreshold: number;     // 1.5 (public debt/GDP above which fiscal dominance caps the safe rate)
+  repressionDepth: number;             // 0.03 (cap = trend growth less this)
   creditSpread: number;                // 0.020 (bank/corporate borrowing over the safe rate)
 
   // Initial conditions
@@ -231,6 +234,7 @@ export interface CapitalOutputs {
   interestRate: number;       // Real return on capital + debt premium (firms' cost of capital)
   safeRate: number;           // Real rate paid on public debt
   loanRate: number;           // Real rate paid on private bank debt
+  repressionGap: number;      // pp the safe rate is held below its market level
 
   // Automation
   robotsDensity: number;      // Automation capital density (capital-derived, $/worker scaled)
@@ -452,6 +456,16 @@ export const capitalDefaults: CapitalParams = {
   // The total-debt debtRiskPremium (mostly private leverage) prices the
   // return on capital, not the sovereign.
   safeRateDebtSensitivity: 0.03,
+  // Financial repression. Explicit lever off by default. Above 150% public
+  // debt/GDP fiscal dominance caps the safe rate at trend growth less 3pp,
+  // so debt liquidates instead of spiralling once interest accrues:
+  // advanced-economy real rates averaged roughly -1% to -3.5% in 1945-80
+  // with growth ~3-4%, liquidating ~3-4% of GDP a year in the US and UK
+  // (Reinhart & Sbrancia 2015, Economic Policy 30(82)). The 150% threshold
+  // is judgment (post-war US ~110%, UK ~240%; Japan's YCC began at ~230%).
+  financialRepression: 0,
+  repressionDebtThreshold: 1.5,
+  repressionDepth: 0.03,
   // Bank and corporate borrowers pay ~2pp over the safe rate: ECB composite
   // cost of borrowing for NFCs vs the deposit facility rate (~1.8-2pp, 2025);
   // Moody's Baa less 10y Treasury (FRED BAA10Y, ~1.7-2pp, 2025).
@@ -710,6 +724,18 @@ export const capitalModule: Module<
       range: { min: -0.04, max: 0.04, default: 0.010 },
       tier: 1 as const,
     },
+    financialRepression: {
+      description: 'Percentage points by which policy holds the real safe rate below its market level (captive buyers, rate caps, yield-curve control). Liquidates public debt when the safe rate falls below growth; also lowers the loan rate.',
+      unit: 'fraction',
+      range: { min: 0, max: 0.06, default: 0 },
+      tier: 1 as const,
+    },
+    repressionDebtThreshold: {
+      description: 'Public debt/GDP above which fiscal dominance caps the safe rate at trend growth less repressionDepth (phased in over 25pp). Set high to disable.',
+      unit: 'ratio',
+      range: { min: 0.6, max: 5, default: 1.5 },
+      tier: 2 as const,
+    },
     safeRateGrowthPassThrough: {
       description: 'How far the safe rate moves per point of trend growth (c in r* = c·g + z). 1 = one-for-one (Holston-Laubach-Williams).',
       unit: 'ratio',
@@ -798,6 +824,7 @@ export const capitalModule: Module<
       interestRate: unitPort('fraction'),
       safeRate: unitPort('fraction'),
       loanRate: unitPort('fraction'),
+      repressionGap: unitPort('fraction'),
       robotsDensity: unitPort('robot/kpeople'),
       automationShare: unitPort('fraction'),
       kPerWorker: unitPort('$k/people'),
@@ -976,6 +1003,21 @@ export const capitalModule: Module<
     if (params.safeRateDebtSensitivity !== undefined) {
       if (params.safeRateDebtSensitivity < 0 || params.safeRateDebtSensitivity > 0.20) {
         errors.push('safeRateDebtSensitivity must be between 0 and 0.20');
+      }
+    }
+    if (params.financialRepression !== undefined) {
+      if (params.financialRepression < 0 || params.financialRepression > 0.10) {
+        errors.push('financialRepression must be between 0 and 0.10');
+      }
+    }
+    if (params.repressionDebtThreshold !== undefined) {
+      if (params.repressionDebtThreshold < 0.3 || params.repressionDebtThreshold > 10) {
+        errors.push('repressionDebtThreshold must be between 0.3 and 10');
+      }
+    }
+    if (params.repressionDepth !== undefined) {
+      if (params.repressionDepth < 0 || params.repressionDepth > 0.10) {
+        errors.push('repressionDepth must be between 0 and 0.10');
       }
     }
     if (params.trendGrowthSmoothingYears !== undefined) {
@@ -1654,6 +1696,7 @@ export const capitalModule: Module<
         interestRate,
         safeRate: finance.safeRate,
         loanRate: finance.loanRate,
+        repressionGap: finance.repressionGap,
         robotsDensity,
         automationShare,
         kPerWorker,

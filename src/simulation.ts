@@ -167,6 +167,7 @@ export interface YearResult {
   interestRate: number;
   safeRate: number;
   loanRate: number;
+  repressionGap: number;
   robotsDensity: number;
   automationShare: number;
   capitalOutputRatio: number;

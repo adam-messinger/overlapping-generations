@@ -290,6 +290,10 @@ Do this before committing. Most fix-up commits in project history would have bee
   (2pp) on private bank debt. One ~6% rate for all three used to charge public debt 5.4% of
   GDP and could not go below growth. Real safe rates may be negative: public interest is a
   signed transfer
+- **Financial repression**: `financialRepression` (pp lever) holds the safe rate below its
+  market level; above `repressionDebtThreshold` (150% public debt/GDP, judgment) fiscal
+  dominance caps it at trend growth − `repressionDepth` (3pp; Reinhart-Sbrancia 1945-80).
+  `repressionGap` reports how far it is held down
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity
 - Demographic savings response: life expectancy and dependency ratio affect savings
