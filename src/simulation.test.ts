@@ -433,6 +433,32 @@ test('human-capital ledger is reported and its parameters do not feed back into 
   expect(bandSum).toBeCloseTo(first.humanCapitalInvestment, 9);
 });
 
+// Fossil LCOE rises gradually with resource depletion, never as a cliff. The
+// proved-reserves budget (gas: ~48-year R/P) exhausted ~2063 in the default
+// run and gas LCOE jumped ~$55 -> ~$500/MWh in a single year, after which
+// unpriced coal took the build.
+test('default fossil LCOEs drift up with depletion and have no cliff', () => {
+  const run = runAutowiredSimulation({}, { diagnostics: false });
+  for (const source of ['gas', 'coal'] as const) {
+    let prev = getOutputsAtYear(run, 0);
+    for (let i = 1; i < run.years.length; i++) {
+      const o = getOutputsAtYear(run, i);
+      const lcoe = (o.lcoes as Record<string, number>)[source];
+      const prevLcoe = (prev.lcoes as Record<string, number>)[source];
+      expect(lcoe / prevLcoe).toBeLessThan(2);
+      expect(prevLcoe / lcoe).toBeLessThan(2);
+      // Depletion only ever lowers net energy (raises the fuel-cost divisor)
+      const nef = (o.netEnergyFraction as Record<string, number>)[source];
+      expect(nef).toBeLessThan((prev.netEnergyFraction as Record<string, number>)[source] + 1e-12);
+      prev = o;
+    }
+    const nef0 = (getOutputsAtYear(run, 0).netEnergyFraction as Record<string, number>)[source];
+    const nefEnd = (prev.netEnergyFraction as Record<string, number>)[source];
+    expect(nefEnd).toBeLessThan(nef0);            // depletion still raises cost...
+    expect(nef0 / nefEnd).toBeLessThan(1.1);       // ...gradually
+  }
+});
+
 // Baseline financing must reconcile. Explicit DC capex should also feed back
 // into the deliberately extreme AI boom through the shared capital ledger,
 // lowering the path relative to an otherwise identical free-DC-capex run.
