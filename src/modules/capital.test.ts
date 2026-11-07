@@ -419,37 +419,28 @@ test('retirement-age extension follows gains in life expectancy at 65, not at bi
   expect(out.regionalRetirementAgeExtension.ssa).toBeCloseTo(0.67 * 0.24 * 5, 6);
 });
 
-// --- Wage Indexation ---
+// --- Benefit levels ---
 
-console.log('\n--- Wage Indexation ---\n');
+console.log('\n--- Benefit levels ---\n');
 
-test('lower wageIndexation reduces transfer burden growth', () => {
-  // wageIndexation=1 (full wage): burden grows fastest
-  const fullWageParams = capitalModule.mergeParams({ wageIndexation: 1.0 });
-  let fullWageState = capitalModule.init(fullWageParams);
-  let fullWageOutputs: any;
-  for (let i = 0; i < 50; i++) {
-    const inputs = getCapitalInputs(i);
-    const result = capitalModule.step(fullWageState, inputs, fullWageParams, 2025 + i, i);
-    fullWageState = result.state;
-    fullWageOutputs = result.outputs;
-  }
-
-  // wageIndexation=0.3 (mostly price-indexed): burden grows slower
-  const lowWageParams = capitalModule.mergeParams({ wageIndexation: 0.3 });
-  let lowWageState = capitalModule.init(lowWageParams);
-  let lowWageOutputs: any;
-  for (let i = 0; i < 50; i++) {
-    const inputs = getCapitalInputs(i);
-    const result = capitalModule.step(lowWageState, inputs, lowWageParams, 2025 + i, i);
-    lowWageState = result.state;
-    lowWageOutputs = result.outputs;
-  }
-
-  expect(lowWageOutputs.transferBurden).toBeLessThan(fullWageOutputs.transferBurden);
+test('pension per retiree tracks current GDP per worker (benefit ratio held at 2025)', () => {
+  const { outputs } = runYears(30);
+  const inputs = getCapitalInputs(29);
+  // Region by region the pension bill is pensionRate x reclassified retirees x
+  // CURRENT GDP per (adjusted) worker; nothing is frozen at the 2025 level.
+  const r = 'us';
+  const share = outputs.regionalRetirementAgeExtension[r] >= 0 ? 1 : 0;
+  expect(share).toBe(1);
+  const pensionPerRetireeOverGdpPerWorker =
+    outputs.regionalPensionTransfers[r]
+    / (inputs.regionalOld[r] * capitalDefaults.transferPremium[r].pensionRate!)
+    / (inputs.regionalGdp[r] / inputs.regionalWorking[r]);
+  // Reclassification moves people between old and working, so the ratio sits
+  // a little below 1 — but nowhere near the ~0.8 a frozen 30% weight gave.
+  expect(pensionPerRetireeOverGdpPerWorker).toBeBetween(0.9, 1.0);
 });
 
-test('GDP identity still holds with retirement age + wage indexation', () => {
+test('GDP identity still holds with retirement age adjustment', () => {
   const { outputs } = runYears(25);
   const gdp = baselineGdp(24);
   const sum = outputs.householdConsumption
@@ -460,11 +451,6 @@ test('GDP identity still holds with retirement age + wage indexation', () => {
 
 test('validation catches invalid retirementAgeResponse', () => {
   const result = capitalModule.validate({ retirementAgeResponse: 1.5 });
-  expect(result.valid).toBe(false);
-});
-
-test('validation catches invalid wageIndexation', () => {
-  const result = capitalModule.validate({ wageIndexation: -0.1 });
   expect(result.valid).toBe(false);
 });
 

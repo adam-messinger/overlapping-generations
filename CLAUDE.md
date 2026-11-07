@@ -298,7 +298,7 @@ Do this before committing. Most fix-up commits in project history would have bee
   dominance caps it at trend growth − `repressionDepth` (3pp; Reinhart-Sbrancia 1945-80).
   `repressionGap` reports how far it is held down
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
-- Retirement age adjusts with life expectancy; wages partially indexed to productivity
+- Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings
 
 ### Five-Year Generational Accounts

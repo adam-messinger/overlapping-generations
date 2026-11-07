@@ -104,7 +104,6 @@ export interface CapitalParams {
 
   // Retirement age adjustment
   retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
-  wageIndexation: number;           // 0=price-indexed, 1=wage-indexed (0.7)
 
   // Demographic savings response
   savingsLifeExpSensitivity: number;     // LE elasticity on savings (0.5)
@@ -151,8 +150,6 @@ export interface CapitalParams {
 
 export interface CapitalState {
   stock: number;              // Current capital stock ($ trillions)
-  referenceGdpPerWorker: Record<Region, number>;  // Year-0 GDP/worker per region
-  referenceGdpPerCapita: Record<Region, number>;  // Year-0 GDP/capita per region
   referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
   referenceDependency: Record<Region, number>;     // Year-0 dependency ratio per region
   publicDebt: number;         // $ trillions
@@ -394,7 +391,6 @@ export const capitalDefaults: CapitalParams = {
 
   // Retirement age adjustment
   retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of gains in life expectancy at pension age (e65) → retirement age
-  wageIndexation: 0.7,          // 70% wage-indexed, 30% price-indexed
 
   // Demographic savings response (Bloom et al. 2003, Kinugasa & Mason 2007)
   savingsLifeExpSensitivity: 0.5,     // LE elasticity: longer life → save more
@@ -707,12 +703,6 @@ export const capitalModule: Module<
       range: { min: 0, max: 1, default: 0.67 },
       tier: 1 as const,
     },
-    wageIndexation: {
-      description: 'Degree of wage indexation for transfers. 0=price-indexed (frozen real), 1=fully wage-indexed.',
-      unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.7 },
-      tier: 1 as const,
-    },
     savingsLifeExpSensitivity: {
       description: 'Life expectancy elasticity on savings. Longer life → save more for retirement (lifecycle motive).',
       unit: 'elasticity',
@@ -980,11 +970,6 @@ export const capitalModule: Module<
       }
     }
 
-    if (params.wageIndexation !== undefined) {
-      if (params.wageIndexation < 0 || params.wageIndexation > 1) {
-        errors.push('wageIndexation must be between 0 and 1');
-      }
-    }
 
     if (params.savingsLifeExpSensitivity !== undefined) {
       if (params.savingsLifeExpSensitivity < 0 || params.savingsLifeExpSensitivity > 1) {
@@ -1135,8 +1120,6 @@ export const capitalModule: Module<
   init(params: CapitalParams): CapitalState {
     return {
       stock: params.initialCapitalStock,
-      referenceGdpPerWorker: {} as Record<Region, number>,
-      referenceGdpPerCapita: {} as Record<Region, number>,
       referenceLifeExpectancy: {} as Record<Region, number>,
       referenceDependency: {} as Record<Region, number>,
       publicDebt: 0,   // Initialized from GDP at yearIndex === 0
@@ -1227,19 +1210,13 @@ export const capitalModule: Module<
     ) as Record<Region, number>;
 
     // Capture reference values on first step (year 0)
-    const refGdpPerWorker = { ...state.referenceGdpPerWorker };
-    const refGdpPerCapita = { ...state.referenceGdpPerCapita };
     const refLE = { ...state.referenceLifeExpectancy };
     const refDependency = { ...state.referenceDependency };
     if (yearIndex === 0) {
       for (const r of REGIONS) {
         const working = inputs.regionalWorking[r] ?? 0;
-        const pop = inputs.regionalPopulation[r] ?? 0;
-        const regionGdp = inputs.regionalGdp[r] ?? 0;
         const young = inputs.regionalYoung[r] ?? 0;
         const old = inputs.regionalOld[r] ?? 0;
-        refGdpPerWorker[r] = working > 0 ? regionGdp / working : 0;
-        refGdpPerCapita[r] = pop > 0 ? regionGdp / pop : 0;
         refLE[r] = inputs.regionalLifeExpectancy?.[r] ?? 75;
         refDependency[r] = working > 0 ? (young + old) / working : 0;
       }
@@ -1281,19 +1258,24 @@ export const capitalModule: Module<
       const adjustedOld = old * (1 - fractionStillWorking);
       const adjustedWorking = working + old * fractionStillWorking;
 
-      // --- Wage indexation ---
-      // Blend current and reference GDP per worker/capita
+      // --- Benefit levels ---
+      // The average pension in payment is a stable fraction of current
+      // earnings (pensionRate, the 2025 benefit ratio). Price indexation in
+      // payment is a LEVEL gap already inside that ratio: each cohort's
+      // first pension is wage-linked, so the stock tracks wages. Blending in
+      // frozen 2025 GDP per worker (the old 30% "price-indexed" weight) turned
+      // that level gap into one that widened every year — 18% by 2055, 26%
+      // by 2100 — and cut ageing costs ~2.5pp of GDP by 2055. Healthcare and
+      // education per head track current GDP per capita (no excess cost
+      // growth: conservative against health's history of outgrowing GDP).
       const currentGdpPerWorker = adjustedWorking > 0 ? regionGdp / adjustedWorking : 0;
       const currentGdpPerCapita = pop > 0 ? regionGdp / pop : 0;
-      const wi = params.wageIndexation;
-      const effectiveGdpPerWorker = wi * currentGdpPerWorker + (1 - wi) * (refGdpPerWorker[r] ?? currentGdpPerWorker);
-      const effectiveGdpPerCapita = wi * currentGdpPerCapita + (1 - wi) * (refGdpPerCapita[r] ?? currentGdpPerCapita);
 
       const regionPensionTransfers =
-        adjustedOld * pensionRate * effectiveGdpPerWorker;
+        adjustedOld * pensionRate * currentGdpPerWorker;
       const regionRetireeHealthcare =
-        adjustedOld * healthcareRate * effectiveGdpPerCapita;
-      const regionEducation = young * educationRate * effectiveGdpPerCapita;
+        adjustedOld * healthcareRate * currentGdpPerCapita;
+      const regionEducation = young * educationRate * currentGdpPerCapita;
       const regionRetireeCost = regionPensionTransfers + regionRetireeHealthcare;
       const regionChildCost = regionEducation;
       regionalPensionTransfers[r] = regionPensionTransfers;
@@ -1689,8 +1671,6 @@ export const capitalModule: Module<
     return {
       state: {
         stock: newStock,
-        referenceGdpPerWorker: refGdpPerWorker,
-        referenceGdpPerCapita: refGdpPerCapita,
         referenceLifeExpectancy: refLE,
         referenceDependency: refDependency,
         publicDebt: newPublicDebt,
