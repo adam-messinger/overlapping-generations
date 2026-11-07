@@ -542,6 +542,41 @@ test('validation catches invalid savingsDependencySensitivity', () => {
 
 console.log('\n--- Debt/Credit Channel ---\n');
 
+// --- Firm cash floor ---
+
+test('firms that cannot pay their interest default instead of overdrawing deposits', () => {
+  // Opening with every deposit held by households and private debt at 6x
+  // GDP: the interest bill exceeds operating surplus from the first step and
+  // firms have no buffer, which used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance"
+  const params = capitalModule.mergeParams({
+    openingHouseholdDepositShare: 1,
+    initialPrivateDebtGDP: 6,
+  });
+  const inputs = getCapitalInputs(0);
+  const { state, outputs } = capitalModule.step(capitalModule.init(params), inputs, params, 2025, 0);
+
+  expect(outputs.privateInterestPayments + outputs.unpaidPrivateInterest)
+    .toBeGreaterThan(outputs.operatingSurplus);
+  expect(outputs.unpaidPrivateInterest).toBeGreaterThan(0);
+  expect(state.financialLedger!.balances['firms.deposits']).toBeBetween(0, 1e-6);
+  // Insolvent loans are written down to what the cash flow can carry
+  expect(outputs.loanWriteOffs).toBeCloseTo(outputs.unpaidPrivateInterest / outputs.interestRate, 6);
+  expect(outputs.nextPrivateDebtStock).toBeCloseTo(
+    state.financialLedger!.balances['firms.privateLoans'], 6,
+  );
+  // Saving stays on a paid basis, so the identities still close
+  expect(Math.abs(outputs.savingInvestmentResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.nationalAccountsResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.householdSavingLedgerResidual)).toBeLessThan(1e-9);
+  expect(outputs.financialLedgerResidual).toBeLessThan(1e-8);
+});
+
+test('firm cash floor does not bind while firms can pay', () => {
+  const { outputs } = runYears(30);
+  expect(outputs.unpaidPrivateInterest).toBe(0);
+});
+
 // --- Init ---
 
 test('debt stocks initialize from GDP at year 0', () => {

@@ -140,6 +140,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'laborCompensation', unit: '$T/year', description: 'Firm labor compensation in the monetary circuit', module: 'capital' },
     { source: 'operatingSurplus', unit: '$T/year', description: 'Firm gross operating surplus before depreciation and private interest', module: 'capital' },
     { source: 'privateInterestPayments', unit: '$T/year', description: 'Interest paid by firms to banks on private debt', module: 'capital' },
+    { source: 'unpaidPrivateInterest', unit: '$T/year', description: 'Interest due that firms could not pay once their deposits ran out (forgone by banks, not capitalized)', module: 'capital' },
     { source: 'profitAfterInterestAndDepreciation', unit: '$T/year', description: 'Firm profit after private interest and capital depreciation', module: 'capital' },
     { source: 'profitRate', unit: 'fraction/year', description: 'After-interest-and-depreciation firm profit divided by capital', module: 'capital' },
     { source: 'retainedEarnings', unit: '$T/year', description: 'Firm profit retained after dividends; negative when firms absorb losses', module: 'capital' },

@@ -136,6 +136,22 @@ test('saving-propensity params run across their whole declared paramMeta range',
   expect(floorBound).toBe(true);
 });
 
+test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, firmRetentionRate 0.1)', () => {
+  // Late in this run interest due exceeds firms' operating surplus; once the
+  // deposit buffer is gone this used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance". Without the insolvency
+  // write-down it instead collapsed GDP to zero under zombie debt by 2100.
+  const fast = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
+  const scenario = loadScenarioParamsSync('ai-energy-boom') as SimulationParams;
+  const r = runSimulation({ ...scenario, capital: { ...scenario.capital, firmRetentionRate: 0.1 } }, fast);
+  expect(r.results[r.results.length - 1].year).toBe(2100);
+  const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
+  expect(binding.length).toBeGreaterThan(0);
+  // The write-down keeps debt serviceable instead of letting it outrun output
+  for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
+  expect(r.results[r.results.length - 1].gdp).toBeGreaterThan(100);
+});
+
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
   const result = runSimulation({ startYear: 2025, endYear: 2100 });
   const first = result.results[0];
@@ -521,6 +537,10 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
 }
 
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
+test('firm cash floor never binds on the default path', () => {
+  for (const row of FULL_RUN.results) expect(row.unpaidPrivateInterest).toBe(0);
+});
 
 test('diagnostics: false leaves every macro number bit-identical', () => {
   const withDiag = FULL_RUN;

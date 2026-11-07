@@ -18,6 +18,9 @@
  * - Profit after interest and depreciation: Π = α(Y-G) - rD - δK
  * - Investment orders: I* = δK + boundedProfitResponse(Π/K)
  * - Finance: I = min(I*, firmInternalFunds + netCashCredit, Y-G)
+ * - Firm cash floor: firms cannot pay out deposits they do not have. A
+ *   shortfall suspends dividends, then leaves interest unpaid (banks forgo
+ *   it), then defaults on principal (a write-off)
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
@@ -197,6 +200,7 @@ export interface CapitalOutputs {
   laborCompensation: number;
   operatingSurplus: number;
   privateInterestPayments: number;
+  unpaidPrivateInterest: number; // $T/year of interest due that firms could not pay (forgone by banks)
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
   retainedEarnings: number;
@@ -711,6 +715,7 @@ export const capitalModule: Module<
       unfundedFinancingDemand: unitPort('$T/year'),
       grossSavings: unitPort('$T/year'),
       laborCompensation: unitPort('$T/year'),
+      unpaidPrivateInterest: unitPort('$T/year'),
       operatingSurplus: unitPort('$T/year'),
       privateInterestPayments: unitPort('$T/year'),
       profitAfterInterestAndDepreciation: unitPort('$T/year'),
@@ -1317,12 +1322,8 @@ export const capitalModule: Module<
       ),
       Math.max(0, firmCircuit.retainedEarnings),
     );
-    const firmDividendPayments =
+    const declaredFirmDividends =
       firmCircuit.firmDividendPayments + excessFirmCash;
-    const retainedEarnings =
-      firmCircuit.retainedEarnings - excessFirmCash;
-    const firmGrossSaving =
-      firmCircuit.firmGrossSaving - excessFirmCash;
     const householdConsumption = Math.max(
       0,
       subtractQuantities(
@@ -1338,6 +1339,56 @@ export const capitalModule: Module<
         'household-consumption residual',
       ).value,
     );
+    // Firm cash floor. Firm deposits move by net cash credit + gross saving -
+    // investment, and the investment cap above reads CLAMPED internal funds:
+    // once operating surplus no longer covers the interest bill (in practice
+    // private debt above general capital at a high rate, e.g. ai-energy-boom
+    // late in the century), gross saving goes negative, the deposit buffer
+    // drains, and the ledger would be asked for negative deposits. Firms
+    // cannot pay out money they do not have, so the shortfall is met by
+    // default, in the order a distressed firm would choose: suspend
+    // dividends, leave interest unpaid, then miss principal. Unpaid interest
+    // is simply not received (banks forgo the income; it is never capitalized
+    // into the loan, which would be the interest-capitalization spiral this
+    // model scopes out); missed principal is written off like any other
+    // default, so the private-debt path is unchanged. Binds only once the
+    // buffer is exhausted, never on the default path.
+    const openingFirmDeposits = openingFinancialLedger.balances['firms.deposits'] ?? 0;
+    const firmClosingCashBeforeDefault =
+      openingFirmDeposits
+      + grossLoanOriginations
+      - finance.principalRepayments
+      - firmCircuit.laborCompensation
+      + householdConsumption
+      - finance.privateInterestPayments
+      - declaredFirmDividends;
+    let firmCashShortfall = Math.max(0, -firmClosingCashBeforeDefault);
+    const suspendedFirmDividends = Math.min(firmCashShortfall, declaredFirmDividends);
+    firmCashShortfall -= suspendedFirmDividends;
+    const unpaidPrivateInterest = Math.min(firmCashShortfall, finance.privateInterestPayments);
+    firmCashShortfall -= unpaidPrivateInterest;
+    const defaultedPrincipal = Math.min(firmCashShortfall, finance.principalRepayments);
+    // Any remainder (none of these flows left to stop) still reaches the
+    // ledger, which rejects it: that would be a different closure bug.
+    const firmDividendPayments = declaredFirmDividends - suspendedFirmDividends;
+    const privateInterestPayments = finance.privateInterestPayments - unpaidPrivateInterest;
+    const principalRepayments = finance.principalRepayments - defaultedPrincipal;
+    // Unpaid interest marks the loans whose interest went unpaid as
+    // unserviceable: bankruptcy writes them down to what the cash flow can
+    // carry, unpaid / r, rather than leaving zombie principal to keep the
+    // risk premium and leverage brake engaged while output shrinks
+    const insolvencyWriteDown = unpaidPrivateInterest > 0 && finance.interestRate > 0
+      ? Math.min(finance.state.privateDebt, unpaidPrivateInterest / finance.interestRate)
+      : 0;
+    const loanWriteOffs = finance.loanWriteOffs + defaultedPrincipal + insolvencyWriteDown;
+    // Saving is on a paid basis, so the four sector balances still sum to
+    // investment: what firms keep, households (via bank dividends) lose
+    const retainedEarnings =
+      firmCircuit.retainedEarnings - excessFirmCash
+      + suspendedFirmDividends + unpaidPrivateInterest;
+    const firmGrossSaving =
+      firmCircuit.firmGrossSaving - excessFirmCash
+      + suspendedFirmDividends + unpaidPrivateInterest;
     const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
     const workerConsumption = householdConsumption - retireeConsumption;
 
@@ -1351,7 +1402,7 @@ export const capitalModule: Module<
       + publicInterestPayments
       - finance.publicDebtChange;
     const bankInterestIncome =
-      finance.privateInterestPayments + publicInterestToBanks;
+      privateInterestPayments + publicInterestToBanks;
     const bankDividendPayments = bankInterestIncome;
     const householdDisposableIncome =
       firmCircuit.laborCompensation
@@ -1469,7 +1520,7 @@ export const capitalModule: Module<
       : 0;
 
     const newPublicDebt = finance.state.publicDebt;
-    const newPrivateDebt = finance.state.privateDebt;
+    const newPrivateDebt = finance.state.privateDebt - insolvencyWriteDown;
 
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
@@ -1479,9 +1530,9 @@ export const capitalModule: Module<
       laborCompensation: firmCircuit.laborCompensation,
       householdConsumption,
       grossLoanOriginations,
-      principalRepayments: finance.principalRepayments,
-      loanWriteOffs: finance.loanWriteOffs,
-      privateInterestPayments: finance.privateInterestPayments,
+      principalRepayments,
+      loanWriteOffs,
+      privateInterestPayments,
       firmDividendPayments,
       bankDividendPayments,
       publicDebtChange: finance.publicDebtChange,
@@ -1524,7 +1575,8 @@ export const capitalModule: Module<
         grossSavings,
         laborCompensation: firmCircuit.laborCompensation,
         operatingSurplus: firmCircuit.operatingSurplus,
-        privateInterestPayments: finance.privateInterestPayments,
+        privateInterestPayments,
+        unpaidPrivateInterest,
         profitAfterInterestAndDepreciation:
           firmCircuit.profitAfterInterestAndDepreciation,
         profitRate: firmCircuit.profitRate,
@@ -1587,9 +1639,9 @@ export const capitalModule: Module<
         refinancedPrincipal,
         unfundedCreditDemand,
         creditImpulse,
-        principalRepayments: finance.principalRepayments,
-        loanWriteOffs: finance.loanWriteOffs,
-        netCreditCreation: finance.netCreditCreation,
+        principalRepayments,
+        loanWriteOffs,
+        netCreditCreation: newPrivateDebt - privateDebt,
         primaryDeficit: finance.primaryDeficit,
         netTaxes,
         debtRiskPremium,
