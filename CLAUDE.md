@@ -164,6 +164,13 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Regional fuel prices**: energy's `regional.<r>.fossilRunningCost` ($/MWh fuel + VOM) prices both the build and dispatch's merit order (one source of truth, passed as `regionalFossilRunningCost`). Gas is LNG-priced in OECD-ex-US/China/India/SE Asia ($63-77 vs the $35 US reference) and cheap in Russia/MENA; the 2025 build fit is re-solved by `scripts/calibrate-2025-build.ts`. Dispatch has no load curve, so where gas costs more than coal it runs only after coal (China gas generation ~0 vs ~300 TWh actual peaking)
 - **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
+- **World build capacity** (known limitation): over-subscribed sources are tightened pro
+  rata to the plan current when each first binds, so the result depends on the ORDER sources
+  bind in, and a source a hair either side of its cap moves the build discretely (~0.65 TWh).
+  The start-year fixed point can then cycle at that amplitude; the runner accepts a cycle
+  within `acceptCycleWithin` (1e-3 of each lag's size) with a warning. An order-independent
+  rule (ration by demand with other caps in place) removed it but never settled in 12
+  passes on the default path and tripled runtime
 - **Non-electric fuel mix**: one calibrated logit per sector (2025 recipes from IEA World Energy Balances; shares move only as carbon/fuel prices leave the 2025 reference). Industry's coal slice is then scaled to heavy-materials output, `(GDP/GDP2025)^heavyIndustryGdpElasticity` (0.3: steel and cement saturate) over industry's service-base index, the freed share going pro rata to its other fuels. Composition, not turnover, so it sits outside the logit's inertia. Without it industry coal tracked GDP x intensity and non-electric coal rose ~60% by 2055 against an IEA outlook of flat-to-falling non-power coal
 - **Dynamic EROI**: `eroi.solar/wind` scale with the fleet's capacity-weighted CF over `eroiReferenceCF` (the deployment conditions the literature EROI was measured at); a scenario that swaps EROI sources must move both
 
