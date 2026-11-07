@@ -5,7 +5,7 @@
 
 > **Staleness note (July 2026):** the model has changed materially since this
 > note's runs — a full-codebase bug-fix pass, GDP-weighted savings
-> aggregation, regional financing spreads, R/P-calibrated fossil depletion,
+> aggregation, regional financing spreads, resource-calibrated fossil depletion,
 > non-CO2 forcing, and a reformed CDR deployment gate. Quantitative results
 > below (especially the scenario table in §3 and all warming/GDP/CDR figures)
 > describe the February 2026 model and should be regenerated before being

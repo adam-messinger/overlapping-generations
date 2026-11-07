@@ -70,10 +70,14 @@ export interface EnergySourceParams {
   // Fossil fuel specific
   eroei0?: number;         // Initial EROEI
   // Depletion budget in extraction units (extraction accrues as
-  // installed_GW × 0.01/yr). Calibrated so that at the 2025 fleet the budget
-  // exhausts on the observed proved-reserves R/P timescale; a shrinking fleet
-  // stretches it, growth shortens it.
-  reserves?: number;
+  // installed_GW × 0.01/yr, so 2025 fleet × 0.01 = one year of 2025
+  // production). Sized to REMAINING TECHNICALLY RECOVERABLE RESOURCES, not
+  // proved reserves: proved reserves are a working inventory that resources
+  // convert into as extraction proceeds (world gas reserves 126 tcm in 1990,
+  // 209 tcm in 2023 while R/P held at ~50-60 yr, BGR), so a proved-reserves
+  // budget ran dry on the R/P horizon and gas LCOE jumped ~10x in one year.
+  // See FOSSIL_RESOURCES_2025.
+  recoverableResources?: number;
 
   // Regional 2025 baselines (replaces single capacity2025)
   capacity2025: Record<Region, number>;
@@ -502,6 +506,47 @@ function fleetWeighted(value: Record<Region, number>, fleet: Record<Region, numb
  */
 const WIND_FLEET_CF_2025 = fleetWeighted(REGIONAL_WIND_CF, REGIONAL_CAPACITY_2025.wind);
 
+/**
+ * Fossil depletion calibration: remaining technically recoverable resources
+ * (proved reserves + reserve growth in known fields + undiscovered +
+ * unconventional) over 2025 production.
+ *
+ * - gas: 800 tcm resources (225 tcm proved), IEA Global Energy and Climate
+ *   Model Documentation 2024, Table 6.1 (2023; from USGS, BGR, CEDIGAZ). BGR
+ *   Energy Study 2025 (end-2023) puts reserves + resources at 209 + 658 =
+ *   ~870 tcm, within 10%.
+ * - coal: 20,776 Gt resources (1,074 Gt proved), same IEA table. BGR
+ *   (end-2023): reserves 797 + 321 Gt and resources 16,199 + 3,515 Gt (hard
+ *   coal + lignite) = ~20,830 Gt.
+ * - production: EI Statistical Review of World Energy 2024, ~4.0 tcm gas and
+ *   ~8.7 Gt coal a year.
+ *
+ * The EROI decline in depletion() then runs on the share of the RESOURCE
+ * left, the quantity the IEA's own supply model depletes (GEC documentation
+ * 2024 §6.2: production is modelled from "remaining technically recoverable
+ * resources (Table 6.1), depletion rates, production costs, ..."). Depleting
+ * against proved reserves instead treats an inventory that has grown with
+ * extraction for 35 years (gas 126 -> 209 tcm 1990-2023, BGR) as a fixed
+ * endowment.
+ */
+export const FOSSIL_RESOURCES_2025 = {
+  gas: { resources: 800, provedReserves: 225, production: 4.0 },   // tcm, tcm, tcm/yr
+  coal: { resources: 20776, provedReserves: 1074, production: 8.7 }, // Gt, Gt, Gt/yr
+} as const;
+
+/** One year of 2025 production in extraction units (2025 fleet GW x 0.01). */
+export function annualExtraction2025(source: 'gas' | 'coal'): number {
+  let fleet = 0;
+  for (const region of REGIONS) fleet += REGIONAL_CAPACITY_2025[source][region];
+  return fleet * 0.01;
+}
+
+/** Depletion budget: 2025 extraction rate x resource-to-production years. */
+function resourceBudget(source: 'gas' | 'coal'): number {
+  const r = FOSSIL_RESOURCES_2025[source];
+  return annualExtraction2025(source) * (r.resources / r.production);
+}
+
 export const energyDefaults: EnergyParams = {
   sources: {
     solar: {
@@ -531,11 +576,9 @@ export const energyDefaults: EnergyParams = {
       capacity2025: REGIONAL_CAPACITY_2025.gas,
       carbonIntensity: 400,
       eroei0: 30,
-      // 2025 fleet (sum of capacity2025) x 0.01/yr exhausts this budget on
-      // the ~48-year proved-reserves R/P timescale (EI Statistical Review of
-      // World Energy 2024: ~188 tcm reserves / ~4.0 tcm/yr production).
-      // Pinned by the R/P calibration test in energy.test.ts.
-      reserves: 960,
+      // ~200 years of 2025 production (800 tcm / 4.0 tcm/yr); see
+      // FOSSIL_RESOURCES_2025. Pinned by the resource calibration test.
+      recoverableResources: resourceBudget('gas'),
     },
     coal: {
       name: 'Coal',
@@ -546,11 +589,9 @@ export const energyDefaults: EnergyParams = {
       capacity2025: REGIONAL_CAPACITY_2025.coal,
       carbonIntensity: 900,
       eroei0: 25,
-      // 2025 fleet x 0.01/yr exhausts this budget on the ~125-year
-      // proved-reserves R/P timescale (EI Statistical Review 2024: ~1,074 Gt
-      // reserves / ~8.7 Gt/yr production). Pinned by the R/P calibration
-      // test in energy.test.ts.
-      reserves: 2640,
+      // ~2,400 years of 2025 production (20,776 Gt / 8.7 Gt/yr); see
+      // FOSSIL_RESOURCES_2025. Pinned by the resource calibration test.
+      recoverableResources: resourceBudget('coal'),
     },
     nuclear: {
       name: 'Nuclear',
@@ -1682,9 +1723,10 @@ export const energyModule: Module<
         lcoe = hardwareCost * Math.pow(Math.max(1, ratio), -s.alpha) + s.softFloor;
         const eroi = params.eroi[source];
         netEnergyFraction[source] = eroi > 1 ? 1 - 1 / eroi : 0;
-      } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
-        // Fossil fuel with depletion - GLOBAL extraction
-        const dep = depletion(s.reserves, globalState.extracted, s.eroei0);
+      } else if (s.eroei0 !== undefined && s.recoverableResources !== undefined) {
+        // Fossil fuel with depletion - GLOBAL extraction against the
+        // remaining recoverable resource
+        const dep = depletion(s.recoverableResources, globalState.extracted, s.eroei0);
         const baseCost = s.cost0 / dep.netEnergyFraction;
         // Note: carbon cost added regionally below
         lcoe = baseCost;
@@ -2272,9 +2314,10 @@ export const energyModule: Module<
       const newCumulative = prevCumulative + globalAdditions[source];
 
       let extracted = state.global[source].extracted;
-      if (s.reserves !== undefined) {
-        // Extraction proxy: installed capacity (GW) × 0.01 per year (budget
-        // provenance at the gas/coal defaults). EROEI decline with fraction
+      if (s.recoverableResources !== undefined) {
+        // Extraction proxy: installed capacity (GW) × 0.01 per year, which
+        // is one year of 2025 production at the 2025 fleet (budget
+        // provenance at FOSSIL_RESOURCES_2025). EROEI decline with fraction
         // remaining follows the net-energy literature (Murphy & Hall 2010;
         // Delannoy et al. 2021; Brockway et al. 2019); the sqrt exponent in
         // primitives/math.ts depletion() is a stylized midpoint.
