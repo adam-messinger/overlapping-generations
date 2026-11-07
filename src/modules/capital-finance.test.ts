@@ -242,3 +242,23 @@ test('financial repression: an explicit lever, and a cap below growth at high pu
   expect(dominance.safeRate).toBeCloseTo(0.034 - params.repressionDepth, 12);
   expect(dominance.repressionGap).toBeGreaterThan(0);
 });
+
+test('credit capacity is the lending envelope: demand above it is exactly the unfunded part', () => {
+  const opening = { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 152.6 };
+  const inputs = { gdp: 158, capitalStock: 553 };
+  const unlimited = advanceCapitalFinance(opening, inputs, params);
+  const capacity = unlimited.netNewCreditCapacity;
+  expect(capacity).toBeGreaterThan(0);
+  expect(unlimited.newInvestmentLoanOriginations).toBeCloseTo(capacity, 12);
+  // Demand above the envelope: lending stops at capacity, the rest is unfunded
+  const over = advanceCapitalFinance(opening, { ...inputs, netNewCreditDemand: capacity + 1 }, params);
+  expect(over.unfundedNetNewCreditDemand).toBeCloseTo(1, 9);
+  expect(over.newInvestmentLoanOriginations + over.unfundedNetNewCreditDemand - over.netNewCreditCapacity)
+    .toBeCloseTo(1, 9);
+  // Demand below it: fully lent, and demand less capacity is negative (the
+  // unclipped gap the seed-year probe reads)
+  const under = advanceCapitalFinance(opening, { ...inputs, netNewCreditDemand: capacity / 2 }, params);
+  expect(under.unfundedNetNewCreditDemand).toBe(0);
+  expect(under.newInvestmentLoanOriginations).toBeCloseTo(capacity / 2, 9);
+  expect(under.newInvestmentLoanOriginations - under.netNewCreditCapacity).toBeLessThan(0);
+});
