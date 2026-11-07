@@ -15,7 +15,7 @@
  * Grid: production.gamma x production.serviceEfficiencyGrowth (growth),
  * capital.safeRateGrowthPassThrough, safeRateDebtSensitivity, neutralSafeRate
  * (rate) and capital.ageingCostDeficitShare (fiscal). Writes one JSON line per
- * run; summarize with the companion analysis in docs/SAFE_RATE_BACKCAST.md.
+ * run; results are summarized in docs/SAFE_RATE_BACKCAST.md section 2.
  *
  * Usage: npx tsx scripts/safe-rate-forecast-match.ts <out.jsonl>   (~1,080 runs, ~10-15 min)
  */

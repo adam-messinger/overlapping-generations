@@ -80,4 +80,86 @@ the equation omits, and the debt term is probably too small.
 
 ## 2. Forward: what reproduces the panel?
 
-_Filled in from the 1,080-run grid; see section 2 below._
+Targets (panel medians, 2026-2045): G7 r* 1.18% averaged over 2036-45
+(P10-P90 -0.05..2.30); advanced-economy debt 110% -> 147% by 2045, read as a
+x1.34 ratio on the model's world 0.90 (P10-P90 x1.05..x1.66); OECD+China real
+GDP per capita +1.60%/yr (P10-P90 0.81..2.57). Grid: 1,080 runs over energy
+weight `gamma` {0.55, 0.30, 0.15, 0.08} x `serviceEfficiencyGrowth`
+{1.29%, 0.9%} x c {0, 0.5, 1, 2, 3} x s {3, 6.5, 10bp} x z {1.0, 1.5, 2.0%} x
+`ageingCostDeficitShare` {0.25, 0.5, 1.0}. Distance = root sum of squared
+z-scores, sigma = (P90 - P10)/2.56.
+
+**Growth is the gate.** Growth with the safe-rate block at its defaults:
+
+| gamma | efficiency growth | OECD+CN per capita | safe 2036-45 | debt 2045 (x2025) |
+|---|---|---|---|---|
+| 0.55 (default) | 1.29% (default) | 3.71%/yr | 1.23% | 0.92 (x1.02) |
+| 0.30 | 1.29% | 2.80 | 0.76 | 1.00 (x1.11) |
+| 0.08 (mainstream) | 1.29% | 2.30 | 0.50 | 1.04 (x1.16) |
+| 0.08 | 0.9% | 1.88 | 0.26 | 1.07 (x1.19) |
+
+- **None of the 135 runs at the model's default growth lands in the panel's
+  80% range.** The closest borrows 100% of rising ageing costs: rate 1.56%,
+  debt x1.24 (1.12), but growth 3.69%/yr (distance 3.1 sigma).
+- **206 of 1,080 runs land inside it on all three**, all with gamma <= 0.30;
+  gamma = 0.30 qualifies only with slower efficiency growth. The slowest run in
+  the grid still grows 1.65%/yr, so the panel's 1.60% is at the edge of what
+  these levers can produce.
+
+**Best matches holding the 2026 rate at its observed level (z = 1%):**
+
+| gamma | eff | c | s | ageing share | safe 2036-45 | debt 2045 | debt 2060 | per capita | distance |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.08 | 0.9% | **1.0** | **6.5bp** | 0.25 | 1.22% | 1.18 (x1.31) | 1.61 | 1.84% | 0.36 |
+| 0.08 | 0.9% | 0.5 | 3bp | 0.50 | 1.16 | 1.24 (x1.37) | 1.63 | 1.84 | 0.38 |
+| 0.08 | 0.9% | 0.5 | 3bp | 0.25 | 1.02 | 1.16 (x1.29) | 1.50 | 1.85 | 0.45 |
+| 0.15 | 0.9% | 0.5 | 3bp | 0.50 | 1.17 | 1.22 (x1.36) | 1.63 | 1.94 | 0.50 |
+
+The best match keeps the default pass-through c = 1 and doubles the debt
+sensitivity to 6.5bp, the setting section 1's US out-of-sample check also
+points to. Raising z instead (1.5-2%) also fits, but it starts 2026 at
+1.6-2.1%, above the panel's own 0.95% G7 starting point.
+
+**Once growth is mainstream, c and s trade off** (gamma 0.08, eff 1.29%,
+z 1%, ageing 0.25; safe rate 2036-45 / debt x2045):
+
+| c \\ s | 3bp | 6.5bp | 10bp |
+|---|---|---|---|
+| 0 | 1.62% / x1.29 | 2.90 / x1.45 | 4.69 / x1.77 |
+| 0.5 | 1.05 / x1.22 | 2.05 / x1.34 | 4.06 / x1.60 |
+| 1 | 0.50 / x1.16 | 1.27 / x1.25 | 2.80 / x1.43 |
+| 2 | -0.53 / x1.05 | -0.15 / x1.09 | 0.66 / x1.18 |
+| 3 | -1.49 / x0.96 | -1.41 / x0.97 | -1.12 / x1.00 |
+
+The 2-3 pass-through that backcasts 1980-2019 best fails forward: when growth
+slows it drives the safe rate negative and debt flat. High s with low c is a
+debt-rate spiral (10bp, c = 0: 4.7% and x1.77).
+
+**Repression (panel Q4, 59.5%).** No matching run triggers the 150%
+fiscal-dominance cap by 2045 (at most 1 year); the median matching run hits it
+for 7 years by 2060. The model reaches the panel's financial-repression
+regime about 15 years late, because world debt (~1.2) stays below the
+advanced-economy debt (~1.47) that the panel's 140% YCC threshold is set
+against.
+
+## 3. Conclusions
+
+1. The model-panel gap is mostly **growth**, not rate parameters. With the
+   model's energy-driven growth (~3.7%/yr) no safe-rate or ageing setting
+   reproduces the panel; with mainstream growth (gamma ~0.08-0.15) several
+   do, close to the current rate block.
+2. The current **c = 1 is defensible** (best-fitting forward match; history
+   can't reject it). Lowering it does not improve the backcast.
+3. The **debt sensitivity looks low.** 6.5bp fits both the US 2019-26 rise and
+   the panel; 3bp is the bottom of the cited Laubach / CBO range (2-4bp) and
+   omits the term premium.
+4. The backcast's real message is **missing drivers**: the 1980-2019 decline
+   (~3.6pp) is twice what trend growth explains. A demographic term
+   (old-age dependency, already a model output) fits as well as growth but
+   extrapolates to deeply negative rates as ageing continues, so it is not a
+   drop-in fix.
+
+Caveats: the model's rate is a world rate anchored to world growth (3.4%),
+while the panel's is G7; JST debt is central or general government as each
+country reports it; real rates use adaptive inflation expectations, and the
+1980-2019 estimates are sensitive to that choice.
