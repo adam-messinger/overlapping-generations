@@ -16,6 +16,7 @@ import {
   applyDerivations,
   runAutowired,
   type AutowireResult,
+  type BootstrapOptions,
   type AnyModule,
   requireOutput,
   optionalOutput,
@@ -1002,6 +1003,30 @@ export function deriveSimulationParams(params: SimulationParams = {}) {
   });
 }
 
+/**
+ * Fixed-point warm-up: flow lags (generation, non-electric energy, overheads,
+ * damages, prices) get their year-0 self-consistent values instead of
+ * hand-guessed constants — kills the spurious -5.5% GDP step the old initials
+ * produced in the first simulated year.
+ *
+ * Energy's world build-capacity loop depends on the order in which sources hit
+ * their caps, so a source a hair either side of its cap moves the start-year
+ * build discretely (~0.65 TWh of US hydro in ssp1-19 at baseCreditGrowth 0.01),
+ * and the warm-up cycles at that amplitude however it is damped (~1e-4 of each
+ * lag's size). Such a cycle is accepted with a warning. Which runs land on that
+ * knife edge depends on float rounding, so it moves with the Node version and
+ * with any model change. An order-independent rationing rule removed it but
+ * tripled runtime and moved the blessed baseline.
+ */
+export const START_YEAR_BOOTSTRAP = {
+  maxIterations: 100,
+  minIterations: 2,
+  tolerance: 1e-7,
+  damping: 0.65,
+  onNonConvergence: 'throw',
+  acceptCycleWithin: 1e-3,
+} as const satisfies BootstrapOptions;
+
 // =============================================================================
 // RUN SIMULATION
 // =============================================================================
@@ -1079,25 +1104,7 @@ export function runAutowiredSimulation(
         ]),
       ],
     }, derivationReads),
-    // Fixed-point warm-up: flow lags (generation, non-electric energy,
-    // overheads, damages, prices) get their year-0 self-consistent values
-    // instead of hand-guessed constants — kills the spurious -5.5% GDP step
-    // the old initials produced in the first simulated year.
-    bootstrapLags: {
-      maxIterations: 100,
-      minIterations: 2,
-      tolerance: 1e-7,
-      damping: 0.65,
-      onNonConvergence: 'throw',
-      // Energy's world build-capacity loop depends on the order in which
-      // sources hit their caps, so a source a hair either side of its cap
-      // moves the start-year build discretely (~0.65 TWh of US hydro in
-      // ssp1-19 at baseCreditGrowth 0.01), and the warm-up cycles at that
-      // amplitude however it is damped (~1e-4 of each lag's size). Such a
-      // cycle is accepted with a warning. An order-independent rationing rule
-      // removed it but tripled runtime and moved the blessed baseline.
-      acceptCycleWithin: 1e-3,
-    },
+    bootstrapLags: START_YEAR_BOOTSTRAP,
   });
 }
 
