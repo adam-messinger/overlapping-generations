@@ -382,6 +382,19 @@ a representative run. Recorded violations are in
 `result.diagnostics.invariants`. The policy never changes what is computed,
 and reads from invariant checks are not counted by parameter liveness.
 
+## Seed-step continuity
+
+A model started from observed data should open on a smooth path; a first
+step that jumps (a lag seeded with a guessed constant, an equation whose
+fixed point is not the observed state) shifts every later level and is
+invisible in end-of-horizon metrics. `findSeedYearKinks(series, options)`
+compares each series' first change with the mean change over the next
+`trendSteps` (default 4) and reports those whose excess, beyond the later
+steps' own spread and relative to the series' magnitude, exceeds `threshold`
+(default 0.05). Steady trends, accelerations and noise score near zero.
+`startOffsets` examines a series from a later step, for values defined
+differently at the seed step (a growth rate that needs a previous level).
+
 ## Worked example: predator–prey
 
 Two modules in mutual feedback, with the cycle broken by a one-step lag. See
@@ -566,6 +579,7 @@ for sweeps.
 
 - **Composition:** `defineModule`, `Module`, `StepResult`, `ValidationResult`
 - **Invariants:** `ModuleInvariant`, `closeTo`, `atMost`, `atLeast`, `sumValues`, `evaluateInvariants`
+- **Seed step:** `findSeedYearKinks`, `scoreSeedYear`
 - **Running:** `runAutowired`, `initAutowired`, `stepAutowired`, `finalizeAutowired`
 - **Problem/solve:** `defineSimulation`, `solve`, `init`, `Stepper`
 - **Graph internals (exposed for testing/tools):** `buildOutputRegistry`,

@@ -8,6 +8,10 @@ onward. Before 1.0, minor versions may include breaking changes.
 ## [Unreleased]
 
 ### Added
+- `findSeedYearKinks(series, { trendSteps, threshold, startOffsets })` and
+  `scoreSeedYear`: report series whose first step departs from the path the
+  next steps describe (an initialization artifact), scored against the later
+  steps' own spread so trends, accelerations and noise are not flagged.
 - Parameter schemas: `defineParams(module, { ... })` with `num`, `bool`,
   `choice` and `group` declares each parameter once and derives typed
   defaults (`InferParams`), a strict deep `merge` (unknown keys rejected at

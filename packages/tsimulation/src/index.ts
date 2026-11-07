@@ -36,6 +36,7 @@ export * from './liveness.js';
 export * from './stock-flow.js';
 export * from './godley.js';
 export * from './dynamics.js';
+export * from './seed-year.js';
 export {
   assertCollectorContracts,
   auditCollectorContracts,
