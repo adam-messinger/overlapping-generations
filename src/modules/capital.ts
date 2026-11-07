@@ -23,7 +23,7 @@
  * - Household saving: S_h = disposableIncome - householdConsumption
  * - National accounts: GDP = HouseholdConsumption + Investment + GovernmentServices
  * - Capital accumulation: K_{t+1} = (1-δ)K_t + I_general
- * - Public debt: ΔD = primaryDeficit - fiscalConsolidation
+ * - Public debt: ΔD = primaryDeficit - fiscalConsolidation + r_safe·D
  * - Private debt: ΔD = gross originations - principal repayments - write-offs
  *
  * Sources:

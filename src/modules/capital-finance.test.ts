@@ -51,6 +51,30 @@ test('public debt pays the safe rate and private debt the loan rate, not the ret
   expect(result.safeRate).toBeLessThan(0.015);
 });
 
+test('public debt accrues interest at the safe rate on top of the primary balance', () => {
+  const noPrimary = {
+    ...params,
+    publicDeficitRate: 0,
+    fiscalReactionCoeff: 0,
+    financialSubsteps: 1,
+  };
+  const result = advanceCapitalFinance(
+    { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 158 },
+    { gdp: 158, capitalStock: 553 },
+    noPrimary,
+  );
+  expect(result.primaryDeficit).toBeCloseTo(0, 12);
+  expect(result.publicDebtChange).toBeCloseTo(result.safeRate * 142.2, 9);
+  // A repressed (negative) safe rate liquidates debt with no primary surplus.
+  const repressed = advanceCapitalFinance(
+    { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 158 },
+    { gdp: 158, capitalStock: 553 },
+    { ...noPrimary, neutralSafeRate: -0.03 },
+  );
+  expect(repressed.safeRate).toBeLessThan(0);
+  expect(repressed.publicDebtChange).toBeLessThan(0);
+});
+
 test('quarterly finance transition separates gross originations from net credit', () => {
   const result = advanceCapitalFinance(
     { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 158 },

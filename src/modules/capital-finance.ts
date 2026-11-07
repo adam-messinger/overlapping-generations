@@ -217,9 +217,20 @@ export function advanceCapitalFinance(
           * localGdp,
       ),
     );
-    const rawPublicDebtChange =
+    // Debt accumulates the overall deficit: the primary balance plus
+    // interest at the safe rate. (Interest used to be tax-financed by
+    // construction because it was charged at the ~6% return on capital,
+    // where capitalizing it spirals.) Δd = pd + (r_safe - g)·d, so a safe
+    // rate held below growth erodes the debt ratio: the financial-repression
+    // "liquidation effect" (Reinhart & Sbrancia 2015). The fiscal reaction
+    // still acts on the primary balance (Bohn 1998).
+    const primaryDebtChange =
       (params.publicDeficitRate * localGdp - fiscalConsolidationRate) * dt;
-    const publicDebtChange = Math.max(-publicDebt, rawPublicDebtChange);
+    const interestAccrual = safeRate * publicDebt * dt;
+    const publicDebtChange = Math.max(
+      -publicDebt,
+      primaryDebtChange + interestAccrual,
+    );
 
     const spreadFactor = Math.max(
       0,
@@ -250,7 +261,7 @@ export function advanceCapitalFinance(
 
     publicInterestPayments += safeRate * publicDebt * dt;
     privateInterestPayments += Math.max(0, loanRate) * privateDebt * dt;
-    primaryDeficit += publicDebtChange;
+    primaryDeficit += publicDebtChange - interestAccrual;
     publicDebt += publicDebtChange;
     privateDebt += origination - repayment - writeOff;
     grossLoanOriginations += origination;

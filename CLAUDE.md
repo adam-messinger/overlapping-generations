@@ -278,7 +278,10 @@ Do this before committing. Most fix-up commits in project history would have bee
   deprecated alias for ex-post national gross saving, not as an input to
   investment
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
-- Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
+- Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
+  interest at the safe rate, so Δd = pd + (r_safe − g)·d. A safe rate below growth erodes the ratio
+  (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
+  was charged at the ~6% return on capital, where capitalizing it spirals
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
