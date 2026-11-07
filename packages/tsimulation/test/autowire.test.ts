@@ -1071,6 +1071,52 @@ test('convergence-controlled bootstrap reports failure instead of claiming a fix
   );
 });
 
+test('bootstrap accepts a warm-up cycling within acceptCycleWithin, and only then', () => {
+  // A threshold makes the map jump, so the warm-up alternates 0.6, 0.4, 0.6,
+  // ... however many passes it gets; each pass moves the value by 0.2
+  const threshold = defineModule({
+    name: 'threshold',
+    description: '',
+    defaults: {},
+    inputs: ['previous'] as const,
+    outputs: ['flow'] as const,
+    validate: okValidate,
+    mergeParams: (p) => p,
+    init: () => ({}),
+    step: (_state, inputs) => ({
+      state: {},
+      outputs: { flow: inputs.previous < 0.5 ? 0.6 : 0.4 },
+    }),
+  });
+  const config = (band: number) => ({
+    modules: [threshold],
+    lags: { previous: { source: 'flow', delay: 1, initial: 0, bootstrap: true } },
+    bootstrapLags: {
+      maxIterations: 6,
+      tolerance: 1e-8,
+      onNonConvergence: 'throw' as const,
+      acceptCycleWithin: band,
+    },
+    startYear: 0,
+    endYear: 0,
+  });
+  const warn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message: string) => { warnings.push(message); };
+  try {
+    const result = runAutowired(config(0.25));
+    const bootstrap = result.diagnostics?.bootstrap;
+    assert.equal(bootstrap?.converged, false);
+    assert.ok(bootstrap?.acceptedCycle);
+    assert.ok(Math.abs(bootstrap.acceptedCycle.scaledResidual - 0.2) < 1e-12);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /accepting the last pass/);
+  } finally {
+    console.warn = warn;
+  }
+  assert.throws(() => runAutowired(config(0.1)), /Lag bootstrap did not converge after 6 iterations/);
+});
+
 test('convergence-controlled bootstrap exposes residual diagnostics', () => {
   const result = runAutowired({
     ...bootstrapFixtureConfig(true),

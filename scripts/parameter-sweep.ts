@@ -140,7 +140,7 @@ function computePerturbations(schema: Record<string, any>): ParamPerturbation[] 
 
   for (const name of Object.keys(schema)) {
     const info = schema[name];
-    if (isDiagnosticParam(info)) continue;
+    if (isDiagnosticParam(info) || info.derivedFrom) continue;
 
     if (info.type === 'boolean') {
       perturbations.push({ name, lowValue: false, highValue: true });
@@ -267,6 +267,15 @@ async function main() {
       `conflate them with genuinely inert macro knobs:`,
     );
     for (const name of skipped) console.log(`  ${name}  (${schema[name].path})`);
+  }
+  // A derived parameter is not an independent knob: perturbing it alone would
+  // re-split the quantity it shares with its source, measuring an artifact.
+  const derived = Object.keys(schema).filter(name => schema[name].derivedFrom);
+  if (derived.length > 0) {
+    console.log(`Not swept: ${derived.length} derived parameter(s); their sources are swept instead:`);
+    for (const name of derived) {
+      console.log(`  ${name}  (${schema[name].path} <- ${schema[name].derivedFrom!.join(', ')})`);
+    }
   }
   console.log();
 

@@ -153,12 +153,11 @@ export interface EnergyEnsembleInput {
    *
    * This is demand's multiplier, NOT production's `serviceEfficiencyGrowth`,
    * and the difference is not cosmetic. The efficiency engine is one series
-   * with two views — demand's intensity decline and production's eta — coupled
-   * in `runAutowiredSimulation`, which derives production's growth rate from
-   * demand's whenever it is not given explicitly. Supplying
-   * `serviceEfficiencyGrowth` directly wins over that coupling and re-splits
-   * the two views, which is the failure CLAUDE.md and the coupling comment
-   * both warn about.
+   * with two views — demand's intensity decline and production's eta — and
+   * production's growth rate is derived from demand's (src/param-derivations.ts).
+   * Supplying `serviceEfficiencyGrowth` directly is refused unless the run
+   * lists it in `decouple`, because doing so re-splits the two views. The
+   * numbers below measure what that re-split would cost.
    *
    * Measured on this model over [0.7, 1.5], the scenario span this input uses.
    * Coupled: gdp2100 1101 -> 2751 ($T), a 2.50x span, while energy per $ of
@@ -269,9 +268,9 @@ export function toSimulationParams(input: EnergyEnsembleInput): SimulationParams
       input[field as keyof EnergyEnsembleInput],
     ]),
   );
-  // Note what is NOT set: production.serviceEfficiencyGrowth. Leaving it
-  // undefined is what lets runAutowiredSimulation derive it from demand, so
-  // both views of the one efficiency series move together.
+  // Note what is NOT set: production.serviceEfficiencyGrowth. It is derived
+  // from demand (src/param-derivations.ts), so both views of the one
+  // efficiency series move together; setting it would be refused.
   const params = buildMultiParams(tier1) as SimulationParams;
   return {
     ...params,

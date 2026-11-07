@@ -65,6 +65,12 @@ export interface SimulationParams {
   resources?: Partial<ResourcesParams>;
   cdr?: Partial<CDRParams>;
   climate?: Partial<ClimateParams>;
+  /**
+   * Derived parameters (src/param-derivations.ts) this run may set explicitly,
+   * splitting them from the quantity they are derived from. Setting a derived
+   * parameter without listing it here is an error.
+   */
+  decouple?: string[];
 }
 
 /**
@@ -80,7 +86,7 @@ export interface SimulationParams {
  * cannot silently fail to reach the domain API.
  */
 export interface RunOptions
-  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads'> {
+  extends Pick<AutowireConfig, 'connectorValidation' | 'paramLiveness' | 'trackReads' | 'invariants'> {
   /**
    * Run the diagnostic ledgers (`generations`, `humanCapital`). Default true.
    *
@@ -144,6 +150,7 @@ export interface YearResult {
   unfundedFinancingDemand: number;
   grossSavings: number;
   laborCompensation: number;
+  laborShare: number;
   operatingSurplus: number;
   privateInterestPayments: number;
   unpaidPrivateInterest: number;
@@ -166,6 +173,9 @@ export interface YearResult {
   regionalSavings: Record<Region, number>;
   stability: number;
   interestRate: number;
+  safeRate: number;
+  loanRate: number;
+  repressionGap: number;
   robotsDensity: number;
   automationShare: number;
   capitalOutputRatio: number;

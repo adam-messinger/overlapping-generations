@@ -16,75 +16,93 @@
  * - Lackner (2020): The promise of negative emissions
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
+import { defineModule, defineParams, type InferParams, Module, num, unitPort } from 'tsimulation';
 import { clamp } from '../primitives/math.js';
+import { climateDefaults } from './climate.js';
 
 // =============================================================================
 // PARAMETERS
 // =============================================================================
 
-export interface CDRParams {
-  /** Initial capital cost $/ton CO2 (2025) */
-  cost0: number;
-  /** Wright's Law learning exponent */
-  alpha: number;
-  /** Starting cumulative deployment Gt (2025) */
-  cumulative2025: number;
+/**
+ * One declaration per parameter: the defaults, the type, validation, the
+ * strict deep merge and the introspection metadata are all derived from it.
+ */
+export const cdrParams = defineParams('cdr', {
+  cost0: num({
+    default: 400, unit: '$/tCO2', min: 0, exclusiveMin: true, explore: { min: 100, max: 1000 },
+    source: 'Current DAC ~$400-600/t: Fasihi et al. 2019; McQueen et al. 2021',
+    tier: 1, paramName: 'cdrCost0',
+    description: 'Initial capital cost of CDR per ton CO2. Current DAC is ~$400-600.',
+  }),
+  alpha: num({
+    default: 0.15, unit: '1', min: 0, max: 1, explore: { min: 0.05, max: 0.30 },
+    source: "Judgment: moderate learning, below solar's 0.36 (Rubin 2019) for process complexity",
+    tier: 1, paramName: 'cdrAlpha',
+    description: "Wright's Law learning exponent for CDR capital cost. Lower than solar (0.36) due to process complexity.",
+  }),
+  cumulative2025: num({
+    default: 0.001, unit: 'GtCO2', min: 0, exclusiveMin: true,
+    source: '~1 Mt captured to date (IEA DAC tracking, 2024)',
+  }),
+  energyPerTon: num({
+    default: 2500, unit: 'kWh/tCO2', min: 0, exclusiveMin: true, explore: { min: 1000, max: 5000 },
+    source: 'Thermodynamic minimum ~250, real systems ~2000-3000 kWh/t (Fasihi et al. 2019)',
+    tier: 1, paramName: 'cdrEnergyPerTon',
+    description: 'Electricity required per ton CO2 captured. Thermodynamic minimum ~250 kWh, real systems ~2000-3000.',
+  }),
+  maxGrowthRate: num({
+    default: 0.30, unit: 'fraction/year', min: 0, exclusiveMin: true,
+    source: 'Assumption: 30%/yr capacity growth, the pace of early solar/wind scale-up',
+  }),
+  bootstrapRate: num({
+    default: 0.001, unit: 'GtCO2/year', min: 0,
+    source: 'Assumption: 1 Mt/yr minimum addition so deployment can start from ~0',
+  }),
+  maxDeployRate: num({
+    default: 15, unit: 'GtCO2/year', min: 0, exclusiveMin: true,
+    source: 'Assumption: physical/geological storage ceiling (IPCC AR6 WG3 ranges top out near 15 Gt/yr)',
+  }),
+  budgetFraction: num({
+    default: 0.005, unit: 'fraction', min: 0, max: 0.1, explore: { min: 0.001, max: 0.02 },
+    source: 'Assumption: 0.5% of GDP maximum CDR spend',
+    tier: 1, paramName: 'cdrBudgetFraction',
+    description: 'Maximum fraction of GDP allocated to CDR spending.',
+  }),
+  discountRate: num({
+    default: 0.03, unit: 'fraction/year', min: 0, exclusiveMin: true,
+    source: '3% social discount rate, fallback when no interest rate is wired (EPA 2023 SCC central 2%)',
+  }),
+  socialDiscountFactor: num({
+    default: 0.5, unit: 'fraction', min: 0,
+    source: 'Assumption: social rate = 50% of the market real rate',
+  }),
+  sccHorizonYears: num({
+    default: 100, unit: 'year', min: 10, max: 300,
+    source: 'EPA (2023) uses ~280 years; 100 is a conservative truncation',
+    tier: 2,
+    description: 'Horizon for the SCC growing-annuity NPV. EPA (2023) uses ~280 years; 100 is a conservative truncation. Longer horizons raise the SCC and pull CDR deployment earlier.',
+  }),
+  damageCoeff: num({
+    default: climateDefaults.damageCoeff, unit: '1/Δ°C^2', min: 0,
+    // Derived from climate.damageCoeff at run time (src/param-derivations.ts).
+    source: 'Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); = climate.damageCoeff',
+  }),
+  tcre: num({
+    default: 0.00058, unit: 'Δ°C/GtCO2', min: 0,
+    // The climate module's 75-yr EMERGENT warming/GtCO2 at default sensitivity
+    // 3.0 and airborneFractionSlope 0.05 — the emergent average rather than
+    // the 30-yr marginal (0.00045, AR6 central) because the SCC annuity
+    // integrates damages over the full deployment horizon. Pinned to
+    // climate's emergent value in climate.test.ts; derived from climate
+    // sensitivity at run time (src/param-derivations.ts).
+    source: 'Emergent 75-yr TCRE of the climate module at sensitivity 3.0 (AR6 likely 0.27-0.63 C/TtCO2)',
+  }),
+});
 
-  /** Energy requirement kWh per ton CO2 */
-  energyPerTon: number;
+export type CDRParams = InferParams<typeof cdrParams.children>;
 
-  /** Max annual capacity growth fraction */
-  maxGrowthRate: number;
-  /** Minimum capacity addition Gt/yr (bootstrap) */
-  bootstrapRate: number;
-  /** Hard cap on deployment Gt/yr */
-  maxDeployRate: number;
-  /** Max fraction of GDP for CDR spending */
-  budgetFraction: number;
-
-  /** Discount rate for NPV of permanent damage reduction (fallback when no interest rate) */
-  discountRate: number;
-
-  /** Fraction of market interest rate used for social discount (CDR NPV) */
-  socialDiscountFactor: number;
-
-  /** Horizon (years) for the SCC's growing-annuity NPV */
-  sccHorizonYears: number;
-
-  /** Damage coefficient (mirrors climate module) */
-  damageCoeff: number;
-  /** Transient climate response to cumulative emissions, C per Gt CO2 */
-  tcre: number;
-}
-
-export const cdrDefaults: CDRParams = {
-  cost0: 400,             // $/ton CO2 (current DAC costs ~$400-600)
-  alpha: 0.15,            // Moderate learning (less than solar's 0.36)
-  cumulative2025: 0.001,  // ~1 Mt captured to date
-
-  energyPerTon: 2500,     // kWh/ton CO2 (thermodynamic minimum ~250, real ~2000-3000)
-
-  maxGrowthRate: 0.30,    // 30% annual capacity growth
-  bootstrapRate: 0.001,   // 1 Mt/yr minimum addition to bootstrap
-  maxDeployRate: 15,      // 15 Gt/yr hard cap (physical/geological limits)
-  budgetFraction: 0.005,  // 0.5% of GDP max spend
-
-  discountRate: 0.03,     // 3% social discount rate (fallback)
-  socialDiscountFactor: 0.5, // Social rate = 50% of market rate
-  sccHorizonYears: 100,   // NPV horizon; rationale and source in paramMeta
-
-  damageCoeff: 0.00536,   // Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate module default
-  // Mirrors the climate module's 75-yr EMERGENT warming/GtCO2 (0.00058 at
-  // default sensitivity 3.0 and airborneFractionSlope 0.05) — the emergent
-  // average rather than the 30-yr marginal (0.00045, AR6 central) because
-  // the SCC annuity integrates damages over the full deployment horizon.
-  // Duplicated here because modules are parameter-isolated; pinned to
-  // climate's emergent value in climate.test.ts. Scenarios overriding
-  // climate sensitivity OR airborneFractionSlope should override this to
-  // match, or the SCC gate and realized warming silently diverge.
-  tcre: 0.00058,
-};
+export const cdrDefaults: CDRParams = cdrParams.defaults;
 
 // =============================================================================
 // STATE
@@ -147,42 +165,7 @@ export const cdrModule: Module<
 
   defaults: cdrDefaults,
 
-  paramMeta: {
-    cost0: {
-      paramName: 'cdrCost0',
-      description: 'Initial capital cost of CDR per ton CO2. Current DAC is ~$400-600.',
-      unit: '$/ton CO₂',
-      range: { min: 100, max: 1000, default: 400 },
-      tier: 1 as const,
-    },
-    alpha: {
-      paramName: 'cdrAlpha',
-      description: "Wright's Law learning exponent for CDR capital cost. Lower than solar (0.36) due to process complexity.",
-      unit: 'dimensionless',
-      range: { min: 0.05, max: 0.30, default: 0.15 },
-      tier: 1 as const,
-    },
-    energyPerTon: {
-      paramName: 'cdrEnergyPerTon',
-      description: 'Electricity required per ton CO2 captured. Thermodynamic minimum ~250 kWh, real systems ~2000-3000.',
-      unit: 'kWh/ton CO₂',
-      range: { min: 1000, max: 5000, default: 2500 },
-      tier: 1 as const,
-    },
-    budgetFraction: {
-      paramName: 'cdrBudgetFraction',
-      description: 'Maximum fraction of GDP allocated to CDR spending.',
-      unit: 'fraction',
-      range: { min: 0.001, max: 0.02, default: 0.005 },
-      tier: 1 as const,
-    },
-    sccHorizonYears: {
-      description: 'Horizon for the SCC growing-annuity NPV. EPA (2023) uses ~280 years; 100 is a conservative truncation. Longer horizons raise the SCC and pull CDR deployment earlier.',
-      unit: 'years',
-      range: { min: 10, max: 300, default: 100 },
-      tier: 2 as const,
-    },
-  },
+  paramMeta: cdrParams.paramMeta,
 
   connectorTypes: {
     inputs: {
@@ -202,44 +185,10 @@ export const cdrModule: Module<
     },
   },
 
-  validate(params: Partial<CDRParams>): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
+  validate: cdrParams.validate,
 
-    if (params.cost0 !== undefined && params.cost0 <= 0) {
-      errors.push('cost0 must be positive');
-    }
-    if (params.alpha !== undefined && (params.alpha < 0 || params.alpha > 1)) {
-      errors.push('alpha must be between 0 and 1');
-    }
-    if (params.energyPerTon !== undefined && params.energyPerTon <= 0) {
-      errors.push('energyPerTon must be positive');
-    }
-    if (params.maxGrowthRate !== undefined && params.maxGrowthRate <= 0) {
-      errors.push('maxGrowthRate must be positive');
-    }
-    if (params.maxDeployRate !== undefined && params.maxDeployRate <= 0) {
-      errors.push('maxDeployRate must be positive');
-    }
-    if (params.budgetFraction !== undefined && (params.budgetFraction < 0 || params.budgetFraction > 0.1)) {
-      errors.push('budgetFraction must be between 0 and 0.1');
-    }
-    if (params.discountRate !== undefined && params.discountRate <= 0) {
-      errors.push('discountRate must be positive');
-    }
-    if (params.sccHorizonYears !== undefined &&
-        (!Number.isFinite(params.sccHorizonYears) ||
-          params.sccHorizonYears < 10 || params.sccHorizonYears > 300)) {
-      errors.push('sccHorizonYears must be between 10 and 300');
-    }
-    return { valid: errors.length === 0, errors, warnings };
-  },
-
-  mergeParams(partial: Partial<CDRParams>): CDRParams {
-    return validatedMerge('cdr', this.validate, (p) => ({
-      ...cdrDefaults,
-      ...p,
-    }), partial);
+  mergeParams(partial) {
+    return cdrParams.merge(partial);
   },
 
   init(_params: CDRParams): CDRState {

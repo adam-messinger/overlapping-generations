@@ -32,6 +32,12 @@ import {
 } from './semantics.js';
 import { trackObjectReads, unreadOverridePaths } from './liveness.js';
 import { findNonFiniteValues } from './validation.js';
+import {
+  evaluateInvariants,
+  formatInvariantViolation,
+  type InvariantDiagnostics,
+  type InvariantPolicy,
+} from './invariants.js';
 
 // =============================================================================
 // TYPES
@@ -162,6 +168,13 @@ export interface AutowireConfig {
   paramLiveness?: 'off' | 'report' | 'warn' | 'error';
 
   /**
+   * Policy for module invariants (default 'error'): 'error' throws at the
+   * first violating step, 'warn' logs and records every violation, 'report'
+   * only records them in `diagnostics.invariants`, 'off' skips the checks.
+   */
+  invariants?: InvariantPolicy;
+
+  /**
    * Parameter paths consumed by composition code or transform closures rather
    * than by a module's proxied init/step functions.
    */
@@ -190,6 +203,18 @@ export interface BootstrapOptions {
   damping?: number;
   /** Behavior when maxIterations is reached before tolerance. */
   onNonConvergence?: 'throw' | 'warn' | 'ignore';
+  /**
+   * Fallback for a fixed point the warm-up cannot reach. A model with a
+   * small discontinuity (a threshold, an order-dependent rule) can leave the
+   * warm-up cycling between nearby values however it is damped. When
+   * maxIterations is reached and the last pass moved each bootstrapped lag
+   * by at most this fraction of its size (its largest change over
+   * max(1, its largest value), so a record is measured against its biggest
+   * entry, not each small one), the last pass is accepted with a warning
+   * (unless onNonConvergence is 'ignore') instead of applying
+   * onNonConvergence.
+   */
+  acceptCycleWithin?: number;
 }
 
 export interface BootstrapDiagnostics {
@@ -200,6 +225,8 @@ export interface BootstrapDiagnostics {
   residual: number;
   tolerance?: number;
   lagNames: string[];
+  /** Set when acceptCycleWithin accepted a warm-up that never converged */
+  acceptedCycle?: { scaledResidual: number; band: number };
 }
 
 /**
@@ -915,6 +942,7 @@ export interface AutowireResult {
       unreadOverridePaths: string[];
       completeRun: boolean;
     }>;
+    invariants?: InvariantDiagnostics;
   };
 }
 
@@ -942,6 +970,13 @@ export interface AutowireState {
   paramReads: Map<string, Set<string>>;
   paramOverrides: Map<string, unknown>;
   paramLiveness: NonNullable<AutowireConfig['paramLiveness']>;
+  invariants: InvariantPolicy;
+  /** Merged params without the liveness proxy, so invariant reads are not counted. */
+  rawParamsMap: Map<string, any>;
+  /** Each module's outputs and inputs from its previous step, for invariants. */
+  lastOutputs: Map<string, any>;
+  lastInputs: Map<string, any>;
+  invariantDiagnostics: InvariantDiagnostics;
 }
 
 /**
@@ -1059,6 +1094,7 @@ export function initAutowired(
     semanticValidation = 'if-present',
     paramLiveness = 'off',
     externalParamReads = {},
+    invariants = 'error',
   } = config;
 
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear)) {
@@ -1083,6 +1119,7 @@ export function initAutowired(
   const paramsMap = new Map<string, any>();
   const paramReads = new Map<string, Set<string>>();
   const paramOverrides = new Map<string, unknown>();
+  const rawParamsMap = new Map<string, any>();
 
   for (const mod of sortedModules) {
     // Merge + validate at load time: throws on invalid params, warns on
@@ -1096,6 +1133,7 @@ export function initAutowired(
     );
     const partial = params[mod.name] ?? {};
     paramOverrides.set(mod.name, partial);
+    rawParamsMap.set(mod.name, mergedParams);
     if (paramLiveness !== 'off') {
       const tracked = trackObjectReads(mergedParams as object);
       paramsMap.set(mod.name, tracked.proxy);
@@ -1151,6 +1189,11 @@ export function initAutowired(
     paramReads,
     paramOverrides,
     paramLiveness,
+    invariants,
+    rawParamsMap,
+    lastOutputs: new Map(),
+    lastInputs: new Map(),
+    invariantDiagnostics: { checked: 0, violations: [] },
   };
 }
 
@@ -1245,6 +1288,33 @@ export function stepAutowired(state: AutowireState): { year: number; outputs: Re
       }
     }
 
+    if (state.invariants !== 'off' && mod.invariants) {
+      const violations = evaluateInvariants(mod.name, mod.invariants, {
+        params: state.rawParamsMap.get(mod.name),
+        previousState: modState,
+        state: result.state,
+        inputs,
+        outputs: result.outputs,
+        previousOutputs: state.lastOutputs.get(mod.name),
+        previousInputs: state.lastInputs.get(mod.name),
+        year,
+        yearIndex,
+      });
+      state.invariantDiagnostics.checked += mod.invariants.length;
+      if (violations.length > 0) {
+        if (state.invariants === 'error') {
+          throw new Error(`Invariant violations:\n${violations.map(formatInvariantViolation).join('\n')}`);
+        }
+        if (state.invariants === 'warn') {
+          for (const violation of violations) console.warn(`[autowire] ${formatInvariantViolation(violation)}`);
+        }
+        state.invariantDiagnostics.violations.push(...violations);
+      }
+      // Kept only for invariants' previous-step context
+      state.lastOutputs.set(mod.name, result.outputs);
+      state.lastInputs.set(mod.name, inputs);
+    }
+
     state.stateMap.set(mod.name, result.state);
     state.states[mod.name].push(result.state);
 
@@ -1336,13 +1406,27 @@ export function finalizeAutowired(state: AutowireState): AutowireResult {
     ...(outputContractEntries.length === expectedOutputContracts
       ? { outputContracts: Object.fromEntries(outputContractEntries) }
       : {}),
-    ...((state.diagnostics || parameterLiveness) ? {
+    ...((state.diagnostics || parameterLiveness || state.invariants !== 'off') ? {
       diagnostics: {
         ...(state.diagnostics ?? {}),
         ...(parameterLiveness ? { parameterLiveness } : {}),
+        ...(state.invariants !== 'off' ? {
+          invariants: {
+            checked: state.invariantDiagnostics.checked,
+            violations: [...state.invariantDiagnostics.violations],
+          },
+        } : {}),
       },
     } : {}),
   };
+}
+
+/** Largest absolute value anywhere in a value tree */
+function maxMagnitude(value: unknown, seen = new WeakSet<object>()): number {
+  if (typeof value === 'number') return Math.abs(value);
+  if (typeof value !== 'object' || value === null || seen.has(value)) return 0;
+  seen.add(value);
+  return Object.values(value).reduce<number>((m, v) => Math.max(m, maxMagnitude(v, seen)), 0);
 }
 
 function maxAbsoluteDifference(a: unknown, b: unknown, seen = new WeakSet<object>()): number {
@@ -1420,7 +1504,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     .map(([name]) => name);
   const enabled = lagNames.length > 0 && requested !== 0;
   const options: Required<Pick<BootstrapOptions, 'maxIterations' | 'minIterations' | 'damping' | 'onNonConvergence'>> &
-    Pick<BootstrapOptions, 'tolerance'> = typeof requested === 'number'
+    Pick<BootstrapOptions, 'tolerance' | 'acceptCycleWithin'> = typeof requested === 'number'
       ? {
           maxIterations: requested,
           minIterations: requested,
@@ -1434,6 +1518,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
           damping: requested.damping ?? 1,
           onNonConvergence: requested.onNonConvergence ?? 'throw',
           tolerance: requested.tolerance ?? 1e-8,
+          acceptCycleWithin: requested.acceptCycleWithin,
         };
 
   if (!Number.isInteger(options.maxIterations) || options.maxIterations < 0) {
@@ -1449,6 +1534,10 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
   if (options.tolerance !== undefined &&
       (!Number.isFinite(options.tolerance) || options.tolerance < 0)) {
     throw new Error('bootstrap tolerance must be finite and >= 0');
+  }
+  if (options.acceptCycleWithin !== undefined &&
+      (!Number.isFinite(options.acceptCycleWithin) || options.acceptCycleWithin < 0)) {
+    throw new Error('bootstrap acceptCycleWithin must be finite and >= 0');
   }
 
   if (!enabled || options.maxIterations === 0) {
@@ -1468,6 +1557,7 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
 
   let cfg = config;
   let residual = Number.POSITIVE_INFINITY;
+  let scaledResidual = Number.POSITIVE_INFINITY;
   let converged = options.tolerance === undefined;
   let iterations = 0;
 
@@ -1485,14 +1575,22 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     // unconditional, so a diverging warm-up still fails loudly.
     const warm = initAutowired({ ...cfg, bootstrapLags: 0 }, compiled);
     warm.connectorValidation = 'off';
+    // Warm-up steps are scratch passes over year 0; the run proper checks it.
+    warm.invariants = 'off';
     stepAutowired(warm);
     const newLags: Record<string, LagConfig> = {};
     residual = 0;
+    scaledResidual = 0;
     for (const [name, lag] of Object.entries(cfg.lags ?? {})) {
       if (lag.bootstrap) {
         const history = warm.lagHistory.get(name)!;
         const candidate = history[history.length - 1];
-        residual = Math.max(residual, maxAbsoluteDifference(lag.initial, candidate));
+        const difference = maxAbsoluteDifference(lag.initial, candidate);
+        residual = Math.max(residual, difference);
+        scaledResidual = Math.max(
+          scaledResidual,
+          difference / Math.max(1, maxMagnitude(candidate)),
+        );
         newLags[name] = {
           ...lag,
           initial: dampValue(lag.initial, candidate, options.damping),
@@ -1512,6 +1610,10 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     }
   }
 
+  const acceptedCycle = !converged && options.acceptCycleWithin !== undefined &&
+    scaledResidual <= options.acceptCycleWithin
+    ? { scaledResidual, band: options.acceptCycleWithin }
+    : undefined;
   const diagnostics: BootstrapDiagnostics = {
     enabled: true,
     converged,
@@ -1520,13 +1622,25 @@ export function prepareAutowiredConfig(config: AutowireConfig): {
     residual,
     tolerance: options.tolerance,
     lagNames,
+    ...(acceptedCycle ? { acceptedCycle } : {}),
   };
   if (!converged) {
     const message =
       `Lag bootstrap did not converge after ${options.maxIterations} iterations ` +
       `(residual ${residual}, tolerance ${options.tolerance})`;
-    if (options.onNonConvergence === 'throw') throw new Error(message);
-    if (options.onNonConvergence === 'warn') console.warn(`[autowire] ${message}`);
+    if (acceptedCycle) {
+      if (options.onNonConvergence !== 'ignore') {
+        console.warn(
+          `[autowire] ${message}; accepting the last pass, which moved each lag ` +
+          `by at most ${scaledResidual.toExponential(2)} of its size ` +
+          `(acceptCycleWithin ${options.acceptCycleWithin})`,
+        );
+      }
+    } else if (options.onNonConvergence === 'throw') {
+      throw new Error(message);
+    } else if (options.onNonConvergence === 'warn') {
+      console.warn(`[autowire] ${message}`);
+    }
   }
   return { config: cfg, diagnostics, compiled };
 }

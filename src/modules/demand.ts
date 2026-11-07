@@ -21,7 +21,15 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import { compound, lerp, clamp, structuralDecayFactor } from '../primitives/math.js';
-import { defineModule, Module, validatedMerge, unitPort } from 'tsimulation';
+import {
+  closeTo,
+  defineModule,
+  Module,
+  type ModuleInvariant,
+  sumValues,
+  validatedMerge,
+  unitPort,
+} from 'tsimulation';
 import {
   DEMAND_SECTORS_PORT,
   REGIONAL_ALLOCATION_PORT,
@@ -227,6 +235,7 @@ interface DemandState {
   usefulWorkGrowthRate: number;          // Exposed for diagnostics
   robotsPer1000: number;
   robotFleet: number;             // absolute robot-units, for capex additions
+  referenceLaborShare?: number;   // 2025 labor share (lagged-bootstrapped), anchors the wage a robot displaces
   dataCenterLoadTWh: number;             // Current datacenter electricity load (TWh)
   fossilVehicleFleet: number;            // TWh of annual fossil transport energy
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
@@ -270,6 +279,7 @@ interface DemandInputs {
 
   // For the robot value-vs-cost deployment rule
   laggedInterestRate?: number;           // economy-wide rate from capital (delay-1 lag, shared with energy/cdr)
+  laggedLaborShare?: number;             // capital.laborShare, lagged: falls as machines take labor income
   robotLaborEquivalent?: number;         // worker-equivalents per robot, injected from production params
 
   // CDR electricity demand (delay-1 lag on cdr.cdrEnergyTWh, shared with production)
@@ -651,17 +661,15 @@ export const demandDefaults: DemandParams = {
     heavyIndustryGdpElasticity: 0.3,
   },
 
-  // Scales autonomous intensity decline (demand-side ONLY): production's
-  // serviceEfficiencyGrowth stays at its default, so scenarios overriding
-  // this partially re-split the coupled efficiency series (known
-  // limitation — see production.ts and the consistency pin in
-  // simulation.test.ts, which checks defaults only).
+  // Scales autonomous intensity decline. Production's serviceEfficiencyGrowth
+  // is derived from it (src/param-derivations.ts), so the one efficiency
+  // series moves together on both sides.
   efficiencyMultiplier: 1.0,    // Default: no adjustment
   // Forward decay of the structural (catch-up/sectoral-shift) component of
-  // intensity decline — MUST match production's values (the same physical
-  // series; consistency-pinned in simulation.test.ts). See production.ts.
-  structuralEfficiencyShare: 0.33,
-  structuralDecayHalfLife: 18,
+  // intensity decline. Production's eta is the same physical series: its
+  // defaults read these, and runs derive them (src/param-derivations.ts).
+  structuralEfficiencyShare: 0.33,  // ~0.42 of 1.29 pp/yr is structural (bonus over the CL-PFU device rate)
+  structuralDecayHalfLife: 18,      // structural component halves ~every 18yr post-2025 (judgment, not sourced)
 
   // Robot/automation — ENDOGENOUS value-vs-cost adoption (no hard ceiling).
   // Replaces the old robotSaturation logistic cap (a speculative carrying
@@ -966,15 +974,14 @@ function energyBurdenDamage(
 // =============================================================================
 
 /**
- * GDP-weighted average of the regional autonomous intensity-decline rates.
- * This is the single source for production's serviceEfficiencyGrowth default
- * (one efficiency series, two views — see production.ts); the consistency
- * pin in simulation.test.ts asserts they match, so recalibrating regional
- * intensityDecline without updating production breaks a test instead of
- * silently re-splitting the series into the old GDP-destroyer pair.
+ * GDP-weighted average of the regional autonomous intensity-decline rates:
+ * production's serviceEfficiencyGrowth (times efficiencyMultiplier) in every
+ * run, through src/param-derivations.ts. One efficiency series, two views —
+ * see production.ts. simulation.test.ts pins production's standalone default
+ * near it.
  */
 export function gdpWeightedIntensityDecline(
-  regions: DemandParams['regions'] = demandDefaults.regions
+  regions: Readonly<Record<Region, { gdp2025: number; intensityDecline: number }>> = demandDefaults.regions
 ): number {
   let weighted = 0;
   let weight = 0;
@@ -985,6 +992,44 @@ export function gdpWeightedIntensityDecline(
   return weight > 0 ? weighted / weight : 0;
 }
 
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+/**
+ * Partitions demand promises every step. The sector split once reclassified
+ * robot and datacenter electricity as sector fuel (03129ca); these hold that
+ * line in every scenario and year rather than at the three years a test chose.
+ */
+const DEMAND_INVARIANTS: readonly ModuleInvariant<
+  DemandParams, DemandState, DemandInputs, DemandOutputs
+>[] = [
+  {
+    name: 'final energy is electricity plus non-electric',
+    check: ({ outputs }) => closeTo('total final energy', outputs.totalFinalEnergy,
+      outputs.electricityDemand + outputs.nonElectricEnergy),
+  },
+  {
+    name: 'sectors partition non-electric energy',
+    check: ({ outputs }) => closeTo('non-electric energy', outputs.nonElectricEnergy,
+      sumValues(outputs.sectors, (sector) => sector.nonElectric)),
+  },
+  {
+    name: 'each sector is its electric plus non-electric part',
+    check: ({ outputs }) => Object.entries(outputs.sectors).map(([name, sector]) =>
+      closeTo(`${name} total`, sector.total, sector.electric + sector.nonElectric)),
+  },
+  {
+    name: 'fuels partition non-electric energy',
+    check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy),
+  },
+  {
+    name: 'global electricity is the sum of regions',
+    check: ({ outputs }) => closeTo('electricity demand', outputs.electricityDemand,
+      sumValues(outputs.regional, (region) => region.electricityDemand)),
+  },
+];
+
 export const demandModule: Module<
   DemandParams,
   DemandState,
@@ -994,6 +1039,7 @@ export const demandModule: Module<
   name: 'demand',
   description: 'GDP and electricity demand model with regional economics',
   defaults: demandDefaults,
+  invariants: DEMAND_INVARIANTS,
 
   paramMeta: {
     sectors: {
@@ -1145,6 +1191,7 @@ export const demandModule: Module<
       carbonPrice: unitPort('$/tCO2'),
       laggedAvgLCOE: unitPort('$/MWh'),
       laggedInterestRate: unitPort('fraction'),
+      laggedLaborShare: unitPort('fraction'),
       robotLaborEquivalent: unitPort('people/robot'),
       cdrEnergy: unitPort('TWh/year'),
       regionalEnergyBurden: unitPort('fraction', 'record'),
@@ -1867,7 +1914,20 @@ export const demandModule: Module<
     // worker), NOT q aggregate marginal products. Prices from national accounts,
     // quantities from the fitted production function — the same split capital.ts
     // uses (r priced off alpha=0.33 while production fits 0.25).
-    const robotMV = robotQ * params.robotDisplacementShare * gdpPerWorker; // $/robot-yr
+    // The wage a robot displaces is the human wage, which falls relative to
+    // GDP per worker as machines take labor's income (capital.laborShare).
+    // Scaling by the lagged labor share relative to 2025 keeps the 2025
+    // business case (pinned by the pi(2025) test) and closes the loop:
+    // automation cheapens the labor it competes with and so slows itself
+    // (Acemoglu & Restrepo 2018: displacement lowers the wage).
+    const referenceLaborShare = yearIndex === 0 || state.referenceLaborShare === undefined
+      ? inputs.laggedLaborShare
+      : state.referenceLaborShare;
+    const displacedWageFactor =
+      inputs.laggedLaborShare !== undefined && referenceLaborShare !== undefined && referenceLaborShare > 0
+        ? inputs.laggedLaborShare / referenceLaborShare
+        : 1;
+    const robotMV = robotQ * params.robotDisplacementShare * gdpPerWorker * displacedWageFactor; // $/robot-yr
 
     // COST of one robot-year: annualized capital service + electricity, scaled
     // by an integration-cost factor rising with density (installation, workflow
@@ -2227,6 +2287,17 @@ export const demandModule: Module<
       }
       globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
       globalNonElec = reconciledNonElectricEnergy;
+      // The sectors are split from the requested fuel, lock-in included, so
+      // ration them by the world total's served/requested ratio. It is only
+      // known here: availability applies per fuel, at the accounting mix, so
+      // the served total differs from any estimate made before this loop.
+      // Electricity is not rationed.
+      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
+      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
+      for (const key of sectorKeys) {
+        sectors[key].nonElectric *= servedRatio;
+        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
+      }
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
@@ -2286,6 +2357,7 @@ export const demandModule: Module<
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotsPer1000, // Persist for logistic adoption
         robotFleet: totalRobots,
+        referenceLaborShare,
         dataCenterLoadTWh, // Persist for datacenter logistic adoption
         fossilVehicleFleet: newFossilVehicleFleet,
         fossilHeatingStock: newFossilHeatingStock,
