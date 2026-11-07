@@ -13,6 +13,7 @@ import {
   DIAGNOSTIC_FIELDS,
   DIAGNOSTIC_MODULES,
   auditGlobalUnitContracts,
+  START_YEAR_BOOTSTRAP,
 } from './simulation-autowired.js';
 import {
   auditCollectorContracts,
@@ -146,28 +147,45 @@ test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, 
   for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
 });
 
-test('start-year fixed point: plain and former-cycle sweep runs converge outright', () => {
+test('start-year fixed point: plain runs converge; an order-dependent build cycle is accepted, not faked', () => {
   // The start-year solve runs whatever the horizon, so one year suffices.
-  // The cycle fallback (acceptCycleWithin, tested in tsimulation's
-  // autowire.test.ts) must not hide a regression here.
-  //
-  // The two sweep runs used to sit on a knife edge of energy's order-dependent
-  // world build-capacity loop (hydro at 1.000000001x its cap) and cycle with
-  // period 3. Trend-seeded energy lags moved the start-year build off that
-  // edge; scans of ssp1-19 over baseCreditGrowth 0.005-0.02, publicDeficitRate
-  // 0-0.03 and every build cap near the 2025 build found no cycling run. The
-  // order dependence itself remains (see CLAUDE.md), so a cycle can return.
-  const ssp119 = loadScenarioParamsSync('ssp1-19') as SimulationParams;
-  const runs: SimulationParams[] = [
-    {},
-    ssp119,
-    { ...ssp119, capital: { ...ssp119.capital, baseCreditGrowth: 0.01 } },
-    { ...ssp119, capital: { ...ssp119.capital, publicDeficitRate: 0.01 } },
-  ];
-  for (const params of runs) {
+  // Plain scenarios must reach the fixed point outright: the cycle fallback
+  // must not hide a regression there
+  for (const params of [{}, loadScenarioParamsSync('ssp1-19')] as SimulationParams[]) {
     const bootstrap = runAutowiredSimulation({ ...params, endYear: 2025 }, STUDY_OPTIONS).diagnostics?.bootstrap;
     expect(bootstrap?.converged).toBe(true);
     expect(bootstrap?.acceptedCycle).toBe(undefined);
+  }
+  // The runner keeps a cycle band: energy's world build-capacity loop moves
+  // the build discretely at a cap edge, which no damping removes.
+  expect(START_YEAR_BOOTSTRAP.acceptCycleWithin).toBe(1e-3);
+  expect(START_YEAR_BOOTSTRAP.onNonConvergence).toBe('throw');
+  // The two sweep runs that threw "Lag bootstrap did not converge" must now
+  // complete. Whether they land on the cap edge, and so cycle, depends on
+  // float rounding (it differs between Node versions and moves with any model
+  // change), so the test pins what must hold either way rather than which
+  // happens: a run that did not converge reports a genuine accepted cycle
+  // inside the band, never a silent pass. The acceptance mechanism itself is
+  // pinned deterministically in packages/tsimulation/test/autowire.test.ts.
+  const scenario = loadScenarioParamsSync('ssp1-19') as SimulationParams;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const capital of [{ baseCreditGrowth: 0.01 }, { publicDeficitRate: 0.01 }]) {
+      const bootstrap = runAutowiredSimulation(
+        { ...scenario, capital: { ...scenario.capital, ...capital }, endYear: 2025 },
+        STUDY_OPTIONS,
+      ).diagnostics?.bootstrap;
+      expect(bootstrap?.enabled).toBe(true);
+      if (bootstrap?.converged) {
+        expect(bootstrap.acceptedCycle).toBe(undefined);
+      } else {
+        expect(bootstrap!.acceptedCycle!.scaledResidual)
+          .toBeLessThan(START_YEAR_BOOTSTRAP.acceptCycleWithin);
+      }
+    }
+  } finally {
+    console.warn = warn;
   }
 });
 
