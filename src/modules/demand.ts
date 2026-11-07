@@ -105,6 +105,14 @@ interface FuelMixParams {
   // Carbon price at which the 2025 sector recipes are calibrated: shares move
   // only when effective prices depart from (2025 wholesale + this carbon cost).
   referenceCarbonPrice: number;
+  // GDP elasticity of heavy-materials output (crude steel, cement), the
+  // activity behind industry's coal. Industry's service base grows with
+  // GDP x intensity like every sector, but its coal slice tracks steel and
+  // cement, which saturate: industry's coal share is scaled by
+  // (GDP/GDP2025)^this / (service base / 2025 service base), the freed share
+  // going pro rata to industry's other fuels (chemicals, light industry).
+  // Applied on top of the logit (composition, not equipment turnover).
+  heavyIndustryGdpElasticity: number;
 }
 
 // Energy burden parameters
@@ -223,6 +231,15 @@ interface DemandState {
   fossilVehicleFleet: number;            // TWh of annual fossil transport energy
   fossilHeatingStock: number;            // TWh of annual fossil heating energy
   fossilIndustrialStock: number;         // TWh of annual fossil industrial energy
+  /**
+   * Heavy-materials activity vs industry's service base, for the industry
+   * coal anchor. gdp0/serviceBase0 are captured on the first step (0 =
+   * unset); `coalActivityRatio` is last year's (GDP/GDP0)^eps /
+   * (serviceBase/serviceBase0), lagged one year like the model's other
+   * feedbacks because the fuel mix is set before this year's regional
+   * service base is known.
+   */
+  heavyIndustry: { gdp0: number; serviceBase0: number; coalActivityRatio: number };
 }
 
 // Inputs from demographics and production modules
@@ -621,6 +638,17 @@ export const demandDefaults: DemandParams = {
     // default run reproduce the 2025 recipes; scenarios above it shift away
     // from carbon-intensive fuels, scenarios below it toward them.
     referenceCarbonPrice: 35,
+    // Observed 2015-2025: world crude steel +1.3%/yr (1,620 -> 1,849 Mt,
+    // worldsteel) and world cement ~-0.3%/yr (4.1 Gt 2015 -> 4.0 Gt 2024,
+    // USGS MCS 2016/2025) against world PPP GDP ~+3.0%/yr (IMF WEO), i.e.
+    // steel ~0.44, cement ~-0.1. Forward: IEA Iron & Steel Technology
+    // Roadmap (2020) steel demand +~1/3 to 2050 (~0.4); IEA/CSI Cement
+    // Technology Roadmap (2018) +12-23% 2014-2050 (~0.1-0.2). 0.3 sits
+    // between the two, nearer steel (the larger industrial coal user: met
+    // coal ~1,114 of ~2,880 Mt non-power coal, IEA Coal 2025). Cross-check:
+    // IEA Coal 2025 has global non-power coal flat 2025-2030 (2,880 -> ~2,877
+    // Mt) on ~3%/yr GDP, i.e. ~0 near-term, so 0.3 is not the low end.
+    heavyIndustryGdpElasticity: 0.3,
   },
 
   // Scales autonomous intensity decline (demand-side ONLY): production's
@@ -753,6 +781,29 @@ function calculateLogitFuelShares(
     blended[fuel] = total > 0 ? blended[fuel] / total : recipe2025[fuel];
   }
   return blended;
+}
+
+/**
+ * Industry's fuel mix with its coal slice scaled to heavy-materials activity.
+ * `activityRatio` is (heavy-materials output index) / (industry service-base
+ * index): below 1 when steel and cement grow slower than industry's energy
+ * service as a whole. Coal's share scales by it and the remainder is spread
+ * pro rata over the mix's other fuels, so the mix still sums to 1 and a fuel
+ * absent from it stays absent.
+ */
+export function heavyIndustryMix(
+  shares: Record<FuelType, number>,
+  activityRatio: number
+): Record<FuelType, number> {
+  const coalBefore = shares.coal;
+  if (!(coalBefore > 0) || coalBefore >= 1 || activityRatio === 1) return shares;
+  const coal = clamp(coalBefore * Math.max(0, activityRatio), 0, 0.99);
+  const otherScale = (1 - coal) / (1 - coalBefore);
+  const mix = {} as Record<FuelType, number>;
+  for (const fuel of FUEL_KEYS) {
+    mix[fuel] = fuel === 'coal' ? coal : shares[fuel] * otherScale;
+  }
+  return mix;
 }
 
 /** Hard physical ceiling on electrification (mathematical bound, not normative target) */
@@ -1005,6 +1056,13 @@ export const demandModule: Module<
         range: { min: 0.02, max: 0.20, default: 0.08 },
         tier: 1 as const,
       },
+      heavyIndustryGdpElasticity: {
+        paramName: 'heavyIndustryGdpElasticity',
+        description: 'GDP elasticity of heavy-materials output (steel, cement), which industry coal tracks instead of industry\'s whole service base. 0 = steel/cement flat (IEA Coal 2025 near-term); ~0.44 = 2015-2025 steel; >~0.7 approaches the old GDP x intensity scaling.',
+        unit: 'elasticity',
+        range: { min: 0, max: 1, default: 0.3 },
+        tier: 1 as const,
+      },
     },
     robotDiffusionRate: {
       description: 'Max robot adoption rate per year at high profitability (diffusion/manufacturing-ramp limit). Calibrated so 2025 growth ~14%/yr, inside IFR observed 10-14%/yr.',
@@ -1247,6 +1305,12 @@ export const demandModule: Module<
         (!Number.isFinite(params.fuelMix.referenceCarbonPrice) || params.fuelMix.referenceCarbonPrice < 0)) {
       errors.push('fuelMix.referenceCarbonPrice must be a non-negative number');
     }
+    if (params.fuelMix?.heavyIndustryGdpElasticity !== undefined &&
+        (!Number.isFinite(params.fuelMix.heavyIndustryGdpElasticity) ||
+          params.fuelMix.heavyIndustryGdpElasticity < -0.5 ||
+          params.fuelMix.heavyIndustryGdpElasticity > 1.5)) {
+      errors.push('fuelMix.heavyIndustryGdpElasticity must be between -0.5 and 1.5');
+    }
 
     // Validate fuel price-path params
     if (params.fuels) {
@@ -1456,6 +1520,7 @@ export const demandModule: Module<
       robotsPer1000: params.robotBaseline2025, // Initial robot adoption
       robotFleet: 0, // captured on first step
       dataCenterLoadTWh: params.dataCenterBaseline2025, // Initial datacenter load
+      heavyIndustry: { gdp0: 0, serviceBase0: 0, coalActivityRatio: 1 },
       fossilVehicleFleet,
       fossilHeatingStock,
       fossilIndustrialStock,
@@ -1526,6 +1591,14 @@ export const demandModule: Module<
     const evolvedSectorShares = {} as DemandState['sectorFuelShares'];
     const evolvedShares = Object.fromEntries(FUEL_KEYS.map(f => [f, 0])) as Record<FuelType, number>;
     let fuelWeightSum = 0;
+    // Industry's coal follows steel and cement output, not industry's whole
+    // service base (see fuelMix.heavyIndustryGdpElasticity; lagged one year).
+    // Applied ON TOP of the logit, not through its anchor: the shift is
+    // compositional (growth lands in chemicals and light industry, no coal
+    // kiln is replaced), so the logit's fleet-turnover inertia must not slow
+    // it. The state keeps the logit (technology) mix; only the aggregation
+    // and everything downstream see the composition-adjusted industry mix.
+    const industryCoalActivityRatio = state.heavyIndustry.coalActivityRatio;
     for (const sectorKey of sectorKeys) {
       const sectorShares = calculateLogitFuelShares(
         params.fuels,
@@ -1538,8 +1611,11 @@ export const demandModule: Module<
         params.fuelMix.inertiaRate,
       );
       evolvedSectorShares[sectorKey] = sectorShares;
+      const realizedShares = sectorKey === 'industry'
+        ? heavyIndustryMix(sectorShares, industryCoalActivityRatio)
+        : sectorShares;
       const weight = params.sectors[sectorKey].share * (1 - newSectorElectrification[sectorKey]);
-      for (const fuel of FUEL_KEYS) evolvedShares[fuel] += weight * sectorShares[fuel];
+      for (const fuel of FUEL_KEYS) evolvedShares[fuel] += weight * realizedShares[fuel];
       fuelWeightSum += weight;
     }
     for (const fuel of FUEL_KEYS) {
@@ -2158,6 +2234,18 @@ export const demandModule: Module<
     // Same bounded level-damage function used by the regional allocator.
     const burdenDamage = energyBurdenDamage(energyBurden, params.energyBurden);
 
+    // Next year's industry coal anchor: heavy-materials output index
+    // (GDP^eps) over industry's service-base index (industry is a fixed
+    // share of the global service base, so the global index is its index).
+    const heavyIndustry = state.heavyIndustry.gdp0 > 0 && state.heavyIndustry.serviceBase0 > 0
+      ? { ...state.heavyIndustry }
+      : { gdp0: globalGdp, serviceBase0: globalServiceBase, coalActivityRatio: 1 };
+    if (globalGdp > 0 && globalServiceBase > 0) {
+      heavyIndustry.coalActivityRatio =
+        Math.pow(globalGdp / heavyIndustry.gdp0, params.fuelMix.heavyIndustryGdpElasticity) /
+        (globalServiceBase / heavyIndustry.serviceBase0);
+    }
+
     return {
       state: {
         regions: newRegions,
@@ -2175,6 +2263,7 @@ export const demandModule: Module<
         fossilVehicleFleet: newFossilVehicleFleet,
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
+        heavyIndustry,
       },
       outputs: {
         regional: regionalOutputs,

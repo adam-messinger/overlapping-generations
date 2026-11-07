@@ -5,7 +5,7 @@
  * Validates against IEA calibration targets.
  */
 
-import { demandModule, demandDefaults } from './demand.js';
+import { demandModule, demandDefaults, heavyIndustryMix } from './demand.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { REGIONS } from '../domain-types.js';
 
@@ -491,6 +491,63 @@ test('coal never enters transport', () => {
   const run = runYearsWithParams(20, {}, { carbonPrice: 0 });
   expect(run.state.sectorFuelShares.transport.coal).toBe(0);
   expect(run.state.sectorFuelShares.buildings.coal).toBeGreaterThan(0);
+});
+
+test('heavyIndustryMix scales coal and spreads the rest pro rata', () => {
+  const recipe = demandDefaults.sectors.industry.fuelShares2025;
+  const mix = heavyIndustryMix(recipe, 0.5);
+  const sum = Object.values(mix).reduce((a, b) => a + b, 0);
+  expect(sum).toBeCloseTo(1, 10);
+  expect(mix.coal).toBeCloseTo(recipe.coal * 0.5, 10);
+  // Other fuels keep their relative proportions; an absent fuel stays absent
+  expect(mix.gas / mix.oil).toBeCloseTo(recipe.gas / recipe.oil, 10);
+  expect(mix.biofuel).toBe(0);
+  // Ratio 1 is the identity; a coal-free mix is untouched
+  expect(heavyIndustryMix(recipe, 1)).toBe(recipe);
+  const transport = demandDefaults.sectors.transport.fuelShares2025;
+  expect(heavyIndustryMix(transport, 0.5)).toBe(transport);
+});
+
+test('industry coal tracks heavy-materials output, not the service base', () => {
+  // Industry coal in TWh ~ coal2025 share x industry service x activity
+  // ratio, i.e. it follows GDP^eps (steel, cement) while the logit stays at
+  // its recipe at the reference carbon price. eps near the old implicit
+  // scaling (~0.7 in the default run) leaves more coal than the default.
+  const years = 30;
+  const def = runYearsWithParams(years, {}, { carbonPrice: 35 });
+  const old = runYearsWithParams(years, {
+    fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 1 },
+  } as any, { carbonPrice: 35 });
+  const flat = runYearsWithParams(years, {
+    fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 0 },
+  } as any, { carbonPrice: 35 });
+  expect(flat.outputs.fuels.coal).toBeLessThan(def.outputs.fuels.coal);
+  expect(def.outputs.fuels.coal).toBeLessThan(old.outputs.fuels.coal);
+  // Composition only: total non-electric energy is unchanged
+  expect(def.outputs.nonElectricEnergy).toBeCloseTo(old.outputs.nonElectricEnergy, 6);
+  // The logit (technology) mix in state is untouched by composition
+  expect(def.state.sectorFuelShares.industry.coal).toBeCloseTo(
+    demandDefaults.sectors.industry.fuelShares2025.coal, 6);
+  expect(def.state.heavyIndustry.coalActivityRatio).toBeLessThan(1);
+});
+
+test('first year reproduces the 2025 mix whatever the heavy-industry elasticity', () => {
+  const y0 = runYearsWithParams(1, {
+    fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 0 },
+  } as any, { carbonPrice: 35 });
+  const coal = y0.outputs.fuels.coal / y0.outputs.nonElectricEnergy;
+  expect(Math.abs(coal - demandDefaults.fuels.coal.share2025)).toBeLessThan(0.01);
+});
+
+test('heavyIndustryGdpElasticity validation', () => {
+  const bad = demandModule.validate({
+    fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 3 },
+  } as any);
+  expect(bad.valid).toBe(false);
+  const ok = demandModule.validate({
+    fuelMix: { ...demandDefaults.fuelMix, heavyIndustryGdpElasticity: 0.3 },
+  } as any);
+  expect(ok.valid).toBe(true);
 });
 
 test('non-electric coal does not double as transport electrifies', () => {
