@@ -124,9 +124,18 @@ test('resources: land that exceeds the land area fails the partition', () => {
   });
 });
 
-test('capital: a nonzero residual fails, and so does a spend that is not debited', () => {
+test('capital: a nonzero residual fails, as do over-retained bank income and an undebited spend', () => {
   expectBites('capital', 'accounting residuals are zero', ({ outputs }) => {
     outputs.nationalAccountsResidual = 0.5;
+  });
+  expectBites('capital', 'bank interest income is retained or distributed, never over-retained', ({ outputs }) => {
+    // Dividends that leave the bank without leaving its income
+    outputs.bankDividendPayments += 1;
+  });
+  expectBites('capital', 'bank interest income is retained or distributed, never over-retained', ({ outputs }) => {
+    // Retaining more than was earned: equity conjured from nothing
+    outputs.bankSaving = outputs.bankInterestIncome + 1;
+    outputs.bankDividendPayments = -1;
   });
   expectBites('capital', 'realized spends are debited from investment, overflow reported', ({ inputs }) => {
     // A spend that reaches the ledger's inputs but not its debit: d950fc1's free capex

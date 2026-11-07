@@ -662,7 +662,7 @@ test('public debt service is positive', () => {
   expect(outputs.publicDebtService).toBeGreaterThan(0);
 });
 
-test('public interest follows the bond holder and bank income is distributed', () => {
+test('public interest follows the bond holder and bank income is retained or distributed', () => {
   const first = runYears(1).outputs;
   const second = runYears(2).outputs;
   expect(first.publicInterestToBanks).toBeCloseTo(0, 9);
@@ -670,7 +670,42 @@ test('public interest follows the bond holder and bank income is distributed', (
   expect(
     second.publicInterestToBanks + second.publicInterestToHouseholds,
   ).toBeCloseTo(second.publicInterestPayments, 9);
-  expect(second.bankSaving).toBeCloseTo(0, 9);
+  expect(second.bankInterestIncome).toBeCloseTo(
+    second.privateInterestPayments + second.publicInterestToBanks, 9,
+  );
+  expect(second.bankDividendPayments + second.bankSaving)
+    .toBeCloseTo(second.bankInterestIncome, 9);
+});
+
+test('banks retain enough interest income to hold the equity ratio as loans grow', () => {
+  const capitalParams = capitalModule.mergeParams({});
+  let capitalState = capitalModule.init(capitalParams);
+  for (let i = 0; i < 5; i++) {
+    const { state, outputs } = capitalModule.step(
+      capitalState, getCapitalInputs(i), capitalParams, 2025 + i, i,
+    );
+    capitalState = state;
+    expect(outputs.bankCapitalRatio).toBeCloseTo(capitalDefaults.bankEquityRatio, 9);
+    // Growth needs only a slice of interest income: banks still pay dividends
+    expect(outputs.bankSaving).toBeGreaterThan(0);
+    expect(outputs.bankSaving).toBeLessThan(0.5 * outputs.bankInterestIncome);
+    expect(outputs.householdSavingLedgerResidual).toBeCloseTo(0, 9);
+    expect(outputs.savingInvestmentResidual).toBeCloseTo(0, 9);
+  }
+});
+
+test('bankRetentionSpeed 0 restores full payout: bank equity never grows', () => {
+  const params = capitalModule.mergeParams({ bankRetentionSpeed: 0 });
+  let state = capitalModule.init(params);
+  let outputs: any;
+  const equity: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    ({ state, outputs } = capitalModule.step(state, getCapitalInputs(i), params, 2025 + i, i));
+    expect(outputs.bankSaving).toBe(0);
+    equity.push(outputs.bankEquity);
+  }
+  expect(equity[2]).toBeCloseTo(equity[0], 9);
+  expect(outputs.bankCapitalRatio).toBeLessThan(capitalDefaults.bankEquityRatio);
 });
 
 test('fiscal consolidation kicks in above 60% threshold', () => {
@@ -999,6 +1034,10 @@ test('validation catches invalid financial substeps, defaults, and bank equity',
   expect(capitalModule.validate({ financialSubsteps: 2.5 }).valid).toBeFalse();
   expect(capitalModule.validate({ privateDefaultRate: -0.01 }).valid).toBeFalse();
   expect(capitalModule.validate({ bankEquityRatio: 0.5 }).valid).toBeFalse();
+  expect(capitalModule.validate({ bankRetentionSpeed: -0.1 }).valid).toBeFalse();
+  expect(capitalModule.validate({ bankRetentionSpeed: 1.5 }).valid).toBeFalse();
+  expect(capitalModule.validate({ bankRetentionSpeed: NaN }).valid).toBeFalse();
+  expect(capitalModule.validate({ bankRetentionSpeed: 0 }).valid).toBeTrue();
   expect(capitalModule.validate({
     openingHouseholdDepositShare: 1.1,
   }).valid).toBeFalse();

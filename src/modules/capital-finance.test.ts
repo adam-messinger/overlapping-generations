@@ -1,6 +1,7 @@
 import { test, expect } from '../test-utils.js';
 import { advanceCapitalFinance, type CapitalFinanceParameters } from './capital-finance.js';
 import {
+  bankRetention,
   capitalBankCapitalRatio,
   createCapitalGodleyLedger,
   postCapitalGodleyYear,
@@ -164,6 +165,95 @@ test('defaults destroy bank equity while preserving exact Godley identities', ()
   expect(result.state.balances['banks.publicBonds']).toBeCloseTo(3, 8);
   expect(result.state.balances['households.publicBonds']).toBeCloseTo(142.2, 8);
   expect(capitalBankCapitalRatio(result.state)).toBeLessThan(before);
+});
+
+const retentionYear = {
+  depreciation: 20,
+  generalInvestment: 25,
+  laborCompensation: 100,
+  householdConsumption: 85,
+  grossLoanOriginations: 18,
+  principalRepayments: 12,
+  loanWriteOffs: 0,
+  privateInterestPayments: 7,
+  firmDividendPayments: 2,
+  publicDebtChange: 5,
+  governmentServiceConsumption: 8,
+  pensionTransfers: 18,
+  publicInterestPayments: 5,
+  publicInterestToBanks: 0.5,
+  netTaxes: 28,
+};
+
+function retentionOpening(bankEquityRatio = 0.08) {
+  return createCapitalGodleyLedger({
+    capitalStock: 553,
+    privateDebt: 252.8,
+    publicDebt: 142.2,
+    bankEquityRatio,
+  });
+}
+
+test('bank retention holds the equity ratio in the posted ledger, and the ledger closes', () => {
+  // Pins bankRetention's mirror of the bank postings: if a new flow reaches
+  // bank assets or net worth without reaching the helper, the ratio drifts
+  const opening = retentionOpening();
+  for (const flows of [
+    retentionYear,
+    { ...retentionYear, publicDebtChange: -4, netTaxes: 40 },
+    { ...retentionYear, loanWriteOffs: 3 },
+  ]) {
+    const retention = bankRetention(opening, flows, 0.08, 1);
+    expect(retention.interestIncome).toBeCloseTo(7.5, 12);
+    expect(retention.retainedEarnings + retention.dividendPayments)
+      .toBeCloseTo(retention.interestIncome, 12);
+    const result = postCapitalGodleyYear(opening, {
+      ...flows,
+      bankDividendPayments: retention.dividendPayments,
+    });
+    expect(result.report.maxResidual).toBeCloseTo(0, 8);
+    expect(capitalBankCapitalRatio(result.state)).toBeCloseTo(0.08, 12);
+  }
+});
+
+test('banks retain at most their interest income, so a large write-off is rebuilt over years', () => {
+  let ledger = retentionOpening();
+  const writeOff = { ...retentionYear, loanWriteOffs: 15 };
+  const first = bankRetention(ledger, writeOff, 0.08, 1);
+  expect(first.retainedEarnings).toBeCloseTo(first.interestIncome, 12);
+  expect(first.dividendPayments).toBeCloseTo(0, 12);
+  ledger = postCapitalGodleyYear(ledger, { ...writeOff, bankDividendPayments: 0 }).state;
+  const afterLoss = capitalBankCapitalRatio(ledger);
+  expect(afterLoss).toBeLessThan(0.08);
+  // The next year's income all goes to rebuilding equity
+  const second = bankRetention(ledger, retentionYear, 0.08, 1);
+  expect(second.dividendPayments).toBeCloseTo(0, 12);
+  ledger = postCapitalGodleyYear(ledger, {
+    ...retentionYear,
+    bankDividendPayments: second.dividendPayments,
+  }).state;
+  expect(capitalBankCapitalRatio(ledger)).toBeGreaterThan(afterLoss);
+});
+
+test('equity above target is paid out, and speed 0 distributes all interest income', () => {
+  const opening = retentionOpening(0.12);
+  const excess = bankRetention(opening, retentionYear, 0.08, 1);
+  expect(excess.retainedEarnings).toBeLessThan(0);
+  expect(excess.dividendPayments).toBeGreaterThan(excess.interestIncome);
+  const half = bankRetention(opening, retentionYear, 0.08, 0.5);
+  expect(half.retainedEarnings).toBeCloseTo(excess.retainedEarnings / 2, 12);
+  const off = bankRetention(opening, retentionYear, 0.08, 0);
+  expect(off.retainedEarnings).toBe(0);
+  expect(off.dividendPayments).toBe(off.interestIncome);
+  // A negative real safe rate makes bank income negative: banks retain none
+  // of it and the loss passes to shareholders, as before retention existed
+  const negative = bankRetention(
+    opening,
+    { ...retentionYear, privateInterestPayments: 0, publicInterestToBanks: -1 },
+    0.08,
+    0,
+  );
+  expect(negative.dividendPayments).toBeCloseTo(-1, 12);
 });
 
 test('households can fund dissaving by selling bonds to banks', () => {

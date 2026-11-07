@@ -159,6 +159,7 @@ export interface YearResult {
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;
+  bankInterestIncome: number;
   firmInternalFunds: number;
   householdDisposableIncome: number;
   householdSaving: number;

@@ -426,6 +426,72 @@ export function postCapitalGodleyYear(
   ]);
 }
 
+/** The flows postCapitalGodleyYear posts to bank assets and net worth before dividends. */
+export type BankEarningsFlows = Pick<
+  CapitalGodleyFlows,
+  | 'grossLoanOriginations'
+  | 'principalRepayments'
+  | 'loanWriteOffs'
+  | 'privateInterestPayments'
+  | 'publicInterestToBanks'
+  | 'publicDebtChange'
+>;
+
+export interface BankRetention {
+  /** Bank interest income: private interest paid plus public interest to banks */
+  interestIncome: number;
+  /** Interest income kept as equity; negative when equity above target is paid out */
+  retainedEarnings: number;
+  dividendPayments: number;
+}
+
+/**
+ * Bank dividend policy. Banks retain enough interest income to close
+ * `speed` of the gap between their equity and `targetRatio` x assets, and pay
+ * out the rest; equity above the target is paid out at the same speed. They
+ * never retain more than their positive interest income, so a write-off larger
+ * than a year's income leaves equity below target and the gap closes over the
+ * following years. At speed 0 banks distribute all interest income.
+ *
+ * Closing assets and equity before retention mirror the postings in postCapitalGodleyYear
+ * (pinned by a test). One flow is left out: a household bond sale to fund
+ * dissaving, which moves bonds onto bank balance sheets after dividends are
+ * set. When it happens the closing ratio sits slightly below target.
+ */
+export function bankRetention(
+  state: GodleyLedgerState,
+  flows: BankEarningsFlows,
+  targetRatio: number,
+  speed: number,
+): BankRetention {
+  const interestIncome =
+    flows.privateInterestPayments + flows.publicInterestToBanks;
+  const openingBankBonds = state.balances['banks.publicBonds'] ?? 0;
+  const bankPublicDebtChange = flows.publicDebtChange >= 0
+    ? flows.publicDebtChange
+    : -Math.min(-flows.publicDebtChange, openingBankBonds);
+  const assets =
+    (state.balances['banks.privateLoans'] ?? 0)
+    + flows.grossLoanOriginations
+    - flows.principalRepayments
+    - flows.loanWriteOffs
+    + openingBankBonds
+    + bankPublicDebtChange
+    + (state.balances['banks.reserves'] ?? 0);
+  // Closing equity = this + retained earnings
+  const equityBeforeRetention =
+    (state.balances['banks.netWorth'] ?? 0) - flows.loanWriteOffs;
+  const retainedEarnings = Math.min(
+    speed * (targetRatio * Math.max(0, assets) - equityBeforeRetention),
+    Math.max(0, interestIncome),
+  );
+  return {
+    interestIncome,
+    retainedEarnings,
+    dividendPayments: interestIncome - retainedEarnings,
+  };
+}
+
 export function capitalBankCapitalRatio(state: GodleyLedgerState): number {
   const assets =
     (state.balances['banks.privateLoans'] ?? 0)
