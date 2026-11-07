@@ -6,6 +6,7 @@
 
 export * from './types.js';
 export * from './module.js';
+export * from './invariants.js';
 export * from './autowire.js';
 export * from './problem.js';
 export * from './introspect.js';

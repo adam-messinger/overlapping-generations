@@ -8,6 +8,12 @@ onward. Before 1.0, minor versions may include breaking changes.
 ## [Unreleased]
 
 ### Added
+- Module invariants: `Module.invariants` declares identities a module promises
+  about every step, and the engine checks them after each step under
+  `AutowireConfig.invariants` (`'error'` by default, or `'warn'`, `'report'`,
+  `'off'`). Violations are recorded in `diagnostics.invariants`. Helpers
+  `closeTo`, `atMost`, `atLeast` and `sumValues` return a message only on
+  failure. Bootstrap warm-up passes are not checked; the run proper is.
 - `TaskExecutor`, `TaskSpec`, `TaskRef`, `TaskResult`, `serialExecutor` and
   `orderTaskResults`: an injection point for running a study's model
   evaluations somewhere other than the calling thread. The core stays

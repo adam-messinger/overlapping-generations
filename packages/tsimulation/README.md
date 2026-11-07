@@ -58,6 +58,7 @@ older ones. Use a dynamic `import()` from CommonJS if you need to.
 | **Autowire** | The engine reads every module's `inputs`/`outputs`, builds a dependency graph, and runs modules in topological order each step. |
 | **Transform** | A function that derives an input from other modules' outputs (e.g. a ratio). Declares `dependsOn` so the engine can order it. |
 | **Lag** | A delayed value used to break a feedback cycle. Module A can read last step's output of module B even though B reads A this step. |
+| **Invariant** | An identity a module declares about every step (a ledger closes, parts sum to their total, output stays within capacity). The engine checks it after each step under the `invariants` run policy. |
 | **Collector** | A declarative spec for extracting per-step time series and summary metrics from a completed run. |
 | **Model** | A validated standalone simulation contract with version, ports, evidence, and invariants. |
 | **Experiment** | A scenario set, factorial, sweep, threshold search, or seeded ensemble around a model. |
@@ -343,6 +344,44 @@ time: this step's predators depend on *last* step's prey. You model that by
 declaring a `lag`, and the engine's cycle detector will otherwise throw rather
 than silently pick an order.
 
+## Module invariants
+
+A unit test of an identity pins it for the inputs the test chose. An invariant
+is declared on the module and checked after every step of every run, so a
+ledger that stops closing in a scenario nobody tested still fails.
+
+```typescript
+import { defineModule, closeTo, atMost } from 'tsimulation';
+
+const land = defineModule({
+  // ...defaults, connectorTypes, validate, mergeParams, init, step...
+  invariants: [
+    {
+      name: 'land identity',
+      check: ({ outputs, params }) =>
+        closeTo('land', outputs.farmland + outputs.forest + outputs.other, params.totalArea),
+    },
+    {
+      name: 'stock accumulates',
+      check: ({ previousState, state, outputs }) =>
+        closeTo('stock', state.stock, previousState.stock + outputs.inflow),
+    },
+  ],
+});
+```
+
+A check receives `{ params, previousState, state, inputs, outputs,
+previousOutputs, year, yearIndex }` and returns nothing when the identity
+holds, or a message (or a list of them) when it does not. `closeTo`, `atMost`
+and `atLeast` return exactly that, and reject non-finite values.
+
+`runAutowired({ ..., invariants })` takes a policy: `'error'` (the default)
+throws at the first violating step, `'warn'` logs and records, `'report'` only
+records, and `'off'` skips the checks — for sweeps that have already validated
+a representative run. Recorded violations are in
+`result.diagnostics.invariants`. The policy never changes what is computed,
+and reads from invariant checks are not counted by parameter liveness.
+
 ## Worked example: predator–prey
 
 Two modules in mutual feedback, with the cycle broken by a one-step lag. See
@@ -461,6 +500,7 @@ for sweeps.
 ## API surface
 
 - **Composition:** `defineModule`, `Module`, `StepResult`, `ValidationResult`
+- **Invariants:** `ModuleInvariant`, `closeTo`, `atMost`, `atLeast`, `sumValues`, `evaluateInvariants`
 - **Running:** `runAutowired`, `initAutowired`, `stepAutowired`, `finalizeAutowired`
 - **Problem/solve:** `defineSimulation`, `solve`, `init`, `Stepper`
 - **Graph internals (exposed for testing/tools):** `buildOutputRegistry`,
