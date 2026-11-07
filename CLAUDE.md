@@ -282,6 +282,12 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
 - Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
 - Private debt: credit impulse dampened by r-g spread and leverage ratio
+- **Firm insolvency**: firms cannot pay out deposits they do not have. Once the deposit
+  buffer is gone and interest due exceeds operating surplus, firms suspend dividends, leave
+  interest unpaid (`unpaidPrivateInterest`, forgone by banks, never capitalized), then miss
+  principal; the unserviceable loans (unpaid / r) are written down against bank equity.
+  Never binds on the default path; without it, in-range sweeps crashed the ledger or, with
+  interest written off but principal kept, collapsed GDP under zombie debt
 - **Risk premium**: high total debt/GDP → higher interest rate → self-limiting
 - Retirement age adjusts with life expectancy; wages partially indexed to productivity
 - Demographic savings response: life expectancy and dependency ratio affect savings

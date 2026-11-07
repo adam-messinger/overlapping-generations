@@ -6,6 +6,7 @@
  */
 
 import { capitalModule, capitalDefaults } from './capital.js';
+import { firmDepositChange } from './capital-accounting.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { demandModule, demandDefaults } from './demand.js';
 import { Region, REGIONS } from '../domain-types.js';
@@ -541,6 +542,52 @@ test('validation catches invalid savingsDependencySensitivity', () => {
 // --- Debt/Credit Channel ---
 
 console.log('\n--- Debt/Credit Channel ---\n');
+
+// --- Firm cash floor ---
+
+test('firms that cannot pay their interest default instead of overdrawing deposits', () => {
+  // Opening with every deposit held by households and private debt at 6x
+  // GDP: the interest bill exceeds operating surplus from the first step and
+  // firms have no buffer, which used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance"
+  const params = capitalModule.mergeParams({
+    openingHouseholdDepositShare: 1,
+    initialPrivateDebtGDP: 6,
+  });
+  const inputs = getCapitalInputs(0);
+  const { state, outputs } = capitalModule.step(capitalModule.init(params), inputs, params, 2025, 0);
+
+  expect(outputs.privateInterestPayments + outputs.unpaidPrivateInterest)
+    .toBeGreaterThan(outputs.operatingSurplus);
+  expect(outputs.unpaidPrivateInterest).toBeGreaterThan(0);
+  expect(state.financialLedger!.balances['firms.deposits']).toBeBetween(0, 1e-6);
+  // Insolvent loans are written down to what the cash flow can carry
+  expect(outputs.loanWriteOffs).toBeCloseTo(outputs.unpaidPrivateInterest / outputs.interestRate, 6);
+  expect(outputs.nextPrivateDebtStock).toBeCloseTo(
+    state.financialLedger!.balances['firms.privateLoans'], 6,
+  );
+  // Saving stays on a paid basis, so the identities still close
+  expect(Math.abs(outputs.savingInvestmentResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.nationalAccountsResidual)).toBeLessThan(1e-9);
+  expect(Math.abs(outputs.householdSavingLedgerResidual)).toBeLessThan(1e-9);
+  expect(outputs.financialLedgerResidual).toBeLessThan(1e-8);
+});
+
+test('firmDepositChange matches what the ledger posts to firms.deposits', () => {
+  // The cash floor sizes defaults with firmDepositChange; if a firm cash flow
+  // were posted without being listed there, the floor would miss it
+  const params = capitalModule.mergeParams({});
+  let state = capitalModule.init(params);
+  for (let i = 0; i < 5; i++) {
+    const opening = state.financialLedger?.balances['firms.deposits'];
+    const result = capitalModule.step(state, getCapitalInputs(i), params, 2025 + i, i);
+    if (opening !== undefined) {
+      expect(result.state.financialLedger!.balances['firms.deposits'] - opening)
+        .toBeCloseTo(firmDepositChange(result.outputs), 9);
+    }
+    state = result.state;
+  }
+});
 
 // --- Init ---
 

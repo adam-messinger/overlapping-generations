@@ -27,6 +27,7 @@ import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs, describeParameters, buildMultiParams } from './introspection.js';
+import { STUDY_OPTIONS } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
@@ -113,13 +114,12 @@ test('saving-propensity params run across their whole declared paramMeta range',
   // allocation and clean-energy budget. Read the bounds from the schema so a
   // paramMeta change stays covered.
   const schema = describeParameters();
-  const fast = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
   let floorBound = false;
   for (const name of ['savingsRateWorking', 'savingsDependencySensitivity']) {
     const meta = schema[name];
     for (const value of [meta.min, meta.max]) {
       expect(typeof value).toBe('number');
-      const r = runSimulation(buildMultiParams({ [name]: value as number }) as SimulationParams, fast);
+      const r = runSimulation(buildMultiParams({ [name]: value as number }) as SimulationParams, STUDY_OPTIONS);
       expect(r.results[r.results.length - 1].year).toBe(2100);
       expect(Number.isFinite(r.metrics.warming2100)).toBe(true);
       expect(Number.isFinite(r.metrics.gdp2100 ?? NaN)).toBe(true);
@@ -134,6 +134,23 @@ test('saving-propensity params run across their whole declared paramMeta range',
   // Guard the test's relevance: the low end must still reach the zero floor,
   // or this no longer exercises the case that crashed
   expect(floorBound).toBe(true);
+});
+
+test('insolvent firms default rather than crash the run (sweep: ai-energy-boom, firmRetentionRate 0.1)', () => {
+  // Late in this run interest due exceeds firms' operating surplus; once the
+  // deposit buffer is gone this used to throw "Godley account
+  // 'firms.deposits' cannot have a negative balance". Without the insolvency
+  // write-down it instead collapsed GDP to zero under zombie debt by 2100.
+  const scenario = loadScenarioParamsSync('ai-energy-boom') as SimulationParams;
+  const r = runSimulation(
+    { ...scenario, capital: { ...scenario.capital, firmRetentionRate: 0.1 } },
+    STUDY_OPTIONS,
+  );
+  expect(r.results[r.results.length - 1].year).toBe(2100);
+  const binding = r.results.filter(row => row.unpaidPrivateInterest > 0);
+  expect(binding.length).toBeGreaterThan(0);
+  // The write-down keeps debt serviceable instead of letting it outrun output
+  for (const row of binding) expect(row.privateDebtGDP).toBeLessThan(3);
 });
 
 test('regional allocator anchors 2025 and does not collapse regions onto a share floor', () => {
@@ -521,6 +538,10 @@ function numericLeaves(value: unknown, path: string, into: Map<string, number>):
 }
 
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
+
+test('firm cash floor never binds on the default path', () => {
+  for (const row of FULL_RUN.results) expect(row.unpaidPrivateInterest).toBe(0);
+});
 
 test('diagnostics: false leaves every macro number bit-identical', () => {
   const withDiag = FULL_RUN;
