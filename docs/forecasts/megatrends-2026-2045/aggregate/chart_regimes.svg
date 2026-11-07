@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="230" viewBox="0 0 760 230" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Helvetica,Arial" font-size="12">
+<rect width="760" height="230" fill="#fcfcfb"/>
+<text x="16" y="24" font-size="14" font-weight="600" fill="#0b0b0b">Q6 2045 end-state (lexical priority)</text>
+<text x="16" y="42" font-size="11" fill="#52514e">Bar = raw mean (sums to 100%); dashed = panelist range; orange ticks = effort-level range</text>
+<line x1="300.0" y1="56" x2="300.0" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="300.0" y="202" text-anchor="middle" font-size="10" fill="#52514e">0%</text>
+<line x1="366.7" y1="56" x2="366.7" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="366.7" y="202" text-anchor="middle" font-size="10" fill="#52514e">10%</text>
+<line x1="433.3" y1="56" x2="433.3" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="433.3" y="202" text-anchor="middle" font-size="10" fill="#52514e">20%</text>
+<line x1="500.0" y1="56" x2="500.0" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="500.0" y="202" text-anchor="middle" font-size="10" fill="#52514e">30%</text>
+<line x1="566.7" y1="56" x2="566.7" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="566.7" y="202" text-anchor="middle" font-size="10" fill="#52514e">40%</text>
+<line x1="633.3" y1="56" x2="633.3" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="633.3" y="202" text-anchor="middle" font-size="10" fill="#52514e">50%</text>
+<line x1="700.0" y1="56" x2="700.0" y2="184" stroke="#e4e3df" stroke-width="1"/>
+<text x="700.0" y="202" text-anchor="middle" font-size="10" fill="#52514e">60%</text>
+<text x="288" y="83.0" text-anchor="end" fill="#0b0b0b">A  Fiscal dominance</text>
+<rect x="300" y="70.0" width="240.0" height="18" rx="4" fill="#2a78d6"/>
+<line x1="446.7" y1="79.0" x2="606.7" y2="79.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="553.3" y1="73.0" x2="553.3" y2="85.0" stroke="#eb6834" stroke-width="2"/>
+<line x1="566.7" y1="73.0" x2="566.7" y2="85.0" stroke="#eb6834" stroke-width="2"/>
+<text x="708" y="83.0" font-size="11" font-weight="600" fill="#0b0b0b">36.0%</text>
+<title>A  Fiscal dominance: raw mean 36.0%, median 37.8%, panelist range 22-46%, effort range 38-40%</title>
+<text x="288" y="113.0" text-anchor="end" fill="#0b0b0b">B  Capex-led abundance</text>
+<rect x="300" y="100.0" width="85.3" height="18" rx="4" fill="#2a78d6"/>
+<line x1="353.3" y1="109.0" x2="413.3" y2="109.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="366.7" y1="103.0" x2="366.7" y2="115.0" stroke="#eb6834" stroke-width="2"/>
+<line x1="393.3" y1="103.0" x2="393.3" y2="115.0" stroke="#eb6834" stroke-width="2"/>
+<text x="708" y="113.0" font-size="11" font-weight="600" fill="#0b0b0b">12.8%</text>
+<title>B  Capex-led abundance: raw mean 12.8%, median 12.9%, panelist range 8-17%, effort range 10-14%</title>
+<text x="288" y="143.0" text-anchor="end" fill="#0b0b0b">C  Secular stagnation returns</text>
+<rect x="300" y="130.0" width="112.5" height="18" rx="4" fill="#2a78d6"/>
+<line x1="366.7" y1="139.0" x2="480.0" y2="139.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="393.3" y1="133.0" x2="393.3" y2="145.0" stroke="#eb6834" stroke-width="2"/>
+<line x1="426.7" y1="133.0" x2="426.7" y2="145.0" stroke="#eb6834" stroke-width="2"/>
+<text x="708" y="143.0" font-size="11" font-weight="600" fill="#0b0b0b">16.9%</text>
+<title>C  Secular stagnation returns: raw mean 16.9%, median 15.9%, panelist range 10-27%, effort range 14-19%</title>
+<text x="288" y="173.0" text-anchor="end" fill="#0b0b0b">D  Fragmented middle (residual)</text>
+<rect x="300" y="160.0" width="228.9" height="18" rx="4" fill="#2a78d6"/>
+<line x1="473.3" y1="169.0" x2="600.0" y2="169.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="506.7" y1="163.0" x2="506.7" y2="175.0" stroke="#eb6834" stroke-width="2"/>
+<line x1="526.7" y1="163.0" x2="526.7" y2="175.0" stroke="#eb6834" stroke-width="2"/>
+<text x="708" y="173.0" font-size="11" font-weight="600" fill="#0b0b0b">34.3%</text>
+<title>D  Fragmented middle (residual): raw mean 34.3%, median 33.3%, panelist range 26-45%, effort range 31-34%</title>
+</svg>

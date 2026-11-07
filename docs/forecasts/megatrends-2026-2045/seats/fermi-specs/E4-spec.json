@@ -1,0 +1,203 @@
+{
+ "title": "E4-A2 fragmentation variants",
+ "scenarios": [
+  "baseline"
+ ],
+ "variants": {
+  "e4:hard-fragmentation": {
+   "energy": {
+    "financingSpreadScale": 2.0,
+    "financingHomeBias": 0.4,
+    "riskPremium": 0.03,
+    "sources": {
+     "solar": {
+      "alpha": 0.28
+     },
+     "wind": {
+      "alpha": 0.18
+     },
+     "battery": {
+      "alpha": 0.2
+     }
+    }
+   },
+   "demographics": {
+    "migrationMultiplier": 0.4
+   },
+   "capital": {
+    "publicDeficitRate": 0.05
+   },
+   "demand": {
+    "sectors": {
+     "transport": {
+      "basePressure": 0.006
+     },
+     "buildings": {
+      "basePressure": 0.008
+     },
+     "industry": {
+      "basePressure": 0.008
+     }
+    },
+    "robotIntegrationExponent": 1.1,
+    "robotDiffusionRate": 0.1,
+    "dataCenterPowerSpendCeiling": 0.0003
+   }
+  },
+  "e4:fragmentation+ai-boom": {
+   "energy": {
+    "financingSpreadScale": 2.0,
+    "financingHomeBias": 0.4,
+    "riskPremium": 0.03
+   },
+   "demographics": {
+    "migrationMultiplier": 0.4
+   },
+   "capital": {
+    "publicDeficitRate": 0.04
+   },
+   "demand": {
+    "dataCenterPowerSpendCeiling": 0.005,
+    "dataCenterBaseGrowth": 0.15,
+    "robotDiffusionRate": 0.3,
+    "robotIntegrationExponent": 0.5
+   },
+   "production": {
+    "aiWorkerEquivalentPerTWh": 100000
+   }
+  }
+ },
+ "disclosures": [
+  "E4-A2 stylized variants: hard-fragmentation = fragmentation lever + electrification-slow + ai-stall + 5% primary deficit; not calibrated"
+ ],
+ "questions": [
+  {
+   "id": "q3",
+   "status": "directional",
+   "label": "US 10y TIPS 2035 average",
+   "note": "economy-wide real lending rate; use the change across runs, never the level",
+   "readings": [
+    {
+     "label": "real lending rate change 2026->2035, pp",
+     "field": "interestRate",
+     "transform": "delta",
+     "from": 2026,
+     "to": 2035,
+     "scale": 100
+    },
+    {
+     "label": "debt risk premium 2035, pp",
+     "field": "debtRiskPremium",
+     "transform": "level",
+     "year": 2035,
+     "scale": 100
+    }
+   ]
+  },
+  {
+   "id": "q4",
+   "status": "directional",
+   "label": "US net interest >= 4.5% GDP FY2035",
+   "note": "world aggregate public interest / world GDP; sign and size of change only",
+   "readings": [
+    {
+     "label": "world public interest / GDP 2035, %",
+     "field": "publicInterestPayments",
+     "denominatorField": "gdp",
+     "transform": "ratio",
+     "year": 2035,
+     "scale": 100
+    },
+    {
+     "label": "world public debt / GDP 2035",
+     "field": "publicDebtGDP",
+     "transform": "level",
+     "year": 2035
+    }
+   ]
+  },
+  {
+   "id": "q5",
+   "status": "directional",
+   "label": "China >= 75% of US nominal GDP 2035",
+   "note": "PPP real ratio; the nominal-USD question also depends on prices and the exchange rate",
+   "readings": [
+    {
+     "label": "China/US PPP GDP ratio 2026",
+     "field": "regionalGdp",
+     "regions": [
+      "china"
+     ],
+     "denominator": [
+      "us"
+     ],
+     "transform": "ratio",
+     "year": 2026
+    },
+    {
+     "label": "China/US PPP GDP ratio 2035",
+     "field": "regionalGdp",
+     "regions": [
+      "china"
+     ],
+     "denominator": [
+      "us"
+     ],
+     "transform": "ratio",
+     "year": 2035
+    },
+    {
+     "label": "China real GDP growth 2026->2035, %/yr",
+     "field": "regionalGdp",
+     "regions": [
+      "china"
+     ],
+     "transform": "cagr",
+     "from": 2026,
+     "to": 2035
+    },
+    {
+     "label": "US real GDP growth 2026->2035, %/yr",
+     "field": "regionalGdp",
+     "regions": [
+      "us"
+     ],
+     "transform": "cagr",
+     "from": 2026,
+     "to": 2035
+    }
+   ]
+  },
+  {
+   "id": "q6",
+   "status": "identified",
+   "label": "2045 regime: growth leg of B",
+   "note": "world real GDP growth (PPP) 2040->2045 is identified for regime B's growth condition, conditional on the run and on UN-WPP-low demography; the A and C legs are not identified (US fiscal, TIPS)",
+   "readings": [
+    {
+     "label": "world real GDP growth 2040->2045, %/yr",
+     "field": "gdp",
+     "transform": "cagr",
+     "from": 2040,
+     "to": 2045
+    },
+    {
+     "label": "real lending rate change 2026->2045, pp (directional, C leg)",
+     "field": "interestRate",
+     "transform": "delta",
+     "from": 2026,
+     "to": 2045,
+     "scale": 100
+    },
+    {
+     "label": "world public interest / GDP 2045, % (directional, A leg)",
+     "field": "publicInterestPayments",
+     "denominatorField": "gdp",
+     "transform": "ratio",
+     "year": 2045,
+     "scale": 100
+    }
+   ]
+  }
+ ]
+}

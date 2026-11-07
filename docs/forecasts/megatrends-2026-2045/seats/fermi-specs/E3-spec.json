@@ -1,0 +1,34 @@
+{
+  "title": "E3-A2 demography decomposition",
+  "scenarios": ["baseline"],
+  "variants": {
+    "demo:low-migration": { "demographics": { "migrationMultiplier": 0.3 } },
+    "demo:slow-retirement-response": { "capital": { "retirementAgeResponse": 0.3 } },
+    "demo:deeper-fertility+low-mig": { "demographics": { "fertilityFloorMultiplier": 0.8, "migrationMultiplier": 0.3 } }
+  },
+  "disclosures": ["E3-A2 scratch variants; stylized demographic levers, not calibrated scenarios"],
+  "questions": [
+    { "id": "q3", "status": "directional", "label": "rate leg",
+      "readings": [
+        { "label": "real lending rate change 2026->2035, pp", "field": "interestRate", "transform": "delta", "from": 2026, "to": 2035, "scale": 100 },
+        { "label": "real lending rate change 2026->2045, pp", "field": "interestRate", "transform": "delta", "from": 2026, "to": 2045, "scale": 100 },
+        { "label": "desired saving propensity change 2026->2035, pp", "field": "savingsRate", "transform": "delta", "from": 2026, "to": 2035, "scale": 100 },
+        { "label": "desired saving propensity change 2026->2045, pp", "field": "savingsRate", "transform": "delta", "from": 2026, "to": 2045, "scale": 100 }
+      ] },
+    { "id": "q5", "status": "directional", "label": "real leg",
+      "readings": [
+        { "label": "China pop CAGR 2026->2035 %", "field": "regionalPopulation", "regions": ["china"], "transform": "cagr", "from": 2026, "to": 2035 },
+        { "label": "US pop CAGR 2026->2035 %", "field": "regionalPopulation", "regions": ["us"], "transform": "cagr", "from": 2026, "to": 2035 },
+        { "label": "China/US PPP GDP ratio 2035", "field": "regionalGdp", "regions": ["china"], "denominator": ["us"], "transform": "ratio", "year": 2035 },
+        { "label": "US real GDP growth 2026->2035", "field": "regionalGdp", "regions": ["us"], "transform": "cagr", "from": 2026, "to": 2035 }
+      ] },
+    { "id": "q6", "status": "identified", "label": "B growth leg",
+      "readings": [
+        { "label": "world real GDP growth 2040->2045 %/yr", "field": "gdp", "transform": "cagr", "from": 2040, "to": 2045 },
+        { "label": "world working-age CAGR 2040->2045 %", "field": "working", "transform": "cagr", "from": 2040, "to": 2045 },
+        { "label": "world working-age CAGR 2026->2035 %", "field": "working", "transform": "cagr", "from": 2026, "to": 2035 },
+        { "label": "old-age dependency 2045", "field": "dependency", "transform": "level", "year": 2045 },
+        { "label": "world public interest / GDP 2045 %", "field": "publicInterestPayments", "denominatorField": "gdp", "transform": "ratio", "year": 2045, "scale": 100 }
+      ] }
+  ]
+}

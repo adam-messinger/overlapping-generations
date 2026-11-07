@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="172" viewBox="0 0 760 172" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Helvetica,Arial" font-size="12">
+<rect width="760" height="172" fill="#fcfcfb"/>
+<text x="16" y="24" font-size="14" font-weight="600" fill="#0b0b0b">Four megatrends 2026-2045: continuous questions (never extremized)</text>
+<text x="16" y="42" font-size="11" fill="#52514e">Each row has its own scale (ends printed under the row)</text>
+<rect x="300" y="50" width="34" height="8" rx="4" fill="#b7d3f6"/>
+<text x="340" y="58" font-size="10" fill="#52514e">P10-P90 (ensemble mean)</text>
+<line x1="476" y1="48" x2="476" y2="60" stroke="#2a78d6" stroke-width="3"/>
+<text x="482" y="58" font-size="10" fill="#52514e">P50</text>
+<line x1="510" y1="54" x2="540" y2="54" stroke="#52514e" stroke-dasharray="2 2"/>
+<text x="546" y="58" font-size="10" fill="#52514e">panelist P50 spread</text>
+<text x="288" y="86.0" text-anchor="end" fill="#0b0b0b">Q2 Digital services exports 2035</text>
+<line x1="300" y1="82.0" x2="700" y2="82.0" stroke="#e4e3df"/>
+<rect x="327.6" y="77.0" width="344.8" height="10" rx="5" fill="#b7d3f6"/>
+<line x1="440.9" y1="82.0" x2="502.3" y2="82.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="473.5" y1="72.0" x2="473.5" y2="92.0" stroke="#2a78d6" stroke-width="3"/>
+<text x="300" y="104.0" font-size="9" fill="#52514e">7.55</text>
+<text x="700" y="104.0" text-anchor="end" font-size="9" fill="#52514e">15.36 USD tn</text>
+<text x="708" y="86.0" font-size="11" font-weight="600" fill="#0b0b0b">10.94</text>
+<title>Q2 Digital services exports 2035 (USD tn): mean P10/P50/P90 8.09/10.94/14.82; median 8.10/10.90/14.75; panelist P50 range 10.30-11.50</title>
+<text x="288" y="130.0" text-anchor="end" fill="#0b0b0b">Q3 US 10y TIPS, 2035 average</text>
+<line x1="300" y1="126.0" x2="700" y2="126.0" stroke="#e4e3df"/>
+<rect x="327.6" y="121.0" width="344.8" height="10" rx="5" fill="#b7d3f6"/>
+<line x1="451.1" y1="126.0" x2="533.8" y2="126.0" stroke="#52514e" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="509.6" y1="116.0" x2="509.6" y2="136.0" stroke="#2a78d6" stroke-width="3"/>
+<text x="300" y="148.0" font-size="9" fill="#52514e">0.70</text>
+<text x="700" y="148.0" text-anchor="end" font-size="9" fill="#52514e">3.61 %</text>
+<text x="708" y="130.0" font-size="11" font-weight="600" fill="#0b0b0b">2.22</text>
+<title>Q3 US 10y TIPS, 2035 average (%): mean P10/P50/P90 0.90/2.22/3.40; median 0.90/2.27/3.40; panelist P50 range 1.80-2.40</title>
+</svg>
