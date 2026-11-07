@@ -73,12 +73,14 @@ const DISCLOSURES = [
   'IDENTIFIED (growth only): the model is PPP-based (demand.ts: "PPP, 2017 international dollars", world ~$158T). ' +
     'Its deflator base year is 2017, not the brief\'s constant-2025-USD-PPP lock. CQ3 asks for a GROWTH RATE, ' +
     'which is invariant to the deflator base, so the translation is identified. A LEVEL question would NOT be.',
-  'COVERAGE GAP: "OECD-38 + China" is proxied by us + oecd-ex-us + china. The model\'s nine regions place ' +
-    'Korea, Japan and Turkiye in seasia/mena and Mexico, Chile, Colombia and Costa Rica in latam, so several ' +
-    'real OECD-38 members sit outside the proxy and some non-OECD states sit inside oecd-ex-us. ' +
+  'COVERAGE GAP: "OECD-38 + China" is proxied by us + oecd-ex-us + china. Japan and Korea sit inside ' +
+    'oecd-ex-us, but membership at the edges is not uniform across the model\'s tables: Turkiye\'s fertility is ' +
+    'calibrated in mena and Mexico\'s wind fleet in latam, while both count in oecd-ex-us elsewhere, and ' +
+    'us + oecd-ex-us holds 1.14B people in 2025 against OECD-38\'s ~1.4B. ' +
     'Treat the growth figure as an OECD-core + China aggregate, not as the OECD-38 + China aggregate.',
-  'PRIOR CONFLICT: CLAUDE.md records that the model\'s demographic path tracks the UN WPP LOW variant ' +
-    '(~18% below the medium variant by 2100) by deliberate low-fertility-convergence choice. That biases the ' +
+  'PRIOR CONFLICT: CLAUDE.md records that the model\'s default fertility path is fit to the UN WPP 2024 LOW ' +
+    'variant (Fernandez-Villaverde & Norrick 2026; world ~7.5B in 2100, ~26% below the Medium variant\'s ' +
+    '10.2B) by deliberate choice. That biases the ' +
     'model\'s labour force, and therefore its growth, DOWNWARD relative to the brief\'s locked Section 2A ' +
     'baseline. Any CQ3 bound read off this model is a LOW-FERTILITY-CONDITIONAL bound.',
   'NOT IDENTIFIED (CQ4): capital.safeRate is the model\'s REAL rate on public debt (~1% in 2025, tracking trend ' +
@@ -183,7 +185,7 @@ const MODEL_DISCLOSURES = [
   'DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, ' +
     '2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, ' +
     'dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.',
-  'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~6% in 2025, ' +
+  'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~7% in 2025, ' +
     'firms\' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on ' +
     'private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach ' +
     '2009) and can be held down by financial repression (repressionGap). It is not a policy rate or a market ' +
@@ -192,10 +194,16 @@ const MODEL_DISCLOSURES = [
     'Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.',
   'NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are ' +
     'not representable.',
-  'FIXED FACTOR SHARES: laborCompensation/GDP stays ~65.5% across all lever settings, so the model cannot ' +
-    'speak to AI eroding the labour tax base. Extreme labour substitution breaks the stock-flow ledger.',
-  'FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate); interest ' +
-    'is tax-financed by construction. It is a world aggregate, not a US or any single-sovereign fiscal path.',
+  'LABOUR SHARE: laborShare (labour compensation / GDP, ~65% in 2025) is endogenous to automation: the income ' +
+    'of robot and AI worker-equivalents goes to capital, not wages (Acemoglu-Restrepo displacement). The default ' +
+    'path barely moves by 2045 (~64%; ~32% by 2100); the ai-energy-boom levers take it to ~47% by 2045. It is a ' +
+    'world aggregate, and the fiscal block does not read it: net taxes are a lump-sum residual, not a levy on ' +
+    'wages, so a falling labour share does NOT thin the modelled tax base. Read it as a factor-income shift only.',
+  'FISCAL: world public debt accumulates the overall deficit, d\' = pd + (r_safe - g)d. The primary deficit is ' +
+    'a structural rate (capital.publicDeficitRate, 3% of GDP), less a Bohn fiscal reaction above 60% debt/GDP, ' +
+    'plus capital.ageingCostDeficitShare (25%) of the rise in transfers/GDP since 2025. Interest at the safe rate ' +
+    'is borrowed, not taxed, so r < g erodes the ratio (default: ~0.9 in 2025, ~0.92 in 2045, ~1.6 in 2100). ' +
+    'Net taxes are the residual that closes the budget (no tax schedule). World aggregate, not any single sovereign.',
 ];
 
 type Transform = 'level' | 'mean' | 'delta' | 'cagr' | 'ratio' | 'share';

@@ -208,6 +208,15 @@ Effort-specific contributions that survived synthesis:
   +0.7pp/yr of 2026-35 growth for both the US and China, and debt-populism's 2045 interest
   share falls 12.2% → 11.1%. Seats used those scenarios only as directional context, so no
   panel number depends on the change.
+- **Superseded disclosures (noted 2026-11-07, record left as locked):** two of the model
+  disclosures printed in `adapter-output.*` no longer describe the model. "FIXED FACTOR SHARES"
+  is gone: since `0110e22` the labour share falls as robot and AI worker-equivalents' income
+  goes to capital (default ~65% in 2025, ~64% in 2045; the ai-energy-boom levers ~47% in 2045).
+  "Interest is tax-financed by construction" is gone: since `44ca62d` public interest at the safe
+  rate accrues to debt, and a share of rising ageing costs is borrowed. The same two phrases
+  appear in this panel's own `adapter-spec.json` disclosures ("factor shares", "exogenous primary
+  deficit") and in §2's "labour share is fixed". The adapter's built-in disclosures were
+  corrected; `adapter-output.*` was not regenerated, so it stays the record the seats read.
 - **Orchestration:** the skill prefers the Workflow tool. This container has 4 CPUs, which caps
   a workflow at 2 concurrent agents, so the waves ran as parallel background agents instead
   (12, then 8, then 4). Efforts pipelined independently, and each Wave-2/3 seat read only its own
