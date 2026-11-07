@@ -157,7 +157,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Solar/Wind**: Wright's Law learning curves (α=0.36 solar, α=0.23 wind); regional wind CFs are 2024 fleet averages and wind `referenceCF` is derived as their fleet-weighted mean (solar's table is still mixed-convention; depletion counts build from zero — both follow-ups noted at `RegionalEnergyParams.capacityFactor`)
 - **Dispatch**: Merit order by marginal cost with VRE penetration limits
 - **Storage**: Battery capacity enables higher VRE penetration
-- **WACC**: project debt (70%) at the lagged safe rate + equity (`projectEquityShare` 30%) at the lagged return on capital, + project premium (`riskPremium`, 5.5pp) + regional spread → LCOE (capital-intensive sources penalized when rates high). 2025 WACC ~8% global / 7% US, the level LCOEs are calibrated at (`baseWACC`). Energy finance follows the sovereign rate (repression included) through its debt, and capital scarcity through its equity
+- **WACC**: project debt (70%) at the lagged safe rate + equity (`projectEquityShare` 30%) at the lagged return on capital, + project premium (`riskPremium`, 5.2pp) + regional spread → LCOE (capital-intensive sources penalized when rates high). 2025 WACC ~8% global / 7% US, the level LCOEs are calibrated at (`baseWACC`). Energy finance follows the sovereign rate (repression included) through its debt, and capital scarcity through its equity
 - **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; year-0 gap anchored in energy state); `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment. Storage shifts the soft-curtailment onset by the same headroom it adds to the VRE penetration limit (without that, storage-rich grids curtailed ~half their VRE and unpriced coal won the build)
 - **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
@@ -281,7 +281,7 @@ Do this before committing. Most fix-up commits in project history would have bee
 - Public debt: primary deficit accumulates; interest is tax-financed by construction (publicDebtService is a GDP claim) — interest-capitalization spirals are deliberately out of scope
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
-  income share 0.33, not production's fitted 0.25) + total-debt premium, ~6% in 2025 —
+  income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
   public debt and prices energy project debt: it follows smoothed trend growth one-for-one
   (r* = c·g + z, Holston-Laubach-Williams) and rises 3bp per pp of public debt/GDP above

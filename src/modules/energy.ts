@@ -723,7 +723,7 @@ export const energyDefaults: EnergyParams = {
   // Premium over that blend, set so 2025 WACC is unchanged (~8% global,
   // 7% US/OECD with their -1pp spread — the level baseWACC and the IEA
   // Observatory calibrate). Was 2% over the return on capital alone.
-  riskPremium: 0.055,
+  riskPremium: 0.052,
   baseWACC: 0.07,                  // 7% baseline — LCOE calibrated at this rate
   minWACC: 0.03,                   // Floor on WACC (even in very low-rate world)
   financingSpreadScale: 1.0,       // Regional spreads applied at face value
@@ -1212,7 +1212,7 @@ export const energyModule: Module<
     riskPremium: {
       description: 'Project premium over the debt/equity rate blend for energy WACC. Higher values penalize capital-intensive sources.',
       unit: 'fraction',
-      range: { min: 0, max: 0.15, default: 0.055 },
+      range: { min: 0, max: 0.15, default: 0.052 },
       tier: 1 as const,
     },
     baseWACC: {

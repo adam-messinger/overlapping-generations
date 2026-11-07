@@ -308,17 +308,23 @@ export const capitalDefaults: CapitalParams = {
   // output elasticities differ from factor cost shares (Kuemmel et al. 2010),
   // and r tracks what capital is paid, not the fitted marginal product.
   alpha: 0.33,              // ~1/3: Gollin (2002), Penn World Table labor-share complement
-  depreciation: 0.05,       // Penn World Table 10.x average depreciation ~5%/yr
+  // PWT 10.01 capital-weighted world depreciation (delta x cn): 3.7% (1990)
+  // -> 4.65% (2019), 1990-2019 mean ~4.1% (scripts/pwt-capital-aggregates.py). With K/Y 3.5 and I/Y 25.2%, 4%
+  // grows K ~3.1%/yr in 2026, continuing PWT's world capital growth (3.34%/yr
+  // 1990-2019, 3.77% 2010-19). The old 5% grew it 1.9%, breaking the
+  // 30-year trend at the 2025 seam and pushing K/Y down to ~2.9 by 2055.
+  depreciation: 0.04,
   // Bounded toy version of Keen's profit-responsive investment function.
   // These values keep the 2025 gross-investment rate near the pre-circuit
   // calibration while making investment orders causally prior to saving.
   // Re-solved when private debt moved from the return on capital (~6%) to
-  // the loan rate (~3%), which roughly doubled after-interest profit: holds
-  // 2025 investment at 25.2% of GDP with ~3% of GDP in net new credit
-  // (pre-split: 25.2%, 3.1%). Retention ~half of after-interest profit vs
-  // global listed payout ratios ~40-50% (MSCI ACWI; Janus Henderson Global
-  // Dividend Index, 2024).
-  firmRetentionRate: 0.45,
+  // the loan rate (~3%), which roughly doubled after-interest profit, and
+  // again when depreciation moved to 4% (a smaller depreciation allowance
+  // means less internal finance). Both hold 2025 investment at 25.2% of GDP
+  // with ~3% of GDP in net new credit (pre-split: 25.2%, 3.1%). Retention
+  // vs global listed payout ratios ~40-50% (MSCI ACWI; Janus Henderson
+  // Global Dividend Index, 2024).
+  firmRetentionRate: 0.60,
   investmentProfitRateFloor: 0,
   investmentProfitRateCeiling: 0.048,
   maximumNetInvestmentRate: 0.038,
@@ -621,7 +627,7 @@ export const capitalModule: Module<
     firmRetentionRate: {
       description: 'Share of positive firm profit retained after interest and depreciation; retained profit contributes internal investment finance.',
       unit: 'fraction',
-      range: { min: 0, max: 1, default: 0.45 },
+      range: { min: 0, max: 1, default: 0.60 },
       tier: 1 as const,
     },
     investmentProfitRateCeiling: {
