@@ -383,6 +383,19 @@ test('lower investment reduces additions', () => {
   expect(resultLow.outputs.additions.solar).toBeLessThan(resultHigh.outputs.additions.solar + 1);
 });
 
+test('negative investment funds no construction rather than a negative build', () => {
+  // debt-populism reaches net disinvestment by 2080. Unfloored, the clean
+  // budget went negative and the rationing turned it into a -784 GWh US
+  // battery build, which the vintage stock refused and the run crashed.
+  const params = energyModule.mergeParams({});
+  const state = energyModule.init(params);
+  const result = energyModule.step(state, createInputs(30000, -5, 1.0), params, 2025, 0);
+  for (const value of Object.values(result.outputs.additions)) {
+    expect(value >= 0).toBeTrue();
+  }
+  expect(result.outputs.energyCapexSpend >= 0).toBeTrue();
+});
+
 test('cleanShareFlex expands the capex budget when desired build is rationed', () => {
   // With a small investment pool the ramp budget rations additions; flex
   // lets energy capex compete for more of the pool, so funded additions rise.

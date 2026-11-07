@@ -13,21 +13,9 @@ import { ALL_MODULES, runAutowiredSimulation } from './simulation-autowired.js';
 import { listScenariosSync, loadScenarioParamsSync } from './scenario.js';
 import { test, expect, printSummary } from './test-utils.js';
 
-/**
- * Scenario files that cannot complete a run today. Each entry is a known bug,
- * not an exemption: the test below fails once the scenario runs again, so the
- * entry has to be removed rather than forgotten.
- */
-const KNOWN_BROKEN: Record<string, string> = {
-  // energy: advanceVintageStock receives negative additions mid-run
-  // ("additions must be finite and non-negative"). Predates the invariants.
-  'debt-populism': 'energy additions go negative',
-};
-
 test('every scenario satisfies every invariant in every year', () => {
   const declared = ALL_MODULES.reduce((sum, mod) => sum + (mod.invariants?.length ?? 0), 0);
   for (const name of listScenariosSync()) {
-    if (KNOWN_BROKEN[name]) continue;
     // Invariants are the subject; the per-step port checks run in every other suite
     const result = runAutowiredSimulation(loadScenarioParamsSync(name), {
       invariants: 'report', paramLiveness: 'off', connectorValidation: 'off',
@@ -40,18 +28,6 @@ test('every scenario satisfies every invariant in every year', () => {
     expect(violations.length).toBe(0);
     // Every declared invariant ran on every simulated year
     expect(diagnostics?.checked).toBe(declared * result.years.length);
-  }
-});
-
-test('known-broken scenarios are still broken (remove them from the list once fixed)', () => {
-  for (const name of Object.keys(KNOWN_BROKEN)) {
-    let threw = false;
-    try {
-      runAutowiredSimulation(loadScenarioParamsSync(name), { paramLiveness: 'off' });
-    } catch {
-      threw = true;
-    }
-    expect(threw).toBeTrue();
   }
 });
 

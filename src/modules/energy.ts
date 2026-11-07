@@ -2065,8 +2065,12 @@ export const energyModule: Module<
       const cleanShare = params.cleanEnergyShare2025 +
         params.cleanEnergyShareGrowth * Math.min(1, yearIndex / 25);
 
-      // Regional clean energy budget ($B); may expand below if cleanShareFlex > 0
-      let cleanBudget = regionInvestment * cleanShare * 1000;
+      // Regional clean energy budget ($B); may expand below if cleanShareFlex > 0.
+      // Floored at zero: negative regional investment (net disinvestment, as
+      // debt-populism reaches by 2080) funds no construction. Unfloored, the
+      // rationing below turned it into a negative build (US battery -784 GWh)
+      // that the vintage stock rightly refused.
+      let cleanBudget = Math.max(0, regionInvestment * cleanShare * 1000);
 
       // Desired additions: generators from the demand-led plan, storage
       // sized to the solar fleet
