@@ -2059,11 +2059,7 @@ export const energyModule: Module<
     )])) as Record<GeneratorSource, number>;
 
     for (const region of REGIONS) {
-      // A region's investment can only fund build, never un-build it: a
-      // negative input (no upstream producer should emit one) would turn
-      // into negative MW in the funding loop. Capacity falls only through
-      // the vintage stock's retirements.
-      const regionInvestment = Math.max(0, regionalInvestment[region]);
+      const regionInvestment = regionalInvestment[region];
       const { regionalLCOE, regionalBatteryLCOS, regionalSolarPlusBatteryLCOE, cheapestFossilLCOE } =
         costsByRegion[region];
       regionalLCOEs[region] = regionalLCOE;

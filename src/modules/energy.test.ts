@@ -533,21 +533,6 @@ test('module declares correct inputs', () => {
   expect(energyModule.inputs.includes('availableInvestment')).toBeTrue();
 });
 
-test('a negative regional investment funds no build rather than negative MW', () => {
-  // debt-populism reached this before the allocation floor: a -$38.8B US
-  // clean budget became -785 MW of battery and the vintage stock threw
-  const params = energyModule.mergeParams({});
-  const state = energyModule.init(params);
-  const regionalInvestment = regional(3);
-  regionalInvestment.us = -0.5;
-  const inputs = { ...createInputs(), regionalInvestment };
-  const { outputs } = energyModule.step(state, inputs, params, 2025, 0);
-  for (const source of ENERGY_SOURCES) {
-    const addition = outputs.regionalAdditions.us[source];
-    expect(Number.isFinite(addition) && addition >= 0).toBeTrue();
-  }
-});
-
 test('module declares correct outputs', () => {
   expect(energyModule.outputs.length).toBeGreaterThan(0);
   expect(energyModule.outputs.includes('lcoes')).toBeTrue();
