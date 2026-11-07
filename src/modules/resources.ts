@@ -19,11 +19,14 @@
 
 import {
   assertUnitBalance,
+  atMost,
+  closeTo,
   convertQuantity,
   defineModule,
   divideQuantities,
   integrateFlow,
   Module,
+  type ModuleInvariant,
   multiplyQuantities,
   subtractQuantities,
   sumQuantities,
@@ -684,6 +687,48 @@ function calculateFoodDemand(
 export type MineralKey = 'copper' | 'lithium' | 'rareEarths' | 'steel';
 export const MINERAL_KEYS: MineralKey[] = ['copper', 'lithium', 'rareEarths', 'steel'];
 
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+
+/**
+ * The mineral and land ledgers close every step. Mines cannot ship more than
+ * their capacity or than was demanded, and cumulative extraction books exactly
+ * what was mined (the ledger c06e55d closed). Land categories partition the
+ * fixed land area (49b2115).
+ */
+const RESOURCES_INVARIANTS: readonly ModuleInvariant<
+  ResourcesParams, ResourcesState, ResourcesInputs, ResourcesOutputs
+>[] = [
+  {
+    name: 'extraction is bounded by mine capacity and by demand',
+    check: ({ state, outputs }) => MINERAL_KEYS.flatMap((key) => [
+      atMost(`${key} extraction vs capacity`, outputs.minerals[key].extraction,
+        state.minerals[key].miningCapacity),
+      atMost(`${key} extraction vs demand`, outputs.minerals[key].extraction,
+        outputs.minerals[key].demand),
+    ]),
+  },
+  {
+    name: 'cumulative extraction books what was mined',
+    check: ({ previousState, state, outputs }) => MINERAL_KEYS.flatMap((key) => [
+      closeTo(`${key} cumulative`, state.minerals[key].cumulative,
+        previousState.minerals[key].cumulative + outputs.minerals[key].extraction),
+      closeTo(`${key} reported cumulative`, outputs.minerals[key].cumulative,
+        state.minerals[key].cumulative),
+    ]),
+  },
+  {
+    name: 'land categories partition the land area',
+    check: ({ outputs, params }) => {
+      const { farmland, urban, forest, desert } = outputs.land;
+      return closeTo('land area', farmland + urban + forest + desert, params.land.totalLandArea,
+        { abs: 1e-6 });
+    },
+  },
+];
+
 export const resourcesModule: Module<
   ResourcesParams,
   ResourcesState,
@@ -694,6 +739,8 @@ export const resourcesModule: Module<
   description: 'Mineral demand, land use, and forest carbon',
 
   defaults: resourcesDefaults,
+
+  invariants: RESOURCES_INVARIANTS,
 
   paramMeta: {
     land: {

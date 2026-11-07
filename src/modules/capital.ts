@@ -44,8 +44,10 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import {
+  closeTo,
   defineModule,
   type GodleyLedgerState,
+  type ModuleInvariant,
   integrateFlow,
   Module,
   subtractQuantities,
@@ -705,6 +707,50 @@ function calculateRobotsDensity(
 // MODULE DEFINITION
 // =============================================================================
 
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+/**
+ * Accounting identities the capital block promises every step. Its residual
+ * outputs are each defined to be zero; declaring them here checks that in
+ * every scenario and year, not just in the unit tests' fixtures. The ledger
+ * split is the one the unified financing ledger introduced (d950fc1): money
+ * debited from capital formation is exactly the realized spends, and any
+ * overflow is reported rather than silently floored (f73a96b).
+ */
+const CAPITAL_INVARIANTS: readonly ModuleInvariant<
+  CapitalParams, CapitalState, CapitalInputs, CapitalOutputs
+>[] = [
+  {
+    name: 'accounting residuals are zero',
+    check: ({ inputs, outputs }) => {
+      // $1M of slack per $1T of GDP: far above float error, far below any real leak.
+      const abs = 1e-6 * Math.max(1, Math.abs(inputs.gdp));
+      return [
+        closeTo('saving - investment residual', outputs.savingInvestmentResidual, 0, { abs }),
+        closeTo('household saving ledger residual', outputs.householdSavingLedgerResidual, 0, { abs }),
+        closeTo('national accounts residual', outputs.nationalAccountsResidual, 0, { abs }),
+        closeTo('financial ledger residual', outputs.financialLedgerResidual, 0, { abs }),
+      ];
+    },
+  },
+  {
+    name: 'realized spends are debited from investment, overflow reported',
+    description: 'investment - generalInvestment + unfundedRealizedSpend = sum of realized spends.',
+    check: ({ inputs, outputs }) => {
+      const spends = [inputs.energyCapexSpend, inputs.cdrSpend, inputs.robotCapexSpend,
+        inputs.dataCenterCapexSpend];
+      // Unwired, energy's debit is an internal estimate this check cannot see.
+      if (spends.some((spend) => spend == null)) return undefined;
+      const total = spends.reduce((sum: number, spend) => sum + (spend as number), 0);
+      return closeTo('realized spend debit',
+        outputs.investment - outputs.generalInvestment + outputs.unfundedRealizedSpend,
+        total);
+    },
+  },
+];
+
 export const capitalModule: Module<
   CapitalParams,
   CapitalState,
@@ -714,6 +760,7 @@ export const capitalModule: Module<
   name: 'capital',
   description: 'Profit-led capital accumulation with a stock-flow-consistent monetary circuit',
   defaults: capitalDefaults,
+  invariants: CAPITAL_INVARIANTS,
 
   paramMeta: {
     automationIncomeToCapital: {

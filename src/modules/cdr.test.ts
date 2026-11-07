@@ -6,7 +6,7 @@
  * energy accounting.
  */
 
-import { cdrModule, cdrDefaults, CDRInputs, CDRState } from './cdr.js';
+import { cdrModule, cdrDefaults, cdrParams, CDRInputs, CDRState } from './cdr.js';
 import { test, expect, printSummary } from '../test-utils.js';
 
 // =============================================================================
@@ -153,6 +153,30 @@ test('removal capped by maxDeployRate', () => {
     laggedInterestRate: 0.02,
   }, params);
   expect(outputs.cdrRemovalGtCO2).toBeLessThan(2.001);
+});
+
+// =============================================================================
+// PARAMETER SCHEMA
+// =============================================================================
+
+test('defaults are the calibrated values (schema migration changed nothing)', () => {
+  expect(JSON.stringify(cdrDefaults)).toBe(JSON.stringify({
+    cost0: 400, alpha: 0.15, cumulative2025: 0.001, energyPerTon: 2500,
+    maxGrowthRate: 0.30, bootstrapRate: 0.001, maxDeployRate: 15, budgetFraction: 0.005,
+    discountRate: 0.03, socialDiscountFactor: 0.5, sccHorizonYears: 100,
+    damageCoeff: 0.00536, tcre: 0.00058,
+  }));
+});
+
+test('every numeric default states its source', () => {
+  // The calibration convention (value, source, year), enforced rather than asked for
+  expect(cdrParams.unsourced().join(', ')).toBe('');
+});
+
+test('a misspelled override is an error, not silently ignored', () => {
+  expect(() => cdrModule.mergeParams({ costo: 300 } as any)).toThrow("unknown parameter 'costo'");
+  expect(() => cdrModule.mergeParams({ cost0: 0 })).toThrow('cost0 must be > 0');
+  expect(cdrModule.mergeParams({ cost0: 300 }).cost0).toBe(300);
 });
 
 printSummary();

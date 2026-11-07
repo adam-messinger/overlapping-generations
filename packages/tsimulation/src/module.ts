@@ -11,6 +11,7 @@
 
 import { YearIndex, Year, ValidationResult, ParamMeta } from './types.js';
 import type { PortMeta } from './units.js';
+import type { ModuleInvariant } from './invariants.js';
 
 /**
  * Module definition interface
@@ -70,6 +71,15 @@ export interface Module<
    * Used by generateParameterSchema() to auto-generate introspection data.
    */
   readonly paramMeta?: Record<string, any>;
+
+  /**
+   * Identities this module promises about every step (ledgers that close,
+   * parts that sum to their total, output bounded by physical capacity).
+   * The engine evaluates them after each step under `AutowireConfig.invariants`
+   * (default 'error'). Checks must be pure: they read the step's context and
+   * return a message per violation, nothing when the identity holds.
+   */
+  readonly invariants?: readonly ModuleInvariant<TParams, TState, TInputs, TOutputs>[];
 
   /**
    * Validate parameters

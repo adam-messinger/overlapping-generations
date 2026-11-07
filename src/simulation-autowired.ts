@@ -13,8 +13,10 @@
  */
 
 import {
+  applyDerivations,
   runAutowired,
   type AutowireResult,
+  type BootstrapOptions,
   type AnyModule,
   requireOutput,
   optionalOutput,
@@ -33,9 +35,10 @@ import {
   REGIONAL_ENERGY_LCOE_PORT,
 } from './port-schemas.js';
 import { computeEnergySystemOverhead, standardCollectors } from './standard-collectors.js';
+import { PARAM_DERIVATIONS } from './param-derivations.js';
 import { demographicsModule } from './modules/demographics.js';
 import { productionModule } from './modules/production.js';
-import { demandModule, gdpWeightedIntensityDecline } from './modules/demand.js';
+import { demandModule } from './modules/demand.js';
 import { capitalModule } from './modules/capital.js';
 import { generationsModule } from './modules/generations.js';
 import { humanCapitalModule } from './modules/human-capital.js';
@@ -966,6 +969,65 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
 }
 
 // =============================================================================
+// DERIVED PARAMETERS
+// =============================================================================
+
+/** Composition-code parameter reads, plus every leaf a derivation read. */
+function mergeReads(
+  base: Record<string, readonly string[]>,
+  extra: Record<string, readonly string[]>,
+): Record<string, string[]> {
+  const merged: Record<string, string[]> = Object.fromEntries(
+    Object.entries(base).map(([name, paths]) => [name, [...paths]]),
+  );
+  for (const [name, paths] of Object.entries(extra)) (merged[name] ??= []).push(...paths);
+  return merged;
+}
+
+const MODULE_BY_NAME = new Map<string, AnyModule>(ALL_MODULES.map((mod) => [mod.name, mod]));
+
+/**
+ * Apply PARAM_DERIVATIONS: each shared quantity computed from its owner's
+ * merged parameters. Throws if a derived parameter is set without being
+ * listed in `decouple`. Exported so tools can see the values a run will use.
+ */
+export function deriveSimulationParams(params: SimulationParams = {}) {
+  const { decouple, ...rest } = params;
+  return applyDerivations(rest, PARAM_DERIVATIONS, {
+    merge: (moduleName, overrides) => {
+      const mod = MODULE_BY_NAME.get(moduleName);
+      if (!mod) throw new Error(`Derivation names unknown module '${moduleName}'`);
+      return mod.mergeParams(overrides);
+    },
+    decouple,
+  });
+}
+
+/**
+ * Fixed-point warm-up: flow lags (generation, non-electric energy, overheads,
+ * damages, prices) get their year-0 self-consistent values instead of
+ * hand-guessed constants — kills the spurious -5.5% GDP step the old initials
+ * produced in the first simulated year.
+ *
+ * Energy's world build-capacity loop depends on the order in which sources hit
+ * their caps, so a source a hair either side of its cap moves the start-year
+ * build discretely (~0.65 TWh of US hydro in ssp1-19 at baseCreditGrowth 0.01),
+ * and the warm-up cycles at that amplitude however it is damped (~1e-4 of each
+ * lag's size). Such a cycle is accepted with a warning. Which runs land on that
+ * knife edge depends on float rounding, so it moves with the Node version and
+ * with any model change. An order-independent rationing rule removed it but
+ * tripled runtime and moved the blessed baseline.
+ */
+export const START_YEAR_BOOTSTRAP = {
+  maxIterations: 100,
+  minIterations: 2,
+  tolerance: 1e-7,
+  damping: 0.65,
+  onNonConvergence: 'throw',
+  acceptCycleWithin: 1e-3,
+} as const satisfies BootstrapOptions;
+
+// =============================================================================
 // RUN SIMULATION
 // =============================================================================
 
@@ -973,16 +1035,19 @@ export function auditGlobalUnitContracts(params: SimulationParams = {}) {
  * Run autowired simulation with full SimulationParams support.
  */
 export function runAutowiredSimulation(
-  params: SimulationParams = {},
+  inputParams: SimulationParams = {},
   options?: RunOptions
 ): AutowireResult {
-  // Merge energy params to read carbon prices
   const diagnostics = options?.diagnostics ?? true;
+  // Every quantity two modules share is computed once, from its owner
+  // (src/param-derivations.ts): production's efficiency series from demand's,
+  // cdr.tcre from climate sensitivity, energy's grid-loss factor from
+  // dispatch's. Overriding a derived parameter needs an explicit `decouple`.
+  const { params, reads: derivationReads } = deriveSimulationParams(inputParams);
   const mergedEnergyParams = energyModule.mergeParams(params.energy ?? {});
   // Merge production params to inject robotLaborEquivalent into demand's
   // deployment rule (one source of truth: a scenario overriding production's
-  // payoff automatically changes the business case too). Safe before the
-  // efficiency-coupling below — the coupled keys don't touch this param.
+  // payoff automatically changes the business case too).
   const mergedProductionParams = productionModule.mergeParams(params.production ?? {});
   const mergedDemandParams = demandModule.mergeParams(params.demand ?? {});
 
@@ -993,48 +1058,20 @@ export function runAutowiredSimulation(
   );
   const lags = buildLags(params);
 
-  // Couple production's efficiency-index growth to demand's EFFECTIVE
-  // autonomous intensity decline: the GDP-weighted regional rate times the
-  // top-level efficiencyMultiplier that scenarios use. Demand decays final
-  // energy at intensityDecline x efficiencyMultiplier; production's eta must
-  // rise at the same rate or the "one efficiency series, two views" invariant
-  // silently re-splits when efficiencyMultiplier != 1 — an artifact worth a
-  // ~3.6x GDP swing across the 8 scenarios that set it (higher efficiency
-  // would otherwise DESTROY GDP through E^gamma with no offsetting eta gain).
-  // An explicit production.serviceEfficiencyGrowth override still wins.
-  const coupledProduction = { ...(params.production ?? {}) };
-  coupledProduction.serviceEfficiencyGrowth ??=
-    gdpWeightedIntensityDecline(mergedDemandParams.regions) * mergedDemandParams.efficiencyMultiplier;
-  // The structural-decay shape must match demand's so the two views of the
-  // one efficiency series decay together (a mismatch re-splits them and
-  // collapses GDP at high efficiencyMultiplier). Injected unless overridden.
-  coupledProduction.structuralEfficiencyShare ??= mergedDemandParams.structuralEfficiencyShare;
-  coupledProduction.structuralDecayHalfLife ??= mergedDemandParams.structuralDecayHalfLife;
-
-  // Couple CDR's TCRE (the warming/GtCO2 its SCC gate values) to climate's
-  // sensitivity: the emergent 75-yr TCRE scales ~linearly with sensitivity
-  // (0.00058 at 3.0, 0.00088 at 4.5). Without this, high-sensitivity /
-  // climate-cascade ran the SCC gate at the 3.0-sensitivity damage while
-  // realized warming was 4.5 — silently under-valuing CDR ~50%. Explicit
-  // cdr.tcre overrides still win.
-  const mergedClimateParams = climateModule.mergeParams(params.climate ?? {});
-  const coupledCdr = { ...(params.cdr ?? {}) };
-  coupledCdr.tcre ??= cdrModule.mergeParams({}).tcre * (mergedClimateParams.sensitivity / 3.0);
-
   return runAutowired({
     modules: modulesFor(diagnostics),
     transforms,
     lags,
     params: {
       demographics: params.demographics,
-      production: coupledProduction,
+      production: params.production,
       demand: params.demand,
       capital: params.capital,
       ...diagnosticParams(params, diagnostics, options?.paramLiveness ?? 'warn'),
       energy: params.energy,
       dispatch: params.dispatch,
       resources: params.resources,
-      cdr: coupledCdr,
+      cdr: params.cdr,
       climate: params.climate,
     },
     startYear: params.startYear ?? 2025,
@@ -1044,11 +1081,15 @@ export function runAutowiredSimulation(
     // ensembles and sweeps that have already validated a representative run
     // can pass 'off' to skip it.
     connectorValidation: options?.connectorValidation,
+    // Module invariants (ledgers close, parts sum to totals, generation within
+    // capacity). The framework defaults to 'error', and studies keep it: a
+    // perturbation that breaks a ledger is a finding (~5% of a macro run).
+    invariants: options?.invariants,
     // Report pathwise-inert scenario knobs. This is a warning by default
     // because conditional branches can legitimately leave a parameter unread;
     // unknown scenario keys are rejected separately by scenarioToParams.
     paramLiveness: options?.paramLiveness ?? 'warn',
-    externalParamReads: {
+    externalParamReads: mergeReads({
       energy: [
         'carbonPrice',
         ...REGIONS.map((region) => `regional.${region}.carbonPrice`),
@@ -1057,34 +1098,13 @@ export function runAutowiredSimulation(
         'robotLaborEquivalent', 'beta', 'electricExergy', 'thermalExergy', 'gamma',
       ],
       demand: [
-        'efficiencyMultiplier', 'structuralEfficiencyShare', 'structuralDecayHalfLife',
-        ...REGIONS.map((region) => `regions.${region}.intensityDecline`),
         ...(['transport', 'buildings', 'industry'] as const).flatMap((sector) => [
           `sectors.${sector}.share`,
           `sectors.${sector}.electricityDeliveryCost`,
         ]),
       ],
-      climate: ['sensitivity'],
-    },
-    // Fixed-point warm-up: flow lags (generation, non-electric energy,
-    // overheads, damages, prices) get their year-0 self-consistent values
-    // instead of hand-guessed constants — kills the spurious -5.5% GDP step
-    // the old initials produced in the first simulated year.
-    bootstrapLags: {
-      maxIterations: 100,
-      minIterations: 2,
-      tolerance: 1e-7,
-      damping: 0.65,
-      onNonConvergence: 'throw',
-      // Energy's world build-capacity loop depends on the order in which
-      // sources hit their caps, so a source a hair either side of its cap
-      // moves the start-year build discretely (~0.65 TWh of US hydro in
-      // ssp1-19 at baseCreditGrowth 0.01), and the warm-up cycles at that
-      // amplitude however it is damped (~1e-4 of each lag's size). Such a
-      // cycle is accepted with a warning. An order-independent rationing rule
-      // removed it but tripled runtime and moved the blessed baseline.
-      acceptCycleWithin: 1e-3,
-    },
+    }, derivationReads),
+    bootstrapLags: START_YEAR_BOOTSTRAP,
   });
 }
 

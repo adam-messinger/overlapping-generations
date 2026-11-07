@@ -27,7 +27,15 @@
  * - radiativeForcing: Current radiative forcing (W/m²)
  */
 
-import { defineModule, Module, ValidationResult, validatedMerge, unitPort } from 'tsimulation';
+import {
+  closeTo,
+  defineModule,
+  Module,
+  type ModuleInvariant,
+  ValidationResult,
+  validatedMerge,
+  unitPort,
+} from 'tsimulation';
 import { Region, REGIONS } from '../domain-types.js';
 import { lerp, quadraticDamage, smoothStep } from '../primitives/math.js';
 
@@ -205,6 +213,25 @@ function effectiveAirborneFraction(
   );
 }
 
+/**
+ * The carbon stock accumulates exactly this step's net emissions. Land-use
+ * carbon once reached temperature only by recomputing the path afterwards
+ * (3b42721); the stock-flow identity keeps every flow on the one ledger.
+ */
+const CLIMATE_INVARIANTS: readonly ModuleInvariant<
+  ClimateParams, ClimateState, ClimateInputs, ClimateOutputs
+>[] = [
+  {
+    name: 'cumulative emissions accumulate net emissions',
+    check: ({ previousState, state, inputs, outputs }) => [
+      closeTo('cumulative emissions', state.cumulativeEmissions,
+        previousState.cumulativeEmissions + inputs.emissions, { rel: 1e-12, abs: 1e-9 }),
+      closeTo('reported cumulative emissions', outputs.cumulativeEmissions,
+        state.cumulativeEmissions, { rel: 1e-12, abs: 1e-9 }),
+    ],
+  },
+];
+
 export const climateModule: Module<
   ClimateParams,
   ClimateState,
@@ -215,6 +242,8 @@ export const climateModule: Module<
   description: 'Two-layer energy balance (Geoffroy et al. 2013) with DICE-style damages',
 
   defaults: climateDefaults,
+
+  invariants: CLIMATE_INVARIANTS,
 
   paramMeta: {
     sensitivity: {

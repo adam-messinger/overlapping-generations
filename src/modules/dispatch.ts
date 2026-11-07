@@ -29,8 +29,12 @@
 
 import {
   assertUnitBalance,
+  atMost,
+  closeTo,
   convertQuantity,
   defineModule,
+  type ModuleInvariant,
+  sumValues,
   divideQuantities,
   Module,
   multiplyQuantities,
@@ -589,6 +593,83 @@ function dispatchRegion(
 // MODULE DEFINITION
 // =============================================================================
 
+/**
+ * The capacity factors a region is dispatched at: the site-depletion-adjusted
+ * regional value from energy, then the fleet mean, then the parameter default,
+ * so a caller supplying neither behaves as before. Shared by the step and by
+ * the physical-potential invariant, so the bound checks the CFs actually used.
+ */
+function regionCapacityFactors(
+  inputs: DispatchInputs,
+  params: DispatchParams,
+  region: Region,
+): DispatchParams['capacityFactor'] {
+  return {
+    ...params.capacityFactor,
+    solar: inputs.regionalEffectiveSolarCF?.[region] ?? inputs.effectiveSolarCF ?? params.capacityFactor.solar,
+    wind: inputs.regionalEffectiveWindCF?.[region] ?? inputs.effectiveWindCF ?? params.capacityFactor.wind,
+  };
+}
+
+// =============================================================================
+// INVARIANTS
+// =============================================================================
+
+/**
+ * Identities every dispatch step promises, checked by the engine after each
+ * step of every run. The physical-potential bound is the one a fleet-mean
+ * capacity factor broke (bc9f43e) and the shortfall release broke by
+ * crediting the same panels twice (16e7793).
+ */
+const DISPATCH_INVARIANTS: readonly ModuleInvariant<
+  DispatchParams, DispatchState, DispatchInputs, DispatchOutputs
+>[] = [
+  {
+    name: 'global generation is the sum of regions',
+    check: ({ outputs }) => [...ENERGY_SOURCES, 'solarPlusBattery' as const].map((source) =>
+      closeTo(
+        `${source} generation`,
+        outputs.generation[source],
+        sumValues(outputs.regionalGeneration, (r) => r[source])
+      )),
+  },
+  {
+    name: 'total generation is the sum of sources',
+    check: ({ outputs }) =>
+      closeTo('total generation', outputs.totalGeneration, sumValues(outputs.generation)),
+  },
+  {
+    name: 'global emissions and curtailment are the sum of regions',
+    check: ({ outputs }) => [
+      closeTo('electricity emissions', outputs.electricityEmissions,
+        sumValues(outputs.regionalEmissions)),
+      closeTo('curtailment', outputs.curtailmentTWh,
+        sumValues(outputs.regionalCurtailment)),
+    ],
+  },
+  {
+    name: 'no region generates more than its capacity can',
+    description: 'Each source is bounded by the region\'s capacity x its own capacity factor x hours; '
+      + 'bare and battery-paired solar share the same panels.',
+    check: ({ inputs, outputs, params }) => {
+      const capacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(inputs.capacities);
+      const messages: (string | undefined)[] = [];
+      for (const region of REGIONS) {
+        const cap = capacities[region];
+        const gen = outputs.regionalGeneration[region];
+        const cf: Record<string, number> = regionCapacityFactors(inputs, params, region);
+        for (const source of ENERGY_SOURCES) {
+          if (source === 'battery') continue;
+          const served = source === 'solar' ? gen.solar + gen.solarPlusBattery : gen[source];
+          const potential = (cap[source] * cf[source] * params.hoursPerYear) / 1000;
+          messages.push(atMost(`${region} ${source} TWh`, served, potential));
+        }
+      }
+      return messages;
+    },
+  },
+];
+
 export const dispatchModule: Module<
   DispatchParams,
   DispatchState,
@@ -599,6 +680,8 @@ export const dispatchModule: Module<
   description: 'Regional merit order dispatch with penetration limits',
 
   defaults: dispatchDefaults,
+
+  invariants: DISPATCH_INVARIANTS,
 
   paramMeta: {
     curtailmentOnset: {
@@ -719,35 +802,8 @@ export const dispatchModule: Module<
     const longStorageRegional = inputs.longStorageRegional ??
       Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>;
 
-    // Use site-depletion-adjusted CFs from energy module when available
-    const effectiveParams = (inputs.effectiveSolarCF != null || inputs.effectiveWindCF != null)
-      ? {
-          ...params,
-          capacityFactor: {
-            ...params.capacityFactor,
-            ...(inputs.effectiveSolarCF != null && { solar: inputs.effectiveSolarCF }),
-            ...(inputs.effectiveWindCF != null && { wind: inputs.effectiveWindCF }),
-          },
-        }
-      : params;
-
     for (const region of REGIONS) {
-      // Regional first, then the fleet mean, then the parameter default, so a
-      // caller supplying neither behaves as before.
-      const regionSolarCF = inputs.regionalEffectiveSolarCF?.[region]
-        ?? inputs.effectiveSolarCF;
-      const regionWindCF = inputs.regionalEffectiveWindCF?.[region]
-        ?? inputs.effectiveWindCF;
-      const regionParams = (regionSolarCF != null || regionWindCF != null)
-        ? {
-            ...effectiveParams,
-            capacityFactor: {
-              ...effectiveParams.capacityFactor,
-              ...(regionSolarCF != null && { solar: regionSolarCF }),
-              ...(regionWindCF != null && { wind: regionWindCF }),
-            },
-          }
-        : effectiveParams;
+      const regionParams = { ...params, capacityFactor: regionCapacityFactors(inputs, params, region) };
 
       // Regional fuel prices (energy's regional fossilRunningCost) set the
       // gas/coal merit order; e.g. LNG-priced gas runs after domestic coal.

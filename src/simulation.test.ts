@@ -2,9 +2,6 @@
  * Simulation Integration Tests
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { energyDefaults } from './modules/energy.js';
 import { capitalDefaults } from './modules/capital.js';
 import { REGIONS } from './domain-types.js';
@@ -16,13 +13,14 @@ import {
   DIAGNOSTIC_FIELDS,
   DIAGNOSTIC_MODULES,
   auditGlobalUnitContracts,
+  START_YEAR_BOOTSTRAP,
 } from './simulation-autowired.js';
 import {
   auditCollectorContracts,
   resolveKey,
   getOutputsAtYear,
 } from 'tsimulation';
-import { scenarioToParams } from './scenario.js';
+import { loadScenarioParamsSync, scenarioToParams } from './scenario.js';
 import { standardCollectors } from './standard-collectors.js';
 import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
@@ -31,11 +29,6 @@ import { STUDY_OPTIONS } from './ensemble-model.js';
 import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
-function loadScenarioParamsSync(name: string) {
-  const path = join(dirname(fileURLToPath(import.meta.url)), `../scenarios/${name}.json`);
-  return scenarioToParams(JSON.parse(readFileSync(path, 'utf-8')));
-}
-
 console.log('\n=== Simulation Integration Tests ===\n');
 
 test('runSimulation respects startYear/endYear', () => {
@@ -163,18 +156,34 @@ test('start-year fixed point: plain runs converge; an order-dependent build cycl
     expect(bootstrap?.converged).toBe(true);
     expect(bootstrap?.acceptedCycle).toBe(undefined);
   }
-  // Sweep case: energy's world build-capacity loop moves the build discretely
-  // at a cap edge, so this used to throw "Lag bootstrap did not converge"
+  // The runner keeps a cycle band: energy's world build-capacity loop moves
+  // the build discretely at a cap edge, which no damping removes.
+  expect(START_YEAR_BOOTSTRAP.acceptCycleWithin).toBe(1e-3);
+  expect(START_YEAR_BOOTSTRAP.onNonConvergence).toBe('throw');
+  // The two sweep runs that threw "Lag bootstrap did not converge" must now
+  // complete. Whether they land on the cap edge, and so cycle, depends on
+  // float rounding (it differs between Node versions and moves with any model
+  // change), so the test pins what must hold either way rather than which
+  // happens: a run that did not converge reports a genuine accepted cycle
+  // inside the band, never a silent pass. The acceptance mechanism itself is
+  // pinned deterministically in packages/tsimulation/test/autowire.test.ts.
   const scenario = loadScenarioParamsSync('ssp1-19') as SimulationParams;
   const warn = console.warn;
   console.warn = () => {};
   try {
-    const bootstrap = runAutowiredSimulation(
-      { ...scenario, capital: { ...scenario.capital, baseCreditGrowth: 0.01 }, endYear: 2025 },
-      STUDY_OPTIONS,
-    ).diagnostics?.bootstrap;
-    expect(bootstrap?.converged).toBe(false);
-    expect(bootstrap!.acceptedCycle!.scaledResidual).toBeLessThan(1e-3);
+    for (const capital of [{ baseCreditGrowth: 0.01 }, { publicDeficitRate: 0.01 }]) {
+      const bootstrap = runAutowiredSimulation(
+        { ...scenario, capital: { ...scenario.capital, ...capital }, endYear: 2025 },
+        STUDY_OPTIONS,
+      ).diagnostics?.bootstrap;
+      expect(bootstrap?.enabled).toBe(true);
+      if (bootstrap?.converged) {
+        expect(bootstrap.acceptedCycle).toBe(undefined);
+      } else {
+        expect(bootstrap!.acceptedCycle!.scaledResidual)
+          .toBeLessThan(START_YEAR_BOOTSTRAP.acceptCycleWithin);
+      }
+    }
   } finally {
     console.warn = warn;
   }
@@ -237,16 +246,6 @@ test('production serviceEfficiencyGrowth equals demand GDP-weighted intensity de
   // production), the intensity-decline-as-GDP-destroyer bug returns.
   const derived = gdpWeightedIntensityDecline();
   expect(Math.abs(productionDefaults.serviceEfficiencyGrowth - derived)).toBeLessThan(5e-4);
-});
-
-test('production and demand share the same structural-decay shape', () => {
-  // The forward structural decay must apply identically to demand's
-  // intensity decline and production's eta growth, or the coupled series
-  // re-split under efficiencyMultiplier and GDP collapses at the high end.
-  expect(productionDefaults.structuralEfficiencyShare)
-    .toBe(demandDefaults.structuralEfficiencyShare);
-  expect(productionDefaults.structuralDecayHalfLife)
-    .toBe(demandDefaults.structuralDecayHalfLife);
 });
 
 test('no initialization discontinuity: first simulated years are smooth', () => {
