@@ -304,6 +304,7 @@ export interface CapitalOutputs {
   newInvestmentLoanOriginations: number; // $T/year of genuinely new investment credit
   refinancedPrincipal: number; // $T/year of maturing principal rolled into new loans
   unfundedCreditDemand: number; // $T/year requested investment credit not supplied
+  creditCapacity: number;      // $T/year new investment credit banks would extend (the lending envelope)
   creditImpulse: number;       // Deprecated alias for newInvestmentLoanOriginations
   principalRepayments: number; // $T/year of private-loan principal repaid
   loanWriteOffs: number;       // $T/year of private loans written off
@@ -1006,6 +1007,7 @@ export const capitalModule: Module<
       newInvestmentLoanOriginations: unitPort('$T/year'),
       refinancedPrincipal: unitPort('$T/year'),
       unfundedCreditDemand: unitPort('$T/year'),
+      creditCapacity: unitPort('$T/year'),
       creditImpulse: unitPort('$T/year'),
       principalRepayments: unitPort('$T/year'),
       loanWriteOffs: unitPort('$T/year'),
@@ -1945,6 +1947,7 @@ export const capitalModule: Module<
         newInvestmentLoanOriginations,
         refinancedPrincipal,
         unfundedCreditDemand,
+        creditCapacity: finance.netNewCreditCapacity,
         creditImpulse,
         principalRepayments,
         loanWriteOffs,
