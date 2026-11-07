@@ -50,8 +50,8 @@ test('the wrapper defaults reproduce the calibrated default run', () => {
 test('the efficiency dial keeps both views of the one series coupled', () => {
   // Sampling production's growth rate directly re-splits the series, which is
   // how the wrong dial announces itself. Measured across the declared range,
-  // this dial vs the re-split: energy per $ of GDP in 2100 x0.57 vs x0.97,
-  // GDP x2.3 vs x5.9, warming +0.12 vs +0.89 °C.
+  // this dial vs the re-split: energy per $ of GDP in 2100 x0.58 vs x0.96,
+  // GDP x2.5 vs x6.6, warming +0.03 vs +0.79 °C.
   //
   // Don't pin the SIGN of warming. Rebound in final energy is about 100%, so
   // the response is small and not monotone (see the input's doc comment).
