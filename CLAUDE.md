@@ -415,7 +415,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 | `tech-stagnation` | Learning rate saturation |
 | `tech-breakthrough` | Aggressive learning + fusion proxy |
 | `automation-boom` | High robot growth |
-| `central-path` | Twin-Engine 30% probability |
+| `central-path` | Twin-Engine 30% probability; defaults + mineral learning rates. Emissions never peak, ~3.3°C by 2100 |
 | `tech-plateau` | Twin-Engine learning saturation |
 | `debt-populism` | Twin-Engine policy instability |
 | `regional-divergence` | Regional policy divergence |

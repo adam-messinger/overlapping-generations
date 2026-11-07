@@ -1,6 +1,6 @@
 {
   "name": "Central Path",
-  "description": "Twin-Engine Managed Acceleration central scenario (30% probability). Represents most likely trajectory with gradual decarbonization, VRE expansion constrained by grids/minerals, and temperature stabilizing near 2°C.",
+  "description": "Twin-Engine central scenario (30% probability): model defaults with Twin-Engine mineral learning rates, no added climate policy. Results within a few percent of the default run. The transition succeeds on cost but not on emissions: solar undercuts gas from 2025, transport and buildings electrify ~95% and the fossil share of power falls from ~57% to ~6% by 2100, but electricity grows ~16x (robots, datacenters, CDR) and GDP ~11x (~$1,760T in 2100), so absolute fossil generation and non-electric emissions both rise. Emissions do not peak before 2100 (~60 Gt); CDR reaches its 15 Gt/yr ceiling only in the late 2070s. Warming passes 2C around 2050 and reaches ~3.3C in 2100, still rising; damages ~9% of GDP. Population peaks ~9.05B in 2054, transfers rise from ~10% to ~22% of GDP and public debt from ~90% to ~160%. Without a carbon price, cheap clean energy adds to fossil supply rather than displacing it.",
 
   "energy": {
     "sources": {
