@@ -133,6 +133,17 @@ the human-capital ledger (including its replacement-cost re-pricing).
 
 ### Calibration & Sources
 
+- `src/calibration-anchors.ts` compares 17 of the model's 2025 outputs with
+  independent observations within loose (1.02-1.5x) bands — an
+  order-of-magnitude tripwire for unit and intensity errors, not calibration.
+  `npx tsx src/calibration-anchors.ts` prints the table. When you add a
+  quantity whose units could slip (an intensity, a conversion), add an anchor
+  on an output it produces
+- `src/seed-year.test.ts` requires every published output's 2025->2026 step to
+  sit on the path of the next four years. A new discontinuity fails; today's
+  are listed (`KNOWN_SEED_YEAR_ARTIFACTS`) as leads, and an entry that stops
+  flagging must be removed
+
 - Every calibrated numeric default needs an inline source comment: value, source, year
   - Example: `alpha: 0.36, // Wright's Law solar learning rate, Rubin (2019)`
 - Two independent sources for values that drive major outputs (learning rates, damage coefficients, elasticities)
