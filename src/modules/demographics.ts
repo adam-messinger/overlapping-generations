@@ -31,6 +31,12 @@ export interface RegionDemoParams {
   young: number;             // 0-19 share
   working: number;           // 20-64 share
   old: number;               // 65+ share
+  // Age structure WITHIN the cohorts (UN WPP 2024, 2025): 5-year bands.
+  // The cohorts age band by band, so entrants are the 15-19 band turning 20
+  // and retirees the 60-64 band turning 65 - not 1/20 and 1/45 of the cohort,
+  // which assumed ages spread evenly and retired ~2x too many people a year.
+  youngBandShares: number[];   // 0-4, 5-9, 10-14, 15-19 (sum 1)
+  workingBandShares: number[]; // 20-24 ... 60-64, nine bands (sum 1)
   migrationRate: number;     // Net migration rate
 }
 
@@ -82,100 +88,118 @@ export const demographicsDefaults: DemographicsParams = {
     us: {
       pop2025: 0.34e9,         // Census Bureau Vintage 2024: 340M Jan 2025
       fertility: 1.62,         // CDC NVSS 2023 TFR 1.62
-      fertilityFloor: 1.4,     // Higher floor than Europe/East Asia (JFV: US immigration + religiosity)
-      fertilityDecay: 0.01,
+      fertilityFloor: 1.14,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.011; Low 1.14 in 2050, 1.15 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.213,  // Low-variant fit speed (0.304) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 79,      // CDC NVSS 2023: 78.4, recovering post-COVID
-      young: 0.24,             // Census 2023 ACS: 0-19 ~24.5%
-      working: 0.58,           // 20-64 ~58%
-      old: 0.18,               // 65+ ~17.7%
+      young: 0.237,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.24
+      working: 0.579,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.58
+      old: 0.184,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.18
+      youngBandShares: [0.2259, 0.2402, 0.2562, 0.2777],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.1146, 0.1125, 0.1191, 0.1198, 0.1154, 0.1066, 0.1019, 0.1030, 0.1070],
       migrationRate: 0.0035,   // UN WPP 2024 / CBO 2025: net ~+1.2M/yr on 340M (relative share of the emigration budget; the closed-world rescale books ~1.6M/yr, see docs/HUMAN_CAPITAL_TRAJECTORY.md)
     },
     'oecd-ex-us': {
       pop2025: 0.80e9,         // 1.14B model-OECD less the US
       fertility: 1.5,          // Weighted: EU 1.4, Japan 1.2, Korea 0.7, Mexico 1.8, Turkey 1.5
-      fertilityFloor: 1.3,
-      fertilityDecay: 0.01,
+      fertilityFloor: 1.02,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.044; Low 0.99 in 2050, 1.07 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.279,  // Low-variant fit speed (0.399) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 82,      // Japan 84.7, EU 81.5, Korea 83.5 (UN WPP 2024)
-      young: 0.18,             // UN WPP 2024 aggregate of the member states less the US
-      working: 0.58,
-      old: 0.24,
+      young: 0.194,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.18
+      working: 0.579,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.58
+      old: 0.227,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.24
+      youngBandShares: [0.2182, 0.2448, 0.2632, 0.2738],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.0939, 0.0994, 0.1051, 0.1098, 0.1142, 0.1177, 0.1231, 0.1212, 0.1156],
       migrationRate: 0.004,    // ~+3M/yr on 800M (Germany, Canada, UK, Australia, Spain the main receivers; the closed-world rescale books ~4.3M/yr)
     },
     china: {
       pop2025: 1.41e9,
       fertility: 1.0,          // TFR 2023 (JFV: ultra-low, no recovery despite pro-natalist spending)
-      fertilityFloor: 0.8,     // South Korea at 0.7
-      fertilityDecay: 0.05,    // Fast convergence (JFV: steepest decline)
+      fertilityFloor: 0.74,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.076; Low 0.68 in 2050, 0.84 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.279,  // Low-variant fit speed (0.399) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 78,
-      young: 0.17,
-      working: 0.66,
-      old: 0.17,
+      young: 0.213,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.17
+      working: 0.637,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.66
+      old: 0.150,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.17
+      youngBandShares: [0.1574, 0.2651, 0.2981, 0.2794],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.0871, 0.0917, 0.1092, 0.1342, 0.1140, 0.1030, 0.1274, 0.1291, 0.1043],
       migrationRate: -0.0002, // UN WPP 2024: net -0.2 to -0.3M/yr on 1.41B (students and skilled workers to the OECD)
     },
     india: {
       pop2025: 1.97e9,
       fertility: 2.1,          // India crossed below replacement 2020; Pakistan/Bangladesh still above
-      fertilityFloor: 1.4,
-      fertilityDecay: 0.03,
+      fertilityFloor: 1.35,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.037; Low 1.47 in 2050, 1.29 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.066,  // Low-variant fit speed (0.094) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 71,
-      young: 0.32,
-      working: 0.59,
-      old: 0.09,
+      young: 0.355,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.32
+      working: 0.576,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.59
+      old: 0.069,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.09
+      youngBandShares: [0.2448, 0.2468, 0.2533, 0.2551],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.1557, 0.1476, 0.1380, 0.1282, 0.1155, 0.0984, 0.0850, 0.0718, 0.0598],
       migrationRate: -0.001,
     },
     latam: {
       pop2025: 0.67e9,
       fertility: 1.8,          // 76% of countries below replacement (ECLAC 2024)
-      fertilityFloor: 1.4,
-      fertilityDecay: 0.02,
+      fertilityFloor: 1.16,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.012; Low 1.17 in 2050, 1.15 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.152,  // Low-variant fit speed (0.217) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 76,
-      young: 0.27,
-      working: 0.63,
-      old: 0.10,
+      young: 0.300,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.27
+      working: 0.598,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.63
+      old: 0.102,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.10
+      youngBandShares: [0.2313, 0.2478, 0.2596, 0.2613],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.1320, 0.1324, 0.1295, 0.1246, 0.1175, 0.1070, 0.0961, 0.0856, 0.0754],
       migrationRate: -0.002,
     },
     seasia: {
       pop2025: 0.70e9,
       fertility: 2.1,
-      fertilityFloor: 1.4,
-      fertilityDecay: 0.025,
+      fertilityFloor: 1.23,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.027; Low 1.27 in 2050, 1.20 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.136,  // Low-variant fit speed (0.194) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 73,
-      young: 0.28,
-      working: 0.63,
-      old: 0.09,
+      young: 0.316,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.28
+      working: 0.599,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.63
+      old: 0.085,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.09
+      youngBandShares: [0.2301, 0.2496, 0.2649, 0.2554],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.1292, 0.1288, 0.1291, 0.1247, 0.1197, 0.1076, 0.0983, 0.0883, 0.0742],
       migrationRate: -0.002,
     },
     russia: {
       pop2025: 0.29e9,
       fertility: 1.6,          // Russia 1.5; Central Asian states (Uzbekistan 2.8, Tajikistan 3.6) pull up
-      fertilityFloor: 1.3,
-      fertilityDecay: 0.02,
+      fertilityFloor: 1.29,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.029; Low 1.37 in 2050, 1.25 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.040,  // Low-variant fit speed (0.057) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 73,
-      young: 0.22,
-      working: 0.62,
-      old: 0.16,
+      young: 0.273,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.22
+      working: 0.583,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.62
+      old: 0.144,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.16
+      youngBandShares: [0.2350, 0.2592, 0.2694, 0.2363],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.0967, 0.0978, 0.1192, 0.1435, 0.1307, 0.1152, 0.1036, 0.0938, 0.0995],
       migrationRate: -0.001,
     },
     mena: {
       pop2025: 0.60e9,
       fertility: 2.5,          // Bifurcated: Turkey 1.5/Iran 1.45 vs Egypt 3.4/Iraq 3.5/Yemen 3.8
-      fertilityFloor: 1.5,
-      fertilityDecay: 0.025,
+      fertilityFloor: 1.41,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.053; Low 1.66 in 2050, 1.34 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.047,  // Low-variant fit speed (0.067) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 74,
-      young: 0.33,
-      working: 0.59,
-      old: 0.08,
+      young: 0.372,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.33
+      working: 0.566,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.59
+      old: 0.062,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.08
+      youngBandShares: [0.2519, 0.2593, 0.2575, 0.2314],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.1399, 0.1392, 0.1400, 0.1374, 0.1246, 0.1045, 0.0855, 0.0711, 0.0579],
       migrationRate: 0.001,
     },
     ssa: {
       pop2025: 1.38e9,
       fertility: 4.3,          // UN WPP 2024: TFR 4.34, JFV says "faster convergence than anticipated"
-      fertilityFloor: 1.8,
-      fertilityDecay: 0.02,
+      fertilityFloor: 1.58,  // Fit to UN WPP 2024 Low variant 2030-2100 (rmse 0.078; Low 2.37 in 2050, 1.54 in 2100): Fernandez-Villaverde & Norrick (2026) read the Low variant as the realistic path
+      fertilityDecay: 0.036,  // Low-variant fit speed (0.052) x 0.7: the world path then peaks at ~9.0B in 2054, Fernandez-Villaverde & Norrick's ~9B circa 2056 (the Low variant's immediate -0.5 shift peaks in 2052)
       lifeExpectancy: 62,
-      young: 0.47,
-      working: 0.48,
-      old: 0.05,
+      young: 0.513,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.47
+      working: 0.455,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.48
+      old: 0.032,       // UN WPP 2024, 2025 estimate (scripts/wpp-age-structure.py); was 0.05
+      youngBandShares: [0.2883, 0.2607, 0.2382, 0.2128],  // UN WPP 2024, 2025 (scripts/wpp-age-structure.py)
+      workingBandShares: [0.2053, 0.1731, 0.1472, 0.1251, 0.1046, 0.0848, 0.0668, 0.0526, 0.0406],
       migrationRate: -0.001,
     },
   },
@@ -317,6 +341,9 @@ interface RegionState {
   young: number;
   working: number;
   old: number;
+  // 5-year age bands inside the young and working cohorts (absolute counts)
+  youngBands: number[];   // 0-4 ... 15-19
+  workingBands: number[]; // 20-24 ... 60-64
   // Education splits (absolute counts)
   workingCollege: number;
   workingNonCollege: number;
@@ -411,6 +438,9 @@ function projectWagePremium(
 }
 
 /** Net migrants: 80% working-age (70% of them college), 15% young, 5% old. */
+/** Annual mortality inside the young (0-19) and working (20-64) cohorts (stylized, unchanged by the band split). */
+const YOUNG_MORTALITY = 0.001;
+const WORKING_MORTALITY = 0.003;
 const WORKING_MIGRANT_SHARE = 0.8;
 const MIGRANT_COLLEGE_SHARE = 0.70;
 const YOUNG_MIGRANT_SHARE = 0.15;
@@ -422,7 +452,7 @@ const OLD_MIGRANT_SHARE = 0.05;
  * for ageCohorts and for the reported outputs, so the two cannot drift.
  */
 interface CohortFlows {
-  entrants: number;               // 1/20 of the young cohort turns 20
+  entrants: number;               // the 15-19 band turning 20 this year
   enrollRate: number;             // college share of entrants
   migration: number;              // net migrants, all ages
   workingMigrationCollege: number;
@@ -438,8 +468,8 @@ function cohortFlows(
   const migration = state.population * effectiveMigrationRate;
   const working = migration * WORKING_MIGRANT_SHARE;
   return {
-    // Young cohort: 20 years (ages 0-19), so 1/20 age out per year
-    entrants: state.young / 20,
+    // The 15-19 band turning 20 (a fifth of it each year)
+    entrants: state.youngBands[state.youngBands.length - 1] / BAND_YEARS,
     enrollRate: projectEnrollmentRate(
       eduParams.enrollmentRate2025,
       eduParams.enrollmentTarget,
@@ -452,15 +482,50 @@ function cohortFlows(
   };
 }
 
-function birthRateFromTFR(tfr: number, workingShare: number, youngShare: number): number {
-  // Women 15-49 are roughly split between young (15-19) and working (20-49) cohorts
-  // Approximate: 0.25 of young + 0.65 of working are women 15-49
-  // (stylized cohort-overlap fractions, not sourced data)
-  const womenOfChildbearingAge = youngShare * 0.25 + workingShare * 0.65;
-  // Divide by 2 (only women) and by 32: effective childbearing span used
-  // here is ~32 years, slightly under the nominal 15-49 window (35 years)
-  // to account for low fertility at the window edges
-  return (tfr * womenOfChildbearingAge * 0.5) / 32;
+/** Five-year band width: one band ages into the next over five years. */
+const BAND_YEARS = 5;
+/** Index of the bands covering ages 20-49 inside the working cohort. */
+const WORKING_CHILDBEARING_BANDS = 6;
+
+/**
+ * Births from TFR and the women actually of childbearing age, read off the
+ * bands: half of the 15-19 band and of the six working bands 20-49. TFR is
+ * the sum of age-specific rates over the 35-year 15-49 window, so a flat
+ * schedule gives births = TFR x women(15-49) / 35. (Replaces fixed
+ * 0.25/0.65 cohort fractions, which ignored the age structure.)
+ */
+function birthsFromTFR(tfr: number, youngBands: number[], workingBands: number[]): number {
+  let persons15to49 = youngBands[youngBands.length - 1];
+  for (let i = 0; i < WORKING_CHILDBEARING_BANDS; i++) persons15to49 += workingBands[i];
+  return (tfr * persons15to49 * 0.5) / 35;
+}
+
+/** Normalize band shares to sum to 1 (guards hand-edited params). */
+function normalizedShares(shares: number[]): number[] {
+  const sum = shares.reduce((a, b) => a + b, 0);
+  return sum > 0 ? shares.map(x => x / sum) : shares.map(() => 1 / shares.length);
+}
+
+/**
+ * Age a cohort's bands by one year: a fifth of each band moves up, the top
+ * band's fifth leaves (returned as `out`), `inflow` enters the bottom band,
+ * deaths at `mortality` and `migrants` (spread in proportion to band size)
+ * are applied. Returns the new bands and the outflow from the top band.
+ */
+function ageBands(
+  bands: number[],
+  inflow: number,
+  mortality: number,
+  migrants: number,
+): { bands: number[]; out: number } {
+  const total = bands.reduce((a, b) => a + b, 0);
+  const next = bands.map(b => b * (1 - 1 / BAND_YEARS - mortality));
+  for (let i = 1; i < bands.length; i++) next[i] += bands[i - 1] / BAND_YEARS;
+  next[0] += inflow;
+  for (let i = 0; i < bands.length; i++) {
+    next[i] = Math.max(0, next[i] + (total > 0 ? migrants * bands[i] / total : migrants / bands.length));
+  }
+  return { bands: next, out: bands[bands.length - 1] / BAND_YEARS };
 }
 
 function ageCohorts(
@@ -470,21 +535,16 @@ function ageCohorts(
   lifeExpectancyGrowth: number,
   flows: CohortFlows
 ): RegionState {
-  const pop = state.population;
-  const youngShare = state.young / pop;
-  const workingShare = state.working / pop;
+  // Births from the women actually aged 15-49 (deaths are per-cohort below)
+  const births = birthsFromTFR(tfr, state.youngBands, state.workingBands);
 
-  // Calculate births (deaths are computed per-cohort below)
-  const births = birthRateFromTFR(tfr, workingShare, youngShare) * pop;
-
-  // Aging transitions - KEY: use correct cohort lengths
-  // Working cohort: 45 years (ages 20-64), so 1/45 age out per year
+  // Aging transitions through 5-year bands: entrants are the 15-19 band
+  // turning 20, retirees the 60-64 band turning 65
   const agingOutOfYoung = flows.entrants;
-  const agingOutOfWorking = state.working / 45;
+  const agingOutOfWorking = state.workingBands[state.workingBands.length - 1] / BAND_YEARS;
 
   // Deaths by cohort (proportional to mortality rates)
-  const youngDeaths = state.young * 0.001;
-  const workingDeaths = state.working * 0.003;
+  const workingDeaths = state.working * WORKING_MORTALITY;
 
   // === EDUCATION TRACKING ===
   // Split new workers by enrollment rate (determined at age 18-22)
@@ -519,7 +579,14 @@ function ageCohorts(
   let newOldNonCollege = Math.max(0, state.oldNonCollege + agingOutNonCollegeWorkers - oldDeathsNonCollege);
 
   // === STANDARD COHORT UPDATES ===
-  let newYoung = Math.max(0, state.young + births - agingOutOfYoung - youngDeaths);
+  // Band ageing, with deaths at the cohort rates above and this year's
+  // migrants spread across bands in proportion to their size
+  const youngAged = ageBands(state.youngBands, births, YOUNG_MORTALITY, flows.migration * YOUNG_MIGRANT_SHARE);
+  const workingAged = ageBands(
+    state.workingBands, agingOutOfYoung, WORKING_MORTALITY,
+    flows.workingMigrationCollege + flows.workingMigrationNonCollege,
+  );
+  let newYoung = youngAged.bands.reduce((a, b) => a + b, 0);
   let newWorking = newWorkingCollege + newWorkingNonCollege;
   let newOld = newOldCollege + newOldNonCollege;
 
@@ -528,8 +595,13 @@ function ageCohorts(
   newWorkingCollege += flows.workingMigrationCollege;
   newWorkingNonCollege += flows.workingMigrationNonCollege;
   newWorking = newWorkingCollege + newWorkingNonCollege;
-  newYoung += flows.migration * YOUNG_MIGRANT_SHARE;
   newOld += flows.migration * OLD_MIGRANT_SHARE;
+  // The education ledger and the bands book the same flows; rescale the
+  // bands onto the ledger total so clamping cannot let them drift apart.
+  const bandWorking = workingAged.bands.reduce((a, b) => a + b, 0);
+  const workingBands = bandWorking > 0
+    ? workingAged.bands.map(b => b * newWorking / bandWorking)
+    : workingAged.bands;
   newOldCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
   newOldNonCollege += flows.migration * OLD_MIGRANT_SHARE * 0.5;
 
@@ -540,6 +612,8 @@ function ageCohorts(
     young: newYoung,
     working: newWorking,
     old: newOld,
+    youngBands: youngAged.bands,
+    workingBands,
     workingCollege: newWorkingCollege,
     workingNonCollege: newWorkingNonCollege,
     oldCollege: newOldCollege,
@@ -594,7 +668,7 @@ export const demographicsModule: Module<
           paramName: 'usFertilityFloor',
           description: 'Long-run fertility floor for the United States. 2.1 = replacement level.',
           unit: 'children/woman',
-          range: { min: 1.0, max: 2.1, default: 1.4 },
+          range: { min: 0.8, max: 2.1, default: 1.14 },
           tier: 1 as const,
         },
       },
@@ -603,7 +677,7 @@ export const demographicsModule: Module<
           paramName: 'oecdExUsFertilityFloor',
           description: 'Long-run fertility floor for the OECD ex-US region. 2.1 = replacement level.',
           unit: 'children/woman',
-          range: { min: 1.0, max: 2.1, default: 1.3 },
+          range: { min: 0.8, max: 2.1, default: 1.02 },
           tier: 1 as const,
         },
       },
@@ -651,6 +725,15 @@ export const demographicsModule: Module<
       }
       if (r.fertilityFloor < 0.5) {
         warnings.push(`${region}.fertilityFloor ${r.fertilityFloor} very low`);
+      }
+
+      if (!Array.isArray(r.youngBandShares) || r.youngBandShares.length !== 4 ||
+          r.youngBandShares.some(x => !Number.isFinite(x) || x < 0)) {
+        errors.push(`${region}.youngBandShares must be 4 non-negative shares (0-4 ... 15-19)`);
+      }
+      if (!Array.isArray(r.workingBandShares) || r.workingBandShares.length !== 9 ||
+          r.workingBandShares.some(x => !Number.isFinite(x) || x < 0)) {
+        errors.push(`${region}.workingBandShares must be 9 non-negative shares (20-24 ... 60-64)`);
       }
 
       const cohortSum = r.young + r.working + r.old;
@@ -734,6 +817,8 @@ export const demographicsModule: Module<
         young: youngAbs,
         working: workingAbs,
         old: oldAbs,
+        youngBands: normalizedShares(r.youngBandShares).map(x => x * youngAbs),
+        workingBands: normalizedShares(r.workingBandShares).map(x => x * workingAbs),
         workingCollege,
         workingNonCollege,
         oldCollege,
@@ -897,6 +982,8 @@ export const demographicsModule: Module<
           rs.population *= scale;
           rs.young *= scale;
           rs.working *= scale;
+          rs.youngBands = rs.youngBands.map(b => b * scale);
+          rs.workingBands = rs.workingBands.map(b => b * scale);
           rs.old *= scale;
           rs.workingCollege *= scale;
           rs.workingNonCollege *= scale;

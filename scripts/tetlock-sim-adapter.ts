@@ -177,8 +177,9 @@ const MODEL_DISCLOSURES = [
   'PPP BASE: regional and world GDP are PPP in 2017 international dollars (world ~$158T in 2025). Growth rates ' +
     'and ratios are invariant to the deflator base; LEVELS are not comparable to market-exchange-rate or ' +
     'nominal-USD figures. A nominal-USD level question is NOT identified.',
-  'DEMOGRAPHY: the demographic path tracks the UN WPP LOW variant by deliberate low-fertility-convergence ' +
-    'choice (CLAUDE.md). Labour-force, dependency and growth readings are low-fertility-conditional.',
+  'DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, ' +
+    '2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, ' +
+    'dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.',
   'RATES: capital.interestRate is the model\'s economy-wide real lending rate (~6% in 2025), not r*, not a ' +
     'policy rate and not a market yield. There is no term premium. Use CHANGES, never the level.',
   'NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. ' +
