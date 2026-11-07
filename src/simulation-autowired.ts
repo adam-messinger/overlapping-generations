@@ -880,6 +880,16 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
+    // Energy counts fossil plants at what they actually ran last year, so idle
+    // capacity is priced as a re-run option rather than counted as supply
+    laggedRegionalGeneration: {
+      source: 'regionalGeneration',
+      delay: 1,
+      initial: Object.fromEntries(REGIONS.map((r) => [r, {}])),  // warm-up seed (bootstrapped); {} -> nameplate
+      contract: unitPort('TWh/year', 'nested-record'),
+      bootstrap: true,
+    },
+
     // Energy builds for last year's unserved generation (demand-led build)
     laggedRegionalShortfallRate: {
       source: 'regionalShortfallRate',

@@ -10,6 +10,7 @@ import {
   energyDefaults,
   levelizedStorageCostPerMWh,
   getRegionalCapacityFactor,
+  allocateNewBuild,
   type EnergyParams,
 } from './energy.js';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -901,6 +902,56 @@ test('China firm adequacy builds standby coal that does not count as energy supp
   const on2 = run(0.99, 2);
   const off2 = run(0, 2);
   expect(on2.out.regionalAdditions.china.solar).toBeCloseTo(off2.out.regionalAdditions.china.solar, 1);
+});
+
+test('idle fossil output is a re-run option, never new capacity', () => {
+  const solar = { source: 'solar' as const, cost: 30, weight: 1, twhPerGW: 1.5, capGW: Infinity };
+  const idleCoal = { source: 'coal' as const, cost: 30, weight: 1, twhPerGW: 5, capGW: 100, idle: true };
+  const plan = allocateNewBuild(1000, [solar, idleCoal], 6);
+  expect(plan.gw.coal).toBe(0);
+  expect(plan.idleGW.coal ?? 0).toBeGreaterThan(0);
+  // Re-run output and new build together cover the requirement
+  expect((plan.idleGW.coal ?? 0) * 5 + plan.gw.solar * 1.5).toBeCloseTo(1000, 6);
+});
+
+// Last year's dispatch, per region: ample means every fossil plant ran at
+// its 2025 utilization (nothing idle)
+const AMPLE = 1e9;
+const ranGeneration = (indiaCoal: number) =>
+  Object.fromEntries(REGIONS.map(r => [r, { coal: r === 'india' ? indiaCoal : AMPLE, gas: AMPLE }]));
+
+const idleRun = (carbonPrice: number, indiaCoalYear1: number | undefined) => {
+  const params = energyModule.mergeParams({ regional: { india: { carbonPrice } } } as any);
+  let state = energyModule.init(params);
+  let out: any;
+  for (let i = 0; i < 2; i++) {
+    const lagged = indiaCoalYear1 === undefined ? {} : { laggedRegionalGeneration: ranGeneration(i === 0 ? AMPLE : indiaCoalYear1) };
+    const r = energyModule.step(state, { ...createInputs(30000 + i * 500, 25), ...lagged }, params, 2025 + i, i);
+    state = r.state; out = r.outputs;
+  }
+  return out.regionalAdditions.india;
+};
+
+test('fossil that ran at its 2025 utilization counts as supply, exactly as without dispatch data', () => {
+  const withData = idleRun(15, AMPLE);
+  const without = idleRun(15, undefined);
+  for (const s of ['solar', 'wind', 'coal', 'gas'] as const) {
+    expect(withData[s]).toBeCloseTo(without[s], 6);
+  }
+});
+
+test('idle coal is not counted as supply when carbon makes re-running it dear', () => {
+  // India's coal sat idle last year. At a high carbon price, clean build has
+  // to cover the demand that idle coal used to be credited with.
+  const idle = idleRun(300, 0);
+  const running = idleRun(300, AMPLE);
+  expect(idle.solar + idle.wind).toBeGreaterThan(running.solar + running.wind);
+});
+
+test('cheap idle coal is re-run before any new coal is built', () => {
+  const idle = idleRun(0, 0);
+  const running = idleRun(0, AMPLE);
+  expect(idle.coal).toBeLessThan(running.coal + 1e-6);
 });
 
 // The global carbonPrice never reaches the power sector; a scenario that sets

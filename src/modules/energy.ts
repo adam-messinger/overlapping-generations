@@ -804,6 +804,9 @@ export interface EnergyState {
   fleetDemandRatio: Record<Region, number>;
   /** Each region's anchored firm-capacity-to-average-demand ratio (firmAdequacy) */
   firmDemandRatio: Record<Region, number>;
+  /** Each region's 2025 fossil utilization (dispatched / nameplate output),
+   *  so idle capacity is measured against how the anchor fleet actually ran */
+  fossilRunRatio: Record<Region, Record<'coal' | 'gas', number>>;
   /** Standby (adequacy) build history by region, GW per year; the stock is
    *  the builds younger than the source's lifetime */
   standbyAdditions: Record<Region, number[]>;
@@ -838,6 +841,11 @@ export interface EnergyInputs {
    *  for this year on top of growth and retirements (closes the loop between
    *  the planner's fleet view and dispatch's) */
   laggedRegionalShortfallRate?: Record<Region, number>;
+  /** Last year's dispatched generation by region and source (TWh). The
+   *  build counts fossil plants at what they actually ran, not at nameplate
+   *  output, and prices their idle output as a re-run option. Missing ->
+   *  fossil counted at nameplate. */
+  laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
 
   /** Lagged real interest rate (from capital previous year) for WACC calculation */
   laggedInterestRate: number;
@@ -1044,10 +1052,15 @@ export interface NewBuildCandidate {
   weight: number;     // non-cost share weight
   twhPerGW: number;   // delivered TWh per GW built
   capGW: number;      // most this source can add this year
+  /** Re-running an existing, underused plant rather than building one: its
+   *  share goes to `idleGW`, not `gw`, and costs running cost only */
+  idle?: boolean;
 }
 
 export interface NewBuildAllocation {
   gw: Record<GeneratorSource, number>;
+  /** Idle fossil capacity the plan expects to run again instead of building */
+  idleGW: Partial<Record<GeneratorSource, number>>;
   requirementTWh: number;
   unmetTWh: number;   // > 0 only when every source is at its cap
   standbyGW?: number; // firm-adequacy build inside gw (see RegionalEnergyParams.firmAdequacy)
@@ -1065,6 +1078,11 @@ export function allocateNewBuild(
   lambda: number,
 ): NewBuildAllocation {
   const gw = Object.fromEntries(GENERATORS.map(s => [s, 0])) as Record<GeneratorSource, number>;
+  const idleGW: Partial<Record<GeneratorSource, number>> = {};
+  const credit = (c: NewBuildCandidate, amount: number) => {
+    if (c.idle) idleGW[c.source] = (idleGW[c.source] ?? 0) + amount;
+    else gw[c.source] += amount;
+  };
   let active = candidates.filter(c => c.capGW > 0 && c.twhPerGW > 0 && c.weight > 0 && c.cost > 0);
   let remaining = Math.max(0, requirementTWh);
   while (remaining > 1e-9 && active.length > 0) {
@@ -1074,17 +1092,17 @@ export function allocateNewBuild(
     const want = active.map((c, i) => (remaining * raw[i] / total) / c.twhPerGW);
     const over = active.filter((c, i) => want[i] > c.capGW);
     if (over.length === 0) {
-      active.forEach((c, i) => { gw[c.source] += want[i]; });
+      active.forEach((c, i) => credit(c, want[i]));
       remaining = 0;
       break;
     }
     for (const c of over) {
-      gw[c.source] += c.capGW;
+      credit(c, c.capGW);
       remaining -= c.capGW * c.twhPerGW;
     }
     active = active.filter(c => !over.includes(c));
   }
-  return { gw, requirementTWh: Math.max(0, requirementTWh), unmetTWh: Math.max(0, remaining) };
+  return { gw, idleGW, requirementTWh: Math.max(0, requirementTWh), unmetTWh: Math.max(0, remaining) };
 }
 
 /**
@@ -1251,6 +1269,7 @@ export const energyModule: Module<
       mineralConstraintBySource: unitPort('fraction', 'record'),
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedRegionalShortfallRate: unitPort('fraction', 'record'),
+      laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
       regionalSavings: unitPort('fraction', 'record'),
@@ -1601,6 +1620,7 @@ export const energyModule: Module<
       // Set from the 2025 fleet on the first step
       fleetDemandRatio: Object.fromEntries(REGIONS.map(r => [r, 1])) as Record<Region, number>,
       firmDemandRatio: Object.fromEntries(REGIONS.map(r => [r, 0])) as Record<Region, number>,
+      fossilRunRatio: Object.fromEntries(REGIONS.map(r => [r, { coal: 1, gas: 1 }])) as Record<Region, Record<'coal' | 'gas', number>>,
       standbyAdditions: Object.fromEntries(REGIONS.map(r => [r, [] as number[]])) as Record<Region, number[]>,
     };
   },
@@ -1824,6 +1844,7 @@ export const energyModule: Module<
     const FIRM: GeneratorSource[] = ['coal', 'gas', 'nuclear', 'hydro'];
     const fleetDemandRatio = { ...state.fleetDemandRatio };
     const firmDemandRatio = { ...state.firmDemandRatio };
+    const fossilRunRatio = { ...state.fossilRunRatio };
     // Standby stock still in service at the end of this year, by region
     const standbyStock = Object.fromEntries(REGIONS.map((r) => {
       const source = params.regional[r].firmAdequacy?.source ?? 'coal';
@@ -1894,26 +1915,76 @@ export const energyModule: Module<
           ? installedTWh / (regionDemand / (1 + params.electricityDemandGrowth2025[region]))
           : 1;
       }
-      const existingTWh = candidates.reduce(
-        (sum, c) => sum + energyGW(surviving[region][c.source], c.source) * c.twhPerGW, 0);
+      // Fossil plants count at what they actually ran last year, not at
+      // nameplate output: once clean power has pushed coal down to a ~10%
+      // capacity factor, counting it at 60% told the build that idle coal
+      // already covered demand growth, too little clean was built, and
+      // dispatch ran the idle coal back up (net-zero coal 2.3k -> 7.9k TWh,
+      // 2044-49). Standby generation is in last year's coal output, so this
+      // slightly understates idle coal in firm-adequacy regions.
+      //
+      // Measured against the region's 2025 utilization, not nameplate: the
+      // anchor fleet already ran below the nameplate capacity factor, and
+      // fleetDemandRatio is anchored on nameplate, so 2025 has no idle
+      // capacity by construction (measured against nameplate, ~3,000 TWh
+      // of 2025 fossil read as idle and the world solar build hit its 1,130
+      // GW factory cap in year one).
+      const laggedGen = inputs.laggedRegionalGeneration?.[region];
+      const nameplateTWh = (s: GeneratorSource) => energyGW(surviving[region][s], s) * bySource[s].twhPerGW;
+      if (yearIndex === 0) {
+        const runRatio = (f: 'coal' | 'gas') => {
+          const nameplate = nameplateTWh(f);
+          const ran = laggedGen?.[f];
+          return ran === undefined || nameplate <= 0 ? 1 : Math.min(1, Math.max(0, ran) / nameplate);
+        };
+        fossilRunRatio[region] = { coal: runRatio('coal'), gas: runRatio('gas') };
+      }
+      const ranTWh = (s: GeneratorSource) => {
+        const nameplate = nameplateTWh(s);
+        if (s !== 'coal' && s !== 'gas') return nameplate;
+        const ran = laggedGen?.[s];
+        const ratio = fossilRunRatio[region][s];
+        return ran === undefined || ratio <= 0 ? nameplate : Math.min(nameplate, Math.max(0, ran) / ratio);
+      };
+      const existingTWh = candidates.reduce((sum, c) => sum + ranTWh(c.source), 0);
       // Demand growth + retirements, at the region's own fleet-to-demand
       // ratio, plus whatever dispatch left unserved last year
       const shortfallTWh = Math.max(0, inputs.laggedRegionalShortfallRate?.[region] ?? 0) * regionDemand;
       const requirementTWh = Math.max(0, regionDemand * fleetDemandRatio[region] - existingTWh) + shortfallTWh;
-      const base = allocateNewBuild(requirementTWh, candidates, params.newBuildLogitExponent);
+
+      // Running cost of an existing fossil plant: fuel + VOM grossed up for
+      // the fuel chain's own energy use, plus the carbon price
+      const runningCost = (f: 'gas' | 'coal') =>
+        (regionParams.fossilRunningCost?.[f] ?? params.fossilRunningCost[f]) / Math.max(0.05, netEnergyFraction[f])
+        + (params.sources[f].carbonIntensity * regionParams.carbonPrice) / 1000;
+      // Idle fossil output competes with new build at running cost, since its
+      // capital is sunk: re-running idle coal beats building new coal, and
+      // beats new solar unless carbon is priced. Same non-cost weight as the
+      // fuel's new build.
+      const idleCandidates: NewBuildCandidate[] = (['gas', 'coal'] as const).map((f) => ({
+        ...bySource[f],
+        cost: runningCost(f),
+        capGW: bySource[f].twhPerGW > 0 ? (nameplateTWh(f) - ranTWh(f)) / bySource[f].twhPerGW : 0,
+        idle: true,
+      }));
+      // No new plant of a fuel while that fuel's existing plants sit idle:
+      // the logit would otherwise still hand new coal a share of a
+      // requirement that idle coal could serve with no capital at all
+      const hasIdle = (s: GeneratorSource) => idleCandidates.some(c => c.source === s && c.capGW > 1e-9);
+      const buildCandidates = candidates.map(c => (hasIdle(c.source) ? { ...c, capGW: 0 } : c));
+      const base = allocateNewBuild(requirementTWh, [...buildCandidates, ...idleCandidates], params.newBuildLogitExponent);
 
       // Economic replacement of fossil output, shared among clean sources
-      // only, with whatever build room the base allocation left
+      // only, with whatever build room the base allocation left. Only output
+      // the plants actually produce can be displaced.
       const cheapestClean = Math.min(...CLEAN.map(s => bySource[s].capGW > base.gw[s] ? bySource[s].cost : Infinity));
       let displacementTWh = 0;
       for (const f of ['gas', 'coal'] as const) {
-        const nef = Math.max(0.05, netEnergyFraction[f]);
-        const runningCost = (regionParams.fossilRunningCost?.[f] ?? params.fossilRunningCost[f]) / nef
-          + (params.sources[f].carbonIntensity * regionParams.carbonPrice) / 1000;
+        const cost = runningCost(f);
         const advantage = Number.isFinite(cheapestClean)
-          ? Math.min(1, Math.max(0, (runningCost - cheapestClean) / runningCost))
+          ? Math.min(1, Math.max(0, (cost - cheapestClean) / cost))
           : 0;
-        displacementTWh += params.fossilDisplacementRate * advantage * energyGW(surviving[region][f], f) * bySource[f].twhPerGW;
+        displacementTWh += params.fossilDisplacementRate * advantage * ranTWh(f);
       }
       let plan: NewBuildAllocation = base;
       if (displacementTWh > 0) {
@@ -1923,6 +1994,7 @@ export const energyModule: Module<
         for (const s of CLEAN) gw[s] += extra.gw[s];
         plan = {
           gw,
+          idleGW: base.idleGW,
           requirementTWh: requirementTWh + displacementTWh,
           unmetTWh: base.unmetTWh + extra.unmetTWh,
         };
@@ -2301,6 +2373,7 @@ export const energyModule: Module<
         buildCapacity: nextBuildCapacity,
         fleetDemandRatio,
         firmDemandRatio,
+        fossilRunRatio,
         standbyAdditions: Object.fromEntries(REGIONS.map(r => [r, [...state.standbyAdditions[r], plans[r].standbyGW ?? 0]])) as Record<Region, number[]>,
       },
       outputs: {
