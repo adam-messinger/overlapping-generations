@@ -92,6 +92,10 @@ export interface CapitalFinanceResult {
   refinancedPrincipal: number;
   /** Requested investment credit not supplied by banks. */
   unfundedNetNewCreditDemand: number;
+  /** New investment credit banks would extend this year (the lending
+   *  envelope, summed over substeps along the realized debt path). Credit
+   *  demand minus this is the unclipped form of unfundedNetNewCreditDemand. */
+  netNewCreditCapacity: number;
   principalRepayments: number;
   loanWriteOffs: number;
   netCreditCreation: number;
@@ -154,6 +158,7 @@ export function advanceCapitalFinance(
   let privateDebt = openingPrivateDebt;
   let grossLoanOriginations = 0;
   let newInvestmentLoanOriginations = 0;
+  let totalNetNewCreditCapacity = 0;
   let refinancedPrincipal = 0;
   let principalRepayments = 0;
   let loanWriteOffs = 0;
@@ -268,6 +273,7 @@ export function advanceCapitalFinance(
       remainingNetNewCreditDemand,
     );
     const origination = refinancing + investmentOrigination;
+    totalNetNewCreditCapacity += netNewCreditCapacity;
 
     publicInterestPayments += safeRate * publicDebt * dt;
     privateInterestPayments += Math.max(0, loanRate) * privateDebt * dt;
@@ -319,6 +325,7 @@ export function advanceCapitalFinance(
     unfundedNetNewCreditDemand: inputs.netNewCreditDemand === undefined
       ? 0
       : Math.max(0, remainingNetNewCreditDemand),
+    netNewCreditCapacity: totalNetNewCreditCapacity,
     principalRepayments,
     loanWriteOffs,
     netCreditCreation: privateDebt - openingPrivateDebt,

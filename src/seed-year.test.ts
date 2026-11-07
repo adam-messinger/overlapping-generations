@@ -10,9 +10,10 @@
  * factory cap in year one (13a142e).
  *
  * Every published numeric output is checked (tsimulation's
- * findSeedYearKinks). A new discontinuity fails; the ones present today are
- * listed below by name, and an entry that stops flagging also fails, so the
- * list can only shrink by fixing what it names.
+ * findSeedYearKinks). A new discontinuity fails; known ones are listed below
+ * by name, and an entry that stops flagging also fails, so the list can only
+ * shrink by fixing what it names. Outputs clipped at zero are probed through
+ * the quantity they clip.
  */
 
 import { findSeedYearKinks } from 'tsimulation';
@@ -30,25 +31,44 @@ const SEED_DEFINED: Record<string, string> = {
 
 /**
  * First-step discontinuities present today. Each is a lead to investigate,
- * not an accepted behavior.
+ * not an accepted behavior. Add an entry only with what it was traced to.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  forestNetFlux:
-    'land use flips from a 0.21 Gt sink in 2025 to a 1.1 Gt source in 2026: 2025 forest '
-    + 'change is +28 Mha, every later year about -4 Mha',
-  // Also in SEED_DEFINED: examined from 2026, it still dips there
-  usefulWorkGrowthRate: 'useful work per worker falls 0.5% in 2026, then grows 0.4-1%/yr',
-  shortfall: 'unserved generation halves in 2026 (231 -> 115 TWh) and then resumes rising',
-  miningEnergyTWh: 'dips in 2026 (238 -> 177 TWh) and recovers: the 2026 build is smaller than 2025 and 2027',
-  energySystemOverhead: 'dips in 2026 (2,036 -> 1,737 TWh), carrying the mining-energy dip',
-  curtailmentTWh: 'rises half as fast in 2026 as in each later year',
-  debtRiskPremium: 'rises in 2026, then falls every year after',
+  curtailmentTWh:
+    'all China: +349, +541, +618, +675, +550 TWh steps, the S-shaped onset of dispatch\'s '
+    + 'quadratic curtailment penalty with 2025 just past it; trend-seeding the lagged '
+    + 'curtailment rate leaves the shape unchanged. Not a seed effect as far as traced. The '
+    + 'level is the lead: China curtails 16% of VRE in 2026 and 35% by 2028 (4% in 2025)',
+};
+
+/**
+ * Outputs that are max(0, x) of a quantity x that is probed instead. A
+ * clipped series that reaches zero inside the window flags however smooth x
+ * is, so the probe reads x and checks the output is still clipped there (an
+ * entry cannot outlive its reason).
+ */
+type Series = Record<string, number[]>;
+/** Credit demand less the bank lending envelope; positive part = unfunded credit */
+const creditGap = (s: Series) =>
+  s.newInvestmentLoanOriginations.map((lent, i) => lent + s.unfundedCreditDemand[i] - s.creditCapacity[i]);
+const CLIPPED: Record<string, { reason: string; underlying: (s: Series) => number[] }> = {
+  unfundedCreditDemand: {
+    reason: 'credit demand less the lending envelope runs 0.44, 0.20, -0.08, -0.38 $T: '
+      + 'a smooth path crossing zero in 2027',
+    underlying: creditGap,
+  },
+  // Same shortfall seen from investment orders and from total financing
+  unfundedInvestmentDemand: { reason: 'as unfundedCreditDemand', underlying: creditGap },
+  unfundedFinancingDemand: { reason: 'as unfundedCreditDemand', underlying: creditGap },
 };
 
 const run = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
 const numericFields = (Object.keys(run.results[0]) as (keyof YearResult)[])
   .filter((key) => key !== 'year' && typeof run.results[0][key] === 'number');
 const series = Object.fromEntries(numericFields.map((key) => [key, extractTimeSeries(run, key).values]));
+const clippedSeries = Object.fromEntries(Object.keys(CLIPPED).map((name) => [name, series[name]]));
+for (const [name, { underlying }] of Object.entries(CLIPPED)) series[`${name}:underlying`] = underlying(series);
+for (const name of Object.keys(CLIPPED)) delete series[name];
 const startOffsets = Object.fromEntries(Object.keys(SEED_DEFINED).map((name) => [name, 1]));
 const kinks = findSeedYearKinks(series, { startOffsets });
 const flagged = new Set(kinks.map((kink) => kink.name));
@@ -57,6 +77,16 @@ test('the probe covers the published outputs', () => {
   expect(Object.keys(series).length > 150).toBeTrue();
   for (const name of [...Object.keys(SEED_DEFINED), ...Object.keys(KNOWN_SEED_YEAR_ARTIFACTS)]) {
     expect(name in series).toBeTrue();
+  }
+  for (const name of Object.keys(CLIPPED)) {
+    // Shorter than the detector's window (trendSteps + 2) would be skipped silently
+    expect(series[`${name}:underlying`].length >= 6).toBeTrue();
+  }
+});
+
+test('a clipped output is still clipped in the window (else probe it directly)', () => {
+  for (const values of Object.values(clippedSeries)) {
+    expect(Math.min(...values)).toBe(0);
   }
 });
 

@@ -197,6 +197,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - **Regional financing spreads**: per-region WACC = global rate + observed start-year spread (IEA Cost of Capital Observatory) + home-bias drift = `financingHomeBias` x the change in the region's savings gap vs the world since year 0 (Feldstein-Horioka; year-0 gap anchored in energy state); `financingSpreadScale` dials friction (0 = frictionless)
 - **Curtailment feedback**: High curtailment dampens VRE additions, boosts storage investment. Storage shifts the soft-curtailment onset by the same headroom it adds to the VRE penetration limit (without that, storage-rich grids curtailed ~half their VRE and unpriced coal won the build)
 - **Regional fuel prices**: energy's `regional.<r>.fossilRunningCost` ($/MWh fuel + VOM) prices both the build and dispatch's merit order (one source of truth, passed as `regionalFossilRunningCost`). Gas is LNG-priced in OECD-ex-US/China/India/SE Asia ($63-77 vs the $35 US reference) and cheap in Russia/MENA; the 2025 build fit is re-solved by `scripts/calibrate-2025-build.ts`. Dispatch has no load curve, so where gas costs more than coal it runs only after coal (China gas generation ~0 vs ~300 TWh actual peaking)
+- **Sources the model lacks** (oil, bioenergy, geothermal power) are folded into the 2025 fleet as capacity-equivalent at the receiving row's CF: MENA oil (~20% of its generation) into gas, LatAm oil into gas and bioenergy + geothermal into hydro (sources at `REGIONAL_CAPACITY_2025`). Without it dispatch left 6.8% of MENA and 5.7% of LatAm 2025 demand unserved and the build ran a two-year overshoot sawtooth answering it
 - **Idle fossil in the build**: the demand-led build counts coal and gas at what they ran last year (scaled by each region's 2025 utilization), not at nameplate. Idle output competes with new build at running cost (fuel + carbon), since its capital is sunk, and no new plant of a fuel is built while that fuel sits idle. Counting idle coal at nameplate under-built clean power and ran coal back up (net-zero 2044-49)
 - **System LCOE**: Solar investment cost blends with storage cost at high VRE penetration
 - **World build capacity** (known limitation): over-subscribed sources are tightened pro
@@ -288,7 +289,10 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
 - GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
 - The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
-- All inputs lagged to break circular dependencies
+- All inputs lagged to break circular dependencies. Production reads last year's CLOSING
+  capital stock (`nextCapitalStock`); its useful-energy lags and `laggedGdp` are seeded on
+  each flow's own growth path (`bootstrap: 'trend'`), since a level seed made 2026 repeat
+  2025's inputs (a one-year stall: GDP +1.7% in 2026). Prices and rates keep the level seed
 - Resource energy (mining, farming) subtracted from productive supply
 
 ### CDR (Carbon Dioxide Removal)

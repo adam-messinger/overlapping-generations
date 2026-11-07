@@ -206,6 +206,11 @@ export interface CapitalInputs {
 
   // From demographics (for retirement age adjustment)
   regionalLifeExpectancy?: Record<Region, number>;
+
+  /** Previous year's GDP $T (lagged). Read at the seed year only, so the
+   *  finance block's within-year GDP path grows into 2025 as it does into
+   *  every later year. Unwired fallback: this year's GDP (no growth) */
+  laggedGdp?: number;
 }
 
 export interface CapitalOutputs {
@@ -301,6 +306,7 @@ export interface CapitalOutputs {
   newInvestmentLoanOriginations: number; // $T/year of genuinely new investment credit
   refinancedPrincipal: number; // $T/year of maturing principal rolled into new loans
   unfundedCreditDemand: number; // $T/year requested investment credit not supplied
+  creditCapacity: number;      // $T/year new investment credit banks would extend (the lending envelope)
   creditImpulse: number;       // Deprecated alias for newInvestmentLoanOriginations
   principalRepayments: number; // $T/year of private-loan principal repaid
   loanWriteOffs: number;       // $T/year of private loans written off
@@ -946,6 +952,7 @@ export const capitalModule: Module<
       cdrSpend: unitPort('$T/year'),
       robotCapexSpend: unitPort('$T/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
+      laggedGdp: unitPort('$T/year'),
     },
     outputs: {
       stock: unitPort('$T'),
@@ -1023,6 +1030,7 @@ export const capitalModule: Module<
       newInvestmentLoanOriginations: unitPort('$T/year'),
       refinancedPrincipal: unitPort('$T/year'),
       unfundedCreditDemand: unitPort('$T/year'),
+      creditCapacity: unitPort('$T/year'),
       creditImpulse: unitPort('$T/year'),
       principalRepayments: unitPort('$T/year'),
       loanWriteOffs: unitPort('$T/year'),
@@ -1470,7 +1478,13 @@ export const capitalModule: Module<
     if (yearIndex === 0) {
       publicDebt = params.initialPublicDebtGDP * inputs.gdp;
       privateDebt = params.initialPrivateDebtGDP * inputs.gdp;
-      previousGdp = inputs.gdp;
+      // The finance block interpolates GDP within the year from the previous
+      // year's level. Seeding it with this year's GDP froze the 2025 path:
+      // debt grew all year against a flat denominator and r - g read g = 0,
+      // so the debt ratio and risk premium jumped into 2026 and fell after.
+      previousGdp = inputs.laggedGdp !== undefined && inputs.laggedGdp > 0
+        ? inputs.laggedGdp
+        : inputs.gdp;
     }
 
     const financeState = { publicDebt, privateDebt, previousGdp };
@@ -1975,6 +1989,7 @@ export const capitalModule: Module<
         newInvestmentLoanOriginations,
         refinancedPrincipal,
         unfundedCreditDemand,
+        creditCapacity: finance.netNewCreditCapacity,
         creditImpulse,
         principalRepayments,
         loanWriteOffs,

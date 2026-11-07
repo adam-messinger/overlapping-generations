@@ -190,6 +190,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'newInvestmentLoanOriginations', unit: '$T/year', description: 'Net-new bank credit that creates purchasing power for investment', module: 'capital' },
     { source: 'refinancedPrincipal', unit: '$T/year', description: 'Scheduled principal replaced by new loans without adding net finance', module: 'capital' },
     { source: 'unfundedCreditDemand', unit: '$T/year', description: 'Requested investment credit not supplied within the bank lending envelope', module: 'capital' },
+    { source: 'creditCapacity', unit: '$T/year', description: 'Bank lending envelope for new investment credit; credit demand minus this is unfundedCreditDemand unclipped', module: 'capital' },
     { source: 'creditImpulse', unit: '$T/year', description: 'Deprecated alias of newInvestmentLoanOriginations', module: 'capital' },
     { source: 'principalRepayments', unit: '$T/year', description: 'Private-loan principal repayments', module: 'capital' },
     { source: 'loanWriteOffs', unit: '$T/year', description: 'Private loans written off against bank equity', module: 'capital' },
