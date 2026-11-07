@@ -13,6 +13,7 @@ import {
   DIAGNOSTIC_FIELDS,
   DIAGNOSTIC_MODULES,
   auditGlobalUnitContracts,
+  START_YEAR_BOOTSTRAP,
 } from './simulation-autowired.js';
 import {
   auditCollectorContracts,
@@ -155,21 +156,33 @@ test('start-year fixed point: plain runs converge; an order-dependent build cycl
     expect(bootstrap?.converged).toBe(true);
     expect(bootstrap?.acceptedCycle).toBe(undefined);
   }
-  // Sweep case: energy's world build-capacity loop moves the build discretely
-  // at a cap edge, so this used to throw "Lag bootstrap did not converge".
-  // Since the 2025 build was re-solved (#112) it converges outright; either
-  // outcome is fine, throwing is not. The cycle-acceptance path itself is
-  // pinned in packages/tsimulation/test/autowire.test.ts.
+  // The runner keeps a cycle band: energy's world build-capacity loop moves
+  // the build discretely at a cap edge, which no damping removes.
+  expect(START_YEAR_BOOTSTRAP.acceptCycleWithin).toBe(1e-3);
+  expect(START_YEAR_BOOTSTRAP.onNonConvergence).toBe('throw');
+  // The two sweep runs that threw "Lag bootstrap did not converge" must now
+  // complete. Whether they land on the cap edge, and so cycle, depends on
+  // float rounding (it differs between Node versions and moves with any model
+  // change), so the test pins what must hold either way rather than which
+  // happens: a run that did not converge reports a genuine accepted cycle
+  // inside the band, never a silent pass. The acceptance mechanism itself is
+  // pinned deterministically in packages/tsimulation/test/autowire.test.ts.
   const scenario = loadScenarioParamsSync('ssp1-19') as SimulationParams;
   const warn = console.warn;
   console.warn = () => {};
   try {
-    const bootstrap = runAutowiredSimulation(
-      { ...scenario, capital: { ...scenario.capital, baseCreditGrowth: 0.01 }, endYear: 2025 },
-      STUDY_OPTIONS,
-    ).diagnostics?.bootstrap;
-    if (!bootstrap?.converged) {
-      expect(bootstrap!.acceptedCycle!.scaledResidual).toBeLessThan(1e-3);
+    for (const capital of [{ baseCreditGrowth: 0.01 }, { publicDeficitRate: 0.01 }]) {
+      const bootstrap = runAutowiredSimulation(
+        { ...scenario, capital: { ...scenario.capital, ...capital }, endYear: 2025 },
+        STUDY_OPTIONS,
+      ).diagnostics?.bootstrap;
+      expect(bootstrap?.enabled).toBe(true);
+      if (bootstrap?.converged) {
+        expect(bootstrap.acceptedCycle).toBe(undefined);
+      } else {
+        expect(bootstrap!.acceptedCycle!.scaledResidual)
+          .toBeLessThan(START_YEAR_BOOTSTRAP.acceptCycleWithin);
+      }
     }
   } finally {
     console.warn = warn;
