@@ -28,9 +28,6 @@ const SEED_DEFINED: Record<string, string> = {
   usefulWorkGrowthRate: 'defined from the second year (needs a previous level)',
 };
 
-/** One cause, three outputs (capital reports investment, financing and credit demand separately). */
-const UNFUNDED_FLAT = 'flat in 2026, then rising ~0.3-0.5 $T/yr';
-
 /**
  * First-step discontinuities present today. Each is a lead to investigate,
  * not an accepted behavior.
@@ -44,12 +41,8 @@ const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
   shortfall: 'unserved generation halves in 2026 (231 -> 115 TWh) and then resumes rising',
   miningEnergyTWh: 'dips in 2026 (238 -> 177 TWh) and recovers: the 2026 build is smaller than 2025 and 2027',
   energySystemOverhead: 'dips in 2026 (2,036 -> 1,737 TWh), carrying the mining-energy dip',
-  unfundedInvestmentDemand: UNFUNDED_FLAT,
-  unfundedFinancingDemand: UNFUNDED_FLAT,
-  unfundedCreditDemand: UNFUNDED_FLAT,
   curtailmentTWh: 'rises half as fast in 2026 as in each later year',
   debtRiskPremium: 'rises in 2026, then falls every year after',
-  aggregateCapitalFundingGap: 'diagnostic ledger: 0.08 -> 0.29 $T in 2026, then zero',
 };
 
 const run = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
