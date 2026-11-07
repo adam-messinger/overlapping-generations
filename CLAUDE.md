@@ -379,6 +379,14 @@ the human-capital ledger (including its replacement-cost re-pricing).
   principal; the unserviceable loans (unpaid / r) are written down against bank equity.
   Never binds on the default path; without it, in-range sweeps crashed the ledger or, with
   interest written off but principal kept, collapsed GDP under zombie debt
+- **Bank retention**: banks retain enough interest income to hold equity / assets (loans + bonds +
+  reserves) at `bankEquityRatio` (7%: Basel III Tier 1 leverage 6.1-6.9%, IMF FSI capital/assets
+  4-9% across the largest systems), closing `bankRetentionSpeed` (1) of the gap each year, and pay out
+  the rest (equity above target too). They never retain more than a year's positive interest income,
+  so a write-off larger than that is rebuilt over the following years. Retained income is bank saving,
+  missing from household income one for one, so the sector balances still sum to investment. Before,
+  banks paid out all interest income, equity never grew and the ratio fell ~10x by 2100. Bank capital
+  does not constrain lending (reporting, not a feedback)
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings

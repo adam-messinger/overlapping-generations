@@ -51,6 +51,7 @@
 
 import { Region, REGIONS } from '../domain-types.js';
 import {
+  atMost,
   closeTo,
   defineModule,
   type GodleyLedgerState,
@@ -65,6 +66,7 @@ import {
 } from 'tsimulation';
 import { advanceCapitalFinance } from './capital-finance.js';
 import {
+  bankRetention,
   capitalBankCapitalRatio,
   createCapitalGodleyLedger,
   postCapitalGodleyYear,
@@ -143,7 +145,8 @@ export interface CapitalParams {
   leverageAdjustmentSpeed: number;     // Share of the gap to target debt/capital closed per year
   privateDefaultRate: number;          // Annual loan write-off rate (0 in baseline)
   financialSubsteps: number;           // Within-year debt integration steps (4 = quarterly)
-  bankEquityRatio: number;             // Opening bank equity / assets
+  bankEquityRatio: number;             // Bank equity / assets: opening value and retention target
+  bankRetentionSpeed: number;          // Share of the equity-target gap closed by retention each year
   openingHouseholdDepositShare: number; // Initial deposits held by households
 
   // --- Risk premium ---
@@ -244,6 +247,7 @@ export interface CapitalOutputs {
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;
+  bankInterestIncome: number;  // $T/year of private interest paid plus public interest to banks
   firmInternalFunds: number;
   householdDisposableIncome: number;
   householdSaving: number;
@@ -480,9 +484,23 @@ export const capitalDefaults: CapitalParams = {
   // on explicitly; doing so hits bank equity one-for-one in the Godley ledger.
   privateDefaultRate: 0,
   financialSubsteps: 4,
-  // Scenario capitalization target, not a claim about a specific Basel
-  // regulatory numerator or risk-weighted denominator.
-  bankEquityRatio: 0.10,
+  // Consolidated bank equity / (loans + bonds + reserves), 2025. Basel III
+  // Tier 1 leverage ratio (Tier 1 / total exposure), fully phased-in, June
+  // 2025: 6.1% Group 1 banks, 6.0% G-SIBs, 6.9% Group 2 (BCBS Basel III
+  // Monitoring Report, Oct 2025; stable at Dec 2025). Bank capital and reserves
+  // / total assets (IMF FSI via World Bank FB.BNK.CAPA.ZS): US 9.2% (2025),
+  // India 8.5% (2025), China 7.8% (2021), UK 5.6% (2025), Japan 4.1% (2022);
+  // FDIC US leverage capital ratio 9.26% (QBP Q4 2025). Accounting equity over
+  // on-balance assets sits above the leverage ratio (no Tier 1 deductions, no
+  // off-balance exposures in the denominator), so 7%, not 6.1%. Not a
+  // risk-weighted ratio (CET1 is 13.9% of RWA for Group 1)
+  bankEquityRatio: 0.07,
+  // Banks hold their equity ratio, distributing only the interest income the
+  // target does not need: the shape of Basel III's capital conservation
+  // buffer, which restricts payouts until capital is restored (BCBS 2011,
+  // paras 129-130). 1 = the gap closes within the year, subject to retaining
+  // no more than a year's interest income; 0 = all interest income is paid out
+  bankRetentionSpeed: 1,
   openingHouseholdDepositShare: 0.50,
 
   // --- Risk premium ---
@@ -801,6 +819,19 @@ const CAPITAL_INVARIANTS: readonly ModuleInvariant<
     },
   },
   {
+    name: 'bank interest income is retained or distributed, never over-retained',
+    description: 'bankDividendPayments + bankSaving = bankInterestIncome, and banks retain no more than their positive interest income.',
+    check: ({ inputs, outputs }) => {
+      const abs = 1e-6 * Math.max(1, Math.abs(inputs.gdp));
+      return [
+        closeTo('bank earnings partition',
+          outputs.bankDividendPayments + outputs.bankSaving, outputs.bankInterestIncome, { abs }),
+        atMost('bank retained earnings', outputs.bankSaving,
+          Math.max(0, outputs.bankInterestIncome), { abs }),
+      ];
+    },
+  },
+  {
     name: 'realized spends are debited from investment, overflow reported',
     description: 'investment - generalInvestment + unfundedRealizedSpend = sum of realized spends.',
     check: ({ inputs, outputs }) => {
@@ -963,9 +994,15 @@ export const capitalModule: Module<
       tier: 2 as const,
     },
     bankEquityRatio: {
-      description: 'Opening consolidated bank equity as a share of bank assets; a scenario balance-sheet assumption.',
+      description: 'Consolidated bank equity as a share of bank assets (loans + bonds + reserves): the opening balance sheet and the level banks retain interest income to hold. ~7% observed (Basel III Tier 1 leverage 6.1-6.9%, IMF FSI capital/assets 4-9% across the largest systems).',
       unit: 'fraction',
-      range: { min: 0.01, max: 0.30, default: 0.10 },
+      range: { min: 0.01, max: 0.30, default: 0.07 },
+      tier: 2 as const,
+    },
+    bankRetentionSpeed: {
+      description: 'Share of the gap between bank equity and bankEquityRatio x assets that banks close each year by retaining interest income (or paying out equity above target). 0 = banks distribute all interest income and equity never grows.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 1, default: 1 },
       tier: 2 as const,
     },
     openingHouseholdDepositShare: {
@@ -1014,6 +1051,7 @@ export const capitalModule: Module<
       retainedEarnings: unitPort('$T/year'),
       firmDividendPayments: unitPort('$T/year'),
       bankDividendPayments: unitPort('$T/year'),
+      bankInterestIncome: unitPort('$T/year'),
       firmInternalFunds: unitPort('$T/year'),
       householdDisposableIncome: unitPort('$T/year'),
       householdSaving: unitPort('$T/year'),
@@ -1287,6 +1325,12 @@ export const capitalModule: Module<
       if (params.bankEquityRatio < 0.01 || params.bankEquityRatio > 0.30) {
         errors.push('bankEquityRatio must be between 0.01 and 0.30');
       }
+    }
+    if (
+      params.bankRetentionSpeed !== undefined
+      && !(params.bankRetentionSpeed >= 0 && params.bankRetentionSpeed <= 1)
+    ) {
+      errors.push('bankRetentionSpeed must be between 0 and 1');
     }
     if (
       params.openingHouseholdDepositShare !== undefined
@@ -1809,18 +1853,33 @@ export const capitalModule: Module<
     const retireeConsumption = Math.min(pensionTransfers, householdConsumption);
     const workerConsumption = householdConsumption - retireeConsumption;
 
-    // Fiscal closure and ex-post sectoral saving. Banks distribute current
-    // interest income; loan write-offs remain a balance-sheet loss rather than
-    // current income. The four sector balances therefore sum to realized
-    // investment, up to floating-point error.
+    // Fiscal closure and ex-post sectoral saving. Banks retain the interest
+    // income that holds their equity ratio and distribute the rest; loan
+    // write-offs remain a balance-sheet loss rather than current income.
+    // Retained income is bank saving and is missing from household income one
+    // for one, so the four sector balances still sum to realized investment,
+    // up to floating-point error.
     const netTaxes =
       governmentServiceConsumption
       + pensionTransfers
       + publicInterestPayments
       - finance.publicDebtChange;
-    const bankInterestIncome =
-      privateInterestPayments + publicInterestToBanks;
-    const bankDividendPayments = bankInterestIncome;
+    const {
+      interestIncome: bankInterestIncome,
+      dividendPayments: bankDividendPayments,
+    } = bankRetention(
+      openingFinancialLedger,
+      {
+        grossLoanOriginations,
+        principalRepayments,
+        loanWriteOffs,
+        privateInterestPayments,
+        publicInterestToBanks,
+        publicDebtChange: finance.publicDebtChange,
+      },
+      params.bankEquityRatio,
+      params.bankRetentionSpeed,
+    );
     const householdDisposableIncome =
       firmCircuit.laborCompensation
       + firmDividendPayments
@@ -2008,6 +2067,7 @@ export const capitalModule: Module<
         retainedEarnings,
         firmDividendPayments,
         bankDividendPayments,
+        bankInterestIncome,
         firmInternalFunds: firmCircuit.firmInternalFunds,
         householdDisposableIncome,
         householdSaving,
