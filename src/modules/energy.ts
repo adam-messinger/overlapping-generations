@@ -70,11 +70,15 @@ export interface EnergySourceParams {
   carbonIntensity: number; // kg CO2/MWh
   // Fossil fuel specific
   eroei0?: number;         // Initial EROEI
-  // Depletion budget in extraction units (extraction accrues as
-  // installed_GW × 0.01/yr). Calibrated so that at the 2025 fleet the budget
-  // exhausts on the observed proved-reserves R/P timescale; a shrinking fleet
-  // stretches it, growth shortens it.
-  reserves?: number;
+  // Depletion budget in extraction units: one year of 2025 production =
+  // 2025 fleet GW × 0.01 (extraction books world fuel burned on that
+  // scale; see the extraction update in step()). Sized to REMAINING TECHNICALLY RECOVERABLE RESOURCES, not
+  // proved reserves: proved reserves are a working inventory that resources
+  // convert into as extraction proceeds (world gas reserves 126 tcm in 1990,
+  // 209 tcm in 2023 while R/P held at ~50-60 yr, BGR), so a proved-reserves
+  // budget ran dry on the R/P horizon and gas LCOE jumped ~10x in one year.
+  // See FOSSIL_RESOURCES_2025.
+  recoverableResources?: number;
 
   // Regional 2025 baselines (replaces single capacity2025)
   capacity2025: Record<Region, number>;
@@ -264,6 +268,14 @@ export interface EnergyParams {
   /** Fuel + variable O&M of running existing fossil plant ($/MWh, before
    *  depletion and carbon); mirrors dispatch's marginalCost */
   fossilRunningCost: Record<'gas' | 'coal', number>;
+  /**
+   * Average fleet efficiency (electric out / fuel in) of gas and coal power.
+   * Turns dispatched fossil generation into fuel burned for depletion
+   * accounting: extraction = one year of 2025 production x (power-sector
+   * fuel + non-electric use) / its 2025 level. The index is anchored on
+   * 2025, so this only sets the weight of power against end-use fuel.
+   */
+  fossilPowerEfficiency: Record<'gas' | 'coal', number>;
   /**
    * Economic replacement: each year, up to this fraction of a region's
    * existing gas/coal generation is added to the new-build requirement and
@@ -547,6 +559,47 @@ function fleetWeighted(value: Record<Region, number>, fleet: Record<Region, numb
  */
 const WIND_FLEET_CF_2025 = fleetWeighted(REGIONAL_WIND_CF, REGIONAL_CAPACITY_2025.wind);
 
+/**
+ * Fossil depletion calibration: remaining technically recoverable resources
+ * (proved reserves + reserve growth in known fields + undiscovered +
+ * unconventional) over 2025 production.
+ *
+ * - gas: 800 tcm resources (225 tcm proved), IEA Global Energy and Climate
+ *   Model Documentation 2024, Table 6.1 (2023; from USGS, BGR, CEDIGAZ). BGR
+ *   Energy Study 2025 (end-2023) puts reserves + resources at 209 + 658 =
+ *   ~870 tcm, within 10%.
+ * - coal: 20,776 Gt resources (1,074 Gt proved), same IEA table. BGR
+ *   (end-2023): reserves 797 + 321 Gt and resources 16,199 + 3,515 Gt (hard
+ *   coal + lignite) = ~20,830 Gt.
+ * - production: EI Statistical Review of World Energy 2024, ~4.0 tcm gas and
+ *   ~8.7 Gt coal a year.
+ *
+ * The EROI decline in depletion() then runs on the share of the RESOURCE
+ * left, the quantity the IEA's own supply model depletes (GEC documentation
+ * 2024 §6.2: production is modelled from "remaining technically recoverable
+ * resources (Table 6.1), depletion rates, production costs, ..."). Depleting
+ * against proved reserves instead treats an inventory that has grown with
+ * extraction for 35 years (gas 126 -> 209 tcm 1990-2023, BGR) as a fixed
+ * endowment.
+ */
+export const FOSSIL_RESOURCES_2025 = {
+  gas: { resources: 800, provedReserves: 225, production: 4.0 },   // tcm, tcm, tcm/yr
+  coal: { resources: 20776, provedReserves: 1074, production: 8.7 }, // Gt, Gt, Gt/yr
+} as const;
+
+/** One year of 2025 production in extraction units (2025 fleet GW x 0.01). */
+export function annualExtraction2025(source: 'gas' | 'coal'): number {
+  let fleet = 0;
+  for (const region of REGIONS) fleet += REGIONAL_CAPACITY_2025[source][region];
+  return fleet * 0.01;
+}
+
+/** Depletion budget: 2025 extraction rate x resource-to-production years. */
+function resourceBudget(source: 'gas' | 'coal'): number {
+  const r = FOSSIL_RESOURCES_2025[source];
+  return annualExtraction2025(source) * (r.resources / r.production);
+}
+
 export const energyDefaults: EnergyParams = {
   sources: {
     solar: {
@@ -576,13 +629,11 @@ export const energyDefaults: EnergyParams = {
       capacity2025: REGIONAL_CAPACITY_2025.gas,
       carbonIntensity: 400,
       eroei0: 30,
-      // 2025 fleet (sum of capacity2025) x 0.01/yr exhausts this budget on
-      // the ~48-year proved-reserves R/P timescale (EI Statistical Review of
-      // World Energy 2024: ~188 tcm reserves / ~4.0 tcm/yr production).
-      // Pinned by the R/P calibration test in energy.test.ts. The fleet
-      // includes the oil-fired capacity folded into the gas row (see
-      // REGIONAL_CAPACITY_2025): 2,088 GW x 0.01 x 48 = 1,002.
-      reserves: 1000,
+      // ~200 years of 2025 production (800 tcm / 4.0 tcm/yr); see
+      // FOSSIL_RESOURCES_2025. Pinned by the resource calibration test. The
+      // fleet includes the oil-fired capacity folded into the gas row (see
+      // REGIONAL_CAPACITY_2025), so its ~3% of the row books as gas.
+      recoverableResources: resourceBudget('gas'),
     },
     coal: {
       name: 'Coal',
@@ -593,11 +644,9 @@ export const energyDefaults: EnergyParams = {
       capacity2025: REGIONAL_CAPACITY_2025.coal,
       carbonIntensity: 900,
       eroei0: 25,
-      // 2025 fleet x 0.01/yr exhausts this budget on the ~125-year
-      // proved-reserves R/P timescale (EI Statistical Review 2024: ~1,074 Gt
-      // reserves / ~8.7 Gt/yr production). Pinned by the R/P calibration
-      // test in energy.test.ts.
-      reserves: 2640,
+      // ~2,400 years of 2025 production (20,776 Gt / 8.7 Gt/yr); see
+      // FOSSIL_RESOURCES_2025. Pinned by the resource calibration test.
+      recoverableResources: resourceBudget('coal'),
     },
     nuclear: {
       name: 'Nuclear',
@@ -762,6 +811,14 @@ export const energyDefaults: EnergyParams = {
   },
   buildCapacityDepreciation: 0.14, // ~7-yr economic life of idle lines (PV: PERC->TOPCon obsolescence 2022-25); judgment
   fossilRunningCost: { gas: 35, coal: 25 }, // = dispatch marginalCost (fuel + VOM, 2024 US reference prices)
+  // The efficiencies the module's own carbonIntensity (400 / 900 kg/MWh)
+  // implies under IPCC 2006 default combustion factors (gas 56.1, bituminous
+  // coal 94.6 tCO2/TJ = 202 / 341 kg/MWh of fuel). Global public-fleet
+  // averages were 40% gas / 34% coal in IEA (2008) Energy Efficiency
+  // Indicators for Public Electricity Production from Fossil Fuels, and
+  // have risen since (US coal fleet 37.4%, EU ~38%, IEA Clean Coal Centre
+  // ~2017). At 0.50, power is ~35% of 2025 gas use (IEA: ~40%).
+  fossilPowerEfficiency: { gas: 0.50, coal: 0.38 },
   fossilDisplacementRate: 0.017,   // fitted (with newBuildShareWeight) to China's 2025 solar build, 315 GW (NEA): clean build beyond demand growth
   curtailmentStorageBoost: 2.0,    // At 30% curtailment: battery target × 1.6; at 50%: × 2.0
 
@@ -844,6 +901,9 @@ export interface RegionalCapacityState {
 export interface GlobalLearningState {
   cumulative: number;     // Total ever deployed GLOBALLY (for learning)
   extracted: number;      // Fossil fuels: extracted so far (global)
+  /** Fossil fuels: world fuel use (TWh of fuel) in the first year it was
+   *  measurable; the extraction index divides by it */
+  fuelUseAnchor?: number;
 }
 
 export interface EnergyState {
@@ -910,6 +970,12 @@ export interface EnergyInputs {
    *  output, and prices their idle output as a re-run option. Missing ->
    *  fossil counted at nameplate. */
   laggedRegionalGeneration?: Partial<Record<Region, Partial<Record<string, number>>>>;
+
+  /** Non-electric fuel use this year by fuel (TWh, from demand). With last
+   *  year's fossil generation it measures world gas and coal burned, which
+   *  is what depletes the resource. Missing -> extraction falls back to the
+   *  power fleet's nameplate. */
+  fuels?: Partial<Record<string, number>>;
 
   /** Lagged real safe rate (capital.safeRate, previous year) — prices project debt */
   laggedSafeRate: number;
@@ -1344,6 +1410,7 @@ export const energyModule: Module<
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
       laggedRegionalShortfallRate: unitPort('fraction', 'record'),
       laggedRegionalGeneration: unitPort('TWh/year', 'nested-record'),
+      fuels: unitPort('TWh/year', 'record'),
       laggedSafeRate: unitPort('fraction'),
       laggedInterestRate: unitPort('fraction'),
       savingsRate: unitPort('fraction'),
@@ -1409,6 +1476,13 @@ export const energyModule: Module<
           if (fa.source !== 'coal' && fa.source !== 'gas') errors.push(`regional.${region}.firmAdequacy.source must be coal or gas`);
           if (!(fa.share >= 0 && fa.share <= 2)) errors.push(`regional.${region}.firmAdequacy.share must be in [0, 2]`);
         }
+      }
+    }
+
+    for (const f of ['gas', 'coal'] as const) {
+      const eff = params.fossilPowerEfficiency?.[f];
+      if (eff !== undefined && !(eff > 0 && eff <= 1)) {
+        errors.push(`fossilPowerEfficiency.${f} must be in (0, 1]`);
       }
     }
 
@@ -1599,6 +1673,9 @@ export const energyModule: Module<
       if (p.buildCapacity2025) {
         result.buildCapacity2025 = { ...energyDefaults.buildCapacity2025, ...p.buildCapacity2025 };
       }
+      if (p.fossilPowerEfficiency) {
+        result.fossilPowerEfficiency = { ...energyDefaults.fossilPowerEfficiency, ...p.fossilPowerEfficiency };
+      }
       if (p.fossilRunningCost) {
         result.fossilRunningCost = { ...energyDefaults.fossilRunningCost, ...p.fossilRunningCost };
       }
@@ -1757,9 +1834,10 @@ export const energyModule: Module<
         lcoe = hardwareCost * Math.pow(Math.max(1, ratio), -s.alpha) + s.softFloor;
         const eroi = params.eroi[source];
         netEnergyFraction[source] = eroi > 1 ? 1 - 1 / eroi : 0;
-      } else if (s.eroei0 !== undefined && s.reserves !== undefined) {
-        // Fossil fuel with depletion - GLOBAL extraction
-        const dep = depletion(s.reserves, globalState.extracted, s.eroei0);
+      } else if (s.eroei0 !== undefined && s.recoverableResources !== undefined) {
+        // Fossil fuel with depletion - GLOBAL extraction against the
+        // remaining recoverable resource
+        const dep = depletion(s.recoverableResources, globalState.extracted, s.eroei0);
         const baseCost = s.cost0 / dep.netEnergyFraction;
         // Note: carbon cost added regionally below
         lcoe = baseCost;
@@ -2351,22 +2429,46 @@ export const energyModule: Module<
       const newCumulative = prevCumulative + globalAdditions[source];
 
       let extracted = state.global[source].extracted;
-      if (s.reserves !== undefined) {
-        // Extraction proxy: installed capacity (GW) × 0.01 per year (budget
-        // provenance at the gas/coal defaults). EROEI decline with fraction
-        // remaining follows the net-energy literature (Murphy & Hall 2010;
-        // Delannoy et al. 2021; Brockway et al. 2019); the sqrt exponent in
-        // primitives/math.ts depletion() is a stylized midpoint.
+      let fuelUseAnchor = state.global[source].fuelUseAnchor;
+      if (s.recoverableResources !== undefined && (source === 'gas' || source === 'coal')) {
+        // Extraction is world fuel burned, indexed to its first measured
+        // year and scaled so that year books one year of 2025 production
+        // (the unit the budget is sized in; provenance at
+        // FOSSIL_RESOURCES_2025). Fuel burned = last year's dispatched
+        // generation / fleet efficiency + this year's non-electric use.
+        // Nameplate overstated it: the power fleet stood in for the whole
+        // fuel, so a fleet that grew 10x booked 10x world gas output while
+        // end-use gas grew ~1.5x and idle plant booked as if it ran; the
+        // budget was spent ~1.7x too fast in high-gas scenarios. EROEI
+        // decline with fraction remaining follows the net-energy literature
+        // (Murphy & Hall 2010; Delannoy et al. 2021; Brockway et al. 2019);
+        // the sqrt exponent in primitives/math.ts depletion() is a
+        // stylized midpoint.
         let globalInstalled = 0;
+        let powerGen: number | undefined = 0;
         for (const region of REGIONS) {
           globalInstalled += state.regional[region][source].installed;
+          const gen = inputs.laggedRegionalGeneration?.[region]?.[source];
+          powerGen = gen === undefined || powerGen === undefined ? undefined : powerGen + Math.max(0, gen);
         }
-        extracted += globalInstalled * 0.01;
+        const nonElectric = inputs.fuels?.[source];
+        const fuelUse = powerGen === undefined || nonElectric === undefined
+          ? undefined
+          : powerGen / params.fossilPowerEfficiency[source] + Math.max(0, nonElectric);
+        if (fuelUseAnchor === undefined && fuelUse !== undefined && fuelUse > 0) {
+          fuelUseAnchor = fuelUse;
+        }
+        let annual2025 = 0;
+        for (const region of REGIONS) annual2025 += s.capacity2025[region] * 0.01;
+        extracted += fuelUse !== undefined && fuelUseAnchor !== undefined
+          ? annual2025 * (fuelUse / fuelUseAnchor)
+          : globalInstalled * 0.01;
       }
 
       newGlobal[source] = {
         cumulative: newCumulative,
         extracted,
+        ...(fuelUseAnchor !== undefined ? { fuelUseAnchor } : {}),
       };
 
       cumulativeCapacity[source] = newCumulative;
