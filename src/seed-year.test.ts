@@ -32,9 +32,6 @@ const SEED_DEFINED: Record<string, string> = {
  * not an accepted behavior.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  forestNetFlux:
-    'land use flips from a 0.21 Gt sink in 2025 to a 1.1 Gt source in 2026: 2025 forest '
-    + 'change is +28 Mha, every later year about -4 Mha',
   usefulWorkGrowthRate: 'useful work per worker falls 0.5% in 2026, then grows 0.4-1%/yr',
   shortfall: 'unserved generation halves in 2026 (231 -> 115 TWh) and then resumes rising',
   miningEnergyTWh: 'dips in 2026 (238 -> 177 TWh) and recovers: the 2026 build is smaller than 2025 and 2027',

@@ -1142,8 +1142,14 @@ export const resourcesModule: Module<
     // Path-dependent: use previous year's forest area from state
     const prevForest = state.land.forest;
     const forestAfterLoss = prevForest * (1 - effectiveLossRate);
-    // Only newly released farmland this year contributes to reforestation
-    const prevLandReleased = Math.max(0, land.farmland2025 - state.land.farmland);
+    // Only newly released farmland this year contributes to reforestation.
+    // The seed year opens from its own farmland: the state's opening value is
+    // the observed farmland2025, and the demand-implied 2025 farmland sits
+    // ~65 Mha below it (calibration residual, not land abandoned in 2025).
+    // Reading that gap as a release reforested ~30 Mha in 2025 alone and
+    // turned land use from a 1.1 GtCO2 source into a 0.2 Gt sink for one year.
+    const openingFarmland = yearIndex === 0 ? farmland : state.land.farmland;
+    const prevLandReleased = Math.max(0, land.farmland2025 - openingFarmland);
     const newlyReleased = Math.max(0, landReleased - prevLandReleased);
     const reforestation = newlyReleased * land.reforestationRate;
     // When the farmland cap binds, farmland expands into forest above the
