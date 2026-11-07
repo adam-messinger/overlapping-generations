@@ -36,8 +36,17 @@ test('every scenario runs with each derived parameter equal to its source', () =
     expect(params.production!.structuralEfficiencyShare).toBe(demand.structuralEfficiencyShare);
     expect(params.production!.structuralDecayHalfLife).toBe(demand.structuralDecayHalfLife);
     expect(params.cdr!.tcre).toBe(cdrDefaults.tcre * climate.sensitivity / 3.0);
+    expect(params.cdr!.damageCoeff).toBe(climate.damageCoeff);
     expect(params.energy!.gridLossFactor).toBe(dispatch.gridLossFactor);
   }
+});
+
+test('a scenario that raises damages raises the value of removal with them', () => {
+  // cdr.damageCoeff was documented as mirroring climate's but never coupled:
+  // high-sensitivity (0.007) and climate-cascade (0.008) ran the CDR gate at
+  // 0.00536, deploying removal 4-8 years late.
+  const { params } = deriveSimulationParams({ climate: { damageCoeff: 0.008 } });
+  expect(params.cdr!.damageCoeff).toBe(0.008);
 });
 
 test('setting a derived parameter, even at its default, is refused without decouple', () => {

@@ -62,6 +62,14 @@ export const PARAM_DERIVATIONS: readonly ParamDerivation[] = [
     derive: (read) => cdrDefaults.tcre * (read('climate.sensitivity') as number) / TCRE_REFERENCE_SENSITIVITY,
   },
   {
+    target: 'cdr.damageCoeff',
+    from: ['climate.damageCoeff'],
+    description:
+      "CDR's SCC gate values the damage a ton causes with the climate module's quadratic damage " +
+      'coefficient; a scenario raising damages must raise the value of removal with them.',
+    derive: (read) => read('climate.damageCoeff'),
+  },
+  {
     target: 'energy.gridLossFactor',
     from: ['dispatch.gridLossFactor'],
     description:

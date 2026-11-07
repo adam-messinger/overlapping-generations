@@ -84,8 +84,8 @@ export const cdrParams = defineParams('cdr', {
   }),
   damageCoeff: num({
     default: 0.00536, unit: '1/Δ°C^2', min: 0,
-    // Mirrors the climate module's damage coefficient.
-    source: 'Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); mirrors climate.damageCoeff',
+    // Derived from climate.damageCoeff at run time (src/param-derivations.ts).
+    source: 'Midpoint of DICE-2023 (~0.0035) and Howard-Sterner (~0.0072); = climate.damageCoeff',
   }),
   tcre: num({
     default: 0.00058, unit: 'Δ°C/GtCO2', min: 0,
