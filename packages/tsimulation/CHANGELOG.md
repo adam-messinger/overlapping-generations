@@ -8,6 +8,17 @@ onward. Before 1.0, minor versions may include breaking changes.
 ## [Unreleased]
 
 ### Added
+- Parameter schemas: `defineParams(module, { ... })` with `num`, `bool`,
+  `choice` and `group` declares each parameter once and derives typed
+  defaults (`InferParams`), a strict deep `merge` (unknown keys rejected at
+  every depth, inherited names never addressable, values copied in),
+  `validate`, and the `paramMeta` tree. Numeric leaves need a registered
+  unit; a schema that contradicts itself fails at definition.
+- Derived parameters: `applyDerivations(params, derivations, { merge, decouple })`
+  computes each `ParamDerivation` target from merged parameters in dependency
+  order, refuses an explicit override of a target unless it is in `decouple`,
+  rejects stale `decouple` entries, cycles and duplicate targets, and throws
+  if a derivation reads a path it did not declare.
 - Module invariants: `Module.invariants` declares identities a module promises
   about every step, and the engine checks them after each step under
   `AutowireConfig.invariants` (`'error'` by default, or `'warn'`, `'report'`,

@@ -489,6 +489,71 @@ const { timeseries, metrics } = collectResults(result, {
 });
 ```
 
+## Parameter schemas
+
+Hand-written parameters keep five copies of one list (interface, defaults,
+`paramMeta`, `validate`, `mergeParams`), and every pair can drift. A schema
+declares each parameter once; the rest is derived.
+
+```typescript
+import { defineParams, num, group, type InferParams } from 'tsimulation';
+
+const params = defineParams('cdr', {
+  cost0: num({
+    default: 400, unit: '$/tCO2', min: 0, exclusiveMin: true,
+    explore: { min: 100, max: 1000 },          // range for sweeps/agents
+    source: 'Fasihi et al. 2019', tier: 1, paramName: 'cdrCost0',
+    description: 'Initial DAC capital cost.',
+  }),
+  ramp: group({ maxGrowth: num({ default: 0.3, unit: 'fraction/year', min: 0 }) }),
+});
+type CDRParams = InferParams<typeof params.children>;
+
+defineModule({
+  defaults: params.defaults,
+  paramMeta: params.paramMeta,
+  validate: params.validate,
+  mergeParams: (p) => params.merge(p),
+  // ...
+});
+```
+
+- `unit` must be a registered unit; a default outside its own bounds, an
+  explore range outside the validity bounds, or a tiered leaf without a
+  description fails at definition.
+- `merge` is a strict deep merge: an unknown key at any depth is an error,
+  inherited names (`__proto__`) never address a parameter, and values are
+  copied in.
+- `paramMeta`'s `range.default` is the real default by construction.
+- `unsourced()` lists numeric leaves with no `source`, for a test that
+  enforces citation.
+
+## Derived parameters
+
+When two modules need one quantity, declare which owns it:
+
+```typescript
+import { applyDerivations, type ParamDerivation } from 'tsimulation';
+
+const DERIVATIONS: ParamDerivation[] = [{
+  target: 'cdr.tcre',
+  from: ['climate.sensitivity'],
+  description: 'TCRE scales with climate sensitivity.',
+  derive: (read) => 0.00058 * (read('climate.sensitivity') as number) / 3,
+}];
+
+const { params, values, reads } = applyDerivations(userParams, DERIVATIONS, {
+  merge: (module, overrides) => modules[module].mergeParams(overrides),
+  decouple: userParams.decouple,   // targets the caller may set explicitly
+});
+```
+
+Targets are computed in dependency order from merged parameters. Setting a
+target explicitly is refused unless it is listed in `decouple`, so a pair can
+only be split on purpose. `read` throws on a path not declared in `from`, so
+the declared dependencies are true. `reads` lists the leaves read per module,
+for parameter liveness.
+
 ## Parameter introspection
 
 Modules can attach `paramMeta` describing each tunable parameter (range, unit,
@@ -507,7 +572,7 @@ for sweeps.
   `buildDependencyGraph`, `topologicalSort`, `validateWiring`, `validateConnectorTypes`
 - **Transform helpers:** `requireOutput`, `optionalOutput`, `yearZeroFallback`
 - **Results:** `getOutputsAtYear`, `getTimeSeries`, `collectResults`, `resolveKey`
-- **Params:** `ComponentParams`, `generateParameterSchema`, `validatedMerge`
+- **Params:** `defineParams`, `num`, `bool`, `choice`, `group`, `InferParams`, `applyDerivations`, `ParamDerivation`, `ComponentParams`, `generateParameterSchema`, `validatedMerge`
 
 ## Status
 

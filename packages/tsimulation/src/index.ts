@@ -11,6 +11,8 @@ export * from './autowire.js';
 export * from './problem.js';
 export * from './introspect.js';
 export * from './validated-merge.js';
+export * from './param-schema.js';
+export * from './param-derivations.js';
 export * from './component-params.js';
 export * from './validation.js';
 export * from './units.js';
