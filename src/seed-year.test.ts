@@ -10,9 +10,10 @@
  * factory cap in year one (13a142e).
  *
  * Every published numeric output is checked (tsimulation's
- * findSeedYearKinks). A new discontinuity fails; the ones present today are
- * listed below by name, and an entry that stops flagging also fails, so the
- * list can only shrink by fixing what it names.
+ * findSeedYearKinks). A new discontinuity fails; known ones are listed below
+ * by name, and an entry that stops flagging also fails, so the list can only
+ * shrink by fixing what it names. Outputs clipped at zero are probed through
+ * the quantity they clip.
  */
 
 import { findSeedYearKinks } from 'tsimulation';
@@ -29,13 +30,26 @@ const SEED_DEFINED: Record<string, string> = {
 
 /**
  * First-step discontinuities present today. Each is a lead to investigate,
- * not an accepted behavior.
+ * not an accepted behavior. Empty since the seed-year fixes of 2026-11; add an
+ * entry only with what it was traced to.
  */
-const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  aggregateCapitalFundingGap:
-    'diagnostic ledger: max(0, desired - actual capital formation) at 2% desired net growth; '
-    + 'actual growth runs 1.98% -> 2.14% -> 2.24%, so the gap is 0.09 $T in 2025 and zero '
-    + 'after. A smooth path crossing the threshold, not a seed effect as far as traced',
+const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {};
+
+/**
+ * Outputs that are max(0, x) of a quantity x that is examined instead. A
+ * clipped series that crosses zero in the window flags however smooth x is,
+ * so the probe reads x (the underlying path) and checks the clip still holds.
+ */
+const CLIPPED: Record<string, {
+  reason: string;
+  underlying: (s: Record<string, number[]>) => number[];
+}> = {
+  aggregateCapitalFundingGap: {
+    reason: 'max(0, desired - actual capital formation) at 2% desired net growth: positive '
+      + 'exactly when capital grows below 2%/yr, which it does in 2025 (1.98%) and not after',
+    // Capital growth over each year: closing (next year's opening) / opening
+    underlying: (s) => s.capitalStock.slice(1).map((k, i) => k / s.capitalStock[i] - 1),
+  },
 };
 
 const { results } = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
@@ -44,6 +58,11 @@ for (const key of Object.keys(results[0])) {
   if (key === 'year' || typeof (results[0] as unknown as Record<string, unknown>)[key] !== 'number') continue;
   series[key] = results.map((row) => (row as unknown as Record<string, number>)[key]);
 }
+for (const [name, { underlying }] of Object.entries(CLIPPED)) {
+  series[`${name}:underlying`] = underlying(series);
+}
+const clippedSeries = Object.fromEntries(Object.keys(CLIPPED).map((name) => [name, series[name]]));
+for (const name of Object.keys(CLIPPED)) delete series[name];
 const startOffsets = Object.fromEntries(Object.keys(SEED_DEFINED).map((name) => [name, 1]));
 // Identity residuals (national accounts, ledgers) are zero up to round-off
 const kinks = findSeedYearKinks(series, { startOffsets, absoluteTolerance: 1e-9 });
@@ -53,6 +72,17 @@ test('the probe covers the published outputs', () => {
   expect(Object.keys(series).length > 150).toBeTrue();
   for (const name of [...Object.keys(SEED_DEFINED), ...Object.keys(KNOWN_SEED_YEAR_ARTIFACTS)]) {
     expect(name in series).toBeTrue();
+  }
+  for (const name of Object.keys(CLIPPED)) {
+    expect(name in clippedSeries && `${name}:underlying` in series).toBeTrue();
+    // Shorter than the detector's window (trendSteps + 2) is skipped silently
+    expect(series[`${name}:underlying`].length >= 6).toBeTrue();
+  }
+});
+
+test('a clipped output is still clipped in the window (else probe it directly)', () => {
+  for (const values of Object.values(clippedSeries)) {
+    expect(Math.min(...values)).toBe(0);
   }
 });
 
