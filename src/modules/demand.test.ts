@@ -981,4 +981,25 @@ test('module declares correct outputs', () => {
 // SUMMARY
 // =============================================================================
 
+test('a robot is worth the human wage it displaces, which falls with the labor share', () => {
+  const params = demandModule.mergeParams({});
+  // Two otherwise identical years: the second sees the labor share 20% below
+  // its 2025 anchor, so each robot saves 20% less and the fleet grows less.
+  const runTwo = (laborShare: number) => {
+    const y0 = demandModule.step(
+      demandModule.init(params),
+      { ...getDemographicsInputs(0), gdp: baselineGdp(0), laggedLaborShare: 0.654 },
+      params, 2025, 0,
+    );
+    return demandModule.step(
+      y0.state,
+      { ...getDemographicsInputs(1), gdp: baselineGdp(1), laggedLaborShare: laborShare },
+      params, 2026, 1,
+    ).outputs as any;
+  };
+  const same = runTwo(0.654);
+  const lower = runTwo(0.654 * 0.8);
+  expect(lower.robotsPer1000).toBeLessThan(same.robotsPer1000);
+});
+
 printSummary();

@@ -921,6 +921,15 @@ function buildLags(params: SimulationParams) {
       bootstrap: true,
     },
 
+    // Robots value the wage they displace, which falls with the labor share
+    laggedLaborShare: {
+      source: 'laborShare',
+      delay: 1,
+      initial: 0.654,  // 2025 labor compensation / GDP (bootstrapped)
+      contract: unitPort('fraction'),
+      bootstrap: true,
+    },
+
     // CDR needs lagged GDP for damage-flow growth in the SCC annuity
     laggedGdp: {
       source: 'gdp',

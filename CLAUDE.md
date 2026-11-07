@@ -302,7 +302,9 @@ Do this before committing. Most fix-up commits in project history would have bee
 - **Labor share is endogenous to automation**: production's augmented labor counts robot and AI
   worker-equivalents alongside people; their income since 2025 (`automationLaborShare` change x
   (1−α) x `automationIncomeToCapital`) is paid to capital, not wages (Acemoglu-Restrepo
-  displacement). `laborShare` reports compensation / GDP
+  displacement). `laborShare` reports compensation / GDP. Demand values a robot at the human wage
+  it displaces, scaled by the lagged labor share relative to 2025, so automation cheapens the labor
+  it competes with and slows itself (default 2100: ~580 robots/1000 workers, labor share ~31%)
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings
