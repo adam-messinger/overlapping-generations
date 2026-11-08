@@ -3,6 +3,13 @@
  *
  *   npx tsx scripts/ai-offshoring/run.ts            # all adoption cases, markdown report
  *   npx tsx scripts/ai-offshoring/run.ts --json     # raw results
+ *   npx tsx scripts/ai-offshoring/run.ts --ai-productivity[=1e5]
+ *       # turn on the main model's AI productivity channel
+ *       # (production.aiWorkerEquivalentPerTWh; 1e5 is the ai-energy-boom value)
+ *   --ai-gains=exposure
+ *       # with --ai-productivity: re-split AI's world output gain by where AI is
+ *       # used (IMF SDN/2024/001 exposure: AE 60%, EM 40%, LIC 26% of jobs) instead
+ *       # of the main model's split, which gives every region the same % gain
  *
  * For each adoption case: run the main model, compute the overlay, feed its
  * regional output factors back through demand.commodityShocks, and repeat until
@@ -17,9 +24,54 @@ import { ADOPTION_CASES, baseOverlayParams } from './data.js';
 
 const OPTS = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
 const END = 2060;
+const aiArg = process.argv.find((a) => a.startsWith('--ai-productivity'));
+export const AI_WORKER_EQUIVALENT_PER_TWH = aiArg ? Number(aiArg.split('=')[1] ?? 1e5) : 0;
+const AI_GAINS_BY_EXPOSURE = process.argv.includes('--ai-gains=exposure');
+/**
+ * Share of jobs exposed to AI, IMF SDN/2024/001 (Cazzaniga et al.) [P]:
+ * advanced economies 60%, emerging markets 40%, low-income countries 26%.
+ * Mapped to regions [est]: South Asia between EM and LIC. A proxy for where
+ * AI's output gains land (use), not who owns the capital.
+ */
+const AI_EXPOSURE: Record<Region, number> = {
+  us: 0.60, 'oecd-ex-us': 0.60, china: 0.40, latam: 0.40, seasia: 0.40,
+  russia: 0.40, mena: 0.40, india: 0.30, ssa: 0.26,
+};
+let aiGainFactors: Record<number, Partial<Record<Region, number>>> | undefined;
 
-function mainRun(shocks: ReturnType<typeof toCommodityShocks> = []) {
-  const res = (runSimulation({ startYear: 2025, endYear: END, demand: { commodityShocks: shocks } } as never, OPTS) as any).results;
+/** Factors that move AI's world gain from the model's uniform split to an exposure-weighted one */
+function exposureGainFactors() {
+  const off = mainRun([], 0, false).res;
+  const on = mainRun([], AI_WORKER_EQUIVALENT_PER_TWH, false).res;
+  const out: Record<number, Partial<Record<Region, number>>> = {};
+  for (const r of on) {
+    const o = off.find((x: any) => x.year === r.year);
+    const G = r.gdp / o.gdp - 1;
+    const total = REGIONS.reduce((s, k) => s + r.regionalGdp[k], 0);
+    const W = REGIONS.reduce((s, k) => s + (r.regionalGdp[k] / total) * AI_EXPOSURE[k], 0);
+    out[r.year] = Object.fromEntries(REGIONS.map((k) => [k, (1 + G * AI_EXPOSURE[k] / W) / (1 + G)]));
+  }
+  return out;
+}
+
+function combine(shocks: ReturnType<typeof toCommodityShocks>) {
+  if (!aiGainFactors) return shocks;
+  const byYear = new Map(shocks.map((s) => [s.year, s.regionalOutputFactors]));
+  return Object.keys(aiGainFactors).map(Number).filter((y) => y > 2025).map((year) => ({
+    year,
+    regionalOutputFactors: Object.fromEntries(REGIONS.map((k) => [
+      k, (aiGainFactors![year][k] ?? 1) * ((byYear.get(year) ?? {})[k] ?? 1),
+    ])),
+  }));
+}
+
+function mainRun(shocks: ReturnType<typeof toCommodityShocks> = [], aiPerTWh = AI_WORKER_EQUIVALENT_PER_TWH, withGainSplit = true) {
+  const res = (runSimulation({
+    startYear: 2025,
+    endYear: END,
+    demand: { commodityShocks: withGainSplit ? combine(shocks) : shocks },
+    production: { aiWorkerEquivalentPerTWh: aiPerTWh },
+  } as never, OPTS) as any).results;
   const base: BaseRun = {
     years: res.map((r: any) => r.year),
     regionalGdp: res.map((r: any) => r.regionalGdp as Record<Region, number>),
@@ -50,6 +102,25 @@ function report(runs: ReturnType<typeof runCase>[]) {
   const out: string[] = [];
   const p = (s = '') => out.push(s);
   const years = [2030, 2035, 2040, 2050, 2060];
+  if (AI_WORKER_EQUIVALENT_PER_TWH > 0) {
+    const off = mainRun([], 0, false).res;
+    const on = runs[0].plain;
+    p(`## Main model with AI productivity on (aiWorkerEquivalentPerTWh = ${AI_WORKER_EQUIVALENT_PER_TWH}${AI_GAINS_BY_EXPOSURE ? ', gains split by AI exposure' : ', gains split as the main model does'}) vs off, no overlay`);
+    p();
+    p('| | ' + years.join(' | ') + ' |');
+    p('|---|' + years.map(() => '---').join('|') + '|');
+    const row = (label: string, f: (r: any) => number) => p(`| ${label} | ${years.map((y) => {
+      const a = off.find((x: any) => x.year === y), b = on.find((x: any) => x.year === y);
+      return `${((f(b) / f(a) - 1) * 100).toFixed(1)}%`;
+    }).join(' | ')} |`);
+    row('world GDP', (r) => r.gdp);
+    for (const region of REGIONS) row(region, (r) => r.regionalGdp[region]);
+    row('datacenter load', (r) => r.dataCenterLoadTWh);
+    p();
+    const cg = (rs: any[], a: number, b: number) => (((rs.find((x) => x.year === b).gdp / rs.find((x) => x.year === a).gdp) ** (1 / (b - a)) - 1) * 100).toFixed(2);
+    p(`World growth 2026-45: off ${cg(off, 2026, 2045)}%/yr, on ${cg(on, 2026, 2045)}%/yr. Labour share 2045: off ${(off.find((x: any) => x.year === 2045).laborShare * 100).toFixed(1)}%, on ${(on.find((x: any) => x.year === 2045).laborShare * 100).toFixed(1)}%.`);
+    p();
+  }
   for (const r of runs) {
     p(`## Case: ${r.caseName} (AI ceiling ${pct(r.params.adoption.sMax, 0)}% of exposed tasks, midpoint ${r.params.adoption.midpointYear})`);
     p();
@@ -94,6 +165,10 @@ function report(runs: ReturnType<typeof runCase>[]) {
   return out.join('\n');
 }
 
+if (AI_GAINS_BY_EXPOSURE) {
+  if (AI_WORKER_EQUIVALENT_PER_TWH <= 0) throw new Error('--ai-gains=exposure needs --ai-productivity');
+  aiGainFactors = exposureGainFactors();
+}
 const cases = Object.keys(ADOPTION_CASES) as (keyof typeof ADOPTION_CASES)[];
 const runs = cases.map(runCase);
 if (process.argv.includes('--json')) {
