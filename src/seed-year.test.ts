@@ -34,11 +34,6 @@ const SEED_DEFINED: Record<string, string> = {
  * not an accepted behavior. Add an entry only with what it was traced to.
  */
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
-  curtailmentTWh:
-    'all China: +349, +541, +618, +675, +550 TWh steps, the S-shaped onset of dispatch\'s '
-    + 'quadratic curtailment penalty with 2025 just past it; trend-seeding the lagged '
-    + 'curtailment rate leaves the shape unchanged. Not a seed effect as far as traced. The '
-    + 'level is the lead: China curtails 16% of VRE in 2026 and 35% by 2028 (4% in 2025)',
 };
 
 /**

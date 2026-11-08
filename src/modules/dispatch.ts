@@ -57,8 +57,26 @@ import { distributeByGDP, GDP_SHARES } from '../primitives/distribute.js';
 // =============================================================================
 
 export interface DispatchParams {
-  /** Capacity factor by source (fraction of nameplate available) */
+  /**
+   * Capacity factor by source: the share of nameplate each source runs at in
+   * the merit order. For gas and coal this is world-average UTILIZATION (how
+   * hard the fleet runs where other sources share the load), not what a
+   * plant can physically deliver; see `availability`.
+   */
   capacityFactor: Record<EnergySource, number>;
+
+  /**
+   * Annual availability of thermal plants (fraction of nameplate): the most a
+   * gas or coal fleet can generate in a year once planned and forced outages
+   * are taken out. The gap above `capacityFactor` is headroom dispatched only
+   * for demand the merit order leaves unserved, so a region whose thermal
+   * fleet carries the load (India coal, LatAm gas and coal) runs its plants
+   * harder than the world average, as it does, while a region with other
+   * supply keeps the calibrated utilization. Hydro and nuclear have no
+   * headroom: hydro is limited by water, and nuclear already runs near its
+   * availability.
+   */
+  availability: Record<'gas' | 'coal', number>;
 
   /** Carbon intensity by source (kg CO2/MWh) */
   carbonIntensity: Record<EnergySource, number>;
@@ -102,7 +120,7 @@ export interface DispatchParams {
 export const dispatchDefaults: DispatchParams = {
   // Global fleet-average capacity factors, Ember/IEA electricity data
   // 2023-24 (solar ~14-20% by region, wind ~25-35%, nuclear ~80%+, hydro
-  // ~38%; gas/coal reflect utilization, not availability)
+  // ~38%; gas/coal are utilization, not availability: see `availability`)
   capacityFactor: {
     solar: 0.20,
     wind: 0.30,
@@ -111,6 +129,16 @@ export const dispatchDefaults: DispatchParams = {
     gas: 0.50,
     coal: 0.60,
     battery: 0.20,  // Same as solar (firming)
+  },
+  // Equivalent availability factor (1 - planned - forced outage share).
+  // NERC GADS 2019-23 fleet averages (NERC State of Reliability 2024): gas
+  // combined cycle ~85-88%, coal ~75-82% (coal forced outages ~2x gas). IEA/
+  // NEA Projected Costs of Generating Electricity 2020 takes 85% as the
+  // achievable baseload load factor for both. Gas is the CCGT figure, which
+  // dominates fleet energy; coal sits between the two sources.
+  availability: {
+    gas: 0.85,
+    coal: 0.80,
   },
   // Combustion intensity kg CO2/MWh: gas CCGT ~350-450, coal ~800-1000
   // (IPCC AR5 Annex III combustion values; lifecycle excluded)
@@ -508,7 +536,32 @@ function dispatchRegion(
     }
   }
 
-  // Standby (firm-adequacy) capacity: last resort, after the VRE release.
+  // Thermal availability headroom: demand still unserved runs the ordinary
+  // gas and coal fleets above world-average utilization, up to availability,
+  // cheapest first. Utilization is an outcome of the load each fleet shares
+  // with other sources. Even with oil and bioenergy power folded into the
+  // fleet rows, LatAm (2.2%) and India (0.8%) could not serve their own 2025
+  // demand at the world averages (energy anchors each region's fleet on that
+  // demand, see fleetDemandRatio): 57 TWh unserved in 2025, ~5,000 by 2100.
+  if (remaining > 0) {
+    const headroom = (['gas', 'coal'] as const)
+      .map((source) => {
+        const standby = standbyGW[source] ?? 0;
+        const gw = Math.max(0, capacities[source] - standby);
+        const extraCF = Math.max(0, params.availability[source] - params.capacityFactor[source]);
+        return { source, cost: marginalCosts[source], twh: annualGenerationTWh(gw, extraCF, params.hoursPerYear, `${source} headroom`) };
+      })
+      .sort((a, b) => a.cost - b.cost);
+    for (const { source, twh } of headroom) {
+      if (remaining <= 0) break;
+      const run = Math.min(remaining, twh);
+      generation[source] += run;
+      remaining -= run;
+    }
+  }
+
+  // Standby (firm-adequacy) capacity: last resort, after the VRE release and
+  // the ordinary fleet's availability headroom.
   // It is security capacity, so it runs only for demand nothing else serves;
   // in merit order it would run as baseload (~60% CF in China by 2050).
   for (const source of ['gas', 'coal'] as const) {
@@ -649,15 +702,20 @@ const DISPATCH_INVARIANTS: readonly ModuleInvariant<
   },
   {
     name: 'no region generates more than its capacity can',
-    description: 'Each source is bounded by the region\'s capacity x its own capacity factor x hours; '
-      + 'bare and battery-paired solar share the same panels.',
+    description: 'Each source is bounded by the region\'s capacity x its own capacity factor x hours '
+      + '(availability for gas and coal); bare and battery-paired solar share the same panels.',
     check: ({ inputs, outputs, params }) => {
       const capacities = inputs.regionalCapacities ?? distributeCapacitiesByGDP(inputs.capacities);
       const messages: (string | undefined)[] = [];
       for (const region of REGIONS) {
         const cap = capacities[region];
         const gen = outputs.regionalGeneration[region];
-        const cf: Record<string, number> = regionCapacityFactors(inputs, params, region);
+        // Gas and coal are bounded by availability: dispatch runs them past
+        // utilization for demand the merit order leaves unserved
+        const cf: Record<string, number> = {
+          ...regionCapacityFactors(inputs, params, region),
+          ...params.availability,
+        };
         for (const source of ENERGY_SOURCES) {
           if (source === 'battery') continue;
           const served = source === 'solar' ? gen.solar + gen.solarPlusBattery : gen[source];
@@ -755,6 +813,18 @@ export const dispatchModule: Module<
       }
     }
 
+    const availability = { ...dispatchDefaults.availability, ...params.availability };
+    const capacityFactor = { ...dispatchDefaults.capacityFactor, ...params.capacityFactor };
+    for (const source of ['gas', 'coal'] as const) {
+      const a = availability[source];
+      if (!(a >= 0 && a <= 1)) {
+        errors.push(`availability.${source} must be 0-1, got ${a}`);
+      } else if (a < capacityFactor[source]) {
+        warnings.push(`availability.${source} (${a}) is below capacityFactor.${source} `
+          + `(${capacityFactor[source]}): the fleet gets no headroom above utilization`);
+      }
+    }
+
     return { valid: errors.length === 0, errors, warnings };
   },
 
@@ -763,6 +833,7 @@ export const dispatchModule: Module<
       ...dispatchDefaults,
       ...p,
       capacityFactor: { ...dispatchDefaults.capacityFactor, ...p.capacityFactor },
+      availability: { ...dispatchDefaults.availability, ...p.availability },
       carbonIntensity: { ...dispatchDefaults.carbonIntensity, ...p.carbonIntensity },
       marginalCost: { ...dispatchDefaults.marginalCost, ...p.marginalCost },
     }), partial);
