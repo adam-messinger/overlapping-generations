@@ -331,10 +331,17 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
-  ageing reaches the debt (default world public debt ~0.9 → ~1.1 in 2055 → ~1.6 in 2100,
-  crossing the 150% repression threshold around 2070). A safe rate below growth erodes the ratio
+  ageing reaches the debt (default world public debt ~0.9 → ~1.06 in 2055 → ~1.6 in 2100,
+  crossing the 150% repression threshold around 2085). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
+- **Debt is measured at market exchange rates**: the deficit, the debt ratio, the fiscal reaction,
+  repression and the safe rate's debt term read world GDP re-weighted by each region's 2025
+  market/PPP price ratio (`publicDebtMarketPriceRatio`, IMF WEO Oct 2026 via
+  `scripts/imf-fiscal-regions.py`), as the IMF measures debt. World PPP GDP grows faster because it
+  weights emerging economies ~1.7x their market weight, while ~78% of public debt is in the US,
+  OECD-ex-US and China; dividing by it understated r − g. Private debt and the total-debt premium
+  keep world GDP
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
 - **Target leverage**: firms borrow max(investment gap, leverage borrowing), where
   leverage borrowing moves debt / general capital a share `leverageAdjustmentSpeed`

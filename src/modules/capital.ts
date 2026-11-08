@@ -129,6 +129,8 @@ export interface CapitalParams {
   // --- Public debt ---
   initialPublicDebtGDP: number;        // 0.90 (90% of GDP in 2025)
   publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
+  /** 2025 GDP at market exchange rates / GDP at PPP, per region: weights the GDP public debt is measured against */
+  publicDebtMarketPriceRatio: Record<Region, number>;
   ageingCostDeficitShare: number;      // 0.25 (share of the rise in transfers/GDP since 2025 that is borrowed)
   fiscalReactionCoeff: number;         // 0.03 (tightening per pp of debt/GDP above threshold)
   fiscalReactionThreshold: number;     // 0.60 (Maastricht-style trigger)
@@ -178,6 +180,8 @@ export interface CapitalState {
   previousGdp: number;        // $ trillions (for GDP growth rate)
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
   pricedPublicDebtGDP?: number; // Smoothed public debt/GDP the safe rate's debt term prices
+  previousFiscalGdp?: number;   // Last year's market-weighted GDP (public debt's denominator)
+  fiscalGdpScale?: number;      // Scales market-weighted GDP to world GDP in year 0
   referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
   referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
   /** Target private debt / general capital, anchored at the year-0 ratio */
@@ -448,6 +452,19 @@ export const capitalDefaults: CapitalParams = {
   // --- Public debt (IMF Global Debt Database, 2025) ---
   initialPublicDebtGDP: 0.90,         // 90% of GDP
   publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
+  // Public debt is measured against GDP at MARKET exchange rates, as the IMF
+  // measures it: each region's PPP GDP x its 2025 market/PPP price ratio,
+  // scaled to world GDP in 2025. IMF WEO October 2026 (NGDPD / PPPGDP, 2025),
+  // aggregated by scripts/imf-fiscal-regions.py -> data/fiscal/imf-weo-regions.csv.
+  // Held at 2025 levels (the model has no exchange rates). Dividing debt by
+  // world PPP GDP put r - g at ~-2.5pp because PPP weights fast-growing
+  // emerging economies ~1.7x their market weight while ~78% of public debt is
+  // in the US, OECD-ex-US and China (IMF Oct 2026): world debt fell to 2031
+  // against the IMF's 94.0% -> 101.5%.
+  publicDebtMarketPriceRatio: {
+    us: 1.0, 'oecd-ex-us': 0.738, china: 0.477, india: 0.231, latam: 0.476,
+    seasia: 0.322, russia: 0.346, mena: 0.371, ssa: 0.290,
+  },
   // Share of the rise in transfers (pensions, retiree health, education)
   // above their 2025 share of GDP that is borrowed rather than taxed; the
   // fiscal reaction still leans against the resulting debt. US calibration,
@@ -1257,6 +1274,13 @@ export const capitalModule: Module<
         errors.push('safeRateGrowthPassThrough must be between 0 and 3');
       }
     }
+    if (params.publicDebtMarketPriceRatio !== undefined) {
+      for (const [region, ratio] of Object.entries(params.publicDebtMarketPriceRatio)) {
+        if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 3) {
+          errors.push(`publicDebtMarketPriceRatio.${region} must be in (0, 3]`);
+        }
+      }
+    }
     if (params.safeRateDebtSensitivity !== undefined) {
       if (params.safeRateDebtSensitivity < 0 || params.safeRateDebtSensitivity > 0.20) {
         errors.push('safeRateDebtSensitivity must be between 0 and 0.20');
@@ -1350,6 +1374,12 @@ export const capitalModule: Module<
   mergeParams(partial: Partial<CapitalParams>): CapitalParams {
     return validatedMerge('capital', this.validate, (p) => {
       const merged = { ...capitalDefaults, ...p };
+
+      if (p.publicDebtMarketPriceRatio) {
+        merged.publicDebtMarketPriceRatio = {
+          ...capitalDefaults.publicDebtMarketPriceRatio, ...p.publicDebtMarketPriceRatio,
+        };
+      }
 
       // Merge regional premiums
       if (p.savingsPremium) {
@@ -1586,6 +1616,23 @@ export const capitalModule: Module<
         : inputs.gdp;
     }
 
+    // Public debt's denominator: world GDP re-weighted to market exchange
+    // rates (publicDebtMarketPriceRatio), scaled to equal world GDP in year 0
+    // so the 2025 debt stock and ratio are unchanged; only its growth differs.
+    const marketWeightedGdp = REGIONS.reduce(
+      (sum, r) => sum + Math.max(0, inputs.regionalGdp?.[r] ?? 0) * params.publicDebtMarketPriceRatio[r],
+      0,
+    );
+    const fiscalGdpScale = yearIndex === 0 || state.fiscalGdpScale === undefined
+      ? (marketWeightedGdp > 0 ? inputs.gdp / marketWeightedGdp : 1)
+      : state.fiscalGdpScale;
+    const fiscalGdp = marketWeightedGdp > 0 ? marketWeightedGdp * fiscalGdpScale : inputs.gdp;
+    // Year 0 has no prior regional split: last year's market-weighted GDP is
+    // taken at the same ratio to world GDP as this year's.
+    const previousFiscalGdp = yearIndex === 0 || !(state.previousFiscalGdp! > 0)
+      ? previousGdp * (fiscalGdp / Math.max(inputs.gdp, Number.EPSILON))
+      : state.previousFiscalGdp!;
+
     const financeState = { publicDebt, privateDebt, previousGdp };
     const maximumFeasibleInvestment = Math.max(
       0,
@@ -1655,6 +1702,8 @@ export const capitalModule: Module<
         trendGrowth: state.trendGrowth,
         pricedPublicDebtGDP,
         additionalPrimaryDeficitRate,
+        fiscalGdp,
+        previousFiscalGdp,
       },
       params,
     );
@@ -1999,9 +2048,9 @@ export const capitalModule: Module<
         + (realizedGrowth - openingTrendGrowth) / params.trendGrowthSmoothingYears;
     // Debt ratio the safe rate prices next year: exponential smoothing of the
     // year-end ratio (see safeRateDebtSmoothingYears).
-    const nextPricedPublicDebtGDP = inputs.gdp > 0
+    const nextPricedPublicDebtGDP = fiscalGdp > 0
       ? pricedPublicDebtGDP
-        + (newPublicDebt / inputs.gdp - pricedPublicDebtGDP) / params.safeRateDebtSmoothingYears
+        + (newPublicDebt / fiscalGdp - pricedPublicDebtGDP) / params.safeRateDebtSmoothingYears
       : pricedPublicDebtGDP;
 
     const openingHouseholdNetWorth =
@@ -2045,6 +2094,8 @@ export const capitalModule: Module<
         previousGdp: inputs.gdp,
         trendGrowth: nextTrendGrowth,
         pricedPublicDebtGDP: nextPricedPublicDebtGDP,
+        previousFiscalGdp: fiscalGdp,
+        fiscalGdpScale,
         referenceTransferBurden,
         referenceAutomationLaborShare,
         targetPrivateLeverage,
