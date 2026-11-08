@@ -39,6 +39,13 @@ const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
     + 'quadratic curtailment penalty with 2025 just past it; trend-seeding the lagged '
     + 'curtailment rate leaves the shape unchanged. Not a seed effect as far as traced. The '
     + 'level is the lead: China curtails 16% of VRE in 2026 and 35% by 2028 (4% in 2025)',
+  usefulWorkGrowthRate:
+    'the 2026 value dips: 0.81% then 0.93, 0.91, 0.98, 0.95%. The dip predates the 2026-11 '
+    + 'constant-returns factor weights (before: 1.06% then 1.17, 1.24, 1.31%) and scored under '
+    + 'the threshold only because that path kept rising. GDP and effective workers are smooth '
+    + 'over the step (3.47/3.44% and 1.365/1.369%), so it is in demand\'s energy-services sum '
+    + '(sector base + fossil lock-in floor - unserved non-electric + automation loads); not yet '
+    + 'traced to one term. Diagnostic only: no module reads it',
 };
 
 /**

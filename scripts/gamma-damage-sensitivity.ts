@@ -1,9 +1,11 @@
 /**
  * Sensitivity sweep over the model's two most consequential parameters:
  *
- * - gamma: the useful-energy output elasticity (Ayres-Warr default 0.55;
- *   mainstream cost-share logic implies ~0.05-0.08 because energy is ~5-8%
- *   of GDP)
+ * - gamma: the useful-energy output elasticity (default 0.20; Ayres-Warr
+ *   fit 0.55; mainstream cost-share logic implies ~0.05-0.08 because energy
+ *   is ~5-8% of GDP). Each cell holds returns to scale constant: alpha stays
+ *   at its default and beta = 1 - alpha - gamma. (Sweeping gamma alone, as
+ *   this script once did, mixed the energy weight with returns to scale.)
  * - damageCoeff: the quadratic climate-damage coefficient (default 0.00536,
  *   the DICE-2023/Howard-Sterner midpoint; the growth-effects literature
  *   implies far larger values)
@@ -15,9 +17,9 @@
  *
  * Anchors:
  * - gamma 0.08: mainstream cost-share position
- * - gamma 0.25: intermediate (equal to the capital elasticity)
+ * - gamma 0.20: model default (identified supply-shock evidence; production.ts)
  * - gamma 0.40: low end of Kuemmel et al. (2010) 0.40-0.60 range
- * - gamma 0.55: Ayres & Warr (2009) default
+ * - gamma 0.55: Ayres & Warr (2009)
  * - damage 0.003467: DICE-2023 (Barrage & Nordhaus 2024)
  * - damage 0.00536: model default (DICE/Howard-Sterner midpoint)
  * - damage 0.007438: Howard & Sterner (2017)
@@ -29,8 +31,9 @@
 
 import { writeFileSync } from 'node:fs';
 import { runSimulation } from '../src/index.js';
+import { productionDefaults } from '../src/modules/production.js';
 
-const GAMMAS = [0.08, 0.25, 0.40, 0.55] as const;
+const GAMMAS = [0.08, 0.20, 0.40, 0.55] as const;
 const DAMAGE_COEFFS = [
   { value: 0.003467, label: 'DICE-2023' },
   { value: 0.00536, label: 'default (midpoint)' },
@@ -53,7 +56,7 @@ interface Cell {
 
 function runCell(gamma: number, damage: { value: number; label: string }): Cell {
   const run = runSimulation({
-    production: { gamma },
+    production: { gamma, beta: 1 - productionDefaults.alpha - gamma },
     climate: { damageCoeff: damage.value },
   });
   const at = (y: number) => run.results.find(r => r.year === y)!;
@@ -86,7 +89,7 @@ function table(
       const cell = cells.find(c => c.gamma === gamma && c.damageCoeff === d.value)!;
       return metric(cell);
     });
-    const marker = gamma === 0.55 ? ' (default)' : '';
+    const marker = gamma === productionDefaults.gamma ? ' (default)' : '';
     lines.push(`| **${gamma}**${marker} | ${row.join(' | ')} |`);
   }
   lines.push('');
@@ -122,7 +125,7 @@ function main(): void {
   const elecRange = range(cells, c => c.electrification2050);
   const cellAt = (gamma: number, damage: { value: number }) =>
     cells.find(c => c.gamma === gamma && c.damageCoeff === damage.value)!;
-  const defaultCell = cellAt(0.55, DAMAGE_COEFFS[1]);
+  const defaultCell = cellAt(productionDefaults.gamma, DAMAGE_COEFFS[1]);
   const mainstreamCell = cellAt(0.08, DAMAGE_COEFFS[0]);
   const pessimistCell = cellAt(0.08, DAMAGE_COEFFS[3]);
 
@@ -137,7 +140,7 @@ function main(): void {
     ...GAMMAS.map(gamma => {
       const cell = cellAt(gamma, DAMAGE_COEFFS[1]);
       const growth = Math.pow(cell.gdp2100 / 158, 1 / 75) - 1;
-      const marker = gamma === 0.55 ? ' (default)' : gamma === 0.08 ? ' (mainstream)' : '';
+      const marker = gamma === productionDefaults.gamma ? ' (default)' : gamma === 0.08 ? ' (mainstream)' : '';
       return `| **${gamma}**${marker} | $${cell.gdp2100.toFixed(0)}T | ~${(growth * 100).toFixed(1)}%/yr |`;
     }),
     '',
