@@ -1268,4 +1268,33 @@ test('realized spends are debited from capital formation (one ledger)', () => {
   expect(overflow.outputs.unfundedRealizedSpend).toBeGreaterThan(0);
 });
 
+test('special-purpose spends crowd out net general investment, never its replacement', () => {
+  // Orders replace worn general capital on top of energy/robot/DC/CDR capex.
+  // Carving those spends out of replacement shrank K whenever they exceeded
+  // net investment, and orders (which scale with K) shrank with it:
+  // ai-energy-boom's K fell 970 -> 640 $T over 2060-2100 on that loop.
+  const params = capitalModule.mergeParams({});
+  const state = capitalModule.init(params);
+  const base = getCapitalInputs(0);
+  const replacement = params.depreciation * state.stock;
+  // Large enough to exceed net investment (~3.8% of K), small enough to fund
+  const spends = { energyCapexSpend: 10, cdrSpend: 0, robotCapexSpend: 15, dataCenterCapexSpend: 5 };
+  const heavy = capitalModule.step(state, { ...base, ...spends }, params, 2025, 0);
+  expect(heavy.outputs.plannedInvestment).toBeGreaterThan(30 + replacement - 1e-9);
+  // Whatever finance supplies goes to the special spends first; general
+  // capital keeps its replacement wherever the order is funded
+  expect(heavy.outputs.generalInvestment + heavy.outputs.unfundedInvestmentDemand)
+    .toBeGreaterThan(replacement - 1e-9);
+  // Small spends leave the order where the profit signal put it: orders are
+  // the same as with no special spend at all, net investment simply smaller
+  const light = capitalModule.step(state, {
+    ...base, energyCapexSpend: 1, cdrSpend: 0, robotCapexSpend: 0, dataCenterCapexSpend: 0,
+  }, params, 2025, 0);
+  const none = capitalModule.step(state, {
+    ...base, energyCapexSpend: 0, cdrSpend: 0, robotCapexSpend: 0, dataCenterCapexSpend: 0,
+  }, params, 2025, 0);
+  expect(light.outputs.plannedInvestment).toBeCloseTo(none.outputs.plannedInvestment, 2);
+  expect(light.outputs.generalInvestment).toBeLessThan(none.outputs.generalInvestment);
+});
+
 printSummary();
