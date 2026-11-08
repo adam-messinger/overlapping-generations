@@ -39,6 +39,42 @@ panel's side of the 2045 regime question over the model's. It does not favour th
 numbers. The most likely world is in between: OECD+China growth of roughly 1.8-2.5%/yr per
 person, debt rising, and repression arriving as soft measures, not a 150%-of-GDP trigger.
 
+## Follow-up: fixes applied (2026-11-08)
+
+The user asked for the debt term, the debt accounting and the efficiency/growth term to be
+fixed. Commits on this branch, one change each:
+
+1. **Debt term** (`safeRateDebtSensitivity`): 6.5bp -> **3.5bp** per pp of debt/GDP
+   (Dallas Fed WP 2513 3.47bp incl. term premium; Laubach 2009 3-4bp).
+2. **Debt accounting:** public debt is measured against **GDP at market exchange rates**
+   (each region's PPP GDP x its 2025 market/PPP price ratio, IMF WEO Oct 2026;
+   `scripts/imf-fiscal-regions.py`), and the 2025 anchor moves **90% -> 94%** (IMF).
+3. **Growth:** the efficiency term itself is unchanged. Of the options tested (moving device
+   efficiency into useful work broke the 1990-2025 backcast by 12%; refitting a residual
+   restored the hot path), the one chosen was **constant-returns factor weights
+   0.25/0.55/0.20** (energy 0.55 -> 0.20), after fixing the backcast sweep that had held
+   beta fixed (T1).
+4. A test file (`capital-finance.test.ts`) never reported failures; fixed.
+
+Where the default now stands (`comparison-output.md` is regenerated):
+
+| | Before | After | Reference |
+|---|---|---|---|
+| World growth 2026 | 3.74% | 3.47% | IMF Oct-2026: 3.1% |
+| World growth 2026-45 | 3.86%/yr | 3.14%/yr | SSP2 2.67, SSP5 3.56 |
+| OECD+China per capita | 3.93%/yr | 2.95%/yr | panel 1.60; SSP2 2.04, SSP5 2.79 |
+| US per capita | 3.39%/yr | 2.69%/yr | panel 1.75; CBO ~1.3-1.55 |
+| r* 2036-45 | 1.57% | 1.06% | panel 1.18%; HLW US 1.01% (2026Q2) |
+| World public debt 2031 | 88.6% | 94.1% | IMF 101.5% |
+| World public debt 2045 | 93% | 102% | panel (AE) 147% |
+| Warming 2100 | 3.55°C | 3.26°C | — |
+
+Still open: per-capita growth stays above SSP5 for the OECD+China bloc and well above
+CBO for the US. The remaining gap is the efficiency series (1.29%/yr acting as TFP) and the
+regional split (US growth tied to world growth); T3, the regional backcast, is the test.
+Debt still runs ~7pp under the IMF by 2031: market-weighted growth in the model (~3.3%) is
+above the IMF's 2.5-2.8% for the same reason.
+
 ## The disagreements and what resolves each
 
 | # | Difference | Model (default) | Panel | External evidence | Leans to | Confidence | Resolved by |

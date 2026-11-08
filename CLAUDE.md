@@ -331,8 +331,8 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
-  ageing reaches the debt (default world public debt 0.94 in 2025, IMF WEO Oct 2026 → ~1.05 in 2055 → ~1.6 in 2100,
-  crossing the 150% repression threshold around 2087). A safe rate below growth erodes the ratio
+  ageing reaches the debt (default world public debt 0.94 in 2025, IMF WEO Oct 2026 → ~1.13 in 2055 → ~1.6 in 2100,
+  crossing the 150% repression threshold around 2081). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - **Debt is measured at market exchange rates**: the deficit, the debt ratio, the fiscal reaction,
