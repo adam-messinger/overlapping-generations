@@ -208,6 +208,7 @@ export interface DemandParams {
   dataCenterReferenceGDPpc: number;    // Reference GDP per capita ($ PPP)
   dataCenterCapitalCostPerGW: number;  // Composite chips + facility cost ($B per average GW of annual load)
   dataCenterDepreciation: number;      // Composite chips + facility replacement rate (fraction/yr)
+  dataCenterRegionalShare: Record<Region, number>; // Where datacenter load sits (fractions summing to 1)
 
   /** Sparse calendar-year shocks from monthly commodity/network simulations. */
   commodityShocks: readonly AnnualCommodityShock[];
@@ -741,6 +742,18 @@ export const demandDefaults: DemandParams = {
   // (~4-6 years) and longer-lived buildings/electrical infrastructure.
   dataCenterCapitalCostPerGW: 45,     // $B per average GW of annual load (2025 $)
   dataCenterDepreciation: 0.15,       // fraction/year
+  // Datacenter load is sited where compute is built, not by GDP share. IEA,
+  // Energy and AI (2025): of ~415 TWh in 2024 the US used 45%, China 25%,
+  // Europe 15%. The other 15% is split here by judgment, with Japan, Korea,
+  // Australia and Canada joining Europe in oecd-ex-us (~5.5pp); Singapore and
+  // Malaysia in seasia; India's ~1.5 GW of 2025 capacity (JLL India, 2025).
+  // Held fixed: siting does not follow later GDP shifts (known limitation).
+  // Spread by GDP share, the US hosted 15% (86 TWh in 2025 against IEA's
+  // ~183 TWh in 2024) and US + China 36% of world compute against ~70%.
+  dataCenterRegionalShare: {
+    us: 0.45, china: 0.25, 'oecd-ex-us': 0.205, india: 0.025, seasia: 0.03,
+    mena: 0.015, latam: 0.01, russia: 0.01, ssa: 0.005,
+  },
   commodityShocks: [],
 };
 
@@ -1358,6 +1371,13 @@ export const demandModule: Module<
         (params.dataCenterDepreciation < 0 || params.dataCenterDepreciation > 0.5)) {
       errors.push('dataCenterDepreciation must be in [0, 0.5]');
     }
+    if (params.dataCenterRegionalShare !== undefined) {
+      const shares = Object.values(params.dataCenterRegionalShare) as number[];
+      const total = shares.reduce((a, b) => a + b, 0);
+      if (shares.some((x) => !(x >= 0)) || Math.abs(total - 1) > 1e-6) {
+        errors.push('dataCenterRegionalShare must be non-negative and sum to 1');
+      }
+    }
 
     // Validate sector fuel recipes (the calibrated fuel-mix logit's anchors)
     if (params.sectors) {
@@ -1525,6 +1545,9 @@ export const demandModule: Module<
       if (p.dataCenterReferenceGDPpc !== undefined) merged.dataCenterReferenceGDPpc = p.dataCenterReferenceGDPpc;
       if (p.dataCenterCapitalCostPerGW !== undefined) merged.dataCenterCapitalCostPerGW = p.dataCenterCapitalCostPerGW;
       if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
+      if (p.dataCenterRegionalShare !== undefined) {
+        merged.dataCenterRegionalShare = { ...merged.dataCenterRegionalShare, ...p.dataCenterRegionalShare };
+      }
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
 
       return merged;
@@ -2075,11 +2098,10 @@ export const demandModule: Module<
     globalElec += dataCenterLoadTWh;
     globalTotalFinal += dataCenterLoadTWh;
 
-    // Distribute datacenter load to regions proportional to regional GDP share
-    // (datacenters concentrate with investment, not working-age population)
+    // Site datacenter load where compute is built (observed IEA 2024 split),
+    // not by GDP share: compute is concentrated far beyond output.
     for (const region of REGIONS) {
-      const gdpShare = newRegions[region].gdpShare;
-      const regionDcLoad = dataCenterLoadTWh * gdpShare;
+      const regionDcLoad = dataCenterLoadTWh * params.dataCenterRegionalShare[region];
       regionalOutputs[region].electricityDemand += regionDcLoad;
       regionalOutputs[region].totalFinalEnergy += regionDcLoad;
     }

@@ -977,6 +977,27 @@ test('datacenter finance params round-trip and validate', () => {
   expect(demandModule.validate({ dataCenterSpendCeiling: 0.00465 }).valid).toBeTrue();
 });
 
+test('datacenter load is sited by the observed regional split, not GDP share', () => {
+  // IEA Energy and AI (2025): US 45%, China 25% of 2024 datacenter electricity.
+  const shares = demandDefaults.dataCenterRegionalShare;
+  expect(Object.values(shares).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+  expect(shares.us).toBeCloseTo(0.45, 9);
+  expect(shares.china).toBeCloseTo(0.25, 9);
+  const withDc = runYearsWithParams(1, { dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 }, {});
+  const withoutDc = runYearsWithParams(1, { dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 }, {});
+  for (const region of REGIONS) {
+    const added = withDc.outputs.regional[region].electricityDemand -
+      withoutDc.outputs.regional[region].electricityDemand;
+    expect(added).toBeCloseTo(1000 * shares[region], 6);
+  }
+  // A partial override merges per region; a split that does not sum to 1 is refused.
+  const merged = demandModule.mergeParams({ dataCenterRegionalShare: { us: 0.5, china: 0.2 } as any });
+  expect(merged.dataCenterRegionalShare.us).toBe(0.5);
+  expect(merged.dataCenterRegionalShare.india).toBe(shares.india);
+  expect(demandModule.validate({ dataCenterRegionalShare: merged.dataCenterRegionalShare }).valid).toBeTrue();
+  expect(demandModule.validate({ dataCenterRegionalShare: { ...shares, us: 0.6 } }).valid).toBeFalse();
+});
+
 test('datacenter load responds to LCOE (cheap power → more compute)', () => {
   const cheap = runYearsWithParams(25, {}, { laggedAvgLCOE: 20 }).outputs.dataCenterLoadTWh;
   const expensive = runYearsWithParams(25, {}, { laggedAvgLCOE: 150 }).outputs.dataCenterLoadTWh;
