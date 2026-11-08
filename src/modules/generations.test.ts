@@ -8,8 +8,8 @@ import { generationsModule } from './generations.js';
 
 function makeInputs(overrides: Record<string, any> = {}) {
   const stock = overrides.stock ?? 553;
-  const generalInvestment = overrides.generalInvestment ?? 38;
-  const nextCapitalStock = overrides.nextCapitalStock ?? (0.95 * stock + generalInvestment);
+  const capitalFormation = overrides.capitalFormation ?? 38;
+  const nextCapitalStock = overrides.nextCapitalStock ?? (0.95 * stock + capitalFormation);
   return {
     regionalYoung: regional(20e6),
     regionalWorking: regional(60e6),
@@ -21,7 +21,7 @@ function makeInputs(overrides: Record<string, any> = {}) {
     stock,
     nextCapitalStock,
     investment: overrides.investment ?? 42,
-    generalInvestment,
+    capitalFormation,
     newInvestmentLoanOriginations:
       overrides.newInvestmentLoanOriginations ?? 5,
     privateDebtStock: overrides.privateDebtStock ?? 256,
@@ -111,7 +111,7 @@ test('scenario asset-age weights shift the initial asset allocation', () => {
     assetAgeWeight55to69: 0,
     assetAgeWeight70plus: 0,
   }, {
-    generalInvestment: 0,
+    capitalFormation: 0,
     investment: 0,
     nextCapitalStock: 553 * 0.95,
   }).outputs.regionalCohortAccounts['oecd-ex-us'];
@@ -121,7 +121,7 @@ test('scenario asset-age weights shift the initial asset allocation', () => {
     assetAgeWeight55to69: 0,
     assetAgeWeight70plus: 1,
   }, {
-    generalInvestment: 0,
+    capitalFormation: 0,
     investment: 0,
     nextCapitalStock: 553 * 0.95,
   }).outputs.regionalCohortAccounts['oecd-ex-us'];
@@ -217,12 +217,12 @@ test('a tighter borrowing limit increases the borrowing-limit gap', () => {
 test('lower investment increases the cohort funding gap at the same desired growth target', () => {
   const highInvestment = runOne({}, {
     investment: 42,
-    generalInvestment: 38,
+    capitalFormation: 38,
     nextCapitalStock: 0.95 * 553 + 38,
   }).outputs;
   const lowInvestment = runOne({}, {
     investment: 12,
-    generalInvestment: 10,
+    capitalFormation: 10,
     newInvestmentLoanOriginations: 1,
     nextCapitalStock: 0.95 * 553 + 10,
   }).outputs;

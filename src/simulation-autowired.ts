@@ -753,9 +753,10 @@ function buildLags(params: SimulationParams) {
     // GENERAL capital: robots and datacenters produce through production's
     // worker-equivalent channel (robotLaborEquivalent,
     // aiWorkerEquivalentPerTWh), so counting their capital in K as well would
-    // credit their output twice.
+    // credit their output twice. Read in production's anchor units (see
+    // capital's nextProductionCapitalStock), so K/K0 is general_t / general_2025.
     capitalStock: {
-      source: 'nextGeneralCapitalStock',
+      source: 'nextProductionCapitalStock',
       delay: 1,
       initial: mergedCapital.initialCapitalStock,
       contract: unitPort('$T'),

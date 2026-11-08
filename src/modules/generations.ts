@@ -90,7 +90,12 @@ interface GenerationsInputs {
   stock: number;
   nextCapitalStock: number;
   investment: number;
-  generalInvestment: number;
+  /**
+   * Formation of the capital stock households own: general investment plus
+   * robot and datacenter capex (capital's capitalFormation). Must match
+   * stock/nextCapitalStock, which include robot and datacenter capital.
+   */
+  capitalFormation: number;
   /** Net-new bank credit for investment; excludes refinanced principal. */
   newInvestmentLoanOriginations: number;
   privateDebtStock: number;
@@ -650,7 +655,7 @@ export const generationsModule: Module<
       stock: unitPort('$T'),
       nextCapitalStock: unitPort('$T'),
       investment: unitPort('$T/year'),
-      generalInvestment: unitPort('$T/year'),
+      capitalFormation: unitPort('$T/year'),
       newInvestmentLoanOriginations: unitPort('$T/year'),
       privateDebtStock: unitPort('$T'),
       nextPrivateDebtStock: unitPort('$T'),
@@ -867,10 +872,10 @@ export const generationsModule: Module<
     // Desired investment = replacement implied by the macro stock transition
     // plus a user-visible target net growth rate.
     const annualGeneralInvestmentStock = integrateFlow(
-      unitQuantity(inputs.generalInvestment, '$T/year', 'general investment'),
+      unitQuantity(inputs.capitalFormation, '$T/year', 'capital formation'),
       unitQuantity(1, 'year', 'annual timestep'),
       '$T',
-      'annual general capital formation',
+      'annual capital formation',
     );
     const impliedDepreciation = inputs.stock > 0
       ? Math.max(0, Math.min(1, convertQuantity(divideQuantities(
@@ -907,13 +912,13 @@ export const generationsModule: Module<
     }
     const desiredAllocation = allocatePool(desiredTotal, desiredScores, keys);
     const generalShare = inputs.investment > 0
-      ? Math.max(0, Math.min(1, inputs.generalInvestment / inputs.investment))
+      ? Math.max(0, Math.min(1, inputs.capitalFormation / inputs.investment))
       : 0;
     const generalCreditPool = Math.min(
-      inputs.generalInvestment,
+      inputs.capitalFormation,
       Math.max(0, inputs.newInvestmentLoanOriginations * generalShare),
     );
-    const ownFundsPool = Math.max(0, inputs.generalInvestment - generalCreditPool);
+    const ownFundsPool = Math.max(0, inputs.capitalFormation - generalCreditPool);
     const ownFundsAllocation = allocatePool(ownFundsPool, savingScores, keys);
 
     const eligibleCredit: Record<string, number> = {};
@@ -959,15 +964,15 @@ export const generationsModule: Module<
     }
 
     // End-of-period productive asset ownership. Existing owners retain the
-    // post-depreciation stock. Only newCapitalFunderShare of new general
-    // investment is owned by its current cohort funders; the remainder accrues
+    // post-depreciation stock. Only newCapitalFunderShare of new capital
+    // formation is owned by its current cohort funders; the remainder accrues
     // pro rata to incumbent owners. Households mostly hold new capital through
     // retained corporate earnings, pension claims, and revalued existing
     // assets rather than by directly purchasing it from labor income, so
     // funder-only ownership drained old cohorts of assets at rates the DFA
     // replay rejects.
     const funderOwnedInvestmentFlow = convertQuantity(multiplyQuantities([
-      unitQuantity(inputs.generalInvestment, '$T/year', 'general investment'),
+      unitQuantity(inputs.capitalFormation, '$T/year', 'capital formation'),
       unitQuantity(params.newCapitalFunderShare, 'fraction', 'current-funder ownership share'),
     ], 'funder-owned investment flow'), '$T/year');
     const funderOwnedInvestment = integrateFlow(
@@ -1106,9 +1111,9 @@ export const generationsModule: Module<
         cohortDesiredCapital: sumFlow('desiredCapital'),
         cohortFundedCapital: sumFlow('fundedCapital'),
         cohortFundingGap: sumFlow('fundingGap'),
-        aggregateCapitalFundingGap: Math.max(0, desiredTotal - inputs.generalInvestment),
+        aggregateCapitalFundingGap: Math.max(0, desiredTotal - inputs.capitalFormation),
         aggregateCapitalCoverage: desiredTotal > 0
-          ? Math.min(1, inputs.generalInvestment / desiredTotal)
+          ? Math.min(1, inputs.capitalFormation / desiredTotal)
           : 1,
         cohortBorrowingLimitGap: sumFlow('borrowingLimitGap'),
         cohortCreditRationingGap: sumFlow('creditRationingGap'),

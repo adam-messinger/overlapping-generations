@@ -1964,14 +1964,18 @@ export const demandModule: Module<
     // rule prices depreciation in MC, so the ledger debits it too), at the
     // declining unit cost; debited by capital (lagged). No replacement spend
     // when the fleet is unprofitable (firms stop replacing; fleet decays).
+    // Year 0 adds nothing (its fleet IS the observed 2025 fleet) but replaces
+    // that fleet's wear, as datacenter capex does: without it capital's robot
+    // stock depreciated two years with nothing replacing it, then jumped.
     const robotAdditions = yearIndex === 0 ? 0 : Math.max(0, totalRobots - state.robotFleet);
+    const replacedFleet = yearIndex === 0 ? totalRobots : state.robotFleet;
     const robotReplacement =
-      yearIndex === 0 || robotProfitability <= 1 ? 0 : params.robotDepreciation * state.robotFleet;
+      robotProfitability <= 1 ? 0 : params.robotDepreciation * replacedFleet;
     const robotCapexSpend = ((robotAdditions + robotReplacement) * robotUnitCostNow) / 1e12; // $T
     // The fleet at this year's installed cost. In year 0 this is the observed
-    // 2025 fleet, which buys no capex (later capex adds to and replaces it):
-    // capital carves it out of the observed capital stock, and afterwards
-    // keeps the robot capital stock as a perpetual inventory of the capex.
+    // 2025 fleet: capital carves it out of the observed capital stock, and
+    // afterwards keeps the robot capital stock as a perpetual inventory of
+    // the capex.
     const robotCapitalValue = (totalRobots * robotUnitCostNow) / 1e12; // $T
     const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
     globalElec += robotLoadTWh;
