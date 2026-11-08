@@ -1390,6 +1390,31 @@ test('the leverage target is debt over ALL capital, robots and datacenters inclu
   expect(outputs.privateLeverage).toBeCloseTo(outputs.targetPrivateLeverage, 12);
 });
 
+test('leverage borrowing scales with the closing robot and datacenter stocks too', () => {
+  // Partial adjustment holds on ALL capital when robot and datacenter capital
+  // exist and grow. Without the closing automation stock in the projected
+  // capital, ai-energy-boom's private debt/GDP fell to 0.45 by 2100.
+  const params = capitalModule.mergeParams({ baseCreditGrowth: 0.15, leverageDamping: 0 });
+  const automation = {
+    energyCapexSpend: 0, cdrSpend: 0,
+    robotCapitalValue: 10, dataCenterCapitalValue: 30,
+    robotCapexSpend: 3, dataCenterCapexSpend: 8,
+  };
+  const year0 = capitalModule.step(
+    capitalModule.init(params), { ...getCapitalInputs(0), ...automation }, params, 2025, 0,
+  );
+  const state = { ...year0.state, targetPrivateLeverage: year0.state.targetPrivateLeverage! * 1.1 };
+  const { outputs } = capitalModule.step(state, { ...getCapitalInputs(1), ...automation }, params, 2026, 1);
+  const opening = outputs.privateLeverage;
+  const target = outputs.targetPrivateLeverage;
+  expect(outputs.robotCapitalStock + outputs.dataCenterCapitalStock).toBeGreaterThan(35);
+  // Exact only when banks supply the whole request (the envelope not binding)
+  expect(outputs.newInvestmentLoanOriginations).toBeCloseTo(outputs.leverageBorrowing, 9);
+  expect(outputs.nextPrivateDebtStock / outputs.nextCapitalStock).toBeCloseTo(
+    opening + params.leverageAdjustmentSpeed * (target - opening), 9,
+  );
+});
+
 test('year 0 carves the opening robot and datacenter fleets out of the observed stock', () => {
   const params = capitalModule.mergeParams({});
   const state = capitalModule.init(params);

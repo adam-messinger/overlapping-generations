@@ -358,7 +358,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   Credit beyond the investment gap is paid out to owners; over-levered firms with
   spare cash repay early instead of paying it out. Without it, net new credit hit
   ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
-  2100; now it follows K/Y (1.23 in 2050, 1.14 in 2100), with the bank credit
+  2100; now debt/GDP follows K/Y (1.23 in 2050, 1.14 in 2100), with the bank credit
   envelope (`baseCreditGrowth`) holding leverage progressively further under
   target (~11% by 2050, worst ~14% in the 2080s). The
   stock is consolidated private non-financial debt (mortgages included as leverage
@@ -368,7 +368,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   WACC assumes 70% project debt, and general K/Y falls in fast-growth scenarios
   (investment saturates at 3.8% of K above a 4.8% profit rate, the model's
   stabiliser of the 0.8 reproducible-factor growth loop), so debt/GDP falls
-  with it (net-zero 0.82 in 2100)
+  with it (net-zero 0.83 in 2100)
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
