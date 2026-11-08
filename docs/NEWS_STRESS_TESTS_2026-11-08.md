@@ -45,7 +45,7 @@ Sources for the screen: [Wikipedia current events, November 2026](https://en.wik
 
 | Story | Headline reading | After revision | Where the model differs from the narrative |
 |---|---|---|---|
-| Brent | The market moved to price a deal | A deal-odds move explains at most $4.90 (25%) of the $19.32 fall. The 30 October close sat at the settlement model's re-closure price ($120); the 6 November close sits at its no-deal status quo at full tempo ($97) | The week priced re-closure risk out, not a deal in. $98 is consistent with the 10–20% deal odds analysts quote, not Polymarket's 41.5% |
+| Brent | The market moved to price a deal | A deal-odds move explains at most $4.90 (25%) of the $19.32 fall. On the stock-clearing model, the 6 November close is the no-deal status quo at full tempo ($100); the 30 October close was $14 above even a re-closure ($103) | The week took out a premium above anything fundamentals support, not a deal bet. $98 is consistent with the 10–20% deal odds analysts quote, not Polymarket's 41.5% |
 | Fed | Inflation "red-hot"; a hike to contain it | Refit on July–September: energy has not leaked into core (pass-through 0.0025 vs 0.025). Headline peaked in October at ~3.7%, ~3.55% in December, ~2.4% by June 2027 under any rule | The hike case is the labour market, now clearly above breakeven (86% vs 33% on 6 September), but wages at 3.1% are below the 2%-consistent pace. A hike does not move 2027 inflation in the model |
 | El Niño | 2026 "most likely second"; 2027 could set a record | 2026: 1.58°C, 12% chance of beating 2024 (needs 1.97°C over Nov–Dec). 2027: 1.68°C, 80%, Feb 2027 monthly ~1.88°C | Agrees on direction; adds magnitude. Also finds the repository's own climate module 0.06°C too warm, now corrected |
 
@@ -96,48 +96,78 @@ The widest that spread can be is $117.64 − $71. At Polymarket's 10.5-point
 move that is $4.90, or 25% of the fall. That is an upper bound: Eurasia's odds
 went the other way.
 
-**The no-deal value.** With the market in surplus at observed flows, the
-settlement model's net deficit is zero and its price block reduces to the
-$68 pre-war base plus the war-risk premium at the current tempo:
+**The no-deal value.** This section uses the settlement model's
+stock-clearing price block (revised 8 November; see "Revision: the oil model
+now clears stocks" below). Flows are taken as observed: 36% of normal in
+August (IEA), 47% in September (interpolated), 58% in October.
 
 | State (settlement model) | Brent |
 |---|---:|
-| Status quo, tempo 0.6 | $85 |
-| Status quo, tempo 0.9 | $94 |
-| Status quo, full tempo | $97 |
-| Re-closure at full tempo (peak, Nov–Jan) | $120 |
+| Status quo, tempo 0.6 (November) | $89 |
+| Status quo, tempo 0.9 (November) | $98 |
+| Status quo, full tempo (November) | $100 |
+| Re-closure at full tempo (peak, Nov–Jan) | $103 |
 | Deal, flows normal over four months (Jan) | $71 |
 
-On 30 October Brent was $2 below the model's re-closure price, after the
-Qeshm strikes and with ceasefire odds falling. On 6 November it was at the
-model's full-tempo status quo. The week took the market from pricing
-re-closure to pricing the status quo. If the no-deal value is the model's, the
-deal probability in $98.32 is about zero at any tempo from 0.6 to 0.9.
+On 6 November Brent was at the model's full-tempo status quo. If the no-deal
+value is the model's, the deal probability in $98.32 is about zero at any
+tempo from 0.6 to 0.9.
 
-**What does not fit.** At $98.32, Polymarket's 41.5% needs a no-deal value
-of about $118, which is the model's re-closure price. In other words, it needs
-the market to treat "no deal" as "re-closure". The model's status quo cannot
-reach $118 without a physical deficit, and JPMorgan reports a surplus. Two things the model leaves out could close part of
-the gap: a premium for the inventory level (stocks are 509 mb below pre-war,
-and the price block reads flows, not stock levels), and prompt-barrel
-tightness (Dated Brent traded above $120 in October). Neither is in the price
-block. Note also that a "deal" is not barrels: the same market gives normal
-traffic by year-end 7%.
+On 30 October Brent was $14 *above* the model's re-closure peak. The
+model's October is $101 against an observed $103 → $118. The model is fitted
+to March, when the strait was nearly shut and Brent was 1.5–1.8× its
+pre-war level ($102–122). It finds a second closure now would price about
+like March, because most of a shortfall that size is absorbed by rationing,
+demand restraint and strategic releases rather than by price. So
+late-October's price was above what even a renewed closure would justify on
+fundamentals. The model has no prompt-barrel squeeze (Dated Brent traded
+above $120) and no fear premium beyond current tempo; one or both was in that
+price. The week's fall took it out.
 
-**Holdout.** The settlement model has drawn 1,432 mb by end-September against
-the IEA's observed 509 mb (2.8×). Its October flows are now observed (58%), and
-its price at zero net deficit does not depend on the stock ledger. Its
-forward price spikes that come from reserves running out do, so those are
-upper bounds.
+**What does not fit.** At $98.32, Polymarket's 41.5% needs a no-deal value of
+about $118: more than the model's re-closure price. In other words, it needs the
+market to treat "no deal" as worse than a March-style closure. Note also that
+a "deal" is not barrels: the same market gives normal traffic by year-end 7%.
+
+**Holdout.** The IEA's end-September observed stock gap (509 mb) arrived
+after the stock block was fitted (to the 410 mb end-July figure). The stock
+block gives 623 mb (1.22×), the legacy flow block 1,346 mb (2.6×).
 
 ### Comparison
 
 The narrative says traders priced a deal. In the model, at most a quarter of
-the fall can be a deal bet. The rest is October's re-closure premium leaving,
-and today's price is consistent with the low deal odds analysts quote. For the
-fourth quarter, holding the status quo puts Brent at $85–97, depending on
-tempo. The EIA's $105 needs October's premium back, which is what Rapidan's
-80% resumption call implies.
+the fall can be a deal bet. The rest is a late-October premium leaving, and
+the model puts that premium above even a re-closure. Today's price is
+consistent with the low deal odds analysts quote. For the fourth quarter,
+holding the status quo puts Brent at $89–100, depending on tempo. The EIA's
+$105 needs more than a renewed closure would deliver in the model.
+
+### Revision: the oil model now clears stocks
+
+The first version of this section used the settlement model's original price
+block. That block drew commercial stocks up to their 6 mb/d cap before price
+did any work: it over-drew against the IEA by 2.2× at end-July and 2.6× at
+end-September, and its price dropped to base plus war premium whenever the
+flow deficit closed, whatever the level of stocks. Under it the 30 October
+close sat at a $120 re-closure price, and the week read as repricing
+re-closure.
+
+The replacement (`stocks-v2`, now the default) clears commercial stocks
+against price on a Working curve. Holders draw while the spot price exceeds
+what their remaining inventory supports and rebuild when it is below. A
+fitted share of the uncovered shortfall is absorbed without a price signal.
+The IEA notes that observed draws ran far below the headline supply loss,
+and this share is what reconciles them. It is fitted to March, Q2, June and
+July Brent and the IEA's end-July gap. It passes the World Bank March
+supply-loss holdout, which the old block missed, and the end-September stock
+holdout above. The 6 September analysis is pinned to the old block and
+reproduces bit-for-bit.
+
+What changed in this story: the re-closure price fell from $120 to $103,
+because the model now learns from March how much of a closure is absorbed
+without price. So the 30 October close is no longer "the re-closure price";
+it is $14 above it. What did not change: the deal bet is at most a quarter of
+the fall, and $98 is the model's no-deal status quo.
 
 ## 2. A December hike while pump prices fall
 
@@ -190,8 +220,14 @@ because the March–May 2026 fuel jumps drop out of the 12-month window.
 | Three-month payroll average | 71k ± 43k | 137k ± 43k |
 | P(trend above 90k, the top of the judged breakeven range) | 33% | 86% |
 
-The October beat is 1.4 sampling standard errors. The bigger change is
-revisions: August went from 162k to 186k. Unemployment fell to 4.1%. On
+The October beat is 1.4 sampling standard errors. Of the 66k rise in the
+three-month average, about 48k is new months (September and October replaced
+a weak June and July) and about 18k is revisions (August 162k → 186k,
+September 29k → 60k). The 6 September method also treated sampling error as
+the only error and first prints as unbiased. Revisions are a second,
+correlated error, and they have run upward this year. That made it
+overconfident and biased low. A filtered trend that carries revision noise
+would be the fix. Unemployment fell to 4.1%. On
 6 September the model called the labour market "not obviously overheating".
 That call now fails: the quantity data are above breakeven. Wages are not.
 At 3.1% y/y they are 0.4pp below the ~3.5% consistent with 2% inflation at
@@ -303,10 +339,12 @@ Sources: [WHO DON622](https://www.who.int/emergencies/disease-outbreak-news/item
 ## Where the models differ from the day's narrative
 
 - **Oil.** "Traders bet on a deal" accounts for at most a quarter of the
-  move. Late October priced re-closure; this week priced the status quo. At
-  observed flows and a market in surplus, $98 is the model's no-deal price,
-  which fits Eurasia's 10% and Rapidan's 80%-resumption view better than
-  Polymarket's 41.5%.
+  move. Late October priced more than a renewed closure would justify on the
+  model; this week priced the status quo. At observed flows, $98 is the
+  model's no-deal price, which fits Eurasia's 10% and Rapidan's
+  80%-resumption view better than Polymarket's 41.5%. The pass also replaced
+  the oil model's price block with one that clears stocks; it now tracks the
+  IEA's stock reports (1.2× rather than 2.6×).
 - **Fed.** Headline inflation has already peaked, and energy has not reached
   core. A December hike would be a response to labour quantities, which are
   genuinely strong now (the 6 September read was wrong), not to wages, which
@@ -317,9 +355,12 @@ Sources: [WHO DON622](https://www.who.int/emergencies/disease-outbreak-news/item
 
 ## Limits
 
-- Oil: the settlement price block reads flows, not inventory levels or prompt
-  spreads, so it can understate the no-deal price while stocks are depleted.
-  Tempo is a judgment. The deal branch's four-month normalization is a
+- Oil: the stock-clearing block's slope, elasticity and non-price restraint
+  sit on a ridge of exact fits (the answers here move by a few dollars along
+  it). It has no prompt spreads, crude-quality mismatch or forward-looking
+  storage, so a squeeze like late October's is outside it. In its accounting
+  almost all of the observed stock gap is strategic releases, and the IEA's
+  China coverage is estimated. Tempo is a judgment. The deal branch's four-month normalization is a
   judgment. Prediction-market and analyst odds are snapshots from secondary
   reports.
 - Fed: the policy model's rate transmission is weak by construction. December

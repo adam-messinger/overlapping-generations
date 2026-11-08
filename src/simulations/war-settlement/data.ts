@@ -121,6 +121,12 @@ export const warSettlementEvidence = {
     ieaCollectiveMb: 1_200,
     /** Chinese crude imports, used for the days-of-cover denominator. */
     chinaImportsMbd: 11.3,
+    /** IEA OMR August 2026: observed global stocks end-July below end-February. */
+    ieaObservedStockGapEndJulyMb: 410,
+    /** IEA OMR October 2026: observed stocks end-September below pre-war.
+     *  Arrived after the stock block was fitted; scored as a holdout in
+     *  headline-experiments-2026-11-08. */
+    ieaObservedStockGapEndSeptemberMb: 509,
   },
 
   usMunitions: {
@@ -313,6 +319,24 @@ export interface WarSettlementParams {
   /** Effective elasticity rises with the size of the shock: rationing and
    *  substitution that a 1% shortfall never triggers become available at 6%. */
   elasticityShockScale: number;
+  /**
+   * Which price block clears the oil market. 'stocks-v2' (default): commercial
+   * holders draw or build until the flow price equals the price their
+   * inventory gap supports, so the price carries the stock level. 'flow-v1':
+   * the original block, kept only so the dated 6 September 2026 analysis
+   * reproduces as published; it drew commercial stocks up to the cap before
+   * price did any work and over-drew against the IEA by 2.1-2.8x.
+   */
+  priceBlock: 'stocks-v2' | 'flow-v1';
+  /** Working curve: price premium over the pre-war base per 100 mb of
+   *  commercial stocks below normal, as a share of the base. */
+  inventoryPriceSlopePer100Mb: number;
+  /** Fastest the trade rebuilds commercial stocks, mb per month. */
+  commercialMaxBuildPerMonthMb: number;
+  /** Share of the shortfall left after strategic releases that is absorbed
+   *  without a price signal: rationing, government demand restraint, lost
+   *  activity. stocks-v2 only. */
+  nonPriceDemandRestraintShare: number;
 
   // --- US inflation channel -------------------------------------------------
   /** Retail gasoline = base + passthrough x crude + crack x product disruption. */
@@ -400,7 +424,7 @@ export interface WarSettlementParams {
 
 export const defaultWarSettlementParams: WarSettlementParams = {
   basePriceUsdPerBarrel: 68, // Brent before the 28 Feb 2026 strikes
-  shortRunDemandElasticity: 0.060, // fitted; within the 0.02-0.08 short-run range
+  shortRunDemandElasticity: 0.080, // fitted with the stock block; top of the 0.02-0.08 short-run range (flow-v1 used 0.060)
   elasticityMonthlyDrift: 0.004, // substitution accumulates over ~1-2 years
   nonGulfResponseMbd: 1.4, // US shale plus non-Gulf OPEC spare, EIA STEO scale
   supplyResponseRampMonths: 6,
@@ -419,6 +443,10 @@ export const defaultWarSettlementParams: WarSettlementParams = {
   commercialStockMobilizableMb: 900, // OECD commercial above operational minimum
   commercialMaxDrawPerMonthMb: 180, // ~6 mb/d, the observed 2022 release tempo
   elasticityShockScale: 12,
+  priceBlock: 'stocks-v2',
+  inventoryPriceSlopePer100Mb: 0.25, // fitted jointly (see calibration.ts): March, Q2, June, July Brent and the IEA end-July gap
+  commercialMaxBuildPerMonthMb: 90, // ~3 mb/d, half the observed 2022 release tempo; JUDGMENT
+  nonPriceDemandRestraintShare: 0.75, // fitted; the IEA notes observed draws ran far below the headline supply loss
 
   pumpBaseUsdPerGal: 1.47, // taxes and margin; reproduces $3.14/gal at $68 Brent
   crudePassthroughUsdPerGalPerBarrel: 0.0245, // $1/bbl ~ 2.4c/gal at the pump
@@ -464,6 +492,15 @@ export const defaultWarSettlementParams: WarSettlementParams = {
   iranMagazineHazardWeight: 0.13, // JUDGMENT
   hazardExponent: 1.4, // JUDGMENT
   maxChannelHazard: 0.30,
+};
+
+/**
+ * Overrides that reproduce the original flow price block exactly, for the
+ * dated analyses published on it (6 September 2026). Not for new work.
+ */
+export const LEGACY_FLOW_V1_PRICE_BLOCK: Partial<WarSettlementParams> = {
+  priceBlock: 'flow-v1',
+  shortRunDemandElasticity: 0.06,
 };
 
 export const SETTLEMENT_CHANNELS = [

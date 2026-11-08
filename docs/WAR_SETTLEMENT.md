@@ -132,12 +132,29 @@ event. Each month:
    missiles draw the Patriot/SM-6 pool. A depleted pool degrades coverage rather
    than hitting zero: no more than 35% of what remains is committed in a month.
 4. **Oil.** Hormuz throughput sets the loss, netted against the Saudi/UAE bypass
-   at 75% utilization and a ramping non-Gulf supply response. The residual is
-   met by SPR, Chinese, rest-of-world and commercial inventory draws in that
-   order, and whatever is left clears through a demand elasticity that rises
-   with the size of the shock. The SPR draw is capped three separate ways —
-   stranded barrels, the 2.7 mb/d plumbing ceiling, and the 172 mb
-   authorization — and released barrels are discounted 10% for sourness.
+   at 75% utilization and a ramping non-Gulf supply response that fills the
+   shortfall but never runs past it. Strategic releases (SPR, Chinese,
+   rest-of-world) are policy draws. A share of what they leave uncovered is
+   absorbed without a price signal (rationing, government demand restraint,
+   lost activity). The rest clears in a **stock-clearing market** (the
+   `stocks-v2` price block). Commercial holders draw while the spot price
+   exceeds what their remaining inventory supports on a Working curve
+   (`inventoryPriceSlopePer100Mb`), and rebuild when it is below. In
+   equilibrium the flow price (through a demand elasticity that rises with
+   the size of the shock) equals the inventory price at the post-draw gap.
+   Draws and builds are rate-capped. So the price carries the stock level:
+   depleted stocks hold the price up even when the flow balance is in
+   surplus. The model reports `observedStockGapMb` (commercial plus
+   strategic below pre-war), the IEA's "observed stocks" concept. The SPR
+   draw is capped three separate ways (stranded barrels, the 2.7 mb/d
+   plumbing ceiling, and the 172 mb authorization), and released barrels are
+   discounted 10% for sourness.
+
+   The original block (`flow-v1`) drew commercial stocks up to their cap
+   before price did any work. It over-drew against the IEA by 2.2× at
+   end-July and 2.6× at end-September. It is kept only as
+   `LEGACY_FLOW_V1_PRICE_BLOCK`, so that the dated 6 September 2026 analysis
+   reproduces as published.
 5. **US inflation.** Retail gasoline is crude passthrough plus a crack term
    driven by Hormuz *product* flow, which does not travel the bypass pipelines.
    Headline CPI is core plus the motor-fuel and other-energy contributions.
@@ -162,21 +179,29 @@ price backcast hangs off it. `war-settlement.test.ts` pins it.
 
 Development targets set the defaults, either through the coordinate search in
 `calibration.ts` or by hand while the defaults were chosen. Calling the price
-and CPI targets a holdout would be false — they were used to pick the crack
-spread, the war-risk premium, and the demand elasticity.
+and CPI targets a holdout would be false. They were used to pick the crack
+spread, the war-risk premium, the demand elasticity, the Working-curve slope
+and the non-price restraint share. The last three sit on a ridge of exact fits
+(slope 0.20–0.30, elasticity 0.08–0.12, restraint 0.60–0.75). Along it the
+March price, the stock gaps, the October price and the re-closure price
+change by a few dollars at most, so the split is not identified but the
+answers do not depend on it.
 
 | Development target | Model | Reported |
 |---|---:|---|
 | SPR, week ending 24 July 2026 | 307.5 mb | 303–313 mb |
+| Observed stocks below pre-war, end-July (IEA) | 427 mb | 370–450 mb |
 | SPR once the 172 mb release completes | 243.0 mb | 238–248 mb |
 | Iranian ballistic missiles, July | 1,525 | 1,500–2,000 |
 | Iranian launchers, July | 131 | 80–150 |
 | Cumulative Iranian launches | 675 | 500–800 |
 | THAAD + SM-3 remaining, July | 651 | 590–700 |
 | Patriot remaining, July | 988 | 850–1,050 |
-| Brent, end June | $73.2 | $71–76 |
-| Brent, 29 July | $89.8 | $88–94 |
-| Retail gasoline, June | $3.98 | $3.85–4.15 |
+| Brent, March (World Bank: 1.5–1.8× pre-war) | $106.3 | $102–122 |
+| Brent, Q2 average | $92.0 | $92–109 |
+| Brent, end June | $75.7 | $71–76 |
+| Brent, 29 July | $91.2 | $88–94 |
+| Retail gasoline, June | $4.04 | $3.85–4.15 |
 | Headline CPI y/y, June | 3.5% | 3.3–3.7% |
 | Iranian monthly inflation | 4.7% | 3.5–5.5% |
 
@@ -185,12 +210,16 @@ Two quantities nothing in the model was ever pointed at are held out:
 | Holdout | Model | Reported | Result |
 |---|---:|---|---|
 | China's July import cover | 101.7 days | 80–110 days | pass |
-| World Bank March supply loss | 6.4 mb/d | 8–12 mb/d | **miss** |
+| World Bank March supply loss | 10.6 mb/d | 8–12 mb/d | pass |
+| Observed stocks below pre-war, end-September (IEA, arrived later) | 623 mb | 509 mb | 1.22× over |
 
-The World Bank miss is real and is reported rather than tuned away. Their
-10 mb/d figure sits between the model's March loss after rerouting (16.9 mb/d)
-and after inventory draws (6.4 mb/d), and the source does not say which
-definition it uses. The model brackets it; it does not match it.
+Under the `flow-v1` block the World Bank figure was a miss (6.4 mb/d after
+draws). It now passes because commercial stocks are no longer drawn to their
+cap before price acts. The end-September IEA gap arrived after the fit. The
+stock block over-draws it by 22% (the legacy block by 2.6×). In this
+accounting almost all of the observed gap is strategic releases: commercial
+stocks sit only ~20–40 mb below pre-war. Note also that the IEA's China
+coverage is estimated.
 
 Nothing in the settlement-hazard block is calibrated. It cannot be: this war
 has produced exactly one settlement attempt, in mid-June, and it collapsed
@@ -231,22 +260,22 @@ factorial ensemble:
 | Scenario | Median | By end-2026 | By end-2027 |
 |---|---|---:|---:|
 | Attrition continues (central) | May 2027 | 30% | 71% |
-| Escalation and closure | Feb 2027 | 42% | 77% |
+| Escalation and closure | Feb 2027 | 41% | 77% |
 | Negotiated pause holds | Aug 2027 | 22% | 63% |
-| Hormuz reopens, strikes continue | May 2027 | 28% | 68% |
+| Hormuz reopens, strikes continue | May 2027 | 28% | 69% |
 
 Escalation settles *soonest*. Closing the strait routes pressure straight into
 the US price level, and the inflation channel's share of settlements rises from
-23% to 36%. A holding pause is the slowest path to a durable settlement,
+20% to 32%. A holding pause is the slowest path to a durable settlement,
 because relieving the pressure is also what removes the reason to conclude one.
 
 Attribution in the central case:
 
 | Channel | Share |
 |---|---:|
-| Iranian poverty | 29% |
-| US magazine depletion | 28% |
-| US inflation | 23% |
+| Iranian poverty | 30% |
+| US magazine depletion | 29% |
+| US inflation | 20% |
 | Baseline diplomacy | 17% |
 | Iranian missile exhaustion | 3% |
 

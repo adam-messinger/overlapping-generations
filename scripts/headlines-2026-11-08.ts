@@ -30,22 +30,24 @@ console.table([
     result: `Δp 10.5pts × widest spread = ${usd(o2.dealOddsMoveExplainsUsdAtMost, 1)} of ${usd(o1.weeklyFallUsd, 2)} (${pct(o2.dealOddsMoveShareOfFallAtMost)} at most)`,
   },
 ]);
-console.log('Settlement model, at observed October flows (58% of normal) and a market in surplus');
+console.log('Settlement model (stock-clearing block), observed flows: August 36%, September 47%, October 58% of normal');
 console.table([
-  ...o2.zeroDeficitPriceAtTempoUsd.map((z) => ({ state: `status quo, tempo ${z.tempo}`, 'model Brent': usd(z.brentUsd) })),
-  { state: 're-closure at full tempo (peak Nov–Jan)', 'model Brent': usd(o2.modelMaxBrentNovToJanUsd) },
+  ...o2.statusQuoNovemberAtTempoUsd.map((z) => ({ state: `status quo, tempo ${z.tempo} (Nov)`, 'model Brent': usd(z.brentUsd) })),
+  { state: 're-closure at full tempo (peak Nov–Jan)', 'model Brent': usd(o2.escalationPeakNovToJanUsd) },
   { state: 'deal, flows normal over 4 months (Jan)', 'model Brent': usd(o1.dealPriceJanuaryUsd) },
 ]);
 console.log(
-  `30 Oct close ${usd(oil.case.brentOct30Usd, 2)} is ${usd(Math.abs(o2.october30AboveModelCeilingUsd), 1)} ${o2.october30AboveModelCeilingUsd > 0 ? 'above' : 'below'} the model's re-closure price; ` +
-    `6 Nov close ${usd(oil.case.brentNov6Usd, 2)} is at its full-tempo status quo. Deal probability implied if the no-deal value is the model's: ` +
+  `Model October ${usd(o2.modelOctoberUsd)} against an observed ${usd(oil.case.brentSep29Usd)}→${usd(oil.case.brentOct30Usd)}. ` +
+    `30 Oct close is ${usd(o2.october30AboveEscalationPeakUsd, 1)} above the model's re-closure peak; 6 Nov close ${usd(oil.case.brentNov6Usd, 2)} is at its full-tempo status quo. ` +
+    'Deal probability implied if the no-deal value is the model\'s: ' +
     o2.impliedDealProbabilityAtModelNoDeal.map((r) => `${pct(r.probability)} (tempo ${r.tempo})`).join(', ') + '.',
 );
 console.log(
   `Market and analysts: Polymarket deal by 31 Dec ${pct(oil.case.polymarketDealByDec31, 1)}, normal traffic by 31 Dec ${pct(oil.case.polymarketNormalTrafficByDec31)}; Eurasia ${pct(oil.case.eurasiaDealOddsNow)} (from ${pct(oil.case.eurasiaDealOddsBefore)}); Rapidan ${pct(oil.case.rapidanFightingResumes)} that fighting resumes.`,
 );
+const g = o2.stockGapEndSeptemberMb;
 console.log(
-  `Holdout: the settlement model has drawn ${k(o2.modelStockDrawThroughSeptemberMb)} mb by end-September vs the IEA's ${oil.case.ieaStockGapEndSeptemberMb} mb (${o2.stockDrawOverIeaRatio.toFixed(1)}×), so its post-buffer price spikes are upper bounds.`,
+  `Holdout: observed stocks below pre-war at end-September — stock block ${k(g.stocksV2)} mb, legacy flow block ${k(g.flowV1)} mb, IEA ${g.iea} mb. Commercial stocks are ${k(o2.commercialGapOctoberMb)} mb below pre-war in October; the rest of the gap is strategic releases.`,
 );
 
 // ---------------------------------------------------------------------------
