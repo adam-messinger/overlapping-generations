@@ -93,11 +93,12 @@ follows its datacenter path, not the overlay's adoption case.
 
 - **Country shocks need country resolution.** A 1% of GDP shock in the Philippines is ~0.07% of
   the SE Asia region; the nine-region model cannot see this dynamic without an overlay.
-- **SSA was fragile when the overlay used `commodityShocks`.** Any `commodityShocks` record, even
-  a factor of exactly 1, switched non-electric fuel costing to a regional branch that did not
-  reduce to the unshocked arithmetic, moving SSA's GDP by up to 0.68% in 2038-50. The overlay now
-  uses `regionalOutputAdjustments`, which does not touch fuel costing; the regional fuel-billing
-  fix addresses the branch itself.
+- **SSA was fragile to tiny perturbations.** Any `commodityShocks` record, even a factor of
+  exactly 1, switched non-electric fuel costing onto a path that billed the fossil lock-in fuel
+  to regions, where the default path billed it to none; SSA's energy burden sits above the
+  damage threshold, so a 0.01% nudge moved its GDP up to -0.65% (2048). Fixed: one pricing path
+  every year, regional fuel costs partition the total (a demand invariant), and
+  `src/regional-perturbation.test.ts` pins proportionate responses.
 - **AI has no geography in the main model.** Its productivity gain is spread by GDP share, so
   every region gains the same %.
 - **The model has no unemployment, no services trade and no regional AI location**; the overlay

@@ -270,9 +270,9 @@ the human-capital ledger (including its replacement-cost re-pricing).
   region's output share (missing year or region = 1, bounds [0.1, 10]), applied by the regional
   allocator as their own growth term a(y)/a(y-1) and renormalised to world GDP. Reported per region
   as `regionalAllocation[r].outputAdjustmentChange`. `commodityShocks[].regionalOutputFactors` is
-  kept for commodity trade-income wedges (the Hormuz bridge): it enters the energy factor, is
-  clamped to [0.5, 1.5]; note that any `commodityShocks` record, even a factor of exactly 1,
-  also switches non-electric fuel costing to the shocked regional branch
+  kept for commodity trade-income wedges (the Hormuz bridge): it enters the energy factor and is
+  clamped to [0.5, 1.5]; for in-range factors the two routes give the same regional GDP
+  (pinned in `src/regional-perturbation.test.ts`)
 
 ### Demographics
 - **Fernández-Villaverde & Norrick (2026)** (`sources/fernandez-villaverde/`): the default
