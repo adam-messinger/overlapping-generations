@@ -1038,9 +1038,13 @@ test('target leverage is the year-0 private debt / capital ratio, held in state'
 });
 
 test('an under-levered firm closes the stated share of the gap and pays the recap out', () => {
-  const onTargetRun = stepOffTarget(1);
+  // With an energy capex debit, as every wired run has. Capital run on its
+  // own once debited an internal ~13%-of-orders estimate here; with no
+  // special-purpose spend at all only ~84% of the recap reaches dividends.
+  const wiredSpend = { energyCapexSpend: 5 };
+  const onTargetRun = stepOffTarget(1, {}, wiredSpend);
   const onTarget = onTargetRun.outputs;
-  const { state, outputs } = stepOffTarget(1.2);
+  const { state, outputs } = stepOffTarget(1.2, {}, wiredSpend);
   const opening = outputs.privateLeverage;
   const target = outputs.targetPrivateLeverage;
   expect(target).toBeGreaterThan(opening);
@@ -1262,9 +1266,9 @@ test('realized spends are debited from capital formation (one ledger)', () => {
   // withSpend debits exactly 3+1+2+4 from the pool
   expect(withSpend.outputs.investment - withSpend.outputs.generalInvestment)
     .toBeCloseTo(10, 6);
-  // unwired, energy falls back to the internal estimate (nonzero debit)
+  // unwired, nothing is debited: there is no internal estimate to fall back on
   expect(noSpend.outputs.investment - noSpend.outputs.generalInvestment)
-    .toBeGreaterThan(0);
+    .toBeCloseTo(0, 9);
   // floor-binding path: spends beyond the pool are exposed, not hidden
   const overflow = capitalModule.step(state, {
     ...base,

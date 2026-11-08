@@ -66,7 +66,6 @@ const FREEZE_ABLATIONS: Record<string, string[]> = {
     'demand.regionalEnergyBurden', 'demand.regionalReliabilityFactor',
   ],
   'net energy factor -> capital': ['capital.netEnergyFactor'],
-  'energy burden -> capital (investment split)': ['capital.energyBurden'],
   'automation labor share -> capital': ['capital.automationLaborShare'],
   'life expectancy -> capital (retirement age)': ['capital.regionalLifeExpectancy'],
   'financing debits -> capital': [
@@ -80,7 +79,6 @@ const FREEZE_ABLATIONS: Record<string, string[]> = {
   'safe rate -> energy (WACC debt)': ['energy.laggedSafeRate'],
   'return on capital -> energy (WACC equity)': ['energy.laggedInterestRate'],
   'savings -> energy (home bias)': ['energy.savingsRate', 'energy.regionalSavings'],
-  'energy-investment share -> energy': ['energy.availableInvestment'],
   'regional investment -> energy (clean budget)': ['energy.regionalInvestment'],
   'non-electric fuels -> energy (depletion)': ['energy.fuels'],
   'temperature -> demographics (heat stress)': ['demographics.temperature'],
@@ -101,7 +99,6 @@ const sameForAllRegions = (v: number) =>
 const PARAM_ABLATIONS: Record<string, DeepPartial<SimulationParams>> = {
   'capital.stabilityLambda = 0': { capital: { stabilityLambda: 0 } },
   'capital.bankRetentionSpeed = 0': { capital: { bankRetentionSpeed: 0 } },
-  'capital.energyInvestmentSensitivity = 0': { capital: { energyInvestmentSensitivity: 0 } },
   'capital.automationGrowth = 0': { capital: { automationGrowth: 0 } },
   'capital.leverageAdjustmentSpeed = 0': { capital: { leverageAdjustmentSpeed: 0 } },
   'capital.debtRiskLambda = 0': { capital: { debtRiskLambda: 0 } },

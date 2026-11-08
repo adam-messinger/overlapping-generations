@@ -119,8 +119,6 @@ export interface CapitalParams {
   robotsPerCapitalUnit: number;   // Robots per $1000 automation capital per worker
 
   // Investment split
-  baseEnergyInvestmentShare: number;    // Base fraction of investment to energy sector (0.15)
-  energyInvestmentSensitivity: number;  // Sensitivity to energy burden (1.0)
 
   // Retirement age adjustment
   retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
@@ -231,9 +229,6 @@ export interface CapitalInputs {
   netEnergyFactor?: number;   // Net energy fraction (0-1), lagged
   automationLaborShare?: number; // Machine share of augmented labor (from production, same year)
 
-  // From demand (optional, for investment split)
-  energyBurden?: number;      // Energy cost as fraction of GDP (0-1)
-
   // From demographics (for retirement age adjustment)
   regionalLifeExpectancy?: Record<Region, number>;
 
@@ -303,11 +298,9 @@ export interface CapitalOutputs {
   capitalGrowthRate: number;  // Annual growth rate of capital stock
 
   // Investment split
-  energyInvestment: number;         // $T BUDGET signal to energy (availableInvestment fallback); the K debit uses realized spends (energyCapexSpend)
   generalInvestment: number;        // $ trillions to general economy
   capitalFormation: number;         // $T entering K: generalInvestment + robot + datacenter capex
   unfundedRealizedSpend: number;    // $T of realized spends exceeding the investment pool (floor binding)
-  energyShareOfInvestment: number;  // Fraction going to energy
 
   // Intergenerational transfers
   retireeCost: number;          // $ trillions (pensions + healthcare for 65+)
@@ -463,8 +456,6 @@ export const capitalDefaults: CapitalParams = {
   robotsPerCapitalUnit: 8.6,    // Robots per $1000 automation K per worker (calibrated to IFR 2024 stock)
 
   // Investment split
-  baseEnergyInvestmentShare: 0.15,   // 15% of investment goes to energy sector
-  energyInvestmentSensitivity: 1.0,  // How much energy burden shifts allocation
 
   // Retirement age adjustment
   retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of gains in life expectancy at pension age (e65) → retirement age
@@ -1099,7 +1090,6 @@ export const capitalModule: Module<
       damages: unitPort('fraction'),
       netEnergyFactor: unitPort('fraction'),
       automationLaborShare: unitPort('fraction'),
-      energyBurden: unitPort('fraction'),
       regionalLifeExpectancy: unitPort('year', 'record'),
       energyCapexSpend: unitPort('$T/year'),
       cdrSpend: unitPort('$T/year'),
@@ -1156,11 +1146,9 @@ export const capitalModule: Module<
       kPerWorker: unitPort('$k/people'),
       capitalOutputRatio: unitPort('year'),
       capitalGrowthRate: unitPort('fraction/year'),
-      energyInvestment: unitPort('$T/year'),
       generalInvestment: unitPort('$T/year'),
       capitalFormation: unitPort('$T/year'),
       unfundedRealizedSpend: unitPort('$T/year'),
-      energyShareOfInvestment: unitPort('fraction'),
       retireeCost: unitPort('$T/year'),
       childCost: unitPort('$T/year'),
       regionalRetireeCost: unitPort('$T/year', 'record'),
@@ -1736,32 +1724,24 @@ export const capitalModule: Module<
     const automationLaborShareChange =
       automationLaborShare - referenceAutomationLaborShare;
 
-    // Investment split between energy and the general economy. When energy
-    // is scarce/expensive more investment flows to energy. Computed ahead of
+    // Special-purpose spends are the REALIZED ones (lagged one year, from the
+    // energy, cdr and demand modules): one ledger, money debited is money
+    // spent. Absent (capital run on its own), they are zero. Computed ahead of
     // the financing plan because firms project their closing general capital
     // (orders net of special-purpose spend) to set their borrowing.
-    const burden = inputs.energyBurden ?? 0.05;
-    // 8% of GDP: stress threshold above the historical norm of ~4-6%
-    // (global energy expenditure share; ~8-13% reached only in the
-    // 1979-81 and 2022 price shocks) — calibration anchor, not sourced data
-    const burdenSignal = burden / 0.08; // Normalized to threshold (1.0 = normal)
-    const energyShare = Math.min(0.30, Math.max(0.10,
-      params.baseEnergyInvestmentShare * (1 + params.energyInvestmentSensitivity * (burdenSignal - 1))
-    ));
+    const realizedEnergyCapex = inputs.energyCapexSpend ?? 0;
     const realizedCdrSpend = inputs.cdrSpend ?? 0;
     const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
     const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
-    const specialPurposeSpend = (orders: number) =>
-      (inputs.energyCapexSpend ?? orders * energyShare)
-      + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+    const specialPurposeSpend =
+      realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
     // Orders always replace worn general capital ON TOP of the energy and CDR
     // spends debited from them. The order rule already replaces depreciation
     // unconditionally; carving those spends out of that replacement shrank
     // general capital whenever they exceeded net investment, and since desired
     // net investment scales with K, orders shrank with it while its return
     // rose. Above replacement, energy and CDR spends still crowd out net
-    // general investment. In the standalone fallback the energy debit scales
-    // with orders, so the floor solves orders = s x orders + other + dep.
+    // general investment.
     //
     // Robot and datacenter capex is capital formation in its own stocks,
     // ordered by demand's deployment rules, so it is ADDED to general orders
@@ -1774,11 +1754,8 @@ export const capitalModule: Module<
     // at $967T from 2049 to 2100 with a 37% return on capital).
     const automationCapex = realizedRobotCapex + realizedDataCenterCapex;
     const plannedOrders = (circuit: FirmCircuit) => {
-      const replacementFloor = inputs.energyCapexSpend !== undefined
-        ? inputs.energyCapexSpend + realizedCdrSpend + automationCapex
-          + circuit.generalDepreciation
-        : (realizedCdrSpend + automationCapex + circuit.generalDepreciation)
-          / Math.max(Number.EPSILON, 1 - energyShare);
+      const replacementFloor = realizedEnergyCapex + realizedCdrSpend + automationCapex
+        + circuit.generalDepreciation;
       return Math.max(circuit.plannedInvestment + automationCapex, replacementFloor);
     };
 
@@ -1860,7 +1837,7 @@ export const capitalModule: Module<
       // Pecking order: orders beyond internal funds are financed with debt
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
-        + Math.max(0, orders - specialPurposeSpend(orders))
+        + Math.max(0, orders - specialPurposeSpend)
         + newRobotStock + newDataCenterStock;
       const leverageBorrowing =
         desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
@@ -2103,15 +2080,9 @@ export const capitalModule: Module<
       'national-accounts residual',
     ).value;
 
-    // BUDGET signal (burden-driven share) — used as the standalone-mode
-    // fallback for energy's investment constraint. The K-stock DEBIT below
-    // uses REALIZED spends (lagged one year, from the energy/cdr/demand
-    // modules) when wired: one ledger, money debited is money spent.
-    // Lag caveat: the debit trails the build by a year, so K is
-    // over-credited during fast capex growth and the final horizon year is
-    // never debited.
-    const energyInvestment = investment * energyShare;
-    const realizedEnergyCapex = inputs.energyCapexSpend ?? energyInvestment;
+    // The K-stock debit uses the realized spends above. Lag caveat: the debit
+    // trails the build by a year, so K is over-credited during fast capex
+    // growth and the final horizon year is never debited.
     const totalRealizedSpend = sumQuantities([
       unitQuantity(realizedEnergyCapex, '$T/year', 'energy capex'),
       unitQuantity(realizedCdrSpend, '$T/year', 'CDR spend'),
@@ -2293,11 +2264,9 @@ export const capitalModule: Module<
         kPerWorker,
         capitalOutputRatio,
         capitalGrowthRate,
-        energyInvestment,
         generalInvestment,
         capitalFormation: generalInvestment + automationCapex,
         unfundedRealizedSpend,
-        energyShareOfInvestment: energyShare,
         retireeCost,
         childCost,
         regionalRetireeCost,
