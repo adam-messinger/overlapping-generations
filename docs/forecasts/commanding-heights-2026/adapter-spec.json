@@ -1,0 +1,46 @@
+{
+  "title": "The Commanding Heights, 2026-2031",
+  "scenarios": ["baseline", "ai-energy-boom", "debt-populism"],
+  "variants": {
+    "lever:dc-fast": { "demand": { "dataCenterBaseGrowth": 0.30, "dataCenterPowerSpendCeiling": 0.005 } },
+    "lever:dc-fast-ai-payoff": { "demand": { "dataCenterBaseGrowth": 0.30, "dataCenterPowerSpendCeiling": 0.005 }, "production": { "aiWorkerEquivalentPerTWh": 100000 } },
+    "lever:repression-2pp": { "capital": { "financialRepression": 0.02 } }
+  },
+  "disclosures": [
+    "MODEL VINTAGE: read against the repository as of the panel origin (2026-11-08, commit 46df211). The orchestrator found, during this run, that the model's datacenter capex is ~2.5-3x below observed 2025-26 spending ($15B per average GW of load) and that its datacenter load is spread across regions by GDP share rather than where compute sits. Treat every datacenter-capex LEVEL as understated; use growth rates only, and only directionally.",
+    "DATACENTER CAPEX is a WORLD composite (chips + facilities) proportional to electricity-load additions plus 15% replacement, booked in the year the load arrives (no construction lead). It is not the Big-4's cash capex; it has no lab, no hyperscaler and no stock market. Its growth is endogenous to GDP, LCOE and a willingness-to-pay ceiling on the DC power bill.",
+    "LABOR SHARE in the model is world labor compensation / GDP in a monetary-circuit closure (2025 level ~0.65, NOT comparable to BLS 52.8%). It falls only as robot and AI worker-equivalents' income is paid to capital; AI cognitive payoff is OFF by default (aiWorkerEquivalentPerTWh = 0). Use the change across runs only.",
+    "NO MONETARY BLOCK: no price level, no Fed, no yields, no stablecoins. 'financialRepression' is a real-rate lever on the world safe rate; fiscal dominance triggers only above 150% WORLD public debt/GDP.",
+    "LEVER PROXIES: 'lever:dc-fast' doubles base datacenter growth and loosens the power-spend ceiling 10x (closest the model gets to the essay's line); '-ai-payoff' also turns on cognitive-labour payoff at the ai-energy-boom setting."
+  ],
+  "questions": [
+    { "id": "q1", "status": "directional", "label": "Big-4 capex ratio 2030/2026",
+      "note": "world composite DC capex growth, not Big-4 cash capex; sign and rough pace only",
+      "readings": [
+        { "label": "DC capex CAGR 2026->2030, %/yr", "field": "dataCenterCapexSpend", "transform": "cagr", "from": 2026, "to": 2030 },
+        { "label": "DC capex 2030, $T (understated level)", "field": "dataCenterCapexSpend", "transform": "level", "year": 2030 },
+        { "label": "total investment CAGR 2026->2030, %/yr", "field": "investment", "transform": "cagr", "from": 2026, "to": 2030 }
+      ] },
+    { "id": "q2", "status": "refused", "label": "Epoch $10B training run by 2028",
+      "reason": "no model-training or lab block; datacenter capex is a fleet composite" },
+    { "id": "q3", "status": "refused", "label": "LMArena top-10 orgs all US/China 2028",
+      "reason": "no representation of model quality, labs or national AI capability" },
+    { "id": "q4", "status": "refused", "label": "Stablecoin supply end-2028",
+      "reason": "no money, payments or crypto representation" },
+    { "id": "q5", "status": "directional", "label": "Fed yield cap before 2031",
+      "note": "world public debt and whether the model's fiscal-dominance cap binds; not the Fed's reaction function",
+      "readings": [
+        { "label": "world public debt / GDP 2030", "field": "publicDebtGDP", "transform": "level", "year": 2030 },
+        { "label": "repression gap 2030, pp", "field": "repressionGap", "transform": "level", "year": 2030, "scale": 100 },
+        { "label": "real safe rate change 2026->2030, pp", "field": "safeRate", "transform": "delta", "from": 2026, "to": 2030, "scale": 100 }
+      ] },
+    { "id": "q6", "status": "directional", "label": "BLS labor share 2030",
+      "note": "world compensation share; change only",
+      "readings": [
+        { "label": "labor share change 2026->2030, pp", "field": "laborShare", "transform": "delta", "from": 2026, "to": 2030, "scale": 100 },
+        { "label": "labor share change 2026->2036, pp", "field": "laborShare", "transform": "delta", "from": 2026, "to": 2036, "scale": 100 }
+      ] },
+    { "id": "q7", "status": "refused", "label": "Indian IT big-5 headcount -10% by Mar 2029",
+      "reason": "no sectoral employment or offshoring block; India is a GDP/demography region only" }
+  ]
+}

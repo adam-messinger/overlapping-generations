@@ -1,0 +1,414 @@
+{
+  "purpose": "The Commanding Heights, 2026-2031: conditional structural bounds only. identified = quotable conditional on the run; directional = context, never a point estimate.",
+  "adapter_disclosures": [
+    "PPP BASE: regional and world GDP are PPP in 2017 international dollars (world ~$158T in 2025). Growth rates and ratios are invariant to the deflator base; LEVELS are not comparable to market-exchange-rate or nominal-USD figures. A nominal-USD level question is NOT identified.",
+    "DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, 2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.",
+    "RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~7% in 2025, firms' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach 2009) and can be held down by financial repression (repressionGap). It is not a policy rate or a market yield. There is no term premium. Use CHANGES, never the level.",
+    "NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.",
+    "NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are not representable.",
+    "LABOUR SHARE: laborShare (world compensation / GDP, ~65% in 2025, not comparable to national-accounts or BLS levels) is endogenous to automation only: robot and AI worker-equivalents' income since 2025 is paid to capital (capital.automationIncomeToCapital). AI cognitive payoff is off by default (production.aiWorkerEquivalentPerTWh = 0), so the default path barely moves it. Use changes across runs.",
+    "FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate) plus a borrowed share of ageing costs, less a Bohn fiscal reaction; interest at the safe rate accumulates into the debt. It is a world aggregate, not a US or any single-sovereign fiscal path.",
+    "MODEL VINTAGE: read against the repository as of the panel origin (2026-11-08, commit 46df211). The orchestrator found, during this run, that the model's datacenter capex is ~2.5-3x below observed 2025-26 spending ($15B per average GW of load) and that its datacenter load is spread across regions by GDP share rather than where compute sits. Treat every datacenter-capex LEVEL as understated; use growth rates only, and only directionally.",
+    "DATACENTER CAPEX is a WORLD composite (chips + facilities) proportional to electricity-load additions plus 15% replacement, booked in the year the load arrives (no construction lead). It is not the Big-4's cash capex; it has no lab, no hyperscaler and no stock market. Its growth is endogenous to GDP, LCOE and a willingness-to-pay ceiling on the DC power bill.",
+    "LABOR SHARE in the model is world labor compensation / GDP in a monetary-circuit closure (2025 level ~0.65, NOT comparable to BLS 52.8%). It falls only as robot and AI worker-equivalents' income is paid to capital; AI cognitive payoff is OFF by default (aiWorkerEquivalentPerTWh = 0). Use the change across runs only.",
+    "NO MONETARY BLOCK: no price level, no Fed, no yields, no stablecoins. 'financialRepression' is a real-rate lever on the world safe rate; fiscal dominance triggers only above 150% WORLD public debt/GDP.",
+    "LEVER PROXIES: 'lever:dc-fast' doubles base datacenter growth and loosens the power-spend ceiling 10x (closest the model gets to the essay's line); '-ai-payoff' also turns on cognitive-labour payoff at the ai-energy-boom setting."
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "label": "Big-4 capex ratio 2030/2026",
+      "status": "directional",
+      "note": "world composite DC capex growth, not Big-4 cash capex; sign and rough pace only"
+    },
+    {
+      "id": "q2",
+      "label": "Epoch $10B training run by 2028",
+      "status": "refused",
+      "refusal": "no model-training or lab block; datacenter capex is a fleet composite"
+    },
+    {
+      "id": "q3",
+      "label": "LMArena top-10 orgs all US/China 2028",
+      "status": "refused",
+      "refusal": "no representation of model quality, labs or national AI capability"
+    },
+    {
+      "id": "q4",
+      "label": "Stablecoin supply end-2028",
+      "status": "refused",
+      "refusal": "no money, payments or crypto representation"
+    },
+    {
+      "id": "q5",
+      "label": "Fed yield cap before 2031",
+      "status": "directional",
+      "note": "world public debt and whether the model's fiscal-dominance cap binds; not the Fed's reaction function"
+    },
+    {
+      "id": "q6",
+      "label": "BLS labor share 2030",
+      "status": "directional",
+      "note": "world compensation share; change only"
+    },
+    {
+      "id": "q7",
+      "label": "Indian IT big-5 headcount -10% by Mar 2029",
+      "status": "refused",
+      "refusal": "no sectoral employment or offshoring block; India is a GDP/demography region only"
+    }
+  ],
+  "refusals": {
+    "q2": "no model-training or lab block; datacenter capex is a fleet composite",
+    "q3": "no representation of model quality, labs or national AI capability",
+    "q4": "no money, payments or crypto representation",
+    "q7": "no sectoral employment or offshoring block; India is a GDP/demography region only"
+  },
+  "runs": [
+    "baseline",
+    "ai-energy-boom",
+    "debt-populism",
+    "lever:dc-fast",
+    "lever:dc-fast-ai-payoff",
+    "lever:repression-2pp"
+  ],
+  "readings": [
+    {
+      "run": "baseline",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 12.762155867984193
+    },
+    {
+      "run": "baseline",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 0.4353762730748506
+    },
+    {
+      "run": "baseline",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 3.6091098345025774
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 0.8891842730858861
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 0
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": 0.1725685247798942
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -0.10780133419595606
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -0.3516043524017243
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 20.194390427106732
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 0.6951546700550677
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 3.5718993004728583
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 0.8870842048880431
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 0
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": 0.1858605375344215
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -0.7521997339060449
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -3.5015316624098625
+    },
+    {
+      "run": "debt-populism",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 12.2840211335302
+    },
+    {
+      "run": "debt-populism",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 0.4278526244038905
+    },
+    {
+      "run": "debt-populism",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 2.650901677121942
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 1.0730346423397699
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 0
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": 0.7978309395327491
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -0.10673748554846929
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -0.33612594135384866
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 39.24071089600769
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 2.2263358122810377
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 3.565749010753616
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 0.8898460515186709
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 0
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": 0.1721128375711079
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -0.10792972994084771
+    },
+    {
+      "run": "lever:dc-fast",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -0.3501427513472488
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 39.42410319078831
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 2.238861230386449
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 3.546092976870585
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 0.8834403191154147
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 0
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": 0.20660675900019965
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -1.914907591992554
+    },
+    {
+      "run": "lever:dc-fast-ai-payoff",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -13.972761582506333
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex CAGR 2026->2030, %/yr",
+      "value": 13.706311932974312
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q1",
+      "status": "directional",
+      "label": "DC capex 2030, $T (understated level)",
+      "value": 0.4608004723227345
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q1",
+      "status": "directional",
+      "label": "total investment CAGR 2026->2030, %/yr",
+      "value": 3.3417598107768454
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q5",
+      "status": "directional",
+      "label": "world public debt / GDP 2030",
+      "value": 0.803558696924408
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q5",
+      "status": "directional",
+      "label": "repression gap 2030, pp",
+      "value": 2
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q5",
+      "status": "directional",
+      "label": "real safe rate change 2026->2030, pp",
+      "value": -0.08643018070555973
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2030, pp",
+      "value": -0.10899361600894553
+    },
+    {
+      "run": "lever:repression-2pp",
+      "question": "q6",
+      "status": "directional",
+      "label": "labor share change 2026->2036, pp",
+      "value": -0.36273844391462307
+    }
+  ],
+  "failures": []
+}
