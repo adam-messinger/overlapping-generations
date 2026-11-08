@@ -313,14 +313,17 @@ the human-capital ledger (including its replacement-cost re-pricing).
   late-century automation/GDP dial — see docs/SENSITIVITY.md
 - **Datacenters**: LCOE/GDP-driven demand braked by a willingness-to-pay
   ceiling on datacenters' TOTAL COST OF OWNERSHIP as a share of GDP
-  (`dataCenterSpendCeiling`, 0.465%): power plus capital service, i.e.
+  (`dataCenterSpendCeiling`, 1.3%): power plus capital service, i.e.
   `dataCenterCapitalCostPerGW` annualised at the lagged interest rate +
   `dataCenterDepreciation`, as the robot rule prices capital. Equilibrium
   load = ceiling x GDP / cost per MWh. The ceiling is fitted to keep the
-  2025-2035 load path of the power-bill brake it replaced (within 0.8%/yr);
-  that brake left ~90% of the cost (capital service ~$375 vs power ~$48 per
-  MWh in 2025) outside it, so capex and capital scarcity never slowed the
-  buildout. Energy-neutral: its load is added to electricity demand and
+  2025-2035 load path of the power-bill brake it replaced (within 0.8%/yr)
+  and must be re-fit when `dataCenterCapitalCostPerGW` ($45B per average GW,
+  calibrated to Dell'Oro's ~$0.7T 2025 datacenter capex) or the depreciation
+  default moves; that brake left ~96% of the cost (capital service ~$1,130
+  vs power ~$48 per MWh in 2025) outside it, so capex and capital scarcity
+  never slowed the buildout. Load is sited by the IEA 2024 regional split
+  (`dataCenterRegionalShare`: US 45%, China 25%, ...), held fixed. Energy-neutral: its load is added to electricity demand and
   subtracted from productive useful energy (AI payoff off by default). Not
   GDP-neutral: its capex builds datacenter capital and competes for finance.
   Known fragile corner: ai-energy-boom with `dataCenterCapitalCostPerGW` 0
@@ -466,7 +469,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 | `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
-| `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. GDP ~$3.2Q in 2100 at a ~8% labor share; datacenters ~270k TWh, emissions ~77 Gt and warming ~3.45°C. Capital scarcity binds through the COST OF CAPITAL (return on capital ~18% by 2100), which now also brakes the datacenter buildout |
+| `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. GDP ~$3.2Q in 2100 at a ~8% labor share; datacenters ~250k TWh, emissions ~67 Gt and warming ~3.3°C. Capital scarcity binds through the COST OF CAPITAL (return on capital ~18% by 2100), which now also brakes the datacenter buildout |
 | `un-wpp-medium` | Opt-in demographic overlay: UN WPP 2024 Medium fertility and life expectancy, for comparison with forecasts that assume it (the default follows Fernández-Villaverde & Norrick 2026) |
 
 ## Agent Introspection

@@ -941,7 +941,7 @@ test('datacenter buildout slows when capital is dearer', () => {
     runYearsWithParams(30, overrides, { laggedInterestRate }).outputs.dataCenterLoadTWh;
   const cheap = load(0.05);
   expect(load(0.25)).toBeLessThan(cheap * 0.95);
-  expect(load(0.05, { dataCenterCapitalCostPerGW: 45 })).toBeLessThan(cheap * 0.95);
+  expect(load(0.05, { dataCenterCapitalCostPerGW: 2 * demandDefaults.dataCenterCapitalCostPerGW })).toBeLessThan(cheap * 0.95);
 });
 
 test('datacenter capex charges additions plus replacement each year', () => {
@@ -974,7 +974,7 @@ test('datacenter finance params round-trip and validate', () => {
   expect(demandModule.validate({ dataCenterCapitalCostPerGW: 101 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterDepreciation: -0.01 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterDepreciation: 0.51 }).valid).toBeFalse();
-  expect(demandModule.validate({ dataCenterSpendCeiling: 0.00465 }).valid).toBeTrue();
+  expect(demandModule.validate({ dataCenterSpendCeiling: 0.013 }).valid).toBeTrue();
 });
 
 test('datacenter load is sited by the observed regional split, not GDP share', () => {

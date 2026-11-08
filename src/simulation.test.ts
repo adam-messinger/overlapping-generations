@@ -463,7 +463,7 @@ test('default fossil LCOEs drift up with depletion and have no cliff', () => {
 // back on the AI boom's buildout: the deployment brake prices the capital
 // (cost per GW at the lagged interest rate + depreciation), so costlier
 // datacenter capital means less datacenter load and a smaller capex bill.
-// (A free-capex counterfactual is no longer clean: it also removes ~90% of
+// (A free-capex counterfactual is no longer clean: it also removes ~96% of
 // the cost the brake reads, and in the AI boom the unbraked load outruns the
 // energy system and crashes GDP in the 2050s.)
 test('baseline and AI boom are fully funded, and datacenter capital cost brakes the boom', () => {
@@ -486,7 +486,7 @@ test('baseline and AI boom are fully funded, and datacenter capital cost brakes 
     ...boomParams,
     demand: {
       ...boomParams.demand,
-      dataCenterCapitalCostPerGW: 30,
+      dataCenterCapitalCostPerGW: 2 * demandDefaults.dataCenterCapitalCostPerGW,
     },
   });
   const idx2050 = boom.years.indexOf(2050);
@@ -635,8 +635,11 @@ test('private credit holds a target-leverage steady state on the default path', 
     // investment-gap-only closure reached 0.22 by 2100). Observed world
     // private debt has held ~1.4-1.7x GDP (IMF GDD 2025, BIS). The bank
     // credit envelope (baseCreditGrowth) binds from ~2030 and holds leverage
-    // ~9% under target, hence the tolerance
-    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.12);
+    // progressively further under target: ~4% in 2030, ~10% in 2050, ~12%
+    // around 2080-90 (worst 12.3% in 2084 with IEA datacenter siting; 12.26%
+    // at either $15B or $45B per GW of datacenter capital, so the drift is
+    // the envelope, not datacenter finance), hence the tolerance
+    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.13);
     expect(row.privateDebtGDP).toBeBetween(1.0, 1.65);
   }
 });

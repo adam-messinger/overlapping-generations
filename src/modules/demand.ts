@@ -706,20 +706,22 @@ export const demandDefaults: DemandParams = {
   // share of GDP: the power bill plus the composite capital's service cost
   // (dataCenterCapitalCostPerGW annualised at laggedInterestRate +
   // dataCenterDepreciation), as robots' marginal cost prices their capital.
-  // In 2025 that is ~$48/MWh of power + ~$375/MWh of capital service (~$1,710
-  // of capital per MWh-year x 22%), ~0.13% of GDP. Braking on the power bill
-  // alone left ~90% of the cost outside the brake, so neither capex nor
-  // capital scarcity (a rising interest rate) could slow the buildout.
-  // A GDP-indexed demand ceiling, not a forecast: equilibrium load = ceiling
-  // x GDP / cost per MWh. Default 0.465% of GDP is FITTED so the 2025-2035
-  // default load path matches the power-bill brake it replaced within 0.8%
-  // a year (0.05% of GDP, ~3x the 2025 revealed power share): a re-expression of the same
-  // calibration, not new evidence. An LCOE or rate spike collapses the brake
+  // In 2025 that is ~$48/MWh of power + ~$1,130/MWh of capital service
+  // (~$5,140 of capital per MWh-year at $45B/GW x 22%), ~0.37% of GDP.
+  // Braking on the power bill alone left ~96% of the cost outside the brake,
+  // so neither capex nor capital scarcity (a rising interest rate) could slow
+  // the buildout. A GDP-indexed demand ceiling, not a forecast: equilibrium
+  // load = ceiling x GDP / cost per MWh. Default 1.3% of GDP (~3.5x the 2025
+  // share) is FITTED so the 2025-2035 default load path matches the
+  // power-bill brake it replaced (0.05% of GDP, ~3x the 2025 revealed power
+  // share) within 0.8% a year, at $45B/GW and IEA siting: a re-expression of
+  // the same calibration, not new evidence. Re-fit it when the capital cost
+  // or depreciation defaults move. An LCOE or rate spike collapses the brake
   // (buildout halts, the stock persists): correct for long-lived assets. The
   // load remains a pure electricity sink in production
   // (aiWorkerEquivalentPerTWh=0 by default); its capex builds datacenter
   // capital and competes for the economy's financing.
-  dataCenterSpendCeiling: 0.00465,
+  dataCenterSpendCeiling: 0.013,
   dataCenterEnergySensitivity: 0.4,   // LCOE elasticity: cheap power incentivizes more inference/training capacity
   dataCenterGDPSensitivity: 0.6,      // GDP-per-capita elasticity: compute demand follows wealth (knowledge-economy share)
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
@@ -1181,9 +1183,9 @@ export const demandModule: Module<
       tier: 1 as const,
     },
     dataCenterSpendCeiling: {
-      description: 'Willingness-to-pay ceiling on datacenters\' TOTAL COST OF OWNERSHIP as a share of GDP: the power bill plus capital service (dataCenterCapitalCostPerGW annualised at the lagged interest rate + dataCenterDepreciation). Default 0.465% (~3.5x the 2025 share) is fitted to keep the 2025-2035 load path of the power-bill brake it replaced. Equilibrium load = ceiling x GDP / cost per MWh, a GDP-indexed demand ceiling, not a forecast.',
+      description: 'Willingness-to-pay ceiling on datacenters\' TOTAL COST OF OWNERSHIP as a share of GDP: the power bill plus capital service (dataCenterCapitalCostPerGW annualised at the lagged interest rate + dataCenterDepreciation). Default 1.3% (~3.5x the 2025 share at $45B/GW) is fitted to keep the 2025-2035 load path of the power-bill brake it replaced. Equilibrium load = ceiling x GDP / cost per MWh, a GDP-indexed demand ceiling, not a forecast.',
       unit: 'fraction of GDP',
-      range: { min: 0.001, max: 0.05, default: 0.00465 },
+      range: { min: 0.004, max: 0.13, default: 0.013 },
       tier: 1 as const,
     },
     dataCenterEnergySensitivity: {

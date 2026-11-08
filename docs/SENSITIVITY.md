@@ -240,18 +240,19 @@ Leases and SPV financing therefore no longer make the real resource cost
 disappear, but their debt ownership and debt-service schedules are not yet
 modeled.
 
-Total-cost brake rescore (November 2026): DC capex is about $0.24T in 2025,
-$0.44T in 2030, $1.35T in 2050, and $7.0T in 2100. Because the brake now
-prices the capital (at the lagged interest rate + depreciation), datacenter
-spending settles near the ceiling share of GDP whatever the asset costs, and
-the capital cost mostly sets how much LOAD that spending buys: at the default
-15% replacement rate, $7.5B / $15B / $30B per average GW give 2100 load of
-~43k / 23k / 12k TWh, capex of $6.5T / $7.0T / $7.3T, and GDP 2100 of
-$2,167T / $2,154T / $2,155T. Long-run datacenter load is therefore
+Total-cost brake rescore (November 2026, at the $45B per average GW capital
+cost calibrated to Dell'Oro's ~$0.7T of 2025 datacenter capex): DC capex is
+about $0.72T in 2025, $1.3T in 2030, $4.0T in 2050, and $20T in 2100.
+Because the brake now prices the capital (at the lagged interest rate +
+depreciation), datacenter spending settles near the ceiling share of GDP
+whatever the asset costs, and the capital cost mostly sets how much LOAD that
+spending buys: at the default 15% replacement rate, $22.5B / $45B / $90B per
+average GW give 2100 load of ~43k / 22k / 11k TWh, capex of ~$20T in each,
+and GDP 2100 of $2,156T / $2,147T / $2,133T. Long-run datacenter load is therefore
 conditional on `dataCenterCapitalCostPerGW` and `dataCenterDepreciation`
 (and on `dataCenterSpendCeiling`); GDP much less so. A zero-capital-cost
 counterfactual is no longer a clean "free capex" comparison: it also removes
-~90% of the cost the brake reads (in ai-energy-boom the unbraked load then
+~96% of the cost the brake reads (in ai-energy-boom the unbraked load then
 outruns the energy system and crashes GDP in the 2050s). The July 2026
 power-bill-brake figures (GDP 0.8% / 5.4% lower than with zero capital cost;
 $1,949T / $1,898T / $1,799T across the sweep) are superseded.
