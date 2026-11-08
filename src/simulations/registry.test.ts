@@ -325,7 +325,7 @@ test('war-AI annual rows satisfy their recursive contract', () => {
   const run = simulationModelRegistry.run('war-ai-factorial', {
     endYear: 2026,
     aiParams: {
-      demand: { dataCenterBaseGrowth: 0.15, dataCenterPowerSpendCeiling: 0.005 },
+      demand: { dataCenterBaseGrowth: 0.15, dataCenterSpendCeiling: 0.13 },
       production: { aiWorkerEquivalentPerTWh: 100_000 },
     },
   });

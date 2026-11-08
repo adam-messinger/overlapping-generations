@@ -322,7 +322,11 @@ an OECD region. It can test whether a global compute trajectory is coherent
 with capital, GDP, and energy supply, but it cannot resolve the national
 question.
 
-Deterministic results:
+Deterministic results (dated: from the power-bill brake. Since November 2026
+the brake prices total cost of ownership, `dataCenterSpendCeiling`, fitted to
+keep the 2025-2035 load path within ~1% a year, and the script's slower/faster
+cases scale that ceiling by the same 0.7x/1.6x. Re-run the script for current
+figures):
 
 | Global scenario | 2030 DC TWh | 2035 DC TWh | 2035 share of global electricity |
 |---|---:|---:|---:|

@@ -373,6 +373,7 @@ export interface YearResult {
   // Datacenter / AI compute
   dataCenterLoadTWh: number;
   dataCenterCapexSpend: number;
+  dataCenterSpendShare: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;

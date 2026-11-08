@@ -120,6 +120,9 @@ Maximum-Power-Principle intuition:
   unprofitable fleets decay. Datacenters: LCOE/GDP demand braked by a
   willingness-to-pay ceiling on the electricity-bill share of GDP
   (`dataCenterPowerSpendCeiling`; equilibrium load = ceiling × GDP / LCOE).
+  Since November 2026 the ceiling is on total cost of ownership
+  (`dataCenterSpendCeiling`: power + capital service at the lagged interest
+  rate + depreciation), so capex and capital scarcity brake the buildout too.
   A second implementation pass adds `dataCenterCapexSpend`: annual load is
   converted to average GW (8.76 TWh/GW-year), and net additions plus blended
   replacement are priced as one composite asset. The default $15B/average-GW
