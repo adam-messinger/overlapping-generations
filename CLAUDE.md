@@ -271,7 +271,8 @@ the human-capital ledger (including its replacement-cost re-pricing).
   allocator as their own growth term a(y)/a(y-1) and renormalised to world GDP. Reported per region
   as `regionalAllocation[r].outputAdjustmentChange`. `commodityShocks[].regionalOutputFactors` is
   kept for commodity trade-income wedges (the Hormuz bridge): it enters the energy factor, is
-  clamped to [0.5, 1.5], and moves other energy-factor state too
+  clamped to [0.5, 1.5]; note that any `commodityShocks` record, even a factor of exactly 1,
+  also switches non-electric fuel costing to the shocked regional branch
 
 ### Demographics
 - **Fernández-Villaverde & Norrick (2026)** (`sources/fernandez-villaverde/`): the default

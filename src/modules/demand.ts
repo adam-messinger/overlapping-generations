@@ -1631,8 +1631,9 @@ export const demandModule: Module<
     const commodityShock = params.commodityShocks.find(
       (shock) => shock.year === year,
     );
-    const outputAdjustmentLevel = (calendarYear: number, region: Region) =>
-      params.regionalOutputAdjustments.find((a) => a.year === calendarYear)?.factors[region] ?? 1;
+    const outputAdjustment = params.regionalOutputAdjustments.find((a) => a.year === year)?.factors;
+    const previousOutputAdjustment =
+      params.regionalOutputAdjustments.find((a) => a.year === year - 1)?.factors;
 
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
@@ -1819,7 +1820,7 @@ export const demandModule: Module<
         climateFactorChange = damageFactor / previousDamageFactor;
         energyFactorChange = energyFactor / previousEnergyFactor;
         outputAdjustmentChange =
-          outputAdjustmentLevel(year, region) / outputAdjustmentLevel(year - 1, region);
+          (outputAdjustment?.[region] ?? 1) / (previousOutputAdjustment?.[region] ?? 1);
       }
 
       const growthFactor =

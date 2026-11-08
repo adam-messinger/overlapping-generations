@@ -8,7 +8,7 @@
 import { runSimulation } from './simulation.js';
 import { demandModule } from './modules/demand.js';
 import { REGIONS, type Region } from './domain-types.js';
-import { test, expect, printSummary } from './test-utils.js';
+import { test, expect, printSummary, regional } from './test-utils.js';
 
 const OPTS = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
 const END = 2035;
@@ -23,7 +23,7 @@ const everyYear = (from: number, to: number, factors: Partial<Record<Region, num
 const base = run({});
 
 test('adjustments of exactly 1 leave the run bit-identical', () => {
-  const ones = run({ regionalOutputAdjustments: everyYear(2025, END, Object.fromEntries(REGIONS.map((r) => [r, 1]))) });
+  const ones = run({ regionalOutputAdjustments: everyYear(2025, END, regional(1)) });
   for (const row of base) {
     const other = at(ones, row.year);
     expect(Object.is(other.gdp, row.gdp)).toBeTrue();
@@ -49,14 +49,9 @@ test('a level held every year moves the region ~that much and holds; an unlisted
 });
 
 test('composes multiplicatively with commodityShocks regional output factors', () => {
-  const years = { from: 2026, to: 2030 };
-  const viaShock = run({
-    commodityShocks: everyYear(years.from, years.to, {}).map(({ year }) => ({ year, regionalOutputFactors: { mena: 0.9 } })),
-  });
-  const both = run({
-    commodityShocks: everyYear(years.from, years.to, {}).map(({ year }) => ({ year, regionalOutputFactors: { mena: 0.9 } })),
-    regionalOutputAdjustments: everyYear(years.from, years.to, { mena: 0.9 }),
-  });
+  const commodityShocks = Array.from({ length: 5 }, (_, k) => ({ year: 2026 + k, regionalOutputFactors: { mena: 0.9 } }));
+  const viaShock = run({ commodityShocks });
+  const both = run({ commodityShocks, regionalOutputAdjustments: everyYear(2026, 2030, { mena: 0.9 }) });
   const rel = (rows: Row[]) => share(at(rows, 2028), 'mena') / share(at(rows, 2028), 'us');
   const shockOnly = rel(viaShock) / rel(base);
   expect(shockOnly).toBeBetween(0.88, 0.92);

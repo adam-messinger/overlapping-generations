@@ -208,10 +208,7 @@ export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
   return result;
 }
 
-/** Regional output levels as the main model's demand.regionalOutputAdjustments (every region filled) */
+/** Regional output levels as the main model's demand.regionalOutputAdjustments (a missing region means 1) */
 export function toOutputAdjustments(r: OverlayResult): AnnualRegionalOutputAdjustment[] {
-  return r.years.filter((y) => y > 2025).map((year) => ({
-    year,
-    factors: Object.fromEntries(REGIONS.map((k) => [k, r.regionalFactors[year][k] ?? 1])),
-  }));
+  return r.years.filter((y) => y > 2025).map((year) => ({ year, factors: r.regionalFactors[year] }));
 }
