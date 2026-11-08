@@ -43,8 +43,8 @@ import { demandDefaults } from './demand.js';
 
 export interface ProductionParams {
   alpha: number;              // Capital elasticity (0.25)
-  beta: number;               // Labor elasticity (0.15)
-  gamma: number;              // Useful energy elasticity (0.55)
+  beta: number;               // Labor elasticity (0.55)
+  gamma: number;              // Useful energy elasticity (0.20)
   keenEnergyExponent: number; // Energy/capital composite exponent (2/3)
   keenEnergyWeight: number;   // 0=Ayres-Warr baseline, 1=Keen challenger
   initialGDP: number;         // $T (2025 global GDP)
@@ -80,9 +80,31 @@ export interface AnnualEnergySupplyShock {
 }
 
 export const productionDefaults: ProductionParams = {
+  // Factor weights sum to 1 (constant returns). gamma = 0.20, between the
+  // cost share (~0.05-0.08) and the exergy-economics fits (~0.3-0.6):
+  //   - Identified evidence points low over a 20-year horizon. Bruns, Gross &
+  //     Stern (2014, Energy J. 35(3)), meta-analysis of 75 energy-GDP
+  //     Granger studies: the robust causality runs output -> energy, which
+  //     biases co-movement fits of gamma upward. Energy SUPPLY shocks cost
+  //     1-3x the cost share in the short run and fade as firms adapt
+  //     (Kanzig 2021, AER 111(4); Baqaee & Farhi 2019; Germany 2022: gas use
+  //     -20%, GDP ~flat).
+  //   - Time-series useful-exergy fits without instruments: US 0.29,
+  //     Germany 0.44 (Lindenberger et al. 2017); Portugal ~0.29, declining
+  //     after 2000 (Santos et al. 2024). Ayres-Warr (2009) ~0.5-0.6.
+  //   - History does not identify it: at constant returns every gamma in
+  //     [0, 0.7] fits world GDP 1990-2025 within ~0.25pp/yr
+  //     (scripts/growth-backcast.md), because effective labor and useful
+  //     exergy grew at nearly the same rate. 0.20 fits within 0.02pp/yr.
+  // Why it matters forward: energy demand follows GDP, so growth behaves
+  // like (beta*gL + (1-gamma)*d) / (1 - alpha - gamma). At the old
+  // 0.25/0.15/0.55 the denominator was 0.20 (near-AK): world growth 3.9%/yr
+  // 2026-45, above every published scenario incl. SSP5 (3.6%), and 3.7% in
+  // 2026 against the IMF's 3.1% (docs/forecasts/bloc-capitalism-2045/).
+  // Energy keeps 4x its cost share: a deliberate, smaller heterodox weight.
   alpha: 0.25,
-  beta: 0.15,
-  gamma: 0.55,
+  beta: 0.55,
+  gamma: 0.20,
   keenEnergyExponent: 2 / 3,
   keenEnergyWeight: 0,
   initialGDP: 158,            // $158T PPP (2025 global GDP, 2017 intl $)
@@ -230,15 +252,15 @@ export const productionModule: Module<
       tier: 1 as const,
     },
     beta: {
-      description: 'Labor elasticity in production function. Low because much "labor" growth is really energy-augmented.',
+      description: 'Labor elasticity in production function. Takes the weight energy does not (alpha + beta + gamma = 1); the old 0.15 assumed most labor growth was energy-augmented.',
       unit: 'fraction',
-      range: { min: 0.05, max: 0.30, default: 0.15 },
+      range: { min: 0.05, max: 0.75, default: 0.55 },
       tier: 1 as const,
     },
     gamma: {
-      description: 'Useful energy elasticity. Ayres-Warr find ~0.5-0.6 for useful work (dominant growth driver); mainstream cost-share logic implies ~0.05-0.08. GDP levels are highly sensitive to this choice — see docs/SENSITIVITY.md.',
+      description: 'Useful energy elasticity. Ayres-Warr fit ~0.5-0.6 for useful work; mainstream cost-share logic implies ~0.05-0.08; identified supply-shock evidence ~0.05-0.2 over decades. Default 0.20 with beta = 1 - alpha - gamma. GDP is highly sensitive to it once energy follows GDP — see docs/SENSITIVITY.md.',
       unit: 'fraction',
-      range: { min: 0.05, max: 0.70, default: 0.55 },
+      range: { min: 0.05, max: 0.70, default: 0.20 },
       tier: 1 as const,
     },
     keenEnergyExponent: {

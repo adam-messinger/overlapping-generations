@@ -42,6 +42,12 @@ import {
 
 interface RegionalEconomicParams {
   gdp2025: number;           // $ trillions (World Bank)
+  /**
+   * 2025 GDP at market exchange rates over GDP at PPP, relative to the US (= 1).
+   * Weights regional GDP into GDP at market rates (regionalGdpMarket), held at
+   * 2025 prices and exchange rates.
+   */
+  marketPriceRatio2025: number;
   tfpGrowth: number;         // Total factor productivity growth rate
   tfpDecay: number;          // Rate at which catch-up growth fades
   /**
@@ -149,8 +155,27 @@ export interface AnnualCommodityShock {
   regionalAvailability?: Partial<
     Record<Region, Partial<Record<'oil' | 'gas', number>>>
   >;
-  /** Direct trade-income wedge, e.g. stranded Gulf exports or exporter gains. */
+  /**
+   * Direct trade-income wedge from a commodity disruption, e.g. stranded Gulf
+   * exports or exporter gains (the Hormuz bridge). It enters the regional
+   * allocator inside the energy factor and is clamped to [0.5, 1.5]. For
+   * general output overlays use `regionalOutputAdjustments` instead.
+   */
   regionalOutputFactors?: Partial<Record<Region, number>>;
+}
+
+/**
+ * One year of output adjustments from an overlay (a model run outside the
+ * main simulation that moves regional output, e.g. scripts/ai-offshoring).
+ * Each factor is a LEVEL on the region's output share in that calendar year,
+ * relative to the run without the overlay; a missing year or region means 1.
+ * The allocator applies the year-on-year change a(year)/a(year-1) and then
+ * renormalises shares to world GDP, so world output moves only through
+ * second-round effects.
+ */
+export interface AnnualRegionalOutputAdjustment {
+  year: number;
+  factors: Partial<Record<Region, number>>;
 }
 
 export interface DemandParams {
@@ -209,9 +234,19 @@ export interface DemandParams {
   dataCenterCapitalCostPerGW: number;  // Composite chips + facility cost ($B per average GW of annual load)
   dataCenterDepreciation: number;      // Composite chips + facility replacement rate (fraction/yr)
   dataCenterRegionalShare: Record<Region, number>; // Where datacenter load sits (fractions summing to 1)
+  /** Regional shares of the world's operational robot stock, 2024 (fractions summing to 1) */
+  robotStockShare2024: Record<Region, number>;
 
   /** Sparse calendar-year shocks from monthly commodity/network simulations. */
   commodityShocks: readonly AnnualCommodityShock[];
+  /** Sparse calendar-year regional output levels from overlays (missing = 1). */
+  regionalOutputAdjustments: readonly AnnualRegionalOutputAdjustment[];
+  /**
+   * US GDP at market exchange rates in 2025, $T. With the price ratios
+   * relative to the US, usGdpMarketUsd2025 / regions.us.gdp2025 converts the
+   * model's PPP dollars (2017 intl $) to 2025 US dollars.
+   */
+  usGdpMarketUsd2025: number;
 }
 
 interface RegionalState {
@@ -250,6 +285,8 @@ interface DemandState {
    * service base is known.
    */
   heavyIndustry: { gdp0: number; serviceBase0: number; coalActivityRatio: number };
+  /** Robots per worker relative to the world, fixed in year 0 from robotStockShare2024 */
+  robotDensityIndex?: Record<Region, number>;
 }
 
 // Inputs from demographics and production modules
@@ -298,6 +335,8 @@ export interface RegionalAllocationDiagnostics {
   laborFactor: number;
   climateFactorChange: number;
   energyFactorChange: number;
+  /** Year-on-year change in the overlay output level (regionalOutputAdjustments) */
+  outputAdjustmentChange: number;
   energyBurden: number;
   reliabilityFactor: number;
   gdpShare: number;
@@ -393,6 +432,9 @@ interface DemandOutputs {
   dataCenterCapexSpend: number; // Composite chips + datacenter capex this year ($T)
   dataCenterCapitalValue: number; // Opening chips + facility fleet at the composite cost per GW ($T); capital splits the opening capital stock with it
   dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
+  /** GDP at market exchange rates, $T at constant 2025 prices and exchange rates */
+  gdpMarket: number;
+  regionalGdpMarket: Record<Region, number>;
   dataCenterSpendShare: number;      // DC total cost of ownership (power + capital service) as share of GDP: what the brake reads
 }
 
@@ -425,6 +467,7 @@ export const demandDefaults: DemandParams = {
   regions: {
     us: {
       gdp2025: 24,              // $24T PPP (World Bank 2017 intl $; US real GDP 2017$ ~$23.5T 2025)
+      marketPriceRatio2025: 1.0,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.010,         // Residual TFP: US labor productivity has outpaced Europe/Japan since 2005 (OECD Productivity Statistics)
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.69,    // MWh per $1000 GDP PPP: US TFC ~16.5k TWh (IEA WEB 2023, ~42% of OECD final energy)
@@ -433,6 +476,7 @@ export const demandDefaults: DemandParams = {
     },
     'oecd-ex-us': {
       gdp2025: 38,              // $38T PPP (World Bank 2017 intl $; 62 model-OECD less the US)
+      marketPriceRatio2025: 0.738,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.007,         // Residual TFP: Europe/Japan productivity growth below the US
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.59,    // MWh per $1000 GDP PPP: ~22.5k TWh TFC (EU/Japan ~0.5, Mexico/Turkey/Korea higher); us + ex-us preserve the old ~39k TWh
@@ -441,6 +485,7 @@ export const demandDefaults: DemandParams = {
     },
     china: {
       gdp2025: 33,              // $33T PPP
+      marketPriceRatio2025: 0.477,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       // Catch-up residual fitted (grid search, 2026-11) so the model's China-minus-
       // world real growth gap matches the P50 of a 24-seat Tetlock calibration
       // panel: 0.87pp mean 2026-30 (model 0.86) and 0.28pp 2031-35 (model 0.28).
@@ -462,6 +507,7 @@ export const demandDefaults: DemandParams = {
     },
     india: {
       gdp2025: 16,              // $16T PPP (India + South Asia)
+      marketPriceRatio2025: 0.231,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.025,         // Residual TFP (catch-up growth)
       tfpDecay: 0.012,          // Gradual convergence
       energyIntensity: 0.65,    // PPP-adjusted (preserves ~10k TWh)
@@ -470,6 +516,7 @@ export const demandDefaults: DemandParams = {
     },
     latam: {
       gdp2025: 12,              // $12T PPP (Latin America)
+      marketPriceRatio2025: 0.476,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.012,         // Residual TFP
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.50,    // PPP-adjusted (preserves ~6k TWh)
@@ -478,6 +525,7 @@ export const demandDefaults: DemandParams = {
     },
     seasia: {
       gdp2025: 12,              // $12T PPP (SE Asia + Pacific)
+      marketPriceRatio2025: 0.322,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.020,         // Residual TFP (manufacturing hubs)
       tfpDecay: 0.008,          // Gradual convergence
       energyIntensity: 0.53,    // PPP-adjusted (preserves ~6k TWh)
@@ -486,6 +534,7 @@ export const demandDefaults: DemandParams = {
     },
     russia: {
       gdp2025: 7,               // $7T PPP (Russia + CIS)
+      marketPriceRatio2025: 0.346,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.005,         // Low residual TFP (aging, fossil-dependent)
       tfpDecay: 0.003,          // Very slow convergence
       energyIntensity: 1.03,    // PPP-adjusted (preserves ~7k TWh)
@@ -494,6 +543,7 @@ export const demandDefaults: DemandParams = {
     },
     mena: {
       gdp2025: 9,               // $9T PPP (MENA)
+      marketPriceRatio2025: 0.371,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.010,         // Residual TFP (fossil exporters diversifying)
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.67,    // PPP-adjusted (preserves ~6k TWh)
@@ -502,6 +552,7 @@ export const demandDefaults: DemandParams = {
     },
     ssa: {
       gdp2025: 7,               // $7T PPP (Sub-Saharan Africa, unchanged)
+      marketPriceRatio2025: 0.290,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.020,         // Residual TFP (demographic dividend)
       tfpDecay: 0.010,          // Gradual convergence
       energyIntensity: 1.50,    // Unchanged (already PPP-like)
@@ -756,12 +807,53 @@ export const demandDefaults: DemandParams = {
     us: 0.45, china: 0.25, 'oecd-ex-us': 0.205, india: 0.025, seasia: 0.03,
     mena: 0.015, latam: 0.01, russia: 0.01, ssa: 0.005,
   },
+  // Where the world's industrial robots are: IFR World Robotics 2025,
+  // operational stock 2024 (4,663,698 units; China 2,027,190, Japan 450,530,
+  // US 393,700, Korea ~392k, Germany ~280k), IFR blocks split by judgment
+  // (Taiwan -> china, Turkey -> mena, Canada -> oecd-ex-us, ~66k unallocated
+  // pro rata; docs/ai-offshoring/evidence.md section 2). Top four countries
+  // firm; small regions +-50%. Year 0 turns these into robots per worker
+  // relative to the world, held fixed, so siting then follows the workforce.
+  robotStockShare2024: {
+    china: 0.4623, 'oecd-ex-us': 0.3669, us: 0.0856, seasia: 0.0348, latam: 0.0226,
+    india: 0.0152, mena: 0.0087, russia: 0.0022, ssa: 0.0017,
+  },
+
   commodityShocks: [],
+  regionalOutputAdjustments: [],
+  // US GDP 2025 at market exchange rates: $30.86T, IMF WEO Oct 2026 (NGDPD,
+  // data/fiscal/imf-weo-regions.csv). The world total is then a check, not an
+  // input: calibration-anchors compares it with the IMF's $118.45T.
+  usGdpMarketUsd2025: 30.86,
 };
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/**
+ * Robots per working-age person relative to the world, from stock shares;
+ * and each region's share of robots (and their electricity): working-age
+ * population weighted by that density.
+ */
+export function robotDensityFromStock(
+  stockShare: Readonly<Record<Region, number>>,
+  regionalWorking: Readonly<Record<Region, number>>,
+): Record<Region, number> {
+  const working = sumValues(regionalWorking);
+  return Object.fromEntries(REGIONS.map((r) => [
+    r, regionalWorking[r] > 0 ? stockShare[r] * working / regionalWorking[r] : 0,
+  ])) as Record<Region, number>;
+}
+
+export function robotSitingShares(
+  densityIndex: Readonly<Record<Region, number>>,
+  regionalWorking: Readonly<Record<Region, number>>,
+): Record<Region, number> {
+  const weights = Object.fromEntries(REGIONS.map((r) => [r, densityIndex[r] * regionalWorking[r]])) as Record<Region, number>;
+  const total = sumValues(weights);
+  return Object.fromEntries(REGIONS.map((r) => [r, total > 0 ? weights[r] / total : 0])) as Record<Region, number>;
+}
 
 /**
  * Calibrated logit fuel shares for ONE sector, with inertia.
@@ -991,7 +1083,9 @@ function sectorFinalFactors(
 /**
  * Convert an energy-expenditure burden into the same bounded GDP level
  * damage used by the global production path. A persistent burden is a
- * persistent level wedge, not a fresh growth penalty every year.
+ * persistent level wedge, not a fresh growth penalty every year. A hinge at
+ * the threshold: only regions whose burden sits above it respond to small
+ * changes in their energy bill (SSA does on the default path).
  */
 function energyBurdenDamage(
   burden: number,
@@ -1059,6 +1153,20 @@ const DEMAND_INVARIANTS: readonly ModuleInvariant<
   {
     name: 'fuels partition non-electric energy',
     check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy),
+  },
+  {
+    name: 'regions partition GDP at market rates',
+    check: ({ outputs }) => closeTo('GDP at market rates', outputs.gdpMarket,
+      sumValues(outputs.regionalGdpMarket)),
+  },
+  {
+    // Every TWh of fuel is billed to a region, lock-in fuel included: the
+    // regional energy burden feeds the regional GDP allocator, so fuel billed
+    // to no region understates burdens (and once made the allocation depend
+    // on whether a year carried a commodity-shock entry).
+    name: 'regions partition fuel cost',
+    check: ({ outputs }) => closeTo('fuel cost', outputs.fuelCost,
+      sumValues(outputs.regionalFuelCost)),
   },
   {
     name: 'global electricity is the sum of regions',
@@ -1266,6 +1374,8 @@ export const demandModule: Module<
       dataCenterCapexSpend: unitPort('$T/year'),
       dataCenterCapitalValue: unitPort('$T'),
       dataCenterPowerSpendShare: unitPort('fraction'),
+      gdpMarket: unitPort('$T/year'),
+      regionalGdpMarket: unitPort('$T/year', 'record'),
       dataCenterSpendShare: unitPort('fraction'),
     },
   },
@@ -1282,6 +1392,10 @@ export const demandModule: Module<
 
         if (r.gdp2025 !== undefined && r.gdp2025 < 0) {
           errors.push(`${region}: GDP must be positive`);
+        }
+        if (r.marketPriceRatio2025 !== undefined
+          && (!Number.isFinite(r.marketPriceRatio2025) || r.marketPriceRatio2025 <= 0 || r.marketPriceRatio2025 > 3)) {
+          errors.push(`${region}: marketPriceRatio2025 must be in (0, 3]`);
         }
         if (r.tfpGrowth !== undefined && (r.tfpGrowth < -0.05 || r.tfpGrowth > 0.10)) {
           errors.push(`${region}: TFP growth must be between -5% and 10%`);
@@ -1373,6 +1487,13 @@ export const demandModule: Module<
         (params.dataCenterDepreciation < 0 || params.dataCenterDepreciation > 0.5)) {
       errors.push('dataCenterDepreciation must be in [0, 0.5]');
     }
+    if (params.robotStockShare2024 !== undefined) {
+      const shares = Object.values(params.robotStockShare2024) as number[];
+      const total = shares.reduce((a, b) => a + b, 0);
+      if (shares.some((x) => !(x >= 0)) || Math.abs(total - 1) > 1e-6) {
+        errors.push('robotStockShare2024 must be non-negative and sum to 1');
+      }
+    }
     if (params.dataCenterRegionalShare !== undefined) {
       const shares = Object.values(params.dataCenterRegionalShare) as number[];
       const total = shares.reduce((a, b) => a + b, 0);
@@ -1448,6 +1569,26 @@ export const demandModule: Module<
       for (const factor of Object.values(shock.regionalOutputFactors ?? {})) {
         if (factor !== undefined && (factor < 0.5 || factor > 1.5)) {
           errors.push('commodityShocks regional output factors must be between 0.5 and 1.5');
+        }
+      }
+    }
+    if (params.usGdpMarketUsd2025 !== undefined
+      && (!Number.isFinite(params.usGdpMarketUsd2025) || params.usGdpMarketUsd2025 <= 0)) {
+      errors.push('usGdpMarketUsd2025 must be positive');
+    }
+    const adjustmentYears = new Set<number>();
+    for (const adjustment of params.regionalOutputAdjustments ?? []) {
+      if (!Number.isInteger(adjustment.year)) {
+        errors.push('regionalOutputAdjustments year must be an integer');
+      } else if (adjustmentYears.has(adjustment.year)) {
+        errors.push(`regionalOutputAdjustments lists ${adjustment.year} twice`);
+      }
+      adjustmentYears.add(adjustment.year);
+      for (const [region, factor] of Object.entries(adjustment.factors ?? {})) {
+        if (!REGIONS.includes(region as Region)) {
+          errors.push(`regionalOutputAdjustments: unknown region ${region}`);
+        } else if (factor === undefined || !Number.isFinite(factor) || factor < 0.1 || factor > 10) {
+          errors.push(`regionalOutputAdjustments ${adjustment.year} ${region} must be in [0.1, 10]`);
         }
       }
     }
@@ -1550,7 +1691,12 @@ export const demandModule: Module<
       if (p.dataCenterRegionalShare !== undefined) {
         merged.dataCenterRegionalShare = { ...merged.dataCenterRegionalShare, ...p.dataCenterRegionalShare };
       }
+      if (p.robotStockShare2024 !== undefined) {
+        merged.robotStockShare2024 = { ...merged.robotStockShare2024, ...p.robotStockShare2024 };
+      }
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
+      if (p.regionalOutputAdjustments !== undefined) merged.regionalOutputAdjustments = p.regionalOutputAdjustments;
+      if (p.usGdpMarketUsd2025 !== undefined) merged.usGdpMarketUsd2025 = p.usGdpMarketUsd2025;
 
       return merged;
     }, partial);
@@ -1640,6 +1786,9 @@ export const demandModule: Module<
     const commodityShock = params.commodityShocks.find(
       (shock) => shock.year === year,
     );
+    const outputAdjustment = params.regionalOutputAdjustments.find((a) => a.year === year)?.factors;
+    const previousOutputAdjustment =
+      params.regionalOutputAdjustments.find((a) => a.year === year - 1)?.factors;
 
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
@@ -1654,15 +1803,17 @@ export const demandModule: Module<
     // Escalated wholesale fuel prices for this year (real paths; flat at
     // defaults). The fuel-mix logit competes on this scale; retail consumers
     // add delivery margins via retailFuelPrice.
+    const baseWholesalePrices = {} as Record<FuelType, number>; // before any shock
     const wholesalePrices = {} as Record<FuelType, number>;
     for (const fuel of FUEL_KEYS) {
       const shockMultiplier =
         fuel === 'oil' || fuel === 'gas'
           ? commodityShock?.globalPriceMultipliers?.[fuel] ?? 1
           : 1;
-      wholesalePrices[fuel] = compound(
+      baseWholesalePrices[fuel] = compound(
         params.fuels[fuel].price, params.fuels[fuel].priceEscalation, yearIndex
-      ) * shockMultiplier;
+      );
+      wholesalePrices[fuel] = baseWholesalePrices[fuel] * shockMultiplier;
     }
     const retailFuelPrice = (fuel: FuelType): number =>
       wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin;
@@ -1799,6 +1950,7 @@ export const demandModule: Module<
       let laborFactor = 1;
       let climateFactorChange = 1;
       let energyFactorChange = 1;
+      let outputAdjustmentChange = 1;
 
       // The observed 2025 regional GDP table is an anchor, not a forecast
       // transition. Capture its prevailing wedges without moving its shares.
@@ -1824,10 +1976,12 @@ export const demandModule: Module<
         );
         climateFactorChange = damageFactor / previousDamageFactor;
         energyFactorChange = energyFactor / previousEnergyFactor;
+        outputAdjustmentChange =
+          (outputAdjustment?.[region] ?? 1) / (previousOutputAdjustment?.[region] ?? 1);
       }
 
       const growthFactor =
-        tfpFactor * laborFactor * climateFactorChange * energyFactorChange;
+        tfpFactor * laborFactor * climateFactorChange * energyFactorChange * outputAdjustmentChange;
       rawShares[region] = Math.max(
         Number.EPSILON,
         state.regions[region].gdpShare * growthFactor
@@ -1839,6 +1993,7 @@ export const demandModule: Module<
         laborFactor,
         climateFactorChange,
         energyFactorChange,
+        outputAdjustmentChange,
         energyBurden: burden,
         reliabilityFactor,
         gdpShare: 0,
@@ -2027,11 +2182,16 @@ export const demandModule: Module<
     globalElec += robotLoadTWh;
     globalTotalFinal += robotLoadTWh;
 
-    // Distribute robot electricity load to regions (proportional to working population)
+    // Site robot electricity load where robots are: each region's working-age
+    // population weighted by its robot density relative to the world, set in
+    // year 0 from the observed stock shares, so siting follows the workforce
+    // while keeping the observed density gaps.
+    const robotDensityIndex = yearIndex === 0 || !state.robotDensityIndex
+      ? robotDensityFromStock(params.robotStockShare2024, inputs.regionalWorking)
+      : state.robotDensityIndex;
+    const robotShares = robotSitingShares(robotDensityIndex, inputs.regionalWorking);
     for (const region of REGIONS) {
-      const working = inputs.regionalWorking[region];
-      const share = globalWorking > 0 ? working / globalWorking : 0;
-      const regionRobotLoad = robotLoadTWh * share;
+      const regionRobotLoad = robotLoadTWh * robotShares[region];
       regionalOutputs[region].electricityDemand += regionRobotLoad;
       regionalOutputs[region].totalFinalEnergy += regionRobotLoad;
     }
@@ -2203,9 +2363,10 @@ export const demandModule: Module<
       }
     }
 
-    // Adjust global totals for the lock-in floor. Regional outputs historically
-    // exclude this global stock-floor reconciliation; preserve that convention
-    // so adding an empty shock path is exactly baseline-neutral.
+    // Adjust global totals for the lock-in floor. Regional energy QUANTITIES
+    // (regional[r].nonElectricEnergy) exclude this global stock-floor
+    // reconciliation; regional fuel COST includes each region's share of it
+    // (see the pricing loop below), so the regional costs sum to fuelCost.
     const preLockPotential = globalNonElecPotential;
     const globalFuelAvailabilityBeforeLock = preLockPotential > 0
       ? globalNonElec / preLockPotential
@@ -2285,93 +2446,70 @@ export const demandModule: Module<
     const regionalFuelCost = {} as Record<Region, number>;
     const regionalFuelAvailability = {} as Record<Region, number>;
 
-    if (!commodityShock) {
-      // Keep the original aggregate arithmetic byte-for-byte in unshocked
-      // scenarios. This is both faster and makes the new extension opt-in.
+    // One pricing path for every year, shocked or not: each region pays for
+    // its pre-lock fuel plus its potential share of the fossil-stock lock-in
+    // fuel, so the regional costs partition fuelCost.
+    const carbonCostPerMWh = Object.fromEntries(FUEL_KEYS.map((fuel) => [
+      fuel, (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000,
+    ])) as Record<FuelType, number>;
+    let reconciledNonElectricEnergy = 0;
+    for (const region of REGIONS) {
+      const preLockRegionalPotential =
+        regionalOutputs[region].nonElectricEnergyPotential;
+      const potentialShare = preLockPotential > 0
+        ? preLockRegionalPotential / preLockPotential
+        : newRegions[region].gdpShare;
+      const regionalPotential =
+        preLockRegionalPotential + lockInAdjustment * potentialShare;
+      let regionalServed = 0;
+      let regionCost = 0;
       for (const fuel of FUEL_KEYS) {
-        const fuelConsumption = globalNonElec * accountingShares[fuel];
-        fuels[fuel] = fuelConsumption;
+        const potentialFuelConsumption = regionalPotential * accountingShares[fuel];
+        const availability =
+          fuel === 'oil' || fuel === 'gas'
+            ? clamp(
+              commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1,
+              0,
+              1,
+            )
+            : 1;
+        const fuelConsumption = potentialFuelConsumption * availability;
+        fuels[fuel] += fuelConsumption;
+        regionalServed += fuelConsumption;
         nonElectricEmissions +=
           (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
-        const carbonCost =
-          (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-        const effectivePrice = retailFuelPrice(fuel) + carbonCost;
-        fuelCost += (fuelConsumption * effectivePrice) / 1e6;
-      }
-      const fuelCostPerTWh = globalNonElec > 0 ? fuelCost / globalNonElec : 0;
-      for (const region of REGIONS) {
-        regionalFuelCost[region] =
-          regionalOutputs[region].nonElectricEnergy * fuelCostPerTWh;
-        regionalFuelAvailability[region] = 1;
-      }
-    } else {
-      let reconciledNonElectricEnergy = 0;
-      for (const region of REGIONS) {
-        const preLockRegionalPotential =
-          regionalOutputs[region].nonElectricEnergyPotential;
-        const potentialShare = preLockPotential > 0
-          ? preLockRegionalPotential / preLockPotential
-          : newRegions[region].gdpShare;
-        const regionalPotential =
-          preLockRegionalPotential + lockInAdjustment * potentialShare;
-        let regionalServed = 0;
-        let regionCost = 0;
-        for (const fuel of FUEL_KEYS) {
-          const potentialFuelConsumption = regionalPotential * accountingShares[fuel];
-          const availability =
-            fuel === 'oil' || fuel === 'gas'
-              ? clamp(
-                commodityShock.regionalAvailability?.[region]?.[fuel] ?? 1,
-                0,
-                1,
-              )
-              : 1;
-          const fuelConsumption = potentialFuelConsumption * availability;
-          fuels[fuel] += fuelConsumption;
-          regionalServed += fuelConsumption;
-          nonElectricEmissions +=
-            (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
 
-          // Regional price multipliers are absolute relative to the unshocked
-          // annual wholesale path. If absent, use the global shock multiplier.
-          const baseWholesalePrice = compound(
-            params.fuels[fuel].price,
-            params.fuels[fuel].priceEscalation,
-            yearIndex,
-          );
-          const regionalPriceMultiplier =
-            fuel === 'oil' || fuel === 'gas'
-              ? commodityShock.regionalPriceMultipliers?.[region]?.[fuel]
-              : undefined;
-          const regionalWholesalePrice = regionalPriceMultiplier !== undefined
-            ? baseWholesalePrice * regionalPriceMultiplier
-            : wholesalePrices[fuel];
-          const carbonCost =
-            (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-          const effectivePrice =
-            regionalWholesalePrice + params.fuels[fuel].deliveryMargin + carbonCost;
-          regionCost += (fuelConsumption * effectivePrice) / 1e6;
-        }
-        regionalFuelCost[region] = regionCost;
-        regionalFuelAvailability[region] = regionalPotential > 0
-          ? regionalServed / regionalPotential
-          : 1;
-        reconciledNonElectricEnergy += regionalServed;
-        fuelCost += regionCost;
+        // Regional price multipliers are absolute relative to the unshocked
+        // annual wholesale path. If absent, use the global shock multiplier.
+        const regionalPriceMultiplier =
+          fuel === 'oil' || fuel === 'gas'
+            ? commodityShock?.regionalPriceMultipliers?.[region]?.[fuel]
+            : undefined;
+        const retailPrice = regionalPriceMultiplier !== undefined
+          ? baseWholesalePrices[fuel] * regionalPriceMultiplier + params.fuels[fuel].deliveryMargin
+          : retailFuelPrice(fuel);
+        const effectivePrice = retailPrice + carbonCostPerMWh[fuel];
+        regionCost += (fuelConsumption * effectivePrice) / 1e6;
       }
-      globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
-      globalNonElec = reconciledNonElectricEnergy;
-      // The sectors are split from the requested fuel, lock-in included, so
-      // ration them by the world total's served/requested ratio. It is only
-      // known here: availability applies per fuel, at the accounting mix, so
-      // the served total differs from any estimate made before this loop.
-      // Electricity is not rationed.
-      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
-      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
-      for (const key of sectorKeys) {
-        sectors[key].nonElectric *= servedRatio;
-        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
-      }
+      regionalFuelCost[region] = regionCost;
+      regionalFuelAvailability[region] = regionalPotential > 0
+        ? regionalServed / regionalPotential
+        : 1;
+      reconciledNonElectricEnergy += regionalServed;
+      fuelCost += regionCost;
+    }
+    globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
+    globalNonElec = reconciledNonElectricEnergy;
+    // The sectors are split from the requested fuel, lock-in included, so
+    // ration them by the world total's served/requested ratio. It is only
+    // known here: availability applies per fuel, at the accounting mix, so
+    // the served total differs from any estimate made before this loop.
+    // Electricity is not rationed.
+    const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
+    const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
+    for (const key of sectorKeys) {
+      sectors[key].nonElectric *= servedRatio;
+      sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
@@ -2406,6 +2544,17 @@ export const demandModule: Module<
     // Same bounded level-damage function used by the regional allocator.
     const burdenDamage = energyBurdenDamage(energyBurden, params.energyBurden);
 
+    // GDP at market exchange rates, 2025 US dollars: regional PPP GDP x the
+    // region's 2025 market/PPP price ratio (US = 1) x the US dollars per model
+    // PPP dollar. Constant 2025 prices and exchange rates: converging
+    // economies' price levels do not rise here, so their market-rate share is
+    // understated more over time.
+    const usdPerModelDollar = params.usGdpMarketUsd2025 / params.regions.us.gdp2025;
+    const regionalGdpMarket = Object.fromEntries(REGIONS.map((r) => [
+      r, regionalOutputs[r].gdp * params.regions[r].marketPriceRatio2025 * usdPerModelDollar,
+    ])) as Record<Region, number>;
+    const gdpMarket = sumValues(regionalGdpMarket);
+
     // Next year's industry coal anchor: heavy-materials output index
     // (GDP^eps) over industry's service-base index (industry is a fixed
     // share of the global service base, so the global index is its index).
@@ -2437,6 +2586,7 @@ export const demandModule: Module<
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
         heavyIndustry,
+        robotDensityIndex,
       },
       outputs: {
         regional: regionalOutputs,
@@ -2469,6 +2619,8 @@ export const demandModule: Module<
         dataCenterCapexSpend,
         dataCenterCapitalValue,
         dataCenterPowerSpendShare,
+        gdpMarket,
+        regionalGdpMarket,
         dataCenterSpendShare,
       },
     };

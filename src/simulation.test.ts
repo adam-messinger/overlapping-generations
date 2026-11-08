@@ -201,13 +201,16 @@ test('regional allocator anchors 2025 and does not collapse regions onto a share
   for (const value of Object.values(last.regionalGdp)) {
     expect(value / total).toBeGreaterThan(0.015);
   }
-  // China's share falls from 20.9% (2025) to ~18% (2100) under the 2026
-  // calibration: its catch-up residual converges on the OECD-ex-US floor while
-  // its workforce shrinks faster than the world's. This is a guard against the
-  // allocator collapsing it, not a forecast; the old assertion (share rises by
-  // 2100) was an artifact of the ~46-yr catch-up half-life.
+  // China's share falls from 20.9% (2025) to ~11% (2100): its catch-up
+  // residual converges on the OECD-ex-US floor while its population falls
+  // 1.41B -> 0.53B (Fernandez-Villaverde & Norrick fertility), and since the
+  // 2026-11 constant-returns weights the allocator prices that workforce at
+  // production's beta = 0.55 (was 0.15, when the bound below was 0.7x). This is
+  // a guard against the allocator collapsing it, not a forecast; the old
+  // assertion (share rises by 2100) was an artifact of the ~46-yr catch-up
+  // half-life.
   expect(last.regionalGdp.china / total)
-    .toBeGreaterThan(0.7 * first.regionalGdp.china / 158);
+    .toBeGreaterThan(0.45 * first.regionalGdp.china / 158);
 });
 
 // Shared default-params run for the two calibration-band tests below

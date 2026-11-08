@@ -133,7 +133,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 
 ### Calibration & Sources
 
-- `src/calibration-anchors.ts` compares 18 of the model's 2025 outputs with
+- `src/calibration-anchors.ts` compares 20 of the model's 2025 outputs with
   independent observations within loose (1.02-1.5x) bands — an
   order-of-magnitude tripwire for unit and intensity errors, not calibration.
   `npx tsx src/calibration-anchors.ts` prints the table. When you add a
@@ -243,7 +243,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   `nonElectricEnergy` anchor (~92,000 TWh) that already contains world mining
   and smelting energy — charging baseline demand there too would double-count
   ~a fifth of world non-electric energy
-- Copper binds the economy from the mid-2030s (supply ratio 0.40 by 2100),
+- Copper binds the economy from the late 2020s (supply ratio ~0.75 at its 2042 low, 0.78 in 2100),
   but not clean build: the transition's own claim stays within mine
   capacity in the default run. Known limitation:
   `reserves` never grows, so `reserveRatio` passes 1.0 mid-century
@@ -265,6 +265,14 @@ the human-capital ledger (including its replacement-cost re-pricing).
   damages, farmland, Hormuz exposure), with US-specific sources inline
 - Hyphenated key: quote it in object literals (`'oecd-ex-us': ...`) and
   scenario JSON; Tier-1 param names camel-case it (`oecdExUsCarbonPrice`)
+- **Overlays** (models run outside the main simulation, e.g. `scripts/ai-offshoring/`) move
+  regional output through `demand.regionalOutputAdjustments`: sparse per-year LEVELS on each
+  region's output share (missing year or region = 1, bounds [0.1, 10]), applied by the regional
+  allocator as their own growth term a(y)/a(y-1) and renormalised to world GDP. Reported per region
+  as `regionalAllocation[r].outputAdjustmentChange`. `commodityShocks[].regionalOutputFactors` is
+  kept for commodity trade-income wedges (the Hormuz bridge): it enters the energy factor and is
+  clamped to [0.5, 1.5]; for in-range factors the two routes give the same regional GDP
+  (pinned in `src/regional-perturbation.test.ts`)
 
 ### Demographics
 - **Fernández-Villaverde & Norrick (2026)** (`sources/fernandez-villaverde/`): the default
@@ -286,10 +294,10 @@ the human-capital ledger (including its replacement-cost re-pricing).
   working cohort's college share (bands carry no education split yet)
 
 ### Production (Ayres-Warr Biophysical)
-- **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**
-- Useful energy is dominant growth driver (γ=0.55) — a deliberate heterodox choice (mainstream cost-share logic implies γ≈0.05-0.08)
-- GDP *levels* were ~5x sensitive to γ before the 2026 demand-accounting fixes; after the ledger reconciliation the γ×damage grid spans ~1.7x ($609T–$1,042T in 2100) — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
-- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is the model's dominant GDP-level dial (~1.8x per plausible range) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
+- **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**, α/β/γ = 0.25/0.55/0.20 (constant returns)
+- Useful energy carries γ=0.20: 4x its ~5-8% cost share, a deliberate but smaller heterodox weight than Ayres-Warr's 0.55, where identified supply-shock evidence points (sources at `productionDefaults`). History does not identify γ: at constant returns every γ in [0, 0.7] fits world GDP 1990-2025 within ~0.25pp/yr (`scripts/growth-backcast.md`; an earlier sweep that cut γ without giving its weight to labor was misread as rejecting the cost share)
+- γ is the largest forward GDP dial because energy demand follows GDP: growth behaves like (β·g_L + (1−γ)·d)/(1−α−γ). The old 0.25/0.15/0.55 (denominator 0.20, near-AK) gave world growth 3.9%/yr 2026-45, above every published scenario; now ~3.1%/yr (2026: 3.4% vs IMF 3.1%). The γ×damage grid spans $641T–$2,404T in 2100, $886T at the defaults — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is a dominant GDP-level dial (~1.8x per plausible range, measured at the old 0.25/0.15/0.55 weights, whose loop gain was ~2.3x today's) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies. Production reads last year's CLOSING
   capital stock (`nextCapitalStock`); its useful-energy lags and `laggedGdp` are seeded on
   each flow's own growth path (`bootstrap: 'trend'`), since a level seed made 2026 repeat
@@ -329,6 +337,11 @@ the human-capital ledger (including its replacement-cost re-pricing).
   Known fragile corner: ai-energy-boom with `dataCenterCapitalCostPerGW` 0
   (power-only brake at 10x WTP) outruns the energy system and crashes GDP in
   the 2050s; the default run is stable across every datacenter range edge
+- **Robot siting**: robot electricity load is sited by working-age population x robots per
+  worker relative to the world, set in year 0 from `robotStockShare2024` (IFR World Robotics
+  2025 operational stock 2024: China ~46%, OECD-ex-US ~37%, US ~9%), so siting follows each
+  region's workforce while keeping the observed density gaps. Robot PRODUCTIVITY is still
+  world-level (augmented labor in production)
 - Replaced the old hard `robotSaturation`/`dataCenterSaturation` logistic caps
   (speculative carrying capacities); see sources/ai-robotics-deployment-ceilings.md
 
@@ -346,10 +359,17 @@ the human-capital ledger (including its replacement-cost re-pricing).
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
-  ageing reaches the debt (default world public debt ~0.9 → ~1.1 in 2055 → ~1.6 in 2100,
-  crossing the 150% repression threshold around 2070). A safe rate below growth erodes the ratio
+  ageing reaches the debt (default world public debt 0.94 in 2025, IMF WEO Oct 2026 → ~1.13 in 2055 → ~1.6 in 2100,
+  crossing the 150% repression threshold around 2082). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
+- **Debt is measured at market exchange rates**: the deficit, the debt ratio, the fiscal reaction,
+  repression and the safe rate's debt term read world GDP re-weighted by each region's 2025
+  market/PPP price ratio (demand's `gdpMarket`, from `regions[r].marketPriceRatio2025`, IMF WEO
+  Oct 2026 via `scripts/imf-fiscal-regions.py`), as the IMF measures debt. World PPP GDP grows faster because it
+  weights emerging economies ~1.7x their market weight, while ~78% of public debt is in the US,
+  OECD-ex-US and China; dividing by it understated r − g. Private debt and the total-debt premium
+  keep world GDP
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
 - **Target leverage**: firms borrow max(investment gap, leverage borrowing), where
   leverage borrowing moves debt / capital (general + robot + datacenter) a share `leverageAdjustmentSpeed`
@@ -358,9 +378,9 @@ the human-capital ledger (including its replacement-cost re-pricing).
   Credit beyond the investment gap is paid out to owners; over-levered firms with
   spare cash repay early instead of paying it out. Without it, net new credit hit
   ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
-  2100; now debt/GDP follows K/Y (1.23 in 2050, 1.14 in 2100), with the bank credit
+  2100; now debt/GDP follows K/Y (1.44 in 2050, 1.58 in 2100), with the bank credit
   envelope (`baseCreditGrowth`) holding leverage progressively further under
-  target (~11% by 2050, worst ~14% in the 2080s). The
+  target (~12% by 2050, ~16% by 2100). The
   stock is consolidated private non-financial debt (mortgages included as leverage
   on the dwellings in the PWT stock). Robot and datacenter capital counts toward
   the target (ai-energy-boom debt/GDP 2100 0.73 -> 0.92 when it did). Known
@@ -373,9 +393,9 @@ the human-capital ledger (including its replacement-cost re-pricing).
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
   public debt and prices energy project debt: it follows smoothed trend growth one-for-one
-  (r* = c·g + z, Holston-Laubach-Williams) and rises 6.5bp per pp of public debt/GDP above
-  2025 (judgment between Laubach 2009's 3-4bp and the US 2019-26 rise's ≤7.8bp; see
-  `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
+  (r* = c·g + z, Holston-Laubach-Williams) and rises 3.5bp per pp of public debt/GDP above
+  2025 (the yield response incl. term premium: Dallas Fed WP 2513 3.5bp, Laubach 2009 3-4bp;
+  see `docs/SAFE_RATE_BACKCAST.md`), pricing a 3-year smooth of the ratio (`safeRateDebtSmoothingYears`:
   markets price the debt path, and the current ratio turned the low-growth 2026 into a rate
   spike; the repression threshold still reads actual debt) — deliberately NOT tied to K/Y, since safe rates fell ~5pp while the
   return on capital stayed flat (Marx-Mojon-Velde). `loanRate` = safeRate + `creditSpread`
@@ -391,7 +411,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   (1−α) x `automationIncomeToCapital`) is paid to capital, not wages (Acemoglu-Restrepo
   displacement). `laborShare` reports compensation / GDP. Demand values a robot at the human wage
   it displaces, scaled by the lagged labor share relative to 2025, so automation cheapens the labor
-  it competes with and slows itself (default 2100: ~580 robots/1000 workers, labor share ~31%)
+  it competes with and slows itself (default 2100: ~325 robots/1000 workers, labor share ~40%)
 - **Firm insolvency**: firms cannot pay out deposits they do not have. Once the deposit
   buffer is gone and interest due exceeds operating surplus, firms suspend dividends, leave
   interest unpaid (`unpaidPrivateInterest`, forgone by banks, never capitalized), then miss
@@ -567,6 +587,7 @@ outside them reads them, which is a domain fact rather than a graph property.
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |
+| `gdpMarket` / `regionalGdpMarket` | $T | GDP at market exchange rates, constant 2025 prices and exchange rates (understates converging economies over time) |
 | `safeRate` | fraction | Real rate on public debt (tracks trend growth and public debt; ~1% in 2025) |
 | `loanRate` | fraction | Real rate on private bank debt (safe rate + credit spread) |
 | `repressionGap` | fraction | pp the safe rate is held below its market level (financial repression) |

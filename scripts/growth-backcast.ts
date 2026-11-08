@@ -32,8 +32,18 @@ const N = def.gdpPath.length;
 const obsCagr = cagr(def.gdpObserved[0], def.gdpObserved[N - 1], N - 1);
 const defCagr = cagr(def.gdpPath[0], def.gdpPath[N - 1], N - 1);
 
-const gammaGrid = [0.08, 0.25, 0.40, 0.55, 0.70];
-const gammaRuns = gammaGrid.map((g) => ({ g, r: runGrowthBackcast({ gamma: g }) }));
+// The sweep holds returns to scale constant: alpha stays at its default and
+// labor takes the weight energy gives up (beta = 1 - alpha - gamma). Sweeping
+// gamma with alpha AND beta fixed (as this script used to) made the low-gamma
+// cases decreasing-returns economies (0.25 + 0.15 + 0.08 = 0.48), and the
+// growth they lost was read as evidence against a low energy weight.
+const gammaGrid = [0, 0.10, 0.20, 0.30, 0.40, 0.55, 0.70];
+const gammaRuns = gammaGrid.map((g) => ({
+  g,
+  r: runGrowthBackcast({ gamma: g, beta: 1 - productionDefaults.alpha - g }),
+}));
+const rmsLogError = (r: { gdpPath: number[]; gdpObserved: number[] }) =>
+  Math.sqrt(r.gdpPath.reduce((s, x, i) => s + Math.log(x / r.gdpObserved[i]) ** 2, 0) / r.gdpPath.length);
 
 
 // ---------------------------------------------------------------------------
@@ -132,20 +142,27 @@ p(`| **Model total** | ${(def.gdpPath[N - 1] / def.gdpPath[0]).toFixed(2)} | **$
 p(`| Observed | ${(gdpObs[N - 1] / gdpObs[0]).toFixed(2)} | ${pct(obsCagr)} |`);
 p();
 
-p('## γ sweep (with calibrated efficiency)');
+p(`## γ sweep at constant returns (α = ${productionDefaults.alpha}, β = 1 − α − γ, calibrated efficiency)`);
 p();
-p('| γ | Predicted CAGR | Gap vs observed |');
-p('|---|---:|---:|');
+p('| γ | β | Predicted CAGR | Gap vs observed | RMS log error of the path |');
+p('|---|---|---:|---:|---:|');
 for (const { g, r } of gammaRuns) {
   const pc = cagr(r.gdpPath[0], r.gdpPath[N - 1], N - 1);
-  p(`| ${g.toFixed(2)}${g === productionDefaults.gamma ? ' (default)' : ''} | ${pct(pc)}%/yr | ${pct(obsCagr - pc)} pp/yr |`);
+  const isDefault = Math.abs(g - productionDefaults.gamma) < 1e-9
+    && Math.abs(1 - productionDefaults.alpha - g - productionDefaults.beta) < 1e-9;
+  p(`| ${g.toFixed(2)}${isDefault ? ' (default)' : ''} | ${(1 - productionDefaults.alpha - g).toFixed(2)} | ${pct(pc)}%/yr | ${pct(obsCagr - pc)} pp/yr | ${rmsLogError(r).toFixed(3)} |`);
 }
 p();
-p('The efficiency series is fixed by its own anchors (not solved per γ), so');
-p('this sweep is a genuine out-of-sample test of γ: low γ under-predicts');
-p('history badly and no plausible efficiency path rescues it; the fit is');
-p('loose across γ ∈ [0.40, 0.70]. History rejects cost-share γ≈0.08,');
-p('conditional on the exergy anchors — it does not pinpoint 0.55.');
+p('History does not identify γ. Over 1990-2025 effective labor and');
+p('exergy-weighted useful energy grew at almost the same rate (~1.5 and');
+p('~1.8%/yr), so with returns to scale held constant every γ from 0 to 0.7');
+p('fits the GDP path to within ~0.25pp/yr, and the lowest γ fits best.');
+p('Forward the two inputs diverge (working-age labor ~0.4%/yr, useful energy');
+p('~2-3%/yr), so the split history cannot settle is the one that drives the');
+p('forecast. An earlier version of this sweep held β at 0.15 while lowering');
+p('γ, so its low-γ cases had decreasing returns (weights summing to 0.48);');
+p('the growth they lost was read as "history rejects cost-share γ≈0.08".');
+p('It does not. γ is set on other evidence (production.ts).');
 p();
 
 p('## Per-decade check (calibrated defaults)');
