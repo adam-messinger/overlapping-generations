@@ -56,21 +56,28 @@ forward eta0 = backcast endpoint).
 | **Model total** | 3.35 | **3.45** |
 | Observed | 3.32 | 3.43 |
 
-## γ sweep (with calibrated efficiency)
+## γ sweep at constant returns (α = 0.25, β = 1 − α − γ, calibrated efficiency)
 
-| γ | Predicted CAGR | Gap vs observed |
-|---|---:|---:|
-| 0.08 | 2.61%/yr | 0.82 pp/yr |
-| 0.25 | 2.91%/yr | 0.51 pp/yr |
-| 0.40 | 3.18%/yr | 0.25 pp/yr |
-| 0.55 (default) | 3.45%/yr | -0.02 pp/yr |
-| 0.70 | 3.72%/yr | -0.29 pp/yr |
+| γ | β | Predicted CAGR | Gap vs observed | RMS log error of the path |
+|---|---|---:|---:|---:|
+| 0.00 | 0.75 | 3.34%/yr | 0.08 pp/yr | 0.026 |
+| 0.10 | 0.65 | 3.38%/yr | 0.05 pp/yr | 0.030 |
+| 0.20 | 0.55 | 3.41%/yr | 0.02 pp/yr | 0.033 |
+| 0.30 | 0.45 | 3.44%/yr | -0.01 pp/yr | 0.037 |
+| 0.40 | 0.35 | 3.47%/yr | -0.05 pp/yr | 0.042 |
+| 0.55 | 0.20 | 3.52%/yr | -0.10 pp/yr | 0.049 |
+| 0.70 | 0.05 | 3.57%/yr | -0.14 pp/yr | 0.056 |
 
-The efficiency series is fixed by its own anchors (not solved per γ), so
-this sweep is a genuine out-of-sample test of γ: low γ under-predicts
-history badly and no plausible efficiency path rescues it; the fit is
-loose across γ ∈ [0.40, 0.70]. History rejects cost-share γ≈0.08,
-conditional on the exergy anchors — it does not pinpoint 0.55.
+History does not identify γ. Over 1990-2025 effective labor and
+exergy-weighted useful energy grew at almost the same rate (~1.5 and
+~1.8%/yr), so with returns to scale held constant every γ from 0 to 0.7
+fits the GDP path to within ~0.25pp/yr, and the lowest γ fits best.
+Forward the two inputs diverge (working-age labor ~0.4%/yr, useful energy
+~2-3%/yr), so the split history cannot settle is the one that drives the
+forecast. An earlier version of this sweep held β at 0.15 while lowering
+γ, so its low-γ cases had decreasing returns (weights summing to 0.48);
+the growth they lost was read as "history rejects cost-share γ≈0.08".
+It does not. γ is set on other evidence (production.ts).
 
 ## Per-decade check (calibrated defaults)
 
@@ -105,9 +112,9 @@ moves outside ~1-3%/yr.
 
 | | 1990-2025 (observed inputs) | 2025-2050 (model forward) |
 |---|---:|---:|
-| Capital growth | 3.54%/yr | 2.44%/yr |
-| Exergy-weighted E growth | 1.78%/yr | 2.11%/yr |
-| GDP growth | 3.43%/yr (obs) / 3.45%/yr (model) | 3.08%/yr |
+| Capital growth | 3.54%/yr | 3.07%/yr |
+| Exergy-weighted E growth | 1.78%/yr | 2.82%/yr |
+| GDP growth | 3.43%/yr (obs) / 3.45%/yr (model) | 3.72%/yr |
 
 The forward slowdown that remains after calibration is input-driven —
 demographic savings decline (capital) and electrification shrinking

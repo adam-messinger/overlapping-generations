@@ -104,11 +104,25 @@ test('dispatch: a global total that drops a region fails aggregation', () => {
   });
 });
 
+test('demand: a region dropped from GDP at market rates fails the partition', () => {
+  expectBites('demand', 'regions partition GDP at market rates', ({ outputs }) => {
+    outputs.regionalGdpMarket.ssa = 0;
+  });
+});
+
 test('demand: electricity reclassified into a sector fails the partition', () => {
   expectBites('demand', 'sectors partition non-electric energy', ({ outputs }) => {
     // The 03129ca shape: robot/DC electricity counted as sector fuel
     outputs.sectors.industry.nonElectric += 1000;
     outputs.sectors.industry.total += 1000;
+  });
+});
+
+test('demand: fuel billed to no region fails the fuel-cost partition', () => {
+  expectBites('demand', 'regions partition fuel cost', ({ outputs }) => {
+    // The lock-in fuel's cost kept in the world total but billed to no
+    // region (what the removed second pricing path did)
+    outputs.fuelCost += 0.05;
   });
 });
 
