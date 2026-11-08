@@ -52,5 +52,6 @@ moved by under 2 pp.
 LLM seats share priors and corpora, so their errors are correlated. That is why the
 unextremized mean leads. The four Fermi seats read the model at its panel-origin vintage
 (commit 46df211), before the datacenter capex and siting fixes. All four treated its readings
-as directional or refused, and none adopted a model number. Nothing here is sealed through
+as directional or refused, and none adopted a model number. The adapter spec names the pre-#129 brake
+parameter (`dataCenterPowerSpendCeiling`), so re-running it as written needs that commit. Nothing here is sealed through
 `packages/forecast-workbench` yet. Resolution dates run from 2028-12-31 (Q2-Q4) to 2031 (Q1, Q5, Q6).

@@ -2,8 +2,8 @@
 
 Will Manidis and Joe Roberts, *The Commanding Heights* (commanding-heights.com,
 2026-10-29; ~40,000 words, 153 notes). This note records which of its claims this
-model can speak to, what the model said before and after two fixes the exercise
-exposed, and where the Tetlock panel (`docs/forecasts/commanding-heights-2026/`) lands.
+model can speak to, what the model says after two fixes the exercise
+exposed (now on main), and where the Tetlock panel (`docs/forecasts/commanding-heights-2026/`) lands.
 
 Reproduce: `npx tsx scripts/commanding-heights.ts`.
 
@@ -25,7 +25,9 @@ percent share, which stood at 52.8% in 2026Q2.
 
 ## Two fixes the exercise exposed
 
-Testing claims 2 and 3 showed two calibration errors in the datacenter block, both now fixed:
+Testing claims 2 and 3 showed two calibration errors in the datacenter block. Both were fixed in
+this work and landed on main through adam-messinger/overlapping-generations#129, which combined
+them with a datacenter brake on total cost of ownership refitted at the new cost:
 
 1. **Datacenter capex was a third of observed spend.** The composite chips + facility cost was a
    $15B per average GW judgment anchor, which charged ~$0.24T in 2025 and ~$0.27T in 2026 against
@@ -36,20 +38,15 @@ Testing claims 2 and 3 showed two calibration errors in the datacenter block, bo
    against IEA's ~183 TWh in 2024) and 36% in the US and China (IEA: ~70%). Now sited by IEA's
    observed 2024 split (US 45%, China 25%, Europe 15%), held fixed.
 
-Consequences, attributed by running each change alone: the cost fix lowers default GDP in 2100
-by 17% (1,967 -> 1,634 $T) because datacenters are a GDP-neutral sink by default
-(`aiWorkerEquivalentPerTWh = 0`) that now absorbs three times as much of the shared investment
-pool; the siting fix raises 2050 grid intensity 94 -> 112 kg/MWh because compute now sits on the
-fossil-heavier US and Chinese grids. `ai-energy-boom`, which turns the cognitive-labour payoff on,
-now ends 2100 *below* the default (~$1,055T vs ~$1,634T; it was ~$3,956T at $15B/GW). The
-regression baseline was re-blessed with this attribution.
+The siting fix is the one with a large regional effect: the US carries ~1,900 TWh of datacenter
+load in 2050 and its 2050 grid intensity rises from ~58 to ~173 kg/MWh (fossil share 25%), while
+China's and OECD-ex-US grids are fossil-free by 2050 in the default run. Default datacenters stay
+a GDP-neutral sink (`aiWorkerEquivalentPerTWh = 0`): that is a modelling choice (their services'
+value sits in the measured GDP of the sectors buying them), not a finding, and it makes "capital
+destruction in aggregate" true by construction on the default path. T2 therefore asks the
+question the other way round: what payoff does the boom need?
 
-The default's zero payoff is a modelling choice (datacenter services' value is in the measured
-GDP of the sectors buying them), not a finding. It makes "capital destruction in aggregate" true
-by construction on the default path. T2 therefore asks the question the other way round: what
-payoff does the boom need?
-
-## What the model says, before and after the fixes
+## What the model says
 
 ### T1. The Line hits the macro budget around 2030-31 (arithmetic, unchanged by the fixes)
 
@@ -61,55 +58,60 @@ non-US financing or a reallocation of most US investment. The essay's near-term 
 $10B runs in 2027-28, $1T capex) are inside the budget; its "the line will be sustained" is not,
 beyond ~2030.
 
-### T2. Genesis: the boom needs ~1.3 kW per worker-equivalent to pay for itself
+### T2. Genesis: the boom needs ~2 kW per worker-equivalent to pay for itself
 
-`line` = datacenter base growth doubled to 0.30 and the power-spend ceiling loosened 10x.
+`line` = datacenter base growth doubled to 0.30 and the total-cost spend ceiling loosened 10x (as
+in `ai-energy-boom`). Columns: the model the Tetlock panel read (commit 46df211, $15B/GW, GDP
+siting, power-bill brake) and current main (with both fixes, #127's robot and datacenter capital
+stock, and #129's total-cost brake).
 
-| | before fixes | after fixes |
+| | panel-origin model | current main |
 |---|---|---|
-| baseline datacenter capex 2030 | $0.44T | $1.30T |
-| `line` datacenter capex 2030 / 2035 | $2.2T / $11.1T | $6.7T / $32.2T |
-| `line` with no payoff: GDP 2040 vs baseline | -5.6% | -9.8% |
-| `line` with no payoff: cumulative 2026-40 GDP lost | $68T | $121T |
-| payoff at which cumulative 2026-40 GDP breaks even | ~47k worker-eq/TWh (~2.4 kW each) | ~89k worker-eq/TWh (~1.3 kW each) |
+| baseline datacenter capex 2030 | $0.44T | $1.32T |
+| `line` datacenter capex 2030 / 2035 | $2.2T / $11.1T | $6.7T / $30.9T |
+| `line` with no payoff: GDP 2040 vs baseline | -5.6% | -8.2% |
+| `line` with no payoff: cumulative 2026-40 GDP lost | $68T | $103T |
+| payoff at which cumulative 2026-40 GDP breaks even | ~47k worker-eq/TWh (~2.4 kW each) | ~51k worker-eq/TWh (~2.2 kW each) |
 | return on capital 2035, `line` vs baseline | +0.2 pp | +0.6 pp |
 
-Read: a sustained line pays for itself by 2040 only if each ~1.3 kW of continuous datacenter
-load (roughly one accelerator with its facility overhead) does the work of a full-time worker,
-averaged over the whole fleet. Below that, the essay's "capital destruction in the aggregate" holds
-in the model; above it, it does not. The `line` also needs ~17,000 TWh of datacenter load by 2035,
-about 40% of the baseline's world electricity: the model never lets power bind (no interconnection
-queue), which flatters the line.
+Read: a sustained line pays for itself by 2040 only if each ~2.2 kW of continuous datacenter
+load (one to two accelerators with their facility overhead) does the work of a full-time worker,
+averaged over the whole fleet. Below that, the essay's "capital destruction in the aggregate"
+holds in the model; above it, it does not. On current main the break-even barely moves: tripling
+the capital cost is offset by counting datacenters as capital stock (#127). The `line` also needs
+~16,600 TWh of datacenter load by 2035, about 40% of the baseline's world electricity. The model
+never lets power bind (no interconnection queue), which flatters the line.
 
-### T3. Labor to capital: the essay's size needs a payoff, and comes with it
+### T3. Labor to capital: the essay's size arrives just short of break-even
 
-| run | labor share change 2026-36 |
+| run (current main) | labor share change 2026-36 |
 |---|---|
 | baseline, or `line` with no payoff | -0.4 pp |
-| `line`, payoff 25k/TWh | -4.3 pp |
-| `line`, payoff 50k/TWh | -7.8 pp |
-| `line`, break-even payoff ~89k/TWh | about -12 pp |
+| `line`, payoff 25k/TWh | -4.2 pp |
+| `line`, payoff 50k/TWh (about break-even) | -7.7 pp |
+| `line`, payoff 100k/TWh | -13.7 pp |
 | `ai-energy-boom` | -3.5 pp |
 
-(unchanged by the fixes to one decimal.) The essay's decade-equals-forty-years transfer (-5.5 to
--7 pp) appears in the model only when compute substitutes for labor at ~35-45k worker-equivalents
-per TWh (interpolated). In that band the boom also does NOT repay its capital by 2040 (cumulative
-2026-40 GDP about -$53T to -$67T). So the model's reading is that the essay's two claims are jointly consistent in one
-band: AI good enough to move a decade of labor share to capital, not good enough to pay back
-the build. Above the break-even the labor-share fall is roughly twice the essay's figure. (The
-model's labor share is a world compensation share in a monetary-circuit closure, ~65% in 2025;
-read changes, not levels.)
+The essay's decade-equals-forty-years transfer (-5.5 to -7 pp) appears in the model only when
+compute substitutes for labor at ~34-45k worker-equivalents per TWh (interpolated). That is just
+short of break-even, where the boom has not quite repaid its capital by 2040 (cumulative 2026-40
+GDP about -$35T to -$13T). So in the model the essay's two claims sit together in one narrow
+band: AI good enough to move a decade of labor share to capital and almost good enough to pay
+for the build. Above break-even the labor-share fall is roughly twice the essay's figure. (On
+the panel-origin model the same band was further from break-even, -$53T to -$67T.) The model's
+labor share is a world compensation share in a monetary-circuit closure, ~65% in 2025; read
+changes, not levels.
 
 ### T4. Debasement as repression: savers pay, the debt ratio falls
 
 | financial repression | safe rate 2030 | public debt/GDP 2050 | household interest forgone 2026-50 | GDP 2050 |
 |---|---|---|---|---|
-| none | 1.2% | 0.99 | - | - |
-| 1 pp | 0.1% | 0.80 | $56T | +1.5% |
-| 2 pp | -1.1% | 0.67 | $108T | +1.7% |
-| 3 pp | -2.2% | 0.57 | $158T | +2.0% |
+| none | 1.2% | 0.97 | - | - |
+| 1 pp | 0.1% | 0.78 | $56T | +1.9% |
+| 2 pp | -1.1% | 0.65 | $108T | +2.7% |
+| 3 pp | -2.2% | 0.56 | $157T | +3.2% |
 
-(Before the fixes the GDP gain was +2.1% to +3.0%; the other columns are unchanged.) With r_safe
+(Current main; the panel-origin model gave the same debt and interest columns within 0.02 and $1T.) With r_safe
 already ~2.5 pp below growth, the world debt ratio barely rises on the default path and the
 model's fiscal-dominance trigger (150% of world GDP) never binds to 2050. Repression does what the
 essay says to bondholders, and in this model it also raises output, because the safe rate prices
@@ -119,9 +121,10 @@ outside the model.
 
 ### T5. Principalities: compute sits in two countries
 
-After the siting fix, 70% of datacenter load is in the US and China (45% + 25%), matching IEA,
-against 36% before. This is calibration to the observed concentration, not a forecast that it
-persists: the share is held fixed.
+With IEA siting, 70% of datacenter load is in the US and China (45% + 25%), against 36% when it
+was spread by GDP share. US datacenter load is ~254 TWh in 2025 and ~812 TWh in 2035. This is
+calibration to the observed concentration, not a forecast that it persists: the share is held
+fixed. Its cost shows up on the US grid (2050 grid intensity ~173 kg/MWh, above).
 
 ## What the model cannot test
 

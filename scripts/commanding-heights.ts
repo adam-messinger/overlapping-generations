@@ -26,6 +26,7 @@
  * world-aggregate public debt, PPP-2017 levels. See the doc.
  */
 
+import { readFileSync } from 'node:fs';
 import { runSimulation } from '../src/index.js';
 import { demandDefaults } from '../src/modules/demand.js';
 
@@ -53,8 +54,9 @@ function table(head: string[], body: (string | number)[][]): string {
 
 // --- the essay's levers, as model parameter sets ---------------------------------
 // "The line": the closest the model gets to an unbraked datacenter build is a
-// doubled base growth with the power-spend ceiling loosened 10x.
-const LINE = { demand: { dataCenterBaseGrowth: 0.30, dataCenterPowerSpendCeiling: 0.005 } };
+// doubled base growth with the total-cost spend ceiling loosened 10x (as in
+// ai-energy-boom).
+const LINE = { demand: { dataCenterBaseGrowth: 0.30, dataCenterSpendCeiling: 0.13 } };
 const withPayoff = (w: number) => ({ ...LINE, production: { aiWorkerEquivalentPerTWh: w } });
 
 const out: string[] = [];
@@ -96,16 +98,15 @@ const base = run('baseline', {});
 // --- T2 ------------------------------------------------------------------------
 {
   const noPay = run('line, no payoff', LINE);
-  const boom = run('ai-energy-boom', {
-    demand: { dataCenterPowerSpendCeiling: 0.005, dataCenterBaseGrowth: 0.15, robotDiffusionRate: 0.3, robotIntegrationExponent: 0.5 },
-    production: { robotLaborEquivalent: 2, aiWorkerEquivalentPerTWh: 100000 },
-  });
+  const { name: _n, description: _d, ...boomParams } = JSON.parse(
+    readFileSync(new URL('../scenarios/ai-energy-boom.json', import.meta.url), 'utf8'));
+  const boom = run('ai-energy-boom', boomParams);
   const payoffs = [25000, 50000, 100000];
   const pays = payoffs.map((w) => run(`line, payoff ${w / 1000}k/TWh`, withPayoff(w)));
   const runs = [base, noPay, ...pays, boom];
   p('## T2. Genesis: a sustained datacenter boom, with and without an output payoff');
   p();
-  p('`line` = datacenter base growth 0.30 and the power-spend ceiling 10x (0.5% of GDP). Payoff = production.aiWorkerEquivalentPerTWh (0 by default). Capex is the model\'s composite chips + facility spend, world, $T (PPP-2017).');
+  p('`line` = datacenter base growth 0.30 and the total-cost spend ceiling 10x (13% of GDP). Payoff = production.aiWorkerEquivalentPerTWh (0 by default). Capex is the model\'s composite chips + facility spend, world, $T (PPP-2017).');
   p();
   p(table(
     ['run', 'DC capex 2030', 'DC capex 2035', 'cum. DC capex 2026-40', 'DC TWh 2035', 'investment 2035', 'GDP 2035 vs base', 'GDP 2040 vs base', 'cum. GDP 2026-40 vs base', 'return on capital 2035', 'energy WACC 2035'],
