@@ -112,10 +112,6 @@ export interface CapitalParams {
 
   stabilityLambda: number;    // Sensitivity to uncertainty (see Key equations)
 
-  // Automation
-
-  // Investment split
-
   // Retirement age adjustment
   retirementAgeResponse: number;    // Fraction of LE gains → retirement age (0.67)
 
@@ -191,7 +187,7 @@ export interface CapitalState {
 }
 
 export interface CapitalInputs {
-  /** Realized energy capex $T (from energy, lagged). Unwired fallback: the internal burden-driven estimate (pre-ledger behavior) */
+  /** Realized energy capex $T (from energy, lagged). Unwired: 0 */
   energyCapexSpend?: number;
   /** Realized CDR spend $T (from cdr, lagged). Unwired fallback: 0 (free CDR — pre-ledger behavior) */
   cdrSpend?: number;
@@ -289,7 +285,7 @@ export interface CapitalOutputs {
   // Growth rate
   capitalGrowthRate: number;  // Annual growth rate of capital stock
 
-  // Investment split
+  // Investment ledger
   generalInvestment: number;        // $ trillions to general economy
   capitalFormation: number;         // $T entering K: generalInvestment + robot + datacenter capex
   unfundedRealizedSpend: number;    // $T of realized spends exceeding the investment pool (floor binding)
@@ -438,12 +434,6 @@ export const capitalDefaults: CapitalParams = {
 
   // G/C uncertainty premium
   stabilityLambda: 2.0,     // At 30% uncertainty: 15% investment suppression
-
-  // Automation: share trajectory is a modeling assumption; robot density
-  // calibrated to IFR World Robotics 2024 (~4M industrial robots in
-  // operation, ~162 per 10k manufacturing workers globally)
-
-  // Investment split
 
   // Retirement age adjustment
   retirementAgeResponse: 0.67,  // OECD recommendation: 2/3 of gains in life expectancy at pension age (e65) → retirement age
@@ -1441,8 +1431,6 @@ export const capitalModule: Module<
     year: number,
     yearIndex: number
   ): { state: CapitalState; outputs: CapitalOutputs } {
-    const t = yearIndex;
-
     // Robots and datacenters are capital. The observed 2025 stock already
     // contains the 2025 fleets, so year 0 carves them out of it at their
     // installed cost; from then on each is a perpetual inventory of its
@@ -1703,8 +1691,12 @@ export const capitalModule: Module<
     const realizedCdrSpend = inputs.cdrSpend ?? 0;
     const realizedRobotCapex = inputs.robotCapexSpend ?? 0;
     const realizedDataCenterCapex = inputs.dataCenterCapexSpend ?? 0;
-    const specialPurposeSpend =
-      realizedEnergyCapex + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+    const totalRealizedSpend = sumQuantities([
+      unitQuantity(realizedEnergyCapex, '$T/year', 'energy capex'),
+      unitQuantity(realizedCdrSpend, '$T/year', 'CDR spend'),
+      unitQuantity(realizedRobotCapex, '$T/year', 'robot capex'),
+      unitQuantity(realizedDataCenterCapex, '$T/year', 'datacenter capex'),
+    ], '$T/year', 'realized capital spend').value;
     // Orders always replace worn general capital ON TOP of the energy and CDR
     // spends debited from them. The order rule already replaces depreciation
     // unconditionally; carving those spends out of that replacement shrank
@@ -1807,7 +1799,7 @@ export const capitalModule: Module<
       // Pecking order: orders beyond internal funds are financed with debt
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
-        + Math.max(0, orders - specialPurposeSpend)
+        + Math.max(0, orders - totalRealizedSpend)
         + newRobotStock + newDataCenterStock;
       const leverageBorrowing =
         desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
@@ -2053,12 +2045,6 @@ export const capitalModule: Module<
     // The K-stock debit uses the realized spends above. Lag caveat: the debit
     // trails the build by a year, so K is over-credited during fast capex
     // growth and the final horizon year is never debited.
-    const totalRealizedSpend = sumQuantities([
-      unitQuantity(realizedEnergyCapex, '$T/year', 'energy capex'),
-      unitQuantity(realizedCdrSpend, '$T/year', 'CDR spend'),
-      unitQuantity(realizedRobotCapex, '$T/year', 'robot capex'),
-      unitQuantity(realizedDataCenterCapex, '$T/year', 'datacenter capex'),
-    ], '$T/year', 'realized capital spend').value;
     // When spends exceed the pool, generalInvestment floors at 0 and the
     // overflow is implicitly unfinanced — exposed as an output so runs can
     // detect a silently binding floor instead of hiding it.

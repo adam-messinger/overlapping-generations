@@ -1012,13 +1012,9 @@ test('target leverage is the year-0 private debt / capital ratio, held in state'
 });
 
 test('an under-levered firm closes the stated share of the gap and pays the recap out', () => {
-  // With an energy capex debit, as every wired run has. Capital run on its
-  // own once debited an internal ~13%-of-orders estimate here; with no
-  // special-purpose spend at all only ~84% of the recap reaches dividends.
-  const wiredSpend = { energyCapexSpend: 5 };
-  const onTargetRun = stepOffTarget(1, {}, wiredSpend);
+  const onTargetRun = stepOffTarget(1);
   const onTarget = onTargetRun.outputs;
-  const { state, outputs } = stepOffTarget(1.2, {}, wiredSpend);
+  const { state, outputs } = stepOffTarget(1.2);
   const opening = outputs.privateLeverage;
   const target = outputs.targetPrivateLeverage;
   expect(target).toBeGreaterThan(opening);
@@ -1035,8 +1031,11 @@ test('an under-levered firm closes the stated share of the gap and pays the reca
   expect(outputs.unfundedFinancingDemand).toBe(0);
   expect(outputs.investment).toBeCloseTo(outputs.plannedInvestment, 9);
   expect(outputs.investment).toBeLessThan(onTarget.investment);
+  // Against the EXTRA recap: debt growing with K recaps a little even on
+  // target when internal funds cover orders, and that payout is in both runs
   expect(outputs.firmDividendPayments).toBeGreaterThan(
-    onTarget.firmDividendPayments + 0.9 * outputs.leverageRecapBorrowing,
+    onTarget.firmDividendPayments
+      + 0.9 * (outputs.leverageRecapBorrowing - onTarget.leverageRecapBorrowing),
   );
   const firmDeposits = (ledger: any) => ledger.balances['firms.deposits'];
   expect(Math.abs(
