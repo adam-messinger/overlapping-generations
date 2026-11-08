@@ -59,50 +59,63 @@ non-US financing or a reallocation of most US investment. The essay's near-term 
 $10B runs in 2027-28, $1T capex) are inside the budget; its "the line will be sustained" is not,
 beyond ~2030.
 
-### T2. Genesis: the boom pays for itself at ~6.6 kW per worker-equivalent
+### T2. Genesis: the boom pays for itself at ~2.9 kW per worker-equivalent
 
 `line` = datacenter base growth doubled to 0.30 and the total-cost spend ceiling loosened 10x (as
-in `ai-energy-boom`). Columns: the model the Tetlock panel read (commit 46df211, $15B/GW, GDP
-siting, power-bill brake) and current main (both fixes, robot and datacenter capital stock #127,
-the total-cost brake #129, the all-capital leverage target #134 and constant-returns growth #136).
+in `ai-energy-boom`). Payoff = `production.aiWorkerEquivalentPerTWh`, the full-time workers whose
+output each TWh of datacenter load replaces (0 by default).
 
-| | panel-origin model | current main |
-|---|---|---|
-| baseline datacenter capex 2030 | $0.44T | $1.30T |
-| `line` datacenter capex 2030 / 2035 | $2.2T / $11.1T | $6.6T / $29.7T |
-| `line` with no payoff: GDP 2040 vs baseline | -5.6% | -5.9% |
-| `line` with no payoff: cumulative 2026-40 GDP lost | $68T | $68T |
-| payoff at which cumulative 2026-40 GDP breaks even | ~47k worker-eq/TWh (~2.4 kW each) | ~17k worker-eq/TWh (~6.6 kW each) |
-| return on capital 2035, `line` vs baseline | +0.2 pp | +0.6 pp |
+**What counts as paying.** The test is what people get: cumulative 2026-40 consumption (household
+plus public services) plus the capital stock left in 2040 (general, robot and datacenter, so
+datacenters still standing count, and so does the general capital they crowded out), each against
+the baseline. GDP is the wrong test. GDP that holds level while datacenter capex absorbs more of
+it means less consumption. An earlier version of this note scored GDP and reported break-even at
+~17k worker-equivalents per TWh; at that payoff the boom still costs ~$78T of value.
 
-Read: with no output payoff, the essay's "capital destruction in the aggregate" holds: a
-sustained line costs ~$68T of cumulative 2026-40 GDP. But the bar for paying it back is now low.
-Each ~6.6 kW of continuous datacenter load (several accelerators with their facility overhead) has
-to do the work of one full-time worker, averaged over the whole fleet. The break-even moved most
-with #136's constant-returns growth, which lets the extra output a payoff creates compound. It
-was ~2.2 kW on main just before #134-#136. The `line` also needs ~16,100 TWh of datacenter load by
-2035, about 40% of the baseline's world electricity, and the model never lets power bind (no
-interconnection queue), which flatters the line.
+| run (current main) | cum. GDP vs base | cum. extra DC capex | cum. consumption vs base | capital 2040 vs base | **value vs base** |
+|---|---|---|---|---|---|
+| `line`, no payoff | -$67T | $216T | -$78T | -$50T | **-$128T** |
+| payoff 25k/TWh | +$30T | $232T | -$52T | +$1T | **-$52T** |
+| payoff 35k/TWh | +$72T | $240T | -$38T | +$21T | **-$16T** |
+| payoff 45k/TWh | +$114T | $247T | -$19T | +$39T | **+$20T** |
+| payoff 75k/TWh | +$250T | $270T | +$46T | +$92T | **+$137T** |
+| `ai-energy-boom` | +$89T | $58T | +$33T | +$28T | **+$61T** |
 
-### T3. Labor to capital: the essay's size comes with a boom that pays
+Break-even on value is ~40k worker-equivalents per TWh: each ~2.9 kW of continuous datacenter
+load (two to three accelerators with their facility overhead) has to do a full-time worker's job,
+averaged over the whole fleet. On consumption alone it is ~55k (~2.1 kW). Below it, the essay's
+"capital destruction in the aggregate" holds; above it, it does not. The model cannot say which
+side the real world is on: the payoff is an input, not an output. Two limits on the reading: the
+2040 cut-off (datacenter capital depreciates 15% a year, so later payoffs are only partly counted
+through the 2040 stock), and power never binds in the model (the `line` needs ~16,100 TWh of
+datacenter load by 2035, about 40% of the baseline's world electricity).
 
-| run (current main) | labor share change 2026-36 | cumulative GDP 2026-40 vs baseline |
+For the panel-origin model (commit 46df211) the GDP-scored break-even was ~47k; main has since
+changed production (constant returns, #136) and capital (#127, #134).
+
+### T3. Labor to capital: the essay's size lands on break-even
+
+| run (current main) | labor share change 2026-36 | value 2026-40 vs base |
 |---|---|---|
 | baseline | -0.3 pp | - |
-| `line` with no payoff | -0.3 pp | -$68T |
-| `line`, payoff 25k/TWh | -4.2 pp | +$30T |
-| `line`, payoff 50k/TWh | -7.7 pp | +$136T |
-| `line`, payoff 100k/TWh | -13.9 pp | +$369T |
-| `ai-energy-boom` | -3.4 pp | +$89T |
+| `line`, no payoff | -0.3 pp | -$128T |
+| payoff 25k/TWh | -4.2 pp | -$52T |
+| payoff 35k/TWh | -5.6 pp | -$16T |
+| payoff 45k/TWh | -7.0 pp | +$20T |
+| payoff 75k/TWh | -10.9 pp | +$137T |
+| `ai-energy-boom` | -3.4 pp | +$61T |
 
-The essay's decade-equals-forty-years transfer (-5.5 to -7 pp) appears in the model only when
-compute substitutes for labor at ~34-45k worker-equivalents per TWh (interpolated). On current main
-that is two to three times the break-even, so the boom is strongly GDP-positive there (about +$70T
-to +$115T over 2026-40). The essay's two claims therefore pull against each other in the model: if
-AI is good enough to move a decade of labor share to capital, the build is not capital
-destruction in aggregate; if the build destroys capital, the labor share barely moves. (On the
-panel-origin model the two overlapped; the change is #136's.) The model's labor share is a world
-compensation share in a monetary-circuit closure, ~65% in 2025; read changes, not levels.
+The essay's decade-equals-forty-years transfer (-5.5 to -7 pp) appears at a payoff of ~35-45k
+worker-equivalents per TWh, the band in which the build crosses break-even (value -$16T to
++$20T). So the essay's two claims meet at the boundary: AI good enough to move a decade of labor
+share to capital is just about good enough to repay the build by 2040, neither clearly destroying
+capital nor clearly creating it. Two caveats on what this shows:
+
+- **The pairing is built in.** The labor share falls only because AI worker-equivalents' income is
+  paid to capital, so a large labor-share shift with no AI output cannot occur in the model. It
+  cannot test the two claims independently.
+- **The model's labor share** is a world compensation share in a monetary-circuit closure (~65%
+  in 2025): read changes, not levels.
 
 ### T4. Debasement as repression: savers pay, the debt ratio falls
 
@@ -151,4 +164,5 @@ Full report: `docs/forecasts/commanding-heights-2026/REPORT.md`. Raw means:
 Model and panel agree on the shape of the answer. The essay's directions hold up: capex
 rising, the labor share falling, compute concentrated in two countries. Its magnitudes do not:
 the line cannot run past ~2030 on arithmetic (T1), and the panel puts its named milestones at
-4-24%.
+4-24%. Whether the build destroys capital turns on how much work each kilowatt of compute
+does, and the essay's own labor-share claim puts it right at the model's break-even (T2-T3).

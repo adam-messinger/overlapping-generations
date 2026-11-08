@@ -11,8 +11,8 @@
  *     Epoch's frontier training cost 3.5x/yr) projected against the US economy
  *     the model grows. When does the line hit the macro budget?
  *  T2 Genesis: a sustained datacenter boom with and without an AI output
- *     payoff. "Rational for each firm, capital destruction in aggregate" is the
- *     no-payoff case; the payoff that breaks even is the question.
+ *     payoff, scored on consumption plus the capital left at the end, not on
+ *     GDP. The payoff that breaks even is the question.
  *  T3 Labor to capital: the labor-share change over 2026-2036 against the
  *     essay's "a decade does what forty years did" (BLS: ~ -5.5 to -7pp).
  *  T4 Debasement: financial repression (the safe rate held below its market
@@ -96,42 +96,59 @@ const base = run('baseline', {});
 }
 
 // --- T2 ------------------------------------------------------------------------
+// Whether a boom "pays" is scored on what people get, not on GDP: GDP that
+// holds level while datacenter capex absorbs more of it means less
+// consumption. Score = cumulative 2026-40 consumption (household + public
+// services) plus the capital stock left in 2040 (general + robot +
+// datacenter, so the datacenters still standing count, and so does the
+// general capital they crowded out), each against the baseline.
 {
-  const noPay = run('line, no payoff', LINE);
+  const FROM = 2026, TO = 2040;
+  const cons = (x: Row) => x.householdConsumption + x.governmentServiceConsumption;
+  const delta = (r: Run, g: (x: Row) => number) => sum(r, FROM, TO, g) - sum(base, FROM, TO, g);
+  const score = (r: Run) => ({
+    gdp: delta(r, (x) => x.gdp),
+    capex: delta(r, (x) => x.dataCenterCapexSpend),
+    cons: delta(r, cons),
+    capital: at(r, TO).capitalStock - at(base, TO).capitalStock,
+  });
+  const value = (r: Run) => { const v = score(r); return v.cons + v.capital; };
   const { name: _n, description: _d, ...boomParams } = JSON.parse(
     readFileSync(new URL('../scenarios/ai-energy-boom.json', import.meta.url), 'utf8'));
   const boom = run('ai-energy-boom', boomParams);
-  const payoffs = [25000, 50000, 100000];
-  const pays = payoffs.map((w) => run(`line, payoff ${w / 1000}k/TWh`, withPayoff(w)));
-  const runs = [base, noPay, ...pays, boom];
-  p('## T2. Genesis: a sustained datacenter boom, with and without an output payoff');
+  const payoffs = [0, 25000, 35000, 45000, 50000, 75000, 100000];
+  const lines = payoffs.map((w) => run(w ? `line, payoff ${w / 1000}k/TWh` : 'line, no payoff', withPayoff(w)));
+  const runs = [base, ...lines, boom];
+  const kw = (w: number) => f(1e9 / 8760 / w, 1);
+  // Smallest payoff at which a measure stops being negative (bisection).
+  const breakEven = (measure: (r: Run) => number) => {
+    let lo = 0, hi = 300000;
+    if (measure(run('', withPayoff(hi), TO)) <= 0) return NaN;
+    for (let i = 0; i < 16; i++) {
+      const m = (lo + hi) / 2;
+      if (measure(run('', withPayoff(m), TO)) > 0) hi = m; else lo = m;
+    }
+    return hi;
+  };
+  const beValue = breakEven(value);
+  const beCons = breakEven((r) => score(r).cons);
+  const beGdp = breakEven((r) => score(r).gdp);
+
+  p('## T2. Genesis: does a sustained datacenter boom pay for itself?');
   p();
-  p('`line` = datacenter base growth 0.30 and the total-cost spend ceiling 10x (13% of GDP). Payoff = production.aiWorkerEquivalentPerTWh (0 by default). Capex is the model\'s composite chips + facility spend, world, $T (PPP-2017).');
+  p('`line` = datacenter base growth 0.30 and the total-cost spend ceiling 10x (13% of GDP). Payoff = production.aiWorkerEquivalentPerTWh (0 by default). $T are the model\'s PPP-2017 dollars. "Value" = cumulative 2026-40 consumption plus the capital stock left in 2040, both against the baseline; GDP is shown but is not the test, since GDP that holds level while capex rises means less consumption.');
   p();
   p(table(
-    ['run', 'DC capex 2030', 'DC capex 2035', 'cum. DC capex 2026-40', 'DC TWh 2035', 'investment 2035', 'GDP 2035 vs base', 'GDP 2040 vs base', 'cum. GDP 2026-40 vs base', 'return on capital 2035', 'energy WACC 2035'],
-    runs.map((r) => [
-      r.label, f(at(r, 2030).dataCenterCapexSpend), f(at(r, 2035).dataCenterCapexSpend),
-      f(sum(r, 2026, 2040, (x) => x.dataCenterCapexSpend), 1), f(at(r, 2035).dataCenterLoadTWh, 0),
-      f(at(r, 2035).investment, 1),
-      pct(at(r, 2035).gdp / at(base, 2035).gdp - 1, 2), pct(at(r, 2040).gdp / at(base, 2040).gdp - 1, 2),
-      f(sum(r, 2026, 2040, (x) => x.gdp) - sum(base, 2026, 2040, (x) => x.gdp), 1),
-      pct(at(r, 2035).interestRate, 2), pct(at(r, 2035).effectiveWACC, 2),
-    ]),
+    ['run', 'DC capex 2030', 'DC capex 2035', 'DC TWh 2035', 'cum. GDP vs base', 'cum. extra DC capex', 'cum. consumption vs base', 'capital 2040 vs base', 'value vs base', 'return on capital 2035'],
+    runs.map((r) => {
+      const v = r === base ? { gdp: 0, capex: 0, cons: 0, capital: 0 } : score(r);
+      return [r.label, f(at(r, 2030).dataCenterCapexSpend), f(at(r, 2035).dataCenterCapexSpend), f(at(r, 2035).dataCenterLoadTWh, 0),
+        f(v.gdp, 0), f(v.capex, 0), f(v.cons, 0), f(v.capital, 0), f(v.cons + v.capital, 0), pct(at(r, 2035).interestRate, 2)];
+    }),
   ));
-  // Breakeven payoff: cumulative 2026-2040 GDP equal to the baseline's.
-  const cumGap = (w: number) => {
-    const r = run('', withPayoff(w), 2040);
-    return sum(r, 2026, 2040, (x) => x.gdp) - sum(base, 2026, 2040, (x) => x.gdp);
-  };
-  let lo = 0, hi = 200000;
-  if (cumGap(hi) > 0) {
-    for (let i = 0; i < 18; i++) { const m = (lo + hi) / 2; if (cumGap(m) > 0) hi = m; else lo = m; }
-  }
-  const extraCapex = sum(noPay, 2026, 2040, (x) => x.dataCenterCapexSpend) - sum(base, 2026, 2040, (x) => x.dataCenterCapexSpend);
   p();
-  p(`Without a payoff the boom costs ${f(-(sum(noPay, 2026, 2040, (x) => x.gdp) - sum(base, 2026, 2040, (x) => x.gdp)), 1)} $T of cumulative 2026-40 GDP for ${f(extraCapex, 1)} $T of extra datacenter capex. ` +
-    `Cumulative GDP breaks even at a payoff of ~${f(hi / 1000, 0)}k worker-equivalents per TWh (~${f(1e9 / 8760 / hi, 1)} kW of continuous datacenter load per worker-equivalent).`);
+  p(`Break-even payoff on value: ~${f(beValue / 1000, 0)}k worker-equivalents per TWh (~${kw(beValue)} kW of continuous datacenter load per worker-equivalent). ` +
+    `On consumption alone: ~${f(beCons / 1000, 0)}k (~${kw(beCons)} kW). GDP alone stops falling at ~${f(beGdp / 1000, 0)}k (~${kw(beGdp)} kW), which is not a break-even.`);
   p();
 
   // --- T3 ----------------------------------------------------------------------
@@ -139,9 +156,9 @@ const base = run('baseline', {});
   p();
   p('Essay: "as much transfer from labor to capital in the next decade as the previous wage-to-financial economy produced in forty years". BLS nonfarm labor share index (FRED PRS85006173, 2017=100): 1980 112.1 -> 2020 102.3; 1985 108.4 -> 2025 96.0, i.e. about -5.5 to -7 pp of the percent share (2026Q2 = 52.8%). Model laborShare is world compensation/GDP; read the change.');
   p();
-  p(table(['run', '2026', '2031', '2036', 'change 2026-36, pp', 'robots/1000 workers 2036'],
+  p(table(['run', '2026', '2031', '2036', 'change 2026-36, pp', 'value 2026-40 vs base, $T'],
     runs.map((r) => [r.label, pct(at(r, 2026).laborShare), pct(at(r, 2031).laborShare), pct(at(r, 2036).laborShare),
-      f(100 * (at(r, 2036).laborShare - at(r, 2026).laborShare), 1), f(at(r, 2036).robotsPer1000, 0)])));
+      f(100 * (at(r, 2036).laborShare - at(r, 2026).laborShare), 1), r === base ? '-' : f(value(r), 0)])));
   p();
 }
 
