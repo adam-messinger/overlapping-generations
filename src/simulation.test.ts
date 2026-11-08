@@ -26,7 +26,7 @@ import { productionDefaults } from './modules/production.js';
 import { gdpWeightedIntensityDecline, demandDefaults } from './modules/demand.js';
 import { describeOutputs, describeParameters, buildMultiParams } from './introspection.js';
 import { STUDY_OPTIONS } from './ensemble-model.js';
-import { test, expect, printSummary, numericLeaves, differingLeaves } from './test-utils.js';
+import { test, expect, printSummary } from './test-utils.js';
 
 /** Load a scenario's params synchronously (the test framework's test() is sync). */
 console.log('\n=== Simulation Integration Tests ===\n');
@@ -601,6 +601,23 @@ test('no undeclared transform reads in real simulation', () => {
 // DIAGNOSTIC LEDGERS DO NOT FEED BACK
 // =============================================================================
 
+/**
+ * Every numeric leaf of a value tree, as `path -> number`. Non-numeric leaves
+ * are ignored; the diagnostic fields being compared here are all numbers or
+ * nested records of numbers.
+ */
+function numericLeaves(value: unknown, path: string, into: Map<string, number>): void {
+  if (typeof value === 'number') { into.set(path, value); return; }
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, i) => numericLeaves(child, `${path}[${i}]`, into));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    numericLeaves(child, `${path}.${key}`, into);
+  }
+}
+
 const MACRO_RUN = runSimulation(undefined, { diagnostics: false });
 
 test('firm cash floor never binds on the default path', () => {
@@ -655,7 +672,12 @@ test('diagnostics: false leaves every macro number bit-identical', () => {
   expect(full.size).toBeGreaterThan(30_000);
   expect(macro.size).toBe(full.size);
 
-  expect(differingLeaves(full, macro)).toEqual([]);
+  const differing: string[] = [];
+  for (const [key, value] of full) {
+    if (!Object.is(value, macro.get(key))) differing.push(key);
+    if (differing.length > 5) break;
+  }
+  expect(differing).toEqual([]);
 });
 
 test('diagnostics: false drops exactly the diagnostic fields', () => {
