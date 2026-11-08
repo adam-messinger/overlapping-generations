@@ -135,6 +135,17 @@ export const PARAM_ABLATIONS: Record<string, SimulationParams> = {
 
 type StepFn = (state: unknown, inputs: Record<string, unknown>, params: unknown, year: number, yearIndex: number) => unknown;
 
+// A frozen key that names no module input would be silently ignored and read
+// as "this mechanism does nothing": refuse it instead.
+const MODULE_INPUTS = new Set(
+  ALL_MODULES.flatMap((mod) => (mod.inputs as readonly string[]).map((key) => `${mod.name}.${key}`)),
+);
+for (const [name, keys] of Object.entries(FREEZE_ABLATIONS)) {
+  for (const key of keys) {
+    if (!MODULE_INPUTS.has(key)) throw new Error(`Freeze ablation '${name}': ${key} is not a module input`);
+  }
+}
+
 let recording = false;
 let frozen: ReadonlySet<string> = new Set();
 const recorded = new Map<string, unknown>();
