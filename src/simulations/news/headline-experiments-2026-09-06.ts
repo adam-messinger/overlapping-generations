@@ -22,6 +22,7 @@ import {
 import {
   OBSERVED_INTENSITY,
   OBSERVED_MONTHS,
+  LEGACY_FLOW_V1_PRICE_BLOCK,
   OBSERVED_THROUGHPUT,
   defaultWarSettlementParams,
   hold,
@@ -250,7 +251,8 @@ function settlementRun(input: HormuzClosureCase, options: SettlementRunOptions):
       ...(options.tailThroughput ?? []),
     ],
   };
-  return simulateWarSettlement(scenario);
+  // Pinned to the price block this analysis was published with.
+  return simulateWarSettlement(scenario, LEGACY_FLOW_V1_PRICE_BLOCK);
 }
 
 function settlementBrentAt(

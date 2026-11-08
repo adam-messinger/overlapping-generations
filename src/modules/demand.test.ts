@@ -920,14 +920,28 @@ test('datacenter load grows over time', () => {
   expect(year25).toBeGreaterThan(year1 * 2);
 });
 
-test('datacenter power-spend share equilibrates at the WTP ceiling', () => {
-  // The brake replaces the hard TWh cap: load grows until the DC electricity
-  // bill approaches the ceiling share of GDP, then rides it (never exceeds
-  // it materially; reaches at least half of it by 2100 in the test harness).
+test('datacenter total-cost share equilibrates at the WTP ceiling', () => {
+  // The brake replaces the hard TWh cap: load grows until datacenters' total
+  // cost of ownership (power + capital service) approaches the ceiling share
+  // of GDP, then rides it (never exceeds it materially; reaches at least half
+  // of it by 2100 in the test harness).
   const { outputs } = runYears(76);
-  const share = outputs.dataCenterPowerSpendShare;
-  expect(share).toBeLessThan(demandDefaults.dataCenterPowerSpendCeiling * 1.05);
-  expect(share).toBeGreaterThan(demandDefaults.dataCenterPowerSpendCeiling * 0.5);
+  const share = outputs.dataCenterSpendShare;
+  expect(share).toBeLessThan(demandDefaults.dataCenterSpendCeiling * 1.05);
+  expect(share).toBeGreaterThan(demandDefaults.dataCenterSpendCeiling * 0.5);
+  // Capital service, not power, is most of the cost the brake reads
+  expect(outputs.dataCenterPowerSpendShare).toBeLessThan(0.5 * share);
+});
+
+test('datacenter buildout slows when capital is dearer', () => {
+  // The brake prices capital the way the robot rule does: a higher cost of
+  // capital, or costlier chips and facilities, slows the buildout. Under the
+  // old power-bill brake neither moved it.
+  const load = (laggedInterestRate: number, overrides: Partial<typeof demandDefaults> = {}) =>
+    runYearsWithParams(30, overrides, { laggedInterestRate }).outputs.dataCenterLoadTWh;
+  const cheap = load(0.05);
+  expect(load(0.25)).toBeLessThan(cheap * 0.95);
+  expect(load(0.05, { dataCenterCapitalCostPerGW: 2 * demandDefaults.dataCenterCapitalCostPerGW })).toBeLessThan(cheap * 0.95);
 });
 
 test('datacenter capex charges additions plus replacement each year', () => {
@@ -947,20 +961,41 @@ test('datacenter capex charges additions plus replacement each year', () => {
 
 test('datacenter finance params round-trip and validate', () => {
   const merged = demandModule.mergeParams({
-    dataCenterPowerSpendCeiling: 0.001,
+    dataCenterSpendCeiling: 0.001,
     dataCenterCapitalCostPerGW: 20,
     dataCenterDepreciation: 0.2,
   });
-  expect(merged.dataCenterPowerSpendCeiling).toBe(0.001);
+  expect(merged.dataCenterSpendCeiling).toBe(0.001);
   expect(merged.dataCenterCapitalCostPerGW).toBe(20);
   expect(merged.dataCenterDepreciation).toBe(0.2);
-  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0 }).valid).toBeFalse();
-  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.1 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterSpendCeiling: 0 }).valid).toBeFalse();
+  expect(demandModule.validate({ dataCenterSpendCeiling: 0.3 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterCapitalCostPerGW: -1 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterCapitalCostPerGW: 101 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterDepreciation: -0.01 }).valid).toBeFalse();
   expect(demandModule.validate({ dataCenterDepreciation: 0.51 }).valid).toBeFalse();
-  expect(demandModule.validate({ dataCenterPowerSpendCeiling: 0.0005 }).valid).toBeTrue();
+  expect(demandModule.validate({ dataCenterSpendCeiling: 0.013 }).valid).toBeTrue();
+});
+
+test('datacenter load is sited by the observed regional split, not GDP share', () => {
+  // IEA Energy and AI (2025): US 45%, China 25% of 2024 datacenter electricity.
+  const shares = demandDefaults.dataCenterRegionalShare;
+  expect(Object.values(shares).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+  expect(shares.us).toBeCloseTo(0.45, 9);
+  expect(shares.china).toBeCloseTo(0.25, 9);
+  const withDc = runYearsWithParams(1, { dataCenterBaseline2025: 1000, dataCenterBaseGrowth: 0 }, {});
+  const withoutDc = runYearsWithParams(1, { dataCenterBaseline2025: 0, dataCenterBaseGrowth: 0 }, {});
+  for (const region of REGIONS) {
+    const added = withDc.outputs.regional[region].electricityDemand -
+      withoutDc.outputs.regional[region].electricityDemand;
+    expect(added).toBeCloseTo(1000 * shares[region], 6);
+  }
+  // A partial override merges per region; a split that does not sum to 1 is refused.
+  const merged = demandModule.mergeParams({ dataCenterRegionalShare: { us: 0.5, china: 0.2 } as any });
+  expect(merged.dataCenterRegionalShare.us).toBe(0.5);
+  expect(merged.dataCenterRegionalShare.india).toBe(shares.india);
+  expect(demandModule.validate({ dataCenterRegionalShare: merged.dataCenterRegionalShare }).valid).toBeTrue();
+  expect(demandModule.validate({ dataCenterRegionalShare: { ...shares, us: 0.6 } }).valid).toBeFalse();
 });
 
 test('datacenter load responds to LCOE (cheap power → more compute)', () => {

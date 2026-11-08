@@ -133,7 +133,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 
 ### Calibration & Sources
 
-- `src/calibration-anchors.ts` compares 17 of the model's 2025 outputs with
+- `src/calibration-anchors.ts` compares 18 of the model's 2025 outputs with
   independent observations within loose (1.02-1.5x) bands — an
   order-of-magnitude tripwire for unit and intensity errors, not calibration.
   `npx tsx src/calibration-anchors.ts` prints the table. When you add a
@@ -312,9 +312,23 @@ the human-capital ledger (including its replacement-cost re-pricing).
   fleets decay. `robotIntegrationExponent` (theta, judgment) is the
   late-century automation/GDP dial — see docs/SENSITIVITY.md
 - **Datacenters**: LCOE/GDP-driven demand braked by a willingness-to-pay
-  ceiling on the electricity-bill share of GDP (`dataCenterPowerSpendCeiling`,
-  0.05%); equilibrium load = ceiling x GDP / LCOE. GDP-neutral electricity
-  sink (AI payoff off by default)
+  ceiling on datacenters' TOTAL COST OF OWNERSHIP as a share of GDP
+  (`dataCenterSpendCeiling`, 1.3%): power plus capital service, i.e.
+  `dataCenterCapitalCostPerGW` annualised at the lagged interest rate +
+  `dataCenterDepreciation`, as the robot rule prices capital. Equilibrium
+  load = ceiling x GDP / cost per MWh. The ceiling is fitted to keep the
+  2025-2035 load path of the power-bill brake it replaced (within 0.8%/yr)
+  and must be re-fit when `dataCenterCapitalCostPerGW` ($45B per average GW,
+  calibrated to Dell'Oro's ~$0.7T 2025 datacenter capex) or the depreciation
+  default moves; that brake left ~96% of the cost (capital service ~$1,130
+  vs power ~$48 per MWh in 2025) outside it, so capex and capital scarcity
+  never slowed the buildout. Load is sited by the IEA 2024 regional split
+  (`dataCenterRegionalShare`: US 45%, China 25%, ...), held fixed. Energy-neutral: its load is added to electricity demand and
+  subtracted from productive useful energy (AI payoff off by default). Not
+  GDP-neutral: its capex builds datacenter capital and competes for finance.
+  Known fragile corner: ai-energy-boom with `dataCenterCapitalCostPerGW` 0
+  (power-only brake at 10x WTP) outruns the energy system and crashes GDP in
+  the 2050s; the default run is stable across every datacenter range edge
 - Replaced the old hard `robotSaturation`/`dataCenterSaturation` logistic caps
   (speculative carrying capacities); see sources/ai-robotics-deployment-ceilings.md
 
@@ -327,7 +341,8 @@ the human-capital ledger (including its replacement-cost re-pricing).
   national saving are measured after expenditure. `grossSavings` survives as a
   deprecated alias for ex-post national gross saving, not as an input to
   investment
-- **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings. They crowd out NET general investment, never its replacement: orders are at least the special spends plus depreciation of general capital (still capped by financing and feasibility). Carved out of replacement, they shrank K whenever they exceeded net investment, and orders (which scale with K) shrank with it (ai-energy-boom K 970 -> 640 $T over 2060-2100)
+- **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend — lagged) from capital formation; one pool, so energy buildout genuinely competes for savings. Energy and CDR crowd out NET general investment, never its replacement: orders are at least those spends plus depreciation of general capital (still capped by financing and feasibility). Carved out of replacement, they shrank K whenever they exceeded net investment, and orders (which scale with K) shrank with it (ai-energy-boom K 970 -> 640 $T over 2060-2100)
+- **Robots and datacenters are capital**: K = general + robot + datacenter capital. Robot and chips+facility capex (demand, lagged) builds its own perpetual-inventory stocks, depreciating at demand's replacement rates (`robotCapitalDepreciation`/`dataCenterCapitalDepreciation`, derived from demand's); year 0 carves the observed 2025 fleets out of the PWT stock at installed cost. Their capex is ADDED to general orders and competes for finance (internal funds, credit envelope, final-use cap), served before general capital when finance binds. Carved out of general capital's desired expansion (at most `maximumNetInvestmentRate` x K) as before, capex growing with GDP outran a cap growing with K and froze general K for good (ai-energy-boom: $967T flat 2049-2100 at a 37% return on capital; 2100 GDP $1,204T vs ~$3,740T with the fix, ~$3,200T once the datacenter brake also priced capital). Production's K is GENERAL capital (`nextGeneralCapitalStock`): robots and AI produce through production's worker-equivalent channel, so their capital in K too would credit their output twice. General capital's profit rate excludes the automation return net of its depreciation; the leverage target is still on general capital only
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
@@ -454,7 +469,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 | `ssp1-26` | IPCC SSP1-2.6 (sustainability, moderate) |
 | `ssp3-70` | IPCC SSP3-7.0 (regional rivalry) |
 | `ssp5-85` | IPCC SSP5-8.5 (fossil development) |
-| `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. Financing binds through the COST OF CAPITAL (WACC ~15% by 2075), not the capex budget |
+| `ai-energy-boom` | No demand cap on energy: automation payoff on, integration friction halved, DC spend ceiling 10x. GDP ~$3.2Q in 2100 at a ~8% labor share; datacenters ~250k TWh, emissions ~67 Gt and warming ~3.3°C. Capital scarcity binds through the COST OF CAPITAL (return on capital ~18% by 2100), which now also brakes the datacenter buildout |
 | `un-wpp-medium` | Opt-in demographic overlay: UN WPP 2024 Medium fertility and life expectancy, for comparison with forecasts that assume it (the default follows Fernández-Villaverde & Norrick 2026) |
 
 ## Agent Introspection

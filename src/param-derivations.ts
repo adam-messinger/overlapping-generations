@@ -66,6 +66,21 @@ export const PARAM_DERIVATIONS: readonly ParamDerivation[] = [
     derive: (read) => read('climate.damageCoeff'),
   },
   {
+    target: 'capital.robotCapitalDepreciation',
+    from: ['demand.robotDepreciation'],
+    description:
+      "Capital's robot stock wears out at the rate demand's fleet does: demand prices and buys " +
+      'replacement at that rate, capital depreciates the stock that capex builds.',
+    derive: (read) => read('demand.robotDepreciation'),
+  },
+  {
+    target: 'capital.dataCenterCapitalDepreciation',
+    from: ['demand.dataCenterDepreciation'],
+    description:
+      "Capital's datacenter stock wears out at the rate demand replaces chips and facilities at.",
+    derive: (read) => read('demand.dataCenterDepreciation'),
+  },
+  {
     target: 'energy.gridLossFactor',
     from: ['dispatch.gridLossFactor'],
     description:

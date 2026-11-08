@@ -143,7 +143,10 @@ export interface YearResult {
   usefulWorkGrowthRate: number;
 
   // Capital
-  capitalStock: number;
+  capitalStock: number;           // general + robot + datacenter
+  generalCapitalStock: number;    // production's K
+  robotCapitalStock: number;
+  dataCenterCapitalStock: number;
   investment: number;
   plannedInvestment: number;
   unfundedInvestmentDemand: number;
@@ -370,6 +373,7 @@ export interface YearResult {
   // Datacenter / AI compute
   dataCenterLoadTWh: number;
   dataCenterCapexSpend: number;
+  dataCenterSpendShare: number;
 
   // Regional
   regionalPopulation: Record<Region, number>;
