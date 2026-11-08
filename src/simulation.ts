@@ -143,7 +143,10 @@ export interface YearResult {
   usefulWorkGrowthRate: number;
 
   // Capital
-  capitalStock: number;
+  capitalStock: number;           // general + robot + datacenter
+  generalCapitalStock: number;    // production's K
+  robotCapitalStock: number;
+  dataCenterCapitalStock: number;
   investment: number;
   plannedInvestment: number;
   unfundedInvestmentDemand: number;

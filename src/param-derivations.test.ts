@@ -32,6 +32,8 @@ test('every scenario runs with each derived parameter equal to its source', () =
     expect(params.cdr!.tcre).toBe(cdrDefaults.tcre * climate.sensitivity / TCRE_REFERENCE_SENSITIVITY);
     expect(params.cdr!.damageCoeff).toBe(climate.damageCoeff);
     expect(params.energy!.gridLossFactor).toBe(dispatch.gridLossFactor);
+    expect(params.capital!.robotCapitalDepreciation).toBe(demand.robotDepreciation);
+    expect(params.capital!.dataCenterCapitalDepreciation).toBe(demand.dataCenterDepreciation);
   }
 });
 

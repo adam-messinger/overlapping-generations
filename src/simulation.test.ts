@@ -461,7 +461,8 @@ test('default fossil LCOEs drift up with depletion and have no cliff', () => {
 
 // Baseline financing must reconcile. Explicit DC capex should also feed back
 // into the deliberately extreme AI boom through the shared capital ledger,
-// lowering the path relative to an otherwise identical free-DC-capex run.
+// lowering GENERAL capital and GDP relative to an otherwise identical
+// free-DC-capex run (total capital rises: the capex builds datacenter capital).
 test('baseline is fully funded and datacenter capex feeds back through the AI boom', () => {
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const baseline = runAutowiredSimulation({});
@@ -489,8 +490,10 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   const withDc = getOutputsAtYear(boom, idx2050);
   const withoutDc = getOutputsAtYear(boomWithoutDcCapex, idx2050);
   expect(withDc.dataCenterCapexSpend as number).toBeGreaterThan(0);
-  expect(withDc.stock as number).toBeLessThan(withoutDc.stock as number);
+  expect(withDc.generalCapitalStock as number).toBeLessThan(withoutDc.generalCapitalStock as number);
   expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
+  expect(withDc.dataCenterCapitalStock as number)
+    .toBeGreaterThan(withoutDc.dataCenterCapitalStock as number);
 });
 
 // toYearResults casts collectResults' rows to YearResult[]. That cast is

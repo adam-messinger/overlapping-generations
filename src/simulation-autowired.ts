@@ -750,8 +750,12 @@ function buildLags(params: SimulationParams) {
     // is this year's opening stock. Capital's `stock` output is the opening
     // stock of its own year, so lagging that ran production on a two-year-old
     // stock and 2026 repeated 2025's (capital contribution 1.0 both years).
+    // GENERAL capital: robots and datacenters produce through production's
+    // worker-equivalent channel (robotLaborEquivalent,
+    // aiWorkerEquivalentPerTWh), so counting their capital in K as well would
+    // credit their output twice.
     capitalStock: {
-      source: 'nextCapitalStock',
+      source: 'nextGeneralCapitalStock',
       delay: 1,
       initial: mergedCapital.initialCapitalStock,
       contract: unitPort('$T'),

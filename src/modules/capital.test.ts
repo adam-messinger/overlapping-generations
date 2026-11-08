@@ -1297,4 +1297,119 @@ test('special-purpose spends crowd out net general investment, never its replace
   expect(light.outputs.generalInvestment).toBeLessThan(none.outputs.generalInvestment);
 });
 
+test('robot and datacenter capex is capital formation added to general orders', () => {
+  // Robots and datacenters are capital: their capex builds their own stocks
+  // and is ordered on top of general capital's replacement and expansion,
+  // competing with it for finance, not for its desired expansion.
+  // Slack credit isolates the order rule from the financing limit.
+  const params = capitalModule.mergeParams({ baseCreditGrowth: 0.15 });
+  const state = capitalModule.init(params);
+  const base = { ...getCapitalInputs(0), energyCapexSpend: 0, cdrSpend: 0 };
+  const none = capitalModule.step(state, {
+    ...base, robotCapexSpend: 0, dataCenterCapexSpend: 0,
+  }, params, 2025, 0);
+  const auto = capitalModule.step(state, {
+    ...base, robotCapexSpend: 1, dataCenterCapexSpend: 2,
+  }, params, 2025, 0);
+  // (The extra credit raises the interest bill a little, which moves the
+  // profit signal and so general orders by a few $B.)
+  expect(Math.abs(auto.outputs.plannedInvestment - (none.outputs.plannedInvestment + 3)))
+    .toBeLessThan(0.05);
+  // Financed here, so general capital formation is (all but) untouched...
+  expect(auto.outputs.unfundedInvestmentDemand).toBe(0);
+  expect(Math.abs(auto.outputs.generalInvestment - none.outputs.generalInvestment))
+    .toBeLessThan(0.05);
+  // ...and the capex lands in the automation stocks, not nowhere
+  expect(auto.outputs.nextCapitalStock - auto.outputs.nextGeneralCapitalStock)
+    .toBeCloseTo(3, 9);
+  expect(Math.abs(auto.outputs.nextCapitalStock - none.outputs.nextCapitalStock - 3))
+    .toBeLessThan(0.05);
+  expect(auto.state.robotStock).toBeCloseTo(1, 9);
+  expect(auto.state.dataCenterStock).toBeCloseTo(2, 9);
+  // Where finance cannot cover it, the automation capex is served first and
+  // general capital takes the remainder: crowding out through FINANCE
+  const big = capitalModule.step(state, {
+    ...base, robotCapexSpend: 30, dataCenterCapexSpend: 30,
+  }, params, 2025, 0);
+  expect(big.outputs.unfundedInvestmentDemand).toBeGreaterThan(0);
+  expect(big.outputs.generalInvestment)
+    .toBeCloseTo(Math.max(0, big.outputs.investment - 60), 6);
+  expect(big.outputs.generalInvestment).toBeLessThan(none.outputs.generalInvestment);
+});
+
+test('automation capex above the net-investment cap no longer freezes general capital', () => {
+  // The trap: robot/DC capex was carved out of general capital's desired
+  // expansion (at most maximumNetInvestmentRate x K). Capex that grows with
+  // GDP outran it and held general K flat for decades at any return.
+  // Here automation capex is 1.5x the cap every year. As in the AI boom, machine
+  // worker-equivalents' income (paid to capital) funds it: general capital
+  // must still grow, at the same rate as with no automation capex.
+  const params = capitalModule.mergeParams({ baseCreditGrowth: 0.15 });
+  const step = (automationShareOfK: number) => {
+    let state = capitalModule.init(params);
+    const general: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const capex = automationShareOfK * state.stock;
+      const result = capitalModule.step(state, {
+        ...getCapitalInputs(i),
+        energyCapexSpend: 0,
+        cdrSpend: 0,
+        robotCapexSpend: capex / 2,
+        dataCenterCapexSpend: capex / 2,
+        // Machines do 40% of augmented labor from year 1 (0 at the anchor)
+        automationLaborShare: i === 0 ? 0 : 0.4,
+      }, params, 2025 + i, i);
+      general.push(result.outputs.nextGeneralCapitalStock);
+      state = result.state;
+    }
+    return general;
+  };
+  const heavy = step(1.5 * params.maximumNetInvestmentRate);
+  const none = step(0);
+  // Year 0 has no machine income yet, so the heavy run starts a little
+  // behind; from then on general capital grows at the unburdened rate.
+  for (let i = 2; i < heavy.length; i++) {
+    const heavyGrowth = heavy[i] / heavy[i - 1] - 1;
+    const noneGrowth = none[i] / none[i - 1] - 1;
+    expect(heavyGrowth).toBeGreaterThan(0.01);
+    expect(Math.abs(heavyGrowth - noneGrowth)).toBeLessThan(0.005);
+  }
+});
+
+test('year 0 carves the opening robot and datacenter fleets out of the observed stock', () => {
+  const params = capitalModule.mergeParams({});
+  const state = capitalModule.init(params);
+  const { state: next, outputs } = capitalModule.step(state, {
+    ...getCapitalInputs(0),
+    energyCapexSpend: 0,
+    cdrSpend: 0,
+    robotCapexSpend: 0,
+    dataCenterCapexSpend: 0,
+    robotCapitalValue: 2,
+    dataCenterCapitalValue: 3,
+  }, params, 2025, 0);
+  expect(outputs.stock).toBeCloseTo(params.initialCapitalStock, 9);
+  expect(outputs.generalCapitalStock).toBeCloseTo(params.initialCapitalStock - 5, 9);
+  expect(outputs.robotCapitalStock).toBe(2);
+  expect(outputs.dataCenterCapitalStock).toBe(3);
+  expect(outputs.automationDepreciation).toBeCloseTo(
+    2 * params.robotCapitalDepreciation + 3 * params.dataCenterCapitalDepreciation, 12,
+  );
+  expect(next.robotStock).toBeCloseTo(2 * (1 - params.robotCapitalDepreciation), 12);
+  expect(next.dataCenterStock).toBeCloseTo(3 * (1 - params.dataCenterCapitalDepreciation), 12);
+  // The balance sheet carries it as firm capital
+  expect(next.financialLedger!.balances['firms.automationCapital'])
+    .toBeCloseTo(next.robotStock! + next.dataCenterStock!, 9);
+  expect(next.financialLedger!.balances['firms.generalCapital'])
+    .toBeCloseTo(outputs.nextGeneralCapitalStock, 9);
+});
+
+test('automation depreciation rates default to demand\'s replacement rates and are validated', () => {
+  expect(capitalDefaults.robotCapitalDepreciation).toBe(demandDefaults.robotDepreciation);
+  expect(capitalDefaults.dataCenterCapitalDepreciation).toBe(demandDefaults.dataCenterDepreciation);
+  expect(capitalModule.validate({ robotCapitalDepreciation: 0 }).valid).toBe(false);
+  expect(capitalModule.validate({ dataCenterCapitalDepreciation: 1.5 }).valid).toBe(false);
+  expect(capitalModule.validate({ dataCenterCapitalDepreciation: 0.2 }).valid).toBe(true);
+});
+
 printSummary();
