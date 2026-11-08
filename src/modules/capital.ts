@@ -1668,6 +1668,25 @@ export const capitalModule: Module<
     const specialPurposeSpend = (orders: number) =>
       (inputs.energyCapexSpend ?? orders * energyShare)
       + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+    // Orders always replace worn general capital ON TOP of the special-purpose
+    // spends debited from them. The order rule already replaces depreciation
+    // unconditionally; carving energy, robot, datacenter and CDR capex out of
+    // that replacement shrank general capital whenever those spends exceeded
+    // net investment, and since desired net investment scales with K, orders
+    // shrank with it while its return rose: ai-energy-boom's K fell 970 ->
+    // 640 $T over 2060-2100 with the return on capital at 41%, and spends
+    // outran the whole pool once its build got more capital-intensive.
+    // Competition for finance stays: orders are still capped by financing and
+    // feasibility, and above replacement the special spends still crowd out
+    // net general investment. In the standalone fallback the energy debit
+    // scales with orders, so the floor solves orders = s x orders + other + dep.
+    const plannedOrders = (circuit: FirmCircuit) => {
+      const otherSpend = realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
+      const replacementFloor = inputs.energyCapexSpend !== undefined
+        ? inputs.energyCapexSpend + otherSpend + circuit.depreciationAllowance
+        : (otherSpend + circuit.depreciationAllowance) / Math.max(Number.EPSILON, 1 - energyShare);
+      return Math.max(circuit.plannedInvestment, replacementFloor);
+    };
 
     // Target leverage. Firms hold private debt / general capital near the
     // year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
@@ -1731,7 +1750,7 @@ export const capitalModule: Module<
     let finance = runFinance(plan);
     const runoffPrivateDebt = finance.state.privateDebt;
     const planFinancing = (circuit: FirmCircuit): FinancingPlan => {
-      const orders = Math.min(circuit.plannedInvestment, maximumFeasibleInvestment);
+      const orders = Math.min(plannedOrders(circuit), maximumFeasibleInvestment);
       // Pecking order: orders beyond internal funds are financed with debt
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
@@ -1816,7 +1835,7 @@ export const capitalModule: Module<
     // total originations, this excludes mechanically rolled principal.
     const creditImpulse = newInvestmentLoanOriginations;
 
-    const plannedInvestment = firmCircuit.plannedInvestment;
+    const plannedInvestment = plannedOrders(firmCircuit);
     const netCashCredit =
       grossLoanOriginations - finance.principalRepayments;
     const financingAvailable = Math.max(
