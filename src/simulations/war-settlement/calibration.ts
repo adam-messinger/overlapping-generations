@@ -37,6 +37,12 @@ export interface WarSettlementTargets {
   development: {
     /** EIA weekly SPR crude, week ending 24 July 2026. */
     julySprMb: TargetRange;
+    /** IEA observed stocks (commercial plus strategic) end-July below pre-war. */
+    julyObservedStockGapMb: TargetRange;
+    /** World Bank April CMO: Brent 1.5-1.8x its pre-war level in March. */
+    marchBrentUsd: TargetRange;
+    /** Q2 average: the stock-flow Hormuz calibration's 1.35-1.60x. */
+    q2BrentUsd: TargetRange;
     juneBrentUsd: TargetRange;
     julyBrentUsd: TargetRange;
     juneRetailGasolineUsd: TargetRange;
@@ -71,6 +77,12 @@ export interface WarSettlementTargets {
 export const warSettlementTargets: WarSettlementTargets = {
   development: {
     julySprMb: { min: 303, max: 313, scale: 8 },
+    // IEA's 410 mb, +/-40 mb for its "observed" coverage (China is estimated).
+    julyObservedStockGapMb: {
+      min: E.reserves.ieaObservedStockGapEndJulyMb - 40,
+      max: E.reserves.ieaObservedStockGapEndJulyMb + 40,
+      scale: 40,
+    },
     postReleaseSprMb: { min: 238, max: 248, scale: 8 },
     julyIranMissiles: {
       min: E.iranMunitions.remainingLow,
@@ -82,6 +94,8 @@ export const warSettlementTargets: WarSettlementTargets = {
     // THAAD 234-278 plus SM-3 at roughly 80% of its ~480 available rounds.
     julyHighEndInterceptors: { min: 590, max: 700, scale: 80 },
     julyAreaInterceptors: { min: 850, max: 1_050, scale: 150 },
+    marchBrentUsd: { min: 102, max: 122, scale: 20 },
+    q2BrentUsd: { min: 92, max: 109, scale: 17 },
     juneBrentUsd: { min: 71, max: 76, scale: 5 },
     julyBrentUsd: { min: 88, max: 94, scale: 5 },
     // Reported +27% y/y on a $3.14 mid-2025 base.
@@ -143,12 +157,16 @@ export function backcastValues(result: WarSettlementResult): Record<string, numb
   const postRelease = result.months.reduce((low, m) => Math.min(low, m.usSprMb), Infinity);
   return {
     julySprMb: july.usSprMb,
+    julyObservedStockGapMb: july.observedStockGapMb,
     postReleaseSprMb: postRelease,
     julyIranMissiles: july.iranMissileInventory,
     julyIranLaunchers: july.iranLaunchers,
     cumulativeIranLaunches: launches,
     julyHighEndInterceptors: july.usHighEndInterceptors,
     julyAreaInterceptors: july.usAreaInterceptors,
+    marchBrentUsd: result.months[0].brentUsdPerBarrel,
+    q2BrentUsd: (result.months[1].brentUsdPerBarrel + result.months[2].brentUsdPerBarrel +
+      result.months[3].brentUsdPerBarrel) / 3,
     juneBrentUsd: june.brentUsdPerBarrel,
     julyBrentUsd: july.brentUsdPerBarrel,
     juneRetailGasolineUsd: june.retailGasolineUsdPerGal,
@@ -182,6 +200,8 @@ const FREE_PARAMETERS: readonly { key: keyof WarSettlementParams; min: number; m
   { key: 'areaInterceptorsPerBallisticMissile', min: 0.60, max: 2.40 },
   { key: 'usSprMaxDrawPerMonthMb', min: 16, max: 26 },
   { key: 'shortRunDemandElasticity', min: 0.030, max: 0.100 },
+  { key: 'inventoryPriceSlopePer100Mb', min: 0.05, max: 0.40 },
+  { key: 'nonPriceDemandRestraintShare', min: 0.3, max: 0.9 },
   { key: 'productCrackUsdPerGal', min: 1.00, max: 3.50 },
 ];
 

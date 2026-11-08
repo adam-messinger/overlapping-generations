@@ -39,8 +39,18 @@ export interface WarSettlementMonth {
   hormuzThroughput: number;
   /** Global supply shortfall before reserve draws, mb/d. */
   grossDeficitMbd: number;
-  /** Shortfall remaining after all reserve draws, mb/d — this sets the price. */
+  /** Shortfall cleared by demand reduction, mb/d: price-driven plus non-price
+   *  restraint (the price-driven part alone sets the flow price). */
   netDeficitMbd: number;
+  /** Non-price demand restraint, mb/d (stocks-v2). */
+  demandRestraintMbd: number;
+  /** Commercial stock draw, mb/d; negative is a build. */
+  commercialDrawMbd: number;
+  /** Commercial stocks below their pre-war level, mb. */
+  commercialStockGapMb: number;
+  /** Observed stocks (commercial plus strategic) below pre-war, mb: the IEA's
+   *  "observed stocks" concept, for scoring against its reports. */
+  observedStockGapMb: number;
   usSprDrawMbd: number;
   chinaDrawMbd: number;
   rowDrawMbd: number;
@@ -240,7 +250,10 @@ export function simulateWarSettlement(
     openingSalvo * p.ballisticEngagementShare * p.interceptorsPerBallisticMissile;
   let area = MAGAZINES.areaPrewar - openingSalvo * p.areaInterceptorsPerBallisticMissile;
   let standoff = MAGAZINES.standoffPrewar;
-  let commercialStock = p.commercialStockMobilizableMb;
+  /** Commercial stocks drawn below their pre-war level, mb; negative is never reached. */
+  let commercialGap = 0;
+  /** Barrels released from strategic stocks so far, mb (US, China, rest of world). */
+  let strategicDrawnMb = 0;
 
   const prewarPumpPrice = p.pumpBaseUsdPerGal +
     p.crudePassthroughUsdPerGalPerBarrel * p.basePriceUsdPerBarrel;
@@ -325,7 +338,9 @@ export function simulateWarSettlement(
     const lostFlow = E.oil.hormuzNormalFlowMbd - hormuzFlow;
     const ramp = Math.min(1, (t + 1) / p.supplyResponseRampMonths);
     const bypassed = Math.min(lostFlow, E.oil.bypassCapacityMbd * BYPASS_UTILIZATION * ramp);
-    const nonGulf = p.nonGulfResponseMbd * ramp;
+    // Non-Gulf supply responds to fill the shortfall, never past it: spare
+    // capacity is not run to build a surplus.
+    const nonGulf = Math.min(p.nonGulfResponseMbd * ramp, Math.max(0, lostFlow - bypassed));
     const grossDeficit = Math.max(0, lostFlow - bypassed - nonGulf);
 
     // Draw decisions use last month's price, which avoids a same-month fixed
@@ -379,28 +394,72 @@ export function simulateWarSettlement(
     );
     rowReserve -= rowDrawMb;
 
-    // Commercial crude and product stocks are the largest and fastest buffer in
-    // the system; leaving them out makes the March closure look apocalyptic.
     // SPR barrels are discounted: 60% of the reserve is sour and clears only
     // through coking refineries, so a released barrel does not offset a
     // Brent-priced shortfall one for one.
     const strategicMbd =
       (sprDrawMb * p.sprBarrelEffectiveness + chinaDrawMb + rowDrawMb) / DAYS_PER_MONTH;
-    const commercialDrawMb = Math.min(
-      p.commercialMaxDrawPerMonthMb,
-      Math.max(0, commercialStock),
-      Math.max(0, grossDeficit - strategicMbd) * DAYS_PER_MONTH,
-    );
-    commercialStock -= commercialDrawMb;
-    const drawMbd = strategicMbd + commercialDrawMb / DAYS_PER_MONTH;
-    const netDeficit = Math.max(0, grossDeficit - drawMbd);
+    strategicDrawnMb += sprDrawMb + chinaDrawMb + rowDrawMb;
+    const elasticityNow = p.shortRunDemandElasticity + p.elasticityMonthlyDrift * t;
+    const flowPrice = (share: number): number => share >= 0
+      ? p.basePriceUsdPerBarrel * (1 + share / (elasticityNow * (1 + share * p.elasticityShockScale)))
+      : p.basePriceUsdPerBarrel * Math.max(0.3, 1 + share / elasticityNow);
+
+    let commercialDrawMbd: number;
+    let demandShare: number;
+    let restrainedMbd = 0;
+    if (p.priceBlock === 'flow-v1') {
+      // Original block: commercial stocks cover the shortfall up to their cap
+      // before the price clears the remainder.
+      const commercialDrawMb = Math.min(
+        p.commercialMaxDrawPerMonthMb,
+        Math.max(0, p.commercialStockMobilizableMb - commercialGap),
+        Math.max(0, grossDeficit - strategicMbd) * DAYS_PER_MONTH,
+      );
+      commercialDrawMbd = commercialDrawMb / DAYS_PER_MONTH;
+      demandShare = Math.max(0, grossDeficit - strategicMbd - commercialDrawMbd) /
+        E.oil.globalLiquidsSupplyMbd;
+    } else {
+      // Stock-clearing block. What strategic releases leave uncovered is split
+      // between commercial stocks and demand. Holders draw while the spot price
+      // exceeds what their remaining inventory supports (the Working curve) and
+      // rebuild when it is below, so in equilibrium the flow price equals the
+      // inventory price at the post-draw gap. Both sides are monotone in the
+      // demand share, so bisection finds the unique crossing.
+      const uncovered = grossDeficit - strategicMbd;
+      restrainedMbd = p.nonPriceDemandRestraintShare * Math.max(0, uncovered);
+      const residualMbd = uncovered - restrainedMbd;
+      const maxDrawMbd = Math.min(
+        p.commercialMaxDrawPerMonthMb,
+        Math.max(0, p.commercialStockMobilizableMb - commercialGap),
+      ) / DAYS_PER_MONTH;
+      const maxBuildMbd = Math.min(p.commercialMaxBuildPerMonthMb, commercialGap) / DAYS_PER_MONTH;
+      const supply = E.oil.globalLiquidsSupplyMbd;
+      const inventoryPrice = (gapMb: number): number =>
+        p.basePriceUsdPerBarrel * (1 + p.inventoryPriceSlopePer100Mb * gapMb / 100);
+      const excess = (share: number): number => {
+        const draw = residualMbd - supply * share;
+        return flowPrice(share) - inventoryPrice(commercialGap + draw * DAYS_PER_MONTH);
+      };
+      let lo = -0.2;
+      let hi = 0.3;
+      for (let i = 0; i < 60; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (excess(mid) > 0) hi = mid;
+        else lo = mid;
+      }
+      demandShare = (lo + hi) / 2;
+      commercialDrawMbd = residualMbd - supply * demandShare;
+      if (commercialDrawMbd > maxDrawMbd || commercialDrawMbd < -maxBuildMbd) {
+        commercialDrawMbd = clamp(commercialDrawMbd, -maxBuildMbd, maxDrawMbd);
+        demandShare = (residualMbd - commercialDrawMbd) / supply;
+      }
+    }
+    commercialGap += commercialDrawMbd * DAYS_PER_MONTH;
+    const netDeficit = Math.max(0, demandShare * E.oil.globalLiquidsSupplyMbd) + restrainedMbd;
 
     // --- Price --------------------------------------------------------------
-    const deficitShare = netDeficit / E.oil.globalLiquidsSupplyMbd;
-    const elasticity = (p.shortRunDemandElasticity + p.elasticityMonthlyDrift * t) *
-      (1 + deficitShare * p.elasticityShockScale);
-    const brent = p.basePriceUsdPerBarrel * (1 + deficitShare / elasticity) +
-      WAR_RISK_PREMIUM_USD * intensity;
+    const brent = flowPrice(demandShare) + WAR_RISK_PREMIUM_USD * intensity;
 
     // --- US pump price and CPI ----------------------------------------------
     // Refined product does not travel the bypass pipelines, so product-market
@@ -508,6 +567,10 @@ export function simulateWarSettlement(
       hormuzThroughput: throughput,
       grossDeficitMbd: grossDeficit,
       netDeficitMbd: netDeficit,
+      commercialDrawMbd,
+      demandRestraintMbd: restrainedMbd,
+      commercialStockGapMb: commercialGap,
+      observedStockGapMb: commercialGap + strategicDrawnMb,
       usSprDrawMbd: sprDrawMb / DAYS_PER_MONTH,
       chinaDrawMbd: chinaDrawMb / DAYS_PER_MONTH,
       rowDrawMbd: rowDrawMb / DAYS_PER_MONTH,

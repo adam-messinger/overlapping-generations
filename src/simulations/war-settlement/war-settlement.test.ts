@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  LEGACY_FLOW_V1_PRICE_BLOCK,
   OBSERVED_MONTHS,
   SETTLEMENT_CHANNELS,
   defaultWarSettlementParams,
@@ -159,18 +160,27 @@ test('the calibration search does not degrade the development fit', () => {
   assert.ok(china && china.loss === 0, 'China days-of-cover holdout should pass');
 });
 
-test('the World Bank supply-loss holdout misses low, and is bracketed', () => {
-  // Pinned deliberately: the model does not match this anchor on the
-  // after-draw definition, and the docs report it as a miss rather than
-  // quietly reweighting the target.
+test('the World Bank supply-loss holdout passes under the stock-clearing block', () => {
+  // The flow-v1 block drew commercial stocks to their cap before price did any
+  // work, so its after-draw March loss sat below the World Bank's 10 mb/d and
+  // the before-draw loss above it. Clearing stocks against price, the
+  // after-draw loss lands inside the holdout range. The legacy block still
+  // reproduces the old miss, which the 6 September analysis was published on.
   const result = simulateWarSettlement(central);
+  const holdout = warSettlementTargets.holdout.marchNetSupplyLossMbd;
   const afterDraws = result.months[0].netDeficitMbd;
-  const afterRerouting = marchLossAfterRerouting(result);
-  assert.ok(afterDraws < E.oil.initialNetSupplyLossMbd, 'after-draw loss should sit below 10 mb/d');
-  assert.ok(
-    afterRerouting > E.oil.initialNetSupplyLossMbd,
-    'before-draw loss should sit above 10 mb/d',
-  );
+  assert.ok(afterDraws >= holdout.min && afterDraws <= holdout.max, `after-draw loss ${afterDraws.toFixed(2)}`);
+  assert.ok(marchLossAfterRerouting(result) > E.oil.initialNetSupplyLossMbd);
+  const legacy = simulateWarSettlement(central, LEGACY_FLOW_V1_PRICE_BLOCK);
+  assert.ok(legacy.months[0].netDeficitMbd < E.oil.initialNetSupplyLossMbd);
+});
+
+test('observed stocks track the IEA within its coverage band; the legacy block over-draws', () => {
+  const july = simulateWarSettlement(central).months[4];
+  const iea = E.reserves.ieaObservedStockGapEndJulyMb;
+  assert.ok(Math.abs(july.observedStockGapMb - iea) <= 40, `July gap ${july.observedStockGapMb.toFixed(0)}`);
+  const legacy = simulateWarSettlement(central, LEGACY_FLOW_V1_PRICE_BLOCK).months[4];
+  assert.ok(legacy.observedStockGapMb > 1.8 * iea);
 });
 
 test('the March closure is what the reported Q1 average requires', () => {

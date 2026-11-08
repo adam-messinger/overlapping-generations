@@ -131,7 +131,10 @@ export const standardCollectors: CollectorConfig = {
     { source: 'usefulWorkGrowthRate', unit: 'fraction/year', description: 'Growth rate of useful energy per worker (Ayres/Warr)', module: 'demand' },
 
     // Capital
-    { source: 'stock', as: 'capitalStock', unit: '$T', description: 'Global capital stock', module: 'capital' },
+    { source: 'stock', as: 'capitalStock', unit: '$T', description: 'Global capital stock: general + robot + datacenter capital', module: 'capital' },
+    { source: 'generalCapitalStock', unit: '$T', description: 'General capital stock (the K in the production function)', module: 'capital' },
+    { source: 'robotCapitalStock', unit: '$T', description: 'Robot capital stock (perpetual inventory of robot capex)', module: 'capital' },
+    { source: 'dataCenterCapitalStock', unit: '$T', description: 'Chips + datacenter capital stock (perpetual inventory of datacenter capex)', module: 'capital' },
     { source: 'investment', unit: '$T/year', description: 'Annual investment', module: 'capital' },
     { source: 'plannedInvestment', unit: '$T/year', description: 'Desired annual investment before the GDP final-use feasibility cap', module: 'capital' },
     { source: 'unfundedInvestmentDemand', unit: '$T/year', description: 'Desired investment above the feasible GDP final-use envelope', module: 'capital' },
@@ -355,6 +358,7 @@ export const standardCollectors: CollectorConfig = {
     // Datacenter / AI compute
     { source: 'dataCenterLoadTWh', unit: 'TWh/year', description: 'Datacenter/AI electricity load', module: 'demand' },
     { source: 'dataCenterCapexSpend', unit: '$T/year', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
+    { source: 'dataCenterSpendShare', unit: 'fraction', description: 'Datacenter total cost of ownership (power + capital service at the lagged interest rate + depreciation) as a share of GDP: what the deployment brake reads', module: 'demand' },
 
     // GDP at market exchange rates (constant 2025 prices and exchange rates)
     { source: 'gdpMarket', unit: '$T/year', description: 'World GDP at market exchange rates, constant 2025 prices and exchange rates ($T, 2025 USD); understates converging economies over time', module: 'demand' },
