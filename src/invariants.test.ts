@@ -104,6 +104,12 @@ test('dispatch: a global total that drops a region fails aggregation', () => {
   });
 });
 
+test('demand: a region dropped from GDP at market rates fails the partition', () => {
+  expectBites('demand', 'regions partition GDP at market rates', ({ outputs }) => {
+    outputs.regionalGdpMarket.ssa = 0;
+  });
+});
+
 test('demand: electricity reclassified into a sector fails the partition', () => {
   expectBites('demand', 'sectors partition non-electric energy', ({ outputs }) => {
     // The 03129ca shape: robot/DC electricity counted as sector fuel

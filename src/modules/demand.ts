@@ -238,8 +238,12 @@ export interface DemandParams {
   commodityShocks: readonly AnnualCommodityShock[];
   /** Sparse calendar-year regional output levels from overlays (missing = 1). */
   regionalOutputAdjustments: readonly AnnualRegionalOutputAdjustment[];
-  /** World GDP at market exchange rates in 2025, $T (sets the level of gdpMarket) */
-  marketGdpUsd2025: number;
+  /**
+   * US GDP at market exchange rates in 2025, $T. With the price ratios
+   * relative to the US, usGdpMarketUsd2025 / regions.us.gdp2025 converts the
+   * model's PPP dollars (2017 intl $) to 2025 US dollars.
+   */
+  usGdpMarketUsd2025: number;
 }
 
 interface RegionalState {
@@ -278,8 +282,6 @@ interface DemandState {
    * service base is known.
    */
   heavyIndustry: { gdp0: number; serviceBase0: number; coalActivityRatio: number };
-  /** $T at market rates per unit of market-weighted model GDP, fixed in year 0 */
-  marketGdpScale?: number;
 }
 
 // Inputs from demographics and production modules
@@ -766,10 +768,10 @@ export const demandDefaults: DemandParams = {
   dataCenterDepreciation: 0.15,       // fraction/year
   commodityShocks: [],
   regionalOutputAdjustments: [],
-  // World GDP at market exchange rates 2025: $118.45T, IMF WEO Oct 2026
-  // (NGDPD summed over the countries mapped to the nine regions,
-  // scripts/imf-fiscal-regions.py; IMF's own world total $118.4T).
-  marketGdpUsd2025: 118.45,
+  // US GDP 2025 at market exchange rates: $30.86T, IMF WEO Oct 2026 (NGDPD,
+  // data/fiscal/imf-weo-regions.csv). The world total is then a check, not an
+  // input: calibration-anchors compares it with the IMF's $118.45T.
+  usGdpMarketUsd2025: 30.86,
 };
 
 // =============================================================================
@@ -1072,6 +1074,11 @@ const DEMAND_INVARIANTS: readonly ModuleInvariant<
   {
     name: 'fuels partition non-electric energy',
     check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy),
+  },
+  {
+    name: 'regions partition GDP at market rates',
+    check: ({ outputs }) => closeTo('GDP at market rates', outputs.gdpMarket,
+      sumValues(outputs.regionalGdpMarket)),
   },
   {
     name: 'global electricity is the sum of regions',
@@ -1460,9 +1467,9 @@ export const demandModule: Module<
         }
       }
     }
-    if (params.marketGdpUsd2025 !== undefined
-      && (!Number.isFinite(params.marketGdpUsd2025) || params.marketGdpUsd2025 <= 0)) {
-      errors.push('marketGdpUsd2025 must be positive');
+    if (params.usGdpMarketUsd2025 !== undefined
+      && (!Number.isFinite(params.usGdpMarketUsd2025) || params.usGdpMarketUsd2025 <= 0)) {
+      errors.push('usGdpMarketUsd2025 must be positive');
     }
     const adjustmentYears = new Set<number>();
     for (const adjustment of params.regionalOutputAdjustments ?? []) {
@@ -1578,7 +1585,7 @@ export const demandModule: Module<
       if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
       if (p.regionalOutputAdjustments !== undefined) merged.regionalOutputAdjustments = p.regionalOutputAdjustments;
-      if (p.marketGdpUsd2025 !== undefined) merged.marketGdpUsd2025 = p.marketGdpUsd2025;
+      if (p.usGdpMarketUsd2025 !== undefined) merged.usGdpMarketUsd2025 = p.usGdpMarketUsd2025;
 
       return merged;
     }, partial);
@@ -2417,26 +2424,20 @@ export const demandModule: Module<
     // Same bounded level-damage function used by the regional allocator.
     const burdenDamage = energyBurdenDamage(energyBurden, params.energyBurden);
 
+    // GDP at market exchange rates, 2025 US dollars: regional PPP GDP x the
+    // region's 2025 market/PPP price ratio (US = 1) x the US dollars per model
+    // PPP dollar. Constant 2025 prices and exchange rates: converging
+    // economies' price levels do not rise here, so their market-rate share is
+    // understated more over time.
+    const usdPerModelDollar = params.usGdpMarketUsd2025 / params.regions.us.gdp2025;
+    const regionalGdpMarket = Object.fromEntries(REGIONS.map((r) => [
+      r, regionalOutputs[r].gdp * params.regions[r].marketPriceRatio2025 * usdPerModelDollar,
+    ])) as Record<Region, number>;
+    const gdpMarket = sumValues(regionalGdpMarket);
+
     // Next year's industry coal anchor: heavy-materials output index
     // (GDP^eps) over industry's service-base index (industry is a fixed
     // share of the global service base, so the global index is its index).
-    // GDP at market exchange rates: regional PPP GDP weighted by each region's
-    // 2025 market/PPP price ratio, scaled in year 0 to the observed 2025 world
-    // total. Constant 2025 prices and exchange rates: converging economies'
-    // price levels do not rise here, so their market-rate share is understated
-    // more over time.
-    const marketWeighted = Object.fromEntries(REGIONS.map((r) => [
-      r, regionalOutputs[r].gdp * params.regions[r].marketPriceRatio2025,
-    ])) as Record<Region, number>;
-    const marketWeightedTotal = REGIONS.reduce((s, r) => s + marketWeighted[r], 0);
-    const marketGdpScale = yearIndex === 0 || state.marketGdpScale === undefined
-      ? (marketWeightedTotal > 0 ? params.marketGdpUsd2025 / marketWeightedTotal : 0)
-      : state.marketGdpScale;
-    const regionalGdpMarket = Object.fromEntries(REGIONS.map((r) => [
-      r, marketWeighted[r] * marketGdpScale,
-    ])) as Record<Region, number>;
-    const gdpMarket = marketWeightedTotal * marketGdpScale;
-
     const heavyIndustry = state.heavyIndustry.gdp0 > 0 && state.heavyIndustry.serviceBase0 > 0
       ? { ...state.heavyIndustry }
       : { gdp0: globalGdp, serviceBase0: globalServiceBase, coalActivityRatio: 1 };
@@ -2465,7 +2466,6 @@ export const demandModule: Module<
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
         heavyIndustry,
-        marketGdpScale,
       },
       outputs: {
         regional: regionalOutputs,

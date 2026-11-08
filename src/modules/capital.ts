@@ -208,8 +208,8 @@ export interface CapitalInputs {
   // From demand
   gdp: number;                // Global GDP ($ trillions)
   regionalGdp: Record<Region, number>;  // $T per region (from demand)
-  /** World GDP at market exchange rates (from demand); public debt's denominator. Absent: world GDP */
-  gdpMarket?: number;
+  /** World GDP at market exchange rates (from demand); public debt's denominator */
+  gdpMarket: number;
 
   // From climate (optional)
   damages?: number;           // Damage fraction (0-1) for stability
@@ -1601,14 +1601,14 @@ export const capitalModule: Module<
     // fast-growing emerging economies ~1.7x their market weight, while ~78%
     // of public debt is in the US, OECD-ex-US and China (IMF WEO Oct 2026):
     // dividing by it had world debt falling to 2031 against the IMF's
-    // 94.0% -> 101.5%.
-    const marketGdp = inputs.gdpMarket ?? 0;
+    // 94.0% -> 101.5%. Demand's own dollar scale cancels here: only
+    // gdpMarket's growth reaches the debt ratio.
     const fiscalGdpScale = yearIndex === 0 || state.fiscalGdpScale === undefined
-      ? (marketGdp > 0 ? inputs.gdp / marketGdp : 1)
+      ? inputs.gdp / inputs.gdpMarket
       : state.fiscalGdpScale;
-    const fiscalGdp = marketGdp > 0 ? marketGdp * fiscalGdpScale : inputs.gdp;
-    // Year 0 has no prior regional split: last year's market-weighted GDP is
-    // taken at the same ratio to world GDP as this year's.
+    const fiscalGdp = inputs.gdpMarket * fiscalGdpScale;
+    // Year 0 has no prior gdpMarket: last year's is taken at the same ratio
+    // to world GDP as this year's.
     const previousFiscalGdp = yearIndex === 0 || !(state.previousFiscalGdp! > 0)
       ? previousGdp * (fiscalGdp / Math.max(inputs.gdp, Number.EPSILON))
       : state.previousFiscalGdp!;

@@ -66,6 +66,7 @@ function getCapitalInputs(yearIndex: number) {
     regionalLifeExpectancy: demoOutputs.regionalLifeExpectancy,
     gdp,
     regionalGdp,
+    gdpMarket: demandOutputs.gdpMarket,
     damages: 0, // No climate damages for basic tests
   };
 }

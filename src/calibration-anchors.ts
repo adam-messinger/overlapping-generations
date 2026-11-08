@@ -96,6 +96,11 @@ export const MAGNITUDE_ANCHORS: readonly MagnitudeAnchor[] = [
     read: (o) => o.capacities.coal,
   },
   {
+    name: 'world GDP at market exchange rates', unit: '$T/year', observed: 118.45, factor: 1.1,
+    source: '$118.45T in 2025, IMF WEO Oct 2026 NGDPD summed over the mapped countries (data/fiscal/imf-weo-regions.csv)',
+    read: (o) => o.gdpMarket,
+  },
+  {
     // Market shares come only from demand's regional gdp2025 table times the
     // price ratios (the dollar anchor cancels), so this checks that table.
     // Per region, model / IMF market GDP 2025: China 1.00, Russia 0.89,
