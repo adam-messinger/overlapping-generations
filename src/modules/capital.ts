@@ -1766,14 +1766,19 @@ export const capitalModule: Module<
     // non-financial sector). The stock is the consolidated private
     // non-financial one (households' mortgages included, as leverage on the
     // dwellings inside the PWT capital stock).
-    const openingTotalStock = state.stock + automationStock;
-    const targetPrivateLeverage = state.targetPrivateLeverage
-      ?? (openingTotalStock > 0 ? privateDebt / openingTotalStock : 0);
-    const openingPrivateLeverage = openingTotalStock > 0 ? privateDebt / openingTotalStock : 0;
-    // Robot and datacenter capital at year end does not depend on the plan
-    const closingAutomationStock =
-      (1 - params.robotCapitalDepreciation) * robotStock + realizedRobotCapex
-      + (1 - params.dataCenterCapitalDepreciation) * dataCenterStock + realizedDataCenterCapex;
+    // Total capital: general + robot + datacenter
+    const totalStock = state.stock + automationStock;
+    const openingPrivateLeverage = totalStock > 0 ? privateDebt / totalStock : 0;
+    const targetPrivateLeverage = state.targetPrivateLeverage ?? openingPrivateLeverage;
+    // Robot and datacenter capital: perpetual inventory of realized capex
+    // (built, so booked in full even when the pool could not finance it all;
+    // that overflow is reported as unfundedRealizedSpend). Independent of the
+    // financing plan, so leverage borrowing and the closing ledger share it.
+    const newRobotStock = (1 - params.robotCapitalDepreciation) * robotStock
+      + realizedRobotCapex;
+    const newDataCenterStock =
+      (1 - params.dataCenterCapitalDepreciation) * dataCenterStock
+      + realizedDataCenterCapex;
     const desiredClosingLeverage = openingPrivateLeverage
       + params.leverageAdjustmentSpeed
         * (targetPrivateLeverage - openingPrivateLeverage);
@@ -1825,7 +1830,7 @@ export const capitalModule: Module<
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
         + Math.max(0, orders - specialPurposeSpend(orders))
-        + closingAutomationStock;
+        + newRobotStock + newDataCenterStock;
       const leverageBorrowing =
         desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
       // An over-levered firm with no financing gap repays early from the cash
@@ -2104,9 +2109,6 @@ export const capitalModule: Module<
       params.robotsPerCapitalUnit
     );
 
-    // Total capital: general + robot + datacenter
-    const totalStock = state.stock + automationStock;
-
     // Calculate K per effective worker ($K per person)
     const kPerWorker = (totalStock * 1e12) / inputs.effectiveWorkers / 1000;
 
@@ -2124,14 +2126,6 @@ export const capitalModule: Module<
       unitQuantity((1 - params.depreciation) * state.stock, '$T', 'post-depreciation stock'),
       generalInvestmentStock,
     ], '$T', 'next general capital stock').value;
-    // Robot and datacenter capital: perpetual inventory of realized capex
-    // (built, so booked in full even when the pool could not finance it all;
-    // that overflow is reported as unfundedRealizedSpend)
-    const newRobotStock = (1 - params.robotCapitalDepreciation) * robotStock
-      + realizedRobotCapex;
-    const newDataCenterStock =
-      (1 - params.dataCenterCapitalDepreciation) * dataCenterStock
-      + realizedDataCenterCapex;
     const newTotalStock = newStock + newRobotStock + newDataCenterStock;
 
     // Capital growth rate

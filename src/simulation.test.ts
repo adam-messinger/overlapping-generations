@@ -613,18 +613,19 @@ test('private credit holds a target-leverage steady state on the default path', 
   expect(rows[0].investment / rows[0].gdp).toBeBetween(0.249, 0.255);
   expect(rows[0].newInvestmentLoanOriginations / rows[0].gdp).toBeBetween(0.025, 0.035);
   for (const row of rows) {
-    // Leverage on all capital stays near its year-0 ratio, so debt/GDP
-    // follows K/Y rather than decaying at the growth rate (the
-    // investment-gap-only closure reached 0.22 by 2100). Observed world
-    // private debt has held ~1.4-1.7x GDP (IMF GDD 2025, BIS). The bank
-    // credit envelope (baseCreditGrowth) binds from ~2030 and holds leverage
-    // progressively further under target: ~4% in 2030, ~11% in 2050, ~13%
-    // around 2080-90 (worst 13.6% in 2087). Leverage is on ALL capital, robots
-    // and datacenters included, which raises the debt firms want without
-    // moving the debt the envelope supplies (debt/GDP 2100 1.14 either way);
-    // on general capital alone the worst year was 12.3%. The drift is the
-    // envelope's calibration, not datacenter finance, hence the tolerance
-    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.14);
+    // Leverage on all capital (robots and datacenters included) is held near
+    // its year-0 ratio, so debt/GDP follows K/Y rather than decaying at the
+    // growth rate (the investment-gap-only closure reached 0.22 by 2100).
+    // Observed world private debt has held ~1.4-1.7x GDP (IMF GDD 2025, BIS).
+    // Firms never sit above target; wherever they sit under it, it is because
+    // the bank credit envelope (baseCreditGrowth) rations the request (the
+    // default path drifts to ~14% under by the 2080s as it binds).
+    const gap = row.privateLeverage / row.targetPrivateLeverage - 1;
+    expect(gap).toBeLessThan(0.01);
+    expect(gap).toBeGreaterThan(-0.25);
+    if (gap < -0.01) {
+      expect(row.newInvestmentLoanOriginations).toBeLessThan(row.leverageBorrowing);
+    }
     expect(row.privateDebtGDP).toBeBetween(1.0, 1.65);
   }
 });
