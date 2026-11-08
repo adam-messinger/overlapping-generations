@@ -106,6 +106,7 @@ interface RegionalAllocationRow {
   laborFactor: number;
   climateFactorChange: number;
   energyFactorChange: number;
+  outputAdjustmentChange: number;
   energyBurden: number;
   reliabilityFactor: number;
   gdpShare: number;
@@ -116,6 +117,7 @@ const regionalAllocationRow = objectPort<RegionalAllocationRow>({
   laborFactor: unitPort('fraction'),
   climateFactorChange: unitPort('fraction'),
   energyFactorChange: unitPort('fraction'),
+  outputAdjustmentChange: unitPort('fraction'),
   energyBurden: unitPort('fraction'),
   reliabilityFactor: unitPort('fraction'),
   gdpShare: unitPort('fraction'),

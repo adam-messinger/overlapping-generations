@@ -45,12 +45,20 @@
 The γ×damage grid below (a separate, smaller axis) identified two further
 consequential, least-constrained parameters:
 
-- **γ (useful-energy output elasticity)**, default 0.55 — the Ayres-Warr
-  (2009) value, within Kümmel et al. (2010)'s defended 0.40–0.60 range. The
-  mainstream counter-position: under cost-share logic, energy's output
-  elasticity should approximate its ~5–8% share of GDP, i.e. γ ≈ 0.05–0.08.
-  The exergy-economics school explicitly rejects the cost-share theorem;
-  this model adopts that heterodox position deliberately.
+- **γ (useful-energy output elasticity)**, default 0.20 with β = 0.55 so the
+  weights sum to 1 (was 0.55 with β = 0.15, the Ayres-Warr 2009 value). The
+  mainstream position: energy's output elasticity ≈ its ~5–8% cost share. The
+  exergy-economics school rejects the cost-share theorem (Kümmel et al. 2010
+  defend 0.40–0.60). 0.20 keeps a deliberate heterodox weight, 4× the cost
+  share, but sits where identified supply-shock evidence points over decades
+  (Bruns, Gross & Stern 2014; Känzig 2021; sources at `productionDefaults`).
+  History does not choose between them: at constant returns every γ in
+  [0, 0.7] fits world GDP 1990–2025 within ~0.25pp/yr
+  (`scripts/growth-backcast.md`). An earlier backcast sweep that lowered γ
+  without giving its weight to labor had decreasing returns at low γ and was
+  misread as rejecting the cost share. Forward, γ is the largest GDP dial
+  because energy demand follows GDP: growth behaves like
+  (β·g_L + (1−γ)·d)/(1−α−γ), and at the old weights the denominator was 0.20.
 - **damageCoeff (quadratic climate damages)**, default 0.00536 — the midpoint
   of DICE-2023 (0.003467; Barrage & Nordhaus 2024) and Howard & Sterner
   (2017; 0.007438). The growth-effects literature (Burke, Hsiang & Miguel
@@ -60,7 +68,9 @@ consequential, least-constrained parameters:
 `scripts/gamma-damage-sensitivity.ts` runs the full simulation over the 4×4
 grid and regenerates `scripts/gamma-damage-sensitivity.md` — **that generated
 file is the source of truth for all exact grid figures**. It was regenerated
-on July 22, 2026 after adding composite datacenter capex. Qualitative summary:
+on November 8, 2026 with each cell at constant returns (β = 1 − α − γ) and γ =
+0.20 as the default: GDP 2100 spans $641T–$2,404T across the grid, $886T at the
+defaults. Some figures in the qualitative summary below predate that run:
 
 ## What is robust across the entire grid
 

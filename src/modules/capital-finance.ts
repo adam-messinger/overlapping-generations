@@ -65,6 +65,18 @@ export interface CapitalFinanceInputs {
   pricedPublicDebtGDP?: number;
   /** Extra primary deficit as a fraction of GDP (e.g. unfunded ageing costs). Defaults to 0. */
   additionalPrimaryDeficitRate?: number;
+  /**
+   * The GDP public debt is measured against ($T/year), and its previous-year
+   * level. Public debt ratios are debt over GDP at MARKET exchange rates (IMF
+   * WEO/Fiscal Monitor); world PPP GDP grows faster than that because it
+   * weights fast-growing emerging economies more, while debt sits mostly in
+   * slower-growing advanced ones. The deficit, the debt ratio, the fiscal
+   * reaction, repression and the safe rate's debt term all read this
+   * denominator; private debt and the return on capital keep `gdp`. Both
+   * default to `gdp` and the state's `previousGdp`.
+   */
+  fiscalGdp?: number;
+  previousFiscalGdp?: number;
 }
 
 export interface CapitalFinancePathPoint {
@@ -138,6 +150,8 @@ export function advanceCapitalFinance(
   finiteNonNegative(state.privateDebt, 'privateDebt');
   finiteNonNegative(state.previousGdp, 'previousGdp');
   finiteNonNegative(inputs.gdp, 'gdp');
+  if (inputs.fiscalGdp !== undefined) finiteNonNegative(inputs.fiscalGdp, 'fiscalGdp');
+  if (inputs.previousFiscalGdp !== undefined) finiteNonNegative(inputs.previousFiscalGdp, 'previousFiscalGdp');
   finiteNonNegative(inputs.capitalStock, 'capitalStock');
   if (inputs.netNewCreditDemand !== undefined) {
     finiteNonNegative(inputs.netNewCreditDemand, 'netNewCreditDemand');
@@ -158,9 +172,15 @@ export function advanceCapitalFinance(
   const openingPublicDebt = state.publicDebt;
   const openingPrivateDebt = state.privateDebt;
   const ratioDenominator = Math.max(inputs.gdp, Number.EPSILON);
-  const openingPublicDebtGDP = openingPublicDebt / ratioDenominator;
+  const fiscalGdp = inputs.fiscalGdp ?? inputs.gdp;
+  const previousFiscalGdp = inputs.previousFiscalGdp !== undefined && inputs.previousFiscalGdp > 0
+    ? inputs.previousFiscalGdp
+    : (inputs.fiscalGdp === undefined && state.previousGdp > 0 ? state.previousGdp : fiscalGdp);
+  const openingPublicDebtGDP = openingPublicDebt / Math.max(fiscalGdp, Number.EPSILON);
   const openingPrivateDebtGDP = openingPrivateDebt / ratioDenominator;
-  const openingTotalDebtGDP = openingPublicDebtGDP + openingPrivateDebtGDP;
+  // Total debt prices the return on capital (mostly private leverage) against
+  // world output, so public debt enters it at the PPP denominator.
+  const openingTotalDebtGDP = openingPublicDebt / ratioDenominator + openingPrivateDebtGDP;
   const previousGdp = state.previousGdp > 0 ? state.previousGdp : inputs.gdp;
   const gdpGrowth = previousGdp > 0 ? (inputs.gdp - previousGdp) / previousGdp : 0;
   const dt = 1 / params.financialSubsteps;
@@ -192,9 +212,13 @@ export function advanceCapitalFinance(
       Number.EPSILON,
       previousGdp + (inputs.gdp - previousGdp) * midpoint,
     );
-    const publicDebtGDP = publicDebt / localGdp;
+    const localFiscalGdp = Math.max(
+      Number.EPSILON,
+      previousFiscalGdp + (fiscalGdp - previousFiscalGdp) * midpoint,
+    );
+    const publicDebtGDP = publicDebt / localFiscalGdp;
     const privateDebtGDP = privateDebt / localGdp;
-    const totalDebtGDP = publicDebtGDP + privateDebtGDP;
+    const totalDebtGDP = publicDebt / localGdp + privateDebtGDP;
     const debtRiskPremium =
       params.debtRiskLambda * Math.max(0, totalDebtGDP - params.debtRiskThreshold);
     const baseInterestRate = inputs.capitalStock > 0
@@ -234,12 +258,12 @@ export function advanceCapitalFinance(
     const loanRate = safeRate + params.creditSpread;
 
     const fiscalConsolidationRate = Math.min(
-      params.fiscalReactionMax * localGdp,
+      params.fiscalReactionMax * localFiscalGdp,
       Math.max(
         0,
         params.fiscalReactionCoeff
           * (publicDebtGDP - params.fiscalReactionThreshold)
-          * localGdp,
+          * localFiscalGdp,
       ),
     );
     // Debt accumulates the overall deficit: the primary balance plus
@@ -250,7 +274,7 @@ export function advanceCapitalFinance(
     // "liquidation effect" (Reinhart & Sbrancia 2015). The fiscal reaction
     // still acts on the primary balance (Bohn 1998).
     const primaryDebtChange = (
-      (params.publicDeficitRate + (inputs.additionalPrimaryDeficitRate ?? 0)) * localGdp
+      (params.publicDeficitRate + (inputs.additionalPrimaryDeficitRate ?? 0)) * localFiscalGdp
       - fiscalConsolidationRate
     ) * dt;
     const interestAccrual = safeRate * publicDebt * dt;
@@ -317,7 +341,7 @@ export function advanceCapitalFinance(
       gdp: localGdp,
       publicDebt,
       privateDebt,
-      publicDebtGDP: publicDebt / localGdp,
+      publicDebtGDP: publicDebt / localFiscalGdp,
       privateDebtGDP: privateDebt / localGdp,
       interestRate,
       safeRate,

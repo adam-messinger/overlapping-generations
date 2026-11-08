@@ -103,12 +103,16 @@ test('automation payoff validation rejects out-of-range values', () => {
   expect(productionModule.validate({ robotLaborEquivalent: 2, aiWorkerEquivalentPerTWh: 1e5 }).valid).toBe(true);
 });
 
-test('calibrated Ayres-Warr exponents are pinned', () => {
-  // gamma = 0.55: Ayres & Warr (2009), within Kuemmel et al. (2010) 0.40-0.60.
+test('calibrated factor weights are pinned, at constant returns', () => {
+  // gamma = 0.20 (sources at productionDefaults): identified energy-supply
+  // evidence and a constant-returns backcast that cannot identify gamma.
   // Changing the growth engine's core elasticities must be deliberate.
-  expect(productionDefaults.gamma).toBe(0.55);
+  expect(productionDefaults.gamma).toBe(0.20);
   expect(productionDefaults.alpha).toBe(0.25);
-  expect(productionDefaults.beta).toBe(0.15);
+  expect(productionDefaults.beta).toBe(0.55);
+  // Constant returns: the old 0.25/0.15/0.55 summed to 0.95, and the
+  // backcast's low-gamma cases had summed to 0.48.
+  expect(productionDefaults.alpha + productionDefaults.beta + productionDefaults.gamma).toBeCloseTo(1, 12);
 });
 
 test('1990-2025 growth backcast reproduces observed world GDP', () => {

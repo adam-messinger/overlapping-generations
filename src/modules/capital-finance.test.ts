@@ -1,4 +1,4 @@
-import { test, expect } from '../test-utils.js';
+import { test, expect, printSummary } from '../test-utils.js';
 import { advanceCapitalFinance, type CapitalFinanceParameters } from './capital-finance.js';
 import {
   bankRetention,
@@ -372,3 +372,29 @@ test('credit capacity is the lending envelope: demand above it is exactly the un
   expect(under.newInvestmentLoanOriginations).toBeCloseTo(capacity / 2, 9);
   expect(under.newInvestmentLoanOriginations - under.netNewCreditCapacity).toBeLessThan(0);
 });
+
+test('public debt is measured against the market-weighted fiscal GDP, private debt against world GDP', () => {
+  const annual = { ...params, fiscalReactionCoeff: 0, financialSubsteps: 1 };
+  const state = { publicDebt: 142.2, privateDebt: 252.8, previousGdp: 158 };
+  // World (PPP) GDP grows 4%; the market-weighted denominator grows 2%.
+  const ppp = advanceCapitalFinance(state, { gdp: 158 * 1.04, capitalStock: 553 }, annual);
+  const market = advanceCapitalFinance(
+    state,
+    { gdp: 158 * 1.04, capitalStock: 553, fiscalGdp: 158 * 1.02, previousFiscalGdp: 158 },
+    annual,
+  );
+  // Same debt stock, slower-growing denominator: a higher opening ratio...
+  expect(market.openingPublicDebtGDP).toBeCloseTo(142.2 / (158 * 1.02), 12);
+  expect(ppp.openingPublicDebtGDP).toBeCloseTo(142.2 / (158 * 1.04), 12);
+  // ...a primary deficit sized on the fiscal denominator...
+  // (one substep: the deficit accrues at the mid-year denominator)
+  expect(market.primaryDeficit).toBeCloseTo(annual.publicDeficitRate * 158 * 1.01, 9);
+  // ...and private debt / total-debt pricing untouched by the fiscal denominator.
+  expect(market.openingPrivateDebtGDP).toBeCloseTo(ppp.openingPrivateDebtGDP, 12);
+  expect(market.debtRiskPremium).toBeCloseTo(ppp.debtRiskPremium, 12);
+  // Omitting the fiscal inputs reproduces the world-GDP denominator exactly.
+  const omitted = advanceCapitalFinance(state, { gdp: 158 * 1.04, capitalStock: 553, fiscalGdp: undefined }, annual);
+  expect(Object.is(omitted.state.publicDebt, ppp.state.publicDebt)).toBe(true);
+});
+
+printSummary();
