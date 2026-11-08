@@ -60,7 +60,7 @@ export interface ClimateParams {
   heatExchange: number;          // γ: inter-layer heat exchange, W·m⁻²·K⁻¹ (0.73)
   forcingPerDoubling: number;    // F₂ₓ: radiative forcing per CO2 doubling, W/m² (3.7)
   warmingRate: number;           // Observed surface warming rate in 2025, °C/yr (0.02)
-  currentTemp: number;           // °C above preindustrial in 2025 (1.45)
+  currentTemp: number;           // Forced (ENSO-free) warming entering 2025, °C above preindustrial (1.39)
 
   // Damage function (DICE-2023/Howard-Sterner midpoint)
   damageCoeff: number;           // Quadratic coefficient (0.00536)
@@ -103,7 +103,14 @@ export const climateDefaults: ClimateParams = {
   heatExchange: 0.73,
   forcingPerDoubling: 3.7,
   warmingRate: 0.02,
-  currentTemp: 1.45,
+  // Forced warming, not a single observed year: 1.36 C human-induced in 2024
+  // rising 0.27 C/decade gives ~1.39 for 2025 (Forster et al. 2025, Indicators
+  // of Global Climate Change 2024, ESSD 17:2641); an ERA5 1970-2025 regression on
+  // trend + lagged ONI puts the ENSO-free 2025 level at 1.41 (ERA5 runs ~0.05 warm
+  // of the multi-dataset mean). Was 1.45, the 2025 single-year reading, which ran
+  // the first half of 2026 (ENSO-neutral) ~0.06 C hot; see
+  // docs/NEWS_STRESS_TESTS_2026-11-08.md
+  currentTemp: 1.39,
   damageCoeff: 0.00536,
   maxDamage: 0.50,
   regionalDamage: {
