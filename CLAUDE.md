@@ -355,7 +355,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   deprecated alias for ex-post national gross saving, not as an input to
   investment
 - **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend — lagged) from capital formation; one pool, so energy buildout genuinely competes for savings. Energy and CDR crowd out NET general investment, never its replacement: orders are at least those spends plus depreciation of general capital (still capped by financing and feasibility). Carved out of replacement, they shrank K whenever they exceeded net investment, and orders (which scale with K) shrank with it (ai-energy-boom K 970 -> 640 $T over 2060-2100)
-- **Robots and datacenters are capital**: K = general + robot + datacenter capital. Robot and chips+facility capex (demand, lagged) builds its own perpetual-inventory stocks, depreciating at demand's replacement rates (`robotCapitalDepreciation`/`dataCenterCapitalDepreciation`, derived from demand's); year 0 carves the observed 2025 fleets out of the PWT stock at installed cost. Their capex is ADDED to general orders and competes for finance (internal funds, credit envelope, final-use cap), served before general capital when finance binds. Carved out of general capital's desired expansion (at most `maximumNetInvestmentRate` x K) as before, capex growing with GDP outran a cap growing with K and froze general K for good (ai-energy-boom: $967T flat 2049-2100 at a 37% return on capital; 2100 GDP $1,204T vs ~$3,740T with the fix, ~$3,200T once the datacenter brake also priced capital). Production's K is GENERAL capital (`nextGeneralCapitalStock`): robots and AI produce through production's worker-equivalent channel, so their capital in K too would credit their output twice. General capital's profit rate excludes the automation return net of its depreciation; the leverage target is still on general capital only
+- **Robots and datacenters are capital**: K = general + robot + datacenter capital. Robot and chips+facility capex (demand, lagged) builds its own perpetual-inventory stocks, depreciating at demand's replacement rates (`robotCapitalDepreciation`/`dataCenterCapitalDepreciation`, derived from demand's); year 0 carves the observed 2025 fleets out of the PWT stock at installed cost. Their capex is ADDED to general orders and competes for finance (internal funds, credit envelope, final-use cap), served before general capital when finance binds. Carved out of general capital's desired expansion (at most `maximumNetInvestmentRate` x K) as before, capex growing with GDP outran a cap growing with K and froze general K for good (ai-energy-boom: $967T flat 2049-2100 at a 37% return on capital; 2100 GDP $1,204T vs ~$3,740T with the fix, ~$3,200T once the datacenter brake also priced capital). Production's K is GENERAL capital (`nextGeneralCapitalStock`): robots and AI produce through production's worker-equivalent channel, so their capital in K too would credit their output twice. General capital's profit rate excludes the automation return net of its depreciation; the leverage target covers all three
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
@@ -372,19 +372,23 @@ the human-capital ledger (including its replacement-cost re-pricing).
   keep world GDP
 - Private debt: credit impulse dampened by the loan-rate-minus-growth spread and leverage ratio
 - **Target leverage**: firms borrow max(investment gap, leverage borrowing), where
-  leverage borrowing moves debt / general capital a share `leverageAdjustmentSpeed`
+  leverage borrowing moves debt / capital (general + robot + datacenter) a share `leverageAdjustmentSpeed`
   (0.25/yr: Flannery-Rangan 2006 ~1/3, Huang-Ritter 2009 ~17%) of the way to its
   year-0 ratio (0.457, anchored in state: Lemmon-Roberts-Zender 2008 persistence).
   Credit beyond the investment gap is paid out to owners; over-levered firms with
   spare cash repay early instead of paying it out. Without it, net new credit hit
   ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
-  2100; now it follows K/Y (1.44 in 2050, 1.58 in 2100), with the bank credit
-  envelope (`baseCreditGrowth`) holding leverage up to ~15% under target by 2100 (leverage demand
-  exceeds the envelope from 2025; recap borrowing starts in 2027). The
+  2100; now debt/GDP follows K/Y (1.44 in 2050, 1.58 in 2100), with the bank credit
+  envelope (`baseCreditGrowth`) holding leverage progressively further under
+  target (~12% by 2050, ~16% by 2100). The
   stock is consolidated private non-financial debt (mortgages included as leverage
-  on the dwellings in the PWT stock). Known limitation: the target is on GENERAL
-  capital only, so where energy capex crowds it out (net-zero: K/Y 1.7 by 2095)
-  debt/GDP falls with it
+  on the dwellings in the PWT stock). Robot and datacenter capital counts toward
+  the target (ai-energy-boom debt/GDP 2100 0.73 -> 0.92 when it did). Known
+  limitations: energy assets carry no debt on the balance sheet although energy
+  WACC assumes 70% project debt, and general K/Y falls in fast-growth scenarios
+  (investment saturates at 3.8% of K above a 4.8% profit rate, the model's
+  stabiliser of the 0.8 reproducible-factor growth loop), so debt/GDP falls
+  with it (net-zero 0.83 in 2100)
 - **Three real rates, not one**: `interestRate` = return on capital (α·Y/K − δ, the
   income share 0.33, not production's fitted 0.25) + total-debt premium, ~7% in 2025 —
   firms' cost of capital (robots, CDR discounting). `safeRate` (~1% in 2025) is paid on
