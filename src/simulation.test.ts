@@ -461,7 +461,8 @@ test('default fossil LCOEs drift up with depletion and have no cliff', () => {
 
 // Baseline financing must reconcile. Explicit DC capex should also feed back
 // into the deliberately extreme AI boom through the shared capital ledger,
-// lowering the path relative to an otherwise identical free-DC-capex run.
+// lowering GENERAL capital and GDP relative to an otherwise identical
+// free-DC-capex run (total capital rises: the capex builds datacenter capital).
 test('baseline is fully funded and datacenter capex feeds back through the AI boom', () => {
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const baseline = runAutowiredSimulation({});
@@ -489,8 +490,35 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   const withDc = getOutputsAtYear(boom, idx2050);
   const withoutDc = getOutputsAtYear(boomWithoutDcCapex, idx2050);
   expect(withDc.dataCenterCapexSpend as number).toBeGreaterThan(0);
-  expect(withDc.stock as number).toBeLessThan(withoutDc.stock as number);
+  expect(withDc.generalCapitalStock as number).toBeLessThan(withoutDc.generalCapitalStock as number);
   expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
+  expect(withDc.dataCenterCapitalStock as number)
+    .toBeGreaterThan(withoutDc.dataCenterCapitalStock as number);
+});
+
+// Robots and datacenters are capital, but production's K is general capital
+// only. Production anchors K0 on the observed 2025 stock; year 0 carves the
+// 2025 fleets out of it, so production must still see exactly
+// (general_t / general_2025)^alpha, not a permanent level step.
+test('production capital is general capital, anchored at its own 2025 level', () => {
+  const run = runSimulation({ startYear: 2025, endYear: 2030 }, { diagnostics: false });
+  const alpha = productionDefaults.alpha;
+  const general0 = run.results[0].generalCapitalStock;
+  expect(run.results[0].robotCapitalStock + run.results[0].dataCenterCapitalStock).toBeGreaterThan(1);
+  for (const row of run.results) {
+    expect(row.capitalContribution).toBeCloseTo(Math.pow(row.generalCapitalStock / general0, alpha), 12);
+    expect(row.capitalStock).toBeCloseTo(
+      row.generalCapitalStock + row.robotCapitalStock + row.dataCenterCapitalStock, 9);
+  }
+  // The opening fleet's replacement is bought from year 0, so robot capital
+  // never dips (it used to wear two years with nothing replacing it, then
+  // jump). Capex reaches capital a year late and the reported stock is the
+  // opening one, so the fleet's 2026 growth shows in 2028.
+  for (let i = 1; i < run.results.length; i++) {
+    const prev = run.results[i - 1].robotCapitalStock;
+    expect(run.results[i].robotCapitalStock).toBeGreaterThan(prev * (1 - 1e-12));
+    if (i >= 3) expect(run.results[i].robotCapitalStock).toBeGreaterThan(prev * 1.01);
+  }
 });
 
 // toYearResults casts collectResults' rows to YearResult[]. That cast is

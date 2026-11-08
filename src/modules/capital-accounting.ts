@@ -17,7 +17,7 @@ import {
 export const capitalGodleyDefinition = defineGodleyLedger({
   id: 'global-olg-capital-finance',
   version: '1.0.0',
-  description: 'Consolidated general-capital, banking, and public-debt balance sheet',
+  description: 'Consolidated capital (general + automation), banking, and public-debt balance sheet',
   unit: '$T',
   tolerance: 1e-8,
   accounts: [
@@ -42,6 +42,7 @@ export const capitalGodleyDefinition = defineGodleyLedger({
       instrument: 'bank-deposits',
     },
     { id: 'firms.generalCapital', sector: 'firms', kind: 'asset' },
+    { id: 'firms.automationCapital', sector: 'firms', kind: 'asset' },
     {
       id: 'firms.privateLoans',
       sector: 'firms',
@@ -106,7 +107,10 @@ export const capitalGodleyDefinition = defineGodleyLedger({
 });
 
 export interface CapitalGodleyOpening {
+  /** Opening GENERAL capital stock */
   capitalStock: number;
+  /** Opening robot + datacenter capital stock (default 0) */
+  automationCapital?: number;
   privateDebt: number;
   publicDebt: number;
   bankEquityRatio: number;
@@ -139,8 +143,9 @@ export function createCapitalGodleyLedger(
       'households.netWorth': opening.publicDebt + householdDeposits,
       'firms.deposits': firmDeposits,
       'firms.generalCapital': opening.capitalStock,
+      'firms.automationCapital': opening.automationCapital ?? 0,
       'firms.privateLoans': opening.privateDebt,
-      'firms.netWorth': opening.capitalStock - householdDeposits,
+      'firms.netWorth': opening.capitalStock + (opening.automationCapital ?? 0) - householdDeposits,
       'banks.privateLoans': opening.privateDebt,
       'banks.reserves': reserveAndEquity,
       'banks.deposits': opening.privateDebt,
@@ -155,8 +160,13 @@ export function createCapitalGodleyLedger(
 }
 
 export interface CapitalGodleyFlows {
+  /** General-capital depreciation */
   depreciation: number;
   generalInvestment: number;
+  /** Robot + datacenter capital formation (realized capex); default 0 */
+  automationInvestment?: number;
+  /** Robot + datacenter capital depreciation; default 0 */
+  automationDepreciation?: number;
   laborCompensation: number;
   householdConsumption: number;
   grossLoanOriginations: number;
@@ -302,6 +312,14 @@ export function postCapitalGodleyYear(
     balanceSheetChange('capital-formation', 'General-capital formation', [
       { accountId: 'firms.generalCapital', change: flows.generalInvestment },
       { accountId: 'firms.netWorth', change: flows.generalInvestment },
+    ]),
+    balanceSheetChange('automation-depreciation', 'Robot and datacenter capital depreciation', [
+      { accountId: 'firms.automationCapital', change: -(flows.automationDepreciation ?? 0) },
+      { accountId: 'firms.netWorth', change: -(flows.automationDepreciation ?? 0) },
+    ]),
+    balanceSheetChange('automation-capital-formation', 'Robot and datacenter capital formation', [
+      { accountId: 'firms.automationCapital', change: flows.automationInvestment ?? 0 },
+      { accountId: 'firms.netWorth', change: flows.automationInvestment ?? 0 },
     ]),
     balanceSheetChange('loan-originations', 'Gross bank-loan originations', [
       { accountId: 'firms.deposits', change: flows.grossLoanOriginations },

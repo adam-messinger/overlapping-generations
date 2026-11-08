@@ -184,7 +184,8 @@ p();
 p('## Forward contrast: the same engine 2025-2050');
 p();
 const y25 = f(2025), y50 = f(2050);
-const gK = cagr(y25.capitalStock, y50.capitalStock, 25);
+// Production's K is general capital (robots/datacenters produce via worker-equivalents)
+const gK = cagr(y25.generalCapitalStock, y50.generalCapitalStock, 25);
 const gE = cagr(fwdE(y25), fwdE(y50), 25);
 const gY = cagr(y25.gdp, y50.gdp, 25);
 const elObs = def.series.electricity;

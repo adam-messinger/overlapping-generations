@@ -65,6 +65,7 @@ import {
   validatedMerge,
 } from 'tsimulation';
 import { advanceCapitalFinance } from './capital-finance.js';
+import { demandDefaults } from './demand.js';
 import {
   bankRetention,
   capitalBankCapitalRatio,
@@ -94,6 +95,8 @@ export interface CapitalParams {
   investmentProfitRateFloor: number; // Profit rate below which only replacement is ordered
   investmentProfitRateCeiling: number; // Profit rate at which net investment response saturates
   maximumNetInvestmentRate: number; // Maximum desired net investment / capital
+  robotCapitalDepreciation: number; // Robot capital depreciation (derived from demand.robotDepreciation)
+  dataCenterCapitalDepreciation: number; // Datacenter capital depreciation (derived from demand.dataCenterDepreciation)
 
   // OLG lifecycle savings rates
   savingsYoung: number;       // Ages 0-19: dependents (0)
@@ -170,7 +173,13 @@ export interface CapitalParams {
 }
 
 export interface CapitalState {
-  stock: number;              // Current capital stock ($ trillions)
+  stock: number;              // Current GENERAL capital stock ($ trillions)
+  /** Robot capital stock ($T); undefined until year 0 splits the opening stock */
+  robotStock?: number;
+  /** Chips + datacenter capital stock ($T); undefined until year 0 splits the opening stock */
+  dataCenterStock?: number;
+  /** General capital stock after the year-0 split (production's anchor in general-capital units) */
+  openingGeneralStock?: number;
   referenceLifeExpectancy: Record<Region, number>; // Year-0 LE per region
   referenceDependency: Record<Region, number>;     // Year-0 dependency ratio per region
   publicDebt: number;         // $ trillions
@@ -194,6 +203,10 @@ export interface CapitalInputs {
   robotCapexSpend?: number;
   /** Realized composite chips + datacenter capex $T (from demand, lagged). Unwired fallback: 0 */
   dataCenterCapexSpend?: number;
+  /** Robot fleet at installed cost $T (from demand, same year): splits the opening stock in year 0. Unwired: 0 */
+  robotCapitalValue?: number;
+  /** Opening datacenter fleet at composite cost $T (from demand, same year): splits the opening stock in year 0. Unwired: 0 */
+  dataCenterCapitalValue?: number;
   // From demographics (per region)
   regionalYoung: Record<Region, number>;
   regionalWorking: Record<Region, number>;
@@ -228,8 +241,14 @@ export interface CapitalInputs {
 
 export interface CapitalOutputs {
   // Stock and flows
-  stock: number;              // Capital stock ($ trillions)
-  nextCapitalStock: number;   // End-of-period capital stock ($ trillions)
+  stock: number;              // Capital stock: general + robot + datacenter ($ trillions)
+  nextCapitalStock: number;   // End-of-period capital stock: general + robot + datacenter ($ trillions)
+  generalCapitalStock: number;      // Opening general capital stock ($T): production's K
+  nextGeneralCapitalStock: number;  // End-of-period general capital stock ($T)
+  nextProductionCapitalStock: number; // nextGeneralCapitalStock in production's anchor units ($T): see step
+  robotCapitalStock: number;        // Opening robot capital stock ($T)
+  dataCenterCapitalStock: number;   // Opening chips + datacenter capital stock ($T)
+  automationDepreciation: number;   // Robot + datacenter capital depreciation ($T/year)
   investment: number;         // Annual investment ($ trillions)
   plannedInvestment: number;  // Desired annual investment before final-use feasibility cap
   unfundedInvestmentDemand: number; // Desired investment above the feasible final-use envelope
@@ -282,6 +301,7 @@ export interface CapitalOutputs {
   // Investment split
   energyInvestment: number;         // $T BUDGET signal to energy (availableInvestment fallback); the K debit uses realized spends (energyCapexSpend)
   generalInvestment: number;        // $ trillions to general economy
+  capitalFormation: number;         // $T entering K: generalInvestment + robot + datacenter capex
   unfundedRealizedSpend: number;    // $T of realized spends exceeding the investment pool (floor binding)
   energyShareOfInvestment: number;  // Fraction going to energy
 
@@ -378,6 +398,10 @@ export const capitalDefaults: CapitalParams = {
   investmentProfitRateFloor: 0,
   investmentProfitRateCeiling: 0.048,
   maximumNetInvestmentRate: 0.038,
+  // Robot and datacenter capital wear out at the rates demand's capex
+  // replaces them at (one source of truth: src/param-derivations.ts).
+  robotCapitalDepreciation: demandDefaults.robotDepreciation,
+  dataCenterCapitalDepreciation: demandDefaults.dataCenterDepreciation,
 
   // OLG lifecycle savings
   savingsYoung: 0.0,        // Dependents don't save
@@ -677,8 +701,12 @@ function calculateStability(uncertainty: number, lambda: number): number {
 interface FirmCircuit {
   laborCompensation: number;
   operatingSurplus: number;
+  /** Depreciation of all capital: general + robot + datacenter */
   depreciationAllowance: number;
+  /** Depreciation of general capital only (the replacement general orders cover) */
+  generalDepreciation: number;
   profitAfterInterestAndDepreciation: number;
+  /** General capital's own profit rate (the automation return excluded) */
   profitRate: number;
   retainedEarnings: number;
   firmDividendPayments: number;
@@ -707,6 +735,7 @@ function calculateFirmCircuit(
   netEnergyFactor: number,
   params: CapitalParams,
   automationLaborShareChange = 0,
+  automationDepreciation = 0,
 ): FirmCircuit {
   const marketOutput = Math.max(0, gdp - governmentServiceConsumption);
   // Labor's (1 - alpha) is split between people and machine worker-
@@ -717,17 +746,20 @@ function calculateFirmCircuit(
       * Math.max(0, automationLaborShareChange);
   const operatingSurplus = capitalIncomeShare * marketOutput;
   const laborCompensation = marketOutput - operatingSurplus;
-  const depreciationAllowance = params.depreciation * capitalStock;
+  const generalDepreciation = params.depreciation * capitalStock;
+  const depreciationAllowance = generalDepreciation + automationDepreciation;
   const profitAfterInterestAndDepreciation =
     operatingSurplus - privateInterestPayments - depreciationAllowance;
   // Orders for GENERAL capital respond to general capital's own profit rate.
-  // Machine income is the return on robot/compute capital, which is debited
-  // from general capital formation and lives outside K: it is firm cash flow
-  // (internal funds, then dividends), not a signal that K is scarce. Counting
+  // Machine income is the gross return on robot/compute capital, a separate
+  // stock (robotStock, dataCenterStock) whose own deployment rules live in
+  // demand: net of that stock's depreciation it is firm cash flow (internal
+  // funds, then dividends), not a signal that general K is scarce. Counting
   // it here sent investment to ~40% of GDP in slow-growth scenarios.
   const automationIncome = operatingSurplus - params.alpha * marketOutput;
   const profitRate = capitalStock > 0
-    ? (profitAfterInterestAndDepreciation - automationIncome) / capitalStock
+    ? (profitAfterInterestAndDepreciation - (automationIncome - automationDepreciation))
+      / capitalStock
     : 0;
 
   // Losses are retained by definition; only positive profit can be paid out.
@@ -760,13 +792,15 @@ function calculateFirmCircuit(
     laborCompensation,
     operatingSurplus,
     depreciationAllowance,
+    generalDepreciation,
     profitAfterInterestAndDepreciation,
     profitRate,
     retainedEarnings,
     firmDividendPayments,
     firmGrossSaving,
     firmInternalFunds,
-    plannedInvestment: Math.max(0, depreciationAllowance + desiredNetInvestment),
+    // General capital's orders: its replacement plus desired expansion.
+    plannedInvestment: Math.max(0, generalDepreciation + desiredNetInvestment),
   };
 }
 
@@ -829,6 +863,36 @@ const CAPITAL_INVARIANTS: readonly ModuleInvariant<
         atMost('bank retained earnings', outputs.bankSaving,
           Math.max(0, outputs.bankInterestIncome), { abs }),
       ];
+    },
+  },
+  {
+    name: 'capital stock partitions into general, robot and datacenter capital',
+    description: 'stock = generalCapitalStock + robotCapitalStock + dataCenterCapitalStock.',
+    check: ({ outputs }) => closeTo('capital stock partition',
+      outputs.generalCapitalStock + outputs.robotCapitalStock + outputs.dataCenterCapitalStock,
+      outputs.stock,
+      { abs: 1e-9 * Math.max(1, Math.abs(outputs.stock)) }),
+  },
+  {
+    name: 'capital stock moves by its formation less its depreciation',
+    description: 'nextCapitalStock = stock - depreciation x generalCapitalStock - automationDepreciation + capitalFormation (what the generational accounts read).',
+    check: ({ outputs, params }) => closeTo('capital stock-flow',
+      outputs.nextCapitalStock,
+      outputs.stock - params.depreciation * outputs.generalCapitalStock
+        - outputs.automationDepreciation + outputs.capitalFormation,
+      { abs: 1e-9 * Math.max(1, Math.abs(outputs.nextCapitalStock)) }),
+  },
+  {
+    name: 'robot and datacenter capital is a perpetual inventory of their capex',
+    description: 'closing automation capital = opening - automationDepreciation + robotCapexSpend + dataCenterCapexSpend.',
+    check: ({ inputs, outputs }) => {
+      if (inputs.robotCapexSpend == null || inputs.dataCenterCapexSpend == null) return undefined;
+      const closing = outputs.nextCapitalStock - outputs.nextGeneralCapitalStock;
+      const opening = outputs.robotCapitalStock + outputs.dataCenterCapitalStock;
+      return closeTo('automation capital stock-flow',
+        closing,
+        opening - outputs.automationDepreciation + inputs.robotCapexSpend + inputs.dataCenterCapexSpend,
+        { abs: 1e-9 * Math.max(1, Math.abs(closing)) });
     },
   },
   {
@@ -1031,11 +1095,19 @@ export const capitalModule: Module<
       cdrSpend: unitPort('$T/year'),
       robotCapexSpend: unitPort('$T/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
+      robotCapitalValue: unitPort('$T'),
+      dataCenterCapitalValue: unitPort('$T'),
       laggedGdp: unitPort('$T/year'),
     },
     outputs: {
       stock: unitPort('$T'),
       nextCapitalStock: unitPort('$T'),
+      generalCapitalStock: unitPort('$T'),
+      nextGeneralCapitalStock: unitPort('$T'),
+      nextProductionCapitalStock: unitPort('$T'),
+      robotCapitalStock: unitPort('$T'),
+      dataCenterCapitalStock: unitPort('$T'),
+      automationDepreciation: unitPort('$T/year'),
       investment: unitPort('$T/year'),
       plannedInvestment: unitPort('$T/year'),
       unfundedInvestmentDemand: unitPort('$T/year'),
@@ -1076,6 +1148,7 @@ export const capitalModule: Module<
       capitalGrowthRate: unitPort('fraction/year'),
       energyInvestment: unitPort('$T/year'),
       generalInvestment: unitPort('$T/year'),
+      capitalFormation: unitPort('$T/year'),
       unfundedRealizedSpend: unitPort('$T/year'),
       energyShareOfInvestment: unitPort('fraction'),
       retireeCost: unitPort('$T/year'),
@@ -1143,6 +1216,12 @@ export const capitalModule: Module<
     if (params.depreciation !== undefined) {
       if (params.depreciation < 0.01 || params.depreciation > 0.15) {
         errors.push('Depreciation must be between 1% and 15%');
+      }
+    }
+    for (const key of ['robotCapitalDepreciation', 'dataCenterCapitalDepreciation'] as const) {
+      const rate = params[key];
+      if (rate !== undefined && !(rate > 0 && rate <= 1)) {
+        errors.push(`${key} must be in (0, 1]`);
       }
     }
     if (
@@ -1396,6 +1475,36 @@ export const capitalModule: Module<
   ): { state: CapitalState; outputs: CapitalOutputs } {
     const t = yearIndex;
 
+    // Robots and datacenters are capital. The observed 2025 stock already
+    // contains the 2025 fleets, so year 0 carves them out of it at their
+    // installed cost; from then on each is a perpetual inventory of its
+    // realized capex, depreciating at the rate demand replaces it at.
+    const splitOpeningStock =
+      state.robotStock === undefined || state.dataCenterStock === undefined;
+    const robotStock = state.robotStock ?? Math.max(0, inputs.robotCapitalValue ?? 0);
+    const dataCenterStock =
+      state.dataCenterStock ?? Math.max(0, inputs.dataCenterCapitalValue ?? 0);
+    if (splitOpeningStock) {
+      const generalOpening = state.stock - robotStock - dataCenterStock;
+      if (!(generalOpening > 0)) {
+        throw new Error(
+          `capital: the opening robot (${robotStock} $T) and datacenter (${dataCenterStock} $T) `
+          + `fleets exceed the opening capital stock (${state.stock} $T)`,
+        );
+      }
+      state = {
+        ...state,
+        stock: generalOpening,
+        robotStock,
+        dataCenterStock,
+        openingGeneralStock: generalOpening,
+      };
+    }
+    const automationStock = robotStock + dataCenterStock;
+    const automationDepreciation =
+      params.robotCapitalDepreciation * robotStock
+      + params.dataCenterCapitalDepreciation * dataCenterStock;
+
     // Calculate regional and global savings rates (with LE/dependency adjustments)
     const regionalSavings = {} as Record<Region, number>;
     let totalGdp = 0;
@@ -1616,24 +1725,32 @@ export const capitalModule: Module<
     const specialPurposeSpend = (orders: number) =>
       (inputs.energyCapexSpend ?? orders * energyShare)
       + realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
-    // Orders always replace worn general capital ON TOP of the special-purpose
+    // Orders always replace worn general capital ON TOP of the energy and CDR
     // spends debited from them. The order rule already replaces depreciation
-    // unconditionally; carving energy, robot, datacenter and CDR capex out of
-    // that replacement shrank general capital whenever those spends exceeded
-    // net investment, and since desired net investment scales with K, orders
-    // shrank with it while its return rose: ai-energy-boom's K fell 970 ->
-    // 640 $T over 2060-2100 with the return on capital at 41%, and spends
-    // outran the whole pool once its build got more capital-intensive.
-    // Competition for finance stays: orders are still capped by financing and
-    // feasibility, and above replacement the special spends still crowd out
-    // net general investment. In the standalone fallback the energy debit
-    // scales with orders, so the floor solves orders = s x orders + other + dep.
+    // unconditionally; carving those spends out of that replacement shrank
+    // general capital whenever they exceeded net investment, and since desired
+    // net investment scales with K, orders shrank with it while its return
+    // rose. Above replacement, energy and CDR spends still crowd out net
+    // general investment. In the standalone fallback the energy debit scales
+    // with orders, so the floor solves orders = s x orders + other + dep.
+    //
+    // Robot and datacenter capex is capital formation in its own stocks,
+    // ordered by demand's deployment rules, so it is ADDED to general orders
+    // rather than carved out of general capital's desired expansion. It
+    // competes with general investment for financing (internal funds and bank
+    // credit) and for the final-use envelope, which cap the total below.
+    // Carved out of desired expansion, it froze general capital outright once
+    // it exceeded maximumNetInvestmentRate x K: desired expansion scales with
+    // K, the capex with GDP, so K could never catch up (ai-energy-boom: K flat
+    // at $967T from 2049 to 2100 with a 37% return on capital).
+    const automationCapex = realizedRobotCapex + realizedDataCenterCapex;
     const plannedOrders = (circuit: FirmCircuit) => {
-      const otherSpend = realizedCdrSpend + realizedRobotCapex + realizedDataCenterCapex;
       const replacementFloor = inputs.energyCapexSpend !== undefined
-        ? inputs.energyCapexSpend + otherSpend + circuit.depreciationAllowance
-        : (otherSpend + circuit.depreciationAllowance) / Math.max(Number.EPSILON, 1 - energyShare);
-      return Math.max(circuit.plannedInvestment, replacementFloor);
+        ? inputs.energyCapexSpend + realizedCdrSpend + automationCapex
+          + circuit.generalDepreciation
+        : (realizedCdrSpend + automationCapex + circuit.generalDepreciation)
+          / Math.max(Number.EPSILON, 1 - energyShare);
+      return Math.max(circuit.plannedInvestment + automationCapex, replacementFloor);
     };
 
     // Target leverage. Firms hold private debt / general capital near the
@@ -1684,6 +1801,7 @@ export const capitalModule: Module<
       netEnergyFactor,
       params,
       automationLaborShareChange,
+      automationDepreciation,
     );
     // Debt left at year end if firms took no new credit and repaid nothing
     // early (scheduled runoff and write-offs only); independent of the plan.
@@ -1741,6 +1859,7 @@ export const capitalModule: Module<
 
     const openingFinancialLedger = state.financialLedger ?? createCapitalGodleyLedger({
       capitalStock: state.stock,
+      automationCapital: automationStock,
       privateDebt,
       publicDebt,
       bankEquityRatio: params.bankEquityRatio,
@@ -1978,11 +2097,14 @@ export const capitalModule: Module<
       params.robotsPerCapitalUnit
     );
 
+    // Total capital: general + robot + datacenter
+    const totalStock = state.stock + automationStock;
+
     // Calculate K per effective worker ($K per person)
-    const kPerWorker = (state.stock * 1e12) / inputs.effectiveWorkers / 1000;
+    const kPerWorker = (totalStock * 1e12) / inputs.effectiveWorkers / 1000;
 
     // Capital-output ratio
-    const capitalOutputRatio = state.stock / inputs.gdp;
+    const capitalOutputRatio = totalStock / inputs.gdp;
 
     // Update capital stock: only general investment builds general capital
     const generalInvestmentStock = integrateFlow(
@@ -1994,11 +2116,20 @@ export const capitalModule: Module<
     const newStock = sumQuantities([
       unitQuantity((1 - params.depreciation) * state.stock, '$T', 'post-depreciation stock'),
       generalInvestmentStock,
-    ], '$T', 'next capital stock').value;
+    ], '$T', 'next general capital stock').value;
+    // Robot and datacenter capital: perpetual inventory of realized capex
+    // (built, so booked in full even when the pool could not finance it all;
+    // that overflow is reported as unfundedRealizedSpend)
+    const newRobotStock = (1 - params.robotCapitalDepreciation) * robotStock
+      + realizedRobotCapex;
+    const newDataCenterStock =
+      (1 - params.dataCenterCapitalDepreciation) * dataCenterStock
+      + realizedDataCenterCapex;
+    const newTotalStock = newStock + newRobotStock + newDataCenterStock;
 
     // Capital growth rate
-    const capitalGrowthRate = yearIndex > 0 && state.stock > 0
-      ? (newStock - state.stock) / state.stock
+    const capitalGrowthRate = yearIndex > 0 && totalStock > 0
+      ? (newTotalStock - totalStock) / totalStock
       : 0;
 
     const newPublicDebt = finance.state.publicDebt;
@@ -2024,8 +2155,10 @@ export const capitalModule: Module<
     const openingHouseholdNetWorth =
       openingFinancialLedger.balances['households.netWorth'] ?? 0;
     const financialPosting = postCapitalGodleyYear(openingFinancialLedger, {
-      depreciation: firmCircuit.depreciationAllowance,
+      depreciation: firmCircuit.generalDepreciation,
       generalInvestment,
+      automationInvestment: automationCapex,
+      automationDepreciation,
       laborCompensation: firmCircuit.laborCompensation,
       householdConsumption,
       grossLoanOriginations,
@@ -2055,6 +2188,9 @@ export const capitalModule: Module<
     return {
       state: {
         stock: newStock,
+        robotStock: newRobotStock,
+        dataCenterStock: newDataCenterStock,
+        openingGeneralStock: state.openingGeneralStock,
         referenceLifeExpectancy: refLE,
         referenceDependency: refDependency,
         publicDebt: newPublicDebt,
@@ -2068,8 +2204,22 @@ export const capitalModule: Module<
         financialLedger: financialPosting.state,
       },
       outputs: {
-        stock: state.stock, // Output current stock (before update)
-        nextCapitalStock: newStock,
+        stock: totalStock, // Output current stock (before update)
+        nextCapitalStock: newTotalStock,
+        generalCapitalStock: state.stock,
+        nextGeneralCapitalStock: newStock,
+        // Production anchors K0 on the observed 2025 stock (its lag's initial)
+        // and uses only K/K0. Rescaling general capital by observed / year-0
+        // general makes that ratio exactly general_t / general_2025; read
+        // raw, the year-0 carve-out of the robot and datacenter fleets was a
+        // permanent -0.23% in K (-0.06% of GDP).
+        nextProductionCapitalStock: state.openingGeneralStock !== undefined
+          && state.openingGeneralStock > 0
+          ? newStock * params.initialCapitalStock / state.openingGeneralStock
+          : newStock,
+        robotCapitalStock: robotStock,
+        dataCenterCapitalStock: dataCenterStock,
+        automationDepreciation,
         investment,
         plannedInvestment,
         unfundedInvestmentDemand,
@@ -2111,6 +2261,7 @@ export const capitalModule: Module<
         capitalGrowthRate,
         energyInvestment,
         generalInvestment,
+        capitalFormation: generalInvestment + automationCapex,
         unfundedRealizedSpend,
         energyShareOfInvestment: energyShare,
         retireeCost,

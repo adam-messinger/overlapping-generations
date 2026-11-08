@@ -13,7 +13,9 @@ import * as path from 'path';
 
 // Canonical scenarios for regression testing.
 // Covers: current policies, aggressive transition, high climate sensitivity,
-// cascade-risk feedback, and two IPCC SSP pathways spanning the envelope.
+// cascade-risk feedback, two IPCC SSP pathways spanning the envelope, and
+// the automation/datacenter stress test (its 2100 GDP fell $3,956T -> $872T
+// in one unrelated commit and nothing noticed: it was not listed here).
 const SCENARIOS = [
   'baseline',
   'net-zero',
@@ -21,6 +23,7 @@ const SCENARIOS = [
   'climate-cascade',
   'ssp1-26',
   'ssp5-85',
+  'ai-energy-boom',
 ];
 
 // Key metrics to capture

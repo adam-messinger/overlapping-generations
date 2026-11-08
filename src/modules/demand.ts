@@ -382,6 +382,7 @@ interface DemandOutputs {
   // Robot/automation
   robotLoadTWh: number;       // Automation energy load (TWh)
   robotCapexSpend: number;    // Robot fleet capex this year ($T)
+  robotCapitalValue: number;  // Robot fleet at this year's installed unit cost ($T); capital splits the opening capital stock with it
   robotsPer1000: number;      // Robots per 1000 workers
   robotProfitability: number; // Marginal value / marginal cost of the next robot (pi)
   fossilStockTWh: number;    // Total fossil end-use equipment stock (TWh)
@@ -389,6 +390,7 @@ interface DemandOutputs {
   // Datacenter/AI compute
   dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
   dataCenterCapexSpend: number; // Composite chips + datacenter capex this year ($T)
+  dataCenterCapitalValue: number; // Opening chips + facility fleet at the composite cost per GW ($T); capital splits the opening capital stock with it
   dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
 }
 
@@ -1221,11 +1223,13 @@ export const demandModule: Module<
       usefulWorkGrowthRate: unitPort('fraction/year'),
       robotLoadTWh: unitPort('TWh/year'),
       robotCapexSpend: unitPort('$T/year'),
+      robotCapitalValue: unitPort('$T'),
       robotsPer1000: unitPort('robot/kpeople'),
       robotProfitability: unitPort('1'),
       fossilStockTWh: unitPort('TWh/year'),
       dataCenterLoadTWh: unitPort('TWh/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
+      dataCenterCapitalValue: unitPort('$T'),
       dataCenterPowerSpendShare: unitPort('fraction'),
     },
   },
@@ -1960,10 +1964,19 @@ export const demandModule: Module<
     // rule prices depreciation in MC, so the ledger debits it too), at the
     // declining unit cost; debited by capital (lagged). No replacement spend
     // when the fleet is unprofitable (firms stop replacing; fleet decays).
+    // Year 0 adds nothing (its fleet IS the observed 2025 fleet) but replaces
+    // that fleet's wear, as datacenter capex does: without it capital's robot
+    // stock depreciated two years with nothing replacing it, then jumped.
     const robotAdditions = yearIndex === 0 ? 0 : Math.max(0, totalRobots - state.robotFleet);
+    const replacedFleet = yearIndex === 0 ? totalRobots : state.robotFleet;
     const robotReplacement =
-      yearIndex === 0 || robotProfitability <= 1 ? 0 : params.robotDepreciation * state.robotFleet;
+      robotProfitability <= 1 ? 0 : params.robotDepreciation * replacedFleet;
     const robotCapexSpend = ((robotAdditions + robotReplacement) * robotUnitCostNow) / 1e12; // $T
+    // The fleet at this year's installed cost. In year 0 this is the observed
+    // 2025 fleet: capital carves it out of the observed capital stock, and
+    // afterwards keeps the robot capital stock as a perpetual inventory of
+    // the capex.
+    const robotCapitalValue = (totalRobots * robotUnitCostNow) / 1e12; // $T
     const robotLoadTWh = (totalRobots * params.energyPerRobotMWh) / 1e6;
     globalElec += robotLoadTWh;
     globalTotalFinal += robotLoadTWh;
@@ -2021,6 +2034,12 @@ export const demandModule: Module<
       ((dataCenterAdditionsTWh + dataCenterReplacementTWh) /
         TWH_PER_AVERAGE_GW_YEAR) *
       (params.dataCenterCapitalCostPerGW / 1000); // $B -> $T
+    // The fleet this year's capex adds to and replaces (the opening load), at
+    // the same composite cost. Capital carves it out of the observed 2025
+    // capital stock, as with robotCapitalValue.
+    const dataCenterCapitalValue =
+      (prevDataCenter / TWH_PER_AVERAGE_GW_YEAR) *
+      (params.dataCenterCapitalCostPerGW / 1000); // $T
 
     globalElec += dataCenterLoadTWh;
     globalTotalFinal += dataCenterLoadTWh;
@@ -2387,11 +2406,13 @@ export const demandModule: Module<
         usefulWorkGrowthRate: newUsefulWorkGrowthRate,
         robotLoadTWh,
         robotCapexSpend,
+        robotCapitalValue,
         robotsPer1000,
         robotProfitability,
         fossilStockTWh,
         dataCenterLoadTWh,
         dataCenterCapexSpend,
+        dataCenterCapitalValue,
         dataCenterPowerSpendShare,
       },
     };
