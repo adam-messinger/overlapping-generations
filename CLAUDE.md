@@ -327,7 +327,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   national saving are measured after expenditure. `grossSavings` survives as a
   deprecated alias for ex-post national gross saving, not as an input to
   investment
-- **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings
+- **Unified financing ledger**: capital debits REALIZED spends (energy capex incl. fossil/storage, CDR spend, robot fleet capex — all lagged) from capital formation; one pool, so automation and energy buildout genuinely compete for savings. They crowd out NET general investment, never its replacement: orders are at least the special spends plus depreciation of general capital (still capped by financing and feasibility). Carved out of replacement, they shrank K whenever they exceeded net investment, and orders (which scale with K) shrank with it (ai-energy-boom K 970 -> 640 $T over 2060-2100)
 - Public debt: the overall deficit accumulates — primary deficit less the fiscal reaction (Bohn) plus
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
