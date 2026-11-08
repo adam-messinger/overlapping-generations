@@ -53,6 +53,8 @@ npx tsx scripts/feedback-ablation.ts --mode=freeze --scenarios=default,net-zero
 
 ### 1.1 Capital's investment split does nothing
 
+**Status:** removed, bit-identical (commit `cbe2351`).
+
 `capital.ts` computes `energyShare` = 15% of orders, moved by the energy
 burden. It is used only
 
@@ -78,6 +80,10 @@ Remove: `baseEnergyInvestmentShare`, `energyInvestmentSensitivity`, the
 the `distributeByGDP` fallback.
 
 ### 1.2 Two robot densities that disagree
+
+**Status:** removed, bit-identical apart from the two fields (commit `3d1fa3d`).
+automation-boom and test-singularity set `automationGrowth`, a knob that
+only ever moved this report; their robot levers were always demand's.
 
 Capital carries an exogenous automation share (2% of K growing 3%/yr to a 20%
 cap) and turns it into `robotsDensity`. Demand carries the endogenous fleet
@@ -388,13 +394,11 @@ already diagnostic and skippable (`diagnostics: false`).
 
 One mechanism per commit, as CLAUDE.md asks.
 
-1. **Bit-identical removals** (regression baseline unchanged apart from
-   removed fields): capital's investment split and energy's
-   `availableInvestment` (1.1); capital's exogenous automation share,
-   repointing `robotsDensity` users to `robotsPer1000` (1.2); optionally the
-   Keen path (1.3).
-2. **Doc fixes**: the `robotsDensity` Key Outputs row in CLAUDE.md; food
-   stress as a shock-only channel; repression as scenario-specific (4.1).
+1. **Bit-identical removals**: capital's investment split (1.1) and its
+   exogenous automation share (1.2) are done. Left: the Keen path (1.3), if
+   the accounting-applicability report is no longer wanted.
+2. **Doc fixes**: food stress as a shock-only channel; repression as
+   scenario-specific (4.1). (The `robotsDensity` Key Outputs row is fixed.)
 3. **Behavior-changing removals** (each re-blesses the baseline): stability
    (3.2), desertification (3.6), mineral constraint to reporting-only (3.1),
    coal depletion (3.5).
