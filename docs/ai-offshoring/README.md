@@ -49,8 +49,8 @@ and Morocco ~0.2%; LatAm nearshore and Kenya/South Africa ~0.0-0.1%.
 
 **Regionally it is a transfer, not a loss.** World GDP is unchanged (by construction: AI does the
 work; the main model's AI productivity channel is off by default). In the main model the US
-gains about 0.13% of GDP, India loses about 0.3%, SE Asia only ~0.08% because the Philippines is
-about a ninth of that region's market-rate GDP. AI providers earn ~$41bn a year from displaced
+gains about 0.10% of GDP, India loses about 0.25%, SE Asia only ~0.07% because the Philippines is
+about a ninth of that region's market-rate GDP. AI providers earn ~$40bn a year from displaced
 work by 2040, ~80% in the US.
 
 **Jobs recover after adoption plateaus, which is an assumption.** With a fixed AI ceiling, demand
@@ -91,7 +91,7 @@ follows its datacenter path, not the overlay's adoption case.
 
 ## What it teaches about the main model
 
-- **Country shocks need country resolution.** A 1% of GDP shock in the Philippines is 0.08% of
+- **Country shocks need country resolution.** A 1% of GDP shock in the Philippines is ~0.07% of
   the SE Asia region; the nine-region model cannot see this dynamic without an overlay.
 - **SSA was fragile when the overlay used `commodityShocks`.** Any `commodityShocks` record, even
   a factor of exactly 1, switched non-electric fuel costing to a regional branch that did not

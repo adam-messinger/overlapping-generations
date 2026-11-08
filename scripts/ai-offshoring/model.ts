@@ -115,8 +115,8 @@ export interface OverlayResult {
 export interface BaseRun {
   years: number[];
   regionalGdp: Record<Region, number>[];       // $T PPP, per year
-  /** 2025 market/PPP price ratio per region, to express regional GDP in USD at market rates */
-  marketPriceRatio: Record<Region, number>;
+  /** Regional GDP at market exchange rates, $T 2025 USD (the main model's regionalGdpMarket), per year */
+  regionalGdpMarket: Record<Region, number>[];
 }
 
 export function aiShareAt(year: number, a: AdoptionPath): number {
@@ -129,7 +129,7 @@ export function aiShareAt(year: number, a: AdoptionPath): number {
 export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
   const i0 = base.years.indexOf(2025);
   if (i0 < 0) throw new Error('base run must include 2025');
-  const usdGdp = (i: number, r: Region) => base.regionalGdp[i][r] * base.marketPriceRatio[r] * 1000; // $bn
+  const usdGdp = (i: number, r: Region) => base.regionalGdpMarket[i][r] * 1000; // $bn
   const buyerGdp = (i: number) => p.buyerRegions.reduce((s, r) => s + base.regionalGdp[i][r], 0);
   const regionGdpGrowth = (i: number, r: Region) => base.regionalGdp[i][r] / base.regionalGdp[i0][r];
 
