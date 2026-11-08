@@ -14,44 +14,45 @@
  */
 
 import { runSimulation } from './simulation.js';
+import { STUDY_OPTIONS } from './ensemble-model.js';
+import type { AnnualCommodityShock } from './modules/demand.js';
 import { REGIONS, type Region } from './domain-types.js';
-import { test, expect, printSummary } from './test-utils.js';
+import { test, expect, printSummary, numericLeaves, differingLeaves } from './test-utils.js';
 
 const END_YEAR = 2100;
-const FAST = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
 
-function everyYear(regionalOutputFactors: Partial<Record<Region, number>>) {
-  const shocks = [];
+function everyYear(regionalOutputFactors: Partial<Record<Region, number>>): AnnualCommodityShock[] {
+  const shocks: AnnualCommodityShock[] = [];
   for (let year = 2026; year <= END_YEAR; year++) shocks.push({ year, regionalOutputFactors });
   return shocks;
 }
 
-function run(commodityShocks: ReturnType<typeof everyYear>) {
+function run(commodityShocks: AnnualCommodityShock[]) {
   return runSimulation(
     { startYear: 2025, endYear: END_YEAR, demand: { commodityShocks } },
-    FAST,
+    STUDY_OPTIONS,
   );
+}
+
+function leaves(result: ReturnType<typeof run>): Map<string, number> {
+  const into = new Map<string, number>();
+  numericLeaves(result.results, 'results', into);
+  numericLeaves(result.metrics, 'metrics', into);
+  return into;
 }
 
 const baseline = run([]);
 
 test('a no-op commodity shock in every year is bit-identical to none', () => {
-  const noOp = run(everyYear({ us: 1 }));
-  for (let index = 0; index < baseline.results.length; index++) {
-    const a = baseline.results[index];
-    const b = noOp.results[index];
-    expect(Object.is(b.gdp, a.gdp)).toBeTrue();
-    expect(Object.is(b.energyBurden, a.energyBurden)).toBeTrue();
-    for (const region of REGIONS) {
-      expect(Object.is(b.regionalGdp[region], a.regionalGdp[region])).toBeTrue();
-    }
-  }
+  const expected = leaves(baseline);
+  const actual = leaves(run(everyYear({ us: 1 })));
+  expect(actual.size).toBe(expected.size);
+  expect(differingLeaves(expected, actual)).toEqual([]);
 });
 
 test('a 0.01% output nudge in one region moves every other region by < 0.05%', () => {
-  // Measured after the fix: the US nudge moves the others ~-0.001% (their
-  // share of the normalization to world GDP), at most 0.003% through 2100
-  // for any perturbed region. Before, SSA moved -0.65% and China -0.08%.
+  // The others move ~-0.001%: their share of the renormalization to world
+  // GDP (at most 0.003% through 2100 for any perturbed region).
   const nudged = run(everyYear({ us: 1.0001 }));
   let worst = 0;
   for (let index = 0; index < baseline.results.length; index++) {

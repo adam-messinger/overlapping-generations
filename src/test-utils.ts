@@ -25,6 +25,34 @@ export function sumRegional<T>(record: Record<Region, T>, pick: (entry: T) => nu
   return REGIONS.reduce((sum, region) => sum + pick(record[region]), 0);
 }
 
+/**
+ * Every numeric leaf of a value tree, as `path -> number`. Non-numeric leaves
+ * are ignored.
+ */
+export function numericLeaves(value: unknown, path: string, into: Map<string, number>): void {
+  if (typeof value === 'number') { into.set(path, value); return; }
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, i) => numericLeaves(child, `${path}[${i}]`, into));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    numericLeaves(child, `${path}.${key}`, into);
+  }
+}
+
+/** The first few paths whose values are not bit-identical (Object.is) between two leaf maps. */
+export function differingLeaves(
+  expected: Map<string, number>, actual: Map<string, number>, limit = 6,
+): string[] {
+  const differing: string[] = [];
+  for (const [key, value] of expected) {
+    if (!Object.is(value, actual.get(key))) differing.push(key);
+    if (differing.length >= limit) break;
+  }
+  return differing;
+}
+
 export function test(name: string, fn: () => void) {
   try {
     fn();

@@ -1027,9 +1027,7 @@ const DEMAND_INVARIANTS: readonly ModuleInvariant<
   },
   {
     // Every TWh of fuel is billed to a region, lock-in fuel included: the
-    // regional energy burden feeds the regional GDP allocator, so fuel billed
-    // to no region understates burdens (and once made the allocation depend
-    // on whether a year carried a commodity-shock entry).
+    // regional energy burden feeds the regional GDP allocator.
     name: 'regions partition fuel cost',
     check: ({ outputs }) => closeTo('fuel cost', outputs.fuelCost,
       sumValues(outputs.regionalFuelCost)),
@@ -1617,18 +1615,27 @@ export const demandModule: Module<
     // Escalated wholesale fuel prices for this year (real paths; flat at
     // defaults). The fuel-mix logit competes on this scale; retail consumers
     // add delivery margins via retailFuelPrice.
+    // baseWholesalePrices is the unshocked path that regional price
+    // multipliers scale.
+    const baseWholesalePrices = {} as Record<FuelType, number>;
     const wholesalePrices = {} as Record<FuelType, number>;
     for (const fuel of FUEL_KEYS) {
       const shockMultiplier =
         fuel === 'oil' || fuel === 'gas'
           ? commodityShock?.globalPriceMultipliers?.[fuel] ?? 1
           : 1;
-      wholesalePrices[fuel] = compound(
+      baseWholesalePrices[fuel] = compound(
         params.fuels[fuel].price, params.fuels[fuel].priceEscalation, yearIndex
-      ) * shockMultiplier;
+      );
+      wholesalePrices[fuel] = baseWholesalePrices[fuel] * shockMultiplier;
     }
     const retailFuelPrice = (fuel: FuelType): number =>
       wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin;
+    // Physical oil/gas availability in a region this year (1 = unconstrained)
+    const fuelAvailability = (region: Region, fuel: FuelType): number =>
+      fuel === 'oil' || fuel === 'gas'
+        ? clamp(commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1, 0, 1)
+        : 1;
 
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
@@ -1851,11 +1858,7 @@ export const demandModule: Module<
         totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
       let regionalFuelAvailability = 0;
       for (const fuel of FUEL_KEYS) {
-        const availability =
-          fuel === 'oil' || fuel === 'gas'
-            ? commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1
-            : 1;
-        regionalFuelAvailability += evolvedShares[fuel] * clamp(availability, 0, 1);
+        regionalFuelAvailability += evolvedShares[fuel] * fuelAvailability(region, fuel);
       }
       const nonElecEnergy = nonElecEnergyPotential * regionalFuelAvailability;
       const finalEnergy = elecDemand + nonElecEnergy;
@@ -2240,15 +2243,13 @@ export const demandModule: Module<
     const regionalFuelCost = {} as Record<Region, number>;
     const regionalFuelAvailability = {} as Record<Region, number>;
 
-    // One pricing path for every year, shocked or not. Each region pays for
+    // One pricing path for every year, shocked or not: each region pays for
     // its pre-lock fuel plus its potential share of the fossil-stock lock-in
-    // fuel, so the regional costs partition fuelCost. An unshocked fast path
-    // used to price only the pre-lock fuel at the world cost per TWh: the
-    // lock-in fuel (~2032-2052 on the default path) was billed to no region,
-    // and adding ANY commodityShocks entry for a year (even a 0.01% output
-    // nudge, or a no-op) switched that year onto this path. SSA's burden sits
-    // above the burden-damage threshold, so the switch alone moved its GDP
-    // -0.65% by 2048 (China -0.08% until it fell below the threshold).
+    // fuel, so the regional costs partition fuelCost.
+    const carbonCosts = {} as Record<FuelType, number>;
+    for (const fuel of FUEL_KEYS) {
+      carbonCosts[fuel] = (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
+    }
     let reconciledNonElectricEnergy = 0;
     for (const region of REGIONS) {
       const preLockRegionalPotential =
@@ -2261,16 +2262,8 @@ export const demandModule: Module<
       let regionalServed = 0;
       let regionCost = 0;
       for (const fuel of FUEL_KEYS) {
-        const potentialFuelConsumption = regionalPotential * accountingShares[fuel];
-        const availability =
-          fuel === 'oil' || fuel === 'gas'
-            ? clamp(
-              commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1,
-              0,
-              1,
-            )
-            : 1;
-        const fuelConsumption = potentialFuelConsumption * availability;
+        const fuelConsumption =
+          regionalPotential * accountingShares[fuel] * fuelAvailability(region, fuel);
         fuels[fuel] += fuelConsumption;
         regionalServed += fuelConsumption;
         nonElectricEmissions +=
@@ -2278,22 +2271,14 @@ export const demandModule: Module<
 
         // Regional price multipliers are absolute relative to the unshocked
         // annual wholesale path. If absent, use the global shock multiplier.
-        const baseWholesalePrice = compound(
-          params.fuels[fuel].price,
-          params.fuels[fuel].priceEscalation,
-          yearIndex,
-        );
         const regionalPriceMultiplier =
           fuel === 'oil' || fuel === 'gas'
             ? commodityShock?.regionalPriceMultipliers?.[region]?.[fuel]
             : undefined;
-        const regionalWholesalePrice = regionalPriceMultiplier !== undefined
-          ? baseWholesalePrice * regionalPriceMultiplier
-          : wholesalePrices[fuel];
-        const carbonCost =
-          (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-        const effectivePrice =
-          regionalWholesalePrice + params.fuels[fuel].deliveryMargin + carbonCost;
+        const retailPrice = regionalPriceMultiplier !== undefined
+          ? baseWholesalePrices[fuel] * regionalPriceMultiplier + params.fuels[fuel].deliveryMargin
+          : retailFuelPrice(fuel);
+        const effectivePrice = retailPrice + carbonCosts[fuel];
         regionCost += (fuelConsumption * effectivePrice) / 1e6;
       }
       regionalFuelCost[region] = regionCost;
