@@ -1061,6 +1061,13 @@ const DEMAND_INVARIANTS: readonly ModuleInvariant<
     check: ({ outputs }) => closeTo('fuel sum', sumValues(outputs.fuels), outputs.nonElectricEnergy),
   },
   {
+    // Every TWh of fuel is billed to a region, lock-in fuel included: the
+    // regional energy burden feeds the regional GDP allocator.
+    name: 'regions partition fuel cost',
+    check: ({ outputs }) => closeTo('fuel cost', outputs.fuelCost,
+      sumValues(outputs.regionalFuelCost)),
+  },
+  {
     name: 'global electricity is the sum of regions',
     check: ({ outputs }) => closeTo('electricity demand', outputs.electricityDemand,
       sumValues(outputs.regional, (region) => region.electricityDemand)),
@@ -1654,18 +1661,27 @@ export const demandModule: Module<
     // Escalated wholesale fuel prices for this year (real paths; flat at
     // defaults). The fuel-mix logit competes on this scale; retail consumers
     // add delivery margins via retailFuelPrice.
+    // baseWholesalePrices is the unshocked path that regional price
+    // multipliers scale.
+    const baseWholesalePrices = {} as Record<FuelType, number>;
     const wholesalePrices = {} as Record<FuelType, number>;
     for (const fuel of FUEL_KEYS) {
       const shockMultiplier =
         fuel === 'oil' || fuel === 'gas'
           ? commodityShock?.globalPriceMultipliers?.[fuel] ?? 1
           : 1;
-      wholesalePrices[fuel] = compound(
+      baseWholesalePrices[fuel] = compound(
         params.fuels[fuel].price, params.fuels[fuel].priceEscalation, yearIndex
-      ) * shockMultiplier;
+      );
+      wholesalePrices[fuel] = baseWholesalePrices[fuel] * shockMultiplier;
     }
     const retailFuelPrice = (fuel: FuelType): number =>
       wholesalePrices[fuel] + params.fuels[fuel].deliveryMargin;
+    // Physical oil/gas availability in a region this year (1 = unconstrained)
+    const fuelAvailability = (region: Region, fuel: FuelType): number =>
+      fuel === 'oil' || fuel === 'gas'
+        ? clamp(commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1, 0, 1)
+        : 1;
 
     for (const sectorKey of sectorKeys) {
       const sectorParams = params.sectors[sectorKey];
@@ -1888,11 +1904,7 @@ export const demandModule: Module<
         totalEnergy * (nonElecFinalFactor + elecFinalFactor * (1 - elecMult));
       let regionalFuelAvailability = 0;
       for (const fuel of FUEL_KEYS) {
-        const availability =
-          fuel === 'oil' || fuel === 'gas'
-            ? commodityShock?.regionalAvailability?.[region]?.[fuel] ?? 1
-            : 1;
-        regionalFuelAvailability += evolvedShares[fuel] * clamp(availability, 0, 1);
+        regionalFuelAvailability += evolvedShares[fuel] * fuelAvailability(region, fuel);
       }
       const nonElecEnergy = nonElecEnergyPotential * regionalFuelAvailability;
       const finalEnergy = elecDemand + nonElecEnergy;
@@ -2203,9 +2215,10 @@ export const demandModule: Module<
       }
     }
 
-    // Adjust global totals for the lock-in floor. Regional outputs historically
-    // exclude this global stock-floor reconciliation; preserve that convention
-    // so adding an empty shock path is exactly baseline-neutral.
+    // Adjust global totals for the lock-in floor. Regional energy QUANTITIES
+    // (regional[r].nonElectricEnergy) exclude this global stock-floor
+    // reconciliation; regional fuel COST includes each region's share of it
+    // (see the pricing loop below), so the regional costs sum to fuelCost.
     const preLockPotential = globalNonElecPotential;
     const globalFuelAvailabilityBeforeLock = preLockPotential > 0
       ? globalNonElec / preLockPotential
@@ -2285,93 +2298,63 @@ export const demandModule: Module<
     const regionalFuelCost = {} as Record<Region, number>;
     const regionalFuelAvailability = {} as Record<Region, number>;
 
-    if (!commodityShock) {
-      // Keep the original aggregate arithmetic byte-for-byte in unshocked
-      // scenarios. This is both faster and makes the new extension opt-in.
+    // One pricing path for every year, shocked or not: each region pays for
+    // its pre-lock fuel plus its potential share of the fossil-stock lock-in
+    // fuel, so the regional costs partition fuelCost.
+    const carbonCosts = {} as Record<FuelType, number>;
+    for (const fuel of FUEL_KEYS) {
+      carbonCosts[fuel] = (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
+    }
+    let reconciledNonElectricEnergy = 0;
+    for (const region of REGIONS) {
+      const preLockRegionalPotential =
+        regionalOutputs[region].nonElectricEnergyPotential;
+      const potentialShare = preLockPotential > 0
+        ? preLockRegionalPotential / preLockPotential
+        : newRegions[region].gdpShare;
+      const regionalPotential =
+        preLockRegionalPotential + lockInAdjustment * potentialShare;
+      let regionalServed = 0;
+      let regionCost = 0;
       for (const fuel of FUEL_KEYS) {
-        const fuelConsumption = globalNonElec * accountingShares[fuel];
-        fuels[fuel] = fuelConsumption;
+        const fuelConsumption =
+          regionalPotential * accountingShares[fuel] * fuelAvailability(region, fuel);
+        fuels[fuel] += fuelConsumption;
+        regionalServed += fuelConsumption;
         nonElectricEmissions +=
           (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
-        const carbonCost =
-          (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-        const effectivePrice = retailFuelPrice(fuel) + carbonCost;
-        fuelCost += (fuelConsumption * effectivePrice) / 1e6;
-      }
-      const fuelCostPerTWh = globalNonElec > 0 ? fuelCost / globalNonElec : 0;
-      for (const region of REGIONS) {
-        regionalFuelCost[region] =
-          regionalOutputs[region].nonElectricEnergy * fuelCostPerTWh;
-        regionalFuelAvailability[region] = 1;
-      }
-    } else {
-      let reconciledNonElectricEnergy = 0;
-      for (const region of REGIONS) {
-        const preLockRegionalPotential =
-          regionalOutputs[region].nonElectricEnergyPotential;
-        const potentialShare = preLockPotential > 0
-          ? preLockRegionalPotential / preLockPotential
-          : newRegions[region].gdpShare;
-        const regionalPotential =
-          preLockRegionalPotential + lockInAdjustment * potentialShare;
-        let regionalServed = 0;
-        let regionCost = 0;
-        for (const fuel of FUEL_KEYS) {
-          const potentialFuelConsumption = regionalPotential * accountingShares[fuel];
-          const availability =
-            fuel === 'oil' || fuel === 'gas'
-              ? clamp(
-                commodityShock.regionalAvailability?.[region]?.[fuel] ?? 1,
-                0,
-                1,
-              )
-              : 1;
-          const fuelConsumption = potentialFuelConsumption * availability;
-          fuels[fuel] += fuelConsumption;
-          regionalServed += fuelConsumption;
-          nonElectricEmissions +=
-            (fuelConsumption * params.fuels[fuel].carbonIntensity) / 1e6;
 
-          // Regional price multipliers are absolute relative to the unshocked
-          // annual wholesale path. If absent, use the global shock multiplier.
-          const baseWholesalePrice = compound(
-            params.fuels[fuel].price,
-            params.fuels[fuel].priceEscalation,
-            yearIndex,
-          );
-          const regionalPriceMultiplier =
-            fuel === 'oil' || fuel === 'gas'
-              ? commodityShock.regionalPriceMultipliers?.[region]?.[fuel]
-              : undefined;
-          const regionalWholesalePrice = regionalPriceMultiplier !== undefined
-            ? baseWholesalePrice * regionalPriceMultiplier
-            : wholesalePrices[fuel];
-          const carbonCost =
-            (params.fuels[fuel].carbonIntensity * carbonPrice) / 1000;
-          const effectivePrice =
-            regionalWholesalePrice + params.fuels[fuel].deliveryMargin + carbonCost;
-          regionCost += (fuelConsumption * effectivePrice) / 1e6;
-        }
-        regionalFuelCost[region] = regionCost;
-        regionalFuelAvailability[region] = regionalPotential > 0
-          ? regionalServed / regionalPotential
-          : 1;
-        reconciledNonElectricEnergy += regionalServed;
-        fuelCost += regionCost;
+        // Regional price multipliers are absolute relative to the unshocked
+        // annual wholesale path. If absent, use the global shock multiplier.
+        const regionalPriceMultiplier =
+          fuel === 'oil' || fuel === 'gas'
+            ? commodityShock?.regionalPriceMultipliers?.[region]?.[fuel]
+            : undefined;
+        const retailPrice = regionalPriceMultiplier !== undefined
+          ? baseWholesalePrices[fuel] * regionalPriceMultiplier + params.fuels[fuel].deliveryMargin
+          : retailFuelPrice(fuel);
+        const effectivePrice = retailPrice + carbonCosts[fuel];
+        regionCost += (fuelConsumption * effectivePrice) / 1e6;
       }
-      globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
-      globalNonElec = reconciledNonElectricEnergy;
-      // The sectors are split from the requested fuel, lock-in included, so
-      // ration them by the world total's served/requested ratio. It is only
-      // known here: availability applies per fuel, at the accounting mix, so
-      // the served total differs from any estimate made before this loop.
-      // Electricity is not rationed.
-      const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
-      const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
-      for (const key of sectorKeys) {
-        sectors[key].nonElectric *= servedRatio;
-        sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
-      }
+      regionalFuelCost[region] = regionCost;
+      regionalFuelAvailability[region] = regionalPotential > 0
+        ? regionalServed / regionalPotential
+        : 1;
+      reconciledNonElectricEnergy += regionalServed;
+      fuelCost += regionCost;
+    }
+    globalTotalFinal += reconciledNonElectricEnergy - globalNonElec;
+    globalNonElec = reconciledNonElectricEnergy;
+    // The sectors are split from the requested fuel, lock-in included, so
+    // ration them by the world total's served/requested ratio. It is only
+    // known here: availability applies per fuel, at the accounting mix, so
+    // the served total differs from any estimate made before this loop.
+    // Electricity is not rationed.
+    const sectorNonElectric = sectorKeys.reduce((sum, key) => sum + sectors[key].nonElectric, 0);
+    const servedRatio = sectorNonElectric > 0 ? globalNonElec / sectorNonElectric : 1;
+    for (const key of sectorKeys) {
+      sectors[key].nonElectric *= servedRatio;
+      sectors[key].total = sectors[key].electric + sectors[key].nonElectric;
     }
     finalEnergyPerCapitaDay = (globalTotalFinal * 1e9 / inputs.population) / 365;
 
