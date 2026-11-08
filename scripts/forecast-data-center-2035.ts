@@ -61,7 +61,7 @@ const globalCases = [
     case: 'slower / tighter spend brake',
     demand: {
       dataCenterBaseGrowth: 0.08,
-      dataCenterPowerSpendCeiling: 0.00035,
+      dataCenterSpendCeiling: 0.00326, // 0.7x default, as the old 0.00035 power-bill ceiling was
     },
   },
   { case: 'repository baseline', demand: {} },
@@ -69,7 +69,7 @@ const globalCases = [
     case: 'faster / looser spend brake',
     demand: {
       dataCenterBaseGrowth: 0.16,
-      dataCenterPowerSpendCeiling: 0.00080,
+      dataCenterSpendCeiling: 0.00744, // 1.6x default, as the old 0.00080 power-bill ceiling was
     },
   },
 ];

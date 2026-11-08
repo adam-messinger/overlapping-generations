@@ -217,10 +217,13 @@ Sweep (baseline, post-endogenization):
 - **Report late-century GDP as explicitly conditional on θ**; treat automation
   density as a band, not a forecast.
 
-Datacenter demand is no longer GDP-neutral. The demand brake still sets load
-through `dataCenterPowerSpendCeiling` (equilibrium load = ceiling × GDP /
-LCOE), but the composite chips-plus-facility fleet now has an explicit gross
-investment flow:
+Datacenter demand is no longer GDP-neutral. The demand brake sets load
+through `dataCenterSpendCeiling`, a ceiling on datacenters' total cost of
+ownership (power + capital service at the lagged interest rate +
+depreciation; equilibrium load = ceiling × GDP / cost per MWh; until
+November 2026 it priced only the power bill, `dataCenterPowerSpendCeiling`).
+The composite chips-plus-facility fleet has an explicit gross investment flow
+(and, since November 2026, a capital stock):
 
 ```
 average GW = annual load TWh / 8.76

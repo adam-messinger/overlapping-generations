@@ -459,11 +459,14 @@ test('default fossil LCOEs drift up with depletion and have no cliff', () => {
   }
 });
 
-// Baseline financing must reconcile. Explicit DC capex should also feed back
-// into the deliberately extreme AI boom through the shared capital ledger,
-// lowering GENERAL capital and GDP relative to an otherwise identical
-// free-DC-capex run (total capital rises: the capex builds datacenter capital).
-test('baseline is fully funded and datacenter capex feeds back through the AI boom', () => {
+// Baseline and AI-boom financing must reconcile. Datacenter capex also feeds
+// back on the AI boom's buildout: the deployment brake prices the capital
+// (cost per GW at the lagged interest rate + depreciation), so costlier
+// datacenter capital means less datacenter load and a smaller capex bill.
+// (A free-capex counterfactual is no longer clean: it also removes ~90% of
+// the cost the brake reads, and in the AI boom the unbraked load outruns the
+// energy system and crashes GDP in the 2050s.)
+test('baseline and AI boom are fully funded, and datacenter capital cost brakes the boom', () => {
   const boomParams = loadScenarioParamsSync('ai-energy-boom');
   const baseline = runAutowiredSimulation({});
   for (let i = 0; i < baseline.years.length; i++) {
@@ -479,21 +482,19 @@ test('baseline is fully funded and datacenter capex feeds back through the AI bo
   }
   expect(maxGap).toBeLessThan(1e-9);
 
-  const boomWithoutDcCapex = runAutowiredSimulation({
+  const costlierCapital = runAutowiredSimulation({
     ...boomParams,
     demand: {
       ...boomParams.demand,
-      dataCenterCapitalCostPerGW: 0,
+      dataCenterCapitalCostPerGW: 30,
     },
   });
   const idx2050 = boom.years.indexOf(2050);
-  const withDc = getOutputsAtYear(boom, idx2050);
-  const withoutDc = getOutputsAtYear(boomWithoutDcCapex, idx2050);
-  expect(withDc.dataCenterCapexSpend as number).toBeGreaterThan(0);
-  expect(withDc.generalCapitalStock as number).toBeLessThan(withoutDc.generalCapitalStock as number);
-  expect(withDc.gdp as number).toBeLessThan(withoutDc.gdp as number);
-  expect(withDc.dataCenterCapitalStock as number)
-    .toBeGreaterThan(withoutDc.dataCenterCapitalStock as number);
+  const base = getOutputsAtYear(boom, idx2050);
+  const dear = getOutputsAtYear(costlierCapital, idx2050);
+  expect(base.dataCenterCapexSpend as number).toBeGreaterThan(0);
+  expect(dear.dataCenterLoadTWh as number).toBeLessThan(0.9 * (base.dataCenterLoadTWh as number));
+  expect(dear.dataCenterCapitalStock as number).toBeGreaterThan(0);
 });
 
 // Robots and datacenters are capital, but production's K is general capital

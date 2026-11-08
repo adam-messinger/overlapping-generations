@@ -38,7 +38,7 @@ test('war-AI experiment is matched and finite through 2030', () => {
     aiParams: {
       demand: {
         dataCenterBaseGrowth: 0.15,
-        dataCenterPowerSpendCeiling: 0.005,
+        dataCenterSpendCeiling: 0.0465,
       },
       production: { aiWorkerEquivalentPerTWh: 100_000 },
     },

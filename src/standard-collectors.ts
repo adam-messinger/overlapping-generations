@@ -358,6 +358,7 @@ export const standardCollectors: CollectorConfig = {
     // Datacenter / AI compute
     { source: 'dataCenterLoadTWh', unit: 'TWh/year', description: 'Datacenter/AI electricity load', module: 'demand' },
     { source: 'dataCenterCapexSpend', unit: '$T/year', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
+    { source: 'dataCenterSpendShare', unit: 'fraction', description: 'Datacenter total cost of ownership (power + capital service at the lagged interest rate + depreciation) as a share of GDP: what the deployment brake reads', module: 'demand' },
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },
