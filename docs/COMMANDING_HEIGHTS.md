@@ -128,3 +128,21 @@ persists: the share is held fixed.
 The essay's central claim (claim 6: value accrues to chokepoints, not labs), the stablecoin
 Neo-Dollar, the sovereign frontier, the Fed peg and India's IT-services employment are all outside
 the model's structure. The Tetlock panel covers them.
+
+## The Tetlock panel (24 seats, origin 2026-11-08)
+
+Full report: `docs/forecasts/commanding-heights-2026/REPORT.md`. Raw means:
+
+- Big-4 capex 2030/2026: broken (<1x) 30%, plateau (1-2x) 41%, sustained (2-4x) 25%, the
+  essay's line (>=4x) 4%.
+- An Epoch-costed >= $10B training run by end-2028: 24%.
+- LMArena top ten all US/China at end-2028: 70% (median 76%).
+- Stablecoins at end-2028: $230B / $377B / $669B (P10/P50/P90; ~$308B today).
+- A Fed numerical yield cap before 2031: 6%.
+- BLS labor share 2030 average: 49.6 / 51.9 / 54.2% (52.8% in 2026Q2).
+- Indian IT big-5 headcount down 10% by March 2029: 11%.
+
+Model and panel agree on the shape of the answer. The essay's directions hold up: capex
+rising, the labor share falling, compute concentrated in two countries. Its magnitudes do not:
+the line cannot run past ~2030 on arithmetic (T1), and the panel puts its named milestones at
+4-24%.
