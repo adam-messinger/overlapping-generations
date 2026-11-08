@@ -42,6 +42,12 @@ import {
 
 interface RegionalEconomicParams {
   gdp2025: number;           // $ trillions (World Bank)
+  /**
+   * 2025 GDP at market exchange rates over GDP at PPP, relative to the US (= 1).
+   * Weights regional GDP into GDP at market rates (regionalGdpMarket), held at
+   * 2025 prices and exchange rates.
+   */
+  marketPriceRatio2025: number;
   tfpGrowth: number;         // Total factor productivity growth rate
   tfpDecay: number;          // Rate at which catch-up growth fades
   /**
@@ -232,6 +238,8 @@ export interface DemandParams {
   commodityShocks: readonly AnnualCommodityShock[];
   /** Sparse calendar-year regional output levels from overlays (missing = 1). */
   regionalOutputAdjustments: readonly AnnualRegionalOutputAdjustment[];
+  /** World GDP at market exchange rates in 2025, $T (sets the level of gdpMarket) */
+  marketGdpUsd2025: number;
 }
 
 interface RegionalState {
@@ -270,6 +278,8 @@ interface DemandState {
    * service base is known.
    */
   heavyIndustry: { gdp0: number; serviceBase0: number; coalActivityRatio: number };
+  /** $T at market rates per unit of market-weighted model GDP, fixed in year 0 */
+  marketGdpScale?: number;
 }
 
 // Inputs from demographics and production modules
@@ -413,6 +423,9 @@ interface DemandOutputs {
   dataCenterLoadTWh: number;  // Datacenter electricity load (TWh)
   dataCenterCapexSpend: number; // Composite chips + datacenter capex this year ($T)
   dataCenterPowerSpendShare: number; // DC electricity bill as share of GDP
+  /** GDP at market exchange rates, $T at constant 2025 prices and exchange rates */
+  gdpMarket: number;
+  regionalGdpMarket: Record<Region, number>;
 }
 
 // =============================================================================
@@ -444,6 +457,7 @@ export const demandDefaults: DemandParams = {
   regions: {
     us: {
       gdp2025: 24,              // $24T PPP (World Bank 2017 intl $; US real GDP 2017$ ~$23.5T 2025)
+      marketPriceRatio2025: 1.0,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.010,         // Residual TFP: US labor productivity has outpaced Europe/Japan since 2005 (OECD Productivity Statistics)
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.69,    // MWh per $1000 GDP PPP: US TFC ~16.5k TWh (IEA WEB 2023, ~42% of OECD final energy)
@@ -452,6 +466,7 @@ export const demandDefaults: DemandParams = {
     },
     'oecd-ex-us': {
       gdp2025: 38,              // $38T PPP (World Bank 2017 intl $; 62 model-OECD less the US)
+      marketPriceRatio2025: 0.738,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.007,         // Residual TFP: Europe/Japan productivity growth below the US
       tfpDecay: 0.0,            // Mature economy - no convergence
       energyIntensity: 0.59,    // MWh per $1000 GDP PPP: ~22.5k TWh TFC (EU/Japan ~0.5, Mexico/Turkey/Korea higher); us + ex-us preserve the old ~39k TWh
@@ -460,6 +475,7 @@ export const demandDefaults: DemandParams = {
     },
     china: {
       gdp2025: 33,              // $33T PPP
+      marketPriceRatio2025: 0.477,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       // Catch-up residual fitted (grid search, 2026-11) so the model's China-minus-
       // world real growth gap matches the P50 of a 24-seat Tetlock calibration
       // panel: 0.87pp mean 2026-30 (model 0.86) and 0.28pp 2031-35 (model 0.28).
@@ -481,6 +497,7 @@ export const demandDefaults: DemandParams = {
     },
     india: {
       gdp2025: 16,              // $16T PPP (India + South Asia)
+      marketPriceRatio2025: 0.231,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.025,         // Residual TFP (catch-up growth)
       tfpDecay: 0.012,          // Gradual convergence
       energyIntensity: 0.65,    // PPP-adjusted (preserves ~10k TWh)
@@ -489,6 +506,7 @@ export const demandDefaults: DemandParams = {
     },
     latam: {
       gdp2025: 12,              // $12T PPP (Latin America)
+      marketPriceRatio2025: 0.476,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.012,         // Residual TFP
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.50,    // PPP-adjusted (preserves ~6k TWh)
@@ -497,6 +515,7 @@ export const demandDefaults: DemandParams = {
     },
     seasia: {
       gdp2025: 12,              // $12T PPP (SE Asia + Pacific)
+      marketPriceRatio2025: 0.322,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.020,         // Residual TFP (manufacturing hubs)
       tfpDecay: 0.008,          // Gradual convergence
       energyIntensity: 0.53,    // PPP-adjusted (preserves ~6k TWh)
@@ -505,6 +524,7 @@ export const demandDefaults: DemandParams = {
     },
     russia: {
       gdp2025: 7,               // $7T PPP (Russia + CIS)
+      marketPriceRatio2025: 0.346,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.005,         // Low residual TFP (aging, fossil-dependent)
       tfpDecay: 0.003,          // Very slow convergence
       energyIntensity: 1.03,    // PPP-adjusted (preserves ~7k TWh)
@@ -513,6 +533,7 @@ export const demandDefaults: DemandParams = {
     },
     mena: {
       gdp2025: 9,               // $9T PPP (MENA)
+      marketPriceRatio2025: 0.371,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.010,         // Residual TFP (fossil exporters diversifying)
       tfpDecay: 0.005,          // Slow convergence
       energyIntensity: 0.67,    // PPP-adjusted (preserves ~6k TWh)
@@ -521,6 +542,7 @@ export const demandDefaults: DemandParams = {
     },
     ssa: {
       gdp2025: 7,               // $7T PPP (Sub-Saharan Africa, unchanged)
+      marketPriceRatio2025: 0.290,  // 2025 GDP at market rates / at PPP (US = 1): IMF WEO Oct 2026 NGDPD/PPPGDP, data/fiscal/imf-weo-regions.csv
       tfpGrowth: 0.020,         // Residual TFP (demographic dividend)
       tfpDecay: 0.010,          // Gradual convergence
       energyIntensity: 1.50,    // Unchanged (already PPP-like)
@@ -744,6 +766,10 @@ export const demandDefaults: DemandParams = {
   dataCenterDepreciation: 0.15,       // fraction/year
   commodityShocks: [],
   regionalOutputAdjustments: [],
+  // World GDP at market exchange rates 2025: $118.45T, IMF WEO Oct 2026
+  // (NGDPD summed over the countries mapped to the nine regions,
+  // scripts/imf-fiscal-regions.py; IMF's own world total $118.4T).
+  marketGdpUsd2025: 118.45,
 };
 
 // =============================================================================
@@ -1251,6 +1277,8 @@ export const demandModule: Module<
       dataCenterLoadTWh: unitPort('TWh/year'),
       dataCenterCapexSpend: unitPort('$T/year'),
       dataCenterPowerSpendShare: unitPort('fraction'),
+      gdpMarket: unitPort('$T/year'),
+      regionalGdpMarket: unitPort('$T/year', 'record'),
     },
   },
 
@@ -1266,6 +1294,10 @@ export const demandModule: Module<
 
         if (r.gdp2025 !== undefined && r.gdp2025 < 0) {
           errors.push(`${region}: GDP must be positive`);
+        }
+        if (r.marketPriceRatio2025 !== undefined
+          && (!Number.isFinite(r.marketPriceRatio2025) || r.marketPriceRatio2025 <= 0 || r.marketPriceRatio2025 > 3)) {
+          errors.push(`${region}: marketPriceRatio2025 must be in (0, 3]`);
         }
         if (r.tfpGrowth !== undefined && (r.tfpGrowth < -0.05 || r.tfpGrowth > 0.10)) {
           errors.push(`${region}: TFP growth must be between -5% and 10%`);
@@ -1428,6 +1460,10 @@ export const demandModule: Module<
         }
       }
     }
+    if (params.marketGdpUsd2025 !== undefined
+      && (!Number.isFinite(params.marketGdpUsd2025) || params.marketGdpUsd2025 <= 0)) {
+      errors.push('marketGdpUsd2025 must be positive');
+    }
     const adjustmentYears = new Set<number>();
     for (const adjustment of params.regionalOutputAdjustments ?? []) {
       if (!Number.isInteger(adjustment.year)) {
@@ -1542,6 +1578,7 @@ export const demandModule: Module<
       if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
       if (p.regionalOutputAdjustments !== undefined) merged.regionalOutputAdjustments = p.regionalOutputAdjustments;
+      if (p.marketGdpUsd2025 !== undefined) merged.marketGdpUsd2025 = p.marketGdpUsd2025;
 
       return merged;
     }, partial);
@@ -2383,6 +2420,23 @@ export const demandModule: Module<
     // Next year's industry coal anchor: heavy-materials output index
     // (GDP^eps) over industry's service-base index (industry is a fixed
     // share of the global service base, so the global index is its index).
+    // GDP at market exchange rates: regional PPP GDP weighted by each region's
+    // 2025 market/PPP price ratio, scaled in year 0 to the observed 2025 world
+    // total. Constant 2025 prices and exchange rates: converging economies'
+    // price levels do not rise here, so their market-rate share is understated
+    // more over time.
+    const marketWeighted = Object.fromEntries(REGIONS.map((r) => [
+      r, regionalOutputs[r].gdp * params.regions[r].marketPriceRatio2025,
+    ])) as Record<Region, number>;
+    const marketWeightedTotal = REGIONS.reduce((s, r) => s + marketWeighted[r], 0);
+    const marketGdpScale = yearIndex === 0 || state.marketGdpScale === undefined
+      ? (marketWeightedTotal > 0 ? params.marketGdpUsd2025 / marketWeightedTotal : 0)
+      : state.marketGdpScale;
+    const regionalGdpMarket = Object.fromEntries(REGIONS.map((r) => [
+      r, marketWeighted[r] * marketGdpScale,
+    ])) as Record<Region, number>;
+    const gdpMarket = marketWeightedTotal * marketGdpScale;
+
     const heavyIndustry = state.heavyIndustry.gdp0 > 0 && state.heavyIndustry.serviceBase0 > 0
       ? { ...state.heavyIndustry }
       : { gdp0: globalGdp, serviceBase0: globalServiceBase, coalActivityRatio: 1 };
@@ -2411,6 +2465,7 @@ export const demandModule: Module<
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
         heavyIndustry,
+        marketGdpScale,
       },
       outputs: {
         regional: regionalOutputs,
@@ -2441,6 +2496,8 @@ export const demandModule: Module<
         dataCenterLoadTWh,
         dataCenterCapexSpend,
         dataCenterPowerSpendShare,
+        gdpMarket,
+        regionalGdpMarket,
       },
     };
   },

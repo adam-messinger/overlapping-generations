@@ -18,7 +18,7 @@
  */
 import { runSimulation } from '../../src/simulation.js';
 import { REGIONS, type Region } from '../../src/domain-types.js';
-import { capitalDefaults } from '../../src/modules/capital.js';
+import { demandDefaults } from '../../src/modules/demand.js';
 import { runOverlay, toOutputAdjustments, type BaseRun, type OverlayResult } from './model.js';
 import type { AnnualRegionalOutputAdjustment } from '../../src/modules/demand.js';
 import { ADOPTION_CASES, baseOverlayParams } from './data.js';
@@ -76,7 +76,7 @@ function mainRun(adjustments: AnnualRegionalOutputAdjustment[] = [], aiPerTWh = 
   const base: BaseRun = {
     years: res.map((r: any) => r.year),
     regionalGdp: res.map((r: any) => r.regionalGdp as Record<Region, number>),
-    marketPriceRatio: capitalDefaults.publicDebtMarketPriceRatio,
+    marketPriceRatio: Object.fromEntries(REGIONS.map((r) => [r, demandDefaults.regions[r].marketPriceRatio2025])) as Record<Region, number>,
   };
   return { res, base };
 }

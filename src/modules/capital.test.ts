@@ -327,17 +327,6 @@ test('validation catches invalid depreciation', () => {
   expect(result.valid).toBe(false);
 });
 
-test('validation catches a non-positive market/PPP price ratio', () => {
-  const result = capitalModule.validate({ publicDebtMarketPriceRatio: { us: 1, china: 0 } } as never);
-  expect(result.valid).toBe(false);
-});
-
-test('market price ratios merge per region over the defaults', () => {
-  const merged = capitalModule.mergeParams({ publicDebtMarketPriceRatio: { china: 0.6 } } as never);
-  expect(merged.publicDebtMarketPriceRatio.china).toBe(0.6);
-  expect(merged.publicDebtMarketPriceRatio.us).toBe(1);
-});
-
 test('validation accepts small capital stock within range', () => {
   const result = capitalModule.validate({ initialCapitalStock: 5 });
   expect(result.valid).toBeTrue();

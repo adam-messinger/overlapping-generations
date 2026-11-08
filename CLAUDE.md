@@ -133,7 +133,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 
 ### Calibration & Sources
 
-- `src/calibration-anchors.ts` compares 17 of the model's 2025 outputs with
+- `src/calibration-anchors.ts` compares 18 of the model's 2025 outputs with
   independent observations within loose (1.02-1.5x) bands — an
   order-of-magnitude tripwire for unit and intensity errors, not calibration.
   `npx tsx src/calibration-anchors.ts` prints the table. When you add a
@@ -345,8 +345,8 @@ the human-capital ledger (including its replacement-cost re-pricing).
   was charged at the ~6% return on capital, where capitalizing it spirals
 - **Debt is measured at market exchange rates**: the deficit, the debt ratio, the fiscal reaction,
   repression and the safe rate's debt term read world GDP re-weighted by each region's 2025
-  market/PPP price ratio (`publicDebtMarketPriceRatio`, IMF WEO Oct 2026 via
-  `scripts/imf-fiscal-regions.py`), as the IMF measures debt. World PPP GDP grows faster because it
+  market/PPP price ratio (demand's `gdpMarket`, from `regions[r].marketPriceRatio2025`, IMF WEO
+  Oct 2026 via `scripts/imf-fiscal-regions.py`), as the IMF measures debt. World PPP GDP grows faster because it
   weights emerging economies ~1.7x their market weight, while ~78% of public debt is in the US,
   OECD-ex-US and China; dividing by it understated r − g. Private debt and the total-debt premium
   keep world GDP
@@ -563,6 +563,7 @@ outside them reads them, which is a domain fact rather than a graph property.
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |
 | `debtRiskPremium` | fraction | Interest rate premium from debt |
+| `gdpMarket` / `regionalGdpMarket` | $T | GDP at market exchange rates, constant 2025 prices and exchange rates (understates converging economies over time) |
 | `safeRate` | fraction | Real rate on public debt (tracks trend growth and public debt; ~1% in 2025) |
 | `loanRate` | fraction | Real rate on private bank debt (safe rate + credit spread) |
 | `repressionGap` | fraction | pp the safe rate is held below its market level (financial repression) |

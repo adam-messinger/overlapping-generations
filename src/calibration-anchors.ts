@@ -96,6 +96,15 @@ export const MAGNITUDE_ANCHORS: readonly MagnitudeAnchor[] = [
     read: (o) => o.capacities.coal,
   },
   {
+    // Market shares come only from demand's regional gdp2025 table times the
+    // price ratios (the dollar anchor cancels), so this checks that table.
+    // Per region, model / IMF market GDP 2025: China 1.00, Russia 0.89,
+    // MENA 0.78, SE Asia 1.19, SSA 1.23 (the gdp2025 table, not the ratios).
+    name: 'US + China share of world GDP at market rates', unit: 'fraction', observed: 0.438, factor: 1.1,
+    source: '0.438 in 2025: ($30.86T + $21.03T) / $118.45T, IMF WEO Oct 2026 NGDPD (data/fiscal/imf-weo-regions.csv)',
+    read: (o) => (o.regionalGdpMarket.us + o.regionalGdpMarket.china) / o.gdpMarket,
+  },
+  {
     name: 'datacenter electricity', unit: 'TWh/year', observed: 415, factor: 1.5,
     source: '~415 TWh in 2024, IEA Energy and AI (2025)',
     read: (o) => o.dataCenterLoadTWh,

@@ -375,6 +375,9 @@ export interface YearResult {
   regionalPopulation: Record<Region, number>;
   regionalFertility: Record<Region, number>;
   regionalGdp: Record<Region, number>;
+  /** GDP at market exchange rates, constant 2025 prices and exchange rates ($T) */
+  gdpMarket: number;
+  regionalGdpMarket: Record<Region, number>;
 
   // Regional Energy (v2)
   regionalCapacities: Record<Region, Record<EnergySource, number>>;

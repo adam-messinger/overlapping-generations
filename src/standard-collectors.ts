@@ -356,6 +356,10 @@ export const standardCollectors: CollectorConfig = {
     { source: 'dataCenterLoadTWh', unit: 'TWh/year', description: 'Datacenter/AI electricity load', module: 'demand' },
     { source: 'dataCenterCapexSpend', unit: '$T/year', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
 
+    // GDP at market exchange rates (constant 2025 prices and exchange rates)
+    { source: 'gdpMarket', unit: '$T/year', description: 'World GDP at market exchange rates, constant 2025 prices and exchange rates ($T, 2025 USD); understates converging economies over time', module: 'demand' },
+    { source: 'regionalGdpMarket', unit: '$T/year', description: 'GDP by region at market exchange rates, constant 2025 prices and exchange rates ($T, 2025 USD)', module: 'demand' },
+
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },
     { source: 'regionalFertility', unit: '1', description: 'Total fertility rate by region (births per woman)', module: 'demographics' },

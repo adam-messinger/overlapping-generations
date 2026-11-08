@@ -129,8 +129,6 @@ export interface CapitalParams {
   // --- Public debt ---
   initialPublicDebtGDP: number;        // 0.94 (94% of GDP in 2025, IMF WEO Oct 2026)
   publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
-  /** 2025 GDP at market exchange rates / GDP at PPP, per region: weights the GDP public debt is measured against */
-  publicDebtMarketPriceRatio: Record<Region, number>;
   ageingCostDeficitShare: number;      // 0.25 (share of the rise in transfers/GDP since 2025 that is borrowed)
   fiscalReactionCoeff: number;         // 0.03 (tightening per pp of debt/GDP above threshold)
   fiscalReactionThreshold: number;     // 0.60 (Maastricht-style trigger)
@@ -181,7 +179,7 @@ export interface CapitalState {
   trendGrowth: number;        // Smoothed real GDP growth the safe rate tracks
   pricedPublicDebtGDP?: number; // Smoothed public debt/GDP the safe rate's debt term prices
   previousFiscalGdp?: number;   // Last year's market-weighted GDP (public debt's denominator)
-  fiscalGdpScale?: number;      // Scales market-weighted GDP to world GDP in year 0
+  fiscalGdpScale?: number;      // Scales GDP at market rates to world GDP in year 0
   referenceTransferBurden?: number; // 2025 transfers / GDP, for the borrowed share of later increases
   referenceAutomationLaborShare?: number; // 2025 machine share of augmented labor
   /** Target private debt / general capital, anchored at the year-0 ratio */
@@ -210,6 +208,8 @@ export interface CapitalInputs {
   // From demand
   gdp: number;                // Global GDP ($ trillions)
   regionalGdp: Record<Region, number>;  // $T per region (from demand)
+  /** World GDP at market exchange rates (from demand); public debt's denominator. Absent: world GDP */
+  gdpMarket?: number;
 
   // From climate (optional)
   damages?: number;           // Damage fraction (0-1) for stability
@@ -455,19 +455,6 @@ export const capitalDefaults: CapitalParams = {
   // Measured at market exchange rates, like the model's debt denominator.
   initialPublicDebtGDP: 0.94,
   publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
-  // Public debt is measured against GDP at MARKET exchange rates, as the IMF
-  // measures it: each region's PPP GDP x its 2025 market/PPP price ratio,
-  // scaled to world GDP in 2025. IMF WEO October 2026 (NGDPD / PPPGDP, 2025),
-  // aggregated by scripts/imf-fiscal-regions.py -> data/fiscal/imf-weo-regions.csv.
-  // Held at 2025 levels (the model has no exchange rates). Dividing debt by
-  // world PPP GDP put r - g at ~-2.5pp because PPP weights fast-growing
-  // emerging economies ~1.7x their market weight while ~78% of public debt is
-  // in the US, OECD-ex-US and China (IMF Oct 2026): world debt fell to 2031
-  // against the IMF's 94.0% -> 101.5%.
-  publicDebtMarketPriceRatio: {
-    us: 1.0, 'oecd-ex-us': 0.738, china: 0.477, india: 0.231, latam: 0.476,
-    seasia: 0.322, russia: 0.346, mena: 0.371, ssa: 0.290,
-  },
   // Share of the rise in transfers (pensions, retiree health, education)
   // above their 2025 share of GDP that is borrowed rather than taxed; the
   // fiscal reaction still leans against the resulting debt. US calibration,
@@ -1044,6 +1031,7 @@ export const capitalModule: Module<
       effectiveWorkers: unitPort('people'),
       gdp: unitPort('$T/year'),
       regionalGdp: unitPort('$T/year', 'record'),
+      gdpMarket: unitPort('$T/year'),
       damages: unitPort('fraction'),
       netEnergyFactor: unitPort('fraction'),
       automationLaborShare: unitPort('fraction'),
@@ -1277,13 +1265,6 @@ export const capitalModule: Module<
         errors.push('safeRateGrowthPassThrough must be between 0 and 3');
       }
     }
-    if (params.publicDebtMarketPriceRatio !== undefined) {
-      for (const [region, ratio] of Object.entries(params.publicDebtMarketPriceRatio)) {
-        if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 3) {
-          errors.push(`publicDebtMarketPriceRatio.${region} must be in (0, 3]`);
-        }
-      }
-    }
     if (params.safeRateDebtSensitivity !== undefined) {
       if (params.safeRateDebtSensitivity < 0 || params.safeRateDebtSensitivity > 0.20) {
         errors.push('safeRateDebtSensitivity must be between 0 and 0.20');
@@ -1377,12 +1358,6 @@ export const capitalModule: Module<
   mergeParams(partial: Partial<CapitalParams>): CapitalParams {
     return validatedMerge('capital', this.validate, (p) => {
       const merged = { ...capitalDefaults, ...p };
-
-      if (p.publicDebtMarketPriceRatio) {
-        merged.publicDebtMarketPriceRatio = {
-          ...capitalDefaults.publicDebtMarketPriceRatio, ...p.publicDebtMarketPriceRatio,
-        };
-      }
 
       // Merge regional premiums
       if (p.savingsPremium) {
@@ -1619,17 +1594,19 @@ export const capitalModule: Module<
         : inputs.gdp;
     }
 
-    // Public debt's denominator: world GDP re-weighted to market exchange
-    // rates (publicDebtMarketPriceRatio), scaled to equal world GDP in year 0
-    // so the 2025 debt stock and ratio are unchanged; only its growth differs.
-    const marketWeightedGdp = REGIONS.reduce(
-      (sum, r) => sum + Math.max(0, inputs.regionalGdp?.[r] ?? 0) * params.publicDebtMarketPriceRatio[r],
-      0,
-    );
+    // Public debt's denominator: GDP at market exchange rates (demand's
+    // gdpMarket), as the IMF measures debt ratios, scaled to equal world GDP
+    // in year 0 so the 2025 debt stock and ratio are unchanged; only its
+    // growth differs. World PPP GDP grows faster because it weights
+    // fast-growing emerging economies ~1.7x their market weight, while ~78%
+    // of public debt is in the US, OECD-ex-US and China (IMF WEO Oct 2026):
+    // dividing by it had world debt falling to 2031 against the IMF's
+    // 94.0% -> 101.5%.
+    const marketGdp = inputs.gdpMarket ?? 0;
     const fiscalGdpScale = yearIndex === 0 || state.fiscalGdpScale === undefined
-      ? (marketWeightedGdp > 0 ? inputs.gdp / marketWeightedGdp : 1)
+      ? (marketGdp > 0 ? inputs.gdp / marketGdp : 1)
       : state.fiscalGdpScale;
-    const fiscalGdp = marketWeightedGdp > 0 ? marketWeightedGdp * fiscalGdpScale : inputs.gdp;
+    const fiscalGdp = marketGdp > 0 ? marketGdp * fiscalGdpScale : inputs.gdp;
     // Year 0 has no prior regional split: last year's market-weighted GDP is
     // taken at the same ratio to world GDP as this year's.
     const previousFiscalGdp = yearIndex === 0 || !(state.previousFiscalGdp! > 0)
