@@ -46,7 +46,7 @@ Sources for the screen: [Wikipedia current events, November 2026](https://en.wik
 | Story | Headline reading | After revision | Where the model differs from the narrative |
 |---|---|---|---|
 | Brent | The market moved to price a deal | A deal-odds move explains at most $4.90 (25%) of the $19.32 fall. On the stock-clearing model, the 6 November close is the no-deal status quo at full tempo ($100); the 30 October close was $14 above even a re-closure ($103) | The week took out a premium above anything fundamentals support, not a deal bet. $98 is consistent with the 10–20% deal odds analysts quote, not Polymarket's 41.5% |
-| Fed | Inflation "red-hot"; a hike to contain it | Refit on July–September: energy has not leaked into core (pass-through 0.0025 vs 0.025). Headline peaked in October at ~3.7%, ~3.55% in December, ~2.4% by June 2027 under any rule | The hike case is the labour market, now clearly above breakeven (86% vs 33% on 6 September), but wages at 3.1% are below the 2%-consistent pace. A hike does not move 2027 inflation in the model |
+| Fed | Inflation "red-hot"; a hike to contain it | Refit on July–September: energy has not leaked into core (pass-through 0.0025 vs 0.025). Headline peaked in October at ~3.7%, ~3.55% in December, ~2.4% by June 2027 under any rule. Payroll trend filtered for revisions: ~93k, not the naive 137k | The hike case is the labour market, which filtered for revisions is a coin flip on overheating (52%, not 86%), and wages at 3.1% are below the 2%-consistent pace. A hike does not move 2027 inflation in the model |
 | El Niño | 2026 "most likely second"; 2027 could set a record | 2026: 1.58°C, 12% chance of beating 2024 (needs 1.97°C over Nov–Dec). 2027: 1.68°C, 80%, Feb 2027 monthly ~1.88°C | Agrees on direction; adds magnitude. Also finds the repository's own climate module 0.06°C too warm, now corrected |
 
 ## 1. Brent: what a deal bet can and cannot explain
@@ -215,31 +215,74 @@ because the March–May 2026 fuel jumps drop out of the 12-month window.
 
 ### The labour market
 
+**V1: the 6 September read.** It used the plain average of the three latest
+prints, with BLS sampling error (±122k at 90% on a month) as the only error.
+
 | | 6 September | Now |
 |---|---:|---:|
 | Three-month payroll average | 71k ± 43k | 137k ± 43k |
 | P(trend above 90k, the top of the judged breakeven range) | 33% | 86% |
 
-The October beat is 1.4 sampling standard errors. Of the 66k rise in the
-three-month average, about 48k is new months (September and October replaced
-a weak June and July) and about 18k is revisions (August 162k → 186k,
-September 29k → 60k). The 6 September method also treated sampling error as
-the only error and first prints as unbiased. Revisions are a second,
-correlated error, and they have run upward this year. That made it
-overconfident and biased low. A filtered trend that carries revision noise
-would be the fix. Unemployment fell to 4.1%. On
-6 September the model called the labour market "not obviously overheating".
-That call now fails: the quantity data are above breakeven. Wages are not.
-At 3.1% y/y they are 0.4pp below the ~3.5% consistent with 2% inflation at
-1.5% productivity growth (a judgment).
+Of the 66k rise in that average, about 48k is new months (September and
+October replaced a weak June and July). About 18k is revisions (August
+162k → 186k, September 29k → 60k).
+
+**V2: filter for revisions** (`src/simulations/news/payroll-trend.ts`). V1
+treats a first print as unbiased and as good as a third. It is neither. BLS's
+vintage table (January 2022 to October 2026) shows the third estimate came in
+on average 25k *below* the first over the trailing 24 months, with a
+first-to-third revision sd of 51k. The 2026 revisions so far are smaller
+(−8k on average): January, March–April and July–August were revised up;
+February, May and June down. An earlier draft of this section said 2026 revisions "have run upward";
+that was wrong.
+
+The filter treats the monthly change as a local level: a random-walk trend
+plus monthly noise, with both variances fitted by maximum likelihood on
+2022–2025 third estimates (35k and 90k). Each month enters at the vintage
+visible on the release date, with that vintage's revision variance added and
+its trailing-24-month mean revision removed. Nothing published after a
+release is used in its estimate.
+
+| Release | Naive | Filtered | P(trend > 90k), naive → filtered |
+|---|---:|---:|---:|
+| August (6 September) | 71k | 71k ± 54k | 33% → 36% |
+| October (6 November) | 137k | 93k ± 54k | 86% → 52% |
+
+**Real-time backtest**: 32 releases, January 2024 to August 2026, each
+using only the vintages then published.
+
+| Target | Naive RMSE | Filtered RMSE | Naive mean error | Filtered mean error |
+|---|---:|---:|---:|---:|
+| Ex-post trend (smoother on latest vintages) | 51k | 38k | +22k | +12k |
+| Centred five-month mean of latest vintages (model-free) | 49k | 46k | +23k | +12k |
+
+The first target flatters the filter, because it comes from the same model.
+Against the model-free target the gain is modest. All of it comes from the
+bias correction: without it the filter scores 50k, no better than the naive
+average. The naive average has over-read the trend by ~22k a release because
+first prints have been revised down. The filter halves that but does not
+remove it. Its residual +12k reflects revisions larger than the trailing mean
+expected, plus benchmark revisions, which the vintage table leaves out.
+
+**Why the 6 September call looked like a miss.** The filter would have said
+the same thing in real time (71k, 36%), so the method was not the cause. Two
+things moved the picture: new months, and the naive average then reading
+October's first print (165k) at face value. Filtered for revisions, the trend
+is ~93k. That is the top of the breakeven range, a coin flip on overheating,
+not 86%.
+
+Unemployment fell to 4.1%. Wages are not overheating either. At 3.1% y/y
+they are 0.4pp below the ~3.5% consistent with 2% inflation at 1.5%
+productivity growth (a judgment).
 
 ### Comparison
 
 The narrative says inflation is red-hot and the Fed must hike. In the model,
 headline peaked in October on the fuel path already in hand and falls under
 either rule, and core has not taken in the energy shock. The case for hiking
-rests on labour quantities, which the model now agrees are strong, not on
-inflation, which the hike barely moves. The risk that matters is the relapse
+rests on labour quantities, which filtered for revisions sit at the top of
+the breakeven range (about even odds of overheating), not on inflation, which
+the hike barely moves. The risk that matters is the relapse
 branch: if fighting resumes and pump prices return to October levels, headline
 stays near 3% through mid-2027 whatever the Fed does.
 
@@ -330,7 +373,7 @@ single years above 1.5°C in 2024, 2026 and 2027 are that trend plus ENSO.
 | Hormuz: oil still moving | 26–46% of normal (IEA stock identity) | IEA: 7.6 mb/d in August (36%); <60% by late October | Right |
 | Hormuz: Brent attrition branch Oct/Nov | $107 / $113 | October $103 → $118; November so far $94–104 | October right on price, wrong on mechanism (flows recovered faster; premium carried the price); November too high so far |
 | US CPI September | 3.76% | 3.7% | Right on headline, through offsetting errors: core over-predicted, gasoline under-assumed |
-| Payroll trend above 90k | 33% | 86% after revisions | Wrong direction; revisions added 24k to August |
+| Payroll trend above 90k | 33% | 86% naive; 52% filtered for revisions (the filter gave 36% in real time on 6 September) | Not a method failure: new months moved it. The naive read now over-states; see section 2 |
 
 Sources: [WHO DON622](https://www.who.int/emergencies/disease-outbreak-news/item/2026-DON622),
 [WHO DON619](https://www.who.int/emergencies/disease-outbreak-news/item/2026-DON619),
@@ -346,9 +389,11 @@ Sources: [WHO DON622](https://www.who.int/emergencies/disease-outbreak-news/item
   the oil model's price block with one that clears stocks; it now tracks the
   IEA's stock reports (1.2× rather than 2.6×).
 - **Fed.** Headline inflation has already peaked, and energy has not reached
-  core. A December hike would be a response to labour quantities, which are
-  genuinely strong now (the 6 September read was wrong), not to wages, which
-  are not, or to an inflation path the model says it cannot move.
+  core. A December hike would be a response to labour quantities. Read
+  naively, the three-month average (137k) says they are clearly overheating
+  (86%). Filtered for revisions (first prints have been revised down 25k on
+  average), the trend is ~93k: a coin flip (52%). Wages are not overheating.
+  The model also says the hike cannot move the inflation path.
 - **El Niño.** 2026 is second unless November and December average 1.97°C;
   2027 is the likely record year at about 1.68°C. The pass also found and
   corrected a 0.06°C warm bias in the repository's own climate module.
@@ -365,7 +410,12 @@ Sources: [WHO DON622](https://www.who.int/emergencies/disease-outbreak-news/item
   reports.
 - Fed: the policy model's rate transmission is weak by construction. December
   fuel prices are futures plus a judged retail margin. The 3.5% wage benchmark
-  and the 30–90k breakeven range are judgments.
+  and the 30–90k breakeven range are judgments. The payroll filter leaves out
+  annual benchmark revisions (the preliminary March 2026 benchmark is −79k)
+  and correlation of revisions across neighbouring months. Its intervals ran
+  wide in the backtest (error sd against the ex-post trend about two-thirds of
+  the stated sd), so its
+  probabilities are, if anything, too cautious.
 - El Niño: the strong-event excess is an empirical analog from three events,
   not a mechanism. The ONI path is a judgment, with the peak swept. ERA5 runs
   about 0.05°C warm of the multi-dataset mean, so "record" here means the ERA5
