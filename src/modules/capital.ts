@@ -345,7 +345,7 @@ export interface CapitalOutputs {
   principalRepayments: number; // $T/year of private-loan principal repaid
   loanWriteOffs: number;       // $T/year of private loans written off
   netCreditCreation: number;   // Change in private debt stock
-  privateLeverage: number;     // Beginning-of-period private debt / general capital
+  privateLeverage: number;     // Beginning-of-period private debt / capital (general + robot + datacenter)
   targetPrivateLeverage: number; // Debt/capital firms adjust toward (year-0 ratio)
   leverageBorrowing: number;   // $T/year net new credit the leverage target asks for (signed)
   leverageRecapBorrowing: number; // $T/year borrowed beyond the investment gap and paid out
@@ -1753,8 +1753,9 @@ export const capitalModule: Module<
       return Math.max(circuit.plannedInvestment + automationCapex, replacementFloor);
     };
 
-    // Target leverage. Firms hold private debt / general capital near the
-    // year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
+    // Target leverage. Firms hold private debt / capital (general + robot +
+    // datacenter: all of it is financed from the same pool and secures the
+    // debt) near the year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
     // (Flannery-Rangan partial adjustment in ratio space), so debt grows with
     // the capital it is secured on. Before this, firms borrowed only the gap
     // between orders and internal funds: once retained profit covered orders
@@ -1765,9 +1766,19 @@ export const capitalModule: Module<
     // non-financial sector). The stock is the consolidated private
     // non-financial one (households' mortgages included, as leverage on the
     // dwellings inside the PWT capital stock).
-    const targetPrivateLeverage = state.targetPrivateLeverage
-      ?? (state.stock > 0 ? privateDebt / state.stock : 0);
-    const openingPrivateLeverage = state.stock > 0 ? privateDebt / state.stock : 0;
+    // Total capital: general + robot + datacenter
+    const totalStock = state.stock + automationStock;
+    const openingPrivateLeverage = totalStock > 0 ? privateDebt / totalStock : 0;
+    const targetPrivateLeverage = state.targetPrivateLeverage ?? openingPrivateLeverage;
+    // Robot and datacenter capital: perpetual inventory of realized capex
+    // (built, so booked in full even when the pool could not finance it all;
+    // that overflow is reported as unfundedRealizedSpend). Independent of the
+    // financing plan, so leverage borrowing and the closing ledger share it.
+    const newRobotStock = (1 - params.robotCapitalDepreciation) * robotStock
+      + realizedRobotCapex;
+    const newDataCenterStock =
+      (1 - params.dataCenterCapitalDepreciation) * dataCenterStock
+      + realizedDataCenterCapex;
     const desiredClosingLeverage = openingPrivateLeverage
       + params.leverageAdjustmentSpeed
         * (targetPrivateLeverage - openingPrivateLeverage);
@@ -1818,7 +1829,8 @@ export const capitalModule: Module<
       // Pecking order: orders beyond internal funds are financed with debt
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
-        + Math.max(0, orders - specialPurposeSpend(orders));
+        + Math.max(0, orders - specialPurposeSpend(orders))
+        + newRobotStock + newDataCenterStock;
       const leverageBorrowing =
         desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
       // An over-levered firm with no financing gap repays early from the cash
@@ -2097,9 +2109,6 @@ export const capitalModule: Module<
       params.robotsPerCapitalUnit
     );
 
-    // Total capital: general + robot + datacenter
-    const totalStock = state.stock + automationStock;
-
     // Calculate K per effective worker ($K per person)
     const kPerWorker = (totalStock * 1e12) / inputs.effectiveWorkers / 1000;
 
@@ -2117,14 +2126,6 @@ export const capitalModule: Module<
       unitQuantity((1 - params.depreciation) * state.stock, '$T', 'post-depreciation stock'),
       generalInvestmentStock,
     ], '$T', 'next general capital stock').value;
-    // Robot and datacenter capital: perpetual inventory of realized capex
-    // (built, so booked in full even when the pool could not finance it all;
-    // that overflow is reported as unfundedRealizedSpend)
-    const newRobotStock = (1 - params.robotCapitalDepreciation) * robotStock
-      + realizedRobotCapex;
-    const newDataCenterStock =
-      (1 - params.dataCenterCapitalDepreciation) * dataCenterStock
-      + realizedDataCenterCapex;
     const newTotalStock = newStock + newRobotStock + newDataCenterStock;
 
     // Capital growth rate
