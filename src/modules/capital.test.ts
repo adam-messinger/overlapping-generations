@@ -66,6 +66,7 @@ function getCapitalInputs(yearIndex: number) {
     regionalLifeExpectancy: demoOutputs.regionalLifeExpectancy,
     gdp,
     regionalGdp,
+    gdpMarket: demandOutputs.gdpMarket,
     damages: 0, // No climate damages for basic tests
   };
 }
@@ -154,9 +155,11 @@ test('the seed year\'s finance path grows from the previous year\'s GDP', () => 
   // the steps after it
   const largest = (xs: number[]) => Math.max(...xs.map(Math.abs));
   expect(Math.abs(oldFirst)).toBeGreaterThan(10 * largest(oldLater));
-  // Wired, that jump is gone: the first step is a small fraction of it and
-  // the same order as the steps after
-  expect(Math.abs(first)).toBeLessThan(0.1 * Math.abs(oldFirst));
+  // Wired, that jump is gone: net of the underlying trend (the next step),
+  // the first step is a small fraction of it and the same order as the steps
+  // after. (Measured net of the trend because the premium drifts steadily as
+  // consolidation works on the debt; the raw first step carries that drift.)
+  expect(Math.abs(first - later[0])).toBeLessThan(0.1 * Math.abs(oldFirst - oldLater[0]));
   expect(Math.abs(first)).toBeLessThan(10 * largest(later));
 });
 
@@ -668,8 +671,8 @@ test('firmDepositChange matches what the ledger posts to firms.deposits', () => 
 
 test('debt stocks initialize from GDP at year 0', () => {
   const { outputs } = runYears(1);
-  // publicDebtGDP should be ~0.90 (initialPublicDebtGDP)
-  expect(outputs.publicDebtGDP).toBeBetween(0.85, 0.95);
+  // publicDebtGDP should be ~0.94 (initialPublicDebtGDP)
+  expect(outputs.publicDebtGDP).toBeBetween(0.89, 0.99);
   // privateDebtGDP should be ~1.60 (initialPrivateDebtGDP)
   expect(outputs.privateDebtGDP).toBeBetween(1.50, 1.70);
 });
@@ -741,12 +744,12 @@ test('bankRetentionSpeed 0 restores full payout: bank equity never grows', () =>
 });
 
 test('fiscal consolidation kicks in above 60% threshold', () => {
-  // With default 90% public debt/GDP, fiscal consolidation is active
+  // With default 94% public debt/GDP, fiscal consolidation is active
   const { outputs } = runYears(1);
   // Public deficit should be reduced by consolidation
   // Primary deficit = 0.03 × GDP - consolidation
-  // consolidation = 0.03 × (0.90 - 0.60) × GDP = 0.009 × GDP
-  // So net primary deficit = (0.03 - 0.009) × GDP = 0.021 × GDP
+  // consolidation = 0.03 × (0.94 - 0.60) × GDP = 0.0102 × GDP
+  // So net primary deficit = (0.03 - 0.0102) × GDP = 0.0198 × GDP
   // This means public debt grows, but slower than without consolidation
   expect(outputs.publicDebtGDP).toBeGreaterThan(0);
 });
@@ -881,10 +884,10 @@ test('risk premium is zero when totalDebtGDP < threshold', () => {
 
 test('risk premium is positive when totalDebtGDP > threshold', () => {
   const { outputs } = runYears(1);
-  // Default total debt = 0.90 + 1.60 = 2.50, threshold = 2.00
-  // Premium = 0.03 × 0.50 = 0.015
+  // Default total debt = 0.94 + 1.60 = 2.54, threshold = 2.00
+  // Premium = 0.03 × 0.54 = 0.0162
   expect(outputs.debtRiskPremium).toBeGreaterThan(0);
-  expect(outputs.debtRiskPremium).toBeCloseTo(0.015, 2);
+  expect(outputs.debtRiskPremium).toBeCloseTo(0.0162, 3);
 });
 
 test('risk premium flows into interest rate', () => {
@@ -998,19 +1001,25 @@ test('principal refinancing is not counted as new investment finance', () => {
 // Year 1 from a year-0 state whose leverage target has been moved by
 // `targetScale`: the ledger and debt stocks are untouched, so the firm opens
 // off-target by exactly that factor.
-function stepOffTarget(targetScale: number, overrides: Partial<typeof capitalDefaults> = {}) {
+function stepOffTarget(
+  targetScale: number,
+  overrides: Partial<typeof capitalDefaults> = {},
+  extraInputs: Record<string, number> = {},
+) {
   // A wide bank envelope, so the tests see the firm's request, not rationing
   const params = capitalModule.mergeParams({
     baseCreditGrowth: 0.15,
     leverageDamping: 0,
     ...overrides,
   });
-  const year0 = capitalModule.step(capitalModule.init(params), getCapitalInputs(0), params, 2025, 0);
+  const year0 = capitalModule.step(
+    capitalModule.init(params), { ...getCapitalInputs(0), ...extraInputs }, params, 2025, 0,
+  );
   const state = {
     ...year0.state,
     targetPrivateLeverage: year0.state.targetPrivateLeverage! * targetScale,
   };
-  return capitalModule.step(state, getCapitalInputs(1), params, 2026, 1);
+  return capitalModule.step(state, { ...getCapitalInputs(1), ...extraInputs }, params, 2026, 1);
 }
 
 function expectIdentitiesClose(outputs: any) {
@@ -1374,6 +1383,38 @@ test('automation capex above the net-investment cap no longer freezes general ca
     expect(heavyGrowth).toBeGreaterThan(0.01);
     expect(Math.abs(heavyGrowth - noneGrowth)).toBeLessThan(0.005);
   }
+});
+
+test('the leverage target is debt over ALL capital, robots and datacenters included', () => {
+  const params = capitalModule.mergeParams({});
+  const { outputs } = capitalModule.step(capitalModule.init(params), {
+    ...getCapitalInputs(0),
+    energyCapexSpend: 0, cdrSpend: 0, robotCapexSpend: 0, dataCenterCapexSpend: 0,
+    robotCapitalValue: 20,
+    dataCenterCapitalValue: 30,
+  }, params, 2025, 0);
+  const debt = params.initialPrivateDebtGDP * baselineGdp(0);
+  // The observed stock already contains the fleets, so the total is unchanged
+  expect(outputs.targetPrivateLeverage).toBeCloseTo(debt / params.initialCapitalStock, 9);
+});
+
+test('leverage borrowing scales with the closing robot and datacenter stocks too', () => {
+  // Partial adjustment holds on ALL capital when robot and datacenter capital
+  // exist and grow. Without the closing automation stock in the projected
+  // capital, ai-energy-boom's private debt/GDP fell to 0.45 by 2100.
+  const { outputs } = stepOffTarget(1.1, {}, {
+    energyCapexSpend: 0, cdrSpend: 0,
+    robotCapitalValue: 10, dataCenterCapitalValue: 30,
+    robotCapexSpend: 3, dataCenterCapexSpend: 8,
+  });
+  const opening = outputs.privateLeverage;
+  const target = outputs.targetPrivateLeverage;
+  expect(outputs.robotCapitalStock + outputs.dataCenterCapitalStock).toBeGreaterThan(35);
+  // Exact only when banks supply the whole request (the envelope not binding)
+  expect(outputs.newInvestmentLoanOriginations).toBeCloseTo(outputs.leverageBorrowing, 9);
+  expect(outputs.nextPrivateDebtStock / outputs.nextCapitalStock).toBeCloseTo(
+    opening + capitalDefaults.leverageAdjustmentSpeed * (target - opening), 9,
+  );
 });
 
 test('year 0 carves the opening robot and datacenter fleets out of the observed stock', () => {

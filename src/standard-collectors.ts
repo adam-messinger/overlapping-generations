@@ -199,7 +199,7 @@ export const standardCollectors: CollectorConfig = {
     { source: 'principalRepayments', unit: '$T/year', description: 'Private-loan principal repayments', module: 'capital' },
     { source: 'loanWriteOffs', unit: '$T/year', description: 'Private loans written off against bank equity', module: 'capital' },
     { source: 'netCreditCreation', unit: '$T/year', description: 'Change in the private-debt stock after repayments and write-offs', module: 'capital' },
-    { source: 'privateLeverage', unit: 'fraction', description: 'Beginning-of-period private debt / general capital stock', module: 'capital' },
+    { source: 'privateLeverage', unit: 'fraction', description: 'Beginning-of-period private debt / capital stock (general + robot + datacenter)', module: 'capital' },
     { source: 'targetPrivateLeverage', unit: 'fraction', description: 'Private debt / capital ratio firms adjust toward (the year-0 ratio)', module: 'capital' },
     { source: 'leverageBorrowing', unit: '$T/year', description: 'Net new credit the leverage target asks for this year (negative when over-levered); credit demand is the larger of this and the investment financing gap', module: 'capital' },
     { source: 'leverageRecapBorrowing', unit: '$T/year', description: 'New credit beyond the investment financing gap, taken to move toward target leverage and paid out to owners', module: 'capital' },
@@ -359,6 +359,10 @@ export const standardCollectors: CollectorConfig = {
     { source: 'dataCenterLoadTWh', unit: 'TWh/year', description: 'Datacenter/AI electricity load', module: 'demand' },
     { source: 'dataCenterCapexSpend', unit: '$T/year', description: 'Composite chips and datacenter capital expenditure', module: 'demand' },
     { source: 'dataCenterSpendShare', unit: 'fraction', description: 'Datacenter total cost of ownership (power + capital service at the lagged interest rate + depreciation) as a share of GDP: what the deployment brake reads', module: 'demand' },
+
+    // GDP at market exchange rates (constant 2025 prices and exchange rates)
+    { source: 'gdpMarket', unit: '$T/year', description: 'World GDP at market exchange rates, constant 2025 prices and exchange rates ($T, 2025 USD); understates converging economies over time', module: 'demand' },
+    { source: 'regionalGdpMarket', unit: '$T/year', description: 'GDP by region at market exchange rates, constant 2025 prices and exchange rates ($T, 2025 USD)', module: 'demand' },
 
     // Regional
     { source: 'regionalPopulation', unit: 'people', description: 'Population by region', module: 'demographics' },

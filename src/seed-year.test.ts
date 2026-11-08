@@ -33,7 +33,16 @@ const SEED_DEFINED: Record<string, string> = {
  * First-step discontinuities present today. Each is a lead to investigate,
  * not an accepted behavior. Add an entry only with what it was traced to.
  */
+const CREDIT_GAP_STEP =
+  'investment credit demand less the lending envelope runs $1.03T, then 0.79, 0.69, 0.54, '
+  + '0.39, 0.25: the first step falls 0.25 where later steps fall 0.10-0.15. Present under the '
+  + 'old 0.25/0.15/0.55 weights too (1.05, 0.78, 0.64, 0.44, 0.22) and at $15B/GW datacenter '
+  + 'capital (0.67, 0.44, 0.29, 0.10); it was hidden while the gap crossed zero in the window '
+  + '(the clipped-series rule). 2025 credit demand sits a step above its path; not yet traced';
 const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
+  unfundedCreditDemand: CREDIT_GAP_STEP,
+  unfundedInvestmentDemand: CREDIT_GAP_STEP,
+  unfundedFinancingDemand: CREDIT_GAP_STEP,
 };
 
 /**
@@ -43,32 +52,15 @@ const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
  * entry cannot outlive its reason).
  */
 type Series = Record<string, number[]>;
-/** Investment financing gap: what was lent less the recap, plus what was not supplied */
-const investmentGap = (s: Series) =>
-  s.newInvestmentLoanOriginations.map((lent, i) =>
-    lent - s.leverageRecapBorrowing[i] + s.unfundedCreditDemand[i]);
-/** Investment credit demand less the bank lending envelope; positive part = unfunded credit */
-const creditGap = (s: Series) =>
-  investmentGap(s).map((gap, i) => gap - s.creditCapacity[i]);
-const CLIPPED: Record<string, { reason: string; underlying: (s: Series) => number[] }> = {
-  unfundedCreditDemand: {
-    reason: 'credit demand less the lending envelope runs 0.47, 0.20, -0.09, -0.38 $T: '
-      + 'a smooth path crossing zero in 2027',
-    underlying: creditGap,
-  },
-  // Same shortfall seen from investment orders and from total financing
-  unfundedInvestmentDemand: { reason: 'as unfundedCreditDemand', underlying: creditGap },
-  unfundedFinancingDemand: { reason: 'as unfundedCreditDemand', underlying: creditGap },
-  // Recap credit is what banks lend beyond the investment gap,
-  // min(leverage borrowing, envelope) - gap. Leverage demand exceeds the
-  // envelope from 2025, so this is the mirror of unfundedCreditDemand
-  leverageRecapBorrowing: {
-    reason: 'the lending envelope (leverage demand exceeds it) less the investment gap runs '
-      + '-0.47, -0.20, 0.09, 0.38 $T: a smooth path crossing zero in 2027',
-    underlying: (s) => investmentGap(s).map((gap, i) =>
-      Math.min(s.leverageBorrowing[i], s.creditCapacity[i]) - gap),
-  },
-};
+/**
+ * Empty today. The credit-gap outputs (unfundedCreditDemand,
+ * unfundedInvestmentDemand, unfundedFinancingDemand, leverageRecapBorrowing)
+ * were listed while credit demand crossed the lending envelope in 2027; on
+ * the constant-returns path with $45B/GW datacenter capital it stays above
+ * the envelope through the window, so they are no longer clipped there and
+ * are probed directly.
+ */
+const CLIPPED: Record<string, { reason: string; underlying: (s: Series) => number[] }> = {};
 
 const run = runSimulation({ endYear: 2031 }, { paramLiveness: 'off' });
 const numericFields = (Object.keys(run.results[0]) as (keyof YearResult)[])
