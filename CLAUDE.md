@@ -582,7 +582,7 @@ outside them reads them, which is a domain fact rather than a graph property.
 | `cdrRemoval` | Gt CO₂/yr | Carbon dioxide removal |
 | `energyBurden` | fraction | Energy cost share of GDP |
 | `effectiveWACC` | fraction | Weighted avg cost of capital for energy |
-| `robotsDensity` | per 1000 | Robots per 1000 workers |
+| `robotsPer1000` | per 1000 | Robots per 1000 workers (demand's endogenous fleet) |
 | `farmland` | Mha | Agricultural land (cropland + pasture) |
 | `totalDebtGDP` | ratio | Total debt to GDP |
 | `creditImpulse` | $T | Net new private credit |

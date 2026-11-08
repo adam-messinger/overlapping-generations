@@ -14,8 +14,5 @@
   "demand": {
     "robotDiffusionRate": 0.5,
     "robotIntegrationExponent": 0.55
-  },
-  "capital": {
-    "automationGrowth": 0.15
   }
 }

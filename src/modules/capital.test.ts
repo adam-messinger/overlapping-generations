@@ -234,32 +234,6 @@ test('K per worker increases over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-// --- Automation ---
-
-console.log('\n--- Automation ---\n');
-
-test('automation share starts at 2%', () => {
-  const { outputs } = runYears(1);
-  expect(outputs.automationShare).toBeCloseTo(0.02, 2);
-});
-
-test('automation share grows over time', () => {
-  const year1 = runYears(1).outputs.automationShare;
-  const year25 = runYears(25).outputs.automationShare;
-  expect(year25).toBeGreaterThan(year1);
-});
-
-test('automation share capped at 20%', () => {
-  const year76 = runYears(76).outputs.automationShare;
-  expect(year76).toBeLessThan(0.21);
-});
-
-test('robots density increases over time', () => {
-  const year1 = runYears(1).outputs.robotsDensity;
-  const year25 = runYears(25).outputs.robotsDensity;
-  expect(year25).toBeGreaterThan(year1);
-});
-
 // --- Stability Factor ---
 
 console.log('\n--- Stability Factor ---\n');

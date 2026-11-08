@@ -9,7 +9,7 @@ const r = result.results;
 
 // Extract time series
 const years = r.map(x => x.year);
-const robots = r.map(x => x.robotsDensity);
+const robots = r.map(x => x.robotsPer1000);
 const solarGW = r.map(x => x.capacities?.solar ?? 0);
 const solarAdditions = solarGW.map((v, i) => i === 0 ? 0 : v - solarGW[i-1]);
 const batteryGWh = r.map(x => x.capacities?.battery ?? 0);

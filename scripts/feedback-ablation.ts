@@ -99,7 +99,6 @@ const sameForAllRegions = (v: number) =>
 const PARAM_ABLATIONS: Record<string, DeepPartial<SimulationParams>> = {
   'capital.stabilityLambda = 0': { capital: { stabilityLambda: 0 } },
   'capital.bankRetentionSpeed = 0': { capital: { bankRetentionSpeed: 0 } },
-  'capital.automationGrowth = 0': { capital: { automationGrowth: 0 } },
   'capital.leverageAdjustmentSpeed = 0': { capital: { leverageAdjustmentSpeed: 0 } },
   'capital.debtRiskLambda = 0': { capital: { debtRiskLambda: 0 } },
   'capital.safeRateDebtSensitivity = 0': { capital: { safeRateDebtSensitivity: 0 } },

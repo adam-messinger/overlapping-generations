@@ -113,10 +113,6 @@ export interface CapitalParams {
   stabilityLambda: number;    // Sensitivity to uncertainty (see Key equations)
 
   // Automation
-  automationShare2025: number;    // Initial fraction of capital as "robots"
-  automationGrowth: number;       // Annual growth of automation share
-  automationShareCap: number;     // Maximum automation share
-  robotsPerCapitalUnit: number;   // Robots per $1000 automation capital per worker
 
   // Investment split
 
@@ -286,10 +282,6 @@ export interface CapitalOutputs {
   loanRate: number;           // Real rate paid on private bank debt
   repressionGap: number;      // pp the safe rate is held below its market level
 
-  // Automation
-  robotsDensity: number;      // Automation capital density (capital-derived, $/worker scaled)
-  automationShare: number;    // Fraction of capital that is automation
-
   // Intensity
   kPerWorker: number;         // Capital per effective worker ($K/person)
   capitalOutputRatio: number; // K/Y ratio
@@ -450,10 +442,6 @@ export const capitalDefaults: CapitalParams = {
   // Automation: share trajectory is a modeling assumption; robot density
   // calibrated to IFR World Robotics 2024 (~4M industrial robots in
   // operation, ~162 per 10k manufacturing workers globally)
-  automationShare2025: 0.02,    // 2% of capital is robots/automation
-  automationGrowth: 0.03,       // 3%/year growth in share
-  automationShareCap: 0.20,     // Max 20% of capital
-  robotsPerCapitalUnit: 8.6,    // Robots per $1000 automation K per worker (calibrated to IFR 2024 stock)
 
   // Investment split
 
@@ -804,22 +792,6 @@ function calculateFirmCircuit(
   };
 }
 
-/**
- * Automation capital density (capital-derived metric).
- * NOT the same as expansion.robotsPer1000 (which uses exponential growth and
- * drives energy demand). This metric tracks automation as a share of capital stock.
- */
-function calculateRobotsDensity(
-  capital: number,
-  workers: number,
-  automationShare: number,
-  robotsPerCapitalUnit: number
-): number {
-  const automationCapital = capital * automationShare; // $ trillions
-  const dollarsPerWorker = (automationCapital * 1e12) / workers;
-  return (dollarsPerWorker / 1000) * robotsPerCapitalUnit;
-}
-
 // =============================================================================
 // MODULE DEFINITION
 // =============================================================================
@@ -1141,8 +1113,6 @@ export const capitalModule: Module<
       safeRate: unitPort('fraction'),
       loanRate: unitPort('fraction'),
       repressionGap: unitPort('fraction'),
-      robotsDensity: unitPort('robot/kpeople'),
-      automationShare: unitPort('fraction'),
       kPerWorker: unitPort('$k/people'),
       capitalOutputRatio: unitPort('year'),
       capitalGrowthRate: unitPort('fraction/year'),
@@ -2099,18 +2069,6 @@ export const capitalModule: Module<
       'general investment',
     ).value);
 
-    // Calculate automation share (grows but is capped)
-    const rawShare = params.automationShare2025 * Math.pow(1 + params.automationGrowth, t);
-    const automationShare = Math.min(rawShare, params.automationShareCap);
-
-    // Calculate robots density
-    const robotsDensity = calculateRobotsDensity(
-      state.stock,
-      inputs.effectiveWorkers,
-      automationShare,
-      params.robotsPerCapitalUnit
-    );
-
     // Calculate K per effective worker ($K per person)
     const kPerWorker = (totalStock * 1e12) / inputs.effectiveWorkers / 1000;
 
@@ -2259,8 +2217,6 @@ export const capitalModule: Module<
         safeRate: finance.safeRate,
         loanRate: finance.loanRate,
         repressionGap: finance.repressionGap,
-        robotsDensity,
-        automationShare,
         kPerWorker,
         capitalOutputRatio,
         capitalGrowthRate,

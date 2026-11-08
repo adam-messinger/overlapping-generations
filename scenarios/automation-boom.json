@@ -45,8 +45,5 @@
     "energyPerRobotMWh": 12,
     "robotDiffusionRate": 0.35,
     "robotIntegrationExponent": 0.7
-  },
-  "capital": {
-    "automationGrowth": 0.12
   }
 }

@@ -180,8 +180,6 @@ export interface YearResult {
   safeRate: number;
   loanRate: number;
   repressionGap: number;
-  robotsDensity: number;
-  automationShare: number;
   capitalOutputRatio: number;
   capitalGrowthRate: number;
 
