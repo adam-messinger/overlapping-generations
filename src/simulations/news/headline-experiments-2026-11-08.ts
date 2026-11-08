@@ -46,6 +46,12 @@ import {
   SERIES_START_YEAR,
 } from './el-nino-temperature-data.js';
 import {
+  backtestPayrollTrend,
+  payrollMonthIndex,
+  payrollTrendAt,
+  type PayrollBacktest,
+} from './payroll-trend.js';
+import {
   dieselInflationCase,
   ebolaTrajectoryCase,
   evaluateDieselInflationAndFed,
@@ -415,12 +421,24 @@ export interface FedDecemberResult {
     hikeBuysDec2027Pp: number;
     hikeCostsOutputGapPp: number;
     labour: {
+      /** Naive read (the 6 September method): three latest prints, sampling error only. */
       threeMonthAverageThousand: number;
       threeMonthStandardErrorThousand: number;
       probabilityTrendAbove90k: number;
       september6ProbabilityTrendAbove90k: number;
       octoberSurpriseSigma: number;
       wageGapToTargetConsistentPp: number;
+      /** Revision-aware filter (payroll-trend.ts), as of the October release and, in real time, the August one. */
+      filtered: {
+        trendThousand: number;
+        trendSdThousand: number;
+        probabilityTrendAbove90k: number;
+        probabilityTrendAbove30k: number;
+        firstPrintBiasThousand: number;
+        september6TrendThousand: number;
+        september6ProbabilityTrendAbove90k: number;
+        backtest: PayrollBacktest;
+      };
     };
     interpretation: string;
   };
@@ -574,6 +592,9 @@ export function evaluateFedDecemberHike(input: FedDecemberCase = fedDecemberCase
   const threeMonth = (input.payrollsAugustRevised + input.payrollsSeptemberRevised + input.payrollsOctober) / 3;
   const threeMonthSe = monthlySe / Math.sqrt(3);
   const september6Analysis = evaluateDieselInflationAndFed();
+  const filteredNow = payrollTrendAt(payrollMonthIndex(2026, 10));
+  const filteredSeptember6 = payrollTrendAt(payrollMonthIndex(2026, 8));
+  const backtest = backtestPayrollTrend(payrollMonthIndex(2024, 1), payrollMonthIndex(2026, 8));
 
   const result: FedDecemberResult = {
     case: input,
@@ -604,9 +625,19 @@ export function evaluateFedDecemberHike(input: FedDecemberCase = fedDecemberCase
         september6ProbabilityTrendAbove90k: september6Analysis.revisedV2.labour.probabilityTrendAboveBreakevenHigh,
         octoberSurpriseSigma: (input.payrollsOctober - input.payrollsConsensusOctober) / monthlySe,
         wageGapToTargetConsistentPp: input.averageHourlyEarningsYoy - input.wageGrowthConsistentWithTarget,
+        filtered: {
+          trendThousand: filteredNow.trend,
+          trendSdThousand: filteredNow.trendSd,
+          probabilityTrendAbove90k: filteredNow.probabilityAbove(c.breakevenHighThousand),
+          probabilityTrendAbove30k: filteredNow.probabilityAbove(c.breakevenLowThousand),
+          firstPrintBiasThousand: filteredNow.firstPrintBias,
+          september6TrendThousand: filteredSeptember6.trend,
+          september6ProbabilityTrendAbove90k: filteredSeptember6.probabilityAbove(c.breakevenHighThousand),
+          backtest,
+        },
       },
       interpretation:
-        'Headline peaked in October on the fuel path already in hand and falls under any rule; the hike barely moves 2027 inflation. The case for hiking is the labour market, which the revisions now show running above breakeven, but wages are below the pace that would threaten 2%.',
+        'Headline peaked in October on the fuel path already in hand and falls under any rule; the hike barely moves 2027 inflation. Filtered for revisions, the payroll trend sits at the top of the breakeven range, a coin flip on overheating, and wages are below the pace that would threaten 2%.',
     },
   };
   assertFiniteDeep(result, 'Fed December result');
@@ -955,6 +986,8 @@ export interface ScorecardResult {
     observedSeptemberHeadlinePct: number;
     september6ProbabilityTrendAbove90k: number;
     probabilityTrendAbove90kNow: number;
+    filteredSeptember6ProbabilityTrendAbove90k: number;
+    filteredProbabilityTrendAbove90kNow: number;
   };
 }
 
@@ -1012,6 +1045,8 @@ export function scoreSeptember6Forecasts(): ScorecardResult {
       observedSeptemberHeadlinePct: fedDecemberCase.headlineCpi[2],
       september6ProbabilityTrendAbove90k: fed.revisedV2.labour.september6ProbabilityTrendAbove90k,
       probabilityTrendAbove90kNow: fed.revisedV2.labour.probabilityTrendAbove90k,
+      filteredSeptember6ProbabilityTrendAbove90k: fed.revisedV2.labour.filtered.september6ProbabilityTrendAbove90k,
+      filteredProbabilityTrendAbove90kNow: fed.revisedV2.labour.filtered.probabilityTrendAbove90k,
     },
   };
 }

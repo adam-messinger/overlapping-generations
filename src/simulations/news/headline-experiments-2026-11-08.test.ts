@@ -38,9 +38,14 @@ test('Fed: refit removes the core bias; headline peaks in October under any rule
   assert.ok(Math.abs(r.revisedV2.hikeBuysDec2027Pp) < 0.05);
   assert.ok(hikeRule.policyRateDec2026Pct > lookThrough.policyRateDec2026Pct);
   assert.ok(relapse.headlineJun2027Pct > lookThrough.headlineJun2027Pct + 0.3);
-  // The revisions turn the 6 September labour read around.
-  assert.ok(r.revisedV2.labour.september6ProbabilityTrendAbove90k < 0.4);
-  assert.ok(r.revisedV2.labour.probabilityTrendAbove90k > 0.8);
+  // The naive three-month read swings from 33% to 86%; filtered for revisions,
+  // the trend sits near the top of the breakeven range and the swing is smaller.
+  const labour = r.revisedV2.labour;
+  assert.ok(labour.september6ProbabilityTrendAbove90k < 0.4);
+  assert.ok(labour.probabilityTrendAbove90k > 0.8);
+  assert.ok(labour.filtered.probabilityTrendAbove90k < 0.7);
+  assert.ok(labour.filtered.trendThousand < labour.threeMonthAverageThousand - 25);
+  assert.ok(labour.filtered.backtest.smoothedTarget.filterRmse < labour.filtered.backtest.smoothedTarget.naiveRmse);
 });
 
 test('El Nino: the strong-event excess passes the 2026 holdout and makes 2027 the record year', () => {

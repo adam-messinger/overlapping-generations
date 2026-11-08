@@ -87,6 +87,18 @@ console.log(
   `Payrolls: 3-month average ${l.threeMonthAverageThousand.toFixed(0)}k ± ${l.threeMonthStandardErrorThousand.toFixed(0)}k (Aug 186k, Sep 60k revised; Oct 165k, a ${l.octoberSurpriseSigma.toFixed(1)}σ beat). ` +
     `P(trend > 90k) = ${pct(l.probabilityTrendAbove90k)} (6 Sep: ${pct(l.september6ProbabilityTrendAbove90k)}). Wages ${fed.case.averageHourlyEarningsYoy}% y/y, ${Math.abs(l.wageGapToTargetConsistentPp).toFixed(1)}pp below the 2%-consistent pace.`,
 );
+const lf = l.filtered;
+console.log('Payroll trend filtered for revisions (local level; first/second prints carry their revision variance and trailing-24-month mean revision)');
+console.table([
+  { release: 'Aug 2026 (6 Sep)', naive: '71k', filtered: `${lf.september6TrendThousand.toFixed(0)}k`, 'P(trend > 90k)': `${pct(l.september6ProbabilityTrendAbove90k)} → ${pct(lf.september6ProbabilityTrendAbove90k)}` },
+  { release: 'Oct 2026 (6 Nov)', naive: `${l.threeMonthAverageThousand.toFixed(0)}k`, filtered: `${lf.trendThousand.toFixed(0)}k ± ${lf.trendSdThousand.toFixed(0)}k`, 'P(trend > 90k)': `${pct(l.probabilityTrendAbove90k)} → ${pct(lf.probabilityTrendAbove90k)}` },
+]);
+const bt = lf.backtest;
+console.log(
+  `First prints are revised by ${lf.firstPrintBiasThousand.toFixed(0)}k on average (trailing 24 months). Real-time backtest, ${bt.releases} releases ${bt.firstRelease}–${bt.lastRelease}: ` +
+    `RMSE ${bt.smoothedTarget.naiveRmse.toFixed(0)}k naive → ${bt.smoothedTarget.filterRmse.toFixed(0)}k filtered against the ex-post trend; ` +
+    `${bt.centredTarget.naiveRmse.toFixed(0)}k → ${bt.centredTarget.filterRmse.toFixed(0)}k against a centred five-month mean (no bias correction: ${bt.centredTarget.noBiasRmse.toFixed(0)}k).`,
+);
 
 // ---------------------------------------------------------------------------
 const sim = runSimulation({}, { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' });
@@ -159,6 +171,6 @@ console.table([
   {
     forecast: 'Payroll trend above 90k',
     'then said': pct(s.inflation.september6ProbabilityTrendAbove90k),
-    happened: `${pct(s.inflation.probabilityTrendAbove90kNow)} after revisions (Aug 162k → 186k)`,
+    happened: `${pct(s.inflation.probabilityTrendAbove90kNow)} naive, ${pct(s.inflation.filteredProbabilityTrendAbove90kNow)} filtered (6 Sep filtered: ${pct(s.inflation.filteredSeptember6ProbabilityTrendAbove90k)})`,
   },
 ]);
