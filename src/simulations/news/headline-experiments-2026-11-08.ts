@@ -18,12 +18,14 @@ import { assertFiniteDeep } from 'tsimulation';
 
 import { clamp, normalCdf } from '../../primitives/math.js';
 import {
+  LEGACY_FLOW_V1_PRICE_BLOCK,
   OBSERVED_INTENSITY,
   OBSERVED_THROUGHPUT,
   defaultWarSettlementParams,
   hold,
   ramp,
   warSettlementEvidence,
+  type WarSettlementParams,
   type WarSettlementScenario,
 } from '../war-settlement/data.js';
 import {
@@ -140,18 +142,29 @@ export const brentDealCase: BrentDealCase = {
   dealNormalizationMonths: 4,
 };
 
-/** Settlement-model throughput implied by $96 on 6 September (August, September). */
-const SEPTEMBER_6_AUGUST_THROUGHPUT = 0.23;
-const SEPTEMBER_6_SEPTEMBER_THROUGHPUT = 0.31;
-const SEPTEMBER_6_AUGUST_INTENSITY = 0.35;
-const SEPTEMBER_6_SEPTEMBER_INTENSITY = 0.9;
+/**
+ * Observed Hormuz throughput: August from the IEA (7.6 of 20.9 mb/d); October
+ * "below 60%" (Reuters); September interpolated between them. The 6 September
+ * pass inverted the old price block on $96 instead (0.23 / 0.31); the IEA
+ * figure, unavailable then, supersedes that.
+ */
+const AUGUST_THROUGHPUT = 0.36;
+const SEPTEMBER_THROUGHPUT = 0.47;
+/** Combat tempo, August and September, as on 6 September. JUDGMENT. */
+const AUGUST_INTENSITY = 0.35;
+const SEPTEMBER_INTENSITY = 0.9;
 /** Month indices from March 2026. */
+const SEPTEMBER = 6;
 const OCTOBER = 7;
+const NOVEMBER = 8;
 const JANUARY_2027 = 10;
+
+type PriceBlock = WarSettlementParams['priceBlock'];
 
 function novemberBranch(
   input: BrentDealCase,
   tail: { intensity: readonly number[]; throughput: readonly number[] },
+  priceBlock: PriceBlock = 'stocks-v2',
 ): WarSettlementResult {
   const scenario: WarSettlementScenario = {
     id: 'november-2026',
@@ -162,20 +175,20 @@ function novemberBranch(
     months: 18,
     baseIntensityPath: [
       ...OBSERVED_INTENSITY,
-      SEPTEMBER_6_AUGUST_INTENSITY,
-      SEPTEMBER_6_SEPTEMBER_INTENSITY,
+      AUGUST_INTENSITY,
+      SEPTEMBER_INTENSITY,
       input.octoberIntensity,
       ...tail.intensity,
     ],
     hormuzThroughputPath: [
       ...OBSERVED_THROUGHPUT,
-      SEPTEMBER_6_AUGUST_THROUGHPUT,
-      SEPTEMBER_6_SEPTEMBER_THROUGHPUT,
+      AUGUST_THROUGHPUT,
+      SEPTEMBER_THROUGHPUT,
       input.hormuzThroughputNow,
       ...tail.throughput,
     ],
   };
-  return simulateWarSettlement(scenario);
+  return simulateWarSettlement(scenario, priceBlock === 'flow-v1' ? LEGACY_FLOW_V1_PRICE_BLOCK : {});
 }
 
 export interface BrentDealResult {
@@ -197,19 +210,20 @@ export interface BrentDealResult {
     dealOddsMoveShareOfFallAtMost: number;
     /** Δp needed for the deal bet to explain the whole fall, at the widest spread. */
     dealOddsMoveNeededForWholeFall: number;
-    /** Model Brent with zero net deficit at the stated tempo: base + war premium. */
-    zeroDeficitPriceAtTempoUsd: { tempo: number; brentUsd: number }[];
-    /** Settlement-model no-deal (status quo) Brent in October at observed flows. */
-    modelOctoberStatusQuoUsd: number;
-    /** Highest monthly Brent any November branch produces, November–January (re-closure at full tempo). */
-    modelMaxBrentNovToJanUsd: number;
-    /** 30 October close above that ceiling: what the model has no mechanism for. */
-    october30AboveModelCeilingUsd: number;
-    /** Deal probability implied by $98.32 if the no-deal value is the model's zero-deficit price at today's tempo. */
+    /** Status quo (flows held at 58%), November Brent at each tempo. */
+    statusQuoNovemberAtTempoUsd: { tempo: number; brentUsd: number }[];
+    /** Status quo at October tempo, October Brent, against the observed $103–118. */
+    modelOctoberUsd: number;
+    /** Re-closure at full tempo, highest monthly Brent November–January. */
+    escalationPeakNovToJanUsd: number;
+    /** 30 October close minus that peak. */
+    october30AboveEscalationPeakUsd: number;
+    /** Deal probability implied by $98.32 if the no-deal value is the model's status quo at that tempo. */
     impliedDealProbabilityAtModelNoDeal: { tempo: number; probability: number }[];
-    /** Holdout: model cumulative stock draw through September vs the IEA's observed 509 mb. */
-    modelStockDrawThroughSeptemberMb: number;
-    stockDrawOverIeaRatio: number;
+    /** Holdout: observed stock gap at end-September, stock block and legacy block, vs the IEA's 509 mb. */
+    stockGapEndSeptemberMb: { stocksV2: number; flowV1: number; iea: number };
+    /** Status quo: commercial stocks below pre-war, end-October, and the inventory part of the price. */
+    commercialGapOctoberMb: number;
     /** IEA August flow as a share of the 20.9 mb/d norm (Sept 6's stock identity gave 26–46%). */
     ieaAugustThroughputShare: number;
     interpretation: string;
@@ -219,7 +233,6 @@ export interface BrentDealResult {
 export function evaluateBrentDealRepricing(input: BrentDealCase = brentDealCase): BrentDealResult {
   assertFiniteDeep(input, 'Brent deal case');
   const normal = warSettlementEvidence.oil.hormuzNormalFlowMbd;
-  const base = defaultWarSettlementParams.basePriceUsdPerBarrel;
 
   // Branches from November. Deal: tempo collapses, flows normalize over the
   // mine-clearance window. Escalation: full tempo and a re-closure.
@@ -231,15 +244,13 @@ export function evaluateBrentDealRepricing(input: BrentDealCase = brentDealCase)
     intensity: hold(1.05, 12),
     throughput: [...ramp(input.hormuzThroughputNow, 0.2, 3), ...hold(0.2, 12)],
   });
-  const statusQuo = novemberBranch(input, {
-    intensity: hold(input.intensityNowHigh, 12),
-    throughput: hold(input.hormuzThroughputNow, 12),
-  });
+  const statusQuoAt = (tempo: number, block: PriceBlock = 'stocks-v2') =>
+    novemberBranch(input, { intensity: hold(tempo, 12), throughput: hold(input.hormuzThroughputNow, 12) }, block);
   const dealJan = deal.months[JANUARY_2027]?.brentUsdPerBarrel ?? Number.NaN;
 
   // --- V1: the whole fall is a deal bet, last week's close the no-deal value.
   const fall = input.brentOct30Usd - input.brentNov6Usd;
-  const v1Probability = (input.brentOct30Usd - input.brentNov6Usd) / (input.brentOct30Usd - dealJan);
+  const v1Probability = fall / (input.brentOct30Usd - dealJan);
 
   // --- V2a: what a move in deal odds can explain at most. The spread between
   // the no-deal and deal values cannot exceed last week's close minus the
@@ -248,29 +259,22 @@ export function evaluateBrentDealRepricing(input: BrentDealCase = brentDealCase)
   const widestSpread = input.brentOct30Usd - dealJan;
   const explainsAtMost = dealOddsMove * widestSpread;
 
-  // --- V2b: the no-deal value at observed flows. With the market in surplus
-  // (JPMorgan) the net deficit is zero and the price block reduces to base
-  // plus war premium.
-  const zeroDeficit = [input.intensityNowLow, input.intensityNowHigh, 1].map((tempo) => ({
+  // --- V2b: the no-deal value at observed flows, from the stock-clearing block.
+  const statusQuo = [input.intensityNowLow, input.intensityNowHigh, 1].map((tempo) => ({
     tempo,
-    brentUsd: base + WAR_RISK_PREMIUM_USD * tempo,
+    brentUsd: statusQuoAt(tempo).months[NOVEMBER]?.brentUsdPerBarrel ?? Number.NaN,
   }));
-  const statusQuoOctober = statusQuo.months[OCTOBER]?.brentUsdPerBarrel ?? Number.NaN;
-
-  const novToJan = (r: WarSettlementResult) =>
-    Math.max(...r.months.slice(OCTOBER + 1, JANUARY_2027 + 1).map((m) => m.brentUsdPerBarrel));
-  const modelMax = Math.max(novToJan(escalation), novToJan(statusQuo), novToJan(deal));
-
-  const impliedAtModel = [input.intensityNowLow, input.intensityNowHigh].map((tempo) => {
-    const noDeal = base + WAR_RISK_PREMIUM_USD * tempo;
-    return { tempo, probability: clamp((noDeal - input.brentNov6Usd) / (noDeal - dealJan), 0, 1) };
-  });
-
-  // Holdout: cumulative draws (gross minus net deficit) through September.
-  let drawThroughSeptember = 0;
-  for (const m of statusQuo.months.slice(0, OCTOBER)) {
-    drawThroughSeptember += (m.grossDeficitMbd - m.netDeficitMbd) * 30.4;
-  }
+  const central = statusQuoAt(input.octoberIntensity);
+  const peak = Math.max(
+    ...escalation.months.slice(NOVEMBER, JANUARY_2027 + 1).map((m) => m.brentUsdPerBarrel),
+  );
+  const impliedAtModel = statusQuo
+    .filter((s) => s.tempo < 1)
+    .map(({ tempo, brentUsd }) => ({
+      tempo,
+      probability: clamp((brentUsd - input.brentNov6Usd) / (brentUsd - dealJan), 0, 1),
+    }));
+  const gapAt = (r: WarSettlementResult) => r.months[SEPTEMBER]?.observedStockGapMb ?? Number.NaN;
 
   const result: BrentDealResult = {
     case: input,
@@ -279,7 +283,7 @@ export function evaluateBrentDealRepricing(input: BrentDealCase = brentDealCase)
       weeklyFallShare: fall / input.brentOct30Usd,
       dealPriceJanuaryUsd: dealJan,
       impliedDealProbability: v1Probability,
-      impliedOverObservedOddsMove: v1Probability / (input.polymarketDealByNov30After - input.polymarketDealByNov30Before),
+      impliedOverObservedOddsMove: v1Probability / dealOddsMove,
       flaw:
         'Treats the 30 October close as the no-deal value, so every dollar of the fall becomes deal probability; the implied jump is several times any observed move in deal odds.',
     },
@@ -287,16 +291,20 @@ export function evaluateBrentDealRepricing(input: BrentDealCase = brentDealCase)
       dealOddsMoveExplainsUsdAtMost: explainsAtMost,
       dealOddsMoveShareOfFallAtMost: explainsAtMost / fall,
       dealOddsMoveNeededForWholeFall: fall / widestSpread,
-      zeroDeficitPriceAtTempoUsd: zeroDeficit,
-      modelOctoberStatusQuoUsd: statusQuoOctober,
-      modelMaxBrentNovToJanUsd: modelMax,
-      october30AboveModelCeilingUsd: input.brentOct30Usd - modelMax,
+      statusQuoNovemberAtTempoUsd: statusQuo,
+      modelOctoberUsd: central.months[OCTOBER]?.brentUsdPerBarrel ?? Number.NaN,
+      escalationPeakNovToJanUsd: peak,
+      october30AboveEscalationPeakUsd: input.brentOct30Usd - peak,
       impliedDealProbabilityAtModelNoDeal: impliedAtModel,
-      modelStockDrawThroughSeptemberMb: drawThroughSeptember,
-      stockDrawOverIeaRatio: drawThroughSeptember / input.ieaStockGapEndSeptemberMb,
+      stockGapEndSeptemberMb: {
+        stocksV2: gapAt(central),
+        flowV1: gapAt(statusQuoAt(input.octoberIntensity, 'flow-v1')),
+        iea: input.ieaStockGapEndSeptemberMb,
+      },
+      commercialGapOctoberMb: central.months[OCTOBER]?.commercialStockGapMb ?? Number.NaN,
       ieaAugustThroughputShare: input.ieaHormuzFlowAugustMbd / normal,
       interpretation:
-        'The deal bet explains at most about a quarter of the fall. The 30 October close sat at the model\'s re-closure price; the 6 November close sits at its no-deal status quo at full tempo, with the market in surplus at observed flows. The week repriced re-closure, not a deal, and $98 is consistent with the low deal odds analysts quote.',
+        'The deal bet explains at most about a quarter of the fall. With stocks cleared against price, the status quo at observed flows prices Brent near today\'s $98; the 30 October close needed most of a re-closure priced in. The week repriced re-closure, not a deal.',
     },
   };
   assertFiniteDeep(result, 'Brent deal result');

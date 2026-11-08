@@ -9,20 +9,22 @@ import {
 } from './headline-experiments-2026-11-08.js';
 import { ERA5_MONTHLY_ANOMALY_1991_2020, ONI_MONTHLY } from './el-nino-temperature-data.js';
 
-test('Brent: the deal bet explains a minority of the fall; the rest is re-closure risk leaving', () => {
+test('Brent: the deal bet explains a minority of the fall; today is the stock-cleared status quo', () => {
   const r = evaluateBrentDealRepricing();
   // Reading the whole fall as a deal bet needs a jump in deal odds ~4x the largest observed move.
   assert.ok(r.initialV1.impliedOverObservedOddsMove > 3);
   // At most about a quarter of the $19 fall is a move in deal odds.
   assert.ok(r.revisedV2.dealOddsMoveShareOfFallAtMost < 0.3);
-  // The 30 October close sits within a few dollars of the model's re-closure price...
-  assert.ok(Math.abs(r.revisedV2.october30AboveModelCeilingUsd) < 5);
-  // ...and the 6 November close at its status quo at full tempo (zero net deficit).
-  const fullTempo = r.revisedV2.zeroDeficitPriceAtTempoUsd.find((z) => z.tempo === 1);
-  assert.ok(fullTempo && Math.abs(fullTempo.brentUsd - r.case.brentNov6Usd) < 3);
+  // The 6 November close sits at the model's status quo at full tempo...
+  const fullTempo = r.revisedV2.statusQuoNovemberAtTempoUsd.find((z) => z.tempo === 1);
+  assert.ok(fullTempo && Math.abs(fullTempo.brentUsd - r.case.brentNov6Usd) < 4);
   for (const reading of r.revisedV2.impliedDealProbabilityAtModelNoDeal) assert.ok(reading.probability < 0.1);
-  // Holdout: the settlement model over-draws stocks against the IEA.
-  assert.ok(r.revisedV2.stockDrawOverIeaRatio > 2);
+  // ...while the 30 October close is well above even a re-closure in the model.
+  assert.ok(r.revisedV2.october30AboveEscalationPeakUsd > 10);
+  // Holdout: the stock block lands far closer to the IEA's end-September gap than the legacy block.
+  const gap = r.revisedV2.stockGapEndSeptemberMb;
+  assert.ok(Math.abs(gap.stocksV2 - gap.iea) < Math.abs(gap.flowV1 - gap.iea) / 3);
+  assert.ok(gap.stocksV2 / gap.iea < 1.35);
 });
 
 test('Fed: refit removes the core bias; headline peaks in October under any rule', () => {
