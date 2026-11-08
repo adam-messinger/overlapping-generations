@@ -21,17 +21,33 @@ import { test, expect, printSummary } from './test-utils.js';
 const END_YEAR = 2100;
 const FAST = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
 
-function everyYear(regionalOutputFactors: Partial<Record<Region, number>>) {
-  const shocks = [];
-  for (let year = 2026; year <= END_YEAR; year++) shocks.push({ year, regionalOutputFactors });
-  return shocks;
+type Factors = Partial<Record<Region, number>>;
+type Entry = { year: number; factors: Factors };
+
+function everyYear(factors: Factors): Entry[] {
+  const entries: Entry[] = [];
+  for (let year = 2026; year <= END_YEAR; year++) entries.push({ year, factors });
+  return entries;
 }
 
-function run(commodityShocks: ReturnType<typeof everyYear>) {
-  return runSimulation(
-    { startYear: 2025, endYear: END_YEAR, demand: { commodityShocks } },
-    FAST,
-  );
+/** Run with regional output levels sent through commodityShocks (the default) or the overlay hook */
+function run(entries: Entry[], via: 'commodityShocks' | 'regionalOutputAdjustments' = 'commodityShocks') {
+  const demand = via === 'commodityShocks'
+    ? { commodityShocks: entries.map(({ year, factors }) => ({ year, regionalOutputFactors: factors })) }
+    : { regionalOutputAdjustments: entries };
+  return runSimulation({ startYear: 2025, endYear: END_YEAR, demand }, FAST);
+}
+
+/** Largest relative regional-GDP difference between two runs, over every year and region (except `skip`) */
+function maxRegionalChange(a: ReturnType<typeof run>, b: ReturnType<typeof run>, skip?: Region): number {
+  let worst = 0;
+  for (let index = 0; index < a.results.length; index++) {
+    for (const region of REGIONS) {
+      if (region === skip) continue;
+      worst = Math.max(worst, Math.abs(a.results[index].regionalGdp[region] / b.results[index].regionalGdp[region] - 1));
+    }
+  }
+  return worst;
 }
 
 const baseline = run([]);
@@ -53,47 +69,20 @@ test('a 0.01% output nudge in one region moves every other region by < 0.05%', (
   // Measured after the fix: the US nudge moves the others ~-0.001% (their
   // share of the normalization to world GDP), at most 0.003% through 2100
   // for any perturbed region. Before, SSA moved -0.65% and China -0.08%.
-  const nudged = run(everyYear({ us: 1.0001 }));
-  let worst = 0;
-  for (let index = 0; index < baseline.results.length; index++) {
-    for (const region of REGIONS) {
-      if (region === 'us') continue;
-      const change = Math.abs(
-        nudged.results[index].regionalGdp[region] / baseline.results[index].regionalGdp[region] - 1,
-      );
-      worst = Math.max(worst, change);
-    }
-  }
-  expect(worst).toBeLessThan(0.0005);
+  expect(maxRegionalChange(run(everyYear({ us: 1.0001 })), baseline, 'us')).toBeLessThan(0.0005);
 });
 
 test('regionalOutputAdjustments and commodityShocks regional factors give the same regional GDP', () => {
   // Since fuel costing no longer depends on whether a year has a shock
   // record, the two routes to a regional output level differ only in where
   // the factor enters the allocator; for in-range factors they agree.
-  const viaHook = (factors: Partial<Record<Region, number>>[], years: number[]) => runSimulation(
-    { startYear: 2025, endYear: END_YEAR, demand: { regionalOutputAdjustments: years.map((year, k) => ({ year, factors: factors[k] })) } },
-    FAST,
-  );
-  const viaShock = (factors: Partial<Record<Region, number>>[], years: number[]) => run(
-    years.map((year, k) => ({ year, regionalOutputFactors: factors[k] })),
-  );
-  const years = Array.from({ length: END_YEAR - 2025 }, (_, k) => 2026 + k);
-  // A held nudge, and a sparse time-varying path
-  const cases: [Partial<Record<Region, number>>[], number[]][] = [
-    [years.map(() => ({ ssa: 1.0001 })), years],
-    [[{ india: 0.98 }, { india: 0.95 }, { india: 1.02 }], [2030, 2031, 2060]],
+  const cases: Entry[][] = [
+    everyYear({ ssa: 1.0001 }),                                   // a held nudge
+    [{ year: 2030, factors: { india: 0.98 } }, { year: 2031, factors: { india: 0.95 } },
+      { year: 2060, factors: { india: 1.02 } }],                   // sparse, time-varying
   ];
-  for (const [factors, ys] of cases) {
-    const a = viaHook(factors, ys);
-    const b = viaShock(factors, ys);
-    let worst = 0;
-    for (let index = 0; index < a.results.length; index++) {
-      for (const region of REGIONS) {
-        worst = Math.max(worst, Math.abs(a.results[index].regionalGdp[region] / b.results[index].regionalGdp[region] - 1));
-      }
-    }
-    expect(worst).toBeLessThan(1e-9);
+  for (const entries of cases) {
+    expect(maxRegionalChange(run(entries, 'regionalOutputAdjustments'), run(entries))).toBeLessThan(1e-9);
   }
 });
 

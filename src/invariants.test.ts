@@ -120,8 +120,8 @@ test('demand: electricity reclassified into a sector fails the partition', () =>
 
 test('demand: fuel billed to no region fails the fuel-cost partition', () => {
   expectBites('demand', 'regions partition fuel cost', ({ outputs }) => {
-    // The old unshocked fast path: the lock-in fuel's cost stayed in the
-    // world total but was billed to no region
+    // The lock-in fuel's cost kept in the world total but billed to no
+    // region (what the removed second pricing path did)
     outputs.fuelCost += 0.05;
   });
 });
