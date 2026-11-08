@@ -1376,6 +1376,20 @@ test('automation capex above the net-investment cap no longer freezes general ca
   }
 });
 
+test('the leverage target is debt over ALL capital, robots and datacenters included', () => {
+  const params = capitalModule.mergeParams({});
+  const { outputs } = capitalModule.step(capitalModule.init(params), {
+    ...getCapitalInputs(0),
+    energyCapexSpend: 0, cdrSpend: 0, robotCapexSpend: 0, dataCenterCapexSpend: 0,
+    robotCapitalValue: 20,
+    dataCenterCapitalValue: 30,
+  }, params, 2025, 0);
+  const debt = params.initialPrivateDebtGDP * baselineGdp(0);
+  // The observed stock already contains the fleets, so the total is unchanged
+  expect(outputs.targetPrivateLeverage).toBeCloseTo(debt / params.initialCapitalStock, 9);
+  expect(outputs.privateLeverage).toBeCloseTo(outputs.targetPrivateLeverage, 12);
+});
+
 test('year 0 carves the opening robot and datacenter fleets out of the observed stock', () => {
   const params = capitalModule.mergeParams({});
   const state = capitalModule.init(params);

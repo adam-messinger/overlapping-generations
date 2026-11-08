@@ -345,7 +345,7 @@ export interface CapitalOutputs {
   principalRepayments: number; // $T/year of private-loan principal repaid
   loanWriteOffs: number;       // $T/year of private loans written off
   netCreditCreation: number;   // Change in private debt stock
-  privateLeverage: number;     // Beginning-of-period private debt / general capital
+  privateLeverage: number;     // Beginning-of-period private debt / capital (general + robot + datacenter)
   targetPrivateLeverage: number; // Debt/capital firms adjust toward (year-0 ratio)
   leverageBorrowing: number;   // $T/year net new credit the leverage target asks for (signed)
   leverageRecapBorrowing: number; // $T/year borrowed beyond the investment gap and paid out
@@ -1753,8 +1753,9 @@ export const capitalModule: Module<
       return Math.max(circuit.plannedInvestment + automationCapex, replacementFloor);
     };
 
-    // Target leverage. Firms hold private debt / general capital near the
-    // year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
+    // Target leverage. Firms hold private debt / capital (general + robot +
+    // datacenter: all of it is financed from the same pool and secures the
+    // debt) near the year-0 ratio, closing leverageAdjustmentSpeed of the gap per year
     // (Flannery-Rangan partial adjustment in ratio space), so debt grows with
     // the capital it is secured on. Before this, firms borrowed only the gap
     // between orders and internal funds: once retained profit covered orders
@@ -1765,9 +1766,14 @@ export const capitalModule: Module<
     // non-financial sector). The stock is the consolidated private
     // non-financial one (households' mortgages included, as leverage on the
     // dwellings inside the PWT capital stock).
+    const openingTotalStock = state.stock + automationStock;
     const targetPrivateLeverage = state.targetPrivateLeverage
-      ?? (state.stock > 0 ? privateDebt / state.stock : 0);
-    const openingPrivateLeverage = state.stock > 0 ? privateDebt / state.stock : 0;
+      ?? (openingTotalStock > 0 ? privateDebt / openingTotalStock : 0);
+    const openingPrivateLeverage = openingTotalStock > 0 ? privateDebt / openingTotalStock : 0;
+    // Robot and datacenter capital at year end does not depend on the plan
+    const closingAutomationStock =
+      (1 - params.robotCapitalDepreciation) * robotStock + realizedRobotCapex
+      + (1 - params.dataCenterCapitalDepreciation) * dataCenterStock + realizedDataCenterCapex;
     const desiredClosingLeverage = openingPrivateLeverage
       + params.leverageAdjustmentSpeed
         * (targetPrivateLeverage - openingPrivateLeverage);
@@ -1818,7 +1824,8 @@ export const capitalModule: Module<
       // Pecking order: orders beyond internal funds are financed with debt
       const investmentFinancingGap = Math.max(0, orders - circuit.firmInternalFunds);
       const expectedClosingStock = (1 - params.depreciation) * state.stock
-        + Math.max(0, orders - specialPurposeSpend(orders));
+        + Math.max(0, orders - specialPurposeSpend(orders))
+        + closingAutomationStock;
       const leverageBorrowing =
         desiredClosingLeverage * expectedClosingStock - runoffPrivateDebt;
       // An over-levered firm with no financing gap repays early from the cash

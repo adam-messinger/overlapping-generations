@@ -618,11 +618,13 @@ test('private credit holds a target-leverage steady state on the default path', 
     // investment-gap-only closure reached 0.22 by 2100). Observed world
     // private debt has held ~1.4-1.7x GDP (IMF GDD 2025, BIS). The bank
     // credit envelope (baseCreditGrowth) binds from ~2030 and holds leverage
-    // progressively further under target: ~4% in 2030, ~10% in 2050, ~12%
-    // around 2080-90 (worst 12.3% in 2084 with IEA datacenter siting; 12.26%
-    // at either $15B or $45B per GW of datacenter capital, so the drift is
-    // the envelope, not datacenter finance), hence the tolerance
-    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.13);
+    // progressively further under target: ~4% in 2030, ~11% in 2050, ~13%
+    // around 2080-90 (worst 13.6% in 2087). Leverage is on ALL capital, robots
+    // and datacenters included, which raises the debt firms want without
+    // moving the debt the envelope supplies (debt/GDP 2100 1.14 either way);
+    // on general capital alone the worst year was 12.3%. The drift is the
+    // envelope's calibration, not datacenter finance, hence the tolerance
+    expect(Math.abs(row.privateLeverage / row.targetPrivateLeverage - 1)).toBeLessThan(0.14);
     expect(row.privateDebtGDP).toBeBetween(1.0, 1.65);
   }
 });
