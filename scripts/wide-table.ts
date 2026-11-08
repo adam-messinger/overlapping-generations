@@ -63,7 +63,7 @@ const columns: Array<{
 
   // Capital & Automation
   { key: 'capital', label: 'Cap($T)', format: v => v.toFixed(0), getValue: r => r.capitalStock },
-  { key: 'robots', label: 'Robots/k', format: v => v.toFixed(0), getValue: r => r.robotsDensity },
+  { key: 'robots', label: 'Robots/k', format: v => v.toFixed(0), getValue: r => r.robotsPer1000 },
   { key: 'savings', label: 'Save%', format: v => (v*100).toFixed(0), getValue: r => r.savingsRate },
 
   // Resources

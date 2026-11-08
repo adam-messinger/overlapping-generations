@@ -191,13 +191,6 @@ function buildTransforms(
   let capturedGdp2025 = 0;
 
   return {
-    // Energy needs availableInvestment (from capital.energyInvestment)
-    availableInvestment: {
-      fn: (outputs: Record<string, any>) => requireOutput(outputs, 'energyInvestment', 'availableInvestment'),
-      dependsOn: ['energyInvestment'],
-      inputTypes: { energyInvestment: unitPort('$T/year') },
-      outputType: unitPort('$T/year'),
-    },
 
     // Resources needs gdpPerCapita (derived)
     gdpPerCapita: {

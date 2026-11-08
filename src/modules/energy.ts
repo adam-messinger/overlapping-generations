@@ -949,11 +949,9 @@ export interface EnergyInputs {
   /** Regional electricity demand (TWh) - for regional ceiling calculation */
   regionalElectricityDemand?: Record<Region, number>;
 
-  /** Available investment for capacity ($T) - GLOBAL */
-  availableInvestment: number;
-
-  /** Regional investment ($T) - for regional allocation */
-  regionalInvestment?: Record<Region, number>;
+  /** Investment available to each region's build ($T): the region's share of
+   *  world investment (the runner's regionalInvestment transform). */
+  regionalInvestment: Record<Region, number>;
 
   /** Mineral supply constraint 0-1 (from resources, lagged). 1 = no constraint. */
   mineralConstraintBySource: Record<EnergySource, number>;
@@ -1406,7 +1404,6 @@ export const energyModule: Module<
     inputs: {
       electricityDemand: unitPort('TWh/year'),
       regionalElectricityDemand: unitPort('TWh/year', 'record'),
-      availableInvestment: unitPort('$T/year'),
       regionalInvestment: unitPort('$T/year', 'record'),
       mineralConstraintBySource: unitPort('fraction', 'record'),
       laggedRegionalCurtailmentRate: unitPort('fraction', 'record'),
@@ -1786,11 +1783,10 @@ export const energyModule: Module<
   },
 
   step(state, inputs, params, year, yearIndex) {
-    const { electricityDemand, availableInvestment } = inputs;
+    const { electricityDemand, regionalInvestment } = inputs;
 
-    // Distribute demand/investment to regions if not provided
+    // Distribute demand to regions if not provided
     const regionalDemand = inputs.regionalElectricityDemand ?? distributeByGDP(electricityDemand);
-    const regionalInvestment = inputs.regionalInvestment ?? distributeByGDP(availableInvestment);
 
     // Output accumulators
     const lcoes: Record<EnergySource, number> = {} as any;

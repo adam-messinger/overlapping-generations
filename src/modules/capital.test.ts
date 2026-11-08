@@ -234,32 +234,6 @@ test('K per worker increases over time', () => {
   expect(year25).toBeGreaterThan(year1);
 });
 
-// --- Automation ---
-
-console.log('\n--- Automation ---\n');
-
-test('automation share starts at 2%', () => {
-  const { outputs } = runYears(1);
-  expect(outputs.automationShare).toBeCloseTo(0.02, 2);
-});
-
-test('automation share grows over time', () => {
-  const year1 = runYears(1).outputs.automationShare;
-  const year25 = runYears(25).outputs.automationShare;
-  expect(year25).toBeGreaterThan(year1);
-});
-
-test('automation share capped at 20%', () => {
-  const year76 = runYears(76).outputs.automationShare;
-  expect(year76).toBeLessThan(0.21);
-});
-
-test('robots density increases over time', () => {
-  const year1 = runYears(1).outputs.robotsDensity;
-  const year25 = runYears(25).outputs.robotsDensity;
-  expect(year25).toBeGreaterThan(year1);
-});
-
 // --- Stability Factor ---
 
 console.log('\n--- Stability Factor ---\n');
@@ -1057,8 +1031,11 @@ test('an under-levered firm closes the stated share of the gap and pays the reca
   expect(outputs.unfundedFinancingDemand).toBe(0);
   expect(outputs.investment).toBeCloseTo(outputs.plannedInvestment, 9);
   expect(outputs.investment).toBeLessThan(onTarget.investment);
+  // Against the EXTRA recap: debt growing with K recaps a little even on
+  // target when internal funds cover orders, and that payout is in both runs
   expect(outputs.firmDividendPayments).toBeGreaterThan(
-    onTarget.firmDividendPayments + 0.9 * outputs.leverageRecapBorrowing,
+    onTarget.firmDividendPayments
+      + 0.9 * (outputs.leverageRecapBorrowing - onTarget.leverageRecapBorrowing),
   );
   const firmDeposits = (ledger: any) => ledger.balances['firms.deposits'];
   expect(Math.abs(
@@ -1262,9 +1239,9 @@ test('realized spends are debited from capital formation (one ledger)', () => {
   // withSpend debits exactly 3+1+2+4 from the pool
   expect(withSpend.outputs.investment - withSpend.outputs.generalInvestment)
     .toBeCloseTo(10, 6);
-  // unwired, energy falls back to the internal estimate (nonzero debit)
+  // unwired, nothing is debited: there is no internal estimate to fall back on
   expect(noSpend.outputs.investment - noSpend.outputs.generalInvestment)
-    .toBeGreaterThan(0);
+    .toBeCloseTo(0, 9);
   // floor-binding path: spends beyond the pool are exposed, not hidden
   const overflow = capitalModule.step(state, {
     ...base,

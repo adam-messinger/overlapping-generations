@@ -20,13 +20,14 @@ import { EnergySource, ENERGY_SOURCES, Region, REGIONS } from '../domain-types.j
 
 import { MINERAL_KEYS, mineralIntensity, resourcesDefaults } from './resources.js';
 import { test, expect, printSummary, regional } from '../test-utils.js';
+import { distributeByGDP } from '../primitives/distribute.js';
 
 // Helper to build a constant-filled per-region record
 
 // Helper to create inputs
 function createInputs(
   electricityDemand: number = 30000,
-  availableInvestment: number = 25,
+  worldInvestment: number = 25,
   mineralConstraint: number = 1.0,
   laggedCurtailmentRate: number = 0,
   // Safe and equity rates set equal, so WACC = rate + riskPremium (+ spread)
@@ -42,7 +43,7 @@ function createInputs(
   ) as Record<EnergySource, number>;
   return {
     electricityDemand,
-    availableInvestment,
+    regionalInvestment: distributeByGDP(worldInvestment),
     mineralConstraintBySource,
     // The scalar argument applies the same curtailment to every region's grid
     laggedRegionalCurtailmentRate: regional(laggedCurtailmentRate),
@@ -527,7 +528,7 @@ test('module has correct name', () => {
 test('module declares correct inputs', () => {
   expect(energyModule.inputs.length).toBeGreaterThan(0);
   expect(energyModule.inputs.includes('electricityDemand')).toBeTrue();
-  expect(energyModule.inputs.includes('availableInvestment')).toBeTrue();
+  expect(energyModule.inputs.includes('regionalInvestment')).toBeTrue();
 });
 
 test('module declares correct outputs', () => {

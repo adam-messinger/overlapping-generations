@@ -49,7 +49,7 @@ for (const era of eras) {
   const simFE = eraAvg(era.start, era.end, x => x.finalEnergyPerCapitaDay);
   const simTemp = eraAvg(era.start, era.end, x => x.temperature);
   const simDep = eraAvg(era.start, era.end, x => x.dependency);
-  const simRobots = eraAvg(era.start, era.end, x => x.robotsDensity);
+  const simRobots = eraAvg(era.start, era.end, x => x.robotsPer1000);
   const simOil = eraAvg(era.start, era.end, oilShare);
 
   const t = te[era.name];
@@ -94,12 +94,15 @@ console.log("  2050    " + (sim2050.dependency*100).toFixed(0).padStart(2) + "% 
 console.log("  2075    " + (sim2075.dependency*100).toFixed(0).padStart(2) + "%    44%    " + ((sim2075.dependency - 0.44)*100).toFixed(0) + "pp");
 console.log("  2100    " + (sim2100.dependency*100).toFixed(0).padStart(2) + "%    46%    " + ((sim2100.dependency - 0.46)*100).toFixed(0) + "pp");
 
+// Different scales: Twin-Engine's 2025 value (15) is on IFR's density per 1,000
+// manufacturing workers (~16 in 2024), while the model's robotsPer1000 counts
+// robots per 1,000 workers of all kinds (~1 in 2025). Compare paths, not levels.
 console.log("\nROBOTS PER 1,000 WORKERS");
 console.log("  Year    Sim    T-E    Delta");
-console.log("  2025    " + sim2025.robotsDensity.toFixed(0).padStart(3) + "     15    " + (sim2025.robotsDensity - 15).toFixed(0));
-console.log("  2050    " + sim2050.robotsDensity.toFixed(0).padStart(3) + "     60    " + (sim2050.robotsDensity - 60).toFixed(0));
-console.log("  2075    " + sim2075.robotsDensity.toFixed(0).padStart(3) + "    110    " + (sim2075.robotsDensity - 110).toFixed(0));
-console.log("  2100    " + sim2100.robotsDensity.toFixed(0).padStart(3) + "    120    " + (sim2100.robotsDensity - 120).toFixed(0));
+console.log("  2025    " + sim2025.robotsPer1000.toFixed(0).padStart(3) + "     15    " + (sim2025.robotsPer1000 - 15).toFixed(0));
+console.log("  2050    " + sim2050.robotsPer1000.toFixed(0).padStart(3) + "     60    " + (sim2050.robotsPer1000 - 60).toFixed(0));
+console.log("  2075    " + sim2075.robotsPer1000.toFixed(0).padStart(3) + "    110    " + (sim2075.robotsPer1000 - 110).toFixed(0));
+console.log("  2100    " + sim2100.robotsPer1000.toFixed(0).padStart(3) + "    120    " + (sim2100.robotsPer1000 - 120).toFixed(0));
 
 console.log("\nOIL SHARE OF FINAL ENERGY");
 console.log("  Year    Sim    T-E    Delta");

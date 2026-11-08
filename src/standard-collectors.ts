@@ -168,8 +168,6 @@ export const standardCollectors: CollectorConfig = {
     { source: 'safeRate', unit: 'fraction', description: 'Real safe rate paid on public debt (return on capital less the safe-asset wedge)', module: 'capital' },
     { source: 'loanRate', unit: 'fraction', description: 'Real rate paid on private bank debt (safe rate plus credit spread)', module: 'capital' },
     { source: 'repressionGap', unit: 'fraction', description: 'Percentage points policy holds the safe rate below its market level (financial repression)', module: 'capital' },
-    { source: 'robotsDensity', unit: 'robot/kpeople', description: 'Automation capital density', module: 'capital' },
-    { source: 'automationShare', unit: 'fraction', description: 'Fraction of capital stock that is automation', module: 'capital' },
     { source: 'capitalOutputRatio', unit: 'year', description: 'Capital-to-output ratio (K/Y)', module: 'capital' },
     { source: 'capitalGrowthRate', unit: 'fraction/year', description: 'Annual capital stock growth rate', module: 'capital' },
     { source: 'retireeCost', unit: '$T/year', description: 'Retiree transfers: pensions + healthcare (65+)', module: 'capital' },
