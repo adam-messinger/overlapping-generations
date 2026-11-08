@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-08T16:10:02.232Z",
+  "timestamp": "2026-11-08T16:18:58.827Z",
   "scenarios": {
     "default": {
       "warming2050": 2.07258900885141,
@@ -181,6 +181,32 @@
       "energyBurden2025": 0.06302750625380216,
       "energyBurden2050": 0.04590808992324238,
       "energyBurdenPeak": 0.06302750625380216,
+      "energyBurdenPeakYear": 2025
+    },
+    "ai-energy-boom": {
+      "warming2050": 2.106760651332896,
+      "warming2100": 3.7827539583503444,
+      "peakEmissions": 140.7853293121855,
+      "peakEmissionsYear": 2099,
+      "electrificationRate2025": 0.2095833199429119,
+      "electrificationRate2050": 0.5956351046509226,
+      "electrificationRate2100": 0.8135798494815231,
+      "solarCapacity2025": 2397.6173682650906,
+      "solarCapacity2050": 131794.3034351622,
+      "solarCapacity2100": 1204266.2680547475,
+      "windCapacity2050": 24933.02953477497,
+      "batteryCapacity2050": 361831.6193672054,
+      "gridIntensity2025": 428.9026721417673,
+      "gridIntensity2050": 94.76177643104361,
+      "gridIntensity2100": 45.02027432870981,
+      "fossilShare2025": 0.5771060634618078,
+      "fossilShare2050": 0.12354512508390436,
+      "fossilShare2100": 0.05932580879411703,
+      "gdp2050": 475.43107918371777,
+      "gdp2100": 3791.5662333487435,
+      "energyBurden2025": 0.0681818469340812,
+      "energyBurden2050": 0.05439973981962086,
+      "energyBurdenPeak": 0.0681818469340812,
       "energyBurdenPeakYear": 2025
     }
   }

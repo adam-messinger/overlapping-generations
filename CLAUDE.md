@@ -313,8 +313,11 @@ the human-capital ledger (including its replacement-cost re-pricing).
   late-century automation/GDP dial — see docs/SENSITIVITY.md
 - **Datacenters**: LCOE/GDP-driven demand braked by a willingness-to-pay
   ceiling on the electricity-bill share of GDP (`dataCenterPowerSpendCeiling`,
-  0.05%); equilibrium load = ceiling x GDP / LCOE. GDP-neutral electricity
-  sink (AI payoff off by default)
+  0.05%); equilibrium load = ceiling x GDP / LCOE. Energy-neutral: its load
+  is added to electricity demand and subtracted from productive useful energy
+  (AI payoff off by default). Not GDP-neutral: its capex builds datacenter
+  capital and competes for finance. Known limitation: the brake prices only
+  the power bill, not capex (~1/16 of total cost in 2100)
 - Replaced the old hard `robotSaturation`/`dataCenterSaturation` logistic caps
   (speculative carrying capacities); see sources/ai-robotics-deployment-ceilings.md
 
