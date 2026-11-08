@@ -149,8 +149,27 @@ export interface AnnualCommodityShock {
   regionalAvailability?: Partial<
     Record<Region, Partial<Record<'oil' | 'gas', number>>>
   >;
-  /** Direct trade-income wedge, e.g. stranded Gulf exports or exporter gains. */
+  /**
+   * Direct trade-income wedge from a commodity disruption, e.g. stranded Gulf
+   * exports or exporter gains (the Hormuz bridge). It enters the regional
+   * allocator inside the energy factor and is clamped to [0.5, 1.5]. For
+   * general output overlays use `regionalOutputAdjustments` instead.
+   */
   regionalOutputFactors?: Partial<Record<Region, number>>;
+}
+
+/**
+ * One year of output adjustments from an overlay (a model run outside the
+ * main simulation that moves regional output, e.g. scripts/ai-offshoring).
+ * Each factor is a LEVEL on the region's output share in that calendar year,
+ * relative to the run without the overlay; a missing year or region means 1.
+ * The allocator applies the year-on-year change a(year)/a(year-1) and then
+ * renormalises shares to world GDP, so world output moves only through
+ * second-round effects.
+ */
+export interface AnnualRegionalOutputAdjustment {
+  year: number;
+  factors: Partial<Record<Region, number>>;
 }
 
 export interface DemandParams {
@@ -211,6 +230,8 @@ export interface DemandParams {
 
   /** Sparse calendar-year shocks from monthly commodity/network simulations. */
   commodityShocks: readonly AnnualCommodityShock[];
+  /** Sparse calendar-year regional output levels from overlays (missing = 1). */
+  regionalOutputAdjustments: readonly AnnualRegionalOutputAdjustment[];
 }
 
 interface RegionalState {
@@ -297,6 +318,8 @@ export interface RegionalAllocationDiagnostics {
   laborFactor: number;
   climateFactorChange: number;
   energyFactorChange: number;
+  /** Year-on-year change in the overlay output level (regionalOutputAdjustments) */
+  outputAdjustmentChange: number;
   energyBurden: number;
   reliabilityFactor: number;
   gdpShare: number;
@@ -720,6 +743,7 @@ export const demandDefaults: DemandParams = {
   dataCenterCapitalCostPerGW: 15,     // $B per average GW of annual load
   dataCenterDepreciation: 0.15,       // fraction/year
   commodityShocks: [],
+  regionalOutputAdjustments: [],
 };
 
 // =============================================================================
@@ -1404,6 +1428,22 @@ export const demandModule: Module<
         }
       }
     }
+    const adjustmentYears = new Set<number>();
+    for (const adjustment of params.regionalOutputAdjustments ?? []) {
+      if (!Number.isInteger(adjustment.year)) {
+        errors.push('regionalOutputAdjustments year must be an integer');
+      } else if (adjustmentYears.has(adjustment.year)) {
+        errors.push(`regionalOutputAdjustments lists ${adjustment.year} twice`);
+      }
+      adjustmentYears.add(adjustment.year);
+      for (const [region, factor] of Object.entries(adjustment.factors ?? {})) {
+        if (!REGIONS.includes(region as Region)) {
+          errors.push(`regionalOutputAdjustments: unknown region ${region}`);
+        } else if (factor === undefined || !Number.isFinite(factor) || factor < 0.1 || factor > 10) {
+          errors.push(`regionalOutputAdjustments ${adjustment.year} ${region} must be in [0.1, 10]`);
+        }
+      }
+    }
 
     return { valid: errors.length === 0, errors, warnings };
   },
@@ -1501,6 +1541,7 @@ export const demandModule: Module<
       if (p.dataCenterCapitalCostPerGW !== undefined) merged.dataCenterCapitalCostPerGW = p.dataCenterCapitalCostPerGW;
       if (p.dataCenterDepreciation !== undefined) merged.dataCenterDepreciation = p.dataCenterDepreciation;
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
+      if (p.regionalOutputAdjustments !== undefined) merged.regionalOutputAdjustments = p.regionalOutputAdjustments;
 
       return merged;
     }, partial);
@@ -1590,6 +1631,8 @@ export const demandModule: Module<
     const commodityShock = params.commodityShocks.find(
       (shock) => shock.year === year,
     );
+    const outputAdjustmentLevel = (calendarYear: number, region: Region) =>
+      params.regionalOutputAdjustments.find((a) => a.year === calendarYear)?.factors[region] ?? 1;
 
     const carbonPrice = inputs.carbonPrice ?? 35; // Default carbon price
     const electricityPrice = inputs.laggedAvgLCOE ?? 50; // Default $/MWh if not provided
@@ -1749,6 +1792,7 @@ export const demandModule: Module<
       let laborFactor = 1;
       let climateFactorChange = 1;
       let energyFactorChange = 1;
+      let outputAdjustmentChange = 1;
 
       // The observed 2025 regional GDP table is an anchor, not a forecast
       // transition. Capture its prevailing wedges without moving its shares.
@@ -1774,10 +1818,12 @@ export const demandModule: Module<
         );
         climateFactorChange = damageFactor / previousDamageFactor;
         energyFactorChange = energyFactor / previousEnergyFactor;
+        outputAdjustmentChange =
+          outputAdjustmentLevel(year, region) / outputAdjustmentLevel(year - 1, region);
       }
 
       const growthFactor =
-        tfpFactor * laborFactor * climateFactorChange * energyFactorChange;
+        tfpFactor * laborFactor * climateFactorChange * energyFactorChange * outputAdjustmentChange;
       rawShares[region] = Math.max(
         Number.EPSILON,
         state.regions[region].gdpShare * growthFactor
@@ -1789,6 +1835,7 @@ export const demandModule: Module<
         laborFactor,
         climateFactorChange,
         energyFactorChange,
+        outputAdjustmentChange,
         energyBurden: burden,
         reliabilityFactor,
         gdpShare: 0,

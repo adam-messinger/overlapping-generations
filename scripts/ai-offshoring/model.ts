@@ -6,10 +6,10 @@
  * This is an OVERLAY on the main simulation, not part of it. It reads the main
  * model's regional GDP path, runs its own annual ledger of offshored-service
  * employment, displacement, unemployment and re-employment, and hands the
- * result back to the main model only through the existing
- * demand.commodityShocks[].regionalOutputFactors parameter (a level factor on
- * each region's output, renormalised to world GDP by the regional allocator).
- * Nothing in src/modules changes.
+ * result back to the main model only through demand.regionalOutputAdjustments,
+ * the main model's hook for overlays (a level factor on each region's output
+ * share, renormalised to world GDP by the regional allocator). The overlay's
+ * own mechanism (jobs, displacement, unemployment) is not in the main model.
  *
  * Ledger per exporter (all annual):
  *   counterfactual exposed jobs  E*(t) = E0 * (buyers' GDP(t)/GDP(2025))^demandElasticity
@@ -30,6 +30,7 @@
  */
 
 import type { Region } from '../../src/domain-types.js';
+import type { AnnualRegionalOutputAdjustment } from '../../src/modules/demand.js';
 import { REGIONS } from '../../src/domain-types.js';
 
 export interface ExporterProfile {
@@ -207,10 +208,10 @@ export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
   return result;
 }
 
-/** Regional output factors as the main model's commodityShocks parameter */
-export function toCommodityShocks(r: OverlayResult) {
+/** Regional output levels as the main model's demand.regionalOutputAdjustments (every region filled) */
+export function toOutputAdjustments(r: OverlayResult): AnnualRegionalOutputAdjustment[] {
   return r.years.filter((y) => y > 2025).map((year) => ({
     year,
-    regionalOutputFactors: r.regionalFactors[year],
+    factors: Object.fromEntries(REGIONS.map((k) => [k, r.regionalFactors[year][k] ?? 1])),
   }));
 }

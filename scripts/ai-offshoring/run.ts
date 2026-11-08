@@ -12,14 +12,15 @@
  *       # of the main model's split, which gives every region the same % gain
  *
  * For each adoption case: run the main model, compute the overlay, feed its
- * regional output factors back through demand.commodityShocks, and repeat until
+ * regional output factors back through demand.regionalOutputAdjustments, and repeat until
  * the factors settle (the overlay's USD denominators depend on regional GDP).
  * See docs/AI_OFFSHORING_SIMULATION.md.
  */
 import { runSimulation } from '../../src/simulation.js';
 import { REGIONS, type Region } from '../../src/domain-types.js';
 import { capitalDefaults } from '../../src/modules/capital.js';
-import { runOverlay, toCommodityShocks, type BaseRun, type OverlayResult } from './model.js';
+import { runOverlay, toOutputAdjustments, type BaseRun, type OverlayResult } from './model.js';
+import type { AnnualRegionalOutputAdjustment } from '../../src/modules/demand.js';
 import { ADOPTION_CASES, baseOverlayParams } from './data.js';
 
 const OPTS = { diagnostics: false, connectorValidation: 'off', paramLiveness: 'off' } as const;
@@ -54,24 +55,24 @@ function exposureGainFactors() {
   return out;
 }
 
-function combine(shocks: ReturnType<typeof toCommodityShocks>) {
-  if (!aiGainFactors) return shocks;
-  const byYear = new Map(shocks.map((s) => [s.year, s.regionalOutputFactors]));
+function combine(adjustments: AnnualRegionalOutputAdjustment[]): AnnualRegionalOutputAdjustment[] {
+  if (!aiGainFactors) return adjustments;
+  const byYear = new Map(adjustments.map((s) => [s.year, s.factors]));
   return Object.keys(aiGainFactors).map(Number).filter((y) => y > 2025).map((year) => ({
     year,
-    regionalOutputFactors: Object.fromEntries(REGIONS.map((k) => [
+    factors: Object.fromEntries(REGIONS.map((k) => [
       k, (aiGainFactors![year][k] ?? 1) * ((byYear.get(year) ?? {})[k] ?? 1),
     ])),
   }));
 }
 
-function mainRun(shocks: ReturnType<typeof toCommodityShocks> = [], aiPerTWh = AI_WORKER_EQUIVALENT_PER_TWH, withGainSplit = true) {
+function mainRun(adjustments: AnnualRegionalOutputAdjustment[] = [], aiPerTWh = AI_WORKER_EQUIVALENT_PER_TWH, withGainSplit = true) {
   const res = (runSimulation({
     startYear: 2025,
     endYear: END,
-    demand: { commodityShocks: withGainSplit ? combine(shocks) : shocks },
+    demand: { regionalOutputAdjustments: withGainSplit ? combine(adjustments) : adjustments },
     production: { aiWorkerEquivalentPerTWh: aiPerTWh },
-  } as never, OPTS) as any).results;
+  }, OPTS) as any).results;
   const base: BaseRun = {
     years: res.map((r: any) => r.year),
     regionalGdp: res.map((r: any) => r.regionalGdp as Record<Region, number>),
@@ -84,13 +85,13 @@ export function runCase(caseName: keyof typeof ADOPTION_CASES) {
   const params = { ...baseOverlayParams, adoption: ADOPTION_CASES[caseName] };
   const plain = mainRun();
   let overlay: OverlayResult = runOverlay(plain.base, params);
-  let coupled = mainRun(toCommodityShocks(overlay));
+  let coupled = mainRun(toOutputAdjustments(overlay));
   for (let k = 0; k < 4; k++) {
     const next = runOverlay(coupled.base, params);
     const drift = Math.max(...next.years.map((y) =>
       Math.max(0, ...REGIONS.map((r) => Math.abs((next.regionalFactors[y][r] ?? 1) - (overlay.regionalFactors[y][r] ?? 1))))));
     overlay = next;
-    coupled = mainRun(toCommodityShocks(overlay));
+    coupled = mainRun(toOutputAdjustments(overlay));
     if (drift < 1e-6) break;
   }
   return { caseName, params, plain: plain.res, coupled: coupled.res, overlay };

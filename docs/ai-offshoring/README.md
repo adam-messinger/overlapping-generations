@@ -1,6 +1,8 @@
 # AI offshoring overlay: "AI call centres cause unemployment in the Philippines"
 
-An overlay on the main simulation, **not part of it** (nothing in `src/modules` changes).
+An overlay on the main simulation, **not part of it**: its mechanism (jobs, displacement,
+unemployment, AI-provider revenue) lives in `scripts/`, and it moves the main model only through
+the general overlay hook `demand.regionalOutputAdjustments`.
 Code: `scripts/ai-offshoring/` (`model.ts` ledger, `data.ts` inputs, `run.ts` runner).
 Evidence and source tags: `evidence.md`. Full output: `results.md`
 (`npx tsx scripts/ai-offshoring/run.ts`).
@@ -18,7 +20,7 @@ Evidence and source tags: `evidence.md`. Full output: `results.md`
    re-employed workers' new output); AI providers receive 35% of the displaced work's value
    (80% US, 10% China, 10% OECD-ex-US by headquarters); the rest is a cost saving to buyers.
 6. Those flows go back into the main model as regional output factors
-   (`demand.commodityShocks[].regionalOutputFactors`), iterated to a fixed point.
+   (`demand.regionalOutputAdjustments`, the main model's overlay hook), iterated to a fixed point.
 
 ## What it shows (central adoption unless stated)
 
@@ -62,13 +64,13 @@ evidence ranges, there is no recovery.
 datacenter load counts as ~50M workers), with no other ai-energy-boom levers. Outputs:
 `results-ai-productivity-uniform.md`, `results-ai-productivity-exposure.md`.
 
-**World:** GDP +0.4% (2030), +2.0% (2040), +6.3% (2060); 2026-45 growth 3.14 -> 3.30%/yr;
-labour share 2045 64.5% -> 61.7% (AI's income goes to capital).
+**World:** GDP +0.4% (2030), +2.0% (2040), +7.0% (2060); 2026-45 growth 3.11 -> 3.28%/yr;
+labour share 2045 64.5% -> 61.6% (AI's income goes to capital).
 
 **Where the gain lands is the question the main model cannot answer.** It splits world output by
 existing GDP shares, so every region gains the same % (+2.0% in 2040), the Philippines included.
 Re-split by where AI is used (IMF SDN/2024/001 exposure: AE 60%, EM 40%, LIC 26% of jobs), 2040
-gains are US and OECD-ex-US +2.7%, China/LatAm/SE Asia/Russia/MENA +1.8%, India +1.3%, SSA +0.9%.
+gains are US and OECD-ex-US +2.7%, China/LatAm/SE Asia/Russia/MENA +1.8%, India +1.3%, SSA +1.2%.
 
 **The call-centre shock barely changes** (displacement within ~2%: buyers grow slightly faster).
 The Philippines, netting its exposure-weighted AI gain (SE Asia's, as a proxy) against the
@@ -76,9 +78,9 @@ call-centre and IT loss (central adoption):
 
 | | 2030 | 2035 | 2040 | 2050 |
 |---|---|---|---|---|
-| AI productivity gain | +0.4% | +1.0% | +1.8% | +3.8% |
+| AI productivity gain | +0.4% | +1.0% | +1.8% | +4.1% |
 | Call-centre + IT loss | -0.5% | -0.8% | -0.7% | -0.6% |
-| **Net** | **-0.1%** | **+0.2%** | **+1.1%** | **+3.2%** |
+| **Net** | **-0.1%** | **+0.2%** | **+1.1%** | **+3.5%** |
 
 With fast adoption the net is about -0.4% in 2030 and about zero in 2035. So the Philippines is a
 net loser early and a net gainer from the mid-2030s, if it captures an average emerging-market
@@ -91,9 +93,10 @@ follows its datacenter path, not the overlay's adoption case.
 
 - **Country shocks need country resolution.** A 1% of GDP shock in the Philippines is 0.08% of
   the SE Asia region; the nine-region model cannot see this dynamic without an overlay.
-- **SSA is fragile to tiny perturbations.** A 0.01% nudge to US output moves SSA's GDP by up to
-  -0.54% in 2038-50 (and back to ~0 by 2055). Regional effects below ~0.5% in SSA are noise
-  (the swing disappears in the exposure-split runs, consistent with a knife-edge, not a mechanism).
+- **SSA was fragile to tiny perturbations.** A 0.01% nudge to US output moved SSA's GDP by up to
+  -0.54% in 2038-50 when the overlay entered through `commodityShocks`, which feeds the energy
+  factor and its state. Through `regionalOutputAdjustments` (its own growth term) the swing is gone;
+  a separate fix to regional fuel billing addresses the underlying sensitivity.
 - **AI has no geography in the main model.** Its productivity gain is spread by GDP share, so
   every region gains the same %.
 - **The model has no unemployment, no services trade and no regional AI location**; the overlay

@@ -265,6 +265,13 @@ the human-capital ledger (including its replacement-cost re-pricing).
   damages, farmland, Hormuz exposure), with US-specific sources inline
 - Hyphenated key: quote it in object literals (`'oecd-ex-us': ...`) and
   scenario JSON; Tier-1 param names camel-case it (`oecdExUsCarbonPrice`)
+- **Overlays** (models run outside the main simulation, e.g. `scripts/ai-offshoring/`) move
+  regional output through `demand.regionalOutputAdjustments`: sparse per-year LEVELS on each
+  region's output share (missing year or region = 1, bounds [0.1, 10]), applied by the regional
+  allocator as their own growth term a(y)/a(y-1) and renormalised to world GDP. Reported per region
+  as `regionalAllocation[r].outputAdjustmentChange`. `commodityShocks[].regionalOutputFactors` is
+  kept for commodity trade-income wedges (the Hormuz bridge): it enters the energy factor, is
+  clamped to [0.5, 1.5], and moves other energy-factor state too
 
 ### Demographics
 - **Fernández-Villaverde & Norrick (2026)** (`sources/fernandez-villaverde/`): the default
