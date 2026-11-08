@@ -234,8 +234,8 @@ export interface DemandParams {
   dataCenterCapitalCostPerGW: number;  // Composite chips + facility cost ($B per average GW of annual load)
   dataCenterDepreciation: number;      // Composite chips + facility replacement rate (fraction/yr)
   dataCenterRegionalShare: Record<Region, number>; // Where datacenter load sits (fractions summing to 1)
-  /** Robots per working-age person relative to the world (2024); sites robot electricity load */
-  robotDensityIndex: Record<Region, number>;
+  /** Regional shares of the world's operational robot stock, 2024 (fractions summing to 1) */
+  robotStockShare2024: Record<Region, number>;
 
   /** Sparse calendar-year shocks from monthly commodity/network simulations. */
   commodityShocks: readonly AnnualCommodityShock[];
@@ -285,6 +285,8 @@ interface DemandState {
    * service base is known.
    */
   heavyIndustry: { gdp0: number; serviceBase0: number; coalActivityRatio: number };
+  /** Robots per worker relative to the world, fixed in year 0 from robotStockShare2024 */
+  robotDensityIndex?: Record<Region, number>;
 }
 
 // Inputs from demographics and production modules
@@ -805,26 +807,18 @@ export const demandDefaults: DemandParams = {
     us: 0.45, china: 0.25, 'oecd-ex-us': 0.205, india: 0.025, seasia: 0.03,
     mena: 0.015, latam: 0.01, russia: 0.01, ssa: 0.005,
   },
-  // Robot electricity load is sited by robots per working-age person
-  // relative to the world, not by population: IFR World Robotics 2025,
-  // operational industrial-robot stock 2024 (4,663,698 units): China
-  // 2,027,190, Japan 450,530, US 393,700, Korea ~392k, Germany ~280k; the IFR
-  // Europe (821,384) and Americas (542,464) blocks and the Asia remainder are
-  // split by judgment from installation flows (Taiwan ~100k -> china; Turkey
-  // ~30k -> mena; Canada ~45k -> oecd-ex-us; ~66k unallocated pro rata;
-  // docs/ai-offshoring/evidence.md section 2). Regional stock shares: china
-  // 0.462, oecd-ex-us 0.367, us 0.086, seasia 0.035, latam 0.023, india
-  // 0.015, mena 0.009, russia 0.002, ssa 0.002, each divided by the region's
-  // 2025 share of world working-age population (UN WPP 2024 via
-  // demographics). Top four countries firm; small regions +-50%. Fixed
-  // relative densities: a region's share moves with its workforce (China's
-  // falls as its working age shrinks), not with later automation catch-up.
-  // By working population alone China hosted ~19% of robot electricity
-  // against its ~46% of the robot stock.
-  robotDensityIndex: {
-    china: 2.393, 'oecd-ex-us': 3.683, us: 2.021, seasia: 0.386, latam: 0.262,
-    india: 0.062, mena: 0.119, russia: 0.060, ssa: 0.013,
+  // Where the world's industrial robots are: IFR World Robotics 2025,
+  // operational stock 2024 (4,663,698 units; China 2,027,190, Japan 450,530,
+  // US 393,700, Korea ~392k, Germany ~280k), IFR blocks split by judgment
+  // (Taiwan -> china, Turkey -> mena, Canada -> oecd-ex-us, ~66k unallocated
+  // pro rata; docs/ai-offshoring/evidence.md section 2). Top four countries
+  // firm; small regions +-50%. Year 0 turns these into robots per worker
+  // relative to the world, held fixed, so siting then follows the workforce.
+  robotStockShare2024: {
+    china: 0.4623, 'oecd-ex-us': 0.3669, us: 0.0856, seasia: 0.0348, latam: 0.0226,
+    india: 0.0152, mena: 0.0087, russia: 0.0022, ssa: 0.0017,
   },
+
   commodityShocks: [],
   regionalOutputAdjustments: [],
   // US GDP 2025 at market exchange rates: $30.86T, IMF WEO Oct 2026 (NGDPD,
@@ -838,9 +832,20 @@ export const demandDefaults: DemandParams = {
 // =============================================================================
 
 /**
- * Each region's share of robots (and their electricity): working-age
- * population weighted by robots per worker relative to the world.
+ * Robots per working-age person relative to the world, from stock shares;
+ * and each region's share of robots (and their electricity): working-age
+ * population weighted by that density.
  */
+export function robotDensityFromStock(
+  stockShare: Readonly<Record<Region, number>>,
+  regionalWorking: Readonly<Record<Region, number>>,
+): Record<Region, number> {
+  const working = sumValues(regionalWorking);
+  return Object.fromEntries(REGIONS.map((r) => [
+    r, regionalWorking[r] > 0 ? stockShare[r] * working / regionalWorking[r] : 0,
+  ])) as Record<Region, number>;
+}
+
 export function robotSitingShares(
   densityIndex: Readonly<Record<Region, number>>,
   regionalWorking: Readonly<Record<Region, number>>,
@@ -1471,10 +1476,11 @@ export const demandModule: Module<
         (params.dataCenterDepreciation < 0 || params.dataCenterDepreciation > 0.5)) {
       errors.push('dataCenterDepreciation must be in [0, 0.5]');
     }
-    if (params.robotDensityIndex !== undefined) {
-      const indexes = Object.values(params.robotDensityIndex) as number[];
-      if (indexes.some((x) => !(x >= 0) || !Number.isFinite(x)) || !indexes.some((x) => x > 0)) {
-        errors.push('robotDensityIndex must be finite, non-negative and positive somewhere');
+    if (params.robotStockShare2024 !== undefined) {
+      const shares = Object.values(params.robotStockShare2024) as number[];
+      const total = shares.reduce((a, b) => a + b, 0);
+      if (shares.some((x) => !(x >= 0)) || Math.abs(total - 1) > 1e-6) {
+        errors.push('robotStockShare2024 must be non-negative and sum to 1');
       }
     }
     if (params.dataCenterRegionalShare !== undefined) {
@@ -1674,8 +1680,8 @@ export const demandModule: Module<
       if (p.dataCenterRegionalShare !== undefined) {
         merged.dataCenterRegionalShare = { ...merged.dataCenterRegionalShare, ...p.dataCenterRegionalShare };
       }
-      if (p.robotDensityIndex !== undefined) {
-        merged.robotDensityIndex = { ...merged.robotDensityIndex, ...p.robotDensityIndex };
+      if (p.robotStockShare2024 !== undefined) {
+        merged.robotStockShare2024 = { ...merged.robotStockShare2024, ...p.robotStockShare2024 };
       }
       if (p.commodityShocks !== undefined) merged.commodityShocks = p.commodityShocks;
       if (p.regionalOutputAdjustments !== undefined) merged.regionalOutputAdjustments = p.regionalOutputAdjustments;
@@ -2164,9 +2170,13 @@ export const demandModule: Module<
     globalTotalFinal += robotLoadTWh;
 
     // Site robot electricity load where robots are: each region's working-age
-    // population weighted by its robot density relative to the world, so
-    // siting follows the workforce while keeping the observed density gaps.
-    const robotShares = robotSitingShares(params.robotDensityIndex, inputs.regionalWorking);
+    // population weighted by its robot density relative to the world, set in
+    // year 0 from the observed stock shares, so siting follows the workforce
+    // while keeping the observed density gaps.
+    const robotDensityIndex = yearIndex === 0 || !state.robotDensityIndex
+      ? robotDensityFromStock(params.robotStockShare2024, inputs.regionalWorking)
+      : state.robotDensityIndex;
+    const robotShares = robotSitingShares(robotDensityIndex, inputs.regionalWorking);
     for (const region of REGIONS) {
       const regionRobotLoad = robotLoadTWh * robotShares[region];
       regionalOutputs[region].electricityDemand += regionRobotLoad;
@@ -2585,6 +2595,7 @@ export const demandModule: Module<
         fossilHeatingStock: newFossilHeatingStock,
         fossilIndustrialStock: newFossilIndustrialStock,
         heavyIndustry,
+        robotDensityIndex,
       },
       outputs: {
         regional: regionalOutputs,

@@ -337,9 +337,9 @@ the human-capital ledger (including its replacement-cost re-pricing).
   Known fragile corner: ai-energy-boom with `dataCenterCapitalCostPerGW` 0
   (power-only brake at 10x WTP) outruns the energy system and crashes GDP in
   the 2050s; the default run is stable across every datacenter range edge
-- **Robot siting**: robot electricity load is sited by working-age population x
-  `robotDensityIndex` (robots per worker relative to the world, IFR World Robotics 2025
-  operational stock 2024: China ~46%, OECD-ex-US ~37%, US ~9%), so siting follows each
+- **Robot siting**: robot electricity load is sited by working-age population x robots per
+  worker relative to the world, set in year 0 from `robotStockShare2024` (IFR World Robotics
+  2025 operational stock 2024: China ~46%, OECD-ex-US ~37%, US ~9%), so siting follows each
   region's workforce while keeping the observed density gaps. Robot PRODUCTIVITY is still
   world-level (augmented labor in production)
 - Replaced the old hard `robotSaturation`/`dataCenterSaturation` logistic caps
