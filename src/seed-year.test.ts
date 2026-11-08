@@ -43,11 +43,6 @@ const KNOWN_SEED_YEAR_ARTIFACTS: Record<string, string> = {
   unfundedCreditDemand: CREDIT_GAP_STEP,
   unfundedInvestmentDemand: CREDIT_GAP_STEP,
   unfundedFinancingDemand: CREDIT_GAP_STEP,
-  curtailmentTWh:
-    'all China: 144, 496, 1038, 1728, 2525 TWh, the S-shaped onset of dispatch\'s quadratic '
-    + 'curtailment penalty with 2025 just past it. Main\'s thermal-availability fix took it under '
-    + 'the threshold; on the slower constant-returns growth path it scores 0.050, at the '
-    + 'threshold. Not a seed effect as far as traced',
 };
 
 /**
