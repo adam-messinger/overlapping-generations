@@ -125,7 +125,7 @@ The spec marks every question `identified`, `directional` or `refused`, maps the
 answerable ones to model fields and transforms, and lists the scenarios or lever
 variants to read. Model-wide disclosures are appended automatically: PPP-2017 levels,
 UN-WPP-low demography, a real lending rate rather than r* or a market yield, no trade
-block, no price level, a fixed labour share. Format and rules:
+block, no price level, a labour share that moves only with automation. Format and rules:
 `references/adapter-spec.md`.
 
 ## Step 4 - Execute the waves

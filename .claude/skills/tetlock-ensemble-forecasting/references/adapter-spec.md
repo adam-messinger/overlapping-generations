@@ -62,5 +62,5 @@ silent refusal.
 
 Appended to every spec's payload automatically, so no panel can forget them: PPP
 2017 base, UN-WPP-low demography, the rate is a real lending rate (use changes),
-no trade block, no price level, fixed labour share, exogenous world-aggregate fiscal
+no trade block, no price level, an automation-only labour share, a world-aggregate fiscal
 path. Add panel-specific caveats in `disclosures`.

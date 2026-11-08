@@ -20,7 +20,7 @@
  *      directional - a related model quantity; context only, never a point estimate
  *      refused     - the model cannot represent it; no number is produced
  *    plus the named scenarios and/or lever variants to read. Model-wide
- *    disclosures (PPP base year, UN-WPP-low demography, fixed labour share, no
+ *    disclosures (PPP base year, UN-WPP-low demography, automation-only labour share, no
  *    trade block, no price level, the rate is not a policy/market rate) are
  *    appended automatically so no spec can forget them.
  *
@@ -183,7 +183,7 @@ const MODEL_DISCLOSURES = [
   'DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, ' +
     '2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, ' +
     'dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.',
-  'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~6% in 2025, ' +
+  'RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~7% in 2025, ' +
     'firms\' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on ' +
     'private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach ' +
     '2009) and can be held down by financial repression (repressionGap). It is not a policy rate or a market ' +
@@ -192,10 +192,13 @@ const MODEL_DISCLOSURES = [
     'Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.',
   'NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are ' +
     'not representable.',
-  'FIXED FACTOR SHARES: laborCompensation/GDP stays ~65.5% across all lever settings, so the model cannot ' +
-    'speak to AI eroding the labour tax base. Extreme labour substitution breaks the stock-flow ledger.',
-  'FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate); interest ' +
-    'is tax-financed by construction. It is a world aggregate, not a US or any single-sovereign fiscal path.',
+  'LABOUR SHARE: laborShare (world compensation / GDP, ~65% in 2025, not comparable to national-accounts or ' +
+    'BLS levels) is endogenous to automation only: robot and AI worker-equivalents\' income since 2025 is paid ' +
+    'to capital (capital.automationIncomeToCapital). AI cognitive payoff is off by default ' +
+    '(production.aiWorkerEquivalentPerTWh = 0), so the default path barely moves it. Use changes across runs.',
+  'FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate) plus a ' +
+    'borrowed share of ageing costs, less a Bohn fiscal reaction; interest at the safe rate accumulates into the ' +
+    'debt. It is a world aggregate, not a US or any single-sovereign fiscal path.',
 ];
 
 type Transform = 'level' | 'mean' | 'delta' | 'cagr' | 'ratio' | 'share';
