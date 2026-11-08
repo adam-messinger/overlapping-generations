@@ -69,7 +69,7 @@ consequential, least-constrained parameters:
 grid and regenerates `scripts/gamma-damage-sensitivity.md` — **that generated
 file is the source of truth for all exact grid figures**. It was regenerated
 on November 8, 2026 with each cell at constant returns (β = 1 − α − γ) and γ =
-0.20 as the default: GDP 2100 spans $576T–$2,120T across the grid, $835T at the
+0.20 as the default: GDP 2100 spans $641T–$2,404T across the grid, $886T at the
 defaults. Some figures in the qualitative summary below predate that run:
 
 ## What is robust across the entire grid

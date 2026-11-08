@@ -11,64 +11,64 @@ documented in the script header; interpretation guidance in
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | $731T | $708T | $684T | $576T |
-| **0.2** (default) | $866T | $835T | $796T | $665T |
-| **0.4** | $1343T | $1279T | $1252T | $941T |
-| **0.55** | $2120T | $2083T | $1975T | $1434T |
+| **0.08** | $768T | $748T | $727T | $641T |
+| **0.2** (default) | $913T | $886T | $859T | $755T |
+| **0.4** | $1443T | $1400T | $1374T | $1113T |
+| **0.55** | $2404T | $2359T | $2261T | $1791T |
 
 ### GDP 2050
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | $319T | $317T | $316T | $302T |
-| **0.2** (default) | $333T | $331T | $329T | $313T |
-| **0.4** | $369T | $366T | $363T | $341T |
-| **0.55** | $414T | $411T | $407T | $378T |
+| **0.08** | $321T | $320T | $318T | $306T |
+| **0.2** (default) | $335T | $334T | $331T | $317T |
+| **0.4** | $372T | $370T | $367T | $346T |
+| **0.55** | $419T | $415T | $412T | $385T |
 
 ### Warming 2100
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | 3.24°C | 3.22°C | 3.21°C | 2.90°C |
-| **0.2** (default) | 3.27°C | 3.26°C | 3.22°C | 2.93°C |
-| **0.4** | 3.46°C | 3.40°C | 3.28°C | 3.05°C |
-| **0.55** | 3.68°C | 3.56°C | 3.53°C | 3.25°C |
+| **0.08** | 2.90°C | 2.90°C | 2.89°C | 2.60°C |
+| **0.2** (default) | 2.94°C | 2.93°C | 2.89°C | 2.60°C |
+| **0.4** | 3.06°C | 3.00°C | 2.89°C | 2.69°C |
+| **0.55** | 3.23°C | 3.10°C | 3.07°C | 2.86°C |
 
 ### Fossil share of electricity 2050
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | 28.4% | 28.4% | 28.5% | 27.6% |
-| **0.2** (default) | 27.1% | 27.2% | 27.2% | 26.8% |
-| **0.4** | 25.9% | 26.1% | 26.1% | 25.8% |
-| **0.55** | 24.7% | 24.7% | 24.8% | 24.9% |
+| **0.08** | 18.7% | 18.7% | 18.7% | 18.8% |
+| **0.2** (default) | 18.3% | 18.4% | 17.8% | 18.6% |
+| **0.4** | 16.9% | 16.9% | 16.9% | 16.9% |
+| **0.55** | 15.8% | 15.8% | 15.8% | 16.1% |
 
 ### Electrification rate 2050
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | 58.8% | 58.8% | 58.8% | 58.8% |
-| **0.2** (default) | 58.8% | 58.8% | 58.8% | 58.8% |
-| **0.4** | 58.8% | 58.8% | 58.8% | 58.8% |
-| **0.55** | 58.8% | 58.8% | 58.8% | 58.8% |
+| **0.08** | 59.2% | 59.2% | 59.2% | 59.2% |
+| **0.2** (default) | 59.2% | 59.2% | 59.2% | 59.2% |
+| **0.4** | 59.3% | 59.3% | 59.3% | 59.3% |
+| **0.55** | 59.3% | 59.3% | 59.3% | 59.3% |
 
 ### Solar capacity 2050
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | 37 TW | 36 TW | 36 TW | 38 TW |
-| **0.2** (default) | 39 TW | 39 TW | 39 TW | 41 TW |
-| **0.4** | 45 TW | 45 TW | 44 TW | 46 TW |
-| **0.55** | 53 TW | 53 TW | 52 TW | 52 TW |
+| **0.08** | 45 TW | 45 TW | 44 TW | 44 TW |
+| **0.2** (default) | 48 TW | 47 TW | 47 TW | 48 TW |
+| **0.4** | 54 TW | 54 TW | 54 TW | 54 TW |
+| **0.55** | 62 TW | 62 TW | 61 TW | 61 TW |
 
 ### Climate damages 2100 (fraction of GDP)
 
 | γ \ damage | DICE-2023 | default (midpoint) | Howard-Sterner | growth-effects (~6x DICE) |
 |---|---:|---:|---:|---:|
-| **0.08** | 5.4% | 8.3% | 11.4% | 26.3% |
-| **0.2** (default) | 5.6% | 8.5% | 11.5% | 26.8% |
-| **0.4** | 6.2% | 9.3% | 12.0% | 29.1% |
-| **0.55** | 7.0% | 10.2% | 13.9% | 33.3% |
+| **0.08** | 4.3% | 6.7% | 9.2% | 20.6% |
+| **0.2** (default) | 4.5% | 6.8% | 9.2% | 20.6% |
+| **0.4** | 4.9% | 7.2% | 9.2% | 22.3% |
+| **0.55** | 5.4% | 7.7% | 10.5% | 25.5% |
 
 ### Peak energy burden
 
@@ -83,18 +83,18 @@ documented in the script header; interpretation guidance in
 
 | γ | GDP 2100 | implied 2025-2100 growth |
 |---|---:|---:|
-| **0.08** (mainstream) | $708T | ~2.0%/yr |
-| **0.2** (default) | $835T | ~2.2%/yr |
-| **0.4** | $1279T | ~2.8%/yr |
-| **0.55** | $2083T | ~3.5%/yr |
+| **0.08** (mainstream) | $748T | ~2.1%/yr |
+| **0.2** (default) | $886T | ~2.3%/yr |
+| **0.4** | $1400T | ~3.0%/yr |
+| **0.55** | $2359T | ~3.7%/yr |
 
 ## Grid ranges
 
 | Metric | Min | Max | Default cell |
 |---|---:|---:|---:|
-| GDP 2100 | $576T | $2120T | $835T |
-| Warming 2100 | 2.90°C | 3.68°C | 3.26°C |
-| Fossil share 2050 | 24.7% | 28.5% | 27.2% |
-| Electrification 2050 | 58.8% | 58.8% | 58.8% |
+| GDP 2100 | $641T | $2404T | $886T |
+| Warming 2100 | 2.60°C | 3.23°C | 2.93°C |
+| Fossil share 2050 | 15.8% | 18.8% | 18.4% |
+| Electrification 2050 | 59.2% | 59.3% | 59.2% |
 
-Reference cells: mainstream (gamma 0.08, DICE-2023): GDP 2100 $731T, warming 3.24°C. Pessimist (gamma 0.08, growth-effects damages): GDP 2100 $576T, warming 2.90°C.
+Reference cells: mainstream (gamma 0.08, DICE-2023): GDP 2100 $768T, warming 2.90°C. Pessimist (gamma 0.08, growth-effects damages): GDP 2100 $641T, warming 2.60°C.

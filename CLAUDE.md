@@ -243,7 +243,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   `nonElectricEnergy` anchor (~92,000 TWh) that already contains world mining
   and smelting energy — charging baseline demand there too would double-count
   ~a fifth of world non-electric energy
-- Copper binds the economy from the early 2030s (supply ratio ~0.82 at its 2041 low, 0.84 in 2100),
+- Copper binds the economy from the late 2020s (supply ratio ~0.75 at its 2042 low, 0.78 in 2100),
   but not clean build: the transition's own claim stays within mine
   capacity in the default run. Known limitation:
   `reserves` never grows, so `reserveRatio` passes 1.0 mid-century
@@ -296,7 +296,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 ### Production (Ayres-Warr Biophysical)
 - **GDP = Y₀ × (K/K₀)^α × (L/L₀)^β × (E/E₀)^γ × TFP × (1-damages)**, α/β/γ = 0.25/0.55/0.20 (constant returns)
 - Useful energy carries γ=0.20: 4x its ~5-8% cost share, a deliberate but smaller heterodox weight than Ayres-Warr's 0.55, where identified supply-shock evidence points (sources at `productionDefaults`). History does not identify γ: at constant returns every γ in [0, 0.7] fits world GDP 1990-2025 within ~0.25pp/yr (`scripts/growth-backcast.md`; an earlier sweep that cut γ without giving its weight to labor was misread as rejecting the cost share)
-- γ is the largest forward GDP dial because energy demand follows GDP: growth behaves like (β·g_L + (1−γ)·d)/(1−α−γ). The old 0.25/0.15/0.55 (denominator 0.20, near-AK) gave world growth 3.9%/yr 2026-45, above every published scenario; now ~3.1%/yr (2026: 3.5% vs IMF 3.1%). The γ×damage grid spans $576T–$2,120T in 2100, $835T at the defaults — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
+- γ is the largest forward GDP dial because energy demand follows GDP: growth behaves like (β·g_L + (1−γ)·d)/(1−α−γ). The old 0.25/0.15/0.55 (denominator 0.20, near-AK) gave world growth 3.9%/yr 2026-45, above every published scenario; now ~3.1%/yr (2026: 3.4% vs IMF 3.1%). The γ×damage grid spans $641T–$2,404T in 2100, $886T at the defaults — see `docs/SENSITIVITY.md` and `scripts/gamma-damage-sensitivity.ts`
 - The efficiency engine (TFP replacement) is ONE series shared by demand's intensity decline and production's η (production's growth rate and structural-decay shape are derived from demand's in `src/param-derivations.ts` — a mismatch collapses GDP; overriding them needs `decouple`), with its structural/catch-up third decaying post-2025. `serviceEfficiencyGrowth` is a dominant GDP-level dial (~1.8x per plausible range, measured at the old 0.25/0.15/0.55 weights, whose loop gain was ~2.3x today's) — see `docs/SENSITIVITY.md`; anchored to measured world second-law efficiency (De Stercke 1990, Brockway 2020s), pinned in `production.test.ts`
 - All inputs lagged to break circular dependencies. Production reads last year's CLOSING
   capital stock (`nextCapitalStock`); its useful-energy lags and `laggedGdp` are seeded on
@@ -360,7 +360,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   interest at the safe rate, so Δd = pd + (r_safe − g)·d. `ageingCostDeficitShare` (0.25; CBO 2025-55:
   ageing outlays +3.0pp vs revenues +2.2pp) of the rise in transfers/GDP since 2025 is borrowed, so
   ageing reaches the debt (default world public debt 0.94 in 2025, IMF WEO Oct 2026 → ~1.13 in 2055 → ~1.6 in 2100,
-  crossing the 150% repression threshold around 2081). A safe rate below growth erodes the ratio
+  crossing the 150% repression threshold around 2082). A safe rate below growth erodes the ratio
   (Reinhart-Sbrancia liquidation effect). Interest used to be tax-financed by construction because it
   was charged at the ~6% return on capital, where capitalizing it spirals
 - **Debt is measured at market exchange rates**: the deficit, the debt ratio, the fiscal reaction,
@@ -378,7 +378,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   Credit beyond the investment gap is paid out to owners; over-levered firms with
   spare cash repay early instead of paying it out. Without it, net new credit hit
   ~0 once retained profit covered orders and private debt/GDP fell 1.60 -> 0.22 by
-  2100; now it follows K/Y (1.45 in 2050, 1.61 in 2100), with the bank credit
+  2100; now it follows K/Y (1.44 in 2050, 1.58 in 2100), with the bank credit
   envelope (`baseCreditGrowth`) holding leverage up to ~15% under target by 2100 (leverage demand
   exceeds the envelope from 2025; recap borrowing starts in 2027). The
   stock is consolidated private non-financial debt (mortgages included as leverage
@@ -407,7 +407,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
   (1−α) x `automationIncomeToCapital`) is paid to capital, not wages (Acemoglu-Restrepo
   displacement). `laborShare` reports compensation / GDP. Demand values a robot at the human wage
   it displaces, scaled by the lagged labor share relative to 2025, so automation cheapens the labor
-  it competes with and slows itself (default 2100: ~300 robots/1000 workers, labor share ~41%)
+  it competes with and slows itself (default 2100: ~325 robots/1000 workers, labor share ~40%)
 - **Firm insolvency**: firms cannot pay out deposits they do not have. Once the deposit
   buffer is gone and interest due exceeds operating surplus, firms suspend dividends, leave
   interest unpaid (`unpaidPrivateInterest`, forgone by banks, never capitalized), then miss
