@@ -56,12 +56,12 @@ function report(runs: ReturnType<typeof runCase>[]) {
     for (const name of Object.keys(r.overlay.exporters)) {
       p(`### ${name}`);
       p();
-      p('| year | AI share of exposed tasks | exposed jobs (no AI), M | jobs remaining, M | displaced, M | unemployed, M | unemployment rate rise, pp | value-added lost, $bn | % of GDP |');
-      p('|---|---|---|---|---|---|---|---|---|');
+      p('| year | AI share of tasks | jobs without AI, M | jobs remaining, M | displaced, M | unemployed, M | unemployment rate +pp | not back in formal work, M | displaced workers\' lost earnings, $bn | value-added lost, $bn | % of GDP |');
+      p('|---|---|---|---|---|---|---|---|---|---|---|');
       for (const y of years) {
         const e = r.overlay.exporters[name].find((x) => x.year === y);
         if (!e) continue;
-        p(`| ${y} | ${pct(e.aiShare)}% | ${(e.counterfactualJobs / 1e6).toFixed(2)} | ${(e.jobs / 1e6).toFixed(2)} | ${(e.displacedCumulative / 1e6).toFixed(2)} | ${(e.unemployed / 1e6).toFixed(2)} | ${pct(e.unemploymentRateRise, 2)} | ${e.valueAddedLostUsdBn.toFixed(1)} | ${pct(e.gdpLossShare, 2)}% |`);
+        p(`| ${y} | ${pct(e.aiShare)}% | ${(e.counterfactualJobs / 1e6).toFixed(2)} | ${(e.jobs / 1e6).toFixed(2)} | ${(e.displacedCumulative / 1e6).toFixed(2)} | ${(e.unemployed / 1e6).toFixed(2)} | ${pct(e.unemploymentRateRise, 2)} | ${(e.notBackInFormalWork / 1e6).toFixed(2)} | ${e.displacedEarningsLostUsdBn.toFixed(1)} | ${e.valueAddedLostUsdBn.toFixed(1)} | ${pct(e.gdpLossShare, 2)}% |`);
       }
       const peak = r.overlay.exporters[name].reduce((m, e) => (e.unemploymentRateRise > m.unemploymentRateRise ? e : m));
       p();

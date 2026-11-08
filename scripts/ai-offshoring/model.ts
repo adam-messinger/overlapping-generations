@@ -16,12 +16,17 @@
  *   AI share of those tasks      s(t)  = sMax / (1 + exp(-k (t - mid)))  (logistic adoption)
  *   jobs remaining               E(t)  = E*(t) (1 - s(t))
  *   displaced (cumulative)       D(t)  = E*(t) s(t)
- *   unemployed pool              U(t)  = U(t-1) + newlyDisplaced(t) - reabsorption * U(t-1)
- *   re-employed displaced        R(t)  = D(t) - U(t)        (at (1 - earningsLoss) of their old pay)
- *   value-added lost             L(t)  = D(t) * va - R(t) * va * (1 - earningsLoss) * altProductivity
- *   (the counterfactual buyers would otherwise have kept paying for those tasks)
+ *   unemployed pool              U(t)  = U(t-1) (1 - reabsorption) + newlyDisplaced(t)
+ *   not back in comparable formal work
+ *                                F(t)  = F(t-1) (1 - formalReabsorption) + newlyDisplaced(t)
+ *   re-employed displaced        R(t)  = D(t) - U(t)        (in any work, at (1 - earningsLoss) of their old pay)
+ *   value-added lost             L(t)  = D(t) va (1 - retainedShare) - R(t) va (1 - earningsLoss)
+ * where va is value-added per exposed job; retainedShare is the part of the
+ * displaced work's value the exporter's own (AI-using) firms keep.
  * AI providers receive aiRevenueShare * D(t) * va, split across host regions by
- * hostShares; the rest is a cost saving to the firms that bought the services.
+ * hostShares; the remainder is a cost saving to the firms that bought the
+ * services (no region's GDP is credited with it directly: the main model's
+ * regional allocator renormalises shares to world GDP).
  */
 
 import type { Region } from '../../src/domain-types.js';
@@ -40,6 +45,10 @@ export interface ExporterProfile {
   region: Region;
   /** Exposure multiplier on the adoption ceiling (task mix: voice/back office vs IT services) */
   exposureMultiplier: number;
+  /** Overrides of the labour-market defaults for this exporter */
+  reabsorption?: number;
+  formalReabsorption?: number;
+  earningsLoss?: number;
 }
 
 export interface AdoptionPath {
@@ -56,8 +65,12 @@ export interface OverlayParams {
   adoption: AdoptionPath;
   /** Elasticity of offshored-service demand to buyers' GDP (counterfactual growth) */
   demandElasticity: number;
-  /** Share of the unemployed pool re-employed each year */
+  /** Share of the unemployed pool re-employed (any work) each year */
   reabsorption: number;
+  /** Share of those not yet back in comparable formal work who get there each year */
+  formalReabsorption: number;
+  /** Share of displaced work's value kept by the exporter's own firms */
+  retainedShare: number;
   /** Earnings loss of re-employed displaced workers (fraction of old pay) */
   earningsLoss: number;
   /** Share of displaced work's value captured as AI-provider revenue */
@@ -75,7 +88,10 @@ export interface ExporterYear {
   aiShare: number;
   displacedCumulative: number;
   unemployed: number;
+  notBackInFormalWork: number;
   reemployed: number;
+  /** Earnings of displaced workers lost (unemployed: all; re-employed: earningsLoss), USD bn */
+  displacedEarningsLostUsdBn: number;
   /** Rise in the unemployment rate of the exporter economy (pp of its employment) */
   unemploymentRateRise: number;
   valueAddedLostUsdBn: number;
@@ -126,10 +142,10 @@ export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
   const hostTotal = Object.values(p.hostShares).reduce((s, v) => s + (v ?? 0), 0);
   if (Math.abs(hostTotal - 1) > 1e-9) throw new Error('hostShares must sum to 1');
 
-  const state: Record<string, { unemployed: number; displaced: number }> = {};
+  const state: Record<string, { unemployed: number; informal: number; displaced: number }> = {};
   for (const name of Object.keys(p.exporters)) {
     result.exporters[name] = [];
-    state[name] = { unemployed: 0, displaced: 0 };
+    state[name] = { unemployed: 0, informal: 0, displaced: 0 };
   }
 
   for (let i = i0; i < base.years.length; i++) {
@@ -142,11 +158,18 @@ export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
       const share = Math.min(1, aiShareAt(year, p.adoption) * x.exposureMultiplier);
       const displaced = counterfactualJobs * share;
       const newlyDisplaced = Math.max(0, displaced - st.displaced);
-      const unemployed = i === i0 ? 0 : st.unemployed * (1 - p.reabsorption) + newlyDisplaced;
+      const reabsorption = x.reabsorption ?? p.reabsorption;
+      const formalReabsorption = x.formalReabsorption ?? p.formalReabsorption;
+      const earningsLoss = x.earningsLoss ?? p.earningsLoss;
+      const unemployed = i === i0 ? 0 : Math.min(displaced, st.unemployed * (1 - reabsorption) + newlyDisplaced);
+      const informal = i === i0 ? 0 : Math.min(displaced, st.informal * (1 - formalReabsorption) + newlyDisplaced);
       const reemployed = Math.max(0, displaced - unemployed);
       st.unemployed = unemployed;
+      st.informal = informal;
       st.displaced = displaced;
-      const lostUsd = displaced * x.valueAddedPerJob - reemployed * x.valueAddedPerJob * (1 - p.earningsLoss);
+      const lostUsd = displaced * x.valueAddedPerJob * (1 - p.retainedShare)
+        - reemployed * x.valueAddedPerJob * (1 - earningsLoss);
+      const earningsLostUsd = (unemployed + reemployed * earningsLoss) * x.valueAddedPerJob;
       const lostBn = lostUsd / 1e9;
       const totalEmployment = x.totalEmployment2025; // held at 2025: the rate is relative to today's workforce
       const exporterGdpBn = x.gdpUsd2025Bn * regionGdpGrowth(i, x.region);
@@ -159,7 +182,9 @@ export function runOverlay(base: BaseRun, p: OverlayParams): OverlayResult {
         aiShare: share,
         displacedCumulative: displaced,
         unemployed,
+        notBackInFormalWork: informal,
         reemployed,
+        displacedEarningsLostUsdBn: earningsLostUsd / 1e9,
         unemploymentRateRise: unemployed / totalEmployment,
         valueAddedLostUsdBn: lostBn,
         gdpLossShare: lostBn / exporterGdpBn,
