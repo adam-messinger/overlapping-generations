@@ -127,7 +127,7 @@ export interface CapitalParams {
   savingsDependencySensitivity: number;  // Dependency ratio elasticity on savings (0.3)
 
   // --- Public debt ---
-  initialPublicDebtGDP: number;        // 0.90 (90% of GDP in 2025)
+  initialPublicDebtGDP: number;        // 0.94 (94% of GDP in 2025, IMF WEO Oct 2026)
   publicDeficitRate: number;           // 0.03 (structural primary deficit / GDP)
   /** 2025 GDP at market exchange rates / GDP at PPP, per region: weights the GDP public debt is measured against */
   publicDebtMarketPriceRatio: Record<Region, number>;
@@ -449,8 +449,11 @@ export const capitalDefaults: CapitalParams = {
   savingsLifeExpSensitivity: 0.5,     // LE elasticity: longer life → save more
   savingsDependencySensitivity: 0.3,  // Dependency elasticity: more dependents → save less
 
-  // --- Public debt (IMF Global Debt Database, 2025) ---
-  initialPublicDebtGDP: 0.90,         // 90% of GDP
+  // --- Public debt ---
+  // World general government gross debt 2025: 94.0% of GDP (IMF WEO Oct 2026,
+  // GGXWDG_NGDP, WEOWORLD); 93.9% in the Fiscal Monitor (Apr 2026, Table 1.2).
+  // Measured at market exchange rates, like the model's debt denominator.
+  initialPublicDebtGDP: 0.94,
   publicDeficitRate: 0.03,            // 3% structural primary deficit / GDP
   // Public debt is measured against GDP at MARKET exchange rates, as the IMF
   // measures it: each region's PPP GDP x its 2025 market/PPP price ratio,

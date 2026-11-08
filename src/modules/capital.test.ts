@@ -154,9 +154,11 @@ test('the seed year\'s finance path grows from the previous year\'s GDP', () => 
   // the steps after it
   const largest = (xs: number[]) => Math.max(...xs.map(Math.abs));
   expect(Math.abs(oldFirst)).toBeGreaterThan(10 * largest(oldLater));
-  // Wired, that jump is gone: the first step is a small fraction of it and
-  // the same order as the steps after
-  expect(Math.abs(first)).toBeLessThan(0.1 * Math.abs(oldFirst));
+  // Wired, that jump is gone: net of the underlying trend (the next step),
+  // the first step is a small fraction of it and the same order as the steps
+  // after. (Measured net of the trend because the premium drifts steadily as
+  // consolidation works on the debt; the raw first step carries that drift.)
+  expect(Math.abs(first - later[0])).toBeLessThan(0.1 * Math.abs(oldFirst - oldLater[0]));
   expect(Math.abs(first)).toBeLessThan(10 * largest(later));
 });
 
@@ -679,8 +681,8 @@ test('firmDepositChange matches what the ledger posts to firms.deposits', () => 
 
 test('debt stocks initialize from GDP at year 0', () => {
   const { outputs } = runYears(1);
-  // publicDebtGDP should be ~0.90 (initialPublicDebtGDP)
-  expect(outputs.publicDebtGDP).toBeBetween(0.85, 0.95);
+  // publicDebtGDP should be ~0.94 (initialPublicDebtGDP)
+  expect(outputs.publicDebtGDP).toBeBetween(0.89, 0.99);
   // privateDebtGDP should be ~1.60 (initialPrivateDebtGDP)
   expect(outputs.privateDebtGDP).toBeBetween(1.50, 1.70);
 });
@@ -752,12 +754,12 @@ test('bankRetentionSpeed 0 restores full payout: bank equity never grows', () =>
 });
 
 test('fiscal consolidation kicks in above 60% threshold', () => {
-  // With default 90% public debt/GDP, fiscal consolidation is active
+  // With default 94% public debt/GDP, fiscal consolidation is active
   const { outputs } = runYears(1);
   // Public deficit should be reduced by consolidation
   // Primary deficit = 0.03 × GDP - consolidation
-  // consolidation = 0.03 × (0.90 - 0.60) × GDP = 0.009 × GDP
-  // So net primary deficit = (0.03 - 0.009) × GDP = 0.021 × GDP
+  // consolidation = 0.03 × (0.94 - 0.60) × GDP = 0.0102 × GDP
+  // So net primary deficit = (0.03 - 0.0102) × GDP = 0.0198 × GDP
   // This means public debt grows, but slower than without consolidation
   expect(outputs.publicDebtGDP).toBeGreaterThan(0);
 });
@@ -892,10 +894,10 @@ test('risk premium is zero when totalDebtGDP < threshold', () => {
 
 test('risk premium is positive when totalDebtGDP > threshold', () => {
   const { outputs } = runYears(1);
-  // Default total debt = 0.90 + 1.60 = 2.50, threshold = 2.00
-  // Premium = 0.03 × 0.50 = 0.015
+  // Default total debt = 0.94 + 1.60 = 2.54, threshold = 2.00
+  // Premium = 0.03 × 0.54 = 0.0162
   expect(outputs.debtRiskPremium).toBeGreaterThan(0);
-  expect(outputs.debtRiskPremium).toBeCloseTo(0.015, 2);
+  expect(outputs.debtRiskPremium).toBeCloseTo(0.0162, 3);
 });
 
 test('risk premium flows into interest rate', () => {
