@@ -101,6 +101,11 @@ export const MAGNITUDE_ANCHORS: readonly MagnitudeAnchor[] = [
     read: (o) => o.dataCenterLoadTWh,
   },
   {
+    name: 'datacenter capex', unit: '$T/year', observed: 0.71, factor: 1.5,
+    source: "~$0.71T worldwide in 2025: $455B in 2024 grown 57%, Dell'Oro Group (Jan 2026)",
+    read: (o) => o.dataCenterCapexSpend,
+  },
+  {
     name: 'primary copper demand', unit: 'Mt/year', observed: 23, factor: 1.3,
     source: '~23 Mt world mine production, USGS Mineral Commodity Summaries 2026',
     read: (o) => o.minerals.copper.demand,

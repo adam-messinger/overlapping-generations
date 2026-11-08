@@ -724,11 +724,22 @@ export const demandDefaults: DemandParams = {
   dataCenterReferenceLCOE: 50,        // $/MWh (same reference as robot load)
   dataCenterReferenceGDPpc: 15000,    // $ PPP per capita (global average ~2025)
   // One composite asset for now: chips, servers, networking, cooling, backup
-  // power, and the datacenter shell. $15B per average GW is a deliberately
-  // simple judgment anchor, not a fitted industry estimate.
+  // power, and the datacenter shell. $45B per average GW of load, in current
+  // (2025) dollars like robotUnitCost. Calibrated so the 2025 step (net
+  // additions + 15% replacement, ~16 average GW) charges ~$0.7T, Dell'Oro's
+  // worldwide 2025 datacenter capex ($455B in 2024, +57% in 2025; Dell'Oro
+  // Group, Jan 2026). Bottom-up cross-checks per GW of facility capacity:
+  // ~$38B (Epoch AI, "AI datacenter cost breakdown", 2025), ~$41B (Van
+  // Nieuwerburgh, Brookings Papers draft, Sep 2026), ~$47-49B for Vera Rubin-era
+  // builds (Foxconn; Morgan Stanley, 2026); per AVERAGE GW of load the figure is
+  // higher by the inverse load factor. It was $15B, a judgment anchor that
+  // charged ~$0.24T in 2025, a third of observed spend. Known limits: one
+  // composite cost for the legacy and the AI fleet, and capex is booked in the
+  // year the load arrives (no construction lead), so a boom's capex leads the
+  // model's by 1-2 years (Dell'Oro: 2026 > $1T vs ~$0.8T here).
   // A 15% blended replacement rate sits between short-lived accelerators
   // (~4-6 years) and longer-lived buildings/electrical infrastructure.
-  dataCenterCapitalCostPerGW: 15,     // $B per average GW of annual load
+  dataCenterCapitalCostPerGW: 45,     // $B per average GW of annual load (2025 $)
   dataCenterDepreciation: 0.15,       // fraction/year
   commodityShocks: [],
 };

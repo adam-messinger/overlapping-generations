@@ -133,7 +133,7 @@ the human-capital ledger (including its replacement-cost re-pricing).
 
 ### Calibration & Sources
 
-- `src/calibration-anchors.ts` compares 17 of the model's 2025 outputs with
+- `src/calibration-anchors.ts` compares 18 of the model's 2025 outputs with
   independent observations within loose (1.02-1.5x) bands — an
   order-of-magnitude tripwire for unit and intensity errors, not calibration.
   `npx tsx src/calibration-anchors.ts` prints the table. When you add a
