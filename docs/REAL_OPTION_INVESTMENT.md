@@ -19,177 +19,209 @@ depends on **both** the discount rate and the anticipated volatility.
 
 ## What the prototype does
 
-Hurdle on the gross yield of a unit of general capital (`realOptionHurdle` in
-`src/modules/capital.ts`):
+### Hurdle
+
+Hurdle on the gross yield of a unit of general capital, under a compensated
+jump-diffusion (`jumpDiffusionHurdle` in `src/modules/capital.ts`):
 
 ```
+dπ/π = (drift + λd·φ − λu·φ) dt + σ_d dz + φ dq_up − φ dq_down
+β > 1 solves  ½σ_d²β(β−1) + (drift + λd·φ − λu·φ)β + λu((1+φ)^β − 1) + λd((1−φ)^β − 1) = r
 h = (r − drift) · β/(β − 1)
-β = ½ − drift/σ² + √((drift/σ² − ½)² + 2r/σ²)
+
 r     = safe rate + investmentEquityPremium (5%)
 drift = −depreciation (a unit wears out; return per unit of K is flat on a balanced path)
-σ     = √(investmentVolatility² + (climateVolatilitySensitivity · damages)²)   (0.20, 3)
+φ     = riskJumpSize (0.29, Barro 2006 mean disaster)
 ```
 
-As σ → 0 this is Jorgenson's user cost r + δ (10% at the defaults); σ = 0.2
-marks it up to 13.6%. The markup is largest when rates are low, because
-waiting costs little.
+With no jumps this is the textbook diffusion hurdle (`realOptionHurdle`). As
+risk → 0 it is Jorgenson's user cost r + δ (10% at the defaults). The jumps
+are **compensated**, so they change the spread and shape of outcomes but not
+the expected growth. The model's profit path already carries the mean,
+because climate damages are in output.
 
-The order rule's signal becomes
+### Where the risk comes from
+
+| source | magnitude | shape |
+|---|---|---|
+| business | σ_B from the corporate-over-sovereign spread: Merton (1974) inverted on the default part of `creditSpread` (`defaultShareOfSpread` 0.5 × 2pp), at the firms' target leverage (0.457) and a 10-year horizon → **σ_B = 0.251** | `businessUpsideShare` 0.75 of the variance as upside jumps, the rest diffusion (right skew of firm returns: Bessembinder 2018) |
+| climate | σ_C = `climateVolatilitySensitivity` (3, judgment) × damages | `climateDownsideShare` 0.75 as downside jumps, the rest diffusion (fat left tail: Weitzman 2009) |
+
+Variances add (independent sources): λu = 0.75·σ_B²/φ², λd = 0.75·σ_C²/φ²,
+σ_d² = 0.25·σ_B² + 0.25·σ_C². The default share of the spread spans the
+credit-spread puzzle: ~0.3 for investment grade in structural models (Huang &
+Huang 2012), ~0.7 for BBB from CDS (Longstaff, Mithal & Neis 2005). Target
+leverage, not actual leverage, is used: actual leverage drifts under target
+when the credit envelope binds, and reading a fixed spread against falling
+leverage would invent risk.
+
+### Signal
 
 ```
 signal = profitRate + w · (interest/K + δ − h + offset)
 ```
 
-which at w = 1 is `gross yield − h + offset`: the legacy interest bill drops out
-(it still binds through internal funds and credit), and the hurdle comes in.
-`realOptionHurdleOffset` (0.0825) is **fitted** so that the default 2025 signal
-equals the legacy profit rate, so the S-curve, the 25.2% investment rate and
-the rest of the 2025 calibration carry over. Φ fades out as w → 1, so climate
-uncertainty is not counted twice.
+At w = 1 this is `gross yield − h + offset`. The legacy interest bill drops
+out (it still binds through internal funds and credit), and the hurdle comes
+in. `realOptionHurdleOffset` (0.101) is **fitted** so that the default 2025
+signal equals the legacy profit rate. The S-curve, the 25.2% investment rate
+and the rest of the 2025 calibration therefore carry over. Φ fades out as
+w → 1, so climate uncertainty is not counted twice.
 
 ### Why an offset rather than levels
 
 In levels, the gross return on general capital (~9.3%) sits **below** both the
-user cost (~10%) and the option hurdle (~13.6%), yet the world invests 25% of
-GDP. That is the familiar measured-return vs cost-of-capital wedge (rents and
-markups: Caballero, Farhi & Gourinchas 2017). CFO surveys find the same wedge
-from the other side: hurdle rates (~15% nominal) well above firms' own WACC
-estimates (Jagannathan, Matsa, Meier & Tarhan 2016, *JFE*). The
-model carries no rents, so the level version invests nothing. The offset
-stands in for that wedge, held constant. The offset is calibrated, not stored
-in state, so a run with a higher rate or volatility invests less from 2025 on.
-The first prototype anchored the hurdle at each run's own 2025, and that
-absorbed any permanent shock (a +2pp safe rate then *raised* GDP).
+user cost (~10%) and the option hurdle (15.5%), yet the world invests 25% of
+GDP. That is the familiar gap between measured returns and the cost of
+capital, filled by rents and markups (Caballero, Farhi & Gourinchas 2017).
+CFO surveys find the same gap from the other side: hurdle rates (~15%
+nominal) well above firms' own WACC estimates (Jagannathan, Matsa, Meier &
+Tarhan 2016, *JFE*). The model carries no rents, so the level version invests
+nothing; the offset stands in for that gap, held constant. It is calibrated,
+not stored in state, so a run with a higher rate, spread or volatility
+invests less from 2025 on. An earlier draft anchored the hurdle at each run's
+own 2025, which absorbed any permanent shock (a +2pp safe rate then *raised*
+GDP).
 
 ## Results
 
 Generated by `npx tsx scripts/real-option-investment.ts`. "RO" = realOptionHurdleWeight 1.
 
-## 1. Default path: legacy rule vs real-option rule
+### 1. Default path: legacy rule vs real-option rule
 
 **Legacy (after-interest profit rate)** (warming 2100 2.93°C)
 
-| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | signal % | profit rate % | return on K % |
-|---|---|---|---|---|---|---|---|---|---|
-| 2025 | 158 | 25.2 | 3.50 | 1.00 | 13.64 | 0.202 | 3.87 | 3.87 | 7.14 |
-| 2030 | 187 | 25.9 | 3.44 | 1.10 | 13.78 | 0.203 | 4.05 | 4.05 | 6.99 |
-| 2050 | 334 | 26.6 | 3.59 | 0.95 | 13.81 | 0.209 | 3.89 | 3.89 | 6.74 |
-| 2075 | 539 | 25.8 | 4.13 | 1.11 | 14.56 | 0.227 | 2.66 | 2.66 | 6.87 |
-| 2100 | 886 | 26.3 | 4.11 | 0.80 | 14.72 | 0.244 | 2.82 | 2.82 | 7.27 |
+| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | σ spread | signal % | profit rate % | return on K % |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2025 | 158 | 25.2 | 3.50 | 1.00 | 15.49 | 0.252 | 0.251 | 3.87 | 3.87 | 7.14 |
+| 2030 | 187 | 25.9 | 3.44 | 1.10 | 15.63 | 0.253 | 0.251 | 4.05 | 4.05 | 6.99 |
+| 2050 | 334 | 26.6 | 3.59 | 0.95 | 15.60 | 0.258 | 0.251 | 3.89 | 3.89 | 6.74 |
+| 2075 | 539 | 25.8 | 4.13 | 1.11 | 16.26 | 0.273 | 0.251 | 2.66 | 2.66 | 6.87 |
+| 2100 | 886 | 26.3 | 4.11 | 0.80 | 16.31 | 0.287 | 0.251 | 2.82 | 2.82 | 7.27 |
 
-**Real option (σ base 0.20, climate sensitivity 3)** (warming 2100 2.92°C)
+**Real option (spread-implied business σ, 75% upside; climate σ = 3 x damages, 75% downside)** (warming 2100 2.92°C)
 
-| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | signal % | profit rate % | return on K % |
-|---|---|---|---|---|---|---|---|---|---|
-| 2025 | 158 | 25.2 | 3.50 | 1.00 | 13.64 | 0.202 | 3.87 | 3.87 | 7.14 |
-| 2030 | 187 | 25.7 | 3.44 | 1.10 | 13.78 | 0.203 | 3.91 | 4.06 | 6.99 |
-| 2050 | 331 | 25.8 | 3.54 | 0.93 | 13.78 | 0.209 | 3.71 | 4.01 | 6.91 |
-| 2075 | 522 | 22.2 | 3.90 | 1.02 | 14.46 | 0.228 | 2.17 | 3.09 | 7.47 |
-| 2100 | 819 | 22.5 | 3.76 | 0.60 | 14.48 | 0.245 | 2.43 | 3.52 | 8.16 |
+| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | σ spread | signal % | profit rate % | return on K % |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2025 | 158 | 25.2 | 3.50 | 1.00 | 15.49 | 0.252 | 0.251 | 3.87 | 3.87 | 7.14 |
+| 2030 | 187 | 25.7 | 3.44 | 1.10 | 15.63 | 0.253 | 0.251 | 3.90 | 4.06 | 6.99 |
+| 2050 | 332 | 26.0 | 3.55 | 0.93 | 15.58 | 0.258 | 0.251 | 3.75 | 4.00 | 6.90 |
+| 2075 | 524 | 22.7 | 3.94 | 1.03 | 16.17 | 0.273 | 0.251 | 2.22 | 3.01 | 7.37 |
+| 2100 | 832 | 23.2 | 3.83 | 0.65 | 16.12 | 0.287 | 0.251 | 2.49 | 3.38 | 7.98 |
 
 **Real option, climate volatility off (rate channel only)** (warming 2100 2.92°C)
 
-| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | signal % | profit rate % | return on K % |
-|---|---|---|---|---|---|---|---|---|---|
-| 2025 | 158 | 25.2 | 3.50 | 1.00 | 13.58 | 0.200 | 3.93 | 3.87 | 7.14 |
-| 2030 | 187 | 25.9 | 3.44 | 1.10 | 13.70 | 0.200 | 3.98 | 4.05 | 6.99 |
-| 2050 | 333 | 26.5 | 3.58 | 0.94 | 13.52 | 0.200 | 3.89 | 3.93 | 6.80 |
-| 2075 | 537 | 24.9 | 4.10 | 1.09 | 13.70 | 0.200 | 2.52 | 2.72 | 6.95 |
-| 2100 | 885 | 26.1 | 4.10 | 0.85 | 13.40 | 0.200 | 2.78 | 2.81 | 7.27 |
+| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | σ spread | signal % | profit rate % | return on K % |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2025 | 158 | 25.2 | 3.50 | 1.00 | 15.44 | 0.251 | 0.251 | 3.92 | 3.87 | 7.14 |
+| 2030 | 187 | 25.8 | 3.44 | 1.10 | 15.57 | 0.251 | 0.251 | 3.96 | 4.05 | 6.99 |
+| 2050 | 332 | 26.5 | 3.57 | 0.94 | 15.37 | 0.251 | 0.251 | 3.89 | 3.94 | 6.81 |
+| 2075 | 537 | 24.8 | 4.09 | 1.09 | 15.57 | 0.251 | 0.251 | 2.50 | 2.73 | 6.95 |
+| 2100 | 885 | 26.1 | 4.10 | 0.86 | 15.25 | 0.251 | 0.251 | 2.78 | 2.81 | 7.27 |
 
-## 2. Climate-volatility sensitivity (real-option rule)
+### 2. Climate-volatility sensitivity (real-option rule)
 
 | climateVolatilitySensitivity | σ 2100 | GDP 2050 | GDP 2100 | I/Y 2075 % | K/Y 2100 | warming 2100 |
 |---|---|---|---|---|---|---|
 | legacy | — | 334 | 886 | 25.8 | 4.11 | 2.93 |
-| 0 | 0.200 | 333 | 885 | 24.9 | 4.10 | 2.92 |
-| 1.5 | 0.212 | 332 | 868 | 24.2 | 4.01 | 2.92 |
-| 3 | 0.245 | 331 | 819 | 22.2 | 3.76 | 2.92 |
-| 6 | 0.350 | 327 | 683 | 16.3 | 2.95 | 2.90 |
+| 0 | 0.251 | 332 | 885 | 24.8 | 4.10 | 2.92 |
+| 1.5 | 0.260 | 332 | 872 | 24.3 | 4.03 | 2.92 |
+| 3 | 0.287 | 332 | 832 | 22.7 | 3.83 | 2.92 |
+| 6 | 0.381 | 328 | 702 | 17.1 | 3.07 | 2.91 |
 
-## 3. Rate channel: a permanent +2pp safe-rate shock (neutralSafeRate 1% -> 3%)
+### 3. Shape of risk: upside vs downside at equal variance (real-option rule)
+
+| businessUpsideShare | climateDownsideShare | hurdle 2025 % | hurdle 2100 % | GDP 2050 | GDP 2100 | I/Y 2075 % |
+|---|---|---|---|---|---|---|
+| 0 | 0 | 15.24 | 16.03 | 333 | 842 | 23.0 |
+| 0.75 | 0.75 | 15.49 | 16.12 | 332 | 832 | 22.7 |
+| 1 | 1 | 15.56 | 16.15 | 331 | 829 | 22.6 |
+| 0 | 1 | 15.24 | 15.97 | 333 | 845 | 23.2 |
+| 1 | 0 | 15.56 | 16.20 | 331 | 826 | 22.4 |
+
+### 4. Spread channel: what the corporate spread implies (real-option rule)
+
+| change | σ spread | hurdle 2025 % | I/Y 2025 % | GDP 2050 | GDP 2100 |
+|---|---|---|---|---|---|
+| defaults (creditSpread 2pp, default share 0.5) | 0.251 | 15.49 | 25.2 | 332 | 832 |
+| default share 0.3 (Huang-Huang) | 0.213 | 14.34 | 25.2 | 335 | 908 |
+| default share 0.7 (Longstaff-Mithal-Neis) | 0.283 | 16.56 | 22.4 | 320 | 765 |
+| creditSpread 3pp | 0.290 | 16.82 | 21.3 | 318 | 752 |
+
+### 5. Rate channel: a permanent +2pp safe-rate shock (neutralSafeRate 1% -> 3%)
 
 | rule | GDP 2050 | GDP 2100 | I/Y 2075 % | K/Y 2100 | GDP 2100 vs no shock |
 |---|---|---|---|---|---|
 | legacy | 318 | 849 | 26.6 | 4.13 | -4.2% |
-| real option (climate vol off) | 299 | 839 | 26.7 | 4.06 | -5.2% |
-| real option | 298 | 775 | 24.3 | 3.69 | -5.3% |
+| real option (climate vol off) | 297 | 837 | 26.7 | 4.05 | -5.4% |
+| real option | 296 | 786 | 24.8 | 3.75 | -5.5% |
 
-## 4. Scenarios: GDP 2100 and warming, legacy vs real option
+### 6. Scenarios: GDP 2100 and warming, legacy vs real option
 
 | scenario | GDP 2100 legacy | GDP 2100 RO | Δ % | warming legacy | warming RO |
 |---|---|---|---|---|---|
-| baseline | 886 | 819 | -7.6 | 2.93 | 2.92 |
-| net-zero | 1529 | 1400 | -8.5 | 2.35 | 2.36 |
-| high-sensitivity | 790 | 612 | -22.4 | 3.45 | 3.47 |
-| climate-cascade | 738 | 470 | -36.3 | 3.40 | 3.56 |
-| ssp5-85 | 496 | 436 | -12.2 | 3.48 | 3.44 |
-| ssp1-26 | 1904 | 1777 | -6.6 | 2.21 | 2.21 |
-| debt-populism | 707 | 728 | 3.0 | 3.19 | 3.18 |
-| tech-stagnation | 829 | 750 | -9.6 | 3.33 | 3.30 |
-
-### Sensitivity of the 2025 calibration (RO, defaults otherwise)
-
-| change | I/Y 2025 | GDP 2050 | GDP 2100 |
-|---|---|---|---|
-| defaults | 25.2% | 331 | 819 |
-| investmentVolatility 0.15 | 25.2% | 335 | 903 |
-| investmentVolatility 0.25 | 20.3% | 315 | 735 |
-| investmentEquityPremium 4% | 25.2% | 335 | 904 |
-| investmentEquityPremium 6% | 21.8% | 318 | 746 |
+| baseline | 886 | 832 | -6.1 | 2.93 | 2.92 |
+| net-zero | 1529 | 1403 | -8.3 | 2.35 | 2.36 |
+| high-sensitivity | 790 | 637 | -19.4 | 3.45 | 3.45 |
+| climate-cascade | 738 | 482 | -34.8 | 3.40 | 3.57 |
+| ssp5-85 | 496 | 448 | -9.8 | 3.48 | 3.46 |
+| ssp1-26 | 1904 | 1774 | -6.8 | 2.21 | 2.21 |
+| debt-populism | 707 | 747 | 5.7 | 3.19 | 3.18 |
+| tech-stagnation | 829 | 764 | -7.8 | 3.33 | 3.31 |
 
 ## Findings
 
-1. **Volatility is the channel that matters, not the rate.** On the default
-   path, the rate channel alone (climate volatility off) moves 2100 GDP by
-   −0.1%: the safe rate stays between 0.8% and 1.1% all century. With climate
-   damages feeding anticipated volatility, the hurdle rises from 13.6% to 14.5%,
-   investment falls from ~26% to ~22% of GDP after 2060, and 2100 GDP is
-   −7.6%. The effect is convex in `climateVolatilitySensitivity`: −2% at
-   1.5, −8% at 3, −23% at 6.
-2. **Climate scenarios diverge sharply.** high-sensitivity −22%,
-   climate-cascade −36% in 2100 GDP. In climate-cascade the hurdle reaches
-   21% and investment falls to roughly replacement (I/Y 11% by 2100) while the
-   profit rate climbs to 8.5%: high profits and low investment, the signature
-   of uncertainty-driven waiting. The legacy rule cannot produce that pattern.
-3. **A climate-finance doom loop appears.** In climate-cascade RO *warms more*
-   (+0.16°C). Scarce capital raises the return on capital, the rate CDR
-   discounts at, so CDR deployment stops (15 Gt/yr to ~0). Climate
-   uncertainty → less investment → dearer capital → less removal → more
-   warming.
-4. **Rate shocks bite harder and fade.** A permanent +2pp safe rate costs
-   ~10% of 2050 GDP under RO vs ~5% under legacy. The gap closes by 2100
-   (−5.3% vs −4.2%), as scarcer capital earns more and partly offsets the
-   hurdle.
-5. **Financial repression becomes an investment subsidy.** debt-populism is
-   the one scenario RO *improves* (+3%). Repression holds the safe rate near
-   −1.3%, which cuts the hurdle; the legacy rule only saw a lower interest
-   bill.
-6. **The response is asymmetric.** The 2025 point sits near the top of the
-   S-curve and the credit envelope, so less volatility or a lower premium
-   cannot raise 2025 investment, while more cuts it at once. The existing
-   ceiling (`maximumNetInvestmentRate`) still caps the upside.
+1. **Volatility magnitude is what matters; its shape barely does.** Holding
+   variance fixed, moving business and climate risk all the way between
+   diffusion, upside jumps and downside jumps shifts 2100 GDP by about ±1%
+   ($826–845T). The climate magnitude dial moves it from $702T to $885T.
+   Analytically, at r = 6% and σ² = 0.25²: diffusion 15.2%, downside jumps
+   14.8%, upside jumps 15.5%. Upside skew raises the hurdle slightly, because
+   the option to wait is convex. Bernanke's (1983) bad-news principle, that
+   only downside risk deters investment, works through the *mean*: upside
+   raises expected value, downside lowers it. Compensation leaves the mean to
+   the profit path, where the model already counts damages. So in this
+   framework, calling business risk "upside" and climate risk "downside"
+   changes little. Where it would matter is if firms anticipated the *growth*
+   of damages (a forward drift), which the current signal does not read.
+2. **The spread anchors the volatility level, and the credit-spread puzzle
+   becomes the main new uncertainty.** A default share of 0.3 vs 0.7 gives
+   σ_B 0.21 vs 0.28 and 2100 GDP $908T vs $765T. A +1pp corporate spread
+   (3pp) cuts 2025 investment from 25.2% to 21.3% of GDP. In the default run
+   the spread is a constant parameter, so the inferred σ_B is flat; it adds a
+   level, not dynamics.
+3. **Climate volatility still drives the path, a little less.** On the
+   default path the hurdle rises from 15.5% to 16.1% and 2100 GDP is −6.1%
+   (it was −7.6% with σ_B = 0.20: a higher business variance leaves climate
+   less to add). high-sensitivity −19%, climate-cascade −35% with investment
+   near replacement and CDR stopped, because scarce capital raises the
+   discount rate CDR uses, so warming is +0.17°C.
+4. **Rate shocks bite harder and fade.** +2pp safe rate: 2050 GDP −11% under RO
+   vs −5% legacy; 2100 −5.5% vs −4.2%.
+5. **Financial repression acts as an investment subsidy.** debt-populism +5.7%.
+6. **The response is one-sided.** 2025 sits near the S-curve's ceiling and the
+   credit envelope, so lower risk cannot raise 2025 investment, while higher
+   risk cuts it at once.
 
 ## Caveats and next steps
 
-- `climateVolatilitySensitivity` is judgment, and it is the dial that matters
-  (finding 1). It needs grounding, e.g. from the dispersion of damage-function
-  estimates (DICE-2023 vs Howard-Sterner vs growth-effects ≈ 6x) mapped to
-  value volatility, or from evidence on climate risk in equity-implied
-  volatility.
-- The volatility is exogenous plus a climate term. A deterministic simulation
-  generates no realized volatility. An adaptive-expectations σ (rolling
-  variance of growth surprises) would add little on this smooth path.
-- Moving `investmentVolatility`, `investmentEquityPremium` or the depreciation
-  or 2025 debt calibration requires re-fitting `realOptionHurdleOffset`
-  (pinned in `capital.test.ts`).
+- **Endogenous spreads** are what would make the spread channel move over
+  time. Today `creditSpread` is a constant 2pp. A spread that responds to
+  leverage, damages or the debt premium would feed σ_B. Inverting a spread
+  that itself depends on σ is circular, so the spread would need its own
+  structural driver (e.g. expected default losses from the firm-insolvency
+  block).
+- **Anticipated damage growth** is the channel through which the downside
+  asymmetry would bite (finding 1): add the expected change in damages to the
+  drift, rather than more shape.
+- `climateVolatilitySensitivity`, the upside/downside shares and the use of
+  Barro's jump size for upside jumps are judgment. The shape judgments are
+  cheap (finding 1); the climate magnitude is not.
+- Re-fit `realOptionHurdleOffset` when any hurdle default, depreciation, or
+  the 2025 debt or rate calibration moves (pinned in `capital.test.ts`).
 - Only general capital uses the hurdle. Energy (logit on LCOE at WACC), CDR
-  (NPV) and robots and datacenters (marginal value vs user cost) remain
-  rate-only, i.e. σ = 0. Pricing volatility into the energy build is the
-  natural next step, and it is where climate policy uncertainty would bite.
-- Capital's parameters are not yet schema-declared (`defineParams`); the new
-  ones follow the module's current hand-written pattern.
-- Before this could become the default: two independent sources for the
-  climate-volatility mapping, a backcast check that I/Y stays plausible
-  (no world decade below ~20%; climate-cascade's 11% would need defending),
-  and fresh regression baselines.
+  (NPV) and robots and datacenters remain rate-only, i.e. σ = 0.
+- Capital's parameters are not yet schema-declared (`defineParams`).
+- Before this could become the default: independent sources for the climate
+  volatility mapping, a backcast check on I/Y (climate-cascade's ~11% would
+  need defending), and fresh regression baselines.

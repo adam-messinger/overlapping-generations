@@ -5,9 +5,11 @@
  *
  * capital.realOptionHurdleWeight = 1 switches the rule (see realOptionHurdle
  * in src/modules/capital.ts). The signal is anchored at 2025, so 2025 is
- * unchanged and everything after it moves with the hurdle's change:
+ * unchanged (realOptionHurdleOffset is fitted there) and the hurdle moves with:
  *   - the safe rate (rate channel; legacy reads only the interest bill)
- *   - climate damages, through anticipated volatility (climateVolatilitySensitivity)
+ *   - business volatility, Merton-inverted from the default part of the
+ *     corporate-over-sovereign spread and carried mostly as upside jumps
+ *   - climate damages, through volatility carried mostly as downside jumps
  *
  * Usage: npx tsx scripts/real-option-investment.ts [--output=path.md]
  */
@@ -40,11 +42,11 @@ function pathTable(label: string, params: Params) {
   const { at, result } = run(params);
   out(`**${label}** (warming 2100 ${f(result.metrics.warming2100, 2)}°C)`);
   out('');
-  out('| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | signal % | profit rate % | return on K % |');
-  out('|---|---|---|---|---|---|---|---|---|---|');
+  out('| year | GDP $T | I/Y % | K/Y | safe % | hurdle % | σ | σ spread | signal % | profit rate % | return on K % |');
+  out('|---|---|---|---|---|---|---|---|---|---|---|');
   for (const year of [2025, ...YEARS]) {
     const y = at(year);
-    out(`| ${year} | ${f(y.gdp, 0)} | ${pct(y.investment / y.gdp)} | ${f(y.capitalOutputRatio, 2)} | ${pct(y.safeRate, 2)} | ${pct(y.investmentHurdle, 2)} | ${f(y.investmentVolatility, 3)} | ${pct(y.investmentSignal, 2)} | ${pct(y.profitRate, 2)} | ${pct(y.interestRate, 2)} |`);
+    out(`| ${year} | ${f(y.gdp, 0)} | ${pct(y.investment / y.gdp)} | ${f(y.capitalOutputRatio, 2)} | ${pct(y.safeRate, 2)} | ${pct(y.investmentHurdle, 2)} | ${f(y.investmentVolatility, 3)} | ${f(y.spreadImpliedVolatility, 3)} | ${pct(y.investmentSignal, 2)} | ${pct(y.profitRate, 2)} | ${pct(y.interestRate, 2)} |`);
   }
   out('');
 }
@@ -67,7 +69,7 @@ out('');
 out('## 1. Default path: legacy rule vs real-option rule');
 out('');
 pathTable('Legacy (after-interest profit rate)', {});
-pathTable('Real option (σ base 0.20, climate sensitivity 3)', withCapital({}, RO));
+pathTable('Real option (spread-implied business σ, 75% upside; climate σ = 3 x damages, 75% downside)', withCapital({}, RO));
 pathTable('Real option, climate volatility off (rate channel only)', withCapital({}, { ...RO, climateVolatilitySensitivity: 0 }));
 
 out('## 2. Climate-volatility sensitivity (real-option rule)');
@@ -84,7 +86,38 @@ for (const k of [0, 1.5, 3, 6]) {
 }
 out('');
 
-out('## 3. Rate channel: a permanent +2pp safe-rate shock (neutralSafeRate 1% -> 3%)');
+out('## 3. Shape of risk: upside vs downside at equal variance (real-option rule)');
+out('');
+out('| businessUpsideShare | climateDownsideShare | hurdle 2025 % | hurdle 2100 % | GDP 2050 | GDP 2100 | I/Y 2075 % |');
+out('|---|---|---|---|---|---|---|');
+for (const [up, down] of [[0, 0], [0.75, 0.75], [1, 1], [0, 1], [1, 0]] as const) {
+  // Hold the fitted offset: the shape moves the 2025 hurdle too, so this is
+  // the comparative static a firm would see, not a re-calibrated path
+  const params = withCapital({}, { ...RO, businessUpsideShare: up, climateDownsideShare: down });
+  const { at } = run(params);
+  const s = summary(params);
+  out(`| ${up} | ${down} | ${pct(at(2025).investmentHurdle, 2)} | ${pct(at(2100).investmentHurdle, 2)} | ${f(s.gdp2050, 0)} | ${f(s.gdp2100, 0)} | ${pct(s.iy2075)} |`);
+}
+out('');
+
+out('## 4. Spread channel: what the corporate spread implies (real-option rule)');
+out('');
+out('| change | σ spread | hurdle 2025 % | I/Y 2025 % | GDP 2050 | GDP 2100 |');
+out('|---|---|---|---|---|---|');
+for (const [label, capital] of [
+  ['defaults (creditSpread 2pp, default share 0.5)', {}],
+  ['default share 0.3 (Huang-Huang)', { defaultShareOfSpread: 0.3 }],
+  ['default share 0.7 (Longstaff-Mithal-Neis)', { defaultShareOfSpread: 0.7 }],
+  ['creditSpread 3pp', { creditSpread: 0.03 }],
+] as const) {
+  const params = withCapital({}, { ...RO, ...capital });
+  const { at } = run(params);
+  const s = summary(params);
+  out(`| ${label} | ${f(at(2025).spreadImpliedVolatility, 3)} | ${pct(at(2025).investmentHurdle, 2)} | ${pct(at(2025).investment / at(2025).gdp)} | ${f(s.gdp2050, 0)} | ${f(s.gdp2100, 0)} |`);
+}
+out('');
+
+out('## 5. Rate channel: a permanent +2pp safe-rate shock (neutralSafeRate 1% -> 3%)');
 out('');
 out('| rule | GDP 2050 | GDP 2100 | I/Y 2075 % | K/Y 2100 | GDP 2100 vs no shock |');
 out('|---|---|---|---|---|---|');
@@ -99,7 +132,7 @@ for (const [label, capital] of [
 }
 out('');
 
-out('## 4. Scenarios: GDP 2100 and warming, legacy vs real option');
+out('## 6. Scenarios: GDP 2100 and warming, legacy vs real option');
 out('');
 out('| scenario | GDP 2100 legacy | GDP 2100 RO | Δ % | warming legacy | warming RO |');
 out('|---|---|---|---|---|---|');

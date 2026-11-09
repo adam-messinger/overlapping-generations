@@ -429,11 +429,13 @@ the human-capital ledger (including its replacement-cost re-pricing).
   does not constrain lending (reporting, not a feedback)
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
 - **Real-option investment (opt-in prototype)**: `capital.realOptionHurdleWeight` 1 replaces the order rule's
-  after-interest profit signal with gross yield less a Dixit-Pindyck hurdle that depends on the safe rate +
-  `investmentEquityPremium` AND anticipated volatility (`investmentVolatility` 0.20 plus
-  `climateVolatilitySensitivity` x damages, judgment), plus a fitted `realOptionHurdleOffset` that holds the default
-  2025 at the legacy signal (re-fit if hurdle defaults or the 2025 calibration move). Default 0 is bit-identical.
-  Volatility, not the rate, is what moves the path (default 2100 GDP −8%, climate-cascade −36%); see
+  after-interest profit signal with gross yield less a Dixit-Pindyck hurdle (compensated jump-diffusion) that
+  depends on the safe rate + `investmentEquityPremium` AND anticipated volatility: business σ Merton-inverted from
+  the default part of `creditSpread` at target leverage (0.25 in 2025; `defaultShareOfSpread` 0.5 spans the
+  credit-spread puzzle, 0.3-0.7), mostly upside jumps, plus `climateVolatilitySensitivity` x damages (judgment),
+  mostly downside jumps. A fitted `realOptionHurdleOffset` holds the default 2025 at the legacy signal (re-fit if
+  hurdle defaults or the 2025 calibration move). Default 0 is bit-identical. Volatility magnitude moves the path
+  (default 2100 GDP −6%, climate-cascade −35%); its upside/downside shape barely does (±1%); see
   `docs/REAL_OPTION_INVESTMENT.md` and `scripts/real-option-investment.ts`
 - Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings
