@@ -1,0 +1,34 @@
+# Seat E3-signals (sovereign-debt-fiscal, lens: signals)
+
+**BLUF.** Telemetry at the origin shows bond markets repricing sovereign debt (US 10-year 5.3% and 30-year 5.7% in early October 2026, the Fed hiking again) and no observable sign of a 1.5%-of-GDP climate fiscal drag or a 2%-of-GDP automation tax. I put advanced-economy debt at 134% of GDP in 2045, and Q3 and Q4 at 5% or less.
+
+## Reasoning (signals only)
+
+**C3.** The IMF Fiscal Affairs deck on the October 2026 Fiscal Monitor (27 Oct 2026, https://www.suerf.org/wp-content/uploads/2026/09/Davide-Furceri-Fiscal-Monitor.pdf) says "Global deficits stay near 5% of GDP and debt is on track to exceed 100% of GDP" and "r–g is much less favorable than in recent years and set to rise". Caveat on the r–g chart: "Lines: unweighted cross-country medians; bands: interquartile ranges ... coverage: 35 AEs"; the advanced-economy median stays below zero through 2029. US gross debt reaches 142% by 2031 (IMF April 2026 executive summary, https://www.imf.org/-/media/files/publications/fiscal-monitor/2026/april/english/execsum.pdf). CBO's baseline has debt held by the public at 101% (2026), 120% (2036), 175% (2056), and 222% in 2056 under higher rates (https://www.cbo.gov/publication/62758 returned 403; read via https://www.crfb.org/blogs/debt-rises-175-gdp-under-cbos-long-term-outlook and a search summary). The IMF's slope (110.1 to 115.2 over six years) extrapolates to about 127; the US path and upward revisions (114.8 in April, 115.2 in October for 2031) lift my median to 134. Offset: 2026 global inflation of 4.7% erodes ratios, a "temporary increase driven mainly by energy and food prices" (https://www.imf.org/-/media/files/publications/weo/2026/october/english/execsum.pdf).
+
+**Q3.** The only official multi-country figure found is the IMF Departmental Paper chart in the same deck: advanced-economy climate spending of roughly 0.15-0.2% of GDP a year over 2025-45 (bar-chart read, approximate), against about 2.0 for pensions plus health. Caveat verbatim: "Average annual spending increases relative to 2024, across years and economies in each group; source estimates cover 194 economies. Climate: adaptation investment." Limb (i) only. Swiss Re: first-half 2026 economic losses near $100B, insured $42B, the "lowest first-half outcome since 2020" (https://www.swissre.com/institute/research/topics-and-risk-dialogues/climate-and-natural-catastrophe-risk/first-half-2026-insured-catastrophe-losses.html); caveat: "58% of global insured natural catastrophe losses occur during the second half". Secondary coverage of the OBR's 2025 report: damage adds "2.0 per cent of GDP to primary borrowing by the early 2070s" near 3°C; OBR, 2026: "The scenarios should, therefore, not be seen as forecasts" (https://obr.uk/frs/fiscal-risks-and-sustainability-july-2026/). Nothing observed reaches 1.5% by 2040-45.
+
+**Q4.** (a) H.R. 10044 was introduced on 6 Aug 2026 (https://www.govinfo.gov/app/details/BILLS-119hr10044ih). The Tax Policy Center (27 Oct 2026, https://taxpolicycenter.org/briefs/taxing-artificial-intelligence) rates an automation tax "Hardest. Base is undefined"; caveat: "Analysis in this piece may not precisely reflect the details of examples given here." No proposal carries a score near 2% of GDP. (b) The IMF deck: "Debt buyback delivered only short-lived relief". Central banks are tightening: the Fed raised 25 bp in September, its first rise since 2023 (https://tradingeconomics.com/united-states/government-bond-yield/news/590184). Debt gate: Japan passes now, the US around 2031, Italy (137.9%) sits just under. I price Japan 35%, the US 17%; a third country needs an ECB country-specific number.
+
+**C2/Q2.** HLW composite 0.73 at 2026Q2; next release 27 Nov (https://www.newyorkfed.org/research/policy/rstar). Markets point higher: "G7 average 10-year yield at highest level in nearly two decades". US forward-rate sensitivity to projected debt is about 0.07 (chart read; "US data, rolling windows of 40 observations"; the 90% band is roughly 0.02-0.12 in 2026 and spanned zero in most windows before 2019). HLW filters slowly and the euro area (0.09) carries 34%.
+
+**C1/Q1.** WTO, 8 Oct 2026 (https://www.wto.org/english/news_e/news26_e/stat_08oct26_510_e.htm): volume 3.9% and 4.1% against GDP 2.6% and 2.9%, an elasticity near 1.45, but AI-enabling goods supplied 47% of first-half growth (+67% y/y), and the IMF warns a reassessment of AI profitability "could sharply reduce investment". A front-loaded boom, then 0.9, gives 0.95. P(E<0.75) 14%; P(share>42% given that) 0.6, mildly positive correlation.
+
+**C4/Q5/Q6.** IMF: the medium-term outlook "remains lackluster by historical standards and uneven across countries". China's slowing puts 2026-35 near 2.45 and g near 2.15; P(g>=2.5) 28%. WTO: Europe's exports -0.1%, Asia's +9.9%. Q5: P(US+China>50) 11% times P(EU<11.5 given that) 0.6. Q6-C: G7 credit event 10% (UK 10-year near 5.4%, "Tests ahead of 2027 elections in France and Italy"), stagflation limb 2%.
+
+## Resolution audit
+
+Re-verified: US 10-year 5.32% and 30-year 5.70% on 7 Oct 2026, "levels last seen in 2002" (Trading Economics, secondary), easing to 4.888% on 4 Nov (https://www.morningstar.com/news/dow-jones/2026110412325/treasury-yields-down-following-democrats-midterm-win-3rd-update); the "110 bp since late February" clause was not checked. US 142% by 2031 is primary (April 2026 executive summary). The 115.2% (2031), Italy 137.9% (2026), France 123.6% (2031), US 145% and Japan 188.9% figures rest on one press article (https://greekcitytimes.com/2026/10/14/imf-forecasts-greek-public-debt-to-fall-to-111-1-of-gdp/), which gives no year for the US and Japan numbers and credits the WEO database; I could not open the October 2026 Fiscal Monitor tables, so those rows stay (S). The advanced-economy row mixes vintages (2026 from October 2025, 2031 from October 2026). FEMA's $57.9B and the Swiss Re 2024-2025 totals were not re-verified. Resolvers that cannot be read as written: Q3 does not say whether "attributable" is measured against a no-warming counterfactual or a base year (the IMF figure above is relative to 2024, covers adaptation investment only, the advanced-economy group and 2025-45), so the nearest official estimate cannot resolve it. Q4(b) does not fix which IMF vintage tests the 140% gate (decisive for Italy at 137.9%), nor whether a euro-area-wide numerical cap counts "with respect to that country's government bonds". Q6-C would miss a euro-area G7 member rescued by the ESM alone.
+
+```json
+{"c1": {"p10": 0.70, "p50": 0.95, "p90": 1.20},
+ "q1": 8,
+ "c2": {"p10": 0.45, "p50": 1.10, "p90": 2.05},
+ "q2": 11,
+ "c3": {"p10": 114, "p50": 134, "p90": 160},
+ "q3": 3,
+ "q4": 5,
+ "c4": {"p10": 1.6, "p50": 2.3, "p90": 3.0},
+ "q5": 6,
+ "q6": {"A": 26, "B": 62, "C": 12}}
+```
