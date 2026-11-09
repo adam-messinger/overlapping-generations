@@ -159,6 +159,9 @@ export interface YearResult {
   unpaidPrivateInterest: number;
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
+  investmentSignal: number;
+  investmentHurdle: number;
+  investmentVolatility: number;
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;

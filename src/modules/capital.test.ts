@@ -5,7 +5,8 @@
  * Validates against Penn World Table and OLG theory.
  */
 
-import { capitalModule, capitalDefaults } from './capital.js';
+import { capitalModule, capitalDefaults, realOptionHurdle } from './capital.js';
+import { runSimulation } from '../simulation.js';
 import { firmDepositChange } from './capital-accounting.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
 import { demandModule, demandDefaults } from './demand.js';
@@ -1428,6 +1429,82 @@ test('automation depreciation rates default to demand\'s replacement rates and a
   expect(capitalModule.validate({ robotCapitalDepreciation: 0 }).valid).toBe(false);
   expect(capitalModule.validate({ dataCenterCapitalDepreciation: 1.5 }).valid).toBe(false);
   expect(capitalModule.validate({ dataCenterCapitalDepreciation: 0.2 }).valid).toBe(true);
+});
+
+// =============================================================================
+// REAL-OPTION INVESTMENT HURDLE (prototype, realOptionHurdleWeight)
+// =============================================================================
+
+test('realOptionHurdle reproduces Dixit-Pindyck: beta = 2 at r = 4%, no drift, sigma = 0.2', () => {
+  // beta = 1/2 + sqrt(1/4 + 2(0.04)/0.04) = 2, so V*/I = 2 and the yield hurdle is 2 x 4%
+  expect(realOptionHurdle(0.04, 0, 0.2)).toBeCloseTo(0.08, 12);
+});
+
+test('realOptionHurdle tends to the Jorgenson user cost as volatility vanishes', () => {
+  // With a decaying unit (drift = -delta) the deterministic hurdle is r + delta
+  expect(realOptionHurdle(0.06, -0.04, 0)).toBeCloseTo(0.10, 12);
+  expect(realOptionHurdle(0.06, -0.04, 0.001)).toBeCloseTo(0.10, 4);
+});
+
+test('realOptionHurdle rises with volatility, and the markup is larger at low rates', () => {
+  const markup = (r: number, sigma: number) =>
+    realOptionHurdle(r, -0.04, sigma) / realOptionHurdle(r, -0.04, 0);
+  expect(realOptionHurdle(0.06, -0.04, 0.3)).toBeGreaterThan(realOptionHurdle(0.06, -0.04, 0.2));
+  expect(markup(0.03, 0.2)).toBeGreaterThan(markup(0.09, 0.2));
+  // And with the rate: a higher discount rate raises the hurdle
+  expect(realOptionHurdle(0.08, -0.04, 0.2)).toBeGreaterThan(realOptionHurdle(0.06, -0.04, 0.2));
+});
+
+function stepYearZero(overrides: Record<string, number>) {
+  const params = capitalModule.mergeParams(overrides as any);
+  const state = capitalModule.init(params);
+  return capitalModule.step(state, getCapitalInputs(0) as any, params, 2025, 0).outputs;
+}
+
+test('real-option weight 0 leaves investment blind to the hurdle inputs', () => {
+  const base = stepYearZero({});
+  const volatile = stepYearZero({ investmentVolatility: 0.35, investmentEquityPremium: 0.08 });
+  expect(volatile.plannedInvestment).toBe(base.plannedInvestment);
+  expect(volatile.investmentSignal).toBe(volatile.profitRate);
+  // The hurdle itself is still reported
+  expect(volatile.investmentHurdle).toBeGreaterThan(base.investmentHurdle);
+});
+
+test('real-option rule: more anticipated volatility cuts desired investment', () => {
+  const calm = stepYearZero({ realOptionHurdleWeight: 1 });
+  const volatile = stepYearZero({ realOptionHurdleWeight: 1, investmentVolatility: 0.30 });
+  expect(volatile.investmentHurdle).toBeGreaterThan(calm.investmentHurdle);
+  expect(volatile.plannedInvestment).toBeLessThan(calm.plannedInvestment);
+});
+
+test('real-option rule prices a higher safe rate into investment more strongly than the interest bill', () => {
+  const drop = (weight: number) => {
+    const base = stepYearZero({ realOptionHurdleWeight: weight });
+    const tight = stepYearZero({ realOptionHurdleWeight: weight, neutralSafeRate: 0.03 });
+    return base.investmentSignal - tight.investmentSignal;
+  };
+  expect(drop(0)).toBeGreaterThan(0);
+  expect(drop(1)).toBeGreaterThan(2 * drop(0));
+});
+
+test('realOptionHurdleOffset is fitted: the default 2025 signal equals the legacy profit rate', () => {
+  // Re-fit realOptionHurdleOffset when this fails: the hurdle defaults,
+  // depreciation, or the 2025 debt/rate calibration moved.
+  const opts = { diagnostics: false, paramLiveness: 'off', connectorValidation: 'off' } as const;
+  const legacy = runSimulation({ endYear: 2025 }, opts).results[0];
+  const realOption = runSimulation(
+    { endYear: 2025, capital: { realOptionHurdleWeight: 1 } }, opts,
+  ).results[0];
+  expect(Math.abs(realOption.investmentSignal - legacy.profitRate)).toBeLessThan(2e-4);
+  expect(Math.abs(realOption.investment / legacy.investment - 1)).toBeLessThan(0.005);
+});
+
+test('real-option params are validated', () => {
+  expect(capitalModule.validate({ realOptionHurdleWeight: 1.5 }).valid).toBe(false);
+  expect(capitalModule.validate({ investmentEquityPremium: 0 }).valid).toBe(false);
+  expect(capitalModule.validate({ investmentVolatility: -0.1 }).valid).toBe(false);
+  expect(capitalModule.validate({ climateVolatilitySensitivity: -1 }).valid).toBe(false);
+  expect(capitalModule.validate({ realOptionHurdleWeight: 1, investmentVolatility: 0.3 }).valid).toBe(true);
 });
 
 printSummary();

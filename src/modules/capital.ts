@@ -95,6 +95,11 @@ export interface CapitalParams {
   investmentProfitRateFloor: number; // Profit rate below which only replacement is ordered
   investmentProfitRateCeiling: number; // Profit rate at which net investment response saturates
   maximumNetInvestmentRate: number; // Maximum desired net investment / capital
+  realOptionHurdleWeight: number; // 0 = after-interest profit signal; 1 = real-option hurdle (see realOptionHurdle)
+  investmentEquityPremium: number; // Hurdle discount rate over the safe rate
+  investmentVolatility: number; // Anticipated volatility of project value with no climate damage (σ)
+  climateVolatilitySensitivity: number; // σ added per unit of climate damages (fraction of GDP)
+  realOptionHurdleOffset: number; // Fitted: gross return less hurdle plus this = the 2025 legacy profit rate
   robotCapitalDepreciation: number; // Robot capital depreciation (derived from demand.robotDepreciation)
   dataCenterCapitalDepreciation: number; // Datacenter capital depreciation (derived from demand.dataCenterDepreciation)
 
@@ -254,6 +259,12 @@ export interface CapitalOutputs {
   unpaidPrivateInterest: number; // $T/year of interest due that firms could not pay (forgone by banks)
   profitAfterInterestAndDepreciation: number;
   profitRate: number;
+  /** Profit rate the investment response reads: profitRate under the legacy rule, moved by the hurdle under real options */
+  investmentSignal: number;
+  /** Real-option gross-yield hurdle on new general capital (reported whatever realOptionHurdleWeight is) */
+  investmentHurdle: number;
+  /** Anticipated volatility of project value the hurdle prices */
+  investmentVolatility: number;
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;
@@ -383,6 +394,31 @@ export const capitalDefaults: CapitalParams = {
   investmentProfitRateFloor: 0,
   investmentProfitRateCeiling: 0.048,
   maximumNetInvestmentRate: 0.038,
+  // Real-option investment (prototype, off by default). 1 swaps the
+  // after-interest profit signal for the gross yield on general capital less
+  // a Dixit-Pindyck hurdle, plus a fitted offset (see realOptionHurdle).
+  realOptionHurdleWeight: 0,
+  // Real hurdle discount rate = safe rate + this. Implied equity risk premium
+  // ~4-5% (Damodaran, S&P 500 implied ERP 2020-2025); survey-based ~5.5%
+  // (Fernandez et al. 2024, US). realOptionHurdleOffset is fitted at it.
+  investmentEquityPremium: 0.05,
+  // Anticipated volatility of project value. Dixit & Pindyck (1994, ch. 5)
+  // illustrate with sigma = 0.2; long-run annualised S&P 500 return
+  // volatility is ~0.19 (Damodaran historical returns 1928-2024).
+  investmentVolatility: 0.20,
+  // Judgment: at the default path's 2100 damages (~7% of GDP) climate adds
+  // about as much anticipated volatility as everything else (3 x 0.068 = 0.20).
+  // No estimate exists to calibrate it; a sweep lever, not a finding.
+  climateVolatilitySensitivity: 3,
+  // Fitted, not sourced: makes the real-option signal equal the legacy
+  // after-interest profit rate in the default 2025 (3.87%), so the S-curve's
+  // floor and ceiling and the 25.2% investment rate carry over unchanged.
+  // It is the wedge between the 2025 hurdle (13.6%) and the gross return on
+  // general capital (9.3%) that observed investment implies firms see past:
+  // rents and markups (Caballero, Farhi & Gourinchas 2017), which the model
+  // does not carry. Re-fit when the hurdle's defaults, depreciation, or the
+  // 2025 debt or rate calibration move (pinned in capital.test.ts).
+  realOptionHurdleOffset: 0.0825,
   // Robot and datacenter capital wear out at the rates demand's capex
   // replaces them at (one source of truth: src/param-derivations.ts).
   robotCapitalDepreciation: demandDefaults.robotDepreciation,
@@ -676,6 +712,29 @@ function calculateStability(uncertainty: number, lambda: number): number {
   return 1 / (1 + lambda * uncertainty * uncertainty);
 }
 
+/**
+ * Real-option gross-yield hurdle on an irreversible unit of capital
+ * (Dixit & Pindyck 1994, ch. 5-6; McDonald & Siegel 1986): invest only when
+ * the cash yield pi/I clears
+ *
+ *   h = (r - drift) * beta / (beta - 1),
+ *   beta = 1/2 - drift/sigma^2 + sqrt((drift/sigma^2 - 1/2)^2 + 2r/sigma^2)
+ *
+ * where r is the discount rate, drift the expected growth of the unit's cash
+ * flow (here minus depreciation: a unit wears out while the return per unit
+ * of capital is flat on a balanced path) and sigma its volatility. As sigma
+ * -> 0 with drift <= 0 the multiple goes to 1 and h is Jorgenson's user cost
+ * r + delta; volatility marks it up, more so when r is low (waiting is cheap).
+ */
+export function realOptionHurdle(discountRate: number, drift: number, volatility: number): number {
+  const r = Math.max(1e-4, discountRate);
+  if (volatility < 1e-6) return Math.max(r, r - drift);
+  const variance = volatility * volatility;
+  const a = drift / variance;
+  const beta = 0.5 - a + Math.sqrt((a - 0.5) * (a - 0.5) + 2 * r / variance);
+  return (r - drift) * beta / (beta - 1);
+}
+
 interface FirmCircuit {
   laborCompensation: number;
   operatingSurplus: number;
@@ -686,6 +745,8 @@ interface FirmCircuit {
   profitAfterInterestAndDepreciation: number;
   /** General capital's own profit rate (the automation return excluded) */
   profitRate: number;
+  /** The profit rate the order rule reads: profitRate + signalAdjustment */
+  investmentSignal: number;
   retainedEarnings: number;
   firmDividendPayments: number;
   firmGrossSaving: number;
@@ -714,6 +775,7 @@ function calculateFirmCircuit(
   params: CapitalParams,
   automationLaborShareChange = 0,
   automationDepreciation = 0,
+  signalAdjustment = 0,
 ): FirmCircuit {
   const marketOutput = Math.max(0, gdp - governmentServiceConsumption);
   // Labor's (1 - alpha) is split between people and machine worker-
@@ -753,9 +815,10 @@ function calculateFirmCircuit(
     Number.EPSILON,
     params.investmentProfitRateCeiling - params.investmentProfitRateFloor,
   );
+  const investmentSignal = profitRate + signalAdjustment;
   const normalizedProfit = Math.max(0, Math.min(
     1,
-    (profitRate - params.investmentProfitRateFloor) / responseWidth,
+    (investmentSignal - params.investmentProfitRateFloor) / responseWidth,
   ));
   const smoothProfitSignal =
     normalizedProfit * normalizedProfit * (3 - 2 * normalizedProfit);
@@ -773,6 +836,7 @@ function calculateFirmCircuit(
     generalDepreciation,
     profitAfterInterestAndDepreciation,
     profitRate,
+    investmentSignal,
     retainedEarnings,
     firmDividendPayments,
     firmGrossSaving,
@@ -908,6 +972,36 @@ export const capitalModule: Module<
       unit: 'fraction/year',
       range: { min: 0, max: 0.20, default: 0.038 },
       tier: 1 as const,
+    },
+    realOptionHurdleWeight: {
+      description: 'Prototype. 0 = investment responds to the after-interest profit rate (legacy). 1 = it responds to the gross yield on general capital less a Dixit-Pindyck real-option hurdle priced at the safe rate + investmentEquityPremium and the anticipated volatility (plus a fitted offset), instead of to the legacy interest bill; the uncertainty damper fades out. Intermediate values blend linearly.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0 },
+      tier: 2 as const,
+    },
+    investmentEquityPremium: {
+      description: 'Real-option hurdle discount rate over the safe rate (equity risk premium).',
+      unit: 'fraction',
+      range: { min: 0.02, max: 0.10, default: 0.05 },
+      tier: 2 as const,
+    },
+    investmentVolatility: {
+      description: 'Anticipated volatility of project value with no climate damage (sigma), priced by the real-option hurdle.',
+      unit: 'fraction/year',
+      range: { min: 0.05, max: 0.40, default: 0.20 },
+      tier: 2 as const,
+    },
+    realOptionHurdleOffset: {
+      description: 'Fitted constant: the real-option signal (gross yield on general capital less the hurdle, plus this) equals the legacy after-interest profit rate in the default 2025. Re-fit when the hurdle defaults or the 2025 calibration move.',
+      unit: 'fraction/year',
+      range: { min: 0, max: 0.20, default: 0.0825 },
+      tier: 2 as const,
+    },
+    climateVolatilitySensitivity: {
+      description: 'Anticipated volatility added per unit of climate damages (fraction of GDP), combined with investmentVolatility in quadrature. Judgment.',
+      unit: 'ratio',
+      range: { min: 0, max: 6, default: 3 },
+      tier: 2 as const,
     },
     savingsWorking: {
       paramName: 'savingsRateWorking',
@@ -1082,6 +1176,9 @@ export const capitalModule: Module<
       privateInterestPayments: unitPort('$T/year'),
       profitAfterInterestAndDepreciation: unitPort('$T/year'),
       profitRate: unitPort('fraction/year'),
+      investmentSignal: unitPort('fraction/year'),
+      investmentHurdle: unitPort('fraction/year'),
+      investmentVolatility: unitPort('fraction/year'),
       retainedEarnings: unitPort('$T/year'),
       firmDividendPayments: unitPort('$T/year'),
       bankDividendPayments: unitPort('$T/year'),
@@ -1196,6 +1293,30 @@ export const capitalModule: Module<
       )
     ) {
       errors.push('maximumNetInvestmentRate must be between 0 and 0.20');
+    }
+    if (
+      params.realOptionHurdleWeight !== undefined
+      && !(params.realOptionHurdleWeight >= 0 && params.realOptionHurdleWeight <= 1)
+    ) {
+      errors.push('realOptionHurdleWeight must be between 0 and 1');
+    }
+    if (
+      params.investmentEquityPremium !== undefined
+      && !(params.investmentEquityPremium > 0 && params.investmentEquityPremium <= 0.20)
+    ) {
+      errors.push('investmentEquityPremium must be in (0, 0.20]');
+    }
+    if (
+      params.investmentVolatility !== undefined
+      && !(params.investmentVolatility >= 0 && params.investmentVolatility <= 1)
+    ) {
+      errors.push('investmentVolatility must be between 0 and 1');
+    }
+    if (
+      params.climateVolatilitySensitivity !== undefined
+      && !(params.climateVolatilitySensitivity >= 0 && params.climateVolatilitySensitivity <= 20)
+    ) {
+      errors.push('climateVolatilitySensitivity must be between 0 and 20');
     }
     const profitFloor =
       params.investmentProfitRateFloor
@@ -1500,7 +1621,24 @@ export const capitalModule: Module<
 
     // Calculate stability factor from damages (if provided)
     const uncertainty = inputs.damages ?? 0;
-    const stability = calculateStability(uncertainty, params.stabilityLambda);
+    // Under the real-option rule, climate uncertainty reaches investment
+    // through the volatility the hurdle prices, so the ad-hoc damper fades
+    // out as realOptionHurdleWeight goes to 1 (no double count).
+    const stability = Math.pow(
+      calculateStability(uncertainty, params.stabilityLambda),
+      1 - params.realOptionHurdleWeight,
+    );
+    // Real-option hurdle on new general capital. Volatility combines the
+    // no-damage base with a climate term in quadrature (independent sources).
+    const investmentVolatility = Math.sqrt(
+      params.investmentVolatility ** 2
+      + (params.climateVolatilitySensitivity * Math.max(0, uncertainty)) ** 2,
+    );
+    const hurdleAt = (safeRate: number) => realOptionHurdle(
+      safeRate + params.investmentEquityPremium,
+      -params.depreciation,
+      investmentVolatility,
+    );
 
     // ==========================================================================
     // Intergenerational fiscal flows, with retirement-age adjustment and wage
@@ -1773,17 +1911,37 @@ export const capitalModule: Module<
       },
       params,
     );
-    const runFirmCircuit = (privateInterest: number) => calculateFirmCircuit(
-      inputs.gdp,
-      governmentServiceConsumption,
-      state.stock,
-      privateInterest,
-      stability,
-      netEnergyFactor,
-      params,
-      automationLaborShareChange,
-      automationDepreciation,
-    );
+    // Real-option signal. The order rule reads the after-interest profit
+    // rate; a real-option firm prices a NEW project at the forward cost of
+    // capital and anticipated volatility, not at the interest bill on legacy
+    // debt (that still binds through internal funds and credit). So, as the
+    // weight goes to 1, the signal becomes the gross yield on general capital
+    // (before interest and depreciation) less the hurdle, plus a fitted
+    // offset. Calibrated at the defaults, not anchored in state: a run with a
+    // higher rate or volatility invests less from 2025 on, as the theory says.
+    const interestPerCapital = (privateInterest: number) =>
+      state.stock > 0 ? privateInterest / state.stock : 0;
+    const runFirmCircuit = (
+      privateInterest: number,
+      safeRate: number,
+    ) => {
+      const signalAdjustment = params.realOptionHurdleWeight * (
+        interestPerCapital(privateInterest) + params.depreciation
+        - hurdleAt(safeRate) + params.realOptionHurdleOffset
+      );
+      return calculateFirmCircuit(
+        inputs.gdp,
+        governmentServiceConsumption,
+        state.stock,
+        privateInterest,
+        stability,
+        netEnergyFactor,
+        params,
+        automationLaborShareChange,
+        automationDepreciation,
+        signalAdjustment,
+      );
+    };
     // Debt left at year end if firms took no new credit and repaid nothing
     // early (scheduled runoff and write-offs only); independent of the plan.
     let plan: FinancingPlan = {
@@ -1815,7 +1973,7 @@ export const capitalModule: Module<
         leverageBorrowing,
       };
     };
-    let firmCircuit = runFirmCircuit(finance.privateInterestPayments);
+    let firmCircuit = runFirmCircuit(finance.privateInterestPayments, finance.safeRate);
     for (let iteration = 0; iteration < 12; iteration++) {
       const next = planFinancing(firmCircuit);
       const converged =
@@ -1826,12 +1984,12 @@ export const capitalModule: Module<
       plan = next;
       if (converged) break;
       finance = runFinance(plan);
-      firmCircuit = runFirmCircuit(finance.privateInterestPayments);
+      firmCircuit = runFirmCircuit(finance.privateInterestPayments, finance.safeRate);
     }
     // One final evaluation associates the financial stocks and flows exactly
     // with the converged financing request.
     finance = runFinance(plan);
-    firmCircuit = runFirmCircuit(finance.privateInterestPayments);
+    firmCircuit = runFirmCircuit(finance.privateInterestPayments, finance.safeRate);
     // Credit beyond the investment gap is a leverage recapitalization: it is
     // paid out to owners with the firm's other surplus cash below.
     const leverageRecapBorrowing = Math.max(
@@ -2182,6 +2340,9 @@ export const capitalModule: Module<
         profitAfterInterestAndDepreciation:
           firmCircuit.profitAfterInterestAndDepreciation,
         profitRate: firmCircuit.profitRate,
+        investmentSignal: firmCircuit.investmentSignal,
+        investmentHurdle: hurdleAt(finance.safeRate),
+        investmentVolatility,
         retainedEarnings,
         firmDividendPayments,
         bankDividendPayments,
