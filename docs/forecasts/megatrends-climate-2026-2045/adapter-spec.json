@@ -1,0 +1,72 @@
+{
+  "title": "Five megatrends incl. physical climate change, 2026-2045",
+  "scenarios": ["baseline", "net-zero", "high-sensitivity", "climate-cascade", "ai-energy-boom", "automation-boom", "tech-stagnation", "ssp3-70", "debt-populism", "un-wpp-medium"],
+  "disclosures": [
+    "CLIMATE: damages are a DICE-2023 / Howard-Sterner quadratic OUTPUT loss with regional multipliers (plus a tipping-point term in climate-cascade). The model has no public budget line for adaptation, disaster relief or insurance backstops, no insurance sector and no property market. Q3's fiscal quantity is therefore NOT in the model; only the size of the output loss is.",
+    "COVERAGE (C4, Q6 growth leg): OECD-38 + China is read as us + oecd-ex-us + china. The region tables are calibrated to OECD aggregates, but the nine-region split cannot reproduce OECD-38 membership exactly; treat the reading as an OECD-core + China aggregate.",
+    "PER CAPITA: the adapter reports GDP and population growth separately. Per-capita growth = (1 + g_GDP) / (1 + g_pop) - 1.",
+    "Q5 is NOMINAL USD and names EU-27. The model's market-rate GDP is at CONSTANT 2025 prices and exchange rates (it understates converging economies), and EU-27 is not a model region (oecd-ex-us also holds Japan, UK, Canada, Korea, Mexico, Turkiye, Australia). Only the real-growth leg of the US + China share is readable, and only directionally.",
+    "C2/Q2: the model's safe rate is a WORLD real rate on public debt under an HLW-type closure (r* = c x trend growth + z, plus a public-debt term, less any repression). It is not the NY Fed HLW estimate for the US, euro area or Canada and has no short-vs-long distinction. Use the sign and size of changes across runs."
+  ],
+  "questions": [
+    { "id": "c1", "status": "refused", "label": "World trade/GDP volume elasticity 2026-2045",
+      "reason": "no trade block: the macro model has no exports, imports, tariffs, shipping or exchange rates" },
+    { "id": "q1", "status": "refused", "label": "Elasticity < 0.75 and digital + minerals share > 42%",
+      "reason": "no trade block and no nominal trade values by product" },
+    { "id": "c2", "status": "directional", "label": "G7 short-term neutral real rate, 2036-2045 average",
+      "note": "world real safe rate under an HLW-type closure; changes across runs only, never the level",
+      "readings": [
+        { "label": "world real safe rate 2026, %", "field": "safeRate", "transform": "level", "year": 2026, "scale": 100 },
+        { "label": "world real safe rate, mean 2036-2045, %", "field": "safeRate", "transform": "mean", "from": 2036, "to": 2045, "scale": 100 },
+        { "label": "repression gap, mean 2036-2045, pp", "field": "repressionGap", "transform": "mean", "from": 2036, "to": 2045, "scale": 100 },
+        { "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)", "field": "gdp", "transform": "cagr", "from": 2035, "to": 2045 }
+      ] },
+    { "id": "q2", "status": "directional", "label": "G7 neutral real rate >= 2.00%, 2036-2045",
+      "note": "same reading as C2; the 2.00% threshold is on the NY Fed HLW composite, which the model does not produce",
+      "readings": [
+        { "label": "change in world real safe rate, 2026 -> 2040, pp", "field": "safeRate", "transform": "delta", "from": 2026, "to": 2040, "scale": 100 }
+      ] },
+    { "id": "c3", "status": "directional", "label": "IMF advanced-economy gross public debt 2045, % GDP",
+      "note": "WORLD public debt / world GDP at market exchange rates under an exogenous primary deficit; sign and size of the change only",
+      "readings": [
+        { "label": "world public debt / GDP 2026, %", "field": "publicDebtGDP", "transform": "level", "year": 2026, "scale": 100 },
+        { "label": "world public debt / GDP 2045, %", "field": "publicDebtGDP", "transform": "level", "year": 2045, "scale": 100 },
+        { "label": "change 2026 -> 2045, pp", "field": "publicDebtGDP", "transform": "delta", "from": 2026, "to": 2045, "scale": 100 }
+      ] },
+    { "id": "q3", "status": "directional", "label": "G7 on-budget climate fiscal cost >= 1.5% GDP/yr, 2040-2045",
+      "note": "GLOBAL climate damage as a share of GDP is an OUTPUT loss, not a public outlay, and is world not G7; it bounds the scale of the problem, nothing more",
+      "readings": [
+        { "label": "global climate damage, mean 2040-2045, % of GDP", "field": "damages", "transform": "mean", "from": 2040, "to": 2045, "scale": 100 },
+        { "label": "global climate damage 2026, % of GDP", "field": "damages", "transform": "level", "year": 2026, "scale": 100 },
+        { "label": "warming 2045, C above preindustrial", "field": "temperature", "transform": "level", "year": 2045 }
+      ] },
+    { "id": "q4", "status": "refused", "label": ">= 3 G7 countries: robot/compute tax >= 2% GDP or formal YCC",
+      "reason": "legislative and central-bank enactments; the model's repression rule is an assumption about a world aggregate, not evidence about any G7 country" },
+    { "id": "c4", "status": "identified", "label": "OECD + China real GDP per capita CAGR 2025->2045",
+      "note": "growth rates are deflator-invariant; conditional on the run, on the us + oecd-ex-us + china proxy and on the model's low-fertility demography; per capita = (1+g_GDP)/(1+g_pop) - 1",
+      "readings": [
+        { "label": "OECD+China real GDP growth 2025->2045, %/yr", "field": "regionalGdp", "regions": ["us", "oecd-ex-us", "china"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "OECD+China population growth 2025->2045, %/yr", "field": "regionalPopulation", "regions": ["us", "oecd-ex-us", "china"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "US real GDP growth 2025->2045, %/yr", "field": "regionalGdp", "regions": ["us"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "US population growth 2025->2045, %/yr", "field": "regionalPopulation", "regions": ["us"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "OECD ex-US real GDP growth 2025->2045, %/yr", "field": "regionalGdp", "regions": ["oecd-ex-us"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "OECD ex-US population growth 2025->2045, %/yr", "field": "regionalPopulation", "regions": ["oecd-ex-us"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "China real GDP growth 2025->2045, %/yr", "field": "regionalGdp", "regions": ["china"], "transform": "cagr", "from": 2025, "to": 2045 },
+        { "label": "China population growth 2025->2045, %/yr", "field": "regionalPopulation", "regions": ["china"], "transform": "cagr", "from": 2025, "to": 2045 }
+      ] },
+    { "id": "q5", "status": "directional", "label": "US + China > 50% and EU-27 < 11.5% of world nominal GDP, 2045",
+      "note": "constant-2025-price market-rate shares: the real-growth leg only, no prices or exchange rates; EU-27 is not a model region",
+      "readings": [
+        { "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %", "field": "regionalGdpMarket", "regions": ["us", "china"], "transform": "share", "year": 2026, "scale": 100 },
+        { "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %", "field": "regionalGdpMarket", "regions": ["us", "china"], "transform": "share", "year": 2045, "scale": 100 },
+        { "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)", "field": "regionalGdpMarket", "regions": ["oecd-ex-us"], "transform": "share", "year": 2026, "scale": 100 },
+        { "label": "OECD ex-US share 2045, %", "field": "regionalGdpMarket", "regions": ["oecd-ex-us"], "transform": "share", "year": 2045, "scale": 100 }
+      ] },
+    { "id": "q6", "status": "identified", "label": "2045 regime: growth leg (g, 2035->2045)",
+      "note": "only g (OECD + China real GDP per capita CAGR 2035->2045) is identified; the inflation and sovereign-credit-event legs of regime C are not representable",
+      "readings": [
+        { "label": "OECD+China real GDP growth 2035->2045, %/yr", "field": "regionalGdp", "regions": ["us", "oecd-ex-us", "china"], "transform": "cagr", "from": 2035, "to": 2045 },
+        { "label": "OECD+China population growth 2035->2045, %/yr", "field": "regionalPopulation", "regions": ["us", "oecd-ex-us", "china"], "transform": "cagr", "from": 2035, "to": 2045 }
+      ] }
+  ]
+}

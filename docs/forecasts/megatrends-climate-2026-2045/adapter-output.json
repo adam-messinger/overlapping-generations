@@ -1,0 +1,1849 @@
+{
+  "purpose": "Five megatrends incl. physical climate change, 2026-2045: conditional structural bounds only. identified = quotable conditional on the run; directional = context, never a point estimate.",
+  "adapter_disclosures": [
+    "PPP BASE: regional and world GDP are PPP in 2017 international dollars (world ~$158T in 2025). Growth rates and ratios are invariant to the deflator base; LEVELS are not comparable to market-exchange-rate or nominal-USD figures. A nominal-USD level question is NOT identified.",
+    "DEMOGRAPHY: the default fertility path follows Fernandez-Villaverde & Norrick (2026): world peak ~9.0B in 2054, 2100 ~7.5B (UN WPP Medium: 10.29B in 2084), a deliberate low-fertility choice (CLAUDE.md). Labour-force, dependency and growth readings are conditional on it; scenarios/un-wpp-medium.json gives the UN Medium view.",
+    "RATES: three real rates. capital.interestRate is the return on capital plus the debt premium (~7% in 2025, firms' cost of capital); capital.safeRate (~1%) is paid on public debt and capital.loanRate (~3%) on private bank debt. The safe rate follows trend growth and public debt (Holston-Laubach-Williams; Laubach 2009) and can be held down by financial repression (repressionGap). It is not a policy rate or a market yield. There is no term premium. Use CHANGES, never the level.",
+    "NO TRADE BLOCK: the macro model has no bilateral trade, tariffs, exchange rates or current accounts. Trade-volume and trade-composition questions are not representable; fossil-fuel CONSUMPTION is.",
+    "NO PRICE LEVEL: no CPI/PCE, no nominal anything, no asset prices. Nominal-GDP and inflation questions are not representable.",
+    "LABOUR SHARE: laborShare (world compensation / GDP, ~65% in 2025, not comparable to national-accounts or BLS levels) is endogenous to automation only: robot and AI worker-equivalents' income since 2025 is paid to capital (capital.automationIncomeToCapital). AI cognitive payoff is off by default (production.aiWorkerEquivalentPerTWh = 0), so the default path barely moves it. Use changes across runs.",
+    "FISCAL: public debt follows an exogenous structural primary deficit (capital.publicDeficitRate) plus a borrowed share of ageing costs, less a Bohn fiscal reaction; interest at the safe rate accumulates into the debt. It is a world aggregate, not a US or any single-sovereign fiscal path.",
+    "CLIMATE: damages are a DICE-2023 / Howard-Sterner quadratic OUTPUT loss with regional multipliers (plus a tipping-point term in climate-cascade). The model has no public budget line for adaptation, disaster relief or insurance backstops, no insurance sector and no property market. Q3's fiscal quantity is therefore NOT in the model; only the size of the output loss is.",
+    "COVERAGE (C4, Q6 growth leg): OECD-38 + China is read as us + oecd-ex-us + china. The region tables are calibrated to OECD aggregates, but the nine-region split cannot reproduce OECD-38 membership exactly; treat the reading as an OECD-core + China aggregate.",
+    "PER CAPITA: the adapter reports GDP and population growth separately. Per-capita growth = (1 + g_GDP) / (1 + g_pop) - 1.",
+    "Q5 is NOMINAL USD and names EU-27. The model's market-rate GDP is at CONSTANT 2025 prices and exchange rates (it understates converging economies), and EU-27 is not a model region (oecd-ex-us also holds Japan, UK, Canada, Korea, Mexico, Turkiye, Australia). Only the real-growth leg of the US + China share is readable, and only directionally.",
+    "C2/Q2: the model's safe rate is a WORLD real rate on public debt under an HLW-type closure (r* = c x trend growth + z, plus a public-debt term, less any repression). It is not the NY Fed HLW estimate for the US, euro area or Canada and has no short-vs-long distinction. Use the sign and size of changes across runs."
+  ],
+  "questions": [
+    {
+      "id": "c1",
+      "label": "World trade/GDP volume elasticity 2026-2045",
+      "status": "refused",
+      "refusal": "no trade block: the macro model has no exports, imports, tariffs, shipping or exchange rates"
+    },
+    {
+      "id": "q1",
+      "label": "Elasticity < 0.75 and digital + minerals share > 42%",
+      "status": "refused",
+      "refusal": "no trade block and no nominal trade values by product"
+    },
+    {
+      "id": "c2",
+      "label": "G7 short-term neutral real rate, 2036-2045 average",
+      "status": "directional",
+      "note": "world real safe rate under an HLW-type closure; changes across runs only, never the level"
+    },
+    {
+      "id": "q2",
+      "label": "G7 neutral real rate >= 2.00%, 2036-2045",
+      "status": "directional",
+      "note": "same reading as C2; the 2.00% threshold is on the NY Fed HLW composite, which the model does not produce"
+    },
+    {
+      "id": "c3",
+      "label": "IMF advanced-economy gross public debt 2045, % GDP",
+      "status": "directional",
+      "note": "WORLD public debt / world GDP at market exchange rates under an exogenous primary deficit; sign and size of the change only"
+    },
+    {
+      "id": "q3",
+      "label": "G7 on-budget climate fiscal cost >= 1.5% GDP/yr, 2040-2045",
+      "status": "directional",
+      "note": "GLOBAL climate damage as a share of GDP is an OUTPUT loss, not a public outlay, and is world not G7; it bounds the scale of the problem, nothing more"
+    },
+    {
+      "id": "q4",
+      "label": ">= 3 G7 countries: robot/compute tax >= 2% GDP or formal YCC",
+      "status": "refused",
+      "refusal": "legislative and central-bank enactments; the model's repression rule is an assumption about a world aggregate, not evidence about any G7 country"
+    },
+    {
+      "id": "c4",
+      "label": "OECD + China real GDP per capita CAGR 2025->2045",
+      "status": "identified",
+      "note": "growth rates are deflator-invariant; conditional on the run, on the us + oecd-ex-us + china proxy and on the model's low-fertility demography; per capita = (1+g_GDP)/(1+g_pop) - 1"
+    },
+    {
+      "id": "q5",
+      "label": "US + China > 50% and EU-27 < 11.5% of world nominal GDP, 2045",
+      "status": "directional",
+      "note": "constant-2025-price market-rate shares: the real-growth leg only, no prices or exchange rates; EU-27 is not a model region"
+    },
+    {
+      "id": "q6",
+      "label": "2045 regime: growth leg (g, 2035->2045)",
+      "status": "identified",
+      "note": "only g (OECD + China real GDP per capita CAGR 2035->2045) is identified; the inflation and sovereign-credit-event legs of regime C are not representable"
+    }
+  ],
+  "refusals": {
+    "c1": "no trade block: the macro model has no exports, imports, tariffs, shipping or exchange rates",
+    "q1": "no trade block and no nominal trade values by product",
+    "q4": "legislative and central-bank enactments; the model's repression rule is an assumption about a world aggregate, not evidence about any G7 country"
+  },
+  "runs": [
+    "baseline",
+    "net-zero",
+    "high-sensitivity",
+    "climate-cascade",
+    "ai-energy-boom",
+    "automation-boom",
+    "tech-stagnation",
+    "ssp3-70",
+    "debt-populism",
+    "un-wpp-medium"
+  ],
+  "readings": [
+    {
+      "run": "baseline",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328939018018217
+    },
+    {
+      "run": "baseline",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.076565421226717
+    },
+    {
+      "run": "baseline",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "baseline",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.9263339268843946
+    },
+    {
+      "run": "baseline",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.05568702380517564
+    },
+    {
+      "run": "baseline",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.8744028612915
+    },
+    {
+      "run": "baseline",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 102.22521747759083
+    },
+    {
+      "run": "baseline",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 8.35081461629933
+    },
+    {
+      "run": "baseline",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.12313266923075
+    },
+    {
+      "run": "baseline",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1627487594946966
+    },
+    {
+      "run": "baseline",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.8942430116533826
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.621631786127998
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.902258103006994
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.2446559821925893
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.827453857547302
+    },
+    {
+      "run": "baseline",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888034
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.48499068872081
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "baseline",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.772810895392254
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.3485587690597276
+    },
+    {
+      "run": "baseline",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "net-zero",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.032761555234821
+    },
+    {
+      "run": "net-zero",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.3918957185238958
+    },
+    {
+      "run": "net-zero",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "net-zero",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 3.450182098057697
+    },
+    {
+      "run": "net-zero",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.37092236470822015
+    },
+    {
+      "run": "net-zero",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.39962727204141
+    },
+    {
+      "run": "net-zero",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 98.60963966556594
+    },
+    {
+      "run": "net-zero",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 5.210012393524521
+    },
+    {
+      "run": "net-zero",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 1.9460918697235996
+    },
+    {
+      "run": "net-zero",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1607748054605453
+    },
+    {
+      "run": "net-zero",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.821846650503623
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 3.2131411188040193
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 3.4308633578421954
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.70562705302253
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 3.5957080121777896
+    },
+    {
+      "run": "net-zero",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888012
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 45.12565099384005
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636329
+    },
+    {
+      "run": "net-zero",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.313339215431125
+    },
+    {
+      "run": "net-zero",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.9240780525216614
+    },
+    {
+      "run": "net-zero",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328940983120483
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 0.96462021784341
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.755572195478817
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": -0.057157197444629264
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.87510789622846
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 103.24388152263279
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 9.368773626404337
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 4.603484783979756
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.777380930460265
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 2.2854263806958244
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.4979739751309182
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.78493965633837
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.131132382777623
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.6885857639474597
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888035
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.6666679550437
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.949005327851317
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.2251342409446817
+    },
+    {
+      "run": "high-sensitivity",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328940983120487
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 0.9116279528496852
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.6755944795224584
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": -0.110213190374891
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.87510789622894
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 103.6551371139661
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 9.780029217737162
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 5.519969557163124
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 2.149584084591848
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 2.2829612584825623
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.4600175926491996
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.7488336110931266
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.0960033535183387
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.646312809166984
+    },
+    {
+      "run": "climate-cascade",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888034
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.870651967166545
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.299224276363034
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 28.094037685971244
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.1895141651127936
+    },
+    {
+      "run": "climate-cascade",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328692835396136
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.5461340275496462
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 4.724983334426369
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.4163015773106767
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.78607991317922
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 89.72761851452134
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": -4.058461398657876
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.159056034859339
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.162771191853446
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.9118791814910836
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 3.654539013053082
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 3.9380976717263705
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 3.2735105813016085
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 3.8626202166712087
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888035
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.483017464940446
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.769446404679105
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 4.139334844854514
+    },
+    {
+      "run": "ai-energy-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "automation-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328888182852354
+    },
+    {
+      "run": "automation-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.0950321949473711
+    },
+    {
+      "run": "automation-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "automation-boom",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.998471543714021
+    },
+    {
+      "run": "automation-boom",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.06966983596143114
+    },
+    {
+      "run": "automation-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.85616441888759
+    },
+    {
+      "run": "automation-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 101.63616065473818
+    },
+    {
+      "run": "automation-boom",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 7.779996235850584
+    },
+    {
+      "run": "automation-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.099834071440225
+    },
+    {
+      "run": "automation-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1626533825282306
+    },
+    {
+      "run": "automation-boom",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.8837032879505369
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.6786030063605137
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.9331482680300613
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.275293758070407
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.930580677690253
+    },
+    {
+      "run": "automation-boom",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "automation-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888036
+    },
+    {
+      "run": "automation-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.60383014053873
+    },
+    {
+      "run": "automation-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636303
+    },
+    {
+      "run": "automation-boom",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.69291774573743
+    },
+    {
+      "run": "automation-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.4376970291929645
+    },
+    {
+      "run": "automation-boom",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.032893111422343
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.0934548254842924
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.9424600819560665
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.07292088787201612
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.87156715812107
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 102.0917767925933
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 8.22020963447222
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.159557809006346
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.162754334234848
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.914822343758253
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.6459231928721128
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.9267788149988982
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.2690874487505175
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.8514368538808066
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888034
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.49161638043487
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.778416381121417
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.3697371448374582
+    },
+    {
+      "run": "tech-stagnation",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0329594716387553
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 0.9037985597217659
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.578141428803593
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": -0.11089934919373337
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 94.10966613673445
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 104.72771812488655
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 10.6180519881521
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.2590676907089615
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1640453809570155
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.9479734328860945
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.314999839250076
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.6128999537511133
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 1.9575372844558458
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.4876928992095593
+    },
+    {
+      "run": "ssp3-70",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888037
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.43566362183217
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636303
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.851585019799625
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.0044255005027933
+    },
+    {
+      "run": "ssp3-70",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "debt-populism",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0757993555620307
+    },
+    {
+      "run": "debt-populism",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.2177120546602211
+    },
+    {
+      "run": "debt-populism",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 1.4869469264562716
+    },
+    {
+      "run": "debt-populism",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.6497245710957795
+    },
+    {
+      "run": "debt-populism",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.3798047154852602
+    },
+    {
+      "run": "debt-populism",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 97.63717621663132
+    },
+    {
+      "run": "debt-populism",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 171.2075732359414
+    },
+    {
+      "run": "debt-populism",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 73.57039701931008
+    },
+    {
+      "run": "debt-populism",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.154491417843462
+    },
+    {
+      "run": "debt-populism",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1629083671354508
+    },
+    {
+      "run": "debt-populism",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.9121823567284064
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.3684965393063973
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.3165136846165484
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.6660488819668426
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.2215926988814454
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.010136943234331
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.026015103813059604
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.5423955099648676
+    },
+    {
+      "run": "debt-populism",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.66531896514469
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.83269907888035
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.421525019443294
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "debt-populism",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.83814761953235
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.072245104203274
+    },
+    {
+      "run": "debt-populism",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.4535911207464105
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate 2026, %",
+      "value": 1.0328939588150023
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real safe rate, mean 2036-2045, %",
+      "value": 1.0762228409941095
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c2",
+      "status": "directional",
+      "label": "repression gap, mean 2036-2045, pp",
+      "value": 0
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c2",
+      "status": "directional",
+      "label": "world real GDP growth 2035->2045, %/yr (trend-growth leg)",
+      "value": 2.9720285433638916
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q2",
+      "status": "directional",
+      "label": "change in world real safe rate, 2026 -> 2040, pp",
+      "value": 0.053090003430873896
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2026, %",
+      "value": 93.87460741186554
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c3",
+      "status": "directional",
+      "label": "world public debt / GDP 2045, %",
+      "value": 101.32735851784567
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c3",
+      "status": "directional",
+      "label": "change 2026 -> 2045, pp",
+      "value": 7.452751105980127
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage, mean 2040-2045, % of GDP",
+      "value": 2.161122667063668
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q3",
+      "status": "directional",
+      "label": "global climate damage 2026, % of GDP",
+      "value": 1.1627487449862381
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q3",
+      "status": "directional",
+      "label": "warming 2045, C above preindustrial",
+      "value": 1.9088670356175532
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2025->2045, %/yr",
+      "value": 2.650548272141995
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD+China population growth 2025->2045, %/yr",
+      "value": -0.08858266739816267
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "US real GDP growth 2025->2045, %/yr",
+      "value": 2.9366776007198503
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "US population growth 2025->2045, %/yr",
+      "value": 0.48886706672806035
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US real GDP growth 2025->2045, %/yr",
+      "value": 2.2707175888479814
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "OECD ex-US population growth 2025->2045, %/yr",
+      "value": 0.24198271446975728
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "China real GDP growth 2025->2045, %/yr",
+      "value": 2.855267041062981
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "c4",
+      "status": "identified",
+      "label": "China population growth 2025->2045, %/yr",
+      "value": -0.4408659598855946
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2026, %",
+      "value": 44.832699078880346
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q5",
+      "status": "directional",
+      "label": "US + China share of world GDP (market rates, 2025 prices) 2045, %",
+      "value": 44.533410215599105
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2026, % (EU-27 is roughly half of it)",
+      "value": 31.29922427636304
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q5",
+      "status": "directional",
+      "label": "OECD ex-US share 2045, %",
+      "value": 27.77277467094357
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China real GDP growth 2035->2045, %/yr",
+      "value": 2.4047265545522167
+    },
+    {
+      "run": "un-wpp-medium",
+      "question": "q6",
+      "status": "identified",
+      "label": "OECD+China population growth 2035->2045, %/yr",
+      "value": -0.16961886631553513
+    }
+  ],
+  "failures": []
+}
