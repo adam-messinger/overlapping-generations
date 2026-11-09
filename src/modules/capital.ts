@@ -66,6 +66,7 @@ import {
 } from 'tsimulation';
 import { advanceCapitalFinance } from './capital-finance.js';
 import { demandDefaults } from './demand.js';
+import { normalCdf } from '../primitives/math.js';
 import {
   bankRetention,
   capitalBankCapitalRatio,
@@ -97,8 +98,12 @@ export interface CapitalParams {
   maximumNetInvestmentRate: number; // Maximum desired net investment / capital
   realOptionHurdleWeight: number; // 0 = after-interest profit signal; 1 = real-option hurdle (see realOptionHurdle)
   investmentEquityPremium: number; // Hurdle discount rate over the safe rate
-  investmentVolatility: number; // Anticipated volatility of project value with no climate damage (σ)
+  defaultShareOfSpread: number; // Share of the corporate-over-sovereign spread that compensates default risk
+  spreadDebtMaturity: number; // Debt horizon (years) the Merton inversion reads the spread at
+  businessUpsideShare: number; // Share of spread-implied business variance carried as upside jumps
   climateVolatilitySensitivity: number; // σ added per unit of climate damages (fraction of GDP)
+  climateDownsideShare: number; // Share of climate variance carried as downside jumps
+  riskJumpSize: number; // Proportional size of an upside or downside jump in project value
   realOptionHurdleOffset: number; // Fitted: gross return less hurdle plus this = the 2025 legacy profit rate
   robotCapitalDepreciation: number; // Robot capital depreciation (derived from demand.robotDepreciation)
   dataCenterCapitalDepreciation: number; // Datacenter capital depreciation (derived from demand.dataCenterDepreciation)
@@ -263,8 +268,10 @@ export interface CapitalOutputs {
   investmentSignal: number;
   /** Real-option gross-yield hurdle on new general capital (reported whatever realOptionHurdleWeight is) */
   investmentHurdle: number;
-  /** Anticipated volatility of project value the hurdle prices */
+  /** Anticipated volatility of project value the hurdle prices: business and climate in quadrature */
   investmentVolatility: number;
+  /** Business asset volatility implied by the corporate-over-sovereign spread (Merton) */
+  spreadImpliedVolatility: number;
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;
@@ -402,23 +409,44 @@ export const capitalDefaults: CapitalParams = {
   // ~4-6% (Damodaran, S&P 500 implied ERP 2020-2025); survey-based ~5.5%
   // (Fernandez et al. 2024, US). realOptionHurdleOffset is fitted at it.
   investmentEquityPremium: 0.05,
-  // Anticipated volatility of project value. Dixit & Pindyck (1994, ch. 5)
-  // illustrate with sigma = 0.2; long-run annualised S&P 500 return
-  // volatility is ~0.19 (Damodaran historical returns 1928-2024).
-  investmentVolatility: 0.20,
+  // Business volatility is read off the corporate-over-sovereign spread
+  // (creditSpread, 2pp) by inverting Merton (1974) at the firms' target
+  // leverage (debt / capital, 0.457 in 2025). Only part of a spread pays for
+  // default: ~30% for investment grade (Huang & Huang 2012, structural
+  // models), ~70% for BBB (Longstaff, Mithal & Neis 2005, from CDS); the
+  // rest is liquidity, tax and risk premia (the credit-spread puzzle). The
+  // midpoint, 1pp of default spread at 10 years, implies sigma ~0.25,
+  // inside asset-volatility estimates for rated US firms (~0.2-0.3,
+  // Schaefer & Strebulaev 2008) and above Dixit-Pindyck's illustrative 0.2.
+  defaultShareOfSpread: 0.5,
+  // Average maturity of the US investment-grade corporate bond index ~10
+  // years (ICE BofA / Bloomberg US Corporate, 2020s).
+  spreadDebtMaturity: 10,
+  // Judgment, after Bessembinder (2018, JFE): firm-level returns are strongly
+  // right-skewed (4% of listed US stocks account for all net wealth creation
+  // 1926-2016), so most project risk is carried as upside jumps.
+  businessUpsideShare: 0.75,
   // Judgment: at the default path's 2100 damages (~7% of GDP) climate adds
   // about as much anticipated volatility as everything else (3 x 0.068 = 0.20).
   // No estimate exists to calibrate it; a sweep lever, not a finding.
   climateVolatilitySensitivity: 3,
+  // Judgment: world climate damage is mostly loss with fat left tails
+  // (Weitzman 2009); some regions gain, so not all of it.
+  climateDownsideShare: 0.75,
+  // Mean output contraction in a rare macroeconomic disaster, ~29% (Barro
+  // 2006, QJE; Barro & Ursua 2008). Used for upside jumps too (judgment), so
+  // the two shares change the shape of risk, not its jump scale.
+  riskJumpSize: 0.29,
   // Fitted, not sourced: makes the real-option signal equal the legacy
   // after-interest profit rate in the default 2025 (3.87%), so the S-curve's
   // floor and ceiling and the 25.2% investment rate carry over unchanged.
-  // It is the wedge between the 2025 hurdle (13.6%) and the gross return on
+  // It is the wedge between the 2025 hurdle (15.5%) and the gross return on
   // general capital (9.3%) that observed investment implies firms see past:
   // rents and markups (Caballero, Farhi & Gourinchas 2017), which the model
-  // does not carry. Re-fit when the hurdle's defaults, depreciation, or the
-  // 2025 debt or rate calibration move (pinned in capital.test.ts).
-  realOptionHurdleOffset: 0.0825,
+  // does not carry. Re-fit when the hurdle's defaults (including the spread,
+  // its default share and the risk shape), depreciation, or the 2025 debt or
+  // rate calibration move (pinned in capital.test.ts).
+  realOptionHurdleOffset: 0.101,
   // Robot and datacenter capital wear out at the rates demand's capex
   // replaces them at (one source of truth: src/param-derivations.ts).
   robotCapitalDepreciation: demandDefaults.robotDepreciation,
@@ -735,6 +763,95 @@ export function realOptionHurdle(discountRate: number, drift: number, volatility
   return (r - drift) * beta / (beta - 1);
 }
 
+/** Risk in a project's value per year, split by shape (variances add). */
+export interface ValueRisk {
+  /** Variance of the two-sided Brownian part */
+  diffusionVariance: number;
+  /** Poisson rate of upside jumps, value x (1 + jumpSize) */
+  upJumpIntensity: number;
+  /** Poisson rate of downside jumps, value x (1 - jumpSize) */
+  downJumpIntensity: number;
+  jumpSize: number;
+}
+
+/**
+ * Real-option hurdle under a COMPENSATED jump-diffusion (Dixit & Pindyck
+ * 1994, ch. 5; Merton 1976):
+ *
+ *   dpi/pi = (drift + ld*phi - lu*phi) dt + sigma dz + phi dqUp - phi dqDown
+ *
+ * Jumps are compensated so expected growth stays `drift`: the model's profit
+ * path already carries the mean (climate damages are in output), so only
+ * the spread and shape of risk are priced here. beta > 1 solves
+ *
+ *   sigma^2/2 beta(beta-1) + (drift + ld phi - lu phi) beta
+ *     + lu((1+phi)^beta - 1) + ld((1-phi)^beta - 1) = r
+ *
+ * and h = (r - drift) beta/(beta - 1). With no jumps it is realOptionHurdle.
+ * At equal variance the shape matters little (upside skew raises h slightly,
+ * the option to wait being convex); Bernanke's (1983) bad-news asymmetry
+ * works through the mean, which compensation leaves to the profit path.
+ */
+export function jumpDiffusionHurdle(
+  discountRate: number,
+  drift: number,
+  risk: ValueRisk,
+): number {
+  const r = Math.max(1e-4, discountRate);
+  const s2 = Math.max(0, risk.diffusionVariance);
+  const lu = Math.max(0, risk.upJumpIntensity);
+  const ld = Math.max(0, risk.downJumpIntensity);
+  const phi = risk.jumpSize;
+  if (lu === 0 && ld === 0) return realOptionHurdle(r, drift, Math.sqrt(s2));
+  const logUp = Math.log1p(phi);
+  const g = (b: number) =>
+    0.5 * s2 * b * (b - 1)
+    + (drift + ld * phi - lu * phi) * b
+    + lu * (Math.exp(Math.min(700, b * logUp)) - 1)
+    + ld * (Math.pow(1 - phi, b) - 1)
+    - r;
+  // g(1) = drift - r < 0 and g is convex: one root above 1. With no root
+  // (deterministic-like downside only) beta runs to the cap and h -> r - drift.
+  let lo = 1;
+  let hi = 2;
+  while (g(hi) < 0 && hi < 1e6) hi *= 2;
+  for (let i = 0; i < 100; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (g(mid) < 0) lo = mid;
+    else hi = mid;
+  }
+  const beta = 0.5 * (lo + hi);
+  return (r - drift) * beta / (beta - 1);
+}
+
+/**
+ * Merton (1974) credit spread on zero-coupon debt of maturity T, with
+ * leverage = PV of face (at the riskless rate) / asset value:
+ * s = -ln(N(d2) + N(-d1)/leverage) / T.
+ */
+export function mertonSpread(volatility: number, leverage: number, maturity: number): number {
+  const sqrtT = Math.sqrt(maturity);
+  const d1 = (-Math.log(leverage) + 0.5 * volatility * volatility * maturity)
+    / (volatility * sqrtT);
+  const d2 = d1 - volatility * sqrtT;
+  return -Math.log(normalCdf(d2) + normalCdf(-d1) / leverage) / maturity;
+}
+
+/** Asset volatility at which mertonSpread equals `spread` (bisection; spread rises with volatility). */
+export function mertonImpliedVolatility(spread: number, leverage: number, maturity: number): number {
+  const lev = Math.min(0.99, Math.max(1e-3, leverage));
+  let lo = 1e-3;
+  let hi = 3;
+  if (!(spread > mertonSpread(lo, lev, maturity))) return lo;
+  if (spread >= mertonSpread(hi, lev, maturity)) return hi;
+  for (let i = 0; i < 80; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (mertonSpread(mid, lev, maturity) < spread) lo = mid;
+    else hi = mid;
+  }
+  return 0.5 * (lo + hi);
+}
+
 interface FirmCircuit {
   laborCompensation: number;
   operatingSurplus: number;
@@ -985,20 +1102,44 @@ export const capitalModule: Module<
       range: { min: 0.02, max: 0.10, default: 0.05 },
       tier: 2 as const,
     },
-    investmentVolatility: {
-      description: 'Anticipated volatility of project value with no climate damage (sigma), priced by the real-option hurdle.',
-      unit: 'fraction/year',
-      range: { min: 0.05, max: 0.40, default: 0.20 },
+    defaultShareOfSpread: {
+      description: 'Share of the corporate-over-sovereign spread (creditSpread) that compensates default risk; Merton-inverted at target leverage it sets business volatility. Huang-Huang 2012 ~0.3, Longstaff-Mithal-Neis 2005 ~0.7.',
+      unit: 'fraction',
+      range: { min: 0.2, max: 0.9, default: 0.5 },
+      tier: 2 as const,
+    },
+    spreadDebtMaturity: {
+      description: 'Debt horizon (years) at which the Merton inversion reads the spread.',
+      unit: 'year',
+      range: { min: 3, max: 20, default: 10 },
+      tier: 2 as const,
+    },
+    businessUpsideShare: {
+      description: 'Share of spread-implied business variance carried as upside jumps (the rest is two-sided diffusion). Judgment, after the right skew of firm returns (Bessembinder 2018).',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.75 },
+      tier: 2 as const,
+    },
+    climateDownsideShare: {
+      description: 'Share of climate variance carried as downside jumps (the rest is two-sided diffusion). Judgment.',
+      unit: 'fraction',
+      range: { min: 0, max: 1, default: 0.75 },
+      tier: 2 as const,
+    },
+    riskJumpSize: {
+      description: 'Proportional size of an upside or downside jump in project value (Barro 2006 mean disaster ~0.29).',
+      unit: 'fraction',
+      range: { min: 0.05, max: 0.6, default: 0.29 },
       tier: 2 as const,
     },
     realOptionHurdleOffset: {
       description: 'Fitted constant: the real-option signal (gross yield on general capital less the hurdle, plus this) equals the legacy after-interest profit rate in the default 2025. Re-fit when the hurdle defaults or the 2025 calibration move.',
       unit: 'fraction/year',
-      range: { min: 0, max: 0.20, default: 0.0825 },
+      range: { min: 0, max: 0.20, default: 0.101 },
       tier: 2 as const,
     },
     climateVolatilitySensitivity: {
-      description: 'Anticipated volatility added per unit of climate damages (fraction of GDP), combined with investmentVolatility in quadrature. Judgment.',
+      description: 'Anticipated volatility added per unit of climate damages (fraction of GDP), added to the spread-implied business variance. Judgment.',
       unit: 'ratio',
       range: { min: 0, max: 6, default: 3 },
       tier: 2 as const,
@@ -1179,6 +1320,7 @@ export const capitalModule: Module<
       investmentSignal: unitPort('fraction/year'),
       investmentHurdle: unitPort('fraction/year'),
       investmentVolatility: unitPort('fraction/year'),
+      spreadImpliedVolatility: unitPort('fraction/year'),
       retainedEarnings: unitPort('$T/year'),
       firmDividendPayments: unitPort('$T/year'),
       bankDividendPayments: unitPort('$T/year'),
@@ -1306,11 +1448,23 @@ export const capitalModule: Module<
     ) {
       errors.push('investmentEquityPremium must be in (0, 0.20]');
     }
+    for (const key of ['defaultShareOfSpread', 'businessUpsideShare', 'climateDownsideShare'] as const) {
+      const share = params[key];
+      if (share !== undefined && !(share >= 0 && share <= 1)) {
+        errors.push(`${key} must be between 0 and 1`);
+      }
+    }
     if (
-      params.investmentVolatility !== undefined
-      && !(params.investmentVolatility >= 0 && params.investmentVolatility <= 1)
+      params.spreadDebtMaturity !== undefined
+      && !(params.spreadDebtMaturity >= 1 && params.spreadDebtMaturity <= 30)
     ) {
-      errors.push('investmentVolatility must be between 0 and 1');
+      errors.push('spreadDebtMaturity must be between 1 and 30 years');
+    }
+    if (
+      params.riskJumpSize !== undefined
+      && !(params.riskJumpSize > 0 && params.riskJumpSize < 1)
+    ) {
+      errors.push('riskJumpSize must be in (0, 1)');
     }
     if (
       params.climateVolatilitySensitivity !== undefined
@@ -1628,17 +1782,6 @@ export const capitalModule: Module<
       calculateStability(uncertainty, params.stabilityLambda),
       1 - params.realOptionHurdleWeight,
     );
-    // Real-option hurdle on new general capital. Volatility combines the
-    // no-damage base with a climate term in quadrature (independent sources).
-    const investmentVolatility = Math.sqrt(
-      params.investmentVolatility ** 2
-      + (params.climateVolatilitySensitivity * Math.max(0, uncertainty)) ** 2,
-    );
-    const hurdleAt = (safeRate: number) => realOptionHurdle(
-      safeRate + params.investmentEquityPremium,
-      -params.depreciation,
-      investmentVolatility,
-    );
 
     // ==========================================================================
     // Intergenerational fiscal flows, with retirement-age adjustment and wage
@@ -1876,6 +2019,43 @@ export const capitalModule: Module<
     const totalStock = state.stock + automationStock;
     const openingPrivateLeverage = totalStock > 0 ? privateDebt / totalStock : 0;
     const targetPrivateLeverage = state.targetPrivateLeverage ?? openingPrivateLeverage;
+
+    // Real-option hurdle on new general capital. Business risk is read off
+    // the corporate-over-sovereign spread (its default part, Merton-inverted
+    // at the TARGET leverage: actual leverage drifts under target when credit
+    // binds, and reading a fixed spread against it would invent risk) and
+    // carried mostly as upside jumps; climate risk scales with damages and is
+    // carried mostly as downside jumps. Variances add (independent sources).
+    const spreadImpliedVolatility = mertonImpliedVolatility(
+      params.defaultShareOfSpread * params.creditSpread,
+      targetPrivateLeverage,
+      params.spreadDebtMaturity,
+    );
+    const businessVariance = spreadImpliedVolatility ** 2;
+    const climateVariance =
+      (params.climateVolatilitySensitivity * Math.max(0, uncertainty)) ** 2;
+    const jumpVariance = params.riskJumpSize ** 2;
+    const valueRisk: ValueRisk = {
+      diffusionVariance: (1 - params.businessUpsideShare) * businessVariance
+        + (1 - params.climateDownsideShare) * climateVariance,
+      upJumpIntensity: params.businessUpsideShare * businessVariance / jumpVariance,
+      downJumpIntensity: params.climateDownsideShare * climateVariance / jumpVariance,
+      jumpSize: params.riskJumpSize,
+    };
+    const investmentVolatility = Math.sqrt(businessVariance + climateVariance);
+    const hurdleCache = new Map<number, number>();
+    const hurdleAt = (safeRate: number) => {
+      let hurdle = hurdleCache.get(safeRate);
+      if (hurdle === undefined) {
+        hurdle = jumpDiffusionHurdle(
+          safeRate + params.investmentEquityPremium,
+          -params.depreciation,
+          valueRisk,
+        );
+        hurdleCache.set(safeRate, hurdle);
+      }
+      return hurdle;
+    };
     // Robot and datacenter capital: perpetual inventory of realized capex
     // (built, so booked in full even when the pool could not finance it all;
     // that overflow is reported as unfundedRealizedSpend). Independent of the
@@ -2343,6 +2523,7 @@ export const capitalModule: Module<
         investmentSignal: firmCircuit.investmentSignal,
         investmentHurdle: hurdleAt(finance.safeRate),
         investmentVolatility,
+        spreadImpliedVolatility,
         retainedEarnings,
         firmDividendPayments,
         bankDividendPayments,

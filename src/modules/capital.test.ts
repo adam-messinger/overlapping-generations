@@ -5,7 +5,14 @@
  * Validates against Penn World Table and OLG theory.
  */
 
-import { capitalModule, capitalDefaults, realOptionHurdle } from './capital.js';
+import {
+  capitalModule,
+  capitalDefaults,
+  jumpDiffusionHurdle,
+  mertonImpliedVolatility,
+  mertonSpread,
+  realOptionHurdle,
+} from './capital.js';
 import { runSimulation } from '../simulation.js';
 import { firmDepositChange } from './capital-accounting.js';
 import { demographicsModule, demographicsDefaults } from './demographics.js';
@@ -1455,6 +1462,37 @@ test('realOptionHurdle rises with volatility, and the markup is larger at low ra
   expect(realOptionHurdle(0.08, -0.04, 0.2)).toBeGreaterThan(realOptionHurdle(0.06, -0.04, 0.2));
 });
 
+test('jumpDiffusionHurdle with no jumps is the diffusion hurdle; jumps of a given variance stay close to it', () => {
+  const diffusion = { diffusionVariance: 0.0625, upJumpIntensity: 0, downJumpIntensity: 0, jumpSize: 0.29 };
+  expect(jumpDiffusionHurdle(0.06, -0.04, diffusion)).toBe(realOptionHurdle(0.06, -0.04, 0.25));
+  const asJumps = (up: boolean) => jumpDiffusionHurdle(0.06, -0.04, {
+    diffusionVariance: 0,
+    upJumpIntensity: up ? 0.0625 / 0.29 ** 2 : 0,
+    downJumpIntensity: up ? 0 : 0.0625 / 0.29 ** 2,
+    jumpSize: 0.29,
+  });
+  const symmetric = realOptionHurdle(0.06, -0.04, 0.25);
+  // Compensated (mean-preserving) jumps: shape moves the hurdle by < 5%;
+  // upside skew sits above, downside below (the option to wait is convex)
+  expect(Math.abs(asJumps(true) / symmetric - 1)).toBeLessThan(0.05);
+  expect(Math.abs(asJumps(false) / symmetric - 1)).toBeLessThan(0.05);
+  expect(asJumps(true)).toBeGreaterThan(asJumps(false));
+  // Jumps add to the hurdle like variance does
+  expect(jumpDiffusionHurdle(0.06, -0.04, { ...diffusion, downJumpIntensity: 0.5 }))
+    .toBeGreaterThan(symmetric);
+});
+
+test('mertonImpliedVolatility inverts mertonSpread, and a wider spread implies more volatility', () => {
+  const sigma = mertonImpliedVolatility(0.01, 0.457, 10);
+  expect(mertonSpread(sigma, 0.457, 10)).toBeCloseTo(0.01, 6);
+  // The 2025 calibration: 1pp of default spread at 10 years and 0.457 leverage
+  expect(sigma).toBeGreaterThan(0.24);
+  expect(sigma).toBeLessThan(0.26);
+  expect(mertonImpliedVolatility(0.015, 0.457, 10)).toBeGreaterThan(sigma);
+  // Less leverage at the same spread means riskier assets
+  expect(mertonImpliedVolatility(0.01, 0.35, 10)).toBeGreaterThan(sigma);
+});
+
 function stepYearZero(overrides: Record<string, number>) {
   const params = capitalModule.mergeParams(overrides as any);
   const state = capitalModule.init(params);
@@ -1463,16 +1501,17 @@ function stepYearZero(overrides: Record<string, number>) {
 
 test('real-option weight 0 leaves investment blind to the hurdle inputs', () => {
   const base = stepYearZero({});
-  const volatile = stepYearZero({ investmentVolatility: 0.35, investmentEquityPremium: 0.08 });
+  const volatile = stepYearZero({ defaultShareOfSpread: 0.8, investmentEquityPremium: 0.08 });
   expect(volatile.plannedInvestment).toBe(base.plannedInvestment);
   expect(volatile.investmentSignal).toBe(volatile.profitRate);
   // The hurdle itself is still reported
   expect(volatile.investmentHurdle).toBeGreaterThan(base.investmentHurdle);
 });
 
-test('real-option rule: more anticipated volatility cuts desired investment', () => {
+test('real-option rule: a wider corporate spread implies more volatility and cuts desired investment', () => {
   const calm = stepYearZero({ realOptionHurdleWeight: 1 });
-  const volatile = stepYearZero({ realOptionHurdleWeight: 1, investmentVolatility: 0.30 });
+  const volatile = stepYearZero({ realOptionHurdleWeight: 1, creditSpread: 0.03 });
+  expect(volatile.spreadImpliedVolatility).toBeGreaterThan(calm.spreadImpliedVolatility);
   expect(volatile.investmentHurdle).toBeGreaterThan(calm.investmentHurdle);
   expect(volatile.plannedInvestment).toBeLessThan(calm.plannedInvestment);
 });
@@ -1502,9 +1541,12 @@ test('realOptionHurdleOffset is fitted: the default 2025 signal equals the legac
 test('real-option params are validated', () => {
   expect(capitalModule.validate({ realOptionHurdleWeight: 1.5 }).valid).toBe(false);
   expect(capitalModule.validate({ investmentEquityPremium: 0 }).valid).toBe(false);
-  expect(capitalModule.validate({ investmentVolatility: -0.1 }).valid).toBe(false);
+  expect(capitalModule.validate({ defaultShareOfSpread: 1.2 }).valid).toBe(false);
+  expect(capitalModule.validate({ businessUpsideShare: -0.1 }).valid).toBe(false);
+  expect(capitalModule.validate({ riskJumpSize: 1 }).valid).toBe(false);
+  expect(capitalModule.validate({ spreadDebtMaturity: 0 }).valid).toBe(false);
   expect(capitalModule.validate({ climateVolatilitySensitivity: -1 }).valid).toBe(false);
-  expect(capitalModule.validate({ realOptionHurdleWeight: 1, investmentVolatility: 0.3 }).valid).toBe(true);
+  expect(capitalModule.validate({ realOptionHurdleWeight: 1, businessUpsideShare: 0.5 }).valid).toBe(true);
 });
 
 printSummary();

@@ -162,6 +162,7 @@ export interface YearResult {
   investmentSignal: number;
   investmentHurdle: number;
   investmentVolatility: number;
+  spreadImpliedVolatility: number;
   retainedEarnings: number;
   firmDividendPayments: number;
   bankDividendPayments: number;
