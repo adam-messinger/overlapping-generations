@@ -399,7 +399,7 @@ export const capitalDefaults: CapitalParams = {
   // a Dixit-Pindyck hurdle, plus a fitted offset (see realOptionHurdle).
   realOptionHurdleWeight: 0,
   // Real hurdle discount rate = safe rate + this. Implied equity risk premium
-  // ~4-5% (Damodaran, S&P 500 implied ERP 2020-2025); survey-based ~5.5%
+  // ~4-6% (Damodaran, S&P 500 implied ERP 2020-2025); survey-based ~5.5%
   // (Fernandez et al. 2024, US). realOptionHurdleOffset is fitted at it.
   investmentEquityPremium: 0.05,
   // Anticipated volatility of project value. Dixit & Pindyck (1994, ch. 5)

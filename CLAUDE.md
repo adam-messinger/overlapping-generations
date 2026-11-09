@@ -428,6 +428,13 @@ the human-capital ledger (including its replacement-cost re-pricing).
   banks paid out all interest income, equity never grew and the ratio fell ~10x by 2100. Bank capital
   does not constrain lending (reporting, not a feedback)
 - **Risk premium**: high total debt/GDP → higher return on capital / cost of capital → self-limiting; the sovereign rate has its own public-debt sensitivity
+- **Real-option investment (opt-in prototype)**: `capital.realOptionHurdleWeight` 1 replaces the order rule's
+  after-interest profit signal with gross yield less a Dixit-Pindyck hurdle that depends on the safe rate +
+  `investmentEquityPremium` AND anticipated volatility (`investmentVolatility` 0.20 plus
+  `climateVolatilitySensitivity` x damages, judgment), plus a fitted `realOptionHurdleOffset` that holds the default
+  2025 at the legacy signal (re-fit if hurdle defaults or the 2025 calibration move). Default 0 is bit-identical.
+  Volatility, not the rate, is what moves the path (default 2100 GDP −8%, climate-cascade −36%); see
+  `docs/REAL_OPTION_INVESTMENT.md` and `scripts/real-option-investment.ts`
 - Retirement age adjusts with life expectancy AT 65 (WPP e65; 2/3 of e65 gains, share reclassified = extension / e65); pensions track current GDP per worker at the 2025 benefit ratio, healthcare and education current GDP per capita (no frozen price-indexed share, no excess health-cost growth)
 - Demographic savings response: life expectancy and dependency ratio affect savings
 
