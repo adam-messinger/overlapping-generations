@@ -5,8 +5,8 @@
 an external ensemble report of the same date, "Two Engines Against Three Headwinds" (the
 "source report"; its numbers are in `source-report.json`). Questions and locks:
 `questions.md`, `errata.md`. Seats: `seats/`. Pooled numbers: `aggregate/aggregate.md`.
-Side-by-side: `comparison.md`. Raw mean and median lead; the d = 1.35 column is a labelled
-sensitivity only.
+Side-by-side: `comparison.md`. A plain-language narrative of the forecast: `NARRATIVE.md`.
+Raw mean and median lead; the d = 1.35 column is a labelled sensitivity only.
 
 ## BLUF
 
