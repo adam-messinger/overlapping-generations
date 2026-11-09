@@ -16,9 +16,9 @@ Adapter re-run 2026-11-09, identical to `adapter-output.md`. "Slides" = IMF staf
 
 **C4/Q6.** Adapter c4 [IDENTIFIED]: baseline 1.02622/0.99683−1 = 2.95% (runs 2.64-3.98; un-wpp-medium 2.74); q6 [IDENTIFIED]: g = 1.02349/0.99546−1 = 2.82%. Not adopted: the run implies OECD-core per-capita growth of 2.2-2.7% against WDI's 1.16-1.41%, and China 3.5% against 5.4-7.2%; offsetting errors, plus population at −0.32%/yr. Mine: OECD GDP 1.55%; China 4.0% then 2.4%; population 2,809M→2,790M→2,730M; per capita $39.8k→$50.7k→$62.4k: C4 **2.27%**, g 2.09%. P(g≥2.5) = 28% (SD 0.6, model upper tail). Regime C: decade hazards Italy 3, France 1.5, UK 1.5, US 1.5, Japan 1, others 0.4, union 7; stagflation limb 0.08×0.15 = 1; C = 8. A = 0.28×0.96 = 27.
 
-**C1/Q1.** Adapter [REFUSED]. g_T = (3.9+4.1+18×2.0)/20 = 2.2, where 2.0 = 0.14×(−0.5) fuels + 0.15×5 AI goods + 0.71×1.7 other + 0.15 reweighting; g_Y = (2.6+2.9+18×2.5)/20 = 2.53; E = **0.87** ([WTO](https://www.wto.org/english/res_e/booksp_e/trade_outlook24_e.pdf) 2010-23: 2.5/2.7 = 0.93). SD 0.2: P(E<0.75) = 27%. Share 2045 = digital 21.5 + AI goods 11 + fuels and mining 8 = 40.5 ± 5: P(>42) = 38%, 45% given low E. Q1 = 0.27×0.45 = **12**.
+**C1/Q1.** Adapter [REFUSED]. g_T = (3.9+4.1+18×2.0)/20 = 2.2, where 2.0 = 0.14×(−0.5) fuels + 0.15×5 AI goods + 0.71×1.7 other + 0.15 reweighting; g_Y = (2.6+2.9+18×2.5)/20 = 2.53; E = **0.87** ([WTO](https://www.wto.org/english/res_e/booksp_e/trade_outlook24_e.pdf) 2010-23: 2.5/2.7 = 0.93). SD 0.2: P(E<0.75) = 27%. Share 2045 = digital 21.5 + AI goods 11 + fuels and mining 8 = 40.5±5: P(>42) = 38%, 45% given low E. Q1 = 0.27×0.45 = **12**.
 
-**Q5.** Adapter q5 [DIRECTIONAL]: constant-price US + China share flat (44.8 → 44.4-45.1) in every run, so the +7.7pp must come from prices and exchange rates: 6%. EU 17.7×(1.032/1.045)^19 = 14.0; P(<11.5 | first leg) = 0.5. **3**.
+**Q5.** Adapter q5 [DIRECTIONAL]: constant-price US+China share flat (44.8→44.4-45.1) in every run, so the +7.7pp must come from prices and exchange rates: 6%. EU 17.7×(1.032/1.045)^19 = 14.0; P(<11.5 | first leg) = 0.5. **3**.
 
 ```json
 {"c1": {"p10": 0.62, "p50": 0.87, "p90": 1.12},
